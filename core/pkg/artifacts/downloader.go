@@ -39,9 +39,12 @@ func NewArtifactDownloader(
 	skipCache bool,
 	pathPrefix string,
 ) *ArtifactDownloader {
-	fileCache := NewHashOnlyCache()
+	var fileCache Cache
 	if !skipCache {
 		fileCache = NewFileCache(UserCacheDir())
+	} else {
+		fileCache = NewHashOnlyCache()
+
 	}
 	return &ArtifactDownloader{
 		Ctx:                    ctx,

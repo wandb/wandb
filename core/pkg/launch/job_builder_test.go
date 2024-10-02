@@ -216,7 +216,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 			Name: "testArtifact",
 			Type: "code",
 		}
-		jobBuilder.HandleLogArtifactResult(&spb.LogArtifactResponse{ArtifactId: "testArtifactId"}, artifactRecord)
+		jobBuilder.SetRunCodeArtifact("testArtifactId", artifactRecord.GetName())
 		artifact, err := jobBuilder.Build(ctx, gql, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testArtifact", artifact.Name)
@@ -280,7 +280,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 			Name: "testArtifact",
 			Type: "code",
 		}
-		jobBuilder.HandleLogArtifactResult(&spb.LogArtifactResponse{ArtifactId: "testArtifactId"}, artifactRecord)
+		jobBuilder.SetRunCodeArtifact("testArtifactId", artifactRecord.GetName())
 		artifact, err := jobBuilder.Build(ctx, gql, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testArtifact", artifact.Name)
@@ -591,10 +591,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 		for index, testCase := range testCases {
 			jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
 			if index == 0 {
-				jobBuilder.RunCodeArtifact = &ArtifactInfoForJob{
-					ID:   "testID",
-					Name: "testName",
-				}
+				jobBuilder.SetRunCodeArtifact("testID", "testName")
 			}
 			res, err := jobBuilder.GetSourceType(testCase.metadata)
 			if testCase.expectedSourceType != nil {

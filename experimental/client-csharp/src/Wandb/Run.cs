@@ -1,5 +1,7 @@
+using Serilog;
 using WandbInternal;
 using Wandb.Internal;
+using Newtonsoft.Json;
 
 namespace Wandb
 {
@@ -51,15 +53,30 @@ namespace Wandb
         public int StartingStep { get; private set; }
 
         /// <summary>
+        ///  The logger for the run.
+        /// </summary>
+        private readonly ILogger _logger;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="Run"/> class.
         /// </summary>
         /// <param name="interface">The socket interface for communication.</param>
         /// <param name="settings">The settings for the run.</param>
-        internal Run(SocketInterface @interface, Settings settings)
+        internal Run(SocketInterface @interface, Settings settings, ILogger? logger = null)
         {
             _interface = @interface;
 
             Settings = settings;
+
+            _logger = logger ?? new LoggerConfiguration()
+            .MinimumLevel.Debug()
+            .Enrich.WithProperty("Source", "wandb")
+            .WriteTo.File(
+                settings.LogUser,
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Source}: {Message:lj}{NewLine}{Exception}"
+            )
+            .CreateLogger();
+            _logger.Information("Run created");
         }
 
         /// <summary>
@@ -93,6 +110,11 @@ namespace Wandb
                 throw new Exception(runResult.Error.Message);
             }
 
+            if (runResult.Run.Summary != null)
+            {
+                await _interface.PublishSummary(runResult.Run.Summary).ConfigureAwait(false);
+            }
+
             // save project, entity, display name, and resume status to settings
             Settings.Project = runResult.Run.Project;
             Settings.Entity = runResult.Run.Entity;
@@ -101,9 +123,6 @@ namespace Wandb
 
             StartingStep = (int)runResult.Run.StartingStep;
 
-            // TODO: save config to the run for local access
-            // Console.WriteLine(runResult.Run.Config);
-
             Result result = await _interface.DeliverRunStart(this, 30000).ConfigureAwait(false);
 
             if (result.Response == null)
@@ -111,9 +130,7 @@ namespace Wandb
                 throw new Exception("Failed to deliver run start");
             }
 
-            // TODO: update the config
-
-            PrintRunURL();
+            _logger.Information("View run {DisplayName} at {RunURL}", Settings.DisplayName, Settings.RunURL);
         }
 
         /// <summary>
@@ -146,6 +163,54 @@ namespace Wandb
         }
 
         /// <summary>
+        /// Gets the run's summary.
+        /// </summary>
+        /// <returns></returns>
+        public async Task<T> GetSummary<T>() where T : new()
+        {
+            var timeoutMs = 20000;  // TODO: make this configurable
+            var result = await _interface.DeliverGetSummary(timeoutMs).ConfigureAwait(false);
+
+            var summary = new Dictionary<string, object>();
+            // iterate over the summary and print the key-value pairs
+            foreach (var item in result.Response.GetSummaryResponse.Item)
+            {
+                string key = item.Key;
+                // skip internal keys
+                if (key == "_wandb" || key == "_runtime" || key == "_step")
+                {
+                    continue;
+                }
+
+                string valueJson = item.ValueJson;
+
+                try
+                {
+                    var deserializedValue = JsonConvert.DeserializeObject<T>(valueJson);
+                    if (deserializedValue != null)
+                    {
+                        summary[key] = deserializedValue;
+                    }
+                    else
+                    {
+                        // If the value doesn't match the type, just store the raw JSON
+                        summary[key] = JsonConvert.DeserializeObject<object>(valueJson);
+                    }
+                }
+                catch (JsonSerializationException)
+                {
+                    // If the deserialization to T fails, just store it as a dynamic object
+                    summary[key] = JsonConvert.DeserializeObject<object>(valueJson);
+                }
+            }
+
+            // Serialize the summary to JSON and then deserialize it to the specified type
+            var jsonSummary = JsonConvert.SerializeObject(summary);
+            T typedSummary = JsonConvert.DeserializeObject<T>(jsonSummary);
+            return typedSummary;
+        }
+
+        /// <summary>
         /// Completes the run by sending exit commands and cleaning up resources.
         /// </summary>
         /// <returns>A task that represents the asynchronous operation.</returns>
@@ -160,66 +225,9 @@ namespace Wandb
             }
             // Send finish command
             await _interface.InformFinish().ConfigureAwait(false);
-            PrintRunURL();
-            PrintRunDir();
-        }
 
-        /// <summary>
-        /// Prints the URL of the run to the console.
-        /// </summary>
-        private void PrintRunURL()
-        {
-            // Set the color for the prefix to blue
-            Console.ForegroundColor = ConsoleColor.Blue;
-            Console.Write("wandb");
-
-            // Reset the color and write the remaining text on the same line
-            Console.ResetColor();
-            Console.Write(": View run ");
-
-            // Set the color for the display name to yellow
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.Write(Settings.DisplayName);
-
-            // Reset the color and write " at "
-            Console.ResetColor();
-            Console.Write(" at ");
-
-            // Set the color for the URL to magenta
-            Console.Write("\u001b[4m");  // Enable underline
-            Console.ForegroundColor = ConsoleColor.DarkBlue;
-            Console.Write(Settings.RunURL);
-            Console.Write("\u001b[0m");  // Reset formatting
-
-            // Reset the color back to default
-            Console.ResetColor();
-
-            // End the line
-            Console.WriteLine();
-        }
-
-        /// <summary>
-        /// Prints the directory where run data is saved locally.
-        /// </summary>
-        private void PrintRunDir()
-        {
-            // Set the color for the prefix to blue
-            Console.ForegroundColor = ConsoleColor.Blue;
-            Console.Write("wandb");
-
-            // Reset the color and write the remaining text on the same line
-            Console.ResetColor();
-            Console.Write(": Run data is saved locally in ");
-
-            // Set the color for the URL to magenta
-            Console.ForegroundColor = ConsoleColor.Magenta;
-            Console.Write(Settings.SyncDir);
-
-            // Reset the color back to default
-            Console.ResetColor();
-
-            // End the line
-            Console.WriteLine();
+            _logger.Information("Run {DisplayName} data is saved locally in {SyncDir}", Settings.DisplayName, Settings.SyncDir);
+            _logger.Information("Run {DisplayName} finished", Settings.DisplayName);
         }
 
         /// <summary>
@@ -228,6 +236,12 @@ namespace Wandb
         public void Dispose()
         {
             _interface.Dispose();
+
+            // Ensure all log entries are flushed before disposing the session
+            if (_logger is Serilog.Core.Logger logger)
+            {
+                logger.Dispose();  // Flushes and disposes the logger if it's the Serilog implementation
+            }
         }
     }
 }

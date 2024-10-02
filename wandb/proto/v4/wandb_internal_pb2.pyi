@@ -3806,6 +3806,30 @@ class TrainiumInfo(google.protobuf.message.Message):
 global___TrainiumInfo = TrainiumInfo
 
 @typing_extensions.final
+class TPUInfo(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    NAME_FIELD_NUMBER: builtins.int
+    HBM_GIB_FIELD_NUMBER: builtins.int
+    DEVICES_PER_CHIP_FIELD_NUMBER: builtins.int
+    COUNT_FIELD_NUMBER: builtins.int
+    name: builtins.str
+    hbm_gib: builtins.int
+    devices_per_chip: builtins.int
+    count: builtins.int
+    def __init__(
+        self,
+        *,
+        name: builtins.str = ...,
+        hbm_gib: builtins.int = ...,
+        devices_per_chip: builtins.int = ...,
+        count: builtins.int = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["count", b"count", "devices_per_chip", b"devices_per_chip", "hbm_gib", b"hbm_gib", "name", b"name"]) -> None: ...
+
+global___TPUInfo = TPUInfo
+
+@typing_extensions.final
 class MetadataRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -3874,6 +3898,7 @@ class MetadataRequest(google.protobuf.message.Message):
     SLURM_FIELD_NUMBER: builtins.int
     CUDA_VERSION_FIELD_NUMBER: builtins.int
     TRAINIUM_FIELD_NUMBER: builtins.int
+    TPU_FIELD_NUMBER: builtins.int
     os: builtins.str
     python: builtins.str
     @property
@@ -3917,6 +3942,8 @@ class MetadataRequest(google.protobuf.message.Message):
     cuda_version: builtins.str
     @property
     def trainium(self) -> global___TrainiumInfo: ...
+    @property
+    def tpu(self) -> global___TPUInfo: ...
     def __init__(
         self,
         *,
@@ -3951,9 +3978,10 @@ class MetadataRequest(google.protobuf.message.Message):
         slurm: collections.abc.Mapping[builtins.str, builtins.str] | None = ...,
         cuda_version: builtins.str = ...,
         trainium: global___TrainiumInfo | None = ...,
+        tpu: global___TPUInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["cpu", b"cpu", "git", b"git", "gpu_apple", b"gpu_apple", "heartbeatAt", b"heartbeatAt", "memory", b"memory", "startedAt", b"startedAt", "trainium", b"trainium"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_apple", b"gpu_apple", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "startedAt", b"startedAt", "state", b"state", "trainium", b"trainium", "username", b"username"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["cpu", b"cpu", "git", b"git", "gpu_apple", b"gpu_apple", "heartbeatAt", b"heartbeatAt", "memory", b"memory", "startedAt", b"startedAt", "tpu", b"tpu", "trainium", b"trainium"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_apple", b"gpu_apple", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "startedAt", b"startedAt", "state", b"state", "tpu", b"tpu", "trainium", b"trainium", "username", b"username"]) -> None: ...
 
 global___MetadataRequest = MetadataRequest
 

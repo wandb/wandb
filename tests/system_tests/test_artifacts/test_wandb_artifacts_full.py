@@ -693,7 +693,7 @@ def test_new_draft(wandb_init):
     # We would use public properties, but they're only available on non-draft artifacts.
     assert draft._entity == parent.entity
     assert draft._project == parent.project
-    assert draft._source_name == art.name
+    assert draft._source_name == art.name.split(":")[0]
     assert draft._source_entity == parent.entity
     assert draft._source_project == parent.project
 

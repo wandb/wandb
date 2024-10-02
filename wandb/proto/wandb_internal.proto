@@ -1192,6 +1192,13 @@ message TrainiumInfo {
   uint32 neuroncore_per_device_count = 4;
 }
 
+message TPUInfo {
+  string name = 1;
+  uint32 hbm_gib = 2;
+  uint32 devices_per_chip = 3;
+  uint32 count = 4;
+}
+
 message MetadataRequest {
   string os = 1;
   string python = 2;
@@ -1224,6 +1231,7 @@ message MetadataRequest {
   map<string, string> slurm = 29;
   string cuda_version = 30;
   TrainiumInfo trainium = 31;
+  TPUInfo tpu = 32;
 }
 
 message PythonPackagesRequest {
