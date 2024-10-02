@@ -23,7 +23,7 @@ class SentryResponse:
 
 
 class MetricRelayServer:
-    events: dict[str, SentryResponse] = {}
+    events: dict = {}
 
     def __init__(
         self,
