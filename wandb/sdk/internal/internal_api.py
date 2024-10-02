@@ -3571,7 +3571,7 @@ class Api:
             org_name = org["name"] or ""
             org_entity_name = org["orgEntity"]["name"] or ""
         except (LookupError, TypeError) as e:
-            raise ValueError(f"Organization not found for entity {entity!r}") from e
+            raise ValueError(f"Unable to find organization for artifact under entity: {entity!r} Please make sure you are using a team entity when linking to the Registry") from e
         else:
             return org_entity_name, org_name
 
