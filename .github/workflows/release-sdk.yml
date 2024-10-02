@@ -75,9 +75,9 @@ jobs:
           # Path to the project
           PROJECT_PATH="experimental/client-csharp/src/Wandb/Wandb.csproj"
           if [ -z "$VERSION_SUFFIX" ]; then
-            dotnet setversion --version "$VERSION_PREFIX" "$PROJECT_PATH"
+            setversion --version "$VERSION_PREFIX" "$PROJECT_PATH"
           else
-            dotnet setversion --version "$VERSION_PREFIX-$VERSION_SUFFIX" "$PROJECT_PATH"
+            setversion --version "$VERSION_PREFIX-$VERSION_SUFFIX" "$PROJECT_PATH"
           fi
 
       - name: Update CHANGELOG.md
