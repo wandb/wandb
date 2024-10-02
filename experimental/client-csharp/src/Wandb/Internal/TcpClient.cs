@@ -256,6 +256,7 @@ namespace Wandb.Internal
             _receiveTask?.Wait();
             _networkStream?.Close();
             _tcpClient.Close();
+            _writeSemaphore.Dispose();
         }
     }
 }

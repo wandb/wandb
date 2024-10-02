@@ -44,9 +44,33 @@ jobs:
         run: |
           git checkout -b release-${{ github.event.inputs.version }}
 
-      - name: Bump Version
+      - name: Bump Python SDK Version
         run: |
           bump2version patch --no-tag --no-commit --config-file .bumpversion.wandb.cfg --new-version ${{ github.event.inputs.version }}
+
+      - name: Bump C# SDK Version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          echo "Version: $VERSION"
+
+          # Use regex to split VERSION into numeric part and suffix
+          if [[ "$VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)([a-zA-Z0-9]+)?$ ]]; then
+            VERSION_PREFIX="${BASH_REMATCH[1]}"
+            VERSION_SUFFIX="${BASH_REMATCH[2]}"
+            echo "VersionPrefix: $VERSION_PREFIX"
+            echo "VersionSuffix: $VERSION_SUFFIX"
+          else
+            echo "Invalid version format: $VERSION"
+            exit 1
+          fi
+
+          # Path to the project
+          PROJECT_PATH="sdk/experimental/client-csharp/src/Wandb/Wandb.csproj"
+          echo "Building project at $PROJECT_PATH"
+
+          # Build the project with specified VersionPrefix and VersionSuffix
+          dotnet build "$PROJECT_PATH" /p:VersionPrefix="$VERSION_PREFIX" /p:VersionSuffix="$VERSION_SUFFIX"
+
 
       - name: Update CHANGELOG.md
         if: ${{ inputs.update-changelog }}
@@ -413,10 +437,41 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_TOKEN }}
+  publish-release-notes:
+    name: Publish Release Notes
+    needs: pypi-publish
+    runs-on: ubuntu-latest
+    if: ${{ inputs.update-changelog && !inputs.dry-run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: release-${{ github.event.inputs.version }}
+      - name: Create Source Archives
+        run: |
+          git archive --format=zip --output=wandb-${{ github.event.inputs.version }}.zip HEAD
+          git archive --format=tar.gz --output=wandb-${{ github.event.inputs.version }}.tar.gz HEAD
+      - name: Extract release notes and set output
+        id: release_notes
+        run: |
+          echo "## What's Changed" > release_notes.md
+          awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md >> release_notes.md
+      - name: Create Release Notes
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ github.event.inputs.version }}
+          tag_name: v${{ github.event.inputs.version }}
+          target_commitish: release-${{ github.event.inputs.version }}
+          body_path: release_notes.md
+          files: |
+            wandb-${{ github.event.inputs.version }}.zip
+            wandb-${{ github.event.inputs.version }}.tar.gz
+          draft: true
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   create-dev-branch:
     name: Create dev branch and PR
-    needs: pypi-publish
+    needs: publish-release-notes
     runs-on: ubuntu-latest
     if: ${{ inputs.update-changelog && !inputs.dry-run }}
     steps:
@@ -454,39 +509,6 @@ jobs:
           IFS='.' read -r major minor patch <<< "${{ github.event.inputs.version }}"
           new_version="${major}.${minor}.$((patch + 1)).dev1"
           gh pr create --base main --head bump-${new_version} --title "chore(sdk): bump version to ${new_version}" --body "This PR bumps the version to the next dev version after the release of ${{ github.event.inputs.version }}."
-
-
-  publish-release-notes:
-    name: Publish Release Notes
-    needs: pypi-publish
-    runs-on: ubuntu-latest
-    if: ${{ inputs.update-changelog && !inputs.dry-run }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: release-${{ github.event.inputs.version }}
-      - name: Create Source Archives
-        run: |
-          git archive --format=zip --output=wandb-${{ github.event.inputs.version }}.zip HEAD
-          git archive --format=tar.gz --output=wandb-${{ github.event.inputs.version }}.tar.gz HEAD
-      - name: Extract release notes and set output
-        id: release_notes
-        run: |
-          echo "## What's Changed" > release_notes.md
-          awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md >> release_notes.md
-      - name: Create Release Notes
-        uses: softprops/action-gh-release@v2
-        with:
-          name: v${{ github.event.inputs.version }}
-          tag_name: v${{ github.event.inputs.version }}
-          target_commitish: release-${{ github.event.inputs.version }}
-          body_path: release_notes.md
-          files: |
-            wandb-${{ github.event.inputs.version }}.zip
-            wandb-${{ github.event.inputs.version }}.tar.gz
-          draft: true
-          token: ${{ secrets.GITHUB_TOKEN }}
 
   slack:
     if: ${{ !inputs.dry-run }}
