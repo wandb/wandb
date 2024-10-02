@@ -122,10 +122,11 @@ func getStorageProvider(ref string, fts *FileTransfers) (ReferenceArtifactFileTr
 	case err != nil:
 		return nil, err
 	case uriParts.Scheme == "gs":
-		if fts.GCS == nil {
+		gcsFileTransfer := fts.GetGCSFileTransfer()
+		if gcsFileTransfer == nil {
 			return nil, fmt.Errorf("reference artifact task: gcs client could not be instantiated")
 		}
-		return fts.GCS, nil
+		return gcsFileTransfer, nil
 	default:
 		return nil, fmt.Errorf("reference artifact task: unknown reference type: %s", ref)
 	}
