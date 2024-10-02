@@ -957,7 +957,8 @@ class WandbImporter:
                 incremental=incremental,
                 remapping=remapping,
                 max_workers=max_workers,
-                parallel=parallel
+                parallel=parallel,
+                terminal_output=False
             )
 
         if reports:
