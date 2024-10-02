@@ -1,7 +1,5 @@
 use clap::Parser;
-use nix::unistd::getppid;
 use sentry::types::Dsn;
-use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
 use std::collections::HashSet;
 use std::env;
 use std::io;
@@ -41,6 +39,41 @@ fn parse_bool(s: &str) -> bool {
     }
 }
 
+/// Listen for signals to gracefully shutdown the program
+#[cfg(target_os = "linux")]
+fn setup_signal_handler(running: Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>> {
+    use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
+    let mut signals = Signals::new(TERM_SIGNALS)?;
+    thread::spawn(move || {
+        for _sig in signals.forever() {
+            running.store(false, Ordering::Relaxed);
+            break;
+        }
+    });
+    Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn setup_signal_handler(_running: Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>> {
+    // Windows doesn't support the same signal handling as Unix, so we can't
+    // gracefully shutdown the program. Instead, we rely on the parent process
+    // to kill the program when it's done.
+    Ok(())
+}
+
+/// Check if the parent process is still alive
+#[cfg(target_os = "linux")]
+fn is_parent_alive(ppid: i32) -> bool {
+    use nix::unistd::getppid;
+    getppid() == nix::unistd::Pid::from_raw(ppid)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn is_parent_alive(_ppid: i32) -> bool {
+    // TODO: Implement for other platforms
+    true
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command-line arguments
     let args = Args::parse();
@@ -70,22 +103,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         e
     })?;
 
-    // TODO:
-    // Set the parent-death signal to SIGTERM
-    // set_pdeathsig(Signal::SIGTERM)?;
-
     // Set up a flag to control the main sampling loop
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
 
     // Set up signal handler for graceful shutdown
-    let mut signals = Signals::new(TERM_SIGNALS)?;
-    thread::spawn(move || {
-        for _sig in signals.forever() {
-            r.store(false, Ordering::Relaxed);
-            break;
-        }
-    });
+    setup_signal_handler(r)?;
 
     // Error cache to minimize duplicate error messages sent to Sentry
     let mut error_cache: HashSet<String> = HashSet::new();
@@ -93,13 +116,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Main sampling loop. Will run until the parent process is no longer alive or a signal is received.
     while running.load(Ordering::Relaxed) {
         let sampling_start = Instant::now();
+
+        // Check if parent process is still alive and break loop if not
+        if !is_parent_alive(args.ppid) {
+            break;
+        }
+
+        let mut metrics = Metrics::new();
+
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs_f64();
 
-        // Sample GPU metrics
-        let mut metrics = Metrics::new();
+        // Sample Nvidia GPU metrics
         if let Err(e) = nvidia_gpu.sample_metrics(&mut metrics, args.pid) {
             let error_message = e.to_string();
             if !error_cache.contains(&error_message) {
@@ -122,11 +152,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     sentry::capture_error(&e);
                 }
             }
-        }
-
-        // Check if parent process is still alive and break loop if not
-        if getppid() != nix::unistd::Pid::from_raw(args.ppid) {
-            break;
         }
 
         // Sleep to maintain requested sampling interval

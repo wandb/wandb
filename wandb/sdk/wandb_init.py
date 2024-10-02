@@ -578,6 +578,7 @@ class _WandbInit:
         ):
             setattr(drun, symbol, lambda *_, **__: None)  # type: ignore
         # attributes
+        drun._backend = None
         drun._step = 0
         drun._attach_id = None
         drun._run_obj = None
