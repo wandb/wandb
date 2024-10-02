@@ -104,7 +104,7 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 
 		progress, err := wboperation.Get(task.Context).NewProgress()
 		if err != nil {
-			ft.logger.CaptureError(fmt.Errorf("file transfer: %v"))
+			ft.logger.CaptureError(fmt.Errorf("file transfer: %v", err))
 		}
 
 		requestBody = NewProgressReader(
