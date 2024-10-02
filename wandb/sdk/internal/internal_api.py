@@ -3539,9 +3539,10 @@ class Api:
                     raise ValueError(
                         f"Artifact belongs to the organization {org_entity!r} and cannot be linked to {organization!r}. Please update the target path with the correct organization name.",
                     )
+            return org_entity
         else:
             # Server doesn't support fetching org entity, so we assume the org entity is correctly inputted
-            org_entity = organization
+            return organization
 
     def fetch_org_entity_from_entity(self, entity: str) -> Tuple[str, str]:
         query = gql(
