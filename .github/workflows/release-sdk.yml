@@ -70,6 +70,7 @@ jobs:
           fi
 
           dotnet tool install -g dotnet-setversion
+          export PATH="$PATH:$HOME/.dotnet/tools"
 
           # Path to the project
           PROJECT_PATH="experimental/client-csharp/src/Wandb/Wandb.csproj"
