@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/internal/collections"
 	"github.com/wandb/wandb/core/internal/filestreamtest"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
@@ -14,7 +15,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runfilestest"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/sparselist"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -47,7 +47,7 @@ func TestFileStreamUpdates(t *testing.T) {
 
 	request := fileStream.GetRequest(settings)
 	assert.Equal(t,
-		[]sparselist.Run[string]{
+		[]collections.SparseListRun[string]{
 			{Start: 0, Items: []string{
 				"ERROR 2024-01-01T00:00:00.000000 line1",
 				"ERROR 2024-01-01T00:00:00.000000 line2 - modified",
@@ -89,5 +89,7 @@ func TestFileStreamUpdatesDisabled(t *testing.T) {
 	assert.True(t, os.IsNotExist(err))
 
 	request := fileStream.GetRequest(settings)
-	assert.Equal(t, []sparselist.Run[string]{}, request.ConsoleLines.ToRuns())
+	assert.Equal(t,
+		[]collections.SparseListRun[string]{},
+		request.ConsoleLines.ToRuns())
 }
