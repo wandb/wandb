@@ -69,14 +69,8 @@ jobs:
             exit 1
           fi
 
-          # Replace or add the <Version> element in the csproj file
-          if grep -q '<Version>.*</Version>' "$PROJECT_PATH"; then
-            # Replace existing <Version> element
-            sed -i.bak 's|<Version>.*</Version>|<Version>'"$VERSION"'</Version>|' "$PROJECT_PATH"
-          else
-            # Add <Version> element under the first <PropertyGroup>
-            sed -i.bak '0,/<PropertyGroup>/s|<PropertyGroup>|<PropertyGroup>\n    <Version>'"$VERSION"'</Version>|' "$PROJECT_PATH"
-          fi
+          export PROJECT_PATH="experimental/client-csharp/src/Wandb/Wandb.csproj"
+          sed -i.bak 's|<Version>.*</Version>|<Version>'"$VERSION"'</Version>|' "$PROJECT_PATH"
 
           # Verify the update
           cat "$PROJECT_PATH"
