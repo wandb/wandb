@@ -4,7 +4,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/wandb/wandb/core/internal/sparselist"
+	"github.com/wandb/wandb/core/internal/collections"
 )
 
 // FileStreamRequest is data that can be sent via filestream.
@@ -30,7 +30,7 @@ type FileStreamRequest struct {
 	// Unlike history and system metrics, we often update past lines in
 	// console logs due to terminal emulation. For example, this is how
 	// tqdm-like progress bars work.
-	ConsoleLines sparselist.SparseList[string]
+	ConsoleLines collections.SparseList[string]
 
 	// UploadedFiles is a set of files that have been uploaded.
 	//
@@ -121,7 +121,7 @@ type FileStreamRequestReader struct {
 	// consoleLineRuns is consecutive runs of console lines.
 	//
 	// The first run is sent; the rest are kept for the next request.
-	consoleLineRuns    []sparselist.Run[string]
+	consoleLineRuns    []collections.SparseListRun[string]
 	consoleLinesToSend int // how many lines to send from consoleLineRuns[0]
 
 	// isFullRequest is whether the entire [FileStreamRequest] can

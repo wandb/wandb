@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wandb/wandb/core/internal/collections"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -55,7 +56,7 @@ type WandbOperations struct {
 	mu sync.Mutex
 
 	// operations is all operations sorted in ascending order by startTime.
-	operations DoublyLinkedList[*WandbOperation]
+	operations collections.DoublyLinkedList[*WandbOperation]
 }
 
 func NewOperations() *WandbOperations {
@@ -127,12 +128,12 @@ type WandbOperation struct {
 	// node is a reference to this operation's position in a list.
 	//
 	// It's either a node in the root list, or a node in an operation's subtask list.
-	node *DoublyLinkedListNode[*WandbOperation]
+	node *collections.DoublyLinkedListNode[*WandbOperation]
 
 	// subtasks is the list of this operation's subtasks sorted by startTime.
 	//
 	// Access is protected by the root mutex.
-	subtasks DoublyLinkedList[*WandbOperation]
+	subtasks collections.DoublyLinkedList[*WandbOperation]
 
 	// mu is locked for modifying this operation's state.
 	//

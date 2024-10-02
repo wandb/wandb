@@ -1,15 +1,15 @@
-package wboperation_test
+package collections_test
 
 import (
 	"iter"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/internal/wboperation"
+	"github.com/wandb/wandb/core/internal/collections"
 )
 
 func TestAppend_IncreasesLength(t *testing.T) {
-	list := &wboperation.DoublyLinkedList[int]{}
+	list := &collections.DoublyLinkedList[int]{}
 
 	_ = list.Append(1)
 	_ = list.Append(1)
@@ -19,7 +19,7 @@ func TestAppend_IncreasesLength(t *testing.T) {
 }
 
 func TestRemove_ReducesLength(t *testing.T) {
-	list := &wboperation.DoublyLinkedList[int]{}
+	list := &collections.DoublyLinkedList[int]{}
 
 	_ = list.Append(1)
 	n := list.Append(1)
@@ -30,7 +30,7 @@ func TestRemove_ReducesLength(t *testing.T) {
 }
 
 func TestRemoveInMiddle_RemovedFromIter(t *testing.T) {
-	list := &wboperation.DoublyLinkedList[string]{}
+	list := &collections.DoublyLinkedList[string]{}
 
 	_ = list.Append("one")
 	n := list.Append("two")
@@ -53,7 +53,7 @@ func TestRemoveInMiddle_RemovedFromIter(t *testing.T) {
 }
 
 func TestAppendAfterRemove(t *testing.T) {
-	list := &wboperation.DoublyLinkedList[string]{}
+	list := &collections.DoublyLinkedList[string]{}
 
 	_ = list.Append("one")
 	n2 := list.Append("two")
@@ -78,7 +78,7 @@ func TestAppendAfterRemove(t *testing.T) {
 }
 
 func TestRemoveFirst_RemovedFromIter(t *testing.T) {
-	list := &wboperation.DoublyLinkedList[string]{}
+	list := &collections.DoublyLinkedList[string]{}
 
 	n := list.Append("one")
 	_ = list.Append("two")
@@ -101,7 +101,7 @@ func TestRemoveFirst_RemovedFromIter(t *testing.T) {
 }
 
 func TestRemoveLast_RemovedFromIter(t *testing.T) {
-	list := &wboperation.DoublyLinkedList[string]{}
+	list := &collections.DoublyLinkedList[string]{}
 
 	_ = list.Append("one")
 	_ = list.Append("two")
@@ -124,7 +124,7 @@ func TestRemoveLast_RemovedFromIter(t *testing.T) {
 }
 
 func TestRemoveAfterRemove_Noop(t *testing.T) {
-	list := &wboperation.DoublyLinkedList[int]{}
+	list := &collections.DoublyLinkedList[int]{}
 
 	_ = list.Append(0)
 	n := list.Append(1)
@@ -135,7 +135,7 @@ func TestRemoveAfterRemove_Noop(t *testing.T) {
 }
 
 func TestIter_StopsOnBreak(t *testing.T) {
-	list := &wboperation.DoublyLinkedList[string]{}
+	list := &collections.DoublyLinkedList[string]{}
 	_ = list.Append("a")
 	_ = list.Append("b")
 	_ = list.Append("c")

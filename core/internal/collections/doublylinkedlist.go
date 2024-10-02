@@ -1,4 +1,4 @@
-package wboperation
+package collections
 
 import "iter"
 
