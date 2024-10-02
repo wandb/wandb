@@ -80,6 +80,8 @@ jobs:
             setversion --version "$VERSION_PREFIX-$VERSION_SUFFIX" "$PROJECT_PATH"
           fi
 
+          cat "$PROJECT_PATH"
+
       - name: Update CHANGELOG.md
         if: ${{ inputs.update-changelog }}
         run: |
@@ -95,6 +97,7 @@ jobs:
 
       - name: Commit and push changes
         run: |
+          git add experimental/client-csharp/src/Wandb/Wandb.csproj
           git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
           git push --no-verify -f origin release-${{ github.event.inputs.version }}
 
