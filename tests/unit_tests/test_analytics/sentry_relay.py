@@ -78,10 +78,6 @@ class MetricRelayServer:
         _, port = sock.getsockname()
         return port
 
-    def extract_sentry_message_details(self, event_data):
-        decompressed_data = zlib.decompress(event_data, 16 + zlib.MAX_WBITS)
-        envelope = Envelope.deserialize(decompressed_data)
-        return envelope
 
     def sentry(self, project_id):
         decompressed_data = zlib.decompress(request.get_data(), 16 + zlib.MAX_WBITS)

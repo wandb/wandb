@@ -75,8 +75,8 @@ def test_wandb_sentry_init_after_client_init(relay):
     - Assert events arrive to local api server
     - Validate no data is leaked between wandb and client events
     """
-    client_message = "client message"
-    wandb_message = "wandb message"
+    other_sentry_client_message = "client message"
+    wandb_sentry_client_message = "wandb message"
     with mock.patch.dict(
         os.environ,
         {
@@ -94,16 +94,16 @@ def test_wandb_sentry_init_after_client_init(relay):
         # Send sentry events
         sentry_sdk.set_tag("test", "tag")
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        client_event_id = sentry_sdk.capture_message(client_message)
-        wandb_event_id = wandb_sentry.message(wandb_message)
+        client_event_id = sentry_sdk.capture_message(other_sentry_client_message)
+        wandb_event_id = wandb_sentry.message(wandb_sentry_client_message)
 
         wait_for_events(relay, [client_event_id, wandb_event_id])
 
         wandb_envelope = relay.events[wandb_event_id]
         client_envelope = relay.events[client_event_id]
 
-        assert wandb_envelope.payload["message"] == wandb_message
-        assert client_envelope.payload["message"] == client_message
+        assert wandb_envelope.payload["message"] == wandb_sentry_client_message
+        assert client_envelope.payload["message"] == other_sentry_client_message
         assert wandb_envelope.payload["message"] != client_envelope.payload["message"]
 
         assert_wandb_and_client_events(wandb_envelope, client_envelope)
@@ -120,8 +120,8 @@ def test_wandb_sentry_init_after_client_write(relay):
     - Assert events arrive to local api server
     - Validate no data is leaked between wandb and client events
     """
-    client_message = "client message"
-    wandb_message = "wandb message"
+    other_sentry_client_message = "client message"
+    wandb_sentry_client_message = "wandb message"
     with mock.patch.dict(
         os.environ,
         {
@@ -136,13 +136,13 @@ def test_wandb_sentry_init_after_client_write(relay):
         sentry_sdk.set_tag("test", "tag")
 
         # Send client sentry events
-        client_event_id = sentry_sdk.capture_message(client_message)
+        client_event_id = sentry_sdk.capture_message(other_sentry_client_message)
 
         # Init wandb sentry and send events
         wandb_sentry = wandb.analytics.Sentry()
         wandb_sentry.setup()
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        wandb_event_id = wandb_sentry.message(wandb_message)
+        wandb_event_id = wandb_sentry.message(wandb_sentry_client_message)
 
         wait_for_events(relay, [client_event_id, wandb_event_id])
 
@@ -152,8 +152,8 @@ def test_wandb_sentry_init_after_client_write(relay):
         wandb_envelope = relay.events[wandb_event_id]
         client_envelope = relay.events[client_event_id]
 
-        assert wandb_envelope.payload["message"] == wandb_message
-        assert client_envelope.payload["message"] == client_message
+        assert wandb_envelope.payload["message"] == wandb_sentry_client_message
+        assert client_envelope.payload["message"] == other_sentry_client_message
         assert wandb_envelope.payload["message"] != client_envelope.payload["message"]
 
         assert_wandb_and_client_events(wandb_envelope, client_envelope)
@@ -171,8 +171,8 @@ def test_wandb_sentry_initialized_first(relay):
     - Assert events arrive to local api server
     - Validate no data is leaked between wandb and client events
     """
-    client_message = "client message"
-    wandb_message = "wandb message"
+    other_sentry_client_message = "client message"
+    wandb_sentry_client_message = "wandb message"
     with mock.patch.dict(
         os.environ,
         {
@@ -191,16 +191,16 @@ def test_wandb_sentry_initialized_first(relay):
         sentry_sdk.set_tag("test", "tag")
 
         # Send sentry events
-        client_event_id = sentry_sdk.capture_message(client_message)
-        wandb_event_id = wandb_sentry.message(wandb_message)
+        client_event_id = sentry_sdk.capture_message(other_sentry_client_message)
+        wandb_event_id = wandb_sentry.message(wandb_sentry_client_message)
 
         wait_for_events(relay, [client_event_id, wandb_event_id])
 
         wandb_envelope = relay.events[wandb_event_id]
         client_envelope = relay.events[client_event_id]
 
-        assert wandb_envelope.payload["message"] == wandb_message
-        assert client_envelope.payload["message"] == client_message
+        assert wandb_envelope.payload["message"] == wandb_sentry_client_message
+        assert client_envelope.payload["message"] == other_sentry_client_message
         assert wandb_envelope.payload["message"] != client_envelope.payload["message"]
 
         assert_wandb_and_client_events(wandb_envelope, client_envelope)
@@ -219,8 +219,8 @@ def test_wandb_sentry_write_first(relay):
     - Assert events arrive to local api server
     - Validate no data is leaked between wandb and client events
     """
-    client_message = "client message"
-    wandb_message = "wandb message"
+    other_sentry_client_message = "client message"
+    wandb_sentry_client_message = "wandb message"
     with mock.patch.dict(
         os.environ,
         {
@@ -232,7 +232,7 @@ def test_wandb_sentry_write_first(relay):
         wandb_sentry = wandb.analytics.Sentry()
         wandb_sentry.setup()
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        wandb_event_id = wandb_sentry.message(wandb_message)
+        wandb_event_id = wandb_sentry.message(wandb_sentry_client_message)
 
         sentry_sdk.init(
             dsn=EXTERNAL_DSN_URL_FORMAT.format(port=relay.port),
@@ -241,8 +241,8 @@ def test_wandb_sentry_write_first(relay):
         sentry_sdk.set_tag("test", "tag")
 
         # Send sentry events
-        client_event_id = sentry_sdk.capture_message(client_message)
-        wandb_event_id2 = wandb_sentry.message(wandb_message + "2")
+        client_event_id = sentry_sdk.capture_message(other_sentry_client_message)
+        wandb_event_id2 = wandb_sentry.message(wandb_sentry_client_message + "2")
 
         wait_for_events(relay, [client_event_id, wandb_event_id, wandb_event_id2])
 
@@ -250,9 +250,9 @@ def test_wandb_sentry_write_first(relay):
         wandb_envelope2 = relay.events[wandb_event_id2]
         client_envelope = relay.events[client_event_id]
 
-        assert wandb_envelope.payload["message"] == wandb_message
-        assert wandb_envelope2.payload["message"] == wandb_message + "2"
-        assert client_envelope.payload["message"] == client_message
+        assert wandb_envelope.payload["message"] == wandb_sentry_client_message
+        assert wandb_envelope2.payload["message"] == wandb_sentry_client_message + "2"
+        assert client_envelope.payload["message"] == other_sentry_client_message
         assert wandb_envelope.payload["message"] != client_envelope.payload["message"]
         assert wandb_envelope2.payload["message"] != client_envelope.payload["message"]
 
@@ -271,8 +271,8 @@ def test_wandb_sentry_exception(relay):
     - Assert exception events arrive to local api server
     - Validate no data is leaked between wandb and client events
     """
-    client_message = "client message"
-    wandb_message = "wandb message"
+    other_sentry_client_message = "client message"
+    wandb_sentry_client_message = "wandb message"
     with mock.patch.dict(
         os.environ,
         {
@@ -290,8 +290,8 @@ def test_wandb_sentry_exception(relay):
         # Send sentry events
         sentry_sdk.set_tag("test", "tag")
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        client_event_id = sentry_sdk.capture_exception(Exception(client_message))
-        wandb_event_id = wandb_sentry.exception(Exception(wandb_message))
+        client_event_id = sentry_sdk.capture_exception(Exception(other_sentry_client_message))
+        wandb_event_id = wandb_sentry.exception(Exception(wandb_sentry_client_message))
 
         wait_for_events(relay, [client_event_id, wandb_event_id])
 
@@ -304,8 +304,8 @@ def test_wandb_sentry_exception(relay):
             "value"
         ]
 
-        assert wandb_exception_message == wandb_message
-        assert client_exception_message == client_message
+        assert wandb_exception_message == wandb_sentry_client_message
+        assert client_exception_message == other_sentry_client_message
         assert wandb_exception_message != client_exception_message
 
         assert_wandb_and_client_events(
