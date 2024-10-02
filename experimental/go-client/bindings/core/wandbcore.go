@@ -13,11 +13,11 @@ import (
 	"unsafe"
 
 	"github.com/wandb/wandb/core/pkg/service"
-	"github.com/wandb/wandb/experimental/client-go/internal/gowandb/internal_runopts"
-	"github.com/wandb/wandb/experimental/client-go/pkg/gowandb"
-	"github.com/wandb/wandb/experimental/client-go/pkg/opts/runopts"
-	"github.com/wandb/wandb/experimental/client-go/pkg/opts/sessionopts"
-	"github.com/wandb/wandb/experimental/client-go/pkg/runconfig"
+	"github.com/wandb/wandb/experimental/go-client/internal/gowandb/internal_runopts"
+	"github.com/wandb/wandb/experimental/go-client/pkg/gowandb"
+	"github.com/wandb/wandb/experimental/go-client/pkg/opts/runopts"
+	"github.com/wandb/wandb/experimental/go-client/pkg/opts/sessionopts"
+	"github.com/wandb/wandb/experimental/go-client/pkg/runconfig"
 )
 
 // globals to keep track of the wandb session and any runs
