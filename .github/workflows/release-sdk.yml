@@ -69,13 +69,15 @@ jobs:
             exit 1
           fi
 
+          dotnet tool install -g dotnet-setversion
+
           # Path to the project
           PROJECT_PATH="experimental/client-csharp/src/Wandb/Wandb.csproj"
-          echo "Building project at $PROJECT_PATH"
-
-          # Build the project with specified VersionPrefix and VersionSuffix
-          dotnet build "$PROJECT_PATH" /p:VersionPrefix="$VERSION_PREFIX" /p:VersionSuffix="$VERSION_SUFFIX"
-
+          if [ -z "$VERSION_SUFFIX" ]; then
+            dotnet setversion --version "$VERSION_PREFIX" "$PROJECT_PATH"
+          else
+            dotnet setversion --version "$VERSION_PREFIX-$VERSION_SUFFIX" "$PROJECT_PATH"
+          fi
 
       - name: Update CHANGELOG.md
         if: ${{ inputs.update-changelog }}

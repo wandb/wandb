@@ -1,14 +1,13 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-<PropertyGroup>
-  <PackageId>WandB</PackageId>
-    <VersionPrefix>0.18.4</VersionPrefix>
-    <VersionSuffix>dev1</VersionSuffix>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>WandB</PackageId>
     <Authors>Weights and Biases</Authors>
     <Company>wandb</Company>
     <Description>The AI developer platform. Use Weights and Biases to train and fine-tune models, and manage models from experimentation to production.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/wandb/wandb</PackageProjectUrl>
     <RepositoryUrl>https://github.com/wandb/wandb</RepositoryUrl>
+    <Version>0.18.4-dev1</Version>
   </PropertyGroup>
   <PropertyGroup>
     <OutputType>Library</OutputType>
@@ -65,7 +64,7 @@
       <GoBinaryOutputPath>$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(GoBinaryPath)'))</GoBinaryOutputPath>
       <MainGoFile>$([System.IO.Path]::Combine('cmd', 'wandb-core', 'main.go'))</MainGoFile>
     </PropertyGroup>
-    <Exec Command="go build -ldflags=&quot;$(LdFlags)&quot; -mod=vendor -o &quot;$(GoBinaryOutputPath)&quot; &quot;$(MainGoFile)&quot;" WorkingDirectory="$(GoSrcDir)"  />
+    <Exec Command="go build -ldflags=&quot;$(LdFlags)&quot; -mod=vendor -o &quot;$(GoBinaryOutputPath)&quot; &quot;$(MainGoFile)&quot;" WorkingDirectory="$(GoSrcDir)" />
     <ItemGroup>
       <None Include="$(GoBinaryPath)">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
