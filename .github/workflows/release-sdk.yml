@@ -65,7 +65,7 @@ jobs:
           fi
 
           # Path to the project
-          PROJECT_PATH="sdk/experimental/client-csharp/src/Wandb/Wandb.csproj"
+          PROJECT_PATH="experimental/client-csharp/src/Wandb/Wandb.csproj"
           echo "Building project at $PROJECT_PATH"
 
           # Build the project with specified VersionPrefix and VersionSuffix
