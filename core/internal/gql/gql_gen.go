@@ -2576,6 +2576,7 @@ query TypeFields ($typeName: String!) {
 }
 `
 
+// Query is used to fetch the fields of a given type to check server compatibility
 func TypeFields(
 	ctx_ context.Context,
 	client_ graphql.Client,
