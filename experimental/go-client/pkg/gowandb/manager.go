@@ -5,8 +5,8 @@ import (
 
 	"github.com/wandb/wandb/core/pkg/service"
 	"github.com/wandb/wandb/core/pkg/utils"
-	"github.com/wandb/wandb/experimental/client-go/pkg/opts/runopts"
-	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
+	"github.com/wandb/wandb/experimental/go-client/pkg/opts/runopts"
+	"github.com/wandb/wandb/experimental/go-client/pkg/settings"
 )
 
 // Manager is a collection of components that work together to handle incoming

@@ -1,4 +1,4 @@
-module github.com/wandb/wandb/experimental/client-go
+module github.com/wandb/wandb/experimental/go-client
 
 go 1.23.1
 

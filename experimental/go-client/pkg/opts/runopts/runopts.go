@@ -3,7 +3,7 @@ package runopts
 
 import (
 	"github.com/wandb/wandb/core/pkg/service"
-	"github.com/wandb/wandb/experimental/client-go/pkg/runconfig"
+	"github.com/wandb/wandb/experimental/go-client/pkg/runconfig"
 )
 
 type RunParams struct {
