@@ -14,6 +14,7 @@ and upload them to the W&B server.
 """
 
 from .sdk.data_types.audio import Audio
+from .sdk.data_types.base_types.media import BatchableMedia, Media
 from .sdk.data_types.base_types.wb_value import WBValue
 from .sdk.data_types.bokeh import Bokeh
 from .sdk.data_types.graph import Graph, Node
@@ -56,6 +57,8 @@ __all__ = [
     "WBTraceTree",
     "_SavedModel",
     "WBValue",
+    "Media",
+    "BatchableMedia",
     # Typed Legacy Exports (I'd like to remove these)
     "ImageMask",
     "BoundingBoxes2D",
