@@ -45,8 +45,25 @@ func TestFinishOldest(t *testing.T) {
 
 	proto := ops.ToProto()
 	assert.Len(t, proto.Operations, 2)
+	assert.EqualValues(t, proto.TotalOperations, 2)
 	assert.Equal(t, "second", proto.Operations[0].Desc)
 	assert.Equal(t, "third", proto.Operations[1].Desc)
+}
+
+func TestFinishOldestSubtask(t *testing.T) {
+	ops := wboperation.NewOperations()
+	root := ops.New("root")
+
+	op1 := root.Subtask("first")
+	_ = root.Subtask("second")
+	op1.Finish()
+	_ = root.Subtask("third")
+
+	proto := ops.ToProto()
+	assert.Len(t, proto.Operations[0].Subtasks, 2)
+	assert.EqualValues(t, proto.TotalOperations, 1) // just the root
+	assert.Equal(t, "second", proto.Operations[0].Subtasks[0].Desc)
+	assert.Equal(t, "third", proto.Operations[0].Subtasks[1].Desc)
 }
 
 func TestFinishNewest(t *testing.T) {
@@ -58,15 +75,31 @@ func TestFinishNewest(t *testing.T) {
 
 	proto := ops.ToProto()
 	assert.Len(t, proto.Operations, 2)
+	assert.EqualValues(t, proto.TotalOperations, 2)
 	assert.Equal(t, "first", proto.Operations[0].Desc)
 	assert.Equal(t, "third", proto.Operations[1].Desc)
+}
+
+func TestFinishNewestSubtask(t *testing.T) {
+	ops := wboperation.NewOperations()
+	root := ops.New("root")
+
+	_ = root.Subtask("first")
+	root.Subtask("second").Finish()
+	_ = root.Subtask("third")
+
+	proto := ops.ToProto()
+	assert.Len(t, proto.Operations[0].Subtasks, 2)
+	assert.EqualValues(t, proto.TotalOperations, 1) // just the root
+	assert.Equal(t, "first", proto.Operations[0].Subtasks[0].Desc)
+	assert.Equal(t, "third", proto.Operations[0].Subtasks[1].Desc)
 }
 
 func TestHTTPError(t *testing.T) {
 	ops := wboperation.NewOperations()
 	op := ops.New("test operation")
 
-	op.MarkRetryingHTTPError(123)
+	op.MarkRetryingHTTPError("123")
 
 	proto := ops.ToProto()
 	assert.Equal(t, "retrying HTTP 123", proto.Operations[0].ErrorStatus)
@@ -76,7 +109,7 @@ func TestClearError(t *testing.T) {
 	ops := wboperation.NewOperations()
 	op := ops.New("test operation")
 
-	op.MarkRetryingHTTPError(123)
+	op.MarkRetryingHTTPError("123")
 	op.ClearError()
 
 	proto := ops.ToProto()

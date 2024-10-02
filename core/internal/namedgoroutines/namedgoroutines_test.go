@@ -1,11 +1,13 @@
 package namedgoroutines_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/namedgoroutines"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestDifferentKeys_Concurrent(t *testing.T) {
@@ -15,7 +17,7 @@ func TestDifferentKeys_Concurrent(t *testing.T) {
 		make(chan struct{}),
 	}
 	results := make(chan int)
-	op := namedgoroutines.New(1, func(blockerID int) {
+	op := namedgoroutines.New(1, &errgroup.Group{}, func(blockerID int) {
 		<-blockers[blockerID]
 		results <- blockerID
 	})
@@ -37,7 +39,7 @@ func TestDifferentKeys_Concurrent(t *testing.T) {
 
 func TestSameKey_Serialized(t *testing.T) {
 	results := make(chan int, 100)
-	op := namedgoroutines.New(1, func(x int) {
+	op := namedgoroutines.New(1, &errgroup.Group{}, func(x int) {
 		results <- x
 	})
 
@@ -50,12 +52,31 @@ func TestSameKey_Serialized(t *testing.T) {
 	}
 }
 
+func TestLimitsConcurrency(t *testing.T) {
+	results := make(chan int, 100)
+	pool := &errgroup.Group{}
+	pool.SetLimit(1)
+	op := namedgoroutines.New(1, pool, func(x int) {
+		results <- x
+	})
+
+	for i := range 100 {
+		// All keys are different, so the concurrency is limited by
+		// the errgroup.
+		op.Go(fmt.Sprintf("key %d", i), i)
+	}
+
+	for i := range 100 {
+		assert.Equal(t, i, <-results)
+	}
+}
+
 func TestSameKey_BufferedChannel(t *testing.T) {
 	// Run several times to increase likelihood of detecting failure.
 	for range 10 {
 		results := make(chan int)
 		finalGo := make(chan struct{})
-		op := namedgoroutines.New(10, func(x int) {
+		op := namedgoroutines.New(10, &errgroup.Group{}, func(x int) {
 			results <- x
 		})
 
