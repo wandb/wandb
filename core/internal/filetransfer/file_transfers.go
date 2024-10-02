@@ -37,7 +37,7 @@ func NewFileTransfers(
 	if err == nil {
 		filetransfers.GCS = gcsFileTransfer
 	} else {
-		logger.CaptureError(err)
+		logger.Error("Unable to set up GCS file transfer", "error", err)
 	}
 
 	return filetransfers
