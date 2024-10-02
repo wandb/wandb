@@ -1,14 +1,14 @@
-import flask
-import requests
-import zlib
 import socket
 import threading
+import zlib
 
+import flask
+import requests
 from flask import request
 from sentry_sdk.envelope import Envelope
 
 
-class SentryResponse():
+class SentryResponse:
     def __init__(
         self,
         payload,
