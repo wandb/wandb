@@ -19,6 +19,7 @@
 package wboperation
 
 import (
+	"container/list"
 	"context"
 	"errors"
 	"fmt"
@@ -54,19 +55,17 @@ type WandbOperations struct {
 	// mu is locked when creating or removing operations or subtasks.
 	mu sync.Mutex
 
-	// The doubly-linked list of operations, sorted in ascending order
-	// by startTime.
+	// operations is all operations sorted in ascending order by startTime.
 	//
-	// Finish() removes an operation from the list, and using a doubly-linked
-	// list makes that as cheap as possible.
-	oldestOperation, newestOperation *WandbOperation
-
-	// totalOperations is the size of the doubly-linked list of operations.
-	totalOperations int
+	// We use a doubly-linked list because operations are removed frequently
+	// and in random order, and there may be a large number of them.
+	operations list.List
 }
 
 func NewOperations() *WandbOperations {
-	return &WandbOperations{}
+	ops := &WandbOperations{}
+	ops.operations.Init()
+	return ops
 }
 
 // New starts a new operation with the given name.
@@ -90,16 +89,10 @@ func (ops *WandbOperations) New(desc string) *WandbOperation {
 		startTime: time.Now(),
 	}
 
-	if ops.newestOperation != nil {
-		ops.newestOperation.next = op
-		op.prev = ops.newestOperation
-		ops.newestOperation = op
-	} else {
-		ops.oldestOperation = op
-		ops.newestOperation = op
-	}
+	op.subtasks.Init()
+	op.sourceList = &ops.operations
+	op.sourceNode = ops.operations.PushBack(op)
 
-	ops.totalOperations++
 	return op
 }
 
@@ -113,13 +106,17 @@ func (ops *WandbOperations) ToProto() *spb.OperationStats {
 	defer ops.mu.Unlock()
 
 	stats := &spb.OperationStats{
-		TotalOperations: int64(ops.totalOperations),
+		TotalOperations: int64(ops.operations.Len()),
 	}
 
-	op := ops.oldestOperation
-	for i := 0; op != nil && i < maxOperationsToReturn; i++ {
+	i := 0
+	e := ops.operations.Front()
+	for i < maxOperationsToReturn && e != nil {
+		op := e.Value.(*WandbOperation)
 		stats.Operations = append(stats.Operations, op.ToProto())
-		op = op.next
+
+		i++
+		e = e.Next()
 	}
 
 	return stats
@@ -133,22 +130,26 @@ func (ops *WandbOperations) ToProto() *spb.OperationStats {
 //
 // A nil pointer acts like a no-op, as if operation tracking is disabled.
 type WandbOperation struct {
-	root   *WandbOperations // set of operations this belongs to
-	parent *WandbOperation  // the parent operation if this is a subtask
+	root *WandbOperations // set of operations this belongs to
 
-	// Operations form a doubly-linked list sorted by start time.
+	// sourceList is the list this operation is in.
 	//
-	// See docs in the WandbOperations struct.
-	prev, next *WandbOperation
+	// This may be the root list, or another operation's subtask list.
+	sourceList *list.List
 
-	// This operation's doubly-linked list of subtasks.
+	// sourceNode is this operation's position in the sourceList.
 	//
-	// The root mutex must be locked when using these fields.
-	oldestChild, newestChild *WandbOperation
+	// It is used to remove the operation from the list once it is finished.
+	sourceNode *list.Element
+
+	// subtasks is the list of this operation's subtasks sorted by startTime.
+	//
+	// Access is protected by the root mutex.
+	subtasks list.List
 
 	// mu is locked for modifying this operation's state.
 	//
-	// It's not locked for modifying Prev, Next, oldestChild or newestChild.
+	// It's not locked for accessing `subtasks`.
 	mu sync.Mutex
 
 	isFinished  bool // whether Finish was called
@@ -176,10 +177,14 @@ func (op *WandbOperation) ToProto() *spb.Operation {
 		ErrorStatus:    op.errorStatus,
 	}
 
-	subtask := op.oldestChild
-	for i := 0; subtask != nil && i < maxOperationsToReturn; i++ {
+	i := 0
+	e := op.subtasks.Front()
+	for i < maxOperationsToReturn && e != nil {
+		subtask := e.Value.(*WandbOperation)
 		proto.Subtasks = append(proto.Subtasks, subtask.ToProto())
-		subtask = subtask.next
+
+		i++
+		e = e.Next()
 	}
 
 	return proto
@@ -261,19 +266,13 @@ func (op *WandbOperation) Subtask(desc string) *WandbOperation {
 
 	subtask := &WandbOperation{
 		root:      op.root,
-		parent:    op,
 		desc:      desc,
 		startTime: time.Now(),
 	}
 
-	if op.newestChild != nil {
-		op.newestChild.next = subtask
-		subtask.prev = op.newestChild
-		op.newestChild = subtask
-	} else {
-		op.oldestChild = subtask
-		op.newestChild = subtask
-	}
+	subtask.subtasks.Init()
+	subtask.sourceList = &op.subtasks
+	subtask.sourceNode = op.subtasks.PushBack(subtask)
 
 	return subtask
 }
@@ -299,33 +298,9 @@ func (op *WandbOperation) Finish() {
 	if op.isFinished {
 		return
 	}
+
 	op.isFinished = true
-
-	// Update our linked list siblings.
-	if op.prev != nil {
-		op.prev.next = op.next
-	}
-	if op.next != nil {
-		op.next.prev = op.prev
-	}
-
-	// Update the linked list's parent.
-	var oldestSibling, newestSibling **WandbOperation
-	if op.parent != nil {
-		oldestSibling = &op.parent.oldestChild
-		newestSibling = &op.parent.newestChild
-	} else {
-		oldestSibling = &op.root.oldestOperation
-		newestSibling = &op.root.newestOperation
-		op.root.totalOperations--
-	}
-
-	if op == *oldestSibling {
-		*oldestSibling = op.next
-	}
-	if op == *newestSibling {
-		*newestSibling = op.prev
-	}
+	op.sourceList.Remove(op.sourceNode)
 }
 
 // WandbProgress is a handle for setting the progress on an operation.
