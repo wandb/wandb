@@ -70,9 +70,11 @@ jobs:
           fi
 
           export PROJECT_PATH="experimental/client-csharp/src/Wandb/Wandb.csproj"
-          sed -i.bak 's|<Version>.*</Version>|<Version>'"$VERSION"'</Version>|' "$PROJECT_PATH"
-
-          # Verify the update
+          if [ -z "$VERSION_SUFFIX" ]; then
+            sed -i.bak 's|<Version>.*</Version>|<Version>'"$VERSION_PREFIX"'</Version>|' "$PROJECT_PATH"
+          else
+            sed -i.bak 's|<Version>.*</Version>|<Version>'"$VERSION_PREFIX-$VERSION_SUFFIX"'</Version>|' "$PROJECT_PATH"
+          fi
           cat "$PROJECT_PATH"
 
       - name: Update CHANGELOG.md
@@ -90,7 +92,6 @@ jobs:
 
       - name: Commit and push changes
         run: |
-          git add experimental/client-csharp/src/Wandb/Wandb.csproj
           git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
           git push --no-verify -f origin release-${{ github.event.inputs.version }}
 
