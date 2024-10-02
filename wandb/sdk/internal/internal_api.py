@@ -3537,7 +3537,7 @@ class Api:
             if organization:
                 if organization != org_name and organization != org_entity:
                     raise ValueError(
-                        f""Artifact belongs to the organization {org_entity} and cannot be linked to {organization}. Please update the target path with the correct organization name.",
+                        f"Artifact belongs to the organization {org_entity!r} and cannot be linked to {organization!r}. Please update the target path with the correct organization name.",
                     )
         else:
             # Server doesn't support fetching org entity, so we assume the org entity is correctly inputted
@@ -3571,7 +3571,9 @@ class Api:
             org_name = org["name"] or ""
             org_entity_name = org["orgEntity"]["name"] or ""
         except (LookupError, TypeError) as e:
-            raise ValueError(f"Unable to find organization for artifact under entity: {entity!r} Please make sure you are using a team entity when linking to the Registry") from e
+            raise ValueError(
+                f"Unable to find organization for artifact under entity: {entity!r} Please make sure you are using a team entity when linking to the Registry"
+            ) from e
         else:
             return org_entity_name, org_name
 
