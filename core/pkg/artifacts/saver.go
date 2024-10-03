@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
@@ -25,12 +26,18 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// uploadBufferPerArtifactName is the number of Save operations
-// that can be queued per artifact name before Save begins to block.
-//
-// The value is high enough so that Save almost never blocks,
-// without consuming too much memory just for bookkeeping.
-const uploadBufferPerArtifactName = 32
+const (
+	// uploadBufferPerArtifactName is the number of Save operations
+	// that can be queued per artifact name before Save begins to block.
+	//
+	// The value is high enough so that Save almost never blocks,
+	// without consuming too much memory just for bookkeeping.
+	uploadBufferPerArtifactName = 32
+
+	// maxSimultaneousUploads is the maximum number of concurrent
+	// artifact save operations.
+	maxSimultaneousUploads = 128
+)
 
 // ArtifactSaveManager manages artifact uploads.
 type ArtifactSaveManager struct {
@@ -49,6 +56,9 @@ func NewArtifactSaveManager(
 	graphqlClient graphql.Client,
 	fileTransferManager filetransfer.FileTransferManager,
 ) *ArtifactSaveManager {
+	workerPool := &errgroup.Group{}
+	workerPool.SetLimit(maxSimultaneousUploads)
+
 	return &ArtifactSaveManager{
 		logger:              logger,
 		graphqlClient:       graphqlClient,
@@ -56,6 +66,7 @@ func NewArtifactSaveManager(
 		fileCache:           NewFileCache(UserCacheDir()),
 		uploadsByName: namedgoroutines.New(
 			uploadBufferPerArtifactName,
+			workerPool,
 			func(saver *ArtifactSaver) {
 				artifactID, err := saver.Save()
 				saver.resultChan <- ArtifactSaveResult{
