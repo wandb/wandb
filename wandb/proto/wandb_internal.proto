@@ -596,6 +596,7 @@ message Request {
     SyncRequest sync = 76;
     JobInputRequest job_input = 77;
     LinkArtifactRequest link_artifact = 78;
+    RunFinishWithoutExitRequest run_finish_without_exit = 79;
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -627,6 +628,7 @@ message Response {
     GetSystemMetricsResponse get_system_metrics_response = 69;
     SyncResponse sync_response = 70;
     LinkArtifactResponse link_artifact_response = 71;
+    RunFinishWithoutExitResponse run_finish_without_exit_response = 72;
     TestInjectResponse test_inject_response = 1000;
   }
 }
@@ -998,6 +1000,15 @@ message RunStartRequest {
 }
 
 message RunStartResponse {}
+
+/*
+ * RunFinishWithoutExitRequest: finish the run without updating the exit status on the server
+ */
+message RunFinishWithoutExitRequest {
+  _RequestInfo _info = 200;
+}
+
+message RunFinishWithoutExitResponse {}
 
 /*
  * CheckVersion:
