@@ -29,6 +29,7 @@ from typing import (
     Union,
 )
 
+import click
 import requests
 import yaml
 from wandb_gql import Client, gql
