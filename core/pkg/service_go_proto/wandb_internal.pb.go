@@ -8599,7 +8599,6 @@ type RunFinishWithoutExitRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// int32 runtime = 2;  // ??
 	XInfo *XRequestInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 }
 
