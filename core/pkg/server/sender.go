@@ -567,6 +567,7 @@ func (s *Sender) sendJobFlush() {
 	}
 }
 
+//gocyclo:ignore
 func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 	switch request.State {
 	case spb.DeferRequest_BEGIN:
@@ -642,14 +643,16 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 		go func() {
 			defer s.logger.Reraise()
 			if s.fileStream != nil {
-				if s.exitRecord != nil {
+				switch {
+				case s.exitRecord != nil:
 					s.fileStream.FinishWithExit(
 						s.exitRecord.GetExit().GetExitCode(),
 					)
-				} else if s.finishWithoutExitRecord != nil {
+				case s.finishWithoutExitRecord != nil:
 					s.fileStream.FinishWithoutExit()
-				} else {
-					s.logger.CaptureError(fmt.Errorf("sender: no exit code on finish"))
+				default:
+					s.logger.CaptureError(
+						fmt.Errorf("sender: no exit code on finish"))
 					s.fileStream.FinishWithoutExit()
 				}
 			}
