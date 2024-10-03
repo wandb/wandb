@@ -43,7 +43,7 @@ func TestFileStreamUpdates(t *testing.T) {
 	sender.StreamLogs(&spb.OutputRawRecord{Line: "line1\n"})
 	sender.StreamLogs(&spb.OutputRawRecord{Line: "line2\n"})
 	sender.StreamLogs(&spb.OutputRawRecord{Line: "\x1b[Aline2 - modified\n"})
-	sender.Finish()
+	sender.Finish(false)
 
 	request := fileStream.GetRequest(settings)
 	assert.Equal(t,
@@ -82,7 +82,7 @@ func TestFileStreamUpdatesDisabled(t *testing.T) {
 	sender.StreamLogs(&spb.OutputRawRecord{Line: "line1\n"})
 	sender.StreamLogs(&spb.OutputRawRecord{Line: "line2\n"})
 	sender.StreamLogs(&spb.OutputRawRecord{Line: "\x1b[Aline2 - modified\n"})
-	sender.Finish()
+	sender.Finish(false)
 
 	outputFilePath := filepath.Join(settings.GetFilesDir(), string(*outputFile))
 	_, err := os.Stat(outputFilePath)

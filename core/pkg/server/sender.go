@@ -488,6 +488,9 @@ func (s *Sender) updateSettings() {
 // sendRequestRunStart sends a run start request to start all the stream
 // components that need to be started and to update the settings
 func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
+	// mark the run state as initialized after the initial run upsert
+	s.startState.Initialized = true
+
 	s.updateSettings()
 
 	if s.fileStream != nil {
@@ -597,7 +600,7 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 	case spb.DeferRequest_FLUSH_OUTPUT:
 		go func() {
 			defer s.logger.Reraise()
-			s.consoleLogsSender.Finish()
+			s.consoleLogsSender.Finish(!s.startState.Initialized)
 			request.State++
 			s.fwdRequestDefer(request)
 		}()
@@ -986,8 +989,6 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 		default:
 			s.upsertRun(record, runClone)
 		}
-		// mark the run state as initialized after the initial run upsert
-		s.startState.Initialized = true
 		return
 	}
 
@@ -1233,6 +1234,10 @@ func (s *Sender) uploadSummaryFile() {
 		return
 	}
 
+	if !s.startState.Initialized {
+		return
+	}
+
 	summary, err := s.runSummary.Serialize()
 	if err != nil {
 		s.logger.CaptureError(
@@ -1252,6 +1257,10 @@ func (s *Sender) uploadSummaryFile() {
 
 func (s *Sender) uploadConfigFile() {
 	if s.runfilesUploader == nil {
+		return
+	}
+
+	if !s.startState.Initialized {
 		return
 	}
 
