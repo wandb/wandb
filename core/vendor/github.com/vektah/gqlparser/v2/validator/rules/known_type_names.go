@@ -1,4 +1,4 @@
-package validator
+package rules
 
 import (
 	"github.com/vektah/gqlparser/v2/ast"
@@ -7,8 +7,9 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-func init() {
-	AddRule("KnownTypeNames", func(observers *Events, addError AddErrFunc) {
+var KnownTypeNamesRule = Rule{
+	Name: "KnownTypeNames",
+	RuleFunc: func(observers *Events, addError AddErrFunc) {
 		observers.OnVariable(func(walker *Walker, variable *ast.VariableDefinition) {
 			typeName := variable.Type.Name()
 			typdef := walker.Schema.Types[typeName]
@@ -57,5 +58,9 @@ func init() {
 				At(fragment.Position),
 			)
 		})
-	})
+	},
+}
+
+func init() {
+	AddRule(KnownTypeNamesRule.Name, KnownTypeNamesRule.RuleFunc)
 }
