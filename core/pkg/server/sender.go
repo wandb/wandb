@@ -1395,6 +1395,7 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 }
 
 // sendRequestRunFinishWithoutExit triggers the shutdown of the stream without marking the run as finished
+// on the server.
 func (s *Sender) sendRequestRunFinishWithoutExit(record *spb.Record, _ *spb.RunFinishWithoutExitRequest) {
 	if s.finishWithoutExitRecord != nil {
 		s.logger.CaptureError(
@@ -1405,8 +1406,7 @@ func (s *Sender) sendRequestRunFinishWithoutExit(record *spb.Record, _ *spb.RunF
 	s.finishWithoutExitRecord = record
 
 	// Send a defer request to the handler to indicate that the user requested to finish the stream
-	// and the defer state machine can kick in triggering the shutdown process without marking
-	// the run as finished with an exit code on the server.
+	// and the defer state machine can kick in triggering the shutdown process
 	request := &spb.Request{RequestType: &spb.Request_Defer{
 		Defer: &spb.DeferRequest{State: spb.DeferRequest_BEGIN}},
 	}
