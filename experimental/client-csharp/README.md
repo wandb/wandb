@@ -1,6 +1,6 @@
 # Wandb C# Client (Experimental)
 
-This is an experimental C# client for [Weights & Biases](https://wandb.ai/), the AI developer platform.
+An experimental C# client for [Weights & Biases](https://wandb.ai/), the AI developer platform.
 
 ## Features
 

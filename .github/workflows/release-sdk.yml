@@ -421,10 +421,9 @@ jobs:
           WANDB_MODE=offline \
           python -c "import wandb; run = wandb.init(); run.finish()"
 
-
   pypi-publish:
     if: ${{ !inputs.dry-run }}
-    name: Publish to PyPI
+    name: Publish Python SDK to PyPI
     needs: [verify-test-pypi, verify-test-pypi-sdist]
     runs-on: ubuntu-latest
     environment:
@@ -442,9 +441,31 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_TOKEN }}
+
+  nuget-publish:
+    if: ${{ !inputs.dry-run }}
+    name: Publish C# SDK to NuGet
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release-${{ github.event.inputs.version }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish to NuGet
+        run: |
+          PROJECT_PATH="sdk/experimental/client-csharp/src/Wandb/Wandb.csproj"
+          dotnet pack $PROJECT_PATH -c Release -o experimental/client-csharp/src/Wandb/bin/Release
+          dotnet nuget push "experimental/client-csharp/src/Wandb/bin/Release/Wandb.*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+
   publish-release-notes:
     name: Publish Release Notes
-    needs: pypi-publish
+    needs: [pypi-publish, nuget-publish]
     runs-on: ubuntu-latest
     if: ${{ inputs.update-changelog && !inputs.dry-run }}
     steps:
@@ -503,7 +524,16 @@ jobs:
           IFS='.' read -r major minor patch <<< "${{ github.event.inputs.version }}"
           new_version="${major}.${minor}.$((patch + 1)).dev1"
           git checkout -b bump-${new_version}
+
+          # Bump Python SDK version
           bump2version patch --no-tag --no-commit --config-file .bumpversion.wandb.cfg --new-version ${new_version}
+
+          # Bump C# SDK version
+          new_c_sharp_version="${major}.${minor}.$((patch + 1))-dev1"
+          export PROJECT_PATH="experimental/client-csharp/src/Wandb/Wandb.csproj"
+          sed -i.bak 's|<Version>.*</Version>|<Version>'"${new_c_sharp_version}"'</Version>|' "${PROJECT_PATH}"
+
+          # Commit and push changes
           git commit -am "chore(sdk): bump version to ${new_version}"
           git push -u origin bump-${new_version}
 
