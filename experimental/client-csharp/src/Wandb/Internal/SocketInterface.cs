@@ -107,6 +107,21 @@ namespace Wandb.Internal
             return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
         }
 
+        public async Task<Result> DeliverFinishWithoutExit(int timeoutMilliseconds = 0)
+        {
+            var record = new Record
+            {
+                Request = new Request
+                {
+                    RunFinishWithoutExit = new RunFinishWithoutExitRequest { }
+                },
+                Info = new _RecordInfo
+                {
+                    StreamId = _streamId
+                }
+            };
+            return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
+        }
 
         /// <summary>
         /// Delivers a run exit record to the server.
