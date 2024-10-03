@@ -12,6 +12,7 @@ import rdkit.Chem
 import responses
 import wandb
 from bokeh.plotting import figure
+from moviepy.editor import VideoFileClip
 from PIL import Image
 from wandb import data_types
 from wandb.sdk.data_types import _dtypes
@@ -644,6 +645,25 @@ def test_video_path_invalid():
         f.write("00000")
     with pytest.raises(ValueError):
         wandb.Video("video.avi")
+
+
+def test_video_file_encodes_with_new_fps():
+    # Create fake video
+    video_length = 3 * 24  # 3 seconds * 24 fps
+    frames = np.random.randint(
+        low=0, high=256, size=(video_length, 3, 10, 10), dtype=np.uint8
+    )
+    video = wandb.Video(frames, fps=24, format="mp4")
+
+    # Assert video is created with correct fps
+    assert video._path is not None
+    clip = VideoFileClip(video._path)
+    assert clip.fps == 24
+
+    # Assert video file is re-encoded with correct fps
+    vid = wandb.Video(video._path, fps=1)
+    clip = VideoFileClip(vid._path)
+    assert clip.fps == 1
 
 
 ################################################################################

@@ -114,7 +114,7 @@ class Video(BatchableMedia):
                 raise ValueError(
                     "wandb.Video accepts {} formats".format(", ".join(Video.EXTS))
                 )
-            self._set_file(data_or_path, is_tmp=False)
+            self.encode_video(data_or_path)
             # ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 data_or_path
         else:
             if hasattr(data_or_path, "numpy"):  # TF data eager tensors
@@ -125,9 +125,9 @@ class Video(BatchableMedia):
                 raise ValueError(
                     "wandb.Video accepts a file path or numpy like data as input"
                 )
-            self.encode()
+            self.encode_numpy_data()
 
-    def encode(self) -> None:
+    def encode_numpy_data(self) -> None:
         mpy = util.get_module(
             "moviepy.editor",
             required='wandb.Video requires moviepy when passing raw data.  Install with "pip install wandb[media]"',
@@ -138,6 +138,19 @@ class Video(BatchableMedia):
         # encode sequence of images into gif string
         clip = mpy.ImageSequenceClip(list(tensor), fps=self._fps)
 
+        self.encode(clip)
+
+    def encode_video(self, path) -> None:
+        mpy = util.get_module(
+            "moviepy.editor",
+            required='wandb.Video requires moviepy when passing raw data.  Install with "pip install wandb[media]"',
+        )
+        clip = mpy.VideoFileClip(path)
+        clip = clip.set_fps(self._fps)
+
+        self.encode(clip)
+
+    def encode(self, clip) -> None:
         filename = os.path.join(
             MEDIA_TMP.name, runid.generate_id() + "." + self._format
         )
