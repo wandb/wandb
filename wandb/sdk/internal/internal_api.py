@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import ast
 import base64
 import datetime
@@ -29,7 +31,6 @@ from typing import (
     Union,
 )
 
-import click
 import requests
 import yaml
 from wandb_gql import Client, gql
