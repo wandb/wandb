@@ -3567,7 +3567,7 @@ class Api:
             },
         )
         try:
-            org = response["organization"]
+            org = response["entity"]["organization"]
             org_name = org["name"] or ""
             org_entity_name = org["orgEntity"]["name"] or ""
         except (LookupError, TypeError) as e:
