@@ -96,7 +96,7 @@ func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 
 	ft.SetupClient()
 	if ft.client == nil {
-		return fmt.Errorf("GCSFileTransfer: Download: Unable to set up GCS Client. See logs for details.")
+		return fmt.Errorf("GCSFileTransfer: Download: Unable to set up GCS Client")
 	}
 
 	// Parse the reference path to get the scheme, bucket, and object
