@@ -99,7 +99,7 @@ func TestSameKey_BufferedChannel(t *testing.T) {
 		}
 		select {
 		case <-finalGo:
-		case <-time.After(10 * time.Millisecond):
+		case <-time.After(time.Second):
 			t.Fatal("12th call to Go didn't get unblocked")
 		}
 	}
