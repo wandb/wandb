@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.7](https://github.com/googleapis/google-cloud-go/compare/auth/v0.9.6...auth/v0.9.7) (2024-10-01)
+
+
+### Bug Fixes
+
+* **auth:** Restore support for non-default service accounts for DirectPath ([#10937](https://github.com/googleapis/google-cloud-go/issues/10937)) ([a38650e](https://github.com/googleapis/google-cloud-go/commit/a38650edbf420223077498cafa537aec74b37aad)), refs [#10907](https://github.com/googleapis/google-cloud-go/issues/10907)
+
+## [0.9.6](https://github.com/googleapis/google-cloud-go/compare/auth/v0.9.5...auth/v0.9.6) (2024-09-30)
+
+
+### Bug Fixes
+
+* **auth:** Make aws credentials provider retrieve fresh credentials ([#10920](https://github.com/googleapis/google-cloud-go/issues/10920)) ([250fbf8](https://github.com/googleapis/google-cloud-go/commit/250fbf87d858d865e399a241b7e537c4ff0c3dd8))
+
 ## [0.9.5](https://github.com/googleapis/google-cloud-go/compare/auth/v0.9.4...auth/v0.9.5) (2024-09-25)
 
 
