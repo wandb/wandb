@@ -3520,7 +3520,7 @@ class Api:
         link_artifact: Dict[str, Any] = response["linkArtifact"]
         return link_artifact
 
-    def _resolve_org_entity_name(self, entity: str, organization: str) -> str:
+    def _resolve_org_entity_name(self, entity: str, organization: str = "") -> str:
         # Fetches the org entity of the portfolio entity to
         # 1. validate the user inputted the correct display org name or org entity name and
         # 2. return the org entity name so we can use the correct entity name to link the artifact.
@@ -3531,17 +3531,17 @@ class Api:
                 """Fetching Registry artifacts without inputting an organization is unavailable for your server version.
                 Please upgrade your server to 0.50.0 or later."""
             )
-        elif can_fetch_org_entity:
-            org_entity, org_name = self.fetch_org_entity_from_entity(entity)
-            if organization:
-                if organization != org_name and organization != org_entity:
-                    raise ValueError(
-                        f"Artifact belongs to the organization {org_entity!r} and cannot be linked to {organization!r}. Please update the target path with the correct organization name.",
-                    )
-            return org_entity
-        else:
+        if not can_fetch_org_entity:
             # Server doesn't support fetching org entity, so we assume the org entity is correctly inputted
             return organization
+
+        org_entity, org_name = self.fetch_org_entity_from_entity(entity)
+        if organization:
+            if organization != org_name and organization != org_entity:
+                raise ValueError(
+                    f"Artifact belongs to the organization {org_entity!r} and cannot be linked to {organization!r}. Please update the target path with the correct organization name.",
+                )
+        return org_entity
 
     def fetch_org_entity_from_entity(self, entity: str) -> Tuple[str, str]:
         query = gql(
