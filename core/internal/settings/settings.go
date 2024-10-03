@@ -63,6 +63,11 @@ func (s *Settings) IsSync() bool {
 	return s.Proto.XSync.GetValue()
 }
 
+// The path to the sync file.
+func (s *Settings) GetSyncFile() string {
+	return s.Proto.SyncFile.GetValue()
+}
+
 // Whether we are in offline mode.
 func (s *Settings) IsOffline() bool {
 	return s.Proto.XOffline.GetValue()
@@ -111,6 +116,7 @@ func (s *Settings) GetSweepURL() string {
 	return s.Proto.SweepUrl.GetValue()
 }
 
+// The W&B URL of the run
 func (s *Settings) GetBaseURL() string {
 	return s.Proto.BaseUrl.GetValue()
 }
@@ -256,4 +262,40 @@ func (s *Settings) GetIdentityTokenFile() string {
 // will be captured and sent to W&B.
 func (s *Settings) IsConsoleCaptureEnabled() bool {
 	return s.Proto.Console.GetValue() != "off"
+}
+
+// The program path that created the run.
+func (s *Settings) GetProgram() string {
+	return s.Proto.Program.GetValue()
+}
+
+// Flag that indicates whether to create a job artifact, to be used by launch.
+func (s *Settings) IsJobCreationDisabled() bool {
+	return s.Proto.DisableJobCreation.GetValue()
+}
+
+// Update methods.
+//
+// These are used to update the settings in the proto.
+
+// Updates the start time of the run.
+func (s *Settings) UpdateStartTime(startTime time.Time) {
+	s.Proto.XStartTime = &wrapperspb.DoubleValue{
+		Value: float64(startTime.UnixNano()) / 1e9,
+	}
+}
+
+// Updates the run's entity name.
+func (s *Settings) UpdateEntity(entity string) {
+	s.Proto.Entity = &wrapperspb.StringValue{Value: entity}
+}
+
+// Updates the run's project name.
+func (s *Settings) UpdateProject(project string) {
+	s.Proto.Project = &wrapperspb.StringValue{Value: project}
+}
+
+// Updates the run's display name.
+func (s *Settings) UpdateDisplayName(displayName string) {
+	s.Proto.RunName = &wrapperspb.StringValue{Value: displayName}
 }

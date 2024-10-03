@@ -13,7 +13,6 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
@@ -218,7 +217,7 @@ func NewSender(
 	}
 
 	backendOrNil := params.Backend
-	if !s.settings.IsOffline() && backendOrNil != nil && !s.settings.Proto.GetDisableJobCreation().GetValue() {
+	if !s.settings.IsOffline() && backendOrNil != nil && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings.Proto, s.logger, false)
 	}
 
@@ -471,25 +470,18 @@ func (s *Sender) updateSettings() {
 	// StartTime should be generally thought of as the Run last modified time
 	// as it gets updated at a run branching point, such as resume, fork, or rewind
 	if s.settings.GetStartTime().IsZero() && !s.startState.StartTime.IsZero() {
-		startTime := float64(s.startState.StartTime.UnixNano()) / 1e9
-		s.settings.Proto.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
+		s.settings.UpdateStartTime(s.startState.StartTime)
 	}
 
 	// TODO: verify that this is the correct update logic
 	if s.startState.Entity != "" {
-		s.settings.Proto.Entity = &wrapperspb.StringValue{
-			Value: s.startState.Entity,
-		}
+		s.settings.UpdateEntity(s.startState.Entity)
 	}
 	if s.startState.Project != "" {
-		s.settings.Proto.Project = &wrapperspb.StringValue{
-			Value: s.startState.Project,
-		}
+		s.settings.UpdateProject(s.startState.Project)
 	}
 	if s.startState.DisplayName != "" {
-		s.settings.Proto.RunName = &wrapperspb.StringValue{
-			Value: s.startState.DisplayName,
-		}
+		s.settings.UpdateDisplayName(s.startState.DisplayName)
 	}
 }
 
@@ -1049,7 +1041,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 		repo = git.GetRemoteUrl()
 	}
 
-	program := s.settings.Proto.GetProgram().GetValue()
+	program := s.settings.GetProgram()
 
 	data, err := gql.UpsertBucket(
 		ctx,                                // ctx
@@ -1587,7 +1579,7 @@ func (s *Sender) sendRequestSync(record *spb.Record, request *spb.SyncRequest) {
 
 			var url string
 			if !s.startState.Initialized {
-				baseUrl := s.settings.Proto.GetBaseUrl().GetValue()
+				baseUrl := s.settings.GetBaseURL()
 				baseUrl = strings.Replace(baseUrl, "api.", "", 1)
 				url = fmt.Sprintf("%s/%s/%s/runs/%s",
 					baseUrl,
@@ -1685,7 +1677,7 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 
 func (s *Sender) sendRequestSenderRead(_ *spb.Record, _ *spb.SenderReadRequest) {
 	if s.store == nil {
-		store := NewStore(s.settings.Proto.GetSyncFile().GetValue())
+		store := NewStore(s.settings.GetSyncFile())
 		err := store.Open(os.O_RDONLY)
 		if err != nil {
 			s.logger.CaptureError(
