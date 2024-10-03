@@ -237,7 +237,7 @@ class Artifact:
         project: str,
         name: str,
         client: RetryingClient,
-        organization: str | None = None,
+        organization: str = "",
     ) -> Artifact:
         query = gql(
             """
@@ -256,9 +256,10 @@ class Artifact:
             + cls._get_gql_artifact_fragment()
         )
 
-        # Registry artifacts use the org entity name to fetch the artifact and we offer aliases for this path
+        # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
+        # we need to fetch the org entity to for the user behind the scenes.
         if is_artifact_registry_project(project):
-            entity = InternalApi().resolve_org_entity_name(entity, organization)
+            entity = InternalApi()._resolve_org_entity_name(entity, organization)
 
         response = client.execute(
             query,

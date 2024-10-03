@@ -1159,7 +1159,7 @@ class Api:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
 
-        organization = None
+        organization = ""
         # If its an Registry artifact, the entity is an org instead
         if is_artifact_registry_project(project):
             parts = name.split("/")
