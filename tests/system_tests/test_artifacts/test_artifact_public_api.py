@@ -287,3 +287,66 @@ def test_parse_artifact_path(user, api):
 
     entity, project, path = api._parse_artifact_path("entity/project/artifact")
     assert entity == "entity" and project == "project" and path == "artifact"
+
+
+@pytest.mark.parametrize(
+    ("artifact_path", "resolve_org_entity_name", "expected_artifact_fetched"),
+    (
+        (
+            "org-name/wandb-registry-model/test-collection:v0",
+            "org-entity-name",
+            True,
+        ),
+        (
+            "org-entity-name/wandb-registry-model/test-collection:v0",
+            "org-entity-name",
+            True,
+        ),
+        (
+            "wandb-registry-model/test-collection:v0",
+            "org-entity-name",
+            True,
+        ),
+        (
+            "potato/wandb-registry-model/test-collection:v0",
+            "",
+            False,
+        ),
+    ),
+)
+def test_fetch_registry_artifact(
+    user, api, mocker, artifact_path, resolve_org_entity_name, expected_artifact_fetched
+):
+    mocker.patch(
+        "wandb.sdk.artifacts.artifact.Artifact._from_attrs",
+    )
+
+    mock__resolve_org_entity_name = mocker.patch(
+        "wandb.sdk.internal.internal_api.Api._resolve_org_entity_name",
+        return_value=resolve_org_entity_name,
+    )
+
+    mock_fetch_artifact_by_name = mocker.patch.object(api.client, "execute")
+
+    if expected_artifact_fetched:
+        mock_fetch_artifact_by_name.return_value = {
+            "project": {
+                "artifact": {
+                    "name": "test-collection",
+                    "version": "v0",
+                }
+            }
+        }
+    else:
+        mock_fetch_artifact_by_name.return_value = {"data": {"project": {}}}
+
+    try:
+        api.artifact(artifact_path)
+    except wandb.errors.CommError:
+        if expected_artifact_fetched:
+            pytest.fail("Expected artifact to be fetched, but it was not")
+        return
+
+    mock__resolve_org_entity_name.assert_called_once()
+
+    mock_fetch_artifact_by_name.assert_called_once()
