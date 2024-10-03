@@ -3184,8 +3184,7 @@ class RunFinishWithoutExitRequest(google.protobuf.message.Message):
 
     _INFO_FIELD_NUMBER: builtins.int
     @property
-    def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo:
-        """int32 runtime = 2;  // ??"""
+    def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
     def __init__(
         self,
         *,
