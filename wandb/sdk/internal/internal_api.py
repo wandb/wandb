@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import ast
 import base64
 import datetime
@@ -3522,7 +3520,7 @@ class Api:
         return link_artifact
 
     def resolve_org_entity_name(
-        self, entity: str, organization: str | None = None
+        self, entity: str, organization: Optional[str] = None
     ) -> str:
         # Fetches the org entity of the portfolio entity to
         # 1. validate the user inputted the correct display org name or org entity name and
