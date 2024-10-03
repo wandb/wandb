@@ -966,7 +966,8 @@ class WandbImporter:
         if reports:
             self.import_reports(
                 namespaces=namespaces,
-                remapping=remapping
+                remapping=remapping,
+                parallel=parallel
             )
 
         if artifacts:
