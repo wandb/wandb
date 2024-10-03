@@ -17,10 +17,10 @@ import filelock
 import polars as pl
 import requests
 import urllib3
-import wandb_workspaces.reports.v2 as wr
+import wandb_workspaces.reports.v1 as wr
 import yaml
 from wandb_gql import gql
-from wandb_workspaces.reports.v2 import Report
+from wandb_workspaces.reports.v1 import Report
 
 import wandb
 from wandb.apis.public import ArtifactCollection, Run
@@ -738,7 +738,7 @@ class WandbImporter:
 
         logger.info(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
         api.client.execute(
-            wr.Report(),
+            wr.report.UPSERT_VIEW,
             variable_values={
                 "id": None,  # Is there any benefit for this to be the same as default report?
                 "name": name,
@@ -747,7 +747,7 @@ class WandbImporter:
                 "description": description,
                 "displayName": title,
                 "type": "runs",
-                "spec": json.dumps(report._spec),
+                "spec": json.dumps(report.spec),
             },
         )
 
@@ -849,6 +849,7 @@ class WandbImporter:
         *,
         namespaces: Optional[Iterable[Namespace]] = None,
         limit: Optional[int] = None,
+        parallel: bool = True,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
     ):
         logger.info("START: Importing reports")
@@ -867,7 +868,7 @@ class WandbImporter:
             self._import_report(report, namespace=namespace)
             logger.info(f"Finished importing {report=}, {namespace=}")
 
-        for_each(_import_report_wrapped, reports)
+        for_each(_import_report_wrapped, reports, parallel=parallel)
 
         logger.info("END: Importing reports")
 
@@ -877,6 +878,7 @@ class WandbImporter:
         namespaces: Optional[Iterable[Namespace]] = None,
         incremental: bool = True,
         max_workers: Optional[int] = None,
+        parallel: bool = True,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
     ):
         """Import all artifact sequences from `namespaces`.
@@ -893,7 +895,7 @@ class WandbImporter:
         self._validate_artifact_sequences(
             seqs,
             incremental=incremental,
-            remapping=remapping,
+            remapping=remapping
         )
 
         logger.info("Collecting failed artifact sequences")
@@ -910,7 +912,7 @@ class WandbImporter:
             self._import_artifact_sequence(seq, namespace=namespace)
             logger.info(f"Finished importing artifact sequence {seq=}, {namespace=}")
 
-        for_each(_import_artifact_sequence_wrapped, seqs, max_workers=max_workers)
+        for_each(_import_artifact_sequence_wrapped, seqs, max_workers=max_workers, parallel=parallel)
 
         # it's safer to just use artifact on all seqs to make sure we don't miss anything
         # For seqs that have already been used, this is a no-op.
@@ -972,7 +974,8 @@ class WandbImporter:
                 namespaces=namespaces,
                 incremental=incremental,
                 remapping=remapping,
-                max_workers=max_workers
+                max_workers=max_workers,
+                parallel=parallel,
             )
 
         logger.info("END: Importing all")
