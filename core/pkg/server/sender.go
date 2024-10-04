@@ -1677,7 +1677,7 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 
 func (s *Sender) sendRequestSenderRead(_ *spb.Record, _ *spb.SenderReadRequest) {
 	if s.store == nil {
-		store := NewStore(s.settings.GetSyncFile())
+		store := NewStore(s.settings.GetTransactionLogPath())
 		err := store.Open(os.O_RDONLY)
 		if err != nil {
 			s.logger.CaptureError(

@@ -58,19 +58,24 @@ func (s *Settings) GetAPIKey() string {
 	return s.Proto.ApiKey.GetValue()
 }
 
-// Whether we are in sync mode.
-func (s *Settings) IsSync() bool {
-	return s.Proto.XSync.GetValue()
-}
-
-// The path to the sync file.
-func (s *Settings) GetSyncFile() string {
-	return s.Proto.SyncFile.GetValue()
+// Path to file containing an identity token for authentication.
+func (s *Settings) GetIdentityTokenFile() string {
+	return s.Proto.IdentityTokenFile.GetValue()
 }
 
 // Whether we are in offline mode.
 func (s *Settings) IsOffline() bool {
 	return s.Proto.XOffline.GetValue()
+}
+
+// Whether we are syncing a run from the transaction log.
+func (s *Settings) IsSync() bool {
+	return s.Proto.XSync.GetValue()
+}
+
+// Path to the transaction log file, that is being synced.
+func (s *Settings) GetTransactionLogPath() string {
+	return s.Proto.SyncFile.GetValue()
 }
 
 // Whether we are in shared mode.
@@ -101,27 +106,7 @@ func (s *Settings) GetEntity() string {
 	return s.Proto.Entity.GetValue()
 }
 
-// The W&B user name.
-func (s *Settings) GetUserName() string {
-	return s.Proto.Username.GetValue()
-}
-
-// The W&B email address.
-func (s *Settings) GetEmail() string {
-	return s.Proto.Email.GetValue()
-}
-
-// The W&B sweep URL.
-func (s *Settings) GetSweepURL() string {
-	return s.Proto.SweepUrl.GetValue()
-}
-
-// The W&B URL of the run
-func (s *Settings) GetBaseURL() string {
-	return s.Proto.BaseUrl.GetValue()
-}
-
-// The start time of the run.
+// The start time of the run in microseconds since the Unix epoch.
 func (s *Settings) GetStartTime() time.Time {
 	seconds := s.Proto.XStartTime.GetValue()
 	return time.UnixMicro(int64(seconds * 1e6))
@@ -137,7 +122,7 @@ func (s *Settings) GetInternalLogFile() string {
 	return s.Proto.LogInternal.GetValue()
 }
 
-// The local directory where the run's files are stored.
+// Absolute path to the local directory where this run's files are stored.
 func (s *Settings) GetFilesDir() string {
 	return s.Proto.FilesDir.GetValue()
 }
@@ -145,6 +130,13 @@ func (s *Settings) GetFilesDir() string {
 // Unix glob patterns relative to `files_dir` to not upload.
 func (s *Settings) GetIgnoreGlobs() []string {
 	return s.Proto.IgnoreGlobs.GetValue()
+}
+
+// The URL for the W&B backend.
+//
+// Used for GraphQL and "filestream" operations.
+func (s *Settings) GetBaseURL() string {
+	return s.Proto.BaseUrl.GetValue()
 }
 
 // An approximate maximum request size for the filestream API.
@@ -238,7 +230,34 @@ func (s *Settings) GetHTTPSProxy() string {
 	return s.Proto.HttpsProxy.GetValue()
 }
 
-// Resume mode for the run.
+// Path to the script that created the run, if available.
+func (s *Settings) GetProgram() string {
+	return s.Proto.Program.GetValue()
+}
+
+// The W&B user name.
+func (s *Settings) GetUserName() string {
+	return s.Proto.Username.GetValue()
+}
+
+// The W&B email address.
+func (s *Settings) GetEmail() string {
+	return s.Proto.Email.GetValue()
+}
+
+// Specifies the resume behavior for the run. The available options are:
+//
+// "must": Resumes from an existing run with the same ID. If no such run exists,
+// it will result in failure.
+//
+// "allow": Attempts to resume from an existing run with the same ID. If none is
+// found, a new run will be created.
+//
+// "never": Always starts a new run. If a run with the same ID already exists,
+// it will result in failure.
+//
+// "auto": Automatically resumes from the most recent failed run on the same
+// machine.
 func (s *Settings) GetResume() string {
 	return s.Proto.Resume.GetValue()
 }
@@ -253,25 +272,20 @@ func (s *Settings) GetForkFrom() *spb.RunMoment {
 	return s.Proto.ForkFrom
 }
 
-// File path to supply a jwt for authentication
-func (s *Settings) GetIdentityTokenFile() string {
-	return s.Proto.IdentityTokenFile.GetValue()
-}
-
 // Checks whether console capture is enabled. If it is, stdout and stderr
 // will be captured and sent to W&B.
 func (s *Settings) IsConsoleCaptureEnabled() bool {
 	return s.Proto.Console.GetValue() != "off"
 }
 
-// The program path that created the run.
-func (s *Settings) GetProgram() string {
-	return s.Proto.Program.GetValue()
-}
-
-// Flag that indicates whether to create a job artifact, to be used by launch.
+// Whether to create a job artifact for W&B Launch.
 func (s *Settings) IsJobCreationDisabled() bool {
 	return s.Proto.DisableJobCreation.GetValue()
+}
+
+// The W&B sweep URL.
+func (s *Settings) GetSweepURL() string {
+	return s.Proto.SweepUrl.GetValue()
 }
 
 // Update methods.

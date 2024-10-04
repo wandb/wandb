@@ -52,8 +52,21 @@ message Settings {
   // This can be empty if we're in offline mode.
   google.protobuf.StringValue api_key = 55;
 
+  // Path to file containing an identity token for authentication.
+  google.protobuf.StringValue identity_token_file = 170;
+
+  // Path to file for writing temporary access tokens.
+  google.protobuf.StringValue credentials_file = 171;
+
   // Whether we are in offline mode.
   google.protobuf.BoolValue _offline = 30;
+
+  // Flag to indicate whether we are syncing a run from
+  // the transaction log.
+  google.protobuf.BoolValue _sync = 31;
+
+  // Path to the transaction log file, that is being synced.
+  google.protobuf.StringValue sync_file = 134;
 
   // Whether we are in shared mode.
   //
@@ -103,17 +116,10 @@ message Settings {
   // Unix glob patterns relative to `files_dir` to not upload.
   ListStringValue ignore_globs = 78;
 
-  // Disable check for latest version of wandb, from pypi.
-  google.protobuf.BoolValue _disable_update_check = 165;
-
-  // Explicitly require wandb-core to not be used.
-  google.protobuf.BoolValue _require_legacy_service = 173;
-
-  // Path to file containing an identity token for authentication.
-  google.protobuf.StringValue identity_token_file = 170;
-
-  // Path to file for writing temporary access tokens.
-  google.protobuf.StringValue credentials_file = 171;
+  // The URL for the W&B backend.
+  //
+  // Used for GraphQL and "filestream" operations.
+  google.protobuf.StringValue base_url = 57;
 
   // An approximate maximum request size for the filestream API.
   //
@@ -156,6 +162,60 @@ message Settings {
   // Per-retry timeout for GraphQL operations.
   google.protobuf.DoubleValue _graphql_timeout_seconds = 157;
 
+  // The custom proxy servers for http requests to W&B.
+  google.protobuf.StringValue http_proxy = 168;
+  // The custom proxy servers for https requests to W&B.
+  google.protobuf.StringValue https_proxy = 169;
+
+  // Custom proxy servers for the requests to W&B.
+  //
+  // The key is the protocol, e.g. "http", "https", "socks5".
+  // The value is the proxy URL.
+  // TODO: deprecated, use http_proxy and https_proxy instead.
+  MapStringKeyStringValue _proxies = 200;
+
+  // Path to the script that created the run, if available.
+  google.protobuf.StringValue program = 95;
+
+  // The W&B user name.
+  google.protobuf.StringValue username = 141;
+
+  // The W&B user email.
+  google.protobuf.StringValue email = 68;
+
+  // Specifies the resume behavior for the run. The available options are:
+  //
+  // "must": Resumes from an existing run with the same ID. If no such run exists,
+  // it will result in failure.
+  //
+  // "allow": Attempts to resume from an existing run with the same ID. If none is
+  // found, a new run will be created.
+  //
+  // "never": Always starts a new run. If a run with the same ID already exists,
+  // it will result in failure.
+  //
+  // "auto": Automatically resumes from the most recent failed run on the same
+  // machine.
+  google.protobuf.StringValue resume = 102;
+
+  // ResumeFrom (or Rewind) information for the run.
+  RunMoment resume_from = 167;
+
+  // Fork information for the run.
+  RunMoment fork_from = 164;
+
+  // Whether to create a job artifact for W&B Launch.
+  google.protobuf.BoolValue disable_job_creation = 65;
+
+  // The W&B sweep URL.
+  google.protobuf.StringValue sweep_url = 131;
+
+  // Disable check for latest version of wandb, from pypi.
+  google.protobuf.BoolValue _disable_update_check = 165;
+
+  // Explicitly require wandb-core to not be used.
+  google.protobuf.BoolValue _require_legacy_service = 173;
+
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.BoolValue _cli_only_mode = 4;
@@ -181,7 +241,6 @@ message Settings {
   google.protobuf.Int32Value _network_buffer = 27;
   google.protobuf.BoolValue _noop = 28;
   google.protobuf.BoolValue _notebook = 29;
-  google.protobuf.BoolValue _sync = 31;
   google.protobuf.StringValue _os = 32;
   google.protobuf.StringValue _platform = 33;
   google.protobuf.StringValue _python = 34;
@@ -205,17 +264,14 @@ message Settings {
   google.protobuf.BoolValue allow_val_change = 53;
   google.protobuf.StringValue anonymous = 54;
   MapStringKeyStringValue azure_account_url_to_access_key = 56;
-  google.protobuf.StringValue base_url = 57;
   google.protobuf.StringValue code_dir = 58;
   ListStringValue config_paths = 59;
   google.protobuf.StringValue deployment = 61;
   google.protobuf.BoolValue disable_code = 62;
   google.protobuf.BoolValue disable_git = 63;
   google.protobuf.BoolValue disable_hints = 64;
-  google.protobuf.BoolValue disable_job_creation = 65;
   google.protobuf.BoolValue disabled = 66;
   google.protobuf.StringValue docker = 67;
-  google.protobuf.StringValue email = 68;
   google.protobuf.BoolValue force = 71;
   google.protobuf.StringValue git_commit = 72;
   google.protobuf.StringValue git_remote = 73;
@@ -235,17 +291,13 @@ message Settings {
   google.protobuf.DoubleValue login_timeout = 90;
   google.protobuf.StringValue mode = 92;
   google.protobuf.StringValue notebook_name = 93;
-  google.protobuf.StringValue program = 95;
   google.protobuf.StringValue program_relpath = 96;
   google.protobuf.StringValue project_url = 98;
   google.protobuf.BoolValue quiet = 99;
   google.protobuf.BoolValue reinit = 100;
   google.protobuf.BoolValue relogin = 101;
-  google.protobuf.StringValue resume = 102;
   google.protobuf.StringValue resume_fname = 103;
   google.protobuf.BoolValue resumed = 104;
-  RunMoment fork_from = 164;
-  RunMoment resume_from = 167;
   google.protobuf.StringValue root_dir = 105;
   google.protobuf.StringValue run_group = 106;
   google.protobuf.StringValue run_job_type = 108;
@@ -270,15 +322,12 @@ message Settings {
   google.protobuf.Int32Value summary_warnings = 128;
   google.protobuf.StringValue sweep_id = 129;
   google.protobuf.StringValue sweep_param_path = 130;
-  google.protobuf.StringValue sweep_url = 131;
   google.protobuf.BoolValue symlink = 132;
   google.protobuf.StringValue sync_dir = 133;
-  google.protobuf.StringValue sync_file = 134;
   google.protobuf.StringValue sync_symlink_latest = 135;
   google.protobuf.BoolValue table_raise_on_max_row_limit_exceeded = 138;
   google.protobuf.StringValue timespec = 139;
   google.protobuf.StringValue tmp_dir = 140;
-  google.protobuf.StringValue username = 141;
   google.protobuf.StringValue wandb_dir = 142;
   google.protobuf.StringValue _jupyter_name = 143;
   google.protobuf.StringValue _jupyter_path = 144;
@@ -290,17 +339,6 @@ message Settings {
   google.protobuf.Int32Value _stats_buffer_size = 161;
   google.protobuf.StringValue _code_path_local = 163;
   google.protobuf.BoolValue console_multipart = 166;
-  // The custom proxy servers for http requests to W&B.
-  google.protobuf.StringValue http_proxy = 168;
-  // The custom proxy servers for https requests to W&B.
-  google.protobuf.StringValue https_proxy = 169;
-
-  // Custom proxy servers for the requests to W&B.
-  //
-  // The key is the protocol, e.g. "http", "https", "socks5".
-  // The value is the proxy URL.
-  // TODO: deprecated, use http_proxy and https_proxy instead.
-  MapStringKeyStringValue _proxies = 200;
 
   // todo?
   //  map<google.protobuf.StringValue, google.protobuf.Int32Value> _sources =
