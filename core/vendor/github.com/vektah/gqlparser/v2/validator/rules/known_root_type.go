@@ -1,4 +1,4 @@
-package validator
+package rules
 
 import (
 	"fmt"
@@ -9,8 +9,9 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-func init() {
-	AddRule("KnownRootType", func(observers *Events, addError AddErrFunc) {
+var KnownRootTypeRule = Rule{
+	Name: "KnownRootType",
+	RuleFunc: func(observers *Events, addError AddErrFunc) {
 		// A query's root must be a valid type.  Surprisingly, this isn't
 		// checked anywhere else!
 		observers.OnOperation(func(walker *Walker, operation *ast.OperationDefinition) {
@@ -33,5 +34,9 @@ func init() {
 					At(operation.Position))
 			}
 		})
-	})
+	},
+}
+
+func init() {
+	AddRule(KnownRootTypeRule.Name, KnownRootTypeRule.RuleFunc)
 }

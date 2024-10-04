@@ -1,4 +1,4 @@
-package validator
+package rules
 
 import (
 	"github.com/vektah/gqlparser/v2/ast"
@@ -7,8 +7,9 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-func init() {
-	AddRule("UniqueDirectivesPerLocation", func(observers *Events, addError AddErrFunc) {
+var UniqueDirectivesPerLocationRule = Rule{
+	Name: "UniqueDirectivesPerLocation",
+	RuleFunc: func(observers *Events, addError AddErrFunc) {
 		observers.OnDirectiveList(func(walker *Walker, directives []*ast.Directive) {
 			seen := map[string]bool{}
 
@@ -22,5 +23,9 @@ func init() {
 				seen[dir.Name] = true
 			}
 		})
-	})
+	},
+}
+
+func init() {
+	AddRule(UniqueDirectivesPerLocationRule.Name, UniqueDirectivesPerLocationRule.RuleFunc)
 }

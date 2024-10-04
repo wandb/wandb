@@ -213,16 +213,29 @@ namespace Wandb
         /// <summary>
         /// Completes the run by sending exit commands and cleaning up resources.
         /// </summary>
+        /// <param name="markFinished">Whether to mark the run as finished on the server.</param>
         /// <returns>A task that represents the asynchronous operation.</returns>
         /// <exception cref="Exception">Thrown when the exit delivery fails.</exception>
-        public async Task Finish()
+        public async Task Finish(bool markFinished = true)
         {
             // TODO: get timeout from settings
-            Result deliverExitResult = await _interface.DeliverExit(timeoutMilliseconds: 600000).ConfigureAwait(false);
-            if (deliverExitResult.ExitResult == null)
+            if (markFinished)
             {
-                throw new Exception("Failed to deliver exit");
+                Result deliverExitResult = await _interface.DeliverExit(timeoutMilliseconds: 600000).ConfigureAwait(false);
+                if (deliverExitResult.ExitResult == null)
+                {
+                    throw new Exception("Failed to deliver exit");
+                }
             }
+            else
+            {
+                Result deliverFinishWithoutExitResult = await _interface.DeliverFinishWithoutExit(timeoutMilliseconds: 600000).ConfigureAwait(false);
+                if (deliverFinishWithoutExitResult.Response.RunFinishWithoutExitResponse == null)
+                {
+                    throw new Exception("Failed to deliver finish without exit");
+                }
+            }
+
             // Send finish command
             await _interface.InformFinish().ConfigureAwait(false);
 
