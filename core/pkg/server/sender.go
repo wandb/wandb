@@ -600,7 +600,7 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 	case spb.DeferRequest_FLUSH_OUTPUT:
 		go func() {
 			defer s.logger.Reraise()
-			s.consoleLogsSender.Finish(!s.startState.Initialized)
+			s.consoleLogsSender.Finish()
 			request.State++
 			s.fwdRequestDefer(request)
 		}()

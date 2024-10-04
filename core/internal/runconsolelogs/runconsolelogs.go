@@ -153,12 +153,8 @@ func New(params Params) *Sender {
 // Finish sends any remaining logs.
 //
 // It must run before the filestream is closed.
-func (s *Sender) Finish(skip bool) {
+func (s *Sender) Finish() {
 	s.writer.Wait()
-
-	if skip {
-		return
-	}
 
 	if s.captureEnabled && s.runfilesUploaderOrNil != nil {
 		s.runfilesUploaderOrNil.UploadNow(
