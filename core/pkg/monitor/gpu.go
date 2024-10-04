@@ -115,6 +115,7 @@ func (g *GPU) Probe() *spb.MetadataRequest {
 }
 
 func (g *GPU) Close() {
-	g.client.TearDown(context.Background(), &emptypb.Empty{})
-	g.conn.Close()
+	if _, err := g.client.TearDown(context.Background(), &emptypb.Empty{}); err == nil { // ignore error
+		g.conn.Close()
+	}
 }
