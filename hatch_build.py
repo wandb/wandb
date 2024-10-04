@@ -27,7 +27,7 @@ _WANDB_BUILD_GORACEDETECT = "WANDB_BUILD_GORACEDETECT"
 # Other build options.
 _WANDB_BUILD_UNIVERSAL = "WANDB_BUILD_UNIVERSAL"
 _WANDB_BUILD_SKIP_APPLE = "WANDB_BUILD_SKIP_APPLE"
-_WANDB_BUILD_SKIP_NVIDIA = "WANDB_BUILD_SKIP_NVIDIA"
+_WANDB_BUILD_SKIP_GPU_STATS = "WANDB_BUILD_SKIP_GPU_STATS"
 
 
 class CustomBuildHook(BuildHookInterface):
@@ -101,9 +101,7 @@ class CustomBuildHook(BuildHookInterface):
 
     def _include_gpu_stats(self) -> bool:
         """Returns whether we should produce a wheel with gpu_stats."""
-        return not _get_env_bool(
-            _WANDB_BUILD_SKIP_NVIDIA, default=False
-        ) and self._target_platform().goos in ("linux", "windows")
+        return not _get_env_bool(_WANDB_BUILD_SKIP_GPU_STATS, default=False)
 
     def _is_platform_wheel(self) -> bool:
         """Returns whether we're producing a platform-specific wheel."""

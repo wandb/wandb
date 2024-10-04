@@ -86,18 +86,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Reflection service
     // TODO: clean up this code
-    let descriptor = "src/descriptor.bin";
-    let binding = std::fs::read(descriptor).unwrap();
-    let descriptor_bytes = binding.as_slice();
+    // let descriptor = "src/descriptor.bin";
+    // let binding = std::fs::read(descriptor).unwrap();
+    // let descriptor_bytes = binding.as_slice();
 
-    let reflection_service = tonic_reflection::server::Builder::configure()
-        .register_encoded_file_descriptor_set(descriptor_bytes)
-        .build_v1()
-        .unwrap();
+    // let reflection_service = tonic_reflection::server::Builder::configure()
+    //     .register_encoded_file_descriptor_set(descriptor_bytes)
+    //     .build_v1()
+    //     .unwrap();
+
+    println!("Server listening on {}", addr);
 
     Server::builder()
         .add_service(SystemMonitorServer::new(system_monitor))
-        .add_service(reflection_service)
+        // .add_service(reflection_service)
         .serve_with_shutdown(addr, async {
             // Wait for the shutdown signal
             shutdown_receiver.await.ok();
