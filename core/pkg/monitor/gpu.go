@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -106,8 +107,20 @@ func (g *GPU) Sample() (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(stats)
-	return nil, nil
+
+	// TODO: this is a temporary adapter. Will redo to use the protobuf message directly.
+	// convert stats record into a map
+	metrics := make(map[string]any)
+	for _, item := range stats.GetStats().GetItem() {
+		var unmarshalled any
+		err = json.Unmarshal([]byte(item.ValueJson), &unmarshalled)
+		if err != nil {
+			continue
+		}
+		metrics[item.Key] = unmarshalled
+	}
+
+	return metrics, nil
 }
 
 func (g *GPU) Probe() *spb.MetadataRequest {

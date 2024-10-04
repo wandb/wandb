@@ -8,7 +8,7 @@ use tonic;
 use tonic::{transport::Server, Request, Response, Status};
 use tonic_reflection;
 
-use gpu_apple::{Metrics, Sampler};
+use gpu_apple::ThreadSafeSampler;
 use wandb_internal::record::RecordType;
 use wandb_internal::{
     stats_record::StatsType,
@@ -21,82 +21,6 @@ use wandb_internal::{
 struct Args {
     #[arg(short, long, default_value = "50051")]
     port: i32,
-}
-
-use std::sync::mpsc::{channel, Receiver, Sender};
-use tokio::sync::oneshot;
-
-// Define a specific error type for our sampler
-#[derive(Debug)]
-pub struct SamplerError(String);
-
-impl std::fmt::Display for SamplerError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Sampler error: {}", self.0)
-    }
-}
-
-impl std::error::Error for SamplerError {}
-
-enum SamplerCommand {
-    GetMetrics(oneshot::Sender<Result<Metrics, SamplerError>>),
-    Shutdown,
-}
-
-pub struct ThreadSafeSampler {
-    command_sender: Sender<SamplerCommand>,
-}
-
-impl ThreadSafeSampler {
-    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let (command_sender, command_receiver) = channel();
-
-        std::thread::spawn(move || {
-            sampler_thread(command_receiver);
-        });
-
-        Ok(Self { command_sender })
-    }
-
-    pub async fn get_metrics(&self) -> Result<Metrics, Box<dyn std::error::Error>> {
-        let (response_sender, response_receiver) = oneshot::channel();
-        self.command_sender
-            .send(SamplerCommand::GetMetrics(response_sender))
-            .map_err(|e| Box::new(SamplerError(e.to_string())) as Box<dyn std::error::Error>)?;
-
-        response_receiver
-            .await
-            .map_err(|e| Box::new(SamplerError(e.to_string())) as Box<dyn std::error::Error>)?
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
-    }
-}
-
-impl Drop for ThreadSafeSampler {
-    fn drop(&mut self) {
-        let _ = self.command_sender.send(SamplerCommand::Shutdown);
-    }
-}
-
-fn sampler_thread(receiver: Receiver<SamplerCommand>) {
-    let mut sampler = match Sampler::new() {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("Failed to create Sampler: {}", e);
-            return;
-        }
-    };
-
-    for cmd in receiver {
-        match cmd {
-            SamplerCommand::GetMetrics(response) => {
-                let result = sampler
-                    .get_metrics(1)
-                    .map_err(|e| SamplerError(e.to_string()));
-                let _ = response.send(result);
-            }
-            SamplerCommand::Shutdown => break,
-        }
-    }
 }
 
 #[derive(Default)]
@@ -127,20 +51,24 @@ impl SystemMonitor for SystemMonitorImpl {
     ) -> Result<Response<Record>, Status> {
         println!("Got a request to get stats: {:?}", request);
 
-        let apple_stats = self
-            .sampler
-            .as_ref()
-            .ok_or_else(|| Status::internal("Sampler not initialized"))?
-            .get_metrics()
-            .await
-            .map_err(|e| Status::internal(format!("Failed to get metrics: {}", e)))?;
+        // Initialize an empty vector to store all metrics
+        let mut all_metrics = Vec::new();
 
-        println!("Apple stats: {:?}", apple_stats);
+        // Gather Apple metrics if sampler is available
+        if let Some(sampler) = &self.sampler {
+            match sampler.get_metrics().await {
+                Ok(apple_stats) => {
+                    let apple_metrics = ThreadSafeSampler::metrics_to_vec(apple_stats);
+                    println!("Apple metrics: {:?}", apple_metrics);
+                    all_metrics.extend(apple_metrics);
+                }
+                Err(e) => {
+                    println!("Failed to get Apple metrics: {}", e);
+                }
+            }
+        }
 
-        // TODO: get actual stats
-        let stats = vec![("gpu.0.memoryAllocated", 1.6800944010416665)];
-
-        let stats_items: Vec<StatsItem> = stats
+        let stats_items: Vec<StatsItem> = all_metrics
             .iter()
             .map(|(name, value)| StatsItem {
                 key: name.to_string(),

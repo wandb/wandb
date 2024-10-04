@@ -307,3 +307,158 @@ impl Sampler {
         Ok(rs)
     }
 }
+
+use std::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::oneshot;
+
+// Define a specific error type for our sampler
+#[derive(Debug)]
+pub struct SamplerError(String);
+
+impl std::fmt::Display for SamplerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Sampler error: {}", self.0)
+    }
+}
+
+impl std::error::Error for SamplerError {}
+
+enum SamplerCommand {
+    GetMetrics(oneshot::Sender<Result<Metrics, SamplerError>>),
+    Shutdown,
+}
+
+pub struct ThreadSafeSampler {
+    command_sender: Sender<SamplerCommand>,
+}
+
+impl ThreadSafeSampler {
+    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        let (command_sender, command_receiver) = channel();
+
+        std::thread::spawn(move || {
+            sampler_thread(command_receiver);
+        });
+
+        Ok(Self { command_sender })
+    }
+
+    pub async fn get_metrics(&self) -> Result<Metrics, Box<dyn std::error::Error>> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        self.command_sender
+            .send(SamplerCommand::GetMetrics(response_sender))
+            .map_err(|e| Box::new(SamplerError(e.to_string())) as Box<dyn std::error::Error>)?;
+
+        response_receiver
+            .await
+            .map_err(|e| Box::new(SamplerError(e.to_string())) as Box<dyn std::error::Error>)?
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+    }
+
+    pub fn metrics_to_vec(metrics: Metrics) -> Vec<(&'static str, f64)> {
+        let mut result = Vec::new();
+
+        // Helper function to safely add metrics
+        fn add_metric(vec: &mut Vec<(&'static str, f64)>, key: &'static str, value: f64) {
+            // Only add non-NaN, non-infinite values
+            if value.is_finite() {
+                vec.push((key, value));
+            }
+        }
+
+        // Helper function for optional integer metrics
+        fn add_optional_int(vec: &mut Vec<(&'static str, f64)>, key: &'static str, value: u64) {
+            if value > 0 {
+                add_metric(vec, key, value as f64);
+            }
+        }
+
+        // Temperature metrics
+        if metrics.temp.cpu_temp_avg.is_finite() {
+            add_metric(
+                &mut result,
+                "cpu.avg_temp",
+                metrics.temp.cpu_temp_avg as f64,
+            );
+        }
+        if metrics.temp.gpu_temp_avg.is_finite() {
+            add_metric(&mut result, "gpu.0.temp", metrics.temp.gpu_temp_avg as f64);
+        }
+
+        // Memory metrics
+        add_optional_int(&mut result, "memory.total", metrics.memory.ram_total);
+        add_optional_int(&mut result, "memory.used", metrics.memory.ram_usage);
+        add_optional_int(&mut result, "swap.total", metrics.memory.swap_total);
+        add_optional_int(&mut result, "swap.used", metrics.memory.swap_usage);
+
+        // CPU metrics
+        let (ecpu_freq, ecpu_percent) = metrics.ecpu_usage;
+        if ecpu_freq > 0 {
+            add_metric(&mut result, "cpu.ecpu_freq", ecpu_freq as f64);
+        }
+        if ecpu_percent.is_finite() {
+            add_metric(&mut result, "cpu.ecpu_percent", ecpu_percent as f64);
+        }
+
+        let (pcpu_freq, pcpu_percent) = metrics.pcpu_usage;
+        if pcpu_freq > 0 {
+            add_metric(&mut result, "cpu.pcpu_freq", pcpu_freq as f64);
+        }
+        if pcpu_percent.is_finite() {
+            add_metric(&mut result, "cpu.pcpu_percent", pcpu_percent as f64);
+        }
+
+        // GPU metrics
+        let (gpu_freq, gpu_percent) = metrics.gpu_usage;
+        if gpu_freq > 0 {
+            add_metric(&mut result, "gpu.0.freq", gpu_freq as f64);
+        }
+        if gpu_percent.is_finite() {
+            add_metric(&mut result, "gpu.0.gpu", gpu_percent as f64);
+        }
+
+        // Power metrics
+        if metrics.cpu_power.is_finite() {
+            add_metric(&mut result, "cpu.powerWatts", metrics.cpu_power as f64);
+        }
+        if metrics.gpu_power.is_finite() {
+            add_metric(&mut result, "gpu.0.powerWatts", metrics.gpu_power as f64);
+        }
+        if metrics.ane_power.is_finite() {
+            add_metric(&mut result, "ane.power", metrics.ane_power as f64);
+        }
+        if metrics.sys_power.is_finite() {
+            add_metric(&mut result, "system.powerWatts", metrics.sys_power as f64);
+        }
+
+        result
+    }
+}
+
+impl Drop for ThreadSafeSampler {
+    fn drop(&mut self) {
+        let _ = self.command_sender.send(SamplerCommand::Shutdown);
+    }
+}
+
+fn sampler_thread(receiver: Receiver<SamplerCommand>) {
+    let mut sampler = match Sampler::new() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to create Sampler: {}", e);
+            return;
+        }
+    };
+
+    for cmd in receiver {
+        match cmd {
+            SamplerCommand::GetMetrics(response) => {
+                let result = sampler
+                    .get_metrics(1)
+                    .map_err(|e| SamplerError(e.to_string()));
+                let _ = response.send(result);
+            }
+            SamplerCommand::Shutdown => break,
+        }
+    }
+}
