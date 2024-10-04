@@ -601,6 +601,18 @@ def test_create_bokeh_plot(
 ################################################################################
 
 
+@pytest.fixture
+def sample_video_path():
+    # Create fake video
+    video_length = 3 * 24  # 3 seconds * 24 fps
+    frames = np.random.randint(
+        low=0, high=256, size=(video_length, 3, 10, 10), dtype=np.uint8
+    )
+    video = wandb.Video(frames, fps=24, format="mp4")
+    assert video._path is not None
+    return video._path
+
+
 def test_video_numpy_gif(mock_run):
     run = mock_run()
     video = np.random.randint(255, size=(10, 3, 28, 28))
@@ -631,11 +643,9 @@ def test_video_numpy_invalid():
         wandb.Video(video)
 
 
-def test_video_path(mock_run):
+def test_video_path(mock_run, sample_video_path):
     run = mock_run()
-    with open("video.mp4", "w") as f:
-        f.write("00000")
-    vid = wandb.Video("video.mp4")
+    vid = wandb.Video(sample_video_path)
     vid.bind_to_run(run, "videos", 0)
     assert vid.to_json(run)["path"].endswith(".mp4")
 
@@ -647,21 +657,9 @@ def test_video_path_invalid():
         wandb.Video("video.avi")
 
 
-def test_video_file_encodes_with_new_fps():
-    # Create fake video
-    video_length = 3 * 24  # 3 seconds * 24 fps
-    frames = np.random.randint(
-        low=0, high=256, size=(video_length, 3, 10, 10), dtype=np.uint8
-    )
-    video = wandb.Video(frames, fps=24, format="mp4")
-
-    # Assert video is created with correct fps
-    assert video._path is not None
-    clip = VideoFileClip(video._path)
-    assert clip.fps == 24
-
+def test_video_file_encodes_with_new_fps(sample_video_path):
     # Assert video file is re-encoded with correct fps
-    vid = wandb.Video(video._path, fps=1)
+    vid = wandb.Video(sample_video_path, fps=1)
     clip = VideoFileClip(vid._path)
     assert clip.fps == 1
 
@@ -1361,7 +1359,6 @@ def test_object3d_textio(mock_run, assets_path):
     obj = wandb.Object3D(io_obj, file_type="obj")
     obj.bind_to_run(run, "object3D", 0)
     assert obj.to_json(run)["_type"] == "object3D-file"
-    print(obj.to_json(run)["path"])
     assert obj.to_json(run)["path"].endswith(".obj")
 
 

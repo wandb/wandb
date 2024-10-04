@@ -114,6 +114,8 @@ class Video(BatchableMedia):
                 raise ValueError(
                     "wandb.Video accepts {} formats".format(", ".join(Video.EXTS))
                 )
+            # Maintain the original format if not specified
+            self._format = format or ext
             self.encode_video(data_or_path)
             # ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 data_or_path
         else:
