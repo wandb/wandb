@@ -3,7 +3,7 @@ import os
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union
 
-from wandb import util
+from wandb import termwarn, util
 from wandb.sdk.lib import filesystem, runid
 
 from . import _dtypes
@@ -58,7 +58,9 @@ class Video(BatchableMedia):
             Channels should be (time, channel, height, width) or
             (batch, time, channel, height width)
         caption: (string) caption associated with the video for display
-        fps: (int) frames per second for video. Default is 4.
+        fps: (int)
+            frames per second for video. Default is 4.
+            If the fps of the video is different from the desired fps the media will be re-encoded to a temporary file.
         format: (string) format of video, necessary if initializing with path or io object.
 
     Examples:
@@ -151,6 +153,9 @@ class Video(BatchableMedia):
 
         # If the fps of the video is different from the desired fps then we need to re-encode the video
         if self._fps != clip.fps:
+            termwarn("Desired frame rate is different than current media frame rate.")
+            termwarn("Re-encoding video may take a while.")
+
             clip = clip.set_fps(self._fps)
             self.encode(clip)
         # Otherwise don't do anything.
