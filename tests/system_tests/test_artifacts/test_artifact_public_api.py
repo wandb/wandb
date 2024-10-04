@@ -1,6 +1,6 @@
-from contextlib import nullcontext
 import os
 import platform
+from contextlib import nullcontext
 
 import pytest
 import wandb
