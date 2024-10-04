@@ -64,6 +64,7 @@ from typing import (
     Literal,
     Optional,
     Sequence,
+    Type,
     Union,
 )
 
@@ -100,7 +101,7 @@ __version__: str = "0.18.4.dev1"
 run: Run | None
 config: wandb_config.Config
 summary: wandb_summary.Summary
-Api: PublicApi
+Api: Type[PublicApi]
 
 # private attributes
 _sentry: Sentry
