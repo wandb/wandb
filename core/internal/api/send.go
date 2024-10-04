@@ -1,15 +1,23 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/wandb/wandb/core/internal/wboperation"
 )
 
 func (client *clientImpl) Send(req *Request) (*http.Response, error) {
-	retryableReq, err := retryablehttp.NewRequest(
+	ctx := req.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	retryableReq, err := retryablehttp.NewRequestWithContext(
+		ctx,
 		req.Method,
 		client.backend.baseURL.JoinPath(req.Path).String(),
 		req.Body,
@@ -42,6 +50,9 @@ func (client *clientImpl) Do(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, fmt.Errorf("api: failed to parse request: %v", err)
 	}
+
+	// Propagate the context, which retryableReq doesn't do for us.
+	retryableReq = retryableReq.WithContext(req.Context())
 
 	if !client.isToWandb(req) {
 		if client.backend.logger != nil {
@@ -94,6 +105,8 @@ func (client *clientImpl) send(
 	req *retryablehttp.Request,
 ) (*http.Response, error) {
 	resp, err := client.retryableHTTP.Do(req)
+
+	wboperation.Get(req.Context()).ClearError()
 
 	if err != nil {
 		return nil, fmt.Errorf("api: failed sending: %v", err)
