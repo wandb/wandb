@@ -488,7 +488,8 @@ func (s *Sender) updateSettings() {
 // sendRequestRunStart sends a run start request to start all the stream
 // components that need to be started and to update the settings
 func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
-	// mark the run state as initialized after the initial run upsert
+	// mark the run state as initialized, indicating the run has started and was
+	// successfully upserted on the server.
 	s.startState.Initialized = true
 
 	s.updateSettings()
