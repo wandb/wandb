@@ -290,32 +290,53 @@ def test_parse_artifact_path(user, api):
 
 
 @pytest.mark.parametrize(
-    ("artifact_path", "resolve_org_entity_name", "expected_artifact_fetched"),
+    (
+        "artifact_path",
+        "resolve_org_entity_name",
+        "is_registry_project",
+        "expected_artifact_fetched",
+    ),
     (
         (
             "org-name/wandb-registry-model/test-collection:v0",
             "org-entity-name",
+            True,
             True,
         ),
         (
             "org-entity-name/wandb-registry-model/test-collection:v0",
             "org-entity-name",
             True,
+            True,
         ),
         (
             "wandb-registry-model/test-collection:v0",
             "org-entity-name",
             True,
+            True,
         ),
         (
             "potato/wandb-registry-model/test-collection:v0",
             "",
+            True,
             False,
+        ),
+        (
+            "potato/not-a-registry-model/test-collection:v0",
+            "",
+            False,
+            True,
         ),
     ),
 )
 def test_fetch_registry_artifact(
-    user, api, mocker, artifact_path, resolve_org_entity_name, expected_artifact_fetched
+    user,
+    api,
+    mocker,
+    artifact_path,
+    resolve_org_entity_name,
+    is_registry_project,
+    expected_artifact_fetched,
 ):
     mocker.patch(
         "wandb.sdk.artifacts.artifact.Artifact._from_attrs",
@@ -347,6 +368,9 @@ def test_fetch_registry_artifact(
             pytest.fail("Expected artifact to be fetched, but it was not")
         return
 
-    mock__resolve_org_entity_name.assert_called_once()
+    if is_registry_project:
+        mock__resolve_org_entity_name.assert_called_once()
+    else:
+        mock__resolve_org_entity_name.assert_not_called()
 
     mock_fetch_artifact_by_name.assert_called_once()

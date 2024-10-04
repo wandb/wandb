@@ -1163,7 +1163,10 @@ class Api:
         # If its an Registry artifact, the entity is an org instead
         if is_artifact_registry_project(project):
             parts = name.split("/")
-            organization = parts[0] if len(parts) == 3 else None
+            if len(parts) == 3:
+                organization = parts[0]
+                # Update `organization` only if an organization name was provided,
+                # otherwise use the default that you already set above.
         artifact = wandb.Artifact._from_name(
             entity, project, artifact_name, self.client, organization
         )
