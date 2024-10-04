@@ -13,7 +13,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Fixed
 
-- Fixed `wandb.Video` fps argument not correctly uploading video with the provided framerate. (@jacobromero in https://github.com/wandb/wandb/pull/WB-18149)
+- Fixed `wandb.Video` fps argument not correctly uploading video with the provided frame rate. (@jacobromero in https://github.com/wandb/wandb/pull/8545)
 
 ## [0.18.3] - 2024-10-01
 
