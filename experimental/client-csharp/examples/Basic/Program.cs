@@ -36,8 +36,8 @@ class Program
             await run1.Log(new Dictionary<string, object> { { "loss", 0.4 }, { "recall", 0.95 }, { "epoch", 2 } });
             await run1.Log(new Dictionary<string, object> { { "loss", 0.3 }, { "recall", 0.9 }, { "epoch", 3 } });
 
-            // Finish the run:
-            await run1.Finish();
+            // Finish the run without marking it as finished on the server:
+            await run1.Finish(markFinished: false);
 
             // Simulate waiting for the next batch of data:
             await Task.Delay(3000);
@@ -68,7 +68,7 @@ class Program
             // Log more metrics:
             await run2.Log(new Dictionary<string, object> { { "loss", 0.1 }, { "recall", 0.99 }, { "epoch", 4 } });
 
-            // Finish the resumed run:
+            // Finish the resumed run and mark it as finished on the server:
             await run2.Finish();
         }
     }
