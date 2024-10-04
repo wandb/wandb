@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 import os
 import platform
 
@@ -361,12 +362,13 @@ def test_fetch_registry_artifact(
     else:
         mock_fetch_artifact_by_name.return_value = {"data": {"project": {}}}
 
-    try:
+    expectation = (
+        nullcontext()
+        if expected_artifact_fetched
+        else pytest.raises(wandb.errors.CommError)
+    )
+    with expectation:
         api.artifact(artifact_path)
-    except wandb.errors.CommError:
-        if expected_artifact_fetched:
-            pytest.fail("Expected artifact to be fetched, but it was not")
-        return
 
     if is_registry_project:
         mock__resolve_org_entity_name.assert_called_once()
