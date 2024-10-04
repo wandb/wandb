@@ -97,12 +97,15 @@ func TestLinkRegistryArtifact(t *testing.T) {
 			err := linker.Link()
 			if err != nil {
 				assert.NotEmpty(t, tc.errorMessage)
-				assert.ErrorContainsf(t, err, tc.errorMessage, "Expected error containing: %s", tc.errorMessage)
+				assert.ErrorContainsf(t, err, tc.errorMessage,
+					"Expected error containing: %s", tc.errorMessage)
 				return
 			}
 
-			// This error is not triggered by Link() because its linkArtifact that fails and we aren't actually calling it
-			// Here we are checking that the org entity being passed into linkArtifact is wrong so we know the query will fail
+			// This error is not triggered by Link() because its linkArtifact that fails
+			// and we aren't actually calling it.
+			// Here we are checking that the org entity being passed into linkArtifact
+			// is wrong so we know the query will fail.
 			if tc.errorMessage == expectLinkArtifactFailure {
 				requests := mockGQL.AllRequests()
 				assert.Len(t, requests, numExpectedRequests)

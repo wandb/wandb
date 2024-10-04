@@ -343,6 +343,8 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestSenderRead(record)
 	case *spb.Request_JobInput:
 		h.handleRequestJobInput(record)
+	case *spb.Request_RunFinishWithoutExit:
+		h.handleRequestRunFinishWithoutExit(record)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRequest: request type is nil"))
@@ -730,6 +732,14 @@ func (h *Handler) handleRun(record *spb.Record) {
 			control.AlwaysSend = true
 		},
 	)
+}
+
+func (h *Handler) handleRequestRunFinishWithoutExit(record *spb.Record) {
+	h.runTimer.Pause()
+	h.updateRunTiming()
+	h.systemMonitor.Finish()
+	h.flushPartialHistory(true, h.partialHistoryStep+1)
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {

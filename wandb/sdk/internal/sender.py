@@ -1457,7 +1457,9 @@ class SendManager:
         aliases = link.portfolio_aliases
         organization = link.portfolio_organization
         logger.debug(
-            f"link_artifact params - client_id={client_id}, server_id={server_id}, pfolio={portfolio_name}, entity={entity}, project={project}, organization={organization}"
+            f"link_artifact params - client_id={client_id}, server_id={server_id}, "
+            f"portfolio_name={portfolio_name}, entity={entity}, project={project}, "
+            f"organization={organization}"
         )
         if (client_id or server_id) and portfolio_name and entity and project:
             try:
@@ -1472,7 +1474,10 @@ class SendManager:
                 )
             except Exception as e:
                 org_or_entity = organization or entity
-                result.response.log_artifact_response.error_message = f'error linking artifact to "{org_or_entity}/{project}/{portfolio_name}"; error: {e}'
+                result.response.log_artifact_response.error_message = (
+                    f"error linking artifact to "
+                    f'"{org_or_entity}/{project}/{portfolio_name}"; error: {e}'
+                )
                 logger.warning("Failed to link artifact to portfolio: %s", e)
         self._respond_result(result)
 

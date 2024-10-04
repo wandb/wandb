@@ -180,7 +180,7 @@ func (v *varValidator) validateVarType(typ *ast.Type, val reflect.Value) (reflec
 		return val, gqlerror.ErrorPathf(v.path, "cannot use %s as %s", kind.String(), typ.NamedType)
 	case ast.InputObject:
 		if val.Kind() != reflect.Map {
-			return val, gqlerror.ErrorPathf(v.path, "must be a %s", def.Name)
+			return val, gqlerror.ErrorPathf(v.path, "must be a %s, not a %s", def.Name, val.Kind())
 		}
 
 		// check for unknown fields

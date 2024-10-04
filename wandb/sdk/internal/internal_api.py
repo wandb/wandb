@@ -307,7 +307,7 @@ class Api:
         self.server_use_artifact_input_info: Optional[List[str]] = None
         self.server_create_artifact_input_info: Optional[List[str]] = None
         self.server_artifact_fields_info: Optional[List[str]] = None
-        self.server_organization_fields_info: Optional[List[str]] = None
+        self.server_organization_type_fields_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
         self.fail_run_queue_item_input_info: Optional[List[str]] = None
@@ -3490,7 +3490,11 @@ class Api:
 
         org_entity = ""
         if is_artifact_registry_project(project):
-            org_entity = self._resolve_org_entity_name(entity, organization)
+            try:
+                org_entity = self._resolve_org_entity_name(entity, organization)
+            except ValueError as e:
+                wandb.termerror(e)
+                raise
 
         def replace(a: str, b: str) -> None:
             nonlocal template
@@ -3524,22 +3528,26 @@ class Api:
         # Fetches the org entity of the portfolio entity to
         # 1. validate the user inputted the correct display org name or org entity name and
         # 2. return the org entity name so we can use the correct entity name to link the artifact.
-        org_fields = self.server_organization_introspection()
+        org_fields = self.server_organization_type_introspection()
         can_fetch_org_entity = "orgEntity" in org_fields
         if not organization and not can_fetch_org_entity:
             raise ValueError(
-                """Fetching Registry artifacts without inputting an organization is unavailable for your server version.
-                Please upgrade your server to 0.50.0 or later."""
+                "Fetching Registry artifacts without inputting an organization "
+                "is unavailable for your server version. "
+                "Please upgrade your server to 0.50.0 or later."
             )
         if not can_fetch_org_entity:
-            # Server doesn't support fetching org entity, so we assume the org entity is correctly inputted
+            # Server doesn't support fetching org entity to validate,
+            # assume org entity is correctly inputted
             return organization
 
         org_entity, org_name = self.fetch_org_entity_from_entity(entity)
         if organization:
             if organization != org_name and organization != org_entity:
                 raise ValueError(
-                    f"Artifact belongs to the organization {org_entity!r} and cannot be linked to {organization!r}. Please update the target path with the correct organization name.",
+                    f"Artifact belongs to the organization {org_name!r} "
+                    f"and cannot be linked to {organization!r}. "
+                    "Please update the target path with the correct organization name."
                 )
         return org_entity
 
@@ -3572,7 +3580,8 @@ class Api:
             org_entity_name = org["orgEntity"]["name"] or ""
         except (LookupError, TypeError) as e:
             raise ValueError(
-                f"Unable to find organization for artifact under entity: {entity!r} Please make sure you are using a team entity when linking to the Registry"
+                f"Unable to find organization for artifact under entity: {entity!r} "
+                "Please make sure you are using a team entity when linking to the Registry"
             ) from e
         else:
             return org_entity_name, org_name
@@ -3644,7 +3653,8 @@ class Api:
             return artifact
         return None
 
-    def server_organization_introspection(self) -> List[str]:
+    # Fetch fields available in backend of Organization type
+    def server_organization_type_introspection(self) -> List[str]:
         query_string = """
             query ProbeServerOrganization {
                 OrganizationInfoType: __type(name:"Organization") {
@@ -3655,15 +3665,15 @@ class Api:
             }
         """
 
-        if self.server_organization_fields_info is None:
+        if self.server_organization_type_fields_info is None:
             query = gql(query_string)
             res = self.gql(query)
             input_fields = res.get("OrganizationInfoType", {}).get("fields", [{}])
-            self.server_organization_fields_info = [
+            self.server_organization_type_fields_info = [
                 field["name"] for field in input_fields if "name" in field
             ]
 
-        return self.server_organization_fields_info
+        return self.server_organization_type_fields_info
 
     def create_artifact_type(
         self,
