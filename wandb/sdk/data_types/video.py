@@ -148,9 +148,14 @@ class Video(BatchableMedia):
             required='wandb.Video requires moviepy when passing raw data.  Install with "pip install wandb[media]"',
         )
         clip = mpy.VideoFileClip(path)
-        clip = clip.set_fps(self._fps)
 
-        self.encode(clip)
+        # If the fps of the video is different from the desired fps then we need to re-encode the video
+        if self._fps != clip.fps:
+            clip = clip.set_fps(self._fps)
+            self.encode(clip)
+        # Otherwise don't do anything.
+        else:
+            self._set_file(path)
 
     def encode(self, clip) -> None:
         filename = os.path.join(
