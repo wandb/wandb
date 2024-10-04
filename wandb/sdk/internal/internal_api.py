@@ -3492,9 +3492,9 @@ class Api:
         if is_artifact_registry_project(project):
             try:
                 org_entity = self._resolve_org_entity_name(entity, organization)
-            except Exception as e:
-                wandb.termerror(f"error resolving org entity: {e}")
-                raise e
+            except ValueError as e:
+                wandb.termerror(e)
+                raise
 
         def replace(a: str, b: str) -> None:
             nonlocal template
@@ -3545,7 +3545,7 @@ class Api:
         if organization:
             if organization != org_name and organization != org_entity:
                 raise ValueError(
-                    f"Artifact belongs to the organization {org_entity!r} "
+                    f"Artifact belongs to the organization {org_name!r} "
                     f"and cannot be linked to {organization!r}. "
                     "Please update the target path with the correct organization name."
                 )
