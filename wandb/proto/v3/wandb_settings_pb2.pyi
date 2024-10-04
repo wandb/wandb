@@ -344,7 +344,7 @@ class Settings(google.protobuf.message.Message):
         """Whether we are in offline mode."""
     @property
     def _sync(self) -> google.protobuf.wrappers_pb2.BoolValue:
-        """Flag to indicate whether we are syncing a run from 
+        """Flag to indicate whether we are syncing a run from
         the transaction log.
         """
     @property
