@@ -3490,7 +3490,11 @@ class Api:
 
         org_entity = ""
         if is_artifact_registry_project(project):
-            org_entity = self._resolve_org_entity_name(entity, organization)
+            try:
+                org_entity = self._resolve_org_entity_name(entity, organization)
+            except Exception as e:
+                wandb.termerror(f"error resolving org entity: {e}")
+                raise e
 
         def replace(a: str, b: str) -> None:
             nonlocal template
