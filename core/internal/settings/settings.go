@@ -247,9 +247,14 @@ func (s *Settings) GetForkFrom() *spb.RunMoment {
 	return s.Proto.ForkFrom
 }
 
-// File path to supply a jwt for authentication
+// Path to file containing an identity token for authentication.
 func (s *Settings) GetIdentityTokenFile() string {
 	return s.Proto.IdentityTokenFile.GetValue()
+}
+
+// Path to file for writing temporary access tokens
+func (s *Settings) GetCredentialsFile() string {
+	return s.Proto.CredentialsFile.GetValue()
 }
 
 // Checks whether console capture is enabled. If it is, stdout and stderr

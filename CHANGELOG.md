@@ -16,6 +16,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Added
 
 - Add the ability to monitor the utilization metrics of Google's Cloud TPU devices (@dmitryduev in https://github.com/wandb/wandb/pull/8504)
+- Support JWT authentication in wandb-core (@elainaRenee in https://github.com/wandb/wandb/pull/8431)
 
 ### Fixed
 
