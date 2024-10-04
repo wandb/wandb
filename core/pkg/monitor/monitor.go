@@ -130,7 +130,7 @@ func (sm *SystemMonitor) InitializeAssets(settings *spb.Settings) {
 	if network := NewNetwork(); network != nil {
 		sm.assets = append(sm.assets, network)
 	}
-	if gpu := NewGPU(); gpu != nil {
+	if gpu := NewGPU(pid); gpu != nil {
 		sm.assets = append(sm.assets, gpu)
 	}
 	cmdPath := ""

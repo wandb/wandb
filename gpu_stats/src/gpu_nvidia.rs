@@ -98,7 +98,10 @@ pub fn get_lib_path() -> Result<PathBuf, NvmlError> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        // On Linux, return the standard library name
+        // On Linux, Nvml::init() attempts to load libnvidia-ml.so, which is usually a symlink
+        // to libnvidia-ml.so.1 and not available in certain environments.
+        // We follow NVIDIA's go-nvml example and attempt to load libnvidia-ml.so.1 directly, see:
+        // https://github.com/NVIDIA/go-nvml/blob/0e815c71ca6e8184387d8b502b2ef2d2722165b9/pkg/nvml/lib.go#L30
         Ok(PathBuf::from("libnvidia-ml.so.1"))
     }
 }
@@ -113,10 +116,6 @@ pub struct NvidiaGpu {
 
 impl NvidiaGpu {
     pub fn new() -> Result<Self, NvmlError> {
-        // On Linux, Nvml::init() attempts to load libnvidia-ml.so which is usually a symlink
-        // to libnvidia-ml.so.1 and not available in certain environments.
-        // We follow go-nvml example and attempt to load libnvidia-ml.so.1 directly, see:
-        // https://github.com/NVIDIA/go-nvml/blob/0e815c71ca6e8184387d8b502b2ef2d2722165b9/pkg/nvml/lib.go#L30
         let lib_path = get_lib_path()?;
 
         let nvml = Nvml::builder().lib_path(lib_path.as_os_str()).init()?;

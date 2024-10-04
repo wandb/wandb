@@ -3,7 +3,6 @@ package monitor
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,17 +11,18 @@ import (
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/local"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type GPU struct {
+	pid    int32
 	conn   *grpc.ClientConn
 	client spb.SystemMonitorClient
 }
 
-func NewGPU() *GPU {
-	g := &GPU{}
+func NewGPU(pid int32) *GPU {
+	g := &GPU{pid: pid}
 
 	// TODO: implement a robust handshake mechanism instead
 	// find an available port to use for grpc
@@ -49,12 +49,13 @@ func NewGPU() *GPU {
 		return nil
 	}
 
-	// establish connection to gpu_stats via grpc
-	grpcAddr := "localhost:" + strconv.Itoa(port)
-	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(local.NewCredentials()))
-	// TODO: does this succeed immediately after starting the binary?
+	// Establish connection to gpu_stats via gRPC.
+	grpcAddr := "[::1]:" + strconv.Itoa(port)
+	// NewCLient creates a new gRPC "channel" for the target URI provided. No I/O is performed.
+	// Use of the ClientConn for RPCs will automatically cause it to connect.
+	// conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(local.NewCredentials()))
+	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		fmt.Println(err)
 		return nil
 	}
 	g.conn = conn
@@ -67,13 +68,9 @@ func NewGPU() *GPU {
 
 func getAvailablePort() (int, error) {
 	// TODO: implement a robust handshake mechanism instead
-	listener, err := net.Listen("tcp", ":0")
-	if err != nil {
-		return 0, err
-	}
-	port := listener.Addr().(*net.TCPAddr).Port
-	listener.Close()
-	return port, nil
+	// Better still, use a unix domain socket on *nix systems
+	// and named pipes on Windows
+	return 50051, nil
 }
 
 // getGPUStatsCmdPath returns the path to the gpu_stats program.
@@ -105,6 +102,11 @@ func (g *GPU) IsAvailable() bool {
 }
 
 func (g *GPU) Sample() (map[string]any, error) {
+	stats, err := g.client.GetStats(context.Background(), &spb.GetStatsRequest{Pid: int64(g.pid)})
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(stats)
 	return nil, nil
 }
 
@@ -114,4 +116,5 @@ func (g *GPU) Probe() *spb.MetadataRequest {
 
 func (g *GPU) Close() {
 	g.client.TearDown(context.Background(), &emptypb.Empty{})
+	g.conn.Close()
 }
