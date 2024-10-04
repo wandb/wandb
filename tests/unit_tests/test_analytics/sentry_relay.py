@@ -1,8 +1,8 @@
 import socket
 import threading
 import time
-from typing import Any, Dict, Union
 import zlib
+from typing import Any, Dict, Union
 
 import flask
 import requests
@@ -25,7 +25,6 @@ class SentryResponse:
         self.tags = tags
         self.is_error = is_error
 
-
     def __eq__(self, other):
         return (
             self.message == other.message
@@ -41,6 +40,7 @@ class MetricRelayServer:
     A mock Sentry Relay server that listens for local requests to sentry APIs.
     These local requests are stored in a dictionary of event_id to SentryResponse.
     """
+
     events: dict[str, SentryResponse] = {}
 
     def __init__(

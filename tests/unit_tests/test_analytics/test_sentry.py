@@ -1,14 +1,14 @@
-from copy import copy
 import os
+from copy import copy
 from unittest import mock
 
 import pytest
-from tests.unit_tests.test_analytics.sentry_relay import SentryResponse
 import wandb
 import wandb.analytics
 import wandb.env
 from sentry_relay import MetricRelayServer
 from sentry_sdk.utils import sentry_sdk
+from tests.unit_tests.test_analytics.sentry_relay import SentryResponse
 
 SENTRY_DSN_FORMAT = "http://{key}@127.0.0.1:{port}/{project}"
 
@@ -135,8 +135,12 @@ def test_wandb_sentry_init_after_client_init(relay):
         expected_wandb_sentry_response.tags = wandb_sentry.scope._tags
 
         # Send sentry events
-        other_sentry_event_id = sentry_sdk.capture_message(expected_other_sentry_response.message)
-        wandb_sentry_event_id = wandb_sentry.message(expected_wandb_sentry_response.message)
+        other_sentry_event_id = sentry_sdk.capture_message(
+            expected_other_sentry_response.message
+        )
+        wandb_sentry_event_id = wandb_sentry.message(
+            expected_wandb_sentry_response.message
+        )
 
         relay.wait_for_events([other_sentry_event_id, wandb_sentry_event_id])
 
@@ -149,6 +153,7 @@ def test_wandb_sentry_init_after_client_init(relay):
         # Assert expected data is sent to sentry
         assert wandb_sentry_envelope == expected_wandb_sentry_response
         assert other_sentry_envelope == expected_other_sentry_response
+
 
 def test_wandb_sentry_init_after_client_write(relay):
     """
@@ -191,14 +196,18 @@ def test_wandb_sentry_init_after_client_write(relay):
         sentry_sdk.set_tag("test", "tag")
 
         # Send client sentry events
-        other_sentry_event_id = sentry_sdk.capture_message(expected_other_sentry_response.message)
+        other_sentry_event_id = sentry_sdk.capture_message(
+            expected_other_sentry_response.message
+        )
 
         # Init wandb sentry and send events
         wandb_sentry = wandb.analytics.Sentry()
         wandb_sentry.setup()
         wandb_sentry.configure_scope(tags={"entity": "tag"})
         expected_wandb_sentry_response.tags = wandb_sentry.scope._tags
-        wandb_sentry_event_id = wandb_sentry.message(expected_wandb_sentry_response.message)
+        wandb_sentry_event_id = wandb_sentry.message(
+            expected_wandb_sentry_response.message
+        )
 
         relay.wait_for_events([other_sentry_event_id, wandb_sentry_event_id])
 
@@ -259,8 +268,12 @@ def test_wandb_sentry_initialized_first(relay):
         sentry_sdk.set_tag("test", "tag")
 
         # Send sentry events
-        other_sentry_event_id = sentry_sdk.capture_message(expected_other_sentry_response.message)
-        wandb_sentry_event_id = wandb_sentry.message(expected_wandb_sentry_response.message)
+        other_sentry_event_id = sentry_sdk.capture_message(
+            expected_other_sentry_response.message
+        )
+        wandb_sentry_event_id = wandb_sentry.message(
+            expected_wandb_sentry_response.message
+        )
 
         relay.wait_for_events([other_sentry_event_id, wandb_sentry_event_id])
 
@@ -314,7 +327,9 @@ def test_wandb_sentry_write_first(relay):
         expected_wandb_sentry_response.tags = wandb_sentry.scope._tags
         expected_wandb_sentry_response2.tags = wandb_sentry.scope._tags
 
-        wandb_sentry_event_id = wandb_sentry.message(expected_wandb_sentry_response.message)
+        wandb_sentry_event_id = wandb_sentry.message(
+            expected_wandb_sentry_response.message
+        )
 
         sentry_sdk.init(
             dsn=SENTRY_DSN_FORMAT.format(
@@ -327,10 +342,16 @@ def test_wandb_sentry_write_first(relay):
         sentry_sdk.set_tag("test", "tag")
 
         # Send sentry events
-        other_sentry_event_id = sentry_sdk.capture_message(expected_other_sentry_response.message)
-        wandb_sentry_event_id2 = wandb_sentry.message(expected_wandb_sentry_response.message + "2")
+        other_sentry_event_id = sentry_sdk.capture_message(
+            expected_other_sentry_response.message
+        )
+        wandb_sentry_event_id2 = wandb_sentry.message(
+            expected_wandb_sentry_response.message + "2"
+        )
 
-        relay.wait_for_events([other_sentry_event_id, wandb_sentry_event_id, wandb_sentry_event_id2])
+        relay.wait_for_events(
+            [other_sentry_event_id, wandb_sentry_event_id, wandb_sentry_event_id2]
+        )
 
         wandb_sentry_envelope = relay.events[wandb_sentry_event_id]
         wandb_sentry_envelope2 = relay.events[wandb_sentry_event_id2]
@@ -397,7 +418,9 @@ def test_wandb_sentry_exception(relay):
         other_sentry_event_id = sentry_sdk.capture_exception(
             Exception(expected_other_sentry_response.message)
         )
-        wandb_sentry_event_id = wandb_sentry.exception(Exception(expected_wandb_sentry_response.message))
+        wandb_sentry_event_id = wandb_sentry.exception(
+            Exception(expected_wandb_sentry_response.message)
+        )
 
         relay.wait_for_events([other_sentry_event_id, wandb_sentry_event_id])
 
