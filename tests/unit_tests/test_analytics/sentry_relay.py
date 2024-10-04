@@ -1,6 +1,7 @@
 import socket
 import threading
 import time
+from typing import Any, Dict, Union
 import zlib
 
 import flask
@@ -12,19 +13,35 @@ from sentry_sdk.envelope import Envelope
 class SentryResponse:
     def __init__(
         self,
-        payload,
+        message,
         project_id,
         public_key,
-        tags,
+        tags: Union[None, Dict[str, Any]] = None,
+        is_error=False,
     ):
-        self.payload = payload
+        self.message = message
         self.project_id = project_id
         self.public_key = public_key
         self.tags = tags
+        self.is_error = is_error
+
+
+    def __eq__(self, other):
+        return (
+            self.message == other.message
+            and self.project_id == other.project_id
+            and self.public_key == other.public_key
+            and self.tags == other.tags
+            and self.is_error == other.is_error
+        )
 
 
 class MetricRelayServer:
-    events: dict = {}
+    """
+    A mock Sentry Relay server that listens for local requests to sentry APIs.
+    These local requests are stored in a dictionary of event_id to SentryResponse.
+    """
+    events: dict[str, SentryResponse] = {}
 
     def __init__(
         self,
@@ -96,11 +113,19 @@ class MetricRelayServer:
         decompressed_data = zlib.decompress(request.get_data(), 16 + zlib.MAX_WBITS)
         envelope = Envelope.deserialize(decompressed_data)  # type: Envelope
         payload = envelope.items[0].payload.json
+
+        is_error = "exception" in payload
+        if is_error:
+            message = payload["exception"]["values"][0]["value"]
+        else:
+            message = payload["message"]
+
         self.events[envelope.headers["event_id"]] = SentryResponse(
-            payload=payload,
+            message=message,
             project_id=project_id,
             public_key=envelope.headers["trace"]["public_key"],
             tags=payload["tags"],
+            is_error=is_error,
         )
         return "OK"
 
