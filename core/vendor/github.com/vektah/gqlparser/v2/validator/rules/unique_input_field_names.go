@@ -1,4 +1,4 @@
-package validator
+package rules
 
 import (
 	"github.com/vektah/gqlparser/v2/ast"
@@ -7,8 +7,9 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-func init() {
-	AddRule("UniqueInputFieldNames", func(observers *Events, addError AddErrFunc) {
+var UniqueInputFieldNamesRule = Rule{
+	Name: "UniqueInputFieldNames",
+	RuleFunc: func(observers *Events, addError AddErrFunc) {
 		observers.OnValue(func(walker *Walker, value *ast.Value) {
 			if value.Kind != ast.ObjectValue {
 				return
@@ -25,5 +26,9 @@ func init() {
 				seen[field.Name] = true
 			}
 		})
-	})
+	},
+}
+
+func init() {
+	AddRule(UniqueInputFieldNamesRule.Name, UniqueInputFieldNamesRule.RuleFunc)
 }

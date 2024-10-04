@@ -134,6 +134,9 @@ type Sender struct {
 	// Keep track of exit record to pass to file stream when the time comes
 	exitRecord *spb.Record
 
+	// Keep track of finishWithoutExitRecord to pass to file stream if and when the time comes
+	finishWithoutExitRecord *spb.Record
+
 	// syncService is the sync service syncing offline runs
 	syncService *SyncService
 
@@ -447,6 +450,8 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 		s.sendRequestStopStatus(record, x.StopStatus)
 	case *spb.Request_JobInput:
 		s.sendRequestJobInput(x.JobInput)
+	case *spb.Request_RunFinishWithoutExit:
+		s.sendRequestRunFinishWithoutExit(record, x.RunFinishWithoutExit)
 	case nil:
 		s.logger.CaptureFatalAndPanic(
 			errors.New("sender: sendRequest: nil RequestType"))
@@ -562,6 +567,7 @@ func (s *Sender) sendJobFlush() {
 	}
 }
 
+//gocyclo:ignore
 func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 	switch request.State {
 	case spb.DeferRequest_BEGIN:
@@ -637,11 +643,14 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 		go func() {
 			defer s.logger.Reraise()
 			if s.fileStream != nil {
-				if s.exitRecord != nil {
+				switch {
+				case s.exitRecord != nil:
 					s.fileStream.FinishWithExit(
 						s.exitRecord.GetExit().GetExitCode(),
 					)
-				} else {
+				case s.finishWithoutExitRecord != nil:
+					s.fileStream.FinishWithoutExit()
+				default:
 					s.logger.CaptureError(
 						fmt.Errorf("sender: no exit code on finish"))
 					s.fileStream.FinishWithoutExit()
@@ -660,7 +669,14 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 		if !s.settings.GetXSync().GetValue() {
 			// if sync is enabled, we don't need to do this
 			// since exit is already stored in the transaction log
-			s.respond(s.exitRecord, &spb.RunExitResult{})
+			if s.exitRecord != nil {
+				s.respond(s.exitRecord, &spb.RunExitResult{})
+			} else if s.finishWithoutExitRecord != nil {
+				response := &spb.Response{
+					ResponseType: &spb.Response_RunFinishWithoutExitResponse{},
+				}
+				s.respond(s.finishWithoutExitRecord, response)
+			}
 		}
 
 		s.runWork.SetDone()
@@ -1376,6 +1392,37 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 		s.logger.Info("sender: sendAlert: notified scriptable run alert", "data", data)
 	}
 
+}
+
+// sendRequestRunFinishWithoutExit triggers the shutdown of the stream without marking the run as finished
+// on the server.
+func (s *Sender) sendRequestRunFinishWithoutExit(record *spb.Record, _ *spb.RunFinishWithoutExitRequest) {
+	if s.finishWithoutExitRecord != nil {
+		s.logger.CaptureError(
+			errors.New("sender: received RequestRunFinishWithoutExit more than once, ignoring"))
+		return
+	}
+
+	s.finishWithoutExitRecord = record
+
+	// Send a defer request to the handler to indicate that the user requested to finish the stream
+	// and the defer state machine can kick in triggering the shutdown process
+	request := &spb.Request{RequestType: &spb.Request_Defer{
+		Defer: &spb.DeferRequest{State: spb.DeferRequest_BEGIN}},
+	}
+	if record.Control == nil {
+		record.Control = &spb.Control{AlwaysSend: true}
+	}
+
+	s.fwdRecord(
+		&spb.Record{
+			RecordType: &spb.Record_Request{
+				Request: request,
+			},
+			Uuid:    record.Uuid,
+			Control: record.Control,
+		},
+	)
 }
 
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
