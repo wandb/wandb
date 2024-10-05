@@ -2,6 +2,7 @@ import os
 import shutil
 import unittest.mock
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Mapping, Optional
@@ -352,6 +353,22 @@ def test_add_new_file_encode_error(capsys):
         with artifact.new_file("wave.txt", mode="w", encoding="ascii") as f:
             f.write("∂²u/∂t²=c²·∂²u/∂x²")
     assert "ERROR Failed to open the provided file" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("overwrite", [True, False])
+def test_add_file_again_after_edit(overwrite):
+    filepath = Path("file1.txt")
+
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+
+    filepath.write_text("hello")
+    artifact.add_file(str(filepath), overwrite=overwrite)
+
+    # If we explicitly pass overwrite=True, allow rewriting an existing file
+    filepath.write_text("Potato")
+    expectation = nullcontext() if overwrite else pytest.raises(ValueError)
+    with expectation:
+        artifact.add_file(str(filepath), overwrite=overwrite)
 
 
 def test_add_dir():
@@ -1223,6 +1240,51 @@ def test_add_obj_wbimage(assets_path):
             "size": 346,
         },
     }
+
+
+@pytest.mark.parametrize("overwrite", [True, False])
+def test_add_obj_wbimage_again_after_edit(tmp_path, assets_path, copy_asset, overwrite):
+    orig_path1 = assets_path("test.png")
+    orig_path2 = assets_path("2x2.png")
+    contents1 = orig_path1.read_bytes()
+    contents2 = orig_path2.read_bytes()
+    assert contents1 != contents2  # Consistency check
+
+    im_path = tmp_path / "image.png"
+
+    copied_path = copy_asset(orig_path1.name, im_path)
+    assert im_path == copied_path  # Consistency check
+    assert im_path.read_bytes() == contents1
+
+    image_name = "my-image"
+
+    artifact = wandb.Artifact(type="dataset", name="artifact")
+    wb_image = wandb.Image(str(im_path))
+    artifact.add(wb_image, image_name, overwrite=overwrite)
+
+    manifest1 = artifact.manifest.to_manifest_json()
+    digest1 = artifact.digest
+    manifest_contents1 = manifest1["contents"]
+    assert digest1 == "2a7a8a7f29c929fe05b57983a2944fca"
+    assert len(manifest_contents1) == 2
+
+    # Modify the object, keeping the path unchanged
+    copied_path = copy_asset(orig_path2.name, im_path)
+    assert im_path == copied_path  # Consistency check
+    assert im_path.read_bytes() == contents2
+
+    wb_image = wandb.Image(str(im_path))
+    artifact.add(wb_image, image_name, overwrite=overwrite)
+
+    manifest2 = artifact.manifest.to_manifest_json()
+    digest2 = artifact.digest
+    manifest_contents2 = manifest2["contents"]
+
+    assert overwrite is (digest2 != digest1)
+    assert overwrite is (manifest_contents2 != manifest_contents1)
+
+    # Regardless, we should have the same file paths/names in the manifest
+    assert manifest_contents1.keys() == manifest_contents2.keys()
 
 
 def test_add_obj_using_brackets(assets_path):

@@ -37,6 +37,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Added a warning message indicating that the `fps` argument will be ignored when creating a wandb.Video object from a file path string or a bytes object. (@jacobromero in https://github.com/wandb/wandb/pull/8585)
 - Update docstrings for `logged_artifacts` and `used_artifacts` methods in `Run` class (@trane293 in https://github.com/wandb/wandb/pull/8624)
 - The `_show_operation_stats` setting enables a preview of a better `run.finish()` UX (@timoffex in https://github.com/wandb/wandb/pull/8644)
+- Add a boolean `overwrite` param to `Artifact.add()`/`Artifact.add_file()` to allow overwrite of previously-added artifact files (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8553)
 
 ### Fixed
 
