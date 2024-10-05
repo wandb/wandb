@@ -1,5 +1,4 @@
 import os
-from copy import copy
 from unittest import mock
 
 import pytest
@@ -53,6 +52,7 @@ def test_wandb_sentry_does_not_interfer_with_global_sentry_sdk(relay):
         wandb_sentry = wandb.analytics.Sentry()
         wandb_sentry.setup()
 
+        # Assert wandb Sentry scope and dsn are different from the other Sentry client
         assert sentry_sdk.get_current_scope() != wandb_sentry.scope
         assert (
             sentry_sdk.get_current_scope().client.dsn != wandb_sentry.scope.client.dsn
@@ -81,11 +81,11 @@ def test_wandb_error_reporting_disabled(relay):
     ):
         wandb_sentry = wandb.analytics.Sentry()
         wandb_sentry.setup()
-
         wandb_sentry.configure_scope(tags={"entity": "tag"})
         wandb_sentry_event_id = wandb_sentry.message(wandb_sentry_message)
 
         # When wandb sentry is disabled, the _safe_noop wrapper function always returns `None`
+        # Assert none is returned when the wandb Sentry client is disabled
         assert wandb_sentry.scope is None
         assert wandb_sentry_event_id is None
 
@@ -144,14 +144,14 @@ def test_wandb_sentry_init_after_client_init(relay):
 
         relay.wait_for_events([other_sentry_event_id, wandb_sentry_event_id])
 
-        wandb_sentry_envelope = relay.events[wandb_sentry_event_id]
+        wandb_sentry_response = relay.events[wandb_sentry_event_id]
         other_sentry_envelope = relay.events[other_sentry_event_id]
 
         # Assert no data is leaked between wandb and other sentry clients
-        assert wandb_sentry_envelope != other_sentry_envelope
+        assert wandb_sentry_response != other_sentry_envelope
 
         # Assert expected data is sent to sentry
-        assert wandb_sentry_envelope == expected_wandb_sentry_response
+        assert wandb_sentry_response == expected_wandb_sentry_response
         assert other_sentry_envelope == expected_other_sentry_response
 
 
@@ -211,14 +211,14 @@ def test_wandb_sentry_init_after_client_write(relay):
 
         relay.wait_for_events([other_sentry_event_id, wandb_sentry_event_id])
 
-        wandb_sentry_envelope = relay.events[wandb_sentry_event_id]
+        wandb_sentry_response = relay.events[wandb_sentry_event_id]
         other_sentry_envelope = relay.events[other_sentry_event_id]
 
         # Assert no data is leaked between wandb and other sentry clients
-        assert wandb_sentry_envelope != other_sentry_envelope
+        assert wandb_sentry_response != other_sentry_envelope
 
         # Assert expected data is sent to sentry
-        assert wandb_sentry_envelope == expected_wandb_sentry_response
+        assert wandb_sentry_response == expected_wandb_sentry_response
         assert other_sentry_envelope == expected_other_sentry_response
 
 
@@ -277,14 +277,14 @@ def test_wandb_sentry_initialized_first(relay):
 
         relay.wait_for_events([other_sentry_event_id, wandb_sentry_event_id])
 
-        wandb_sentry_envelope = relay.events[wandb_sentry_event_id]
+        wandb_sentry_response = relay.events[wandb_sentry_event_id]
         other_sentry_envelope = relay.events[other_sentry_event_id]
 
         # Assert no data is leaked between wandb and other sentry clients
-        assert wandb_sentry_envelope != other_sentry_envelope
+        assert wandb_sentry_response != other_sentry_envelope
 
         # Assert expected data is sent to sentry
-        assert wandb_sentry_envelope == expected_wandb_sentry_response
+        assert wandb_sentry_response == expected_wandb_sentry_response
         assert other_sentry_envelope == expected_other_sentry_response
 
 
@@ -302,21 +302,26 @@ def test_wandb_sentry_write_first(relay):
         public_key="OTHER_SENTRY_PUBLIC_KEY",
         tags={"test": "tag"},
     )
-    expected_wandb_sentry_response = SentryResponse(
-        message="wandb sentry message",
-        project_id="123456",
-        public_key="WANDB_SENTRY_PUBLIC_KEY",
-    )
-    expected_wandb_sentry_response2 = copy(expected_wandb_sentry_response)
-    expected_wandb_sentry_response2.message += "2"
+    expected_wandb_sentry_responses = [
+        SentryResponse(
+            message="wandb sentry message",
+            project_id="123456",
+            public_key="WANDB_SENTRY_PUBLIC_KEY",
+        ),
+        SentryResponse(
+            message="wandb sentry message",
+            project_id="123456",
+            public_key="WANDB_SENTRY_PUBLIC_KEY",
+        ),
+    ]
     with mock.patch.dict(
         os.environ,
         {
             wandb.env.ERROR_REPORTING: "true",
             wandb.env.SENTRY_DSN: SENTRY_DSN_FORMAT.format(
-                key=expected_wandb_sentry_response.public_key,
+                key=expected_wandb_sentry_responses[0].public_key,
                 port=relay.port,
-                project=expected_wandb_sentry_response.project_id,
+                project=expected_wandb_sentry_responses[0].project_id,
             ),
         },
     ):
@@ -324,11 +329,11 @@ def test_wandb_sentry_write_first(relay):
         wandb_sentry = wandb.analytics.Sentry()
         wandb_sentry.setup()
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        expected_wandb_sentry_response.tags = wandb_sentry.scope._tags
-        expected_wandb_sentry_response2.tags = wandb_sentry.scope._tags
+        expected_wandb_sentry_responses[0].tags = wandb_sentry.scope._tags
+        expected_wandb_sentry_responses[1].tags = wandb_sentry.scope._tags
 
         wandb_sentry_event_id = wandb_sentry.message(
-            expected_wandb_sentry_response.message
+            expected_wandb_sentry_responses[0].message
         )
 
         sentry_sdk.init(
@@ -346,24 +351,24 @@ def test_wandb_sentry_write_first(relay):
             expected_other_sentry_response.message
         )
         wandb_sentry_event_id2 = wandb_sentry.message(
-            expected_wandb_sentry_response.message + "2"
+            expected_wandb_sentry_responses[1].message
         )
 
         relay.wait_for_events(
             [other_sentry_event_id, wandb_sentry_event_id, wandb_sentry_event_id2]
         )
 
-        wandb_sentry_envelope = relay.events[wandb_sentry_event_id]
-        wandb_sentry_envelope2 = relay.events[wandb_sentry_event_id2]
+        wandb_sentry_response = relay.events[wandb_sentry_event_id]
+        wandb_sentry_response2 = relay.events[wandb_sentry_event_id2]
         other_sentry_envelope = relay.events[other_sentry_event_id]
 
         # Assert no data is leaked between wandb and other sentry clients
-        assert wandb_sentry_envelope != other_sentry_envelope
-        assert wandb_sentry_envelope2 != other_sentry_envelope
+        assert wandb_sentry_response != other_sentry_envelope
+        assert wandb_sentry_response2 != other_sentry_envelope
 
         # Assert expected data is sent to sentry
-        assert wandb_sentry_envelope == expected_wandb_sentry_response
-        assert wandb_sentry_envelope2 == expected_wandb_sentry_response2
+        assert wandb_sentry_response == expected_wandb_sentry_responses[0]
+        assert wandb_sentry_response2 == expected_wandb_sentry_responses[1]
         assert other_sentry_envelope == expected_other_sentry_response
 
 
@@ -424,12 +429,147 @@ def test_wandb_sentry_exception(relay):
 
         relay.wait_for_events([other_sentry_event_id, wandb_sentry_event_id])
 
-        wandb_sentry_envelope = relay.events[wandb_sentry_event_id]
+        wandb_sentry_response = relay.events[wandb_sentry_event_id]
         other_sentry_envelope = relay.events[other_sentry_event_id]
 
         # Assert no data is leaked between wandb and other sentry clients
-        assert wandb_sentry_envelope != other_sentry_envelope
+        assert wandb_sentry_response != other_sentry_envelope
 
         # Assert expected data is sent to sentry
-        assert wandb_sentry_envelope == expected_wandb_sentry_response
+        assert wandb_sentry_response == expected_wandb_sentry_response
         assert other_sentry_envelope == expected_other_sentry_response
+
+
+def test_repeated_messages_does_not_call_sentry(relay):
+    """
+    This test verifies that the wandb Sentry client does not send repeated messages to Sentry.
+    This test expects that a single event is sent to Sentry when the same message is sent multiple times and is not allowed to be repeated.
+    """
+    expected_wandb_sentry_response = SentryResponse(
+        message="wandb sentry message",
+        project_id="123456",
+        public_key="WANDB_SENTRY_PUBLIC_KEY",
+    )
+    with mock.patch.dict(
+        os.environ,
+        {
+            wandb.env.ERROR_REPORTING: "true",
+            wandb.env.SENTRY_DSN: SENTRY_DSN_FORMAT.format(
+                key=expected_wandb_sentry_response.public_key,
+                port=relay.port,
+                project=expected_wandb_sentry_response.project_id,
+            ),
+        },
+    ):
+        wandb_sentry = wandb.analytics.Sentry()
+        wandb_sentry.setup()
+        wandb_sentry.configure_scope(tags={"entity": "tag"})
+        expected_wandb_sentry_response.tags = wandb_sentry.scope._tags
+
+        # Send sentry events
+        wandb_sentry_event_id_1 = wandb_sentry.message(
+            expected_wandb_sentry_response.message,
+            repeat=False,
+        )
+        wandb_sentry_event_id_2 = wandb_sentry.message(
+            expected_wandb_sentry_response.message,
+            repeat=False,
+        )
+        relay.wait_for_events([wandb_sentry_event_id_1])
+        wandb_sentry_response = relay.events[wandb_sentry_event_id_1]
+
+        # Assert first event is sent to Sentry.
+        assert wandb_sentry_event_id_1 is not None
+        assert wandb_sentry_response == expected_wandb_sentry_response
+
+        # Assert second event is not sent to Sentry.
+        assert wandb_sentry_event_id_2 is None
+
+
+def test_wandb_configure_without_tags_does_not_create_session(relay):
+    """
+    This test verifies the configuration behavior of the wandb Sentry client.
+    It expects the wandb Sentry client does not create a session when no tags are present.
+    """
+    with mock.patch.dict(
+        os.environ,
+        {
+            wandb.env.ERROR_REPORTING: "true",
+            wandb.env.SENTRY_DSN: SENTRY_DSN_FORMAT.format(
+                key="WANDB_SENTRY_PUBLIC_KEY",
+                port=relay.port,
+                project="123456",
+            ),
+        },
+    ):
+        wandb_sentry = wandb.analytics.Sentry()
+        wandb_sentry.setup()
+        wandb_sentry.configure_scope()
+
+        # Asert session is not created when no tags are provided
+        assert wandb_sentry.scope._session is None
+
+
+def test_wandb_configure_with_tags_creates_session(relay):
+    """
+    This test verifies the configuration behavior of the wandb Sentry client.
+    It expects the wandb Sentry client to create a session when tags are provided.
+    It also expects that the session should be None when the session is closed.
+    """
+    with mock.patch.dict(
+        os.environ,
+        {
+            wandb.env.ERROR_REPORTING: "true",
+            wandb.env.SENTRY_DSN: SENTRY_DSN_FORMAT.format(
+                key="WANDB_SENTRY_PUBLIC_KEY",
+                port=relay.port,
+                project="123456",
+            ),
+        },
+    ):
+        wandb_sentry = wandb.analytics.Sentry()
+        wandb_sentry.setup()
+        wandb_sentry.configure_scope(tags={"entity": "tag"})
+
+        # Assert session is created
+        assert wandb_sentry.scope._session is not None
+
+        # Assert session is removed when ending the session
+        wandb_sentry.end_session()
+        assert wandb_sentry.scope._session is None
+
+
+def test_wandb_sentry_event_with_runtime_tags(relay):
+    """
+    This test verifies that runtime tags are added to the wandb Sentry scope.
+    These tags should be present in the event received by Sentry.
+    """
+    python_runtime = ["colab", "jupyter", "ipython"]
+
+    with mock.patch.dict(
+        os.environ,
+        {
+            wandb.env.ERROR_REPORTING: "true",
+            wandb.env.SENTRY_DSN: SENTRY_DSN_FORMAT.format(
+                key="WANDB_SENTRY_PUBLIC_KEY",
+                port=relay.port,
+                project="123456",
+            ),
+        },
+    ):
+        wandb_sentry = wandb.analytics.Sentry()
+        wandb_sentry.setup()
+
+        for runtime in python_runtime:
+            wandb_sentry.configure_scope(
+                tags={
+                    f"_{runtime}": runtime,
+                },
+                process_context="context",
+            )
+            wandb_sentry_event_id = wandb_sentry.exception(None)
+            relay.wait_for_events([wandb_sentry_event_id])
+            wandb_sentry_response = relay.events[wandb_sentry_event_id]
+
+            # Assert runtime tags are present in the Sentry event
+            assert wandb_sentry_response.tags["python_runtime"] == runtime

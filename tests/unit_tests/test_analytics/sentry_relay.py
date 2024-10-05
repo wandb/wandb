@@ -1,7 +1,7 @@
+import gzip
 import socket
 import threading
 import time
-import zlib
 from typing import Any, Dict, Union
 
 import flask
@@ -41,7 +41,7 @@ class MetricRelayServer:
     These local requests are stored in a dictionary of event_id to SentryResponse.
     """
 
-    events: dict[str, SentryResponse] = {}
+    events: dict = {}
 
     def __init__(
         self,
@@ -110,13 +110,19 @@ class MetricRelayServer:
             assert event_id in self.events
 
     def sentry(self, project_id):
-        decompressed_data = zlib.decompress(request.get_data(), 16 + zlib.MAX_WBITS)
+        # Data sent to sentry is compressed with gzip
+        # We need to decompress the request data to read the contents
+        decompressed_data = gzip.decompress(request.get_data())
         envelope = Envelope.deserialize(decompressed_data)  # type: Envelope
         payload = envelope.items[0].payload.json
 
         is_error = "exception" in payload
         if is_error:
-            message = payload["exception"]["values"][0]["value"]
+            message = (
+                payload["exception"]["values"][0]["value"]
+                if len(payload["exception"]["values"]) > 0
+                else None
+            )
         else:
             message = payload["message"]
 
