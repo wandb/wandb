@@ -22,7 +22,9 @@ def relay():
     relay_server.stop()
 
 
-def test_wandb_sentry_does_not_interfer_with_global_sentry_sdk(relay: MetricRelayServer):
+def test_wandb_sentry_does_not_interfer_with_global_sentry_sdk(
+    relay: MetricRelayServer,
+):
     """
     Test that wandb sentry initialization does not interfere with global sentry_sdk.
     """
@@ -420,12 +422,19 @@ def test_wandb_sentry_exception(relay: MetricRelayServer):
         sentry_sdk.set_tag("test", "tag")
         wandb_sentry.configure_scope(tags={"entity": "tag"})
         expected_wandb_sentry_response.tags = wandb_sentry.scope._tags  # type: ignore
-        other_sentry_event_id = sentry_sdk.capture_exception(
-            Exception(expected_other_sentry_response.message)
-        )
-        wandb_sentry_event_id = wandb_sentry.exception(
-            Exception(expected_wandb_sentry_response.message)
-        )
+
+        other_sentry_event_id = None
+        wandb_sentry_event_id = None
+
+        # Raise and capture real exceptions so we have a stack trace in the event.
+        try:
+            raise Exception(expected_other_sentry_response.message)
+        except Exception as e:
+            other_sentry_event_id = sentry_sdk.capture_exception(e)
+        try:
+            raise Exception(expected_wandb_sentry_response.message)
+        except Exception as e:
+            wandb_sentry_event_id = wandb_sentry.exception(e)
 
         relay.wait_for_events([other_sentry_event_id, wandb_sentry_event_id])
 
@@ -436,8 +445,16 @@ def test_wandb_sentry_exception(relay: MetricRelayServer):
         assert wandb_sentry_response != other_sentry_envelope
 
         # Assert expected data is sent to sentry
-        assert wandb_sentry_response == expected_wandb_sentry_response
+        assert wandb_sentry_response.stacktrace is not None
         assert other_sentry_envelope == expected_other_sentry_response
+        assert wandb_sentry_response == expected_wandb_sentry_response
+        assert __file__.endswith(
+            wandb_sentry_response.stacktrace["frames"][0]["filename"]
+        )
+        assert (
+            wandb_sentry_response.stacktrace["frames"][0]["function"]
+            == "test_wandb_sentry_exception"
+        )
 
 
 def test_repeated_messages_does_not_call_sentry(relay: MetricRelayServer):
@@ -568,7 +585,7 @@ def test_wandb_sentry_event_with_runtime_tags(relay: MetricRelayServer):
                 },
                 process_context="context",
             )
-            wandb_sentry_event_id = wandb_sentry.exception(None)
+            wandb_sentry_event_id = wandb_sentry.message("wandb sentry message")
             relay.wait_for_events([wandb_sentry_event_id])
             wandb_sentry_response = relay.events[wandb_sentry_event_id]
 

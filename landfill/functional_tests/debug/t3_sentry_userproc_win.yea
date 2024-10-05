@@ -1,3 +1,4 @@
+# This file has not been migrated to test_sentry.py because there is no specific windows unit tests.
 id: 0.debug.03-sentry-userproc-win
 plugin:
   - wandb

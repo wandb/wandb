@@ -4,7 +4,7 @@ import gzip
 import socket
 import threading
 import time
-from typing import Any, Dict, Union
+from typing import Any
 
 import flask
 import requests
@@ -15,10 +15,10 @@ from sentry_sdk.envelope import Envelope
 class SentryResponse:
     def __init__(
         self,
-        message: Union[str, None],
+        message: str | None,
         project_id: str,
         public_key: str,
-        tags: Union[None, Dict[str, Any]] = None,
+        tags: None | dict[str, Any] = None,
         is_error: bool = False,
     ):
         self.message = message
@@ -35,6 +35,19 @@ class SentryResponse:
             and self.tags == other.tags
             and self.is_error == other.is_error
         )
+
+
+class ExceptionResponse(SentryResponse):
+    def __init__(
+        self,
+        message: str | None,
+        project_id: str,
+        public_key: str,
+        tags: dict[str, Any],
+        stacktrace: dict[str, Any],
+    ):
+        super().__init__(message, project_id, public_key, tags, is_error=True)
+        self.stacktrace = stacktrace
 
 
 class MetricRelayServer:
@@ -127,16 +140,21 @@ class MetricRelayServer:
                 if len(payload["exception"]["values"]) > 0
                 else None
             )
+            self.events[envelope.headers["event_id"]] = ExceptionResponse(
+                message=message,
+                project_id=project_id,
+                public_key=envelope.headers["trace"]["public_key"],
+                tags=payload["tags"],
+                stacktrace=payload["exception"]["values"][0]["stacktrace"],
+            )
         else:
-            message = payload["message"]
+            self.events[envelope.headers["event_id"]] = SentryResponse(
+                message=payload["message"],
+                project_id=project_id,
+                public_key=envelope.headers["trace"]["public_key"],
+                tags=payload["tags"],
+            )
 
-        self.events[envelope.headers["event_id"]] = SentryResponse(
-            message=message,
-            project_id=project_id,
-            public_key=envelope.headers["trace"]["public_key"],
-            tags=payload["tags"],
-            is_error=is_error,
-        )
         return "OK"
 
     def ping(self):
