@@ -61,11 +61,19 @@ class GitReference:
 
         repo = git.Repo.init(dst_dir)
         self.path = repo.working_dir
-        origin = repo.create_remote("origin", self.uri or "")
+        # Slurm jobs re-use the same git repo for each job, so we check if we already have origin
+        origin = None
+        for remote in repo.remotes:
+            if remote.name == "origin":
+                origin = remote
+                break
+        if origin is None:
+            origin = repo.create_remote("origin", self.uri or "")
 
         try:
             # We fetch the origin so that we have branch and tag references
-            origin.fetch()
+            # I currently changed this to be depth 1 and fetch the ref directly for speed
+            origin.fetch(self.ref, depth=1)
         except git.exc.GitCommandError as e:
             raise LaunchError(
                 f"Unable to fetch from git remote repository {self.url}:\n{e}"

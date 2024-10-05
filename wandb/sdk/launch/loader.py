@@ -18,6 +18,7 @@ WANDB_RUNNERS = {
     "kubernetes",
     "vertex",
     "sagemaker",
+    "slurm",
 }
 
 
@@ -170,6 +171,10 @@ def builder_from_config(
         from .builder.kaniko_builder import KanikoBuilder
 
         return KanikoBuilder.from_config(config, environment, registry)
+    if builder_type == "conda":
+        from .builder.conda_builder import CondaBuilder
+
+        return CondaBuilder.from_config(config, environment, registry)
     if builder_type == "noop":
         from .builder.noop import NoOpBuilder
 
@@ -244,6 +249,11 @@ def runner_from_config(
         from .runner.kubernetes_runner import KubernetesRunner
 
         return KubernetesRunner(api, runner_config, environment, registry)
+    if runner_name == "slurm":
+        from .runner.slurm_runner import SlurmRunner
+
+        # TODO (slurm): decide if we want to pass environment and registry to the runner
+        return SlurmRunner(api, runner_config)
     raise LaunchError(
         f"Could not create runner from config. Invalid runner name: {runner_name}"
     )

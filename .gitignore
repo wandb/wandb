@@ -40,3 +40,6 @@ apple_stats/.build/
 
 # Build output in nvidia_gpu_stats
 nvidia_gpu_stats/target/
+
+# Your friendly AI assistant
+.aider*

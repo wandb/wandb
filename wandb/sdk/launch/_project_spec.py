@@ -10,6 +10,7 @@ import os
 import shutil
 import tempfile
 from copy import deepcopy
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from six.moves import shlex_quote
@@ -24,7 +25,9 @@ from .errors import LaunchError
 from .utils import LOG_PREFIX, recursive_macro_sub
 
 if TYPE_CHECKING:
+    from wandb.apis.public.jobs import Job
     from wandb.sdk.artifacts.artifact import Artifact
+
 
 _logger = logging.getLogger(__name__)
 
@@ -57,8 +60,8 @@ class LaunchProject:
     object. The project encapsulates logic for taking a launch spec and converting
     it into the executable code.
 
-    The LaunchProject needs to ultimately produce a full container spec for
-    execution in docker, k8s, sagemaker, or vertex. This container spec includes:
+    The LaunchProject needs to ultimately produce a full spec for
+    execution in docker, k8s, sagemaker, slurm or vertex. This spec includes:
     - container image uri
     - environment variables for configuring wandb etc.
     - entrypoint command and arguments
@@ -126,6 +129,11 @@ class LaunchProject:
         self._entry_point: Optional[EntryPoint] = (
             None  # todo: keep multiple entrypoint support?
         )
+        settings = wandb.setup().settings
+        self._wandb_dir = settings.wandb_dir
+        self._slurm_job_dir: Optional[str] = None
+        self._slurm_env_dir: Optional[str] = None
+        self._env_hash: Optional[str] = None
         self.init_overrides(overrides)
         self.init_source()
         self.init_git(git_info)
@@ -344,6 +352,48 @@ class LaunchProject:
             return self._docker_image
         return None
 
+    @property
+    def env_hash(self) -> Optional[str]:
+        """Returns the md5 hexdigest of the frozen environment file"""
+        return self._env_hash
+
+    @property
+    def slurm_env_name(self) -> str:
+        """Slurm only supports job based launch jobs currently"""
+        # TODO: should we support bare git jobs?
+        if self._job_artifact:
+            return f"{self._job_artifact.qualified_name.split(':')[0]}-{self._job_artifact.version}"
+        raise LaunchError("No job artifact found")
+
+    @property
+    def slurm_env_dir(self) -> str:
+        """Returns the slurm environment directory, $WANDB_DIR/venvs/<hash>.
+
+        <hash> is the md5 hexdigest of the frozen environment file
+        """
+        if self._slurm_env_dir:
+            return self._slurm_env_dir
+        env_dir = Path(self._wandb_dir) / "venvs"
+        env_dir.mkdir(parents=True, exist_ok=True)
+        if self._env_hash:
+            self._slurm_env_dir = str(env_dir / self._env_hash)
+        else:
+            raise LaunchError(
+                "Could not find conda.frozen.yml in the job spec, not compatible with slurm"
+            )
+        return self._slurm_env_dir
+
+    @property
+    def slurm_job_dir(self) -> str:
+        """Ensures that the slurm job dir exists and returns it, $WANDB_DIR/jobs/<entity>/<project>/<job>-<job-version>"""
+        if self._slurm_job_dir:
+            return self._slurm_job_dir
+        jobs_dir = Path(self._wandb_dir) / "jobs"
+        job_dir = jobs_dir / self.slurm_env_name
+        job_dir.mkdir(parents=True, exist_ok=True)
+        self._slurm_job_dir = str(job_dir)
+        return self._slurm_job_dir
+
     @docker_image.setter
     def docker_image(self, value: str) -> None:
         """Sets the Docker image for the project.
@@ -435,8 +485,26 @@ class LaunchProject:
             raise LaunchError(
                 f"Error accessing job {self.job}: {msg} on {public_api.settings.get('base_url')}"
             )
-        job.configure_launch_project(self)  # Why is this a method of the job?
         self._job_artifact = job._job_artifact
+        self._maybe_setup_slurm(job)
+        job.configure_launch_project(self)  # Why is this a method of the job?
+
+    def _maybe_setup_slurm(self, job: "Job") -> None:
+        """When running a slurm job we might manage a virtual env and we put the project into a known dir.
+
+        NOTE: This needs to be called before we download the source code (call .configure_launch_project)
+        """
+        if self.resource == "slurm":
+            # TODO (slurm): we might want a mode where we don't CWD into the job dir for slurm
+            self.project_dir = self.slurm_job_dir
+            if self.resource_args.get("slurm") is None:
+                self.resource_args["slurm"] = {}
+            # TODO (slurm): currently this is a hard requirement, maybe blowup here instead of in env_dir?
+            if job.env_hash:
+                self._env_hash = job.env_hash
+            if self.resource_args["slurm"].get("conda-env") is None:
+                # this means we're managing the env in the builder
+                self.resource_args["slurm"]["conda-env"] = self.slurm_env_dir
 
     def get_env_vars_dict(self, api: Api, max_env_length: int) -> Dict[str, str]:
         """Generate environment variables for the project.
