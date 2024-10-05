@@ -497,6 +497,15 @@ def test_artifact_wait_failure(wandb_init, timeout):
     run.finish()
 
 
+def test_finished_run_automatically_awaits_artifact(wandb_init):
+    """Check that finishing a run automatically calls `Artifact.wait()` on all artifacts logged in that run."""
+    with wandb_init() as run:
+        artifact = wandb.Artifact("art", type="dataset")
+        run.log_artifact(artifact)
+
+    assert not artifact.is_draft()
+
+
 def test_check_existing_artifact_before_download(wandb_init, tmp_path, monkeypatch):
     """Don't re-download an artifact if it's already in the desired location."""
     cache_dir = tmp_path / "cache"

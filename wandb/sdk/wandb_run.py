@@ -13,6 +13,7 @@ import threading
 import time
 import traceback
 import warnings
+from collections import deque
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -22,6 +23,8 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Collection,
+    Deque,
     Dict,
     List,
     NamedTuple,
@@ -528,7 +531,7 @@ class Run:
     _telemetry_obj_dirty: bool
     _telemetry_obj_flushed: bytes
 
-    _teardown_hooks: List[TeardownHook]
+    _teardown_hooks: Deque[TeardownHook]
     _tags: Optional[Tuple[Any, ...]]
 
     _entity: Optional[str]
@@ -653,7 +656,7 @@ class Run:
         self._sweep_id = None
 
         self._hooks = None
-        self._teardown_hooks = []
+        self._teardown_hooks = deque()
         self._out_redir = None
         self._err_redir = None
         self._stdout_slave_fd = None
@@ -1572,8 +1575,8 @@ class Run:
     def _set_reporter(self, reporter: Reporter) -> None:
         self._reporter = reporter
 
-    def _set_teardown_hooks(self, hooks: List[TeardownHook]) -> None:
-        self._teardown_hooks = hooks
+    def _set_teardown_hooks(self, hooks: Collection[TeardownHook]) -> None:
+        self._teardown_hooks = deque(hooks)
 
     def _set_run_obj(self, run_obj: RunRecord) -> None:
         self._run_obj = run_obj
@@ -2195,7 +2198,7 @@ class Run:
             for hook in self._teardown_hooks:
                 if hook.stage == TeardownStage.LATE:
                     hook.call()
-            self._teardown_hooks = []
+            self._teardown_hooks = deque()
 
             # Inform the service that we're done sending messages for this run.
             #
@@ -3306,6 +3309,14 @@ class Run:
                 is_user_created=is_user_created,
                 use_after_commit=use_after_commit,
             )
+
+        # Artifact that have not finished logging should be awaited on exiting the run.
+        await_artifact_hook = TeardownHook(
+            call=artifact.wait,
+            stage=TeardownStage.LATE,
+        )
+        self._teardown_hooks.append(await_artifact_hook)
+
         return artifact
 
     def _public_api(self, overrides: Optional[Dict[str, str]] = None) -> PublicApi:
