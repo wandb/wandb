@@ -28,26 +28,22 @@ def test_wandb_sentry_does_not_interfer_with_global_sentry_sdk(
     """
     Test that wandb sentry initialization does not interfere with global sentry_sdk.
     """
-    other_sentry_public_key = "OTHER_SENTRY_PUBLIC_KEY"
-    other_sentry_project_id = "654321"
-    wandb_sentry_public_key = "WANDB_SENTRY_PUBLIC_KEY"
-    wandb_sentry_project_id = "123456"
     with mock.patch.dict(
         os.environ,
         {
             wandb.env.ERROR_REPORTING: "true",
             wandb.env.SENTRY_DSN: SENTRY_DSN_FORMAT.format(
-                key=wandb_sentry_public_key,
+                key="WANDB_SENTRY_PUBLIC_KEY",
                 port=relay.port,
-                project=wandb_sentry_project_id,
+                project="123456",
             ),
         },
     ):
         sentry_sdk.init(
             dsn=SENTRY_DSN_FORMAT.format(
-                key=other_sentry_public_key,
+                key="OTHER_SENTRY_PUBLIC_KEY",
                 port=relay.port,
-                project=other_sentry_project_id,
+                project="654321",
             ),
             default_integrations=False,
         )
@@ -67,24 +63,21 @@ def test_wandb_error_reporting_disabled(relay: MetricRelayServer):
 
     The test sets the `ERROR_REPORTING` environment variable to `false` and initializes the wandb sentry client.
     """
-    wandb_sentry_message = "wandb sentry message"
-    wandb_sentry_public_key = "WANDB_SENTRY_PUBLIC_KEY"
-    wandb_sentry_project_id = "123456"
     with mock.patch.dict(
         os.environ,
         {
             wandb.env.ERROR_REPORTING: "false",
             wandb.env.SENTRY_DSN: SENTRY_DSN_FORMAT.format(
-                key=wandb_sentry_public_key,
+                key="WANDB_SENTRY_PUBLIC_KEY",
                 port=relay.port,
-                project=wandb_sentry_project_id,
+                project="123456",
             ),
         },
     ):
         wandb_sentry = wandb.analytics.Sentry()
         wandb_sentry.setup()
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        wandb_sentry_event_id = wandb_sentry.message(wandb_sentry_message)
+        wandb_sentry_event_id = wandb_sentry.message("wandb sentry message")
 
         # When wandb sentry is disabled, the _safe_noop wrapper function always returns `None`
         # Assert none is returned when the wandb Sentry client is disabled

@@ -20,11 +20,13 @@ class SentryResponse:
         public_key: str,
         tags: None | dict[str, Any] = None,
         is_error: bool = False,
+        stacktrace: None | dict[str, Any] = None,
     ):
         self.message = message
         self.project_id = project_id
         self.public_key = public_key
         self.tags = tags
+        self.stacktrace = stacktrace
         self.is_error = is_error
 
     def __eq__(self, other):
@@ -35,19 +37,6 @@ class SentryResponse:
             and self.tags == other.tags
             and self.is_error == other.is_error
         )
-
-
-class SentryExceptionEventResponse(SentryResponse):
-    def __init__(
-        self,
-        message: str | None,
-        project_id: str,
-        public_key: str,
-        tags: dict[str, Any],
-        stacktrace: dict[str, Any],
-    ):
-        super().__init__(message, project_id, public_key, tags, is_error=True)
-        self.stacktrace = stacktrace
 
 
 class MetricRelayServer:
@@ -134,27 +123,26 @@ class MetricRelayServer:
         assert payload is not None
 
         is_error = "exception" in payload
+        stacktrace = None
+        message = None
         if is_error:
             message = (
                 payload["exception"]["values"][0]["value"]
                 if len(payload["exception"]["values"]) > 0
                 else None
             )
-            self.events[envelope.headers["event_id"]] = SentryExceptionEventResponse(
-                message=message,
-                project_id=project_id,
-                public_key=envelope.headers["trace"]["public_key"],
-                tags=payload["tags"],
-                stacktrace=payload["exception"]["values"][0]["stacktrace"],
-            )
+            stacktrace = payload["exception"]["values"][0]["stacktrace"]
         else:
-            self.events[envelope.headers["event_id"]] = SentryResponse(
-                message=payload["message"],
-                project_id=project_id,
-                public_key=envelope.headers["trace"]["public_key"],
-                tags=payload["tags"],
-            )
+            message = payload["message"]
 
+        self.events[envelope.headers["event_id"]] = SentryResponse(
+            message=message,
+            project_id=project_id,
+            public_key=envelope.headers["trace"]["public_key"],
+            tags=payload["tags"],
+            is_error=is_error,
+            stacktrace=stacktrace,
+        )
         return "OK"
 
     def ping(self):
