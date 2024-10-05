@@ -95,6 +95,8 @@ from wandb.wandb_controller import _WandbController
 if TYPE_CHECKING:
     import torch  # type: ignore [import-not-found]
 
+    from wandb.plot.viz import CustomChart
+
 __version__: str = "0.18.4.dev1"
 
 run: Run | None
@@ -258,6 +260,16 @@ def link_model(
     aliases: list[str] | None = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::link_model>"""
+    ...
+
+def plot_table(
+    vega_spec_name: str,
+    data_table: Table,
+    fields: dict[str, Any],
+    string_fields: dict[str, Any] | None = None,
+    split_table: bool | None = False,
+) -> CustomChart:
+    """<sdk/wandb_run.py::Run::plot_table>"""
     ...
 
 def watch(

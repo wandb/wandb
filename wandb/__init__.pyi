@@ -95,6 +95,8 @@ from wandb.wandb_controller import _WandbController
 if TYPE_CHECKING:
     import torch  # type: ignore [import-not-found]
 
+    from wandb.plot.viz import CustomChart
+
 __version__: str = "0.18.4.dev1"
 
 run: Run | None
@@ -1096,6 +1098,28 @@ def link_model(
 
     Returns:
         None
+    """
+    ...
+
+def plot_table(
+    vega_spec_name: str,
+    data_table: Table,
+    fields: dict[str, Any],
+    string_fields: dict[str, Any] | None = None,
+    split_table: bool | None = False,
+) -> CustomChart:
+    """Create a custom plot on a table.
+
+    Arguments:
+        vega_spec_name: the name of the spec for the plot
+        data_table: a wandb.Table object containing the data to
+            be used on the visualization
+        fields: a dict mapping from table keys to fields that the custom
+            visualization needs
+        string_fields: a dict that provides values for any string constants
+            the custom visualization needs
+        split_table: a boolean that indicates whether the table should be in
+            a separate section in the UI
     """
     ...
 
