@@ -3,12 +3,11 @@ package gowandb
 import (
 	"strings"
 
-	"github.com/wandb/wandb/core/pkg/service"
-	"github.com/wandb/wandb/core/pkg/utils"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type MailboxHandle struct {
-	responseChan chan *service.Result
+	responseChan chan *spb.Result
 }
 
 type Mailbox struct {
@@ -22,24 +21,24 @@ func NewMailbox() *Mailbox {
 }
 
 func NewMailboxHandle() *MailboxHandle {
-	mbh := &MailboxHandle{responseChan: make(chan *service.Result)}
+	mbh := &MailboxHandle{responseChan: make(chan *spb.Result)}
 	return mbh
 }
 
-func (mbh *MailboxHandle) wait() *service.Result {
+func (mbh *MailboxHandle) wait() *spb.Result {
 	got := <-mbh.responseChan
 	return got
 }
 
-func (mb *Mailbox) Deliver(rec *service.Record) *MailboxHandle {
-	uuid := "core:" + utils.ShortID(12)
-	rec.Control = &service.Control{MailboxSlot: uuid}
+func (mb *Mailbox) Deliver(rec *spb.Record) *MailboxHandle {
+	uuid := "core:" + GenerateUniqueID(12)
+	rec.Control = &spb.Control{MailboxSlot: uuid}
 	handle := NewMailboxHandle()
 	mb.handles[uuid] = handle
 	return handle
 }
 
-func (mb *Mailbox) Respond(result *service.Result) bool {
+func (mb *Mailbox) Respond(result *spb.Result) bool {
 	slot := result.GetControl().MailboxSlot
 	if !strings.HasPrefix(slot, "core:") {
 		return false

@@ -1,16 +1,10 @@
-package randomid
+package gowandb
 
 import (
 	"context"
 	"crypto/rand"
 	"fmt"
 	"log/slog"
-	mathrand "math/rand"
-)
-
-const (
-	lowercaseAlphanumericChars = "abcdefghijklmnopqrstuvwxyz1234567890"
-	alphanumericChars          = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 )
 
 // GenerateUniqueID generates a random string of the given length using only lowercase alphanumeric characters.
@@ -32,16 +26,4 @@ func GenerateUniqueID(length int) string {
 		b[i] = lowercaseAlphanumericChars[int(b[i])%charsLen]
 	}
 	return string(b)
-}
-
-// GenerateAlphanumericSequence generates a random string of the given length
-// using alphanumeric characters.
-func GenerateAlphanumericSequence(length int) string {
-	var result string
-	for i := 0; i < length; i++ {
-		index := mathrand.Intn(len(alphanumericChars))
-		result += string(alphanumericChars[index])
-	}
-
-	return result
 }
