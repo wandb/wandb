@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import gzip
 import socket
 import threading
@@ -13,11 +15,11 @@ from sentry_sdk.envelope import Envelope
 class SentryResponse:
     def __init__(
         self,
-        message,
-        project_id,
-        public_key,
+        message: Union[str, None],
+        project_id: str,
+        public_key: str,
         tags: Union[None, Dict[str, Any]] = None,
-        is_error=False,
+        is_error: bool = False,
     ):
         self.message = message
         self.project_id = project_id
@@ -109,12 +111,14 @@ class MetricRelayServer:
         for event_id in event_ids:
             assert event_id in self.events
 
-    def sentry(self, project_id):
+    def sentry(self, project_id: str):
         # Data sent to sentry is compressed with gzip
         # We need to decompress the request data to read the contents
         decompressed_data = gzip.decompress(request.get_data())
         envelope = Envelope.deserialize(decompressed_data)  # type: Envelope
         payload = envelope.items[0].payload.json
+
+        assert payload is not None
 
         is_error = "exception" in payload
         if is_error:

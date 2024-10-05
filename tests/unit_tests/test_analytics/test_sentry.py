@@ -22,7 +22,7 @@ def relay():
     relay_server.stop()
 
 
-def test_wandb_sentry_does_not_interfer_with_global_sentry_sdk(relay):
+def test_wandb_sentry_does_not_interfer_with_global_sentry_sdk(relay: MetricRelayServer):
     """
     Test that wandb sentry initialization does not interfere with global sentry_sdk.
     """
@@ -55,11 +55,11 @@ def test_wandb_sentry_does_not_interfer_with_global_sentry_sdk(relay):
         # Assert wandb Sentry scope and dsn are different from the other Sentry client
         assert sentry_sdk.get_current_scope() != wandb_sentry.scope
         assert (
-            sentry_sdk.get_current_scope().client.dsn != wandb_sentry.scope.client.dsn
+            sentry_sdk.get_current_scope().client.dsn != wandb_sentry.scope.client.dsn  # type: ignore
         )
 
 
-def test_wandb_error_reporting_disabled(relay):
+def test_wandb_error_reporting_disabled(relay: MetricRelayServer):
     """
     This test ensures no events are sent to sentry when the wandb sentry client is disabled.
 
@@ -90,7 +90,7 @@ def test_wandb_error_reporting_disabled(relay):
         assert wandb_sentry_event_id is None
 
 
-def test_wandb_sentry_init_after_client_init(relay):
+def test_wandb_sentry_init_after_client_init(relay: MetricRelayServer):
     """
     This test ensures proper isolation between the Sentry instances initialized by another client and by wandb's client.
 
@@ -132,11 +132,11 @@ def test_wandb_sentry_init_after_client_init(relay):
 
         sentry_sdk.set_tag("test", "tag")
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        expected_wandb_sentry_response.tags = wandb_sentry.scope._tags
+        expected_wandb_sentry_response.tags = wandb_sentry.scope._tags  # type: ignore
 
         # Send sentry events
         other_sentry_event_id = sentry_sdk.capture_message(
-            expected_other_sentry_response.message
+            expected_other_sentry_response.message  # type: ignore
         )
         wandb_sentry_event_id = wandb_sentry.message(
             expected_wandb_sentry_response.message
@@ -155,7 +155,7 @@ def test_wandb_sentry_init_after_client_init(relay):
         assert other_sentry_envelope == expected_other_sentry_response
 
 
-def test_wandb_sentry_init_after_client_write(relay):
+def test_wandb_sentry_init_after_client_write(relay: MetricRelayServer):
     """
     This test ensures proper isolation between the Sentry instances initialized by another client and by wandb's client.
     Even after events have already been sent to Sentry by the other Sentry client.
@@ -197,14 +197,14 @@ def test_wandb_sentry_init_after_client_write(relay):
 
         # Send client sentry events
         other_sentry_event_id = sentry_sdk.capture_message(
-            expected_other_sentry_response.message
+            expected_other_sentry_response.message  # type: ignore
         )
 
         # Init wandb sentry and send events
         wandb_sentry = wandb.analytics.Sentry()
         wandb_sentry.setup()
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        expected_wandb_sentry_response.tags = wandb_sentry.scope._tags
+        expected_wandb_sentry_response.tags = wandb_sentry.scope._tags  # type: ignore
         wandb_sentry_event_id = wandb_sentry.message(
             expected_wandb_sentry_response.message
         )
@@ -222,7 +222,7 @@ def test_wandb_sentry_init_after_client_write(relay):
         assert other_sentry_envelope == expected_other_sentry_response
 
 
-def test_wandb_sentry_initialized_first(relay):
+def test_wandb_sentry_initialized_first(relay: MetricRelayServer):
     """
     This test ensures proper isolation between the Sentry instances initialized by another client and by wandb's client.
     When the wandb Sentry client is initialized before the other Sentry client.
@@ -255,7 +255,7 @@ def test_wandb_sentry_initialized_first(relay):
         wandb_sentry = wandb.analytics.Sentry()
         wandb_sentry.setup()
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        expected_wandb_sentry_response.tags = wandb_sentry.scope._tags
+        expected_wandb_sentry_response.tags = wandb_sentry.scope._tags  # type: ignore
 
         sentry_sdk.init(
             dsn=SENTRY_DSN_FORMAT.format(
@@ -269,7 +269,7 @@ def test_wandb_sentry_initialized_first(relay):
 
         # Send sentry events
         other_sentry_event_id = sentry_sdk.capture_message(
-            expected_other_sentry_response.message
+            expected_other_sentry_response.message  # type: ignore
         )
         wandb_sentry_event_id = wandb_sentry.message(
             expected_wandb_sentry_response.message
@@ -288,7 +288,7 @@ def test_wandb_sentry_initialized_first(relay):
         assert other_sentry_envelope == expected_other_sentry_response
 
 
-def test_wandb_sentry_write_first(relay):
+def test_wandb_sentry_write_first(relay: MetricRelayServer):
     """
     This test ensures proper isolation between the Sentry instances initialized by another client and by wandb's client.
     When the wandb Sentry client is initialized and sends an event before the other Sentry client.
@@ -329,8 +329,8 @@ def test_wandb_sentry_write_first(relay):
         wandb_sentry = wandb.analytics.Sentry()
         wandb_sentry.setup()
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        expected_wandb_sentry_responses[0].tags = wandb_sentry.scope._tags
-        expected_wandb_sentry_responses[1].tags = wandb_sentry.scope._tags
+        expected_wandb_sentry_responses[0].tags = wandb_sentry.scope._tags  # type: ignore
+        expected_wandb_sentry_responses[1].tags = wandb_sentry.scope._tags  # type: ignore
 
         wandb_sentry_event_id = wandb_sentry.message(
             expected_wandb_sentry_responses[0].message
@@ -348,7 +348,7 @@ def test_wandb_sentry_write_first(relay):
 
         # Send sentry events
         other_sentry_event_id = sentry_sdk.capture_message(
-            expected_other_sentry_response.message
+            expected_other_sentry_response.message  # type: ignore
         )
         wandb_sentry_event_id2 = wandb_sentry.message(
             expected_wandb_sentry_responses[1].message
@@ -372,7 +372,7 @@ def test_wandb_sentry_write_first(relay):
         assert other_sentry_envelope == expected_other_sentry_response
 
 
-def test_wandb_sentry_exception(relay):
+def test_wandb_sentry_exception(relay: MetricRelayServer):
     """
     This test ensures proper isolation between the Sentry instances initialized by another client and by wandb's client.
     In the event that a client sends an exception event to Sentry.
@@ -419,7 +419,7 @@ def test_wandb_sentry_exception(relay):
         # Send sentry events
         sentry_sdk.set_tag("test", "tag")
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        expected_wandb_sentry_response.tags = wandb_sentry.scope._tags
+        expected_wandb_sentry_response.tags = wandb_sentry.scope._tags  # type: ignore
         other_sentry_event_id = sentry_sdk.capture_exception(
             Exception(expected_other_sentry_response.message)
         )
@@ -440,7 +440,7 @@ def test_wandb_sentry_exception(relay):
         assert other_sentry_envelope == expected_other_sentry_response
 
 
-def test_repeated_messages_does_not_call_sentry(relay):
+def test_repeated_messages_does_not_call_sentry(relay: MetricRelayServer):
     """
     This test verifies that the wandb Sentry client does not send repeated messages to Sentry.
     This test expects that a single event is sent to Sentry when the same message is sent multiple times and is not allowed to be repeated.
@@ -464,7 +464,7 @@ def test_repeated_messages_does_not_call_sentry(relay):
         wandb_sentry = wandb.analytics.Sentry()
         wandb_sentry.setup()
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        expected_wandb_sentry_response.tags = wandb_sentry.scope._tags
+        expected_wandb_sentry_response.tags = wandb_sentry.scope._tags  # type: ignore
 
         # Send sentry events
         wandb_sentry_event_id_1 = wandb_sentry.message(
@@ -486,7 +486,7 @@ def test_repeated_messages_does_not_call_sentry(relay):
         assert wandb_sentry_event_id_2 is None
 
 
-def test_wandb_configure_without_tags_does_not_create_session(relay):
+def test_wandb_configure_without_tags_does_not_create_session(relay: MetricRelayServer):
     """
     This test verifies the configuration behavior of the wandb Sentry client.
     It expects the wandb Sentry client does not create a session when no tags are present.
@@ -507,10 +507,10 @@ def test_wandb_configure_without_tags_does_not_create_session(relay):
         wandb_sentry.configure_scope()
 
         # Asert session is not created when no tags are provided
-        assert wandb_sentry.scope._session is None
+        assert wandb_sentry.scope._session is None  # type: ignore
 
 
-def test_wandb_configure_with_tags_creates_session(relay):
+def test_wandb_configure_with_tags_creates_session(relay: MetricRelayServer):
     """
     This test verifies the configuration behavior of the wandb Sentry client.
     It expects the wandb Sentry client to create a session when tags are provided.
@@ -532,6 +532,7 @@ def test_wandb_configure_with_tags_creates_session(relay):
         wandb_sentry.configure_scope(tags={"entity": "tag"})
 
         # Assert session is created
+        assert wandb_sentry.scope is not None
         assert wandb_sentry.scope._session is not None
 
         # Assert session is removed when ending the session
@@ -539,7 +540,7 @@ def test_wandb_configure_with_tags_creates_session(relay):
         assert wandb_sentry.scope._session is None
 
 
-def test_wandb_sentry_event_with_runtime_tags(relay):
+def test_wandb_sentry_event_with_runtime_tags(relay: MetricRelayServer):
     """
     This test verifies that runtime tags are added to the wandb Sentry scope.
     These tags should be present in the event received by Sentry.
