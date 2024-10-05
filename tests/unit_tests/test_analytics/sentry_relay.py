@@ -37,7 +37,7 @@ class SentryResponse:
         )
 
 
-class ExceptionResponse(SentryResponse):
+class SentryExceptionEventResponse(SentryResponse):
     def __init__(
         self,
         message: str | None,
@@ -140,7 +140,7 @@ class MetricRelayServer:
                 if len(payload["exception"]["values"]) > 0
                 else None
             )
-            self.events[envelope.headers["event_id"]] = ExceptionResponse(
+            self.events[envelope.headers["event_id"]] = SentryExceptionEventResponse(
                 message=message,
                 project_id=project_id,
                 public_key=envelope.headers["trace"]["public_key"],
