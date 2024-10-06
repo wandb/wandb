@@ -253,7 +253,7 @@ namespace Wandb.Internal
         {
             _cancellationTokenSource.Cancel();
             _cancellationTokenSource.Dispose();
-            _receiveTask?.Wait(TimeSpan.FromSeconds(5));
+            _receiveTask?.Wait();
             _networkStream?.Close();
             _tcpClient.Close();
         }
