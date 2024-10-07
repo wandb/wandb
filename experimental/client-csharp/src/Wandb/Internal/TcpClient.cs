@@ -9,7 +9,7 @@ namespace Wandb.Internal
     /// <summary>
     /// Provides functionality to communicate with the Wandb server over TCP.
     /// </summary>
-    public class WandbTcpClient : IDisposable
+    public class WandbTcpClient : IAsyncDisposable
     {
         private readonly TcpClient _tcpClient;
         private NetworkStream? _networkStream;
@@ -62,15 +62,9 @@ namespace Wandb.Internal
 
             // TODO: This must exist in the message, but need to gracefully handle it if it doesn't
             // + check if it's empty, but we're asked to wait for a response
-            string messageId;
-            if (message.RecordCommunicate != null)
-            {
-                messageId = message.RecordCommunicate.Control.MailboxSlot;
-            }
-            else
-            {
-                messageId = string.Empty;
-            }
+            string messageId = message.RecordCommunicate != null
+                ? message.RecordCommunicate.Control.MailboxSlot
+                : string.Empty;
 
             var data = message.ToByteArray();
             var packet = Pack(data);
@@ -249,13 +243,17 @@ namespace Wandb.Internal
         /// <summary>
         /// Releases all resources used by the <see cref="WandbTcpClient"/>.
         /// </summary>
-        public void Dispose()
+        public async ValueTask DisposeAsync()
         {
-            _cancellationTokenSource.Cancel();
+            await _cancellationTokenSource.CancelAsync().ConfigureAwait(false);
             _cancellationTokenSource.Dispose();
-            _receiveTask?.Wait(TimeSpan.FromSeconds(5));
+            if (_receiveTask != null)
+            {
+                await _receiveTask.ConfigureAwait(false);
+            }
             _networkStream?.Close();
             _tcpClient.Close();
+            _writeSemaphore.Dispose();
         }
     }
 }
