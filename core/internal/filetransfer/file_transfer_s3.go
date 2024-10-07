@@ -3,7 +3,6 @@ package filetransfer
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -41,17 +40,7 @@ func NewS3FileTransfer(
 ) (*S3FileTransfer, error) {
 	ctx := context.Background()
 	if client == nil {
-		var awsConfigOptions [](func(*config.LoadOptions) error)
-		if awsProfile := os.Getenv("AWS_PROFILE"); awsProfile != "" {
-			awsConfigOptions = append(
-				awsConfigOptions,
-				config.WithSharedConfigProfile(awsProfile),
-			)
-		}
-		if awsRegion := os.Getenv("AWS_REGION"); awsRegion != "" {
-			awsConfigOptions = append(awsConfigOptions, config.WithRegion(awsRegion))
-		}
-		cfg, err := config.LoadDefaultConfig(ctx, awsConfigOptions...)
+		cfg, err := config.LoadDefaultConfig(ctx)
 		if err != nil {
 			return nil, err
 		}
