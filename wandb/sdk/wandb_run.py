@@ -93,6 +93,7 @@ if TYPE_CHECKING:
     import wandb.apis.public
     import wandb.sdk.backend.backend
     import wandb.sdk.interface.interface_queue
+    from wandb.data_types import Table
     from wandb.proto.wandb_internal_pb2 import (
         GetSummaryResponse,
         InternalMessagesResponse,
@@ -2232,7 +2233,7 @@ class Run:
     @staticmethod
     def plot_table(
         vega_spec_name: str,
-        data_table: wandb.Table,
+        data_table: Table,
         fields: dict[str, Any],
         string_fields: dict[str, Any] | None = None,
         split_table: bool | None = False,
@@ -2247,6 +2248,8 @@ class Run:
                 visualization needs
             string_fields: a dict that provides values for any string constants
                 the custom visualization needs
+            split_table: a boolean that indicates whether the table should be in
+                a separate section in the UI
         """
         return custom_chart(
             vega_spec_name, data_table, fields, string_fields or {}, split_table
