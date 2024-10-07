@@ -348,8 +348,6 @@ func (nc *Connection) handleInformStart(msg *spb.ServerInformStartRequest) {
 	nc.stream.logger.SetGlobalTags(observability.Tags{
 		"run_url": nc.stream.settings.GetRunURL(),
 	})
-	// TODO: remove this once we have a better observability setup
-	nc.stream.logger.CaptureInfo("wandb-core", nil)
 }
 
 // handleInformAttach handles the new connection attaching to an existing stream.
