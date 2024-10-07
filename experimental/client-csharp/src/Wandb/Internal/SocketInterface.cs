@@ -385,9 +385,9 @@ namespace Wandb.Internal
             await _client.SendAsync(request).ConfigureAwait(false);
         }
 
-        public void Dispose()
+        public async void Dispose()
         {
-            _client.Dispose();
+            await _client.DisposeAsync().ConfigureAwait(false);
         }
     }
 }

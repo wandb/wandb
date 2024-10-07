@@ -1,0 +1,12 @@
+[*.cs]
+dotnet_diagnostic.CA1031.severity = none
+dotnet_diagnostic.CA1054.severity = none
+dotnet_diagnostic.CA1056.severity = none
+dotnet_diagnostic.CA1063.severity = none
+dotnet_diagnostic.CA1303.severity = none
+dotnet_diagnostic.CA1305.severity = none
+dotnet_diagnostic.CA1307.severity = none
+dotnet_diagnostic.CA1308.severity = none
+dotnet_diagnostic.CA1816.severity = none
+dotnet_diagnostic.CA2201.severity = none
+dotnet_diagnostic.CA5394.severity = none

@@ -194,19 +194,27 @@ namespace Wandb
                     else
                     {
                         // If the value doesn't match the type, just store the raw JSON
-                        summary[key] = JsonConvert.DeserializeObject<object>(valueJson);
+                        var deserializedObject = JsonConvert.DeserializeObject<object>(valueJson);
+                        if (deserializedObject != null)
+                        {
+                            summary[key] = deserializedObject;
+                        }
                     }
                 }
                 catch (JsonSerializationException)
                 {
                     // If the deserialization to T fails, just store it as a dynamic object
-                    summary[key] = JsonConvert.DeserializeObject<object>(valueJson);
+                    var deserializedObject = JsonConvert.DeserializeObject<object>(valueJson);
+                    if (deserializedObject != null)
+                    {
+                        summary[key] = deserializedObject;
+                    }
                 }
             }
 
             // Serialize the summary to JSON and then deserialize it to the specified type
             var jsonSummary = JsonConvert.SerializeObject(summary);
-            T typedSummary = JsonConvert.DeserializeObject<T>(jsonSummary);
+            T typedSummary = JsonConvert.DeserializeObject<T>(jsonSummary) ?? new T();
             return typedSummary;
         }
 
