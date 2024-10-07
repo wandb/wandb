@@ -1,5 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
+﻿using Microsoft.Extensions.Logging;
 using Wandb;
 
 class Program
@@ -11,20 +10,28 @@ class Program
 
     static async Task Main()
     {
-        // string? apiKey = null;
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder
+                .AddConsole() // Add console for the example
+                .SetMinimumLevel(LogLevel.Information);
+        });
 
         using (var session = new Session())
         {
             // Initialize a new run:
             var run1 = await session.Init(
                 settings: new Settings(
-                    // apiKey: apiKey,
+                    // apiKey: "my-api",
                     // entity: "my-entity",
                     // displayName: "smart-capybara-42",
                     project: "csharp",
                     runTags: new[] { "c", "sharp" }
-                )
+                ),
+                logger: loggerFactory.CreateLogger<Program>()
             );
+
+            Console.WriteLine($"Run URL: {run1.Settings.RunURL}");
 
             // Define configuration and metrics:
             await run1.UpdateConfig(new Dictionary<string, object> { { "batch_size", 64 } });
@@ -49,12 +56,13 @@ class Program
             // Resume run1:
             var run2 = await session.Init(
                 settings: new Settings(
-                    // apiKey: apiKey,
+                    // apiKey: "my-api",
                     // entity: "my-entity",
                     project: "csharp",
                     resume: ResumeOption.Allow, // resume if exists, or create a new run
                     runId: run1.Settings.RunId
-                )
+                ),
+                logger: loggerFactory.CreateLogger<Program>()
             );
 
             // Get the run's summary:
