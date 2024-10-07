@@ -62,6 +62,9 @@ def test_wandb_error_reporting_disabled(relay: MetricRelayServer):
     This test ensures no events are sent to sentry when the wandb sentry client is disabled.
 
     The test sets the `ERROR_REPORTING` environment variable to `false` and initializes the wandb sentry client.
+
+    This test replaces the landfill test verifying disabling of wandb Sentry client via environment variable.
+        - t6_sentry_third_party_no_wandb_error_reporting.py
     """
     with mock.patch.dict(
         os.environ,
@@ -91,6 +94,15 @@ def test_wandb_sentry_init_after_client_init(relay: MetricRelayServer):
 
     This test initializes the Sentry client first using `sentry_sdk.init()`, follwed by initializing wandb's Sentry client.
     Both instances contain unique sessions and tags
+
+    This test replaces the landfill test validating the tags sent in the Sentry message.
+    Additionally, that the Sentry data is isolated between the wandb Sentry client and the 3rd party Sentry client.
+        - t4_sentry_tags.py
+        - t7_sentry_session.py
+        - t8_sentry_session_no_finish.py
+
+    This test does not replace the landfill test `t3_sentry_userprod_win.yea`.
+    Because there are no automated unit tests running specifically for windows platforms currently.
     """
     expected_other_sentry_response = SentryResponse(
         message="other sentry message",
@@ -374,6 +386,10 @@ def test_wandb_sentry_exception(relay: MetricRelayServer):
 
     This test initializes the Sentry client first using `sentry_sdk.init()`, follwed by initializing wandb's Sentry client.
     After, both clients send an exception event to Sentry.
+
+    This test replaces the landfill tests validating stack trace sent in Sentry message for both wandb Sentry client and 3rd party Sentry client.
+        - t3_sentry_user_prox_unix.yea
+        - t5_sentry_third_party.yea
     """
     expected_other_sentry_response = SentryResponse(
         message="other sentry message",
