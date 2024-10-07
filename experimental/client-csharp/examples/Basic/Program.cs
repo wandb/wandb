@@ -22,7 +22,7 @@ class Program
             // Initialize a new run:
             var run1 = await session.Init(
                 settings: new Settings(
-                    // apiKey: "my-api",
+                    // apiKey: apiKey,
                     // entity: "my-entity",
                     // displayName: "smart-capybara-42",
                     project: "csharp",
@@ -47,14 +47,16 @@ class Program
 
             // Finish the run without marking it as finished on the server:
             await run1.Finish(markFinished: false);
+            run1.Dispose();
 
             // Simulate waiting for the next batch of data:
+            Console.WriteLine("Waiting for the next batch of data...");
             await Task.Delay(3000);
 
             // Resume run1:
             var run2 = await session.Init(
                 settings: new Settings(
-                    // apiKey: "my-api",
+                    // apiKey: apiKey,
                     // entity: "my-entity",
                     project: "csharp",
                     resume: ResumeOption.Allow, // resume if exists, or create a new run
@@ -80,6 +82,7 @@ class Program
 
             // Finish the resumed run and mark it as finished on the server:
             await run2.Finish();
+            run2.Dispose();
         }
     }
 }
