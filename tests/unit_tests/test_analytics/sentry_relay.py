@@ -123,8 +123,6 @@ class MetricRelayServer:
         assert payload is not None
 
         is_error = "exception" in payload
-        stacktrace = None
-        message = None
         if is_error:
             message = (
                 payload["exception"]["values"][0]["value"]
@@ -134,6 +132,7 @@ class MetricRelayServer:
             stacktrace = payload["exception"]["values"][0]["stacktrace"]
         else:
             message = payload["message"]
+            stacktrace = None
 
         self.events[envelope.headers["event_id"]] = SentryResponse(
             message=message,
