@@ -22,7 +22,7 @@ class Program
             // Initialize a new run:
             var run1 = await session.Init(
                 settings: new Settings(
-                    // apiKey: apiKey,
+                    // apiKey: "my-api",
                     // entity: "my-entity",
                     // displayName: "smart-capybara-42",
                     project: "csharp",
@@ -56,7 +56,7 @@ class Program
             // Resume run1:
             var run2 = await session.Init(
                 settings: new Settings(
-                    // apiKey: apiKey,
+                    // apiKey: "my-api",
                     // entity: "my-entity",
                     project: "csharp",
                     resume: ResumeOption.Allow, // resume if exists, or create a new run
