@@ -1,6 +1,6 @@
 """Test stable_baselines3 integration."""
 
-import gymnasium
+import gymnasium as gym
 import pytest
 import wandb
 from stable_baselines3 import PPO
@@ -19,7 +19,7 @@ def test_sb3_tensorboard(wandb_init, relay_server):
             PPO(
                 "MlpPolicy",
                 DummyVecEnv(
-                    [lambda: TimeLimit(Monitor(gym.make("CartPole-v1", max_episode_steps=100))]
+                    [lambda: TimeLimit(Monitor(gym.make("CartPole-v1", max_episode_steps=100)))]
                 ),
                 verbose=1,
                 tensorboard_log=f"runs/{run.name}",
