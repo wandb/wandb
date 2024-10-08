@@ -3525,9 +3525,14 @@ class Api:
         return link_artifact
 
     def _resolve_org_entity_name(self, entity: str, organization: str = "") -> str:
-        # Fetches the org entity of the portfolio entity to
-        # 1. validate the user inputted the correct display org name or org entity name and
-        # 2. return the org entity name so we can use the correct entity name to link the artifact.
+        # resolveOrgEntityName fetches the portfolio's org entity's name.
+        #
+        # The organization parameter may be empty, an org's display name, or an org entity name.
+        #
+        # If the server doesn't support fetching the org name of a portfolio, then this returns
+        # the organization parameter, or an error if it is empty. Otherwise, this returns the
+        # fetched value after validating that the given organization, if not empty, matches
+        # either the org's display or entity name.
         org_fields = self.server_organization_type_introspection()
         can_fetch_org_entity = "orgEntity" in org_fields
         if not organization and not can_fetch_org_entity:
