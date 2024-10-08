@@ -1,4 +1,4 @@
-package validator
+package rules
 
 import (
 	"github.com/vektah/gqlparser/v2/ast"
@@ -7,8 +7,9 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-func init() {
-	AddRule("ScalarLeafs", func(observers *Events, addError AddErrFunc) {
+var ScalarLeafsRule = Rule{
+	Name: "ScalarLeafs",
+	RuleFunc: func(observers *Events, addError AddErrFunc) {
 		observers.OnField(func(walker *Walker, field *ast.Field) {
 			if field.Definition == nil {
 				return
@@ -34,5 +35,9 @@ func init() {
 				)
 			}
 		})
-	})
+	},
+}
+
+func init() {
+	AddRule(ScalarLeafsRule.Name, ScalarLeafsRule.RuleFunc)
 }

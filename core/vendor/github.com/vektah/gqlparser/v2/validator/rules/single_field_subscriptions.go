@@ -1,4 +1,4 @@
-package validator
+package rules
 
 import (
 	"strconv"
@@ -10,8 +10,9 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-func init() {
-	AddRule("SingleFieldSubscriptions", func(observers *Events, addError AddErrFunc) {
+var SingleFieldSubscriptionsRule = Rule{
+	Name: "SingleFieldSubscriptions",
+	RuleFunc: func(observers *Events, addError AddErrFunc) {
 		observers.OnOperation(func(walker *Walker, operation *ast.OperationDefinition) {
 			if walker.Schema.Subscription == nil || operation.Operation != ast.Subscription {
 				return
@@ -40,7 +41,11 @@ func init() {
 				}
 			}
 		})
-	})
+	},
+}
+
+func init() {
+	AddRule(SingleFieldSubscriptionsRule.Name, SingleFieldSubscriptionsRule.RuleFunc)
 }
 
 type topField struct {
