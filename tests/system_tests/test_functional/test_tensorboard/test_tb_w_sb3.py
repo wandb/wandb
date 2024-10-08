@@ -19,13 +19,14 @@ def test_sb3_tensorboard(wandb_init, relay_server):
             PPO(
                 "MlpPolicy",
                 DummyVecEnv(
-                    [lambda: TimeLimit(Monitor(gym.make("CartPole-v1")), max_episode_steps=100)]
+                    [lambda: TimeLimit(Monitor(gym.make("CartPole-v1")), max_episode_steps=5)]
                 ),
                 verbose=1,
                 tensorboard_log=f"runs/{run.name}",
-                n_steps=20,
+                n_steps=2,
             ).learn(
-                total_timesteps=100,
+                total_timesteps=10,
+                log_interval=1,
             )
 
         run_ids = relay.context.get_run_ids()
@@ -33,7 +34,7 @@ def test_sb3_tensorboard(wandb_init, relay_server):
         assert run.id == run_ids[0]
 
         summary = relay.context.get_run_summary(run.id)
-        assert summary["global_step"] == 100.0
+        assert summary["global_step"] == 10.0
         for tag in ["time/fps", "rollout/ep_len_mean", "rollout/ep_rew_mean"]:
             assert tag in summary
 
