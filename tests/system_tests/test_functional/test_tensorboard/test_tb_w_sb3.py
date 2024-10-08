@@ -23,6 +23,7 @@ def test_sb3_tensorboard(wandb_init, relay_server):
                 ),
                 verbose=1,
                 tensorboard_log=f"runs/{run.name}",
+                stats_window_size=5,
                 n_steps=2,
             ).learn(
                 total_timesteps=10,
