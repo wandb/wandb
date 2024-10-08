@@ -118,7 +118,9 @@ func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organizat
 		response.GetEntity().GetOrganization() == nil ||
 		response.GetEntity().GetOrganization().GetOrgEntity() == nil {
 		return "", fmt.Errorf("Unable to find organization for artifact under entity: %s. "+
-			"Please make sure you are using a team entity when linking to the Registry", portfolioEntity)
+			"Please make sure the right org in the path is provided "+
+			"or a team entity, not a personal entity, is used when using the shorthand path without an org.",
+			portfolioEntity)
 	}
 
 	// Validate organization inputted by user
@@ -126,7 +128,7 @@ func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organizat
 	inputMatchesOrgName := organization == response.Entity.Organization.Name
 	inputMatchesOrgEntityName := organization == orgEntityName
 	if organization != "" && !inputMatchesOrgName && !inputMatchesOrgEntityName {
-		return "", fmt.Errorf("Artifact belongs to the organization %s and cannot be linked to %s. "+
+		return "", fmt.Errorf("Artifact belongs to the organization %s and cannot be linked/fetched with %s. "+
 			"Please update the target path with the correct organization name.", orgEntityName, organization)
 	}
 	return orgEntityName, nil
