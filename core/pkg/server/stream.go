@@ -186,6 +186,7 @@ func NewStream(
 		fileStreamOrNil = NewFileStream(
 			backendOrNil,
 			s.logger,
+			operations,
 			terminalPrinter,
 			opts.Settings,
 			peeker,
@@ -198,6 +199,7 @@ func NewStream(
 		runfilesUploaderOrNil = NewRunfilesUploader(
 			s.runWork,
 			s.logger,
+			operations,
 			opts.Settings,
 			fileStreamOrNil,
 			fileTransferManagerOrNil,
@@ -249,6 +251,7 @@ func NewStream(
 		s.runWork,
 		SenderParams{
 			Logger:              s.logger,
+			Operations:          operations,
 			Settings:            s.settings,
 			Backend:             backendOrNil,
 			FileStream:          fileStreamOrNil,
