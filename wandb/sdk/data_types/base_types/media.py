@@ -27,6 +27,9 @@ SYS_PLATFORM = platform.system()
 def _wb_filename(
     key: Union[str, int], step: Union[str, int], id: Union[str, int], extension: str
 ) -> str:
+    # When the media key starts with a slash, this is being treated as an absolute file path.
+    # We want to avoid writing to arbitrary locations on the filesystem, so we strip the leading slash.
+    key = str(key)[1:] if str(key).startswith("/") else str(key)
     return f"{str(key)}_{str(step)}_{str(id)}{extension}"
 
 
