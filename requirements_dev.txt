@@ -43,7 +43,7 @@ urllib3
 docker
 catboost
 openai
-gymnasium
+gymnasium < 1.0.0
 stable_baselines3
 
 responses
