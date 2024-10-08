@@ -385,21 +385,18 @@ func (nc *Connection) handleInformAttach(msg *spb.ServerInformAttachRequest) {
 	}
 }
 
-// handleAuthenticate processes an authentication message from the client.
+// handleAuthenticate processes client authentication messages.
 //
-// This function is called when the client sends an authentication message to the server.
-// It validates the client's credentials and sends a response back to the client
-// with the default entity.
+// It validates client credentials and responds with the default entity
+// associated with the provided API key. This lightweight authentication
+// method avoids the overhead of starting a new stream while still
+// leveraging wandb-core's features.
 //
-// The intent here is to provide a lightweight way for the client to verify its
-// credentials and obtain the default entity for the session without having to
-// start a new stream with all the associated overhead, yet still utilizing
-// wandb-core's features.
-// An alternative approach would be to implement the GraphQL Viewer query
-// to fetch this information on the client side for each supported language.
+// An alternative approach would be implementing a GraphQL Viewer query
+// on the client side for each supported language.
 //
-// TODO: This function will be deprecated after the Public API workflow in
-// wandb-core is implemented.
+// Note: This function will be deprecated once the Public API workflow
+// in wandb-core is implemented.
 func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 	slog.Debug("handleAuthenticate: received", "id", nc.id)
 
@@ -418,12 +415,26 @@ func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 		graphqlClient,
 	)
 	if err != nil {
-		nc.Respond(&spb.ServerResponse{})
+		nc.Respond(&spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
+				AuthenticateResponse: &spb.ServerAuthenticateResponse{
+					ErrorStatus: string(err.Error()),
+					XInfo:       msg.XInfo,
+				},
+			},
+		})
 		return
 	}
 	entity := data.GetViewer().GetEntity()
 	if entity == nil {
-		nc.Respond(&spb.ServerResponse{})
+		nc.Respond(&spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
+				AuthenticateResponse: &spb.ServerAuthenticateResponse{
+					ErrorStatus: "No entity found",
+					XInfo:       msg.XInfo,
+				},
+			},
+		})
 		return
 	}
 

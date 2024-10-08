@@ -54,7 +54,7 @@ namespace Wandb.Internal
             };
             ServerResponse? response = await _client.SendAsync(request, timeoutMilliseconds).ConfigureAwait(false)
                 ?? throw new TimeoutException("The request timed out.");
-            if (response.AuthenticateResponse == null)
+            if (response.AuthenticateResponse.ErrorStatus != null)
             {
                 throw new Exception("Credentials are invalid");
             }

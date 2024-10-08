@@ -15,6 +15,15 @@ DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
 @typing.final
 class ServerAuthenticateRequest(google.protobuf.message.Message):
+    """Authentication messages.
+
+    These messages are used to authenticate the client with the W&B server.
+    The client sends a ServerAuthenticateRequest message to wandb-core, which
+    verifies the API key on the server specified by the base_url field and
+    returns a ServerAuthenticateResponse message with the default entity and
+    error status.
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     API_KEY_FIELD_NUMBER: builtins.int
@@ -41,18 +50,21 @@ class ServerAuthenticateResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     DEFAULT_ENTITY_FIELD_NUMBER: builtins.int
+    ERROR_STATUS_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     default_entity: builtins.str
+    error_status: builtins.str
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
         default_entity: builtins.str = ...,
+        error_status: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_info", b"_info", "default_entity", b"default_entity"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["_info", b"_info", "default_entity", b"default_entity", "error_status", b"error_status"]) -> None: ...
 
 global___ServerAuthenticateResponse = ServerAuthenticateResponse
 
