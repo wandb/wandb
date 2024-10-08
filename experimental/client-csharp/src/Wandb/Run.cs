@@ -1,4 +1,4 @@
-using Serilog;
+using Microsoft.Extensions.Logging;
 using WandbInternal;
 using Wandb.Internal;
 using Newtonsoft.Json;
@@ -55,7 +55,7 @@ namespace Wandb
         /// <summary>
         ///  The logger for the run.
         /// </summary>
-        private readonly ILogger _logger;
+        private readonly ILogger? _logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Run"/> class.
@@ -68,15 +68,9 @@ namespace Wandb
 
             Settings = settings;
 
-            _logger = logger ?? new LoggerConfiguration()
-            .MinimumLevel.Debug()
-            .Enrich.WithProperty("Source", "wandb")
-            .WriteTo.File(
-                settings.LogUser,
-                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Source}: {Message:lj}{NewLine}{Exception}"
-            )
-            .CreateLogger();
-            _logger.Information("Run created");
+            _logger = logger;
+
+            _logger?.LogInformation("Run created");
         }
 
         /// <summary>
@@ -130,7 +124,7 @@ namespace Wandb
                 throw new Exception("Failed to deliver run start");
             }
 
-            _logger.Information("View run {DisplayName} at {RunURL}", Settings.DisplayName, Settings.RunURL);
+            _logger?.LogInformation("View run {DisplayName} at {RunURL}", Settings.DisplayName, Settings.RunURL);
         }
 
         /// <summary>
@@ -194,40 +188,61 @@ namespace Wandb
                     else
                     {
                         // If the value doesn't match the type, just store the raw JSON
-                        summary[key] = JsonConvert.DeserializeObject<object>(valueJson);
+                        var deserializedObject = JsonConvert.DeserializeObject<object>(valueJson);
+                        if (deserializedObject != null)
+                        {
+                            summary[key] = deserializedObject;
+                        }
                     }
                 }
                 catch (JsonSerializationException)
                 {
                     // If the deserialization to T fails, just store it as a dynamic object
-                    summary[key] = JsonConvert.DeserializeObject<object>(valueJson);
+                    var deserializedObject = JsonConvert.DeserializeObject<object>(valueJson);
+                    if (deserializedObject != null)
+                    {
+                        summary[key] = deserializedObject;
+                    }
                 }
             }
 
             // Serialize the summary to JSON and then deserialize it to the specified type
             var jsonSummary = JsonConvert.SerializeObject(summary);
-            T typedSummary = JsonConvert.DeserializeObject<T>(jsonSummary);
+            T typedSummary = JsonConvert.DeserializeObject<T>(jsonSummary) ?? new T();
             return typedSummary;
         }
 
         /// <summary>
         /// Completes the run by sending exit commands and cleaning up resources.
         /// </summary>
+        /// <param name="markFinished">Whether to mark the run as finished on the server.</param>
         /// <returns>A task that represents the asynchronous operation.</returns>
         /// <exception cref="Exception">Thrown when the exit delivery fails.</exception>
-        public async Task Finish()
+        public async Task Finish(bool markFinished = true)
         {
             // TODO: get timeout from settings
-            Result deliverExitResult = await _interface.DeliverExit(timeoutMilliseconds: 600000).ConfigureAwait(false);
-            if (deliverExitResult.ExitResult == null)
+            if (markFinished)
             {
-                throw new Exception("Failed to deliver exit");
+                Result deliverExitResult = await _interface.DeliverExit(timeoutMilliseconds: 600000).ConfigureAwait(false);
+                if (deliverExitResult.ExitResult == null)
+                {
+                    throw new Exception("Failed to deliver exit");
+                }
             }
+            else
+            {
+                Result deliverFinishWithoutExitResult = await _interface.DeliverFinishWithoutExit(timeoutMilliseconds: 600000).ConfigureAwait(false);
+                if (deliverFinishWithoutExitResult.Response.RunFinishWithoutExitResponse == null)
+                {
+                    throw new Exception("Failed to deliver finish without exit");
+                }
+            }
+
             // Send finish command
             await _interface.InformFinish().ConfigureAwait(false);
 
-            _logger.Information("Run {DisplayName} data is saved locally in {SyncDir}", Settings.DisplayName, Settings.SyncDir);
-            _logger.Information("Run {DisplayName} finished", Settings.DisplayName);
+            _logger?.LogInformation("Run {DisplayName} data is saved locally in {SyncDir}", Settings.DisplayName, Settings.SyncDir);
+            _logger?.LogInformation("Run {DisplayName} finished", Settings.DisplayName);
         }
 
         /// <summary>
@@ -236,12 +251,6 @@ namespace Wandb
         public void Dispose()
         {
             _interface.Dispose();
-
-            // Ensure all log entries are flushed before disposing the session
-            if (_logger is Serilog.Core.Logger logger)
-            {
-                logger.Dispose();  // Flushes and disposes the logger if it's the Serilog implementation
-            }
         }
     }
 }

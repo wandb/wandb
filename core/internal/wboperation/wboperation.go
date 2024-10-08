@@ -323,16 +323,22 @@ func (p *WandbProgress) SetBytesOfTotal(doneBytes, totalBytes int) {
 	)
 }
 
+const (
+	bytesPerKB = 1 << (10 * (iota + 1))
+	bytesPerMB
+	bytesPerGB
+)
+
 func bytesToShortString(bytes int) string {
 	switch {
-	case bytes < (1 << 10):
+	case bytes < bytesPerKB:
 		return fmt.Sprintf("%dB", bytes)
-	case bytes < (1 << 20):
-		return fmt.Sprintf("%.1fKB", float64(bytes)/(1<<10))
-	case bytes < (1 << 30):
-		return fmt.Sprintf("%.1fMB", float64(bytes)/(1<<20))
+	case bytes < bytesPerMB:
+		return fmt.Sprintf("%.1fKB", float64(bytes)/bytesPerKB)
+	case bytes < bytesPerGB:
+		return fmt.Sprintf("%.1fMB", float64(bytes)/bytesPerMB)
 	default:
-		return fmt.Sprintf("%.2fGB", float64(bytes)/(1<<30))
+		return fmt.Sprintf("%.2fGB", float64(bytes)/bytesPerGB)
 	}
 }
 
