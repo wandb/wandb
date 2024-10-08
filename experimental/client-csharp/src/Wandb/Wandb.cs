@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using Wandb.Internal;
+using WandbInternal;
 
 namespace Wandb
 {
@@ -71,6 +72,37 @@ namespace Wandb
             await run.Init().ConfigureAwait(false);
 
             return run;
+        }
+
+        /// <summary>
+        /// Checks if the provided API key is valid on the server specified by the base URL.
+        /// </summary>
+        /// <param name="apiKey"></param>
+        /// <param name="baseUrl"></param>
+        /// <returns>Default entity for the API key.</returns>
+        /// <exception cref="InvalidOperationException"></exception>
+        public async Task<string> Login(string apiKey, string? baseUrl = null)
+        {
+            // ensure wandb-core is running
+            await Setup().ConfigureAwait(false);
+
+            if (_port == null)
+            {
+                throw new InvalidOperationException("Port not set");
+            }
+            var randomStringGenerator = new Library.RandomStringGenerator();
+            var streamId = randomStringGenerator.GenerateRandomString(8);
+            var _interface = new SocketInterface((int)_port, streamId);
+
+            var result = await _interface.Login(
+                apiKey ?? Environment.GetEnvironmentVariable("WANDB_API_KEY") ?? throw new InvalidOperationException("API key not set"),
+                baseUrl ?? Environment.GetEnvironmentVariable("WANDB_BASE_URL") ?? "https://api.wandb.ai",
+                timeoutMilliseconds: 30000 // TODO: get the timeout from settings
+            ).ConfigureAwait(false);
+
+            _interface.Dispose();
+
+            return result;
         }
 
         /// <summary>

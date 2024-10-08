@@ -66,6 +66,14 @@ namespace Wandb.Internal
                 ? message.RecordCommunicate.Control.MailboxSlot
                 : string.Empty;
 
+            // A special case/hack for login messages
+            if (string.IsNullOrEmpty(messageId))
+            {
+                messageId = message.Login != null
+                    ? message.Login.Info.StreamId
+                    : string.Empty;
+            }
+
             var data = message.ToByteArray();
             var packet = Pack(data);
 
@@ -210,7 +218,17 @@ namespace Wandb.Internal
         private void ProcessReceivedMessage(ServerResponse message)
         {
             // TODO: This must exist in the message, but need to gracefully handle it if it doesn't
-            var messageId = message.ResultCommunicate.Control.MailboxSlot;
+            var messageId = message.ResultCommunicate != null
+                ? message.ResultCommunicate.Control.MailboxSlot
+                : string.Empty;
+
+            // A special case/hack for login messages
+            if (string.IsNullOrEmpty(messageId))
+            {
+                messageId = message.LoginResponse != null
+                    ? message.LoginResponse.Info.StreamId
+                    : string.Empty;
+            }
 
             if (_pendingRequests.TryRemove(messageId, out var tcs))
             {

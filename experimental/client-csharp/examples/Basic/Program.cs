@@ -19,6 +19,10 @@ class Program
 
         using (var session = new Session())
         {
+            // Verify the apiKey:
+            var entity = await session.Login("<API_KEY>");
+            Console.WriteLine($"Logged in as: {entity}");
+
             // Initialize a new run:
             var run1 = await session.Init(
                 settings: new Settings(

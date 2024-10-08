@@ -18,6 +18,49 @@ else:
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
 @typing_extensions.final
+class ServerLoginRequest(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    API_KEY_FIELD_NUMBER: builtins.int
+    BASE_URL_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
+    api_key: builtins.str
+    base_url: builtins.str
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+    def __init__(
+        self,
+        *,
+        api_key: builtins.str = ...,
+        base_url: builtins.str = ...,
+        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "api_key", b"api_key", "base_url", b"base_url"]) -> None: ...
+
+global___ServerLoginRequest = ServerLoginRequest
+
+@typing_extensions.final
+class ServerLoginResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    DEFAULT_ENTITY_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
+    default_entity: builtins.str
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+    def __init__(
+        self,
+        *,
+        default_entity: builtins.str = ...,
+        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "default_entity", b"default_entity"]) -> None: ...
+
+global___ServerLoginResponse = ServerLoginResponse
+
+@typing_extensions.final
 class ServerShutdownRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -271,6 +314,7 @@ class ServerRequest(google.protobuf.message.Message):
     INFORM_DETACH_FIELD_NUMBER: builtins.int
     INFORM_TEARDOWN_FIELD_NUMBER: builtins.int
     INFORM_START_FIELD_NUMBER: builtins.int
+    LOGIN_FIELD_NUMBER: builtins.int
     @property
     def record_publish(self) -> wandb.proto.wandb_internal_pb2.Record: ...
     @property
@@ -287,6 +331,8 @@ class ServerRequest(google.protobuf.message.Message):
     def inform_teardown(self) -> global___ServerInformTeardownRequest: ...
     @property
     def inform_start(self) -> global___ServerInformStartRequest: ...
+    @property
+    def login(self) -> global___ServerLoginRequest: ...
     def __init__(
         self,
         *,
@@ -298,10 +344,11 @@ class ServerRequest(google.protobuf.message.Message):
         inform_detach: global___ServerInformDetachRequest | None = ...,
         inform_teardown: global___ServerInformTeardownRequest | None = ...,
         inform_start: global___ServerInformStartRequest | None = ...,
+        login: global___ServerLoginRequest | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["inform_attach", b"inform_attach", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_start", b"inform_start", "inform_teardown", b"inform_teardown", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "server_request_type", b"server_request_type"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["inform_attach", b"inform_attach", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_start", b"inform_start", "inform_teardown", b"inform_teardown", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "server_request_type", b"server_request_type"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["server_request_type", b"server_request_type"]) -> typing_extensions.Literal["record_publish", "record_communicate", "inform_init", "inform_finish", "inform_attach", "inform_detach", "inform_teardown", "inform_start"] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["inform_attach", b"inform_attach", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_start", b"inform_start", "inform_teardown", b"inform_teardown", "login", b"login", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "server_request_type", b"server_request_type"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["inform_attach", b"inform_attach", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_start", b"inform_start", "inform_teardown", b"inform_teardown", "login", b"login", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "server_request_type", b"server_request_type"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["server_request_type", b"server_request_type"]) -> typing_extensions.Literal["record_publish", "record_communicate", "inform_init", "inform_finish", "inform_attach", "inform_detach", "inform_teardown", "inform_start", "login"] | None: ...
 
 global___ServerRequest = ServerRequest
 
@@ -316,6 +363,7 @@ class ServerResponse(google.protobuf.message.Message):
     INFORM_DETACH_RESPONSE_FIELD_NUMBER: builtins.int
     INFORM_TEARDOWN_RESPONSE_FIELD_NUMBER: builtins.int
     INFORM_START_RESPONSE_FIELD_NUMBER: builtins.int
+    LOGIN_RESPONSE_FIELD_NUMBER: builtins.int
     @property
     def result_communicate(self) -> wandb.proto.wandb_internal_pb2.Result: ...
     @property
@@ -330,6 +378,8 @@ class ServerResponse(google.protobuf.message.Message):
     def inform_teardown_response(self) -> global___ServerInformTeardownResponse: ...
     @property
     def inform_start_response(self) -> global___ServerInformStartResponse: ...
+    @property
+    def login_response(self) -> global___ServerLoginResponse: ...
     def __init__(
         self,
         *,
@@ -340,9 +390,10 @@ class ServerResponse(google.protobuf.message.Message):
         inform_detach_response: global___ServerInformDetachResponse | None = ...,
         inform_teardown_response: global___ServerInformTeardownResponse | None = ...,
         inform_start_response: global___ServerInformStartResponse | None = ...,
+        login_response: global___ServerLoginResponse | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_start_response", b"inform_start_response", "inform_teardown_response", b"inform_teardown_response", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_start_response", b"inform_start_response", "inform_teardown_response", b"inform_teardown_response", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["server_response_type", b"server_response_type"]) -> typing_extensions.Literal["result_communicate", "inform_init_response", "inform_finish_response", "inform_attach_response", "inform_detach_response", "inform_teardown_response", "inform_start_response"] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_start_response", b"inform_start_response", "inform_teardown_response", b"inform_teardown_response", "login_response", b"login_response", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_start_response", b"inform_start_response", "inform_teardown_response", b"inform_teardown_response", "login_response", b"login_response", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["server_response_type", b"server_response_type"]) -> typing_extensions.Literal["result_communicate", "inform_init_response", "inform_finish_response", "inform_attach_response", "inform_detach_response", "inform_teardown_response", "inform_start_response", "login_response"] | None: ...
 
 global___ServerResponse = ServerResponse

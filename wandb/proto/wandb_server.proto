@@ -8,6 +8,17 @@ import "wandb/proto/wandb_settings.proto";
 
 option go_package = "core/pkg/service_go_proto";
 
+message ServerLoginRequest {
+  string api_key = 1;
+  string base_url = 2;
+  _RecordInfo _info = 200;
+}
+
+message ServerLoginResponse {
+  string default_entity = 1;
+  _RecordInfo _info = 200;
+}
+
 message ServerShutdownRequest {
   _RecordInfo _info = 200;
 }
@@ -76,6 +87,7 @@ message ServerRequest {
     ServerInformDetachRequest inform_detach = 6;
     ServerInformTeardownRequest inform_teardown = 7;
     ServerInformStartRequest inform_start = 8;
+    ServerLoginRequest login = 9;
   }
 }
 
@@ -88,5 +100,6 @@ message ServerResponse {
     ServerInformDetachResponse inform_detach_response = 6;
     ServerInformTeardownResponse inform_teardown_response = 7;
     ServerInformStartResponse inform_start_response = 8;
+    ServerLoginResponse login_response = 9;
   }
 }
