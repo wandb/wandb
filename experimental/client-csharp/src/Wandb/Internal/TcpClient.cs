@@ -69,8 +69,8 @@ namespace Wandb.Internal
             // A special case/hack for login messages
             if (string.IsNullOrEmpty(messageId))
             {
-                messageId = message.Login != null
-                    ? message.Login.Info.StreamId
+                messageId = message.Authenticate != null
+                    ? message.Authenticate.Info.StreamId
                     : string.Empty;
             }
 
@@ -225,8 +225,8 @@ namespace Wandb.Internal
             // A special case/hack for login messages
             if (string.IsNullOrEmpty(messageId))
             {
-                messageId = message.LoginResponse != null
-                    ? message.LoginResponse.Info.StreamId
+                messageId = message.AuthenticateResponse != null
+                    ? message.AuthenticateResponse.Info.StreamId
                     : string.Empty;
             }
 

@@ -266,8 +266,8 @@ func (nc *Connection) handleIncomingRequests() {
 		slog.Debug("handleIncomingRequests: processing message", "msg", msg, "id", nc.id)
 
 		switch x := msg.ServerRequestType.(type) {
-		case *spb.ServerRequest_Login:
-			nc.handleLogin(x.Login)
+		case *spb.ServerRequest_Authenticate:
+			nc.handleAuthenticate(x.Authenticate)
 		case *spb.ServerRequest_InformInit:
 			nc.handleInformInit(x.InformInit)
 		case *spb.ServerRequest_InformStart:
@@ -385,19 +385,23 @@ func (nc *Connection) handleInformAttach(msg *spb.ServerInformAttachRequest) {
 	}
 }
 
-// handleLogin processes a login message from the client.
+// handleAuthenticate processes an authentication message from the client.
 //
-// This function is called when the client sends a login message to the server.
+// This function is called when the client sends an authentication message to the server.
 // It validates the client's credentials and sends a response back to the client
-// with the default entity and any additional information.
+// with the default entity.
 //
 // The intent here is to provide a lightweight way for the client to verify its
 // credentials and obtain the default entity for the session without having to
 // start a new stream with all the associated overhead, yet still utilizing
-// wandb-core. An alternative approach would be to implement the GraphQL Viewer
-// query to fetch this information on the client side for each supported language.
-func (nc *Connection) handleLogin(msg *spb.ServerLoginRequest) {
-	slog.Debug("handleLogin: received", "id", nc.id)
+// wandb-core's features.
+// An alternative approach would be to implement the GraphQL Viewer query
+// to fetch this information on the client side for each supported language.
+//
+// TODO: This function will be deprecated after the Public API workflow in
+// wandb-core is implemented.
+func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
+	slog.Debug("handleAuthenticate: received", "id", nc.id)
 
 	l := observability.NewNoOpLogger() // TODO: use a real logger
 	s := &settings.Settings{
@@ -424,8 +428,8 @@ func (nc *Connection) handleLogin(msg *spb.ServerLoginRequest) {
 	}
 
 	resp := &spb.ServerResponse{
-		ServerResponseType: &spb.ServerResponse_LoginResponse{
-			LoginResponse: &spb.ServerLoginResponse{
+		ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
+			AuthenticateResponse: &spb.ServerAuthenticateResponse{
 				DefaultEntity: *entity,
 				XInfo:         msg.XInfo,
 			},

@@ -26,11 +26,20 @@ namespace Wandb.Internal
             _streamId = streamId ?? throw new ArgumentNullException(nameof(streamId));
         }
 
-        public async Task<string> Login(string apiKey, string baseUrl, int timeoutMilliseconds = 0)
+        /// <summary>
+        /// Sends a request to wandb-core to authenticate the user's credentials.
+        /// </summary>
+        /// <param name="apiKey"></param>
+        /// <param name="baseUrl"></param>
+        /// <param name="timeoutMilliseconds"></param>
+        /// <returns></returns>
+        /// <exception cref="TimeoutException"></exception>
+        /// <exception cref="Exception"></exception>
+        public async Task<string> Authenticate(string apiKey, string baseUrl, int timeoutMilliseconds = 0)
         {
             ServerRequest request = new()
             {
-                Login = new ServerLoginRequest
+                Authenticate = new ServerAuthenticateRequest
                 {
                     ApiKey = apiKey,
                     BaseUrl = baseUrl,
@@ -42,11 +51,11 @@ namespace Wandb.Internal
             };
             ServerResponse? response = await _client.SendAsync(request, timeoutMilliseconds).ConfigureAwait(false)
                 ?? throw new TimeoutException("The request timed out.");
-            if (response.LoginResponse == null)
+            if (response.AuthenticateResponse == null)
             {
                 throw new Exception("Credentials are invalid");
             }
-            return response.LoginResponse.DefaultEntity;
+            return response.AuthenticateResponse.DefaultEntity;
         }
 
         /// <summary>

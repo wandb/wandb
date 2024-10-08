@@ -17,7 +17,7 @@ from wandb.proto import wandb_internal_pb2 as wandb_dot_proto_dot_wandb__interna
 from wandb.proto import wandb_settings_pb2 as wandb_dot_proto_dot_wandb__settings__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a\x1cwandb/proto/wandb_base.proto\x1a wandb/proto/wandb_internal.proto\x1a wandb/proto/wandb_settings.proto\"d\n\x12ServerLoginRequest\x12\x0f\n\x07\x61pi_key\x18\x01 \x01(\t\x12\x10\n\x08\x62\x61se_url\x18\x02 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"Z\n\x13ServerLoginResponse\x12\x16\n\x0e\x64\x65\x66\x61ult_entity\x18\x01 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"D\n\x15ServerShutdownRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x18\n\x16ServerShutdownResponse\"B\n\x13ServerStatusRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x16\n\x14ServerStatusResponse\"r\n\x17ServerInformInitRequest\x12*\n\x08settings\x18\x01 \x01(\x0b\x32\x18.wandb_internal.Settings\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1a\n\x18ServerInformInitResponse\"s\n\x18ServerInformStartRequest\x12*\n\x08settings\x18\x01 \x01(\x0b\x32\x18.wandb_internal.Settings\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1b\n\x19ServerInformStartResponse\"H\n\x19ServerInformFinishRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1c\n\x1aServerInformFinishResponse\"H\n\x19ServerInformAttachRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"u\n\x1aServerInformAttachResponse\x12*\n\x08settings\x18\x01 \x01(\x0b\x32\x18.wandb_internal.Settings\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"H\n\x19ServerInformDetachRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1c\n\x1aServerInformDetachResponse\"]\n\x1bServerInformTeardownRequest\x12\x11\n\texit_code\x18\x01 \x01(\x05\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1e\n\x1cServerInformTeardownResponse\"\xd9\x04\n\rServerRequest\x12\x30\n\x0erecord_publish\x18\x01 \x01(\x0b\x32\x16.wandb_internal.RecordH\x00\x12\x34\n\x12record_communicate\x18\x02 \x01(\x0b\x32\x16.wandb_internal.RecordH\x00\x12>\n\x0binform_init\x18\x03 \x01(\x0b\x32\'.wandb_internal.ServerInformInitRequestH\x00\x12\x42\n\rinform_finish\x18\x04 \x01(\x0b\x32).wandb_internal.ServerInformFinishRequestH\x00\x12\x42\n\rinform_attach\x18\x05 \x01(\x0b\x32).wandb_internal.ServerInformAttachRequestH\x00\x12\x42\n\rinform_detach\x18\x06 \x01(\x0b\x32).wandb_internal.ServerInformDetachRequestH\x00\x12\x46\n\x0finform_teardown\x18\x07 \x01(\x0b\x32+.wandb_internal.ServerInformTeardownRequestH\x00\x12@\n\x0cinform_start\x18\x08 \x01(\x0b\x32(.wandb_internal.ServerInformStartRequestH\x00\x12\x33\n\x05login\x18\t \x01(\x0b\x32\".wandb_internal.ServerLoginRequestH\x00\x42\x15\n\x13server_request_type\"\xef\x04\n\x0eServerResponse\x12\x34\n\x12result_communicate\x18\x02 \x01(\x0b\x32\x16.wandb_internal.ResultH\x00\x12H\n\x14inform_init_response\x18\x03 \x01(\x0b\x32(.wandb_internal.ServerInformInitResponseH\x00\x12L\n\x16inform_finish_response\x18\x04 \x01(\x0b\x32*.wandb_internal.ServerInformFinishResponseH\x00\x12L\n\x16inform_attach_response\x18\x05 \x01(\x0b\x32*.wandb_internal.ServerInformAttachResponseH\x00\x12L\n\x16inform_detach_response\x18\x06 \x01(\x0b\x32*.wandb_internal.ServerInformDetachResponseH\x00\x12P\n\x18inform_teardown_response\x18\x07 \x01(\x0b\x32,.wandb_internal.ServerInformTeardownResponseH\x00\x12J\n\x15inform_start_response\x18\x08 \x01(\x0b\x32).wandb_internal.ServerInformStartResponseH\x00\x12=\n\x0elogin_response\x18\t \x01(\x0b\x32#.wandb_internal.ServerLoginResponseH\x00\x42\x16\n\x14server_response_typeB\x1bZ\x19\x63ore/pkg/service_go_protob\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a\x1cwandb/proto/wandb_base.proto\x1a wandb/proto/wandb_internal.proto\x1a wandb/proto/wandb_settings.proto\"k\n\x19ServerAuthenticateRequest\x12\x0f\n\x07\x61pi_key\x18\x01 \x01(\t\x12\x10\n\x08\x62\x61se_url\x18\x02 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"a\n\x1aServerAuthenticateResponse\x12\x16\n\x0e\x64\x65\x66\x61ult_entity\x18\x01 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"D\n\x15ServerShutdownRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x18\n\x16ServerShutdownResponse\"B\n\x13ServerStatusRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x16\n\x14ServerStatusResponse\"r\n\x17ServerInformInitRequest\x12*\n\x08settings\x18\x01 \x01(\x0b\x32\x18.wandb_internal.Settings\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1a\n\x18ServerInformInitResponse\"s\n\x18ServerInformStartRequest\x12*\n\x08settings\x18\x01 \x01(\x0b\x32\x18.wandb_internal.Settings\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1b\n\x19ServerInformStartResponse\"H\n\x19ServerInformFinishRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1c\n\x1aServerInformFinishResponse\"H\n\x19ServerInformAttachRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"u\n\x1aServerInformAttachResponse\x12*\n\x08settings\x18\x01 \x01(\x0b\x32\x18.wandb_internal.Settings\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"H\n\x19ServerInformDetachRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1c\n\x1aServerInformDetachResponse\"]\n\x1bServerInformTeardownRequest\x12\x11\n\texit_code\x18\x01 \x01(\x05\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1e\n\x1cServerInformTeardownResponse\"\xe7\x04\n\rServerRequest\x12\x30\n\x0erecord_publish\x18\x01 \x01(\x0b\x32\x16.wandb_internal.RecordH\x00\x12\x34\n\x12record_communicate\x18\x02 \x01(\x0b\x32\x16.wandb_internal.RecordH\x00\x12>\n\x0binform_init\x18\x03 \x01(\x0b\x32\'.wandb_internal.ServerInformInitRequestH\x00\x12\x42\n\rinform_finish\x18\x04 \x01(\x0b\x32).wandb_internal.ServerInformFinishRequestH\x00\x12\x42\n\rinform_attach\x18\x05 \x01(\x0b\x32).wandb_internal.ServerInformAttachRequestH\x00\x12\x42\n\rinform_detach\x18\x06 \x01(\x0b\x32).wandb_internal.ServerInformDetachRequestH\x00\x12\x46\n\x0finform_teardown\x18\x07 \x01(\x0b\x32+.wandb_internal.ServerInformTeardownRequestH\x00\x12@\n\x0cinform_start\x18\x08 \x01(\x0b\x32(.wandb_internal.ServerInformStartRequestH\x00\x12\x41\n\x0c\x61uthenticate\x18\t \x01(\x0b\x32).wandb_internal.ServerAuthenticateRequestH\x00\x42\x15\n\x13server_request_type\"\xfd\x04\n\x0eServerResponse\x12\x34\n\x12result_communicate\x18\x02 \x01(\x0b\x32\x16.wandb_internal.ResultH\x00\x12H\n\x14inform_init_response\x18\x03 \x01(\x0b\x32(.wandb_internal.ServerInformInitResponseH\x00\x12L\n\x16inform_finish_response\x18\x04 \x01(\x0b\x32*.wandb_internal.ServerInformFinishResponseH\x00\x12L\n\x16inform_attach_response\x18\x05 \x01(\x0b\x32*.wandb_internal.ServerInformAttachResponseH\x00\x12L\n\x16inform_detach_response\x18\x06 \x01(\x0b\x32*.wandb_internal.ServerInformDetachResponseH\x00\x12P\n\x18inform_teardown_response\x18\x07 \x01(\x0b\x32,.wandb_internal.ServerInformTeardownResponseH\x00\x12J\n\x15inform_start_response\x18\x08 \x01(\x0b\x32).wandb_internal.ServerInformStartResponseH\x00\x12K\n\x15\x61uthenticate_response\x18\t \x01(\x0b\x32*.wandb_internal.ServerAuthenticateResponseH\x00\x42\x16\n\x14server_response_typeB\x1bZ\x19\x63ore/pkg/service_go_protob\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -25,44 +25,44 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'wandb.proto.wandb_server_pb
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z\031core/pkg/service_go_proto'
-  _globals['_SERVERLOGINREQUEST']._serialized_start=148
-  _globals['_SERVERLOGINREQUEST']._serialized_end=248
-  _globals['_SERVERLOGINRESPONSE']._serialized_start=250
-  _globals['_SERVERLOGINRESPONSE']._serialized_end=340
-  _globals['_SERVERSHUTDOWNREQUEST']._serialized_start=342
-  _globals['_SERVERSHUTDOWNREQUEST']._serialized_end=410
-  _globals['_SERVERSHUTDOWNRESPONSE']._serialized_start=412
-  _globals['_SERVERSHUTDOWNRESPONSE']._serialized_end=436
-  _globals['_SERVERSTATUSREQUEST']._serialized_start=438
-  _globals['_SERVERSTATUSREQUEST']._serialized_end=504
-  _globals['_SERVERSTATUSRESPONSE']._serialized_start=506
-  _globals['_SERVERSTATUSRESPONSE']._serialized_end=528
-  _globals['_SERVERINFORMINITREQUEST']._serialized_start=530
-  _globals['_SERVERINFORMINITREQUEST']._serialized_end=644
-  _globals['_SERVERINFORMINITRESPONSE']._serialized_start=646
-  _globals['_SERVERINFORMINITRESPONSE']._serialized_end=672
-  _globals['_SERVERINFORMSTARTREQUEST']._serialized_start=674
-  _globals['_SERVERINFORMSTARTREQUEST']._serialized_end=789
-  _globals['_SERVERINFORMSTARTRESPONSE']._serialized_start=791
-  _globals['_SERVERINFORMSTARTRESPONSE']._serialized_end=818
-  _globals['_SERVERINFORMFINISHREQUEST']._serialized_start=820
-  _globals['_SERVERINFORMFINISHREQUEST']._serialized_end=892
-  _globals['_SERVERINFORMFINISHRESPONSE']._serialized_start=894
-  _globals['_SERVERINFORMFINISHRESPONSE']._serialized_end=922
-  _globals['_SERVERINFORMATTACHREQUEST']._serialized_start=924
-  _globals['_SERVERINFORMATTACHREQUEST']._serialized_end=996
-  _globals['_SERVERINFORMATTACHRESPONSE']._serialized_start=998
-  _globals['_SERVERINFORMATTACHRESPONSE']._serialized_end=1115
-  _globals['_SERVERINFORMDETACHREQUEST']._serialized_start=1117
-  _globals['_SERVERINFORMDETACHREQUEST']._serialized_end=1189
-  _globals['_SERVERINFORMDETACHRESPONSE']._serialized_start=1191
-  _globals['_SERVERINFORMDETACHRESPONSE']._serialized_end=1219
-  _globals['_SERVERINFORMTEARDOWNREQUEST']._serialized_start=1221
-  _globals['_SERVERINFORMTEARDOWNREQUEST']._serialized_end=1314
-  _globals['_SERVERINFORMTEARDOWNRESPONSE']._serialized_start=1316
-  _globals['_SERVERINFORMTEARDOWNRESPONSE']._serialized_end=1346
-  _globals['_SERVERREQUEST']._serialized_start=1349
-  _globals['_SERVERREQUEST']._serialized_end=1950
-  _globals['_SERVERRESPONSE']._serialized_start=1953
-  _globals['_SERVERRESPONSE']._serialized_end=2576
+  _globals['_SERVERAUTHENTICATEREQUEST']._serialized_start=148
+  _globals['_SERVERAUTHENTICATEREQUEST']._serialized_end=255
+  _globals['_SERVERAUTHENTICATERESPONSE']._serialized_start=257
+  _globals['_SERVERAUTHENTICATERESPONSE']._serialized_end=354
+  _globals['_SERVERSHUTDOWNREQUEST']._serialized_start=356
+  _globals['_SERVERSHUTDOWNREQUEST']._serialized_end=424
+  _globals['_SERVERSHUTDOWNRESPONSE']._serialized_start=426
+  _globals['_SERVERSHUTDOWNRESPONSE']._serialized_end=450
+  _globals['_SERVERSTATUSREQUEST']._serialized_start=452
+  _globals['_SERVERSTATUSREQUEST']._serialized_end=518
+  _globals['_SERVERSTATUSRESPONSE']._serialized_start=520
+  _globals['_SERVERSTATUSRESPONSE']._serialized_end=542
+  _globals['_SERVERINFORMINITREQUEST']._serialized_start=544
+  _globals['_SERVERINFORMINITREQUEST']._serialized_end=658
+  _globals['_SERVERINFORMINITRESPONSE']._serialized_start=660
+  _globals['_SERVERINFORMINITRESPONSE']._serialized_end=686
+  _globals['_SERVERINFORMSTARTREQUEST']._serialized_start=688
+  _globals['_SERVERINFORMSTARTREQUEST']._serialized_end=803
+  _globals['_SERVERINFORMSTARTRESPONSE']._serialized_start=805
+  _globals['_SERVERINFORMSTARTRESPONSE']._serialized_end=832
+  _globals['_SERVERINFORMFINISHREQUEST']._serialized_start=834
+  _globals['_SERVERINFORMFINISHREQUEST']._serialized_end=906
+  _globals['_SERVERINFORMFINISHRESPONSE']._serialized_start=908
+  _globals['_SERVERINFORMFINISHRESPONSE']._serialized_end=936
+  _globals['_SERVERINFORMATTACHREQUEST']._serialized_start=938
+  _globals['_SERVERINFORMATTACHREQUEST']._serialized_end=1010
+  _globals['_SERVERINFORMATTACHRESPONSE']._serialized_start=1012
+  _globals['_SERVERINFORMATTACHRESPONSE']._serialized_end=1129
+  _globals['_SERVERINFORMDETACHREQUEST']._serialized_start=1131
+  _globals['_SERVERINFORMDETACHREQUEST']._serialized_end=1203
+  _globals['_SERVERINFORMDETACHRESPONSE']._serialized_start=1205
+  _globals['_SERVERINFORMDETACHRESPONSE']._serialized_end=1233
+  _globals['_SERVERINFORMTEARDOWNREQUEST']._serialized_start=1235
+  _globals['_SERVERINFORMTEARDOWNREQUEST']._serialized_end=1328
+  _globals['_SERVERINFORMTEARDOWNRESPONSE']._serialized_start=1330
+  _globals['_SERVERINFORMTEARDOWNRESPONSE']._serialized_end=1360
+  _globals['_SERVERREQUEST']._serialized_start=1363
+  _globals['_SERVERREQUEST']._serialized_end=1978
+  _globals['_SERVERRESPONSE']._serialized_start=1981
+  _globals['_SERVERRESPONSE']._serialized_end=2618
 # @@protoc_insertion_point(module_scope)

@@ -77,11 +77,18 @@ namespace Wandb
         /// <summary>
         /// Checks if the provided API key is valid on the server specified by the base URL.
         /// </summary>
-        /// <param name="apiKey"></param>
-        /// <param name="baseUrl"></param>
+        /// <param name="apiKey">
+        /// The API key to check. If <c>null</c>, the API key is read from the environment variable
+        /// <c>WANDB_API_KEY</c>.
+        /// </param>
+        /// <param name="baseUrl">
+        /// The base URL of the server to check the API key against. If <c>null</c>,
+        /// the base URL is read from the environment variable <c>WANDB_BASE_URL</c>.
+        /// Defaults to <c>https://api.wandb.ai</c>.
+        /// </param>
         /// <returns>Default entity for the API key.</returns>
         /// <exception cref="InvalidOperationException"></exception>
-        public async Task<string> Login(string? apiKey = null, string? baseUrl = null)
+        public async Task<string> Authenticate(string? apiKey = null, string? baseUrl = null)
         {
             // ensure wandb-core is running
             await Setup().ConfigureAwait(false);
@@ -94,7 +101,7 @@ namespace Wandb
             var streamId = randomStringGenerator.GenerateRandomString(8);
             var _interface = new SocketInterface((int)_port, streamId);
 
-            var result = await _interface.Login(
+            var result = await _interface.Authenticate(
                 apiKey ?? Environment.GetEnvironmentVariable("WANDB_API_KEY") ?? throw new InvalidOperationException("API key not set"),
                 baseUrl ?? Environment.GetEnvironmentVariable("WANDB_BASE_URL") ?? "https://api.wandb.ai",
                 timeoutMilliseconds: 30000 // TODO: get the timeout from settings
