@@ -3,8 +3,11 @@ package gowandb
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/wandb/wandb/core/pkg/service"
@@ -262,4 +265,52 @@ func (r *Run) Finish() {
 	r.conn.Close()
 	r.wg.Wait()
 	utils.PrintHeadFoot(r.run, r.settings, true)
+}
+
+const (
+	resetFormat = "\033[0m"
+
+	colorBrightBlue = "\033[1;34m"
+
+	colorBlue = "\033[34m"
+
+	colorYellow = "\033[33m"
+
+	colorBrightMagenta = "\033[1;35m"
+)
+
+func format(str string, color string) string {
+	return fmt.Sprintf("%v%v%v", color, str, resetFormat)
+}
+
+// This is used by the go wandb client to print the header and footer of the run
+func PrintHeadFoot(run *service.RunRecord, settings *service.Settings, footer bool) {
+	if run == nil {
+		return
+	}
+
+	appURL := strings.Replace(settings.GetBaseUrl().GetValue(), "//api.", "//", 1)
+	url := fmt.Sprintf("%v/%v/%v/runs/%v", appURL, run.Entity, run.Project, run.RunId)
+
+	fmt.Printf("%v: 🚀 View run %v at: %v\n",
+		format("wandb", colorBrightBlue),
+		format(run.DisplayName, colorYellow),
+		format(url, colorBlue),
+	)
+
+	if footer {
+		currentDir, err := os.Getwd()
+		if err != nil {
+			return
+		}
+		logDir := settings.GetLogDir().GetValue()
+		relLogDir, err := filepath.Rel(currentDir, logDir)
+		if err != nil {
+			return
+		}
+		fmt.Printf("%v: Find logs at: %v\n",
+			format("wandb", colorBrightBlue),
+			format(relLogDir, colorBrightMagenta),
+		)
+	}
 }

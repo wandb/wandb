@@ -1,4 +1,4 @@
-package validator
+package rules
 
 import (
 	"github.com/vektah/gqlparser/v2/ast"
@@ -7,8 +7,9 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-func init() {
-	AddRule("NoUndefinedVariables", func(observers *Events, addError AddErrFunc) {
+var NoUndefinedVariablesRule = Rule{
+	Name: "NoUndefinedVariables",
+	RuleFunc: func(observers *Events, addError AddErrFunc) {
 		observers.OnValue(func(walker *Walker, value *ast.Value) {
 			if walker.CurrentOperation == nil || value.Kind != ast.Variable || value.VariableDefinition != nil {
 				return
@@ -26,5 +27,9 @@ func init() {
 				)
 			}
 		})
-	})
+	},
+}
+
+func init() {
+	AddRule(NoUndefinedVariablesRule.Name, NoUndefinedVariablesRule.RuleFunc)
 }

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/wandb/wandb/core/internal/wboperation"
 )
 
 // Logs the final response (after retries) if it's an error.
@@ -49,11 +50,15 @@ func withRetryLogging(
 			case err != nil:
 				logger.Info("api: retrying error", "error", err)
 			case resp.StatusCode >= 400:
+				// TODO: Log the request body.
 				logger.Info(
 					"api: retrying HTTP error",
 					"status", resp.StatusCode,
 					"url", resp.Request.URL.String(),
 				)
+
+				// TODO: Report the attempt number & time to next retry.
+				wboperation.Get(ctx).MarkRetryingHTTPError(resp.Status)
 			}
 		}
 
