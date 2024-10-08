@@ -76,6 +76,8 @@ namespace Wandb
 
         /// <summary>
         /// Checks if the provided API key is valid on the server specified by the base URL.
+        ///
+        /// TODO: This is an experimental feature and may be removed or changed in the future.
         /// </summary>
         /// <param name="apiKey">
         /// The API key to check. If <c>null</c>, the API key is read from the environment variable

@@ -66,7 +66,9 @@ namespace Wandb.Internal
                 ? message.RecordCommunicate.Control.MailboxSlot
                 : string.Empty;
 
-            // A special case/hack for login messages
+            // TODO: Authenticate message is a ServerRequest, which normally does not
+            // expect a response, but in this case, we do. A random ID stored as
+            // StreamId is used to identify the response.
             if (string.IsNullOrEmpty(messageId))
             {
                 messageId = message.Authenticate != null

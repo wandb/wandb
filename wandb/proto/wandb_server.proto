@@ -8,6 +8,13 @@ import "wandb/proto/wandb_settings.proto";
 
 option go_package = "core/pkg/service_go_proto";
 
+// Authentication messages.
+//
+// These messages are used to authenticate the client with the W&B server.
+// The client sends a ServerAuthenticateRequest message to wandb-core, which
+// verifies the API key on the server specified by the base_url field and
+// returns a ServerAuthenticateResponse message with the default entity and
+// error status.
 message ServerAuthenticateRequest {
   string api_key = 1;
   string base_url = 2;
@@ -16,6 +23,7 @@ message ServerAuthenticateRequest {
 
 message ServerAuthenticateResponse {
   string default_entity = 1;
+  string error_status = 2;
   _RecordInfo _info = 200;
 }
 

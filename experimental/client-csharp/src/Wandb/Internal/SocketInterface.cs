@@ -28,6 +28,8 @@ namespace Wandb.Internal
 
         /// <summary>
         /// Sends a request to wandb-core to authenticate the user's credentials.
+        ///
+        /// TODO: This is an experimental feature and may be removed or changed in the future.
         /// </summary>
         /// <param name="apiKey"></param>
         /// <param name="baseUrl"></param>
@@ -45,6 +47,7 @@ namespace Wandb.Internal
                     BaseUrl = baseUrl,
                     Info = new _RecordInfo
                     {
+                        // TODO: This is a hack used to identify the response to this request
                         StreamId = Guid.NewGuid().ToString()
                     }
                 }
