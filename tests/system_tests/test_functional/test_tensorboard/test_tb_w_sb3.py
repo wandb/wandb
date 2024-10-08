@@ -20,7 +20,7 @@ def test_sb3_tensorboard(wandb_init, relay_server):
             PPO(
                 "MlpPolicy",
                 DummyVecEnv(
-                    [lambda: Monitor(gym.make("CartPole-v1", max_episode_steps=2))]
+                    [lambda: Monitor(gymnasium.make("CartPole-v1", max_episode_steps=2))]
                 ),
                 verbose=1,
                 tensorboard_log=f"runs/{run.name}",
