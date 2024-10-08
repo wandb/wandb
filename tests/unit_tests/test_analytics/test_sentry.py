@@ -5,6 +5,7 @@ import pytest
 import wandb
 import wandb.analytics
 import wandb.env
+import wandb.util
 from sentry_relay import MetricRelayServer
 from sentry_sdk.utils import sentry_sdk
 from tests.unit_tests.test_analytics.sentry_relay import SentryResponse
@@ -102,6 +103,11 @@ def test_wandb_sentry_init_after_client_init(relay: MetricRelayServer):
         message="wandb sentry message",
         project_id="123456",
         public_key="WANDB_SENTRY_PUBLIC_KEY",
+        tags={
+            "platform": wandb.util.get_platform_name(),
+            "entity": "tag",
+            "python_runtime": "python",
+        },
     )
     with mock.patch.dict(
         os.environ,
@@ -127,7 +133,6 @@ def test_wandb_sentry_init_after_client_init(relay: MetricRelayServer):
 
         sentry_sdk.set_tag("test", "tag")
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        expected_wandb_sentry_response.tags = wandb_sentry.scope._tags  # type: ignore
 
         # Send sentry events
         other_sentry_event_id = sentry_sdk.capture_message(
@@ -168,6 +173,11 @@ def test_wandb_sentry_init_after_client_write(relay: MetricRelayServer):
         message="wandb sentry message",
         project_id="123456",
         public_key="WANDB_SENTRY_PUBLIC_KEY",
+        tags={
+            "platform": wandb.util.get_platform_name(),
+            "entity": "tag",
+            "python_runtime": "python",
+        },
     )
     with mock.patch.dict(
         os.environ,
@@ -199,7 +209,6 @@ def test_wandb_sentry_init_after_client_write(relay: MetricRelayServer):
         wandb_sentry = wandb.analytics.Sentry()
         wandb_sentry.setup()
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        expected_wandb_sentry_response.tags = wandb_sentry.scope._tags  # type: ignore
         wandb_sentry_event_id = wandb_sentry.message(
             expected_wandb_sentry_response.message
         )
@@ -235,6 +244,11 @@ def test_wandb_sentry_initialized_first(relay: MetricRelayServer):
         message="wandb sentry message",
         project_id="123456",
         public_key="WANDB_SENTRY_PUBLIC_KEY",
+        tags={
+            "platform": wandb.util.get_platform_name(),
+            "entity": "tag",
+            "python_runtime": "python",
+        },
     )
     with mock.patch.dict(
         os.environ,
@@ -250,7 +264,6 @@ def test_wandb_sentry_initialized_first(relay: MetricRelayServer):
         wandb_sentry = wandb.analytics.Sentry()
         wandb_sentry.setup()
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        expected_wandb_sentry_response.tags = wandb_sentry.scope._tags  # type: ignore
 
         sentry_sdk.init(
             dsn=SENTRY_DSN_FORMAT.format(
@@ -302,11 +315,21 @@ def test_wandb_sentry_write_first(relay: MetricRelayServer):
             message="wandb sentry message",
             project_id="123456",
             public_key="WANDB_SENTRY_PUBLIC_KEY",
+            tags={
+                "platform": wandb.util.get_platform_name(),
+                "entity": "tag",
+                "python_runtime": "python",
+            },
         ),
         SentryResponse(
             message="wandb sentry message",
             project_id="123456",
             public_key="WANDB_SENTRY_PUBLIC_KEY",
+            tags={
+                "platform": wandb.util.get_platform_name(),
+                "entity": "tag",
+                "python_runtime": "python",
+            },
         ),
     ]
     with mock.patch.dict(
@@ -324,8 +347,6 @@ def test_wandb_sentry_write_first(relay: MetricRelayServer):
         wandb_sentry = wandb.analytics.Sentry()
         wandb_sentry.setup()
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        expected_wandb_sentry_responses[0].tags = wandb_sentry.scope._tags  # type: ignore
-        expected_wandb_sentry_responses[1].tags = wandb_sentry.scope._tags  # type: ignore
 
         wandb_sentry_event_id = wandb_sentry.message(
             expected_wandb_sentry_responses[0].message
@@ -387,6 +408,11 @@ def test_wandb_sentry_exception(relay: MetricRelayServer):
         project_id="123456",
         public_key="WANDB_SENTRY_PUBLIC_KEY",
         is_error=True,
+        tags={
+            "platform": wandb.util.get_platform_name(),
+            "entity": "tag",
+            "python_runtime": "python",
+        },
     )
 
     with mock.patch.dict(
@@ -414,7 +440,6 @@ def test_wandb_sentry_exception(relay: MetricRelayServer):
         # Send sentry events
         sentry_sdk.set_tag("test", "tag")
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        expected_wandb_sentry_response.tags = wandb_sentry.scope._tags  # type: ignore
 
         other_sentry_event_id = None
         wandb_sentry_event_id = None
@@ -459,6 +484,11 @@ def test_repeated_messages_does_not_call_sentry(relay: MetricRelayServer):
         message="wandb sentry message",
         project_id="123456",
         public_key="WANDB_SENTRY_PUBLIC_KEY",
+        tags={
+            "platform": wandb.util.get_platform_name(),
+            "entity": "tag",
+            "python_runtime": "python",
+        },
     )
     with mock.patch.dict(
         os.environ,
@@ -474,7 +504,6 @@ def test_repeated_messages_does_not_call_sentry(relay: MetricRelayServer):
         wandb_sentry = wandb.analytics.Sentry()
         wandb_sentry.setup()
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        expected_wandb_sentry_response.tags = wandb_sentry.scope._tags  # type: ignore
 
         # Send sentry events
         wandb_sentry_event_id_1 = wandb_sentry.message(
