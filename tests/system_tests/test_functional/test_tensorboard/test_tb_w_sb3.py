@@ -6,7 +6,6 @@ import wandb
 from stable_baselines3 import PPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
-from gymnasium.wrappers import TimeLimit
 
 
 @pytest.mark.skip_wandb_core(
@@ -19,15 +18,13 @@ def test_sb3_tensorboard(wandb_init, relay_server):
             PPO(
                 "MlpPolicy",
                 DummyVecEnv(
-                    [lambda: TimeLimit(Monitor(gym.make("CartPole-v1")), max_episode_steps=5)]
+                    [lambda: Monitor(gym.make("CartPole-v1", max_episode_steps=2))]
                 ),
                 verbose=1,
                 tensorboard_log=f"runs/{run.name}",
-                stats_window_size=5,
-                n_steps=2,
+                n_steps=21,
             ).learn(
-                total_timesteps=10,
-                log_interval=1,
+                total_timesteps=4,
             )
 
         run_ids = relay.context.get_run_ids()
@@ -35,7 +32,7 @@ def test_sb3_tensorboard(wandb_init, relay_server):
         assert run.id == run_ids[0]
 
         summary = relay.context.get_run_summary(run.id)
-        assert summary["global_step"] == 10.0
+        assert summary["global_step"] == 21
         for tag in ["time/fps", "rollout/ep_len_mean", "rollout/ep_rew_mean"]:
             assert tag in summary
 
