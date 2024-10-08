@@ -1,6 +1,8 @@
 """Test stable_baselines3 integration."""
 
-import gymnasium as gym
+import sys
+import gymnasium
+sys.modules["gym"] = gymnasium
 import pytest
 import wandb
 from stable_baselines3 import PPO
