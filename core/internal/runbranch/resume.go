@@ -232,6 +232,9 @@ func processResponse(params *RunParams, data *gql.RunResumeStatusModelProjectBuc
 	// Get Tags information
 	r.Tags = data.GetTags()
 
+	// Get GQL ID
+	r.StorageID = data.GetId()
+
 	r.Resumed = true
 
 	return r, nil
