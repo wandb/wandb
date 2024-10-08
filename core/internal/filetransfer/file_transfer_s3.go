@@ -15,8 +15,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var maxS3Workers int = 500
-var s3Scheme string = "s3"
+const maxS3Workers int = 500
+const s3Scheme string = "s3"
 
 // S3FileTransfer uploads or downloads files to/from s3
 type S3FileTransfer struct {
@@ -179,7 +179,11 @@ func (ft *S3FileTransfer) listObjectsWithPrefix(
 			})
 		}
 
-		isTruncated = *output.IsTruncated
+		if output.IsTruncated != nil {
+		    isTruncated = *output.IsTruncated
+		} else {
+		    isTruncated = false
+		}
 		if isTruncated {
 			params.ContinuationToken = output.NextContinuationToken
 		}
@@ -213,7 +217,11 @@ func (ft *S3FileTransfer) getCorrectObjectVersion(
 				return getObjInput, nil
 			}
 		}
-		isTruncated = *versions.IsTruncated
+		if versions.IsTruncated != nil {
+		    isTruncated = *versions.IsTruncated
+		} else {
+		    isTruncated = false
+		}
 		if isTruncated {
 			params.KeyMarker = versions.NextKeyMarker
 		}
