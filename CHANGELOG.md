@@ -18,6 +18,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Fixed
 
 - Fixed typing issue of `wandb.Api` (@bdvllrs in https://github.com/wandb/wandb/pull/8548)
+- Ensure artifact objects are fully updated on `Artifact.save()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8575)
 
 ### Changed
 
