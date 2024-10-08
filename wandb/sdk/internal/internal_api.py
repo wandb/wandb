@@ -3493,7 +3493,7 @@ class Api:
             try:
                 org_entity = self._resolve_org_entity_name(entity, organization)
             except ValueError as e:
-                wandb.termerror(e)
+                wandb.termerror(str(e))
                 raise
 
         def replace(a: str, b: str) -> None:
