@@ -44,7 +44,7 @@ docker
 catboost
 openai
 gymnasium
-stable_baselines3
+stable_baselines3; python_version < '3.12'
 
 responses
 prometheus_client
