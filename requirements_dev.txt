@@ -44,6 +44,7 @@ docker
 catboost
 openai
 gymnasium
+gym!=0.21.0
 stable_baselines3
 
 responses
