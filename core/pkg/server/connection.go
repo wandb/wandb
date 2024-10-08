@@ -415,10 +415,12 @@ func (nc *Connection) handleLogin(msg *spb.ServerLoginRequest) {
 	)
 	if err != nil {
 		nc.Respond(&spb.ServerResponse{})
+		return
 	}
 	entity := data.GetViewer().GetEntity()
 	if entity == nil {
 		nc.Respond(&spb.ServerResponse{})
+		return
 	}
 
 	resp := &spb.ServerResponse{
