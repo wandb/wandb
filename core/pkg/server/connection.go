@@ -410,7 +410,7 @@ func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 	graphqlClient := NewGraphQLClient(backend, s, &observability.Peeker{})
 
 	data, err := gql.Viewer(context.Background(), graphqlClient)
-	if err != nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
+	if err != nil || data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
 		nc.Respond(&spb.ServerResponse{
 			ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
 				AuthenticateResponse: &spb.ServerAuthenticateResponse{
