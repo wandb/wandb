@@ -1,4 +1,5 @@
 import json
+import os
 
 import matplotlib
 import numpy as np
@@ -65,6 +66,44 @@ def test_log_dataframe(user, test_settings):
 
     run = wandb.Api().run(f"uncategorized/{run.id}")
     assert len(run.logged_artifacts()) == 1
+
+
+def test_log_media_saves_to_run_directory(
+    user,
+    test_settings,
+    audio_media,
+    video_media,
+    image_media,
+    table_media,
+    graph_media,
+    bokeh_media,
+    html_media,
+    molecule_media,
+    object3d_media,
+    plotly_media,
+):
+    run = wandb.init(settings=test_settings())
+
+    media = {
+        "/tmp/test_table": table_media,
+        "/tmp/test_image": image_media,
+        "/tmp/test_video": video_media,
+        "/tmp/test_audio": audio_media,
+        "/tmp/test_graph": graph_media,
+        "/tmp/test_bokeh": bokeh_media,
+        "/tmp/test_html": html_media,
+        "/tmp/test_molecule": molecule_media,
+        "/tmp/test_object3d": object3d_media,
+        "/tmp/test_plotly": plotly_media,
+    }
+
+    run.log(media)
+    run.finish()
+
+    # Assert all media objects are saved under the run directory
+    for media_object in media.values():
+        assert os.path.exists(media_object._path)
+        assert media_object._path.startswith(run.dir)
 
 
 @pytest.mark.parametrize("max_cli_version", ["0.10.33", "0.11.0"])
