@@ -414,6 +414,9 @@ func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 		context.Background(),
 		graphqlClient,
 	)
+	if data.GetViewer() == nil {
+		err = errors.New("invalid API key")
+	}
 	if err != nil {
 		nc.Respond(&spb.ServerResponse{
 			ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
@@ -425,6 +428,7 @@ func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 		})
 		return
 	}
+
 	entity := data.GetViewer().GetEntity()
 	if entity == nil {
 		nc.Respond(&spb.ServerResponse{

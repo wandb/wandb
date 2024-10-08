@@ -23,6 +23,16 @@ class Program
             var entity = await session.Authenticate();
             Console.WriteLine($"Logged in as: {entity}");
 
+            // Bad credentials will throw an exception:
+            // try
+            // {
+            //     await session.Authenticate("bad-api-key", "https://api.fake.ai");
+            // }
+            // catch (Exception e)
+            // {
+            //     Console.WriteLine($"Bad credentials: {e.Message}");
+            // }
+
             // Initialize a new run:
             var run1 = await session.Init(
                 settings: new Settings(
