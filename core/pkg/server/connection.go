@@ -416,6 +416,7 @@ func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 	)
 	if data.GetViewer() == nil {
 		err = errors.New("Invalid credentials")
+	}
 	if err != nil {
 		nc.Respond(&spb.ServerResponse{
 			ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
