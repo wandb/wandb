@@ -58,8 +58,7 @@ type HandlerParams struct {
 	SkipSummary bool
 }
 
-// Handler is the handler for a stream it handles the incoming messages, processes them
-// and passes them to the writer
+// Handler handles the incoming messages, processes them, and passes them to the writer.
 type Handler struct {
 	// commit is the W&B Git commit hash
 	commit string
