@@ -45,7 +45,7 @@ catboost
 openai
 gymnasium
 gym!=0.21.0
-stable_baselines3
+git+https://github.com/Stable-Baselines-Team/stable-baselines3-contrib/@feat/gymnasium-support
 
 responses
 prometheus_client
