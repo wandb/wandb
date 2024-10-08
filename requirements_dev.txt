@@ -44,7 +44,6 @@ docker
 catboost
 openai
 gymnasium
-gym!=0.21.0
 git+https://github.com/Stable-Baselines-Team/stable-baselines3-contrib/@feat/gymnasium-support
 
 responses
