@@ -1,5 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
+﻿using Microsoft.Extensions.Logging;
 using Wandb;
 
 class Program
@@ -11,6 +10,13 @@ class Program
 
     static async Task Main()
     {
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder
+                .AddConsole() // Add console for the example
+                .SetMinimumLevel(LogLevel.Information);
+        });
+
         using (var session = new Session())
         {
             // Initialize a new run:
@@ -21,8 +27,11 @@ class Program
                     // displayName: "smart-capybara-42",
                     project: "csharp",
                     runTags: new[] { "c", "sharp" }
-                )
+                ),
+                logger: loggerFactory.CreateLogger<Program>()
             );
+
+            Console.WriteLine($"Run URL: {run1.Settings.RunURL}");
 
             // Define configuration and metrics:
             await run1.UpdateConfig(new Dictionary<string, object> { { "batch_size", 64 } });
@@ -38,8 +47,10 @@ class Program
 
             // Finish the run without marking it as finished on the server:
             await run1.Finish(markFinished: false);
+            run1.Dispose();
 
             // Simulate waiting for the next batch of data:
+            Console.WriteLine("Waiting for the next batch of data...");
             await Task.Delay(3000);
 
             // Resume run1:
@@ -50,7 +61,8 @@ class Program
                     project: "csharp",
                     resume: ResumeOption.Allow, // resume if exists, or create a new run
                     runId: run1.Settings.RunId
-                )
+                ),
+                logger: loggerFactory.CreateLogger<Program>()
             );
 
             // Get the run's summary:
@@ -70,6 +82,7 @@ class Program
 
             // Finish the resumed run and mark it as finished on the server:
             await run2.Finish();
+            run2.Dispose();
         }
     }
 }
