@@ -43,8 +43,8 @@ urllib3
 docker
 catboost
 openai
-gymnasium
-stable_baselines3; python_version < '3.12'
+gymnasium < 1.0.0
+stable_baselines3
 
 responses
 prometheus_client
