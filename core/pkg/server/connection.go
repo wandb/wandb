@@ -400,28 +400,21 @@ func (nc *Connection) handleInformAttach(msg *spb.ServerInformAttachRequest) {
 func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 	slog.Debug("handleAuthenticate: received", "id", nc.id)
 
-	l := observability.NewNoOpLogger() // TODO: use a real logger
 	s := &settings.Settings{
 		Proto: &spb.Settings{
 			ApiKey:  &wrapperspb.StringValue{Value: msg.ApiKey},
 			BaseUrl: &wrapperspb.StringValue{Value: msg.BaseUrl},
 		},
 	}
-	backend := NewBackend(l, s)
+	backend := NewBackend(observability.NewNoOpLogger(), s) // TODO: use a real logger
 	graphqlClient := NewGraphQLClient(backend, s, &observability.Peeker{})
 
-	data, err := gql.Viewer(
-		context.Background(),
-		graphqlClient,
-	)
-	if data.GetViewer() == nil {
-		err = errors.New("Invalid credentials")
-	}
-	if err != nil {
+	data, err := gql.Viewer(context.Background(), graphqlClient)
+	if err != nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
 		nc.Respond(&spb.ServerResponse{
 			ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
 				AuthenticateResponse: &spb.ServerAuthenticateResponse{
-					ErrorStatus: string(err.Error()),
+					ErrorStatus: "Invalid credentials",
 					XInfo:       msg.XInfo,
 				},
 			},
@@ -429,28 +422,14 @@ func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 		return
 	}
 
-	entity := data.GetViewer().GetEntity()
-	if entity == nil {
-		nc.Respond(&spb.ServerResponse{
-			ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
-				AuthenticateResponse: &spb.ServerAuthenticateResponse{
-					ErrorStatus: "No entity found",
-					XInfo:       msg.XInfo,
-				},
-			},
-		})
-		return
-	}
-
-	resp := &spb.ServerResponse{
+	nc.Respond(&spb.ServerResponse{
 		ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
 			AuthenticateResponse: &spb.ServerAuthenticateResponse{
-				DefaultEntity: *entity,
+				DefaultEntity: *data.GetViewer().GetEntity(),
 				XInfo:         msg.XInfo,
 			},
 		},
-	}
-	nc.Respond(resp)
+	})
 }
 
 // handleInformRecord processes a regular record message from the client.
