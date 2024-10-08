@@ -20,7 +20,7 @@ class Program
         using (var session = new Session())
         {
             // Verify the apiKey:
-            var entity = await session.Login("<API_KEY>");
+            var entity = await session.Login();
             Console.WriteLine($"Logged in as: {entity}");
 
             // Initialize a new run:

@@ -81,7 +81,7 @@ namespace Wandb
         /// <param name="baseUrl"></param>
         /// <returns>Default entity for the API key.</returns>
         /// <exception cref="InvalidOperationException"></exception>
-        public async Task<string> Login(string apiKey, string? baseUrl = null)
+        public async Task<string> Login(string? apiKey, string? baseUrl = null)
         {
             // ensure wandb-core is running
             await Setup().ConfigureAwait(false);
