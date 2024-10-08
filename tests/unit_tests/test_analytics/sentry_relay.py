@@ -63,7 +63,6 @@ class MetricRelayServer:
             methods=["GET"],
             view_func=self.ping,
         )
-        self.relay_url = f"http://127.0.0.1:{self.port}"
 
         self._sentry_responses = []
 
@@ -81,16 +80,16 @@ class MetricRelayServer:
         # wait for server to start
         while not self.is_running:
             try:
-                requests.get(f"{self.relay_url}/ping/")
+                requests.get(f"http://127.0.0.1:{self.port}/ping/")
                 self.is_running = True
             except BaseException:
                 continue
 
-        self.is_running = True
-
     def stop(self) -> None:
         # Adding a timeout to the thread to instantly stop the server
         # Since flask dose not expose an API to stop the server.
+        # TODO: replace this with a proper shutdown mechanism
+        # https://werkzeug.palletsprojects.com/en/3.0.x/serving/#shutting-down-the-server
         self.relay_server_thread.join(0)
 
     @staticmethod
