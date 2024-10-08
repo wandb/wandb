@@ -759,6 +759,8 @@ class Artifacts(Paginator):
         per_page: int = 50,
         tags: Optional[Union[str, List[str]]] = None,
     ):
+        from wandb.sdk.artifacts.artifact import _gql_artifact_fragment
+
         self.entity = entity
         self.collection_name = collection_name
         self.type = type
@@ -804,7 +806,7 @@ class Artifacts(Paginator):
                 artifact_collection_edge_name(
                     server_supports_artifact_collections_gql_edges(client)
                 ),
-                wandb.Artifact._get_gql_artifact_fragment(),
+                _gql_artifact_fragment(),
             )
         )
         super().__init__(client, variables, per_page)
@@ -859,6 +861,8 @@ class RunArtifacts(Paginator):
     def __init__(
         self, client: Client, run: "Run", mode="logged", per_page: Optional[int] = 50
     ):
+        from wandb.sdk.artifacts.artifact import _gql_artifact_fragment
+
         output_query = gql(
             """
             query RunOutputArtifacts(
@@ -883,7 +887,7 @@ class RunArtifacts(Paginator):
                 }
             }
             """
-            + wandb.Artifact._get_gql_artifact_fragment()
+            + _gql_artifact_fragment()
         )
 
         input_query = gql(
@@ -910,7 +914,7 @@ class RunArtifacts(Paginator):
                 }
             }
             """
-            + wandb.Artifact._get_gql_artifact_fragment()
+            + _gql_artifact_fragment()
         )
 
         self.run = run
