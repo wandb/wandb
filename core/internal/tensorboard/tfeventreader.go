@@ -76,9 +76,13 @@ func (s *TFEventReader) NextEvent(
 	bytesRead += 4
 
 	// Check the CRC32 checksum of the header.
-	if MaskedCRC32C(headerBytes) != headerCRC32 {
+	headerMaskedCrc32c := MaskedCRC32C(headerBytes)
+	if headerMaskedCrc32c != headerCRC32 {
 		return nil, fmt.Errorf(
-			"tensorboard: unexpected CRC-32C checksum for event header")
+			"tensorboard: unexpected CRC-32C checksum for event header. Expected: %d, got: %d",
+			headerCRC32,
+			headerMaskedCrc32c,
+		)
 	}
 
 	// Read the event proto.
@@ -96,9 +100,13 @@ func (s *TFEventReader) NextEvent(
 	bytesRead += 4
 
 	// Check the CRC32 checksum of the event.
-	if MaskedCRC32C(eventBytes) != eventCRC32 {
+	eventMaskedCRC32 := MaskedCRC32C(eventBytes)
+	if eventMaskedCRC32 != eventCRC32 {
 		return nil, fmt.Errorf(
-			"tensorboard: unexpected CRC-32C checksum for event")
+			"tensorboard: unexpected CRC-32C checksum for event. Expected: %d, got: %d",
+			eventCRC32,
+			eventMaskedCRC32,
+		)
 	}
 
 	s.buffer = slices.Clone(s.buffer[bytesRead:])
