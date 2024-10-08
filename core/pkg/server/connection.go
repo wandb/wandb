@@ -415,8 +415,7 @@ func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 		graphqlClient,
 	)
 	if data.GetViewer() == nil {
-		err = errors.New("invalid API key")
-	}
+		err = errors.New("Invalid credentials")
 	if err != nil {
 		nc.Respond(&spb.ServerResponse{
 			ServerResponseType: &spb.ServerResponse_AuthenticateResponse{

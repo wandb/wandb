@@ -56,7 +56,7 @@ namespace Wandb.Internal
                 ?? throw new TimeoutException("The request timed out.");
             if (!string.IsNullOrEmpty(response.AuthenticateResponse.ErrorStatus))
             {
-                throw new Exception("Credentials are invalid");
+                throw new Exception("Credentials are invalid: " + response.AuthenticateResponse.ErrorStatus);
             }
             return response.AuthenticateResponse.DefaultEntity;
         }
