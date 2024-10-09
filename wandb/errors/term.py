@@ -151,6 +151,8 @@ def _log(
     silent = silent or _silent
     if not silent:
         click.echo(string, file=sys.stderr, nl=newline)
+    elif not _logger:
+        pass  # No fallback logger, so nothing to do.
     elif level == logging.ERROR:
         _logger.error(click.unstyle(string))
     elif level == logging.WARNING:
