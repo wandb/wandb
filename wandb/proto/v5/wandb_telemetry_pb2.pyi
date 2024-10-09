@@ -809,7 +809,6 @@ class Deprecated(google.protobuf.message.Message):
     RUN_DISABLED_FIELD_NUMBER: builtins.int
     KERAS_CALLBACK_FIELD_NUMBER: builtins.int
     RUN__DEFINE_METRIC_BEST_GOAL_FIELD_NUMBER: builtins.int
-    VIDEO_FPS_FIELD_NUMBER: builtins.int
     keras_callback__data_type: builtins.bool
     """wandb.integration.keras.WandbCallback(data_type=...) called"""
     run__mode: builtins.bool
@@ -846,8 +845,6 @@ class Deprecated(google.protobuf.message.Message):
     """wandb.integration.keras.WandbCallback used"""
     run__define_metric_best_goal: builtins.bool
     """wandb.run.define_metric() called with summary="best" and goal="maximize/minimize" """
-    video_fps: builtins.bool
-    """wandb.sdk.data_types.video.Video.fps used with string or bytes"""
     def __init__(
         self,
         *,
@@ -869,9 +866,8 @@ class Deprecated(google.protobuf.message.Message):
         run_disabled: builtins.bool = ...,
         keras_callback: builtins.bool = ...,
         run__define_metric_best_goal: builtins.bool = ...,
-        video_fps: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["api__artifact_versions", b"api__artifact_versions", "artifact__get_path", b"artifact__get_path", "artifact_collection__change_type", b"artifact_collection__change_type", "artifactmanifestentry__name", b"artifactmanifestentry__name", "init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback", b"keras_callback", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "langchain_tracer", b"langchain_tracer", "plots", b"plots", "run__define_metric_best_goal", b"run__define_metric_best_goal", "run__define_metric_copy", b"run__define_metric_copy", "run__join", b"run__join", "run__log_sync", b"run__log_sync", "run__mode", b"run__mode", "run__save_no_args", b"run__save_no_args", "run_disabled", b"run_disabled", "video_fps", b"video_fps"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["api__artifact_versions", b"api__artifact_versions", "artifact__get_path", b"artifact__get_path", "artifact_collection__change_type", b"artifact_collection__change_type", "artifactmanifestentry__name", b"artifactmanifestentry__name", "init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback", b"keras_callback", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "langchain_tracer", b"langchain_tracer", "plots", b"plots", "run__define_metric_best_goal", b"run__define_metric_best_goal", "run__define_metric_copy", b"run__define_metric_copy", "run__join", b"run__join", "run__log_sync", b"run__log_sync", "run__mode", b"run__mode", "run__save_no_args", b"run__save_no_args", "run_disabled", b"run_disabled"]) -> None: ...
 
 global___Deprecated = Deprecated
 
@@ -882,19 +878,23 @@ class Issues(google.protobuf.message.Message):
     SETTINGS__VALIDATION_WARNINGS_FIELD_NUMBER: builtins.int
     SETTINGS__UNEXPECTED_ARGS_FIELD_NUMBER: builtins.int
     SETTINGS__PREPROCESSING_WARNINGS_FIELD_NUMBER: builtins.int
+    DATA_TYPES__VIDEO_FPS_FIELD_NUMBER: builtins.int
     settings__validation_warnings: builtins.bool
     """validation warnings for settings"""
     settings__unexpected_args: builtins.bool
     """unexpected settings init args"""
     settings__preprocessing_warnings: builtins.bool
     """settings preprocessing warnings"""
+    data_types__video_fps: builtins.bool
+    """wandb.sdk.data_types.video.Video.fps used with string or bytes"""
     def __init__(
         self,
         *,
         settings__validation_warnings: builtins.bool = ...,
         settings__unexpected_args: builtins.bool = ...,
         settings__preprocessing_warnings: builtins.bool = ...,
+        data_types__video_fps: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["settings__preprocessing_warnings", b"settings__preprocessing_warnings", "settings__unexpected_args", b"settings__unexpected_args", "settings__validation_warnings", b"settings__validation_warnings"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["data_types__video_fps", b"data_types__video_fps", "settings__preprocessing_warnings", b"settings__preprocessing_warnings", "settings__unexpected_args", b"settings__unexpected_args", "settings__validation_warnings", b"settings__validation_warnings"]) -> None: ...
 
 global___Issues = Issues

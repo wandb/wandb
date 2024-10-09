@@ -3,8 +3,9 @@ import os
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union
 
+import wandb
 from wandb import util
-from wandb.sdk.lib import deprecate, filesystem, runid
+from wandb.sdk.lib import filesystem, runid, telemetry
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -104,13 +105,11 @@ class Video(BatchableMedia):
         # TODO: Throw an error if fps is provided when passing raw bytes, or file path.
         # For now display warning if fps is provided when passing raw bytes, or file path.
         if isinstance(data_or_path, (BytesIO, str)) and fps:
-            if fps:
-                deprecate.deprecate(
-                    field_name=deprecate.Deprecated.video_fps,
-                    warning_message=(
-                        "`fps` argument does not affect the frame rate of the video when providing raw bytes."
-                    ),
+            with telemetry.context(obj=wandb.run._telemetry_obj) as tel:
+                wandb.termwarn(
+                    "`fps` argument does not affect the frame rate of the video when providing raw bytes."
                 )
+                tel.issues.data_types__video_fps = True
 
         if isinstance(data_or_path, BytesIO):
             filename = os.path.join(
