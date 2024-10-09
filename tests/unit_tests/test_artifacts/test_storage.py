@@ -1,17 +1,14 @@
 import errno
-import logging
 import os
 import random
 import tempfile
 from multiprocessing import Pool
 from pathlib import Path
-from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
 import pytest
 import wandb
 from pyfakefs.fake_filesystem import FakeFilesystem
-from wandb.errors import term
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
