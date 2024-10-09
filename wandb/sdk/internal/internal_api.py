@@ -41,6 +41,7 @@ from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messa
 from wandb.errors import AuthenticationError, CommError, UnsupportedError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
@@ -306,6 +307,7 @@ class Api:
         self.server_use_artifact_input_info: Optional[List[str]] = None
         self.server_create_artifact_input_info: Optional[List[str]] = None
         self.server_artifact_fields_info: Optional[List[str]] = None
+        self.server_organization_type_fields_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
         self.fail_run_queue_item_input_info: Optional[List[str]] = None
@@ -3464,6 +3466,7 @@ class Api:
         entity: str,
         project: str,
         aliases: Sequence[str],
+        organization: str,
     ) -> Dict[str, Any]:
         template = """
                 mutation LinkArtifact(
@@ -3485,6 +3488,14 @@ class Api:
                     }
             """
 
+        org_entity = ""
+        if is_artifact_registry_project(project):
+            try:
+                org_entity = self._resolve_org_entity_name(entity, organization)
+            except ValueError as e:
+                wandb.termerror(str(e))
+                raise
+
         def replace(a: str, b: str) -> None:
             nonlocal template
             template = template.replace(a, b)
@@ -3500,7 +3511,7 @@ class Api:
             "clientID": client_id,
             "artifactID": server_id,
             "artifactPortfolioName": portfolio_name,
-            "entityName": entity,
+            "entityName": org_entity or entity,
             "projectName": project,
             "aliases": [
                 {"alias": alias, "artifactCollectionName": portfolio_name}
@@ -3512,6 +3523,74 @@ class Api:
         response = self.gql(mutation, variable_values=variable_values)
         link_artifact: Dict[str, Any] = response["linkArtifact"]
         return link_artifact
+
+    def _resolve_org_entity_name(self, entity: str, organization: str = "") -> str:
+        # resolveOrgEntityName fetches the portfolio's org entity's name.
+        #
+        # The organization parameter may be empty, an org's display name, or an org entity name.
+        #
+        # If the server doesn't support fetching the org name of a portfolio, then this returns
+        # the organization parameter, or an error if it is empty. Otherwise, this returns the
+        # fetched value after validating that the given organization, if not empty, matches
+        # either the org's display or entity name.
+        org_fields = self.server_organization_type_introspection()
+        can_fetch_org_entity = "orgEntity" in org_fields
+        if not organization and not can_fetch_org_entity:
+            raise ValueError(
+                "Fetching Registry artifacts without inputting an organization "
+                "is unavailable for your server version. "
+                "Please upgrade your server to 0.50.0 or later."
+            )
+        if not can_fetch_org_entity:
+            # Server doesn't support fetching org entity to validate,
+            # assume org entity is correctly inputted
+            return organization
+
+        org_entity, org_name = self.fetch_org_entity_from_entity(entity)
+        if organization:
+            if organization != org_name and organization != org_entity:
+                raise ValueError(
+                    f"Artifact belongs to the organization {org_name!r} "
+                    f"and cannot be linked/fetched with {organization!r}. "
+                    "Please update the target path with the correct organization name."
+                )
+        return org_entity
+
+    def fetch_org_entity_from_entity(self, entity: str) -> Tuple[str, str]:
+        query = gql(
+            """
+            query FetchOrgEntityFromEntity(
+                $entityName: String!,
+            ) {
+                entity(name: $entityName) {
+                    organization {
+                        name
+                        orgEntity {
+                            name
+                        }
+                    }
+                }
+            }
+            """
+        )
+        response = self.gql(
+            query,
+            variable_values={
+                "entityName": entity,
+            },
+        )
+        try:
+            org = response["entity"]["organization"]
+            org_name = org["name"] or ""
+            org_entity_name = org["orgEntity"]["name"] or ""
+        except (LookupError, TypeError) as e:
+            raise ValueError(
+                f"Unable to find organization for artifact under entity: {entity!r} "
+                "Please make sure the right org in the path is provided "
+                "or a team entity, not a personal entity, is used when using the shorthand path without an org."
+            ) from e
+        else:
+            return org_entity_name, org_name
 
     def use_artifact(
         self,
@@ -3579,6 +3658,28 @@ class Api:
             artifact: Dict[str, Any] = response["useArtifact"]["artifact"]
             return artifact
         return None
+
+    # Fetch fields available in backend of Organization type
+    def server_organization_type_introspection(self) -> List[str]:
+        query_string = """
+            query ProbeServerOrganization {
+                OrganizationInfoType: __type(name:"Organization") {
+                    fields {
+                        name
+                    }
+                }
+            }
+        """
+
+        if self.server_organization_type_fields_info is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            input_fields = res.get("OrganizationInfoType", {}).get("fields", [{}])
+            self.server_organization_type_fields_info = [
+                field["name"] for field in input_fields if "name" in field
+            ]
+
+        return self.server_organization_type_fields_info
 
     def create_artifact_type(
         self,

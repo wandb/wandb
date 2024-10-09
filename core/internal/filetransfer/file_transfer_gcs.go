@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"cloud.google.com/go/storage"
 	"github.com/googleapis/gax-go/v2"
@@ -36,6 +37,9 @@ type GCSFileTransfer struct {
 
 	// background context is used to create a reader and get the client
 	ctx context.Context
+
+	// GCSOnce ensures that we only set up the GCS Client once
+	GCSOnce *sync.Once
 }
 
 const maxWorkers int = 1000
@@ -47,23 +51,32 @@ func NewGCSFileTransfer(
 	client GCSClient,
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
-) (*GCSFileTransfer, error) {
+) *GCSFileTransfer {
 	ctx := context.Background()
-	if client == nil {
-		var err error
-		client, err = storage.NewClient(ctx)
-		if err != nil {
-			return nil, err
-		}
-		client.SetRetry(storage.WithBackoff(gax.Backoff{}), storage.WithMaxAttempts(5))
-	}
 	fileTransfer := &GCSFileTransfer{
 		logger:            logger,
 		client:            client,
 		fileTransferStats: fileTransferStats,
 		ctx:               ctx,
+		GCSOnce:           &sync.Once{},
 	}
-	return fileTransfer, nil
+	return fileTransfer
+}
+
+// SetupClient sets up the GCS client if it is not currently set
+func (ft *GCSFileTransfer) SetupClient() {
+	ft.GCSOnce.Do(func() {
+		if ft.client != nil {
+			return
+		}
+		client, err := storage.NewClient(ft.ctx)
+		if err != nil {
+			ft.logger.Error("Unable to set up GCS client", "err", err)
+			return
+		}
+		client.SetRetry(storage.WithBackoff(gax.Backoff{}), storage.WithMaxAttempts(5))
+		ft.client = client
+	})
 }
 
 // Upload uploads a file to the server.
@@ -80,6 +93,11 @@ func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 		"path", task.PathOrPrefix,
 		"ref", task.Reference,
 	)
+
+	ft.SetupClient()
+	if ft.client == nil {
+		return fmt.Errorf("GCSFileTransfer: Download: Unable to set up GCS Client")
+	}
 
 	// Parse the reference path to get the scheme, bucket, and object
 	bucketName, rootObjectName, err := parseReference(task.Reference)
