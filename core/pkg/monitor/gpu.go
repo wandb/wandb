@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,12 +10,67 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
+
+type portfile struct {
+	path string
+}
+
+func NewPortfile() *portfile {
+	return &portfile{path: filepath.Join(os.TempDir(), uuid.New().String())}
+}
+
+func (p *portfile) Read(ctx context.Context) (int, error) {
+	for {
+		select {
+		case <-ctx.Done():
+			return 0, fmt.Errorf("timeout reading portfile %s", p.path)
+		default:
+			port, err := p.readFile()
+			if err != nil {
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			return port, nil
+		}
+	}
+}
+
+func (p *portfile) readFile() (int, error) {
+	file, err := os.Open(p.path)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	if scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		port, err := strconv.Atoi(line)
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse integer: %v", err)
+		}
+		return port, nil
+	}
+
+	if err := scanner.Err(); err != nil {
+		return 0, fmt.Errorf("error reading file: %v", err)
+	}
+
+	return 0, fmt.Errorf("no data found in file %s", p.path)
+}
+
+func (p *portfile) Delete() error {
+	return os.Remove(p.path)
+}
 
 type GPU struct {
 	pid    int32
@@ -25,15 +81,10 @@ type GPU struct {
 func NewGPU(pid int32) *GPU {
 	g := &GPU{pid: pid}
 
-	// TODO: implement a robust handshake mechanism instead
-	// find an available port to use for grpc
-	port, err := getAvailablePort()
-	fmt.Println(port, err)
-	if err != nil {
-		return nil
-	}
+	pf := NewPortfile()
 
-	// start the gpu_stats binary. it will start a grpc server on the specified port
+	// start the gpu_stats binary, which will start a gRPC service and
+	// write the port number to the portfile
 	cmdPath, err := getGPUStatsCmdPath()
 	fmt.Println(cmdPath, err)
 	if err != nil {
@@ -41,8 +92,8 @@ func NewGPU(pid int32) *GPU {
 	}
 	cmd := exec.Command(
 		cmdPath,
-		"--port",
-		strconv.Itoa(port),
+		"--portfile",
+		pf.path,
 	)
 	fmt.Println(cmd)
 	if err := cmd.Start(); err != nil {
@@ -50,8 +101,19 @@ func NewGPU(pid int32) *GPU {
 		return nil
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	port, err := pf.Read(ctx)
+	if err != nil {
+		return nil
+	}
+	err = pf.Delete()
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	// Establish connection to gpu_stats via gRPC.
-	grpcAddr := "[::1]:" + strconv.Itoa(port)
+	grpcAddr := "127.0.0.1:" + strconv.Itoa(port)
 	// NewCLient creates a new gRPC "channel" for the target URI provided. No I/O is performed.
 	// Use of the ClientConn for RPCs will automatically cause it to connect.
 	// conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(local.NewCredentials()))
@@ -65,13 +127,6 @@ func NewGPU(pid int32) *GPU {
 	g.client = client
 
 	return g
-}
-
-func getAvailablePort() (int, error) {
-	// TODO: implement a robust handshake mechanism instead
-	// Better still, use a unix domain socket on *nix systems
-	// and named pipes on Windows
-	return 50051, nil
 }
 
 // getGPUStatsCmdPath returns the path to the gpu_stats program.

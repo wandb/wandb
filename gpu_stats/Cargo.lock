@@ -485,6 +485,7 @@ dependencies = [
  "signal-hook",
  "tempfile",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tonic-build",
  "tonic-reflection",

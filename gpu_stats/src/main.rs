@@ -4,6 +4,7 @@ mod wandb_internal;
 
 use clap::Parser;
 
+use tokio_stream;
 use tonic;
 use tonic::{transport::Server, Request, Response, Status};
 use tonic_reflection;
@@ -19,8 +20,8 @@ use wandb_internal::{
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about=None)]
 struct Args {
-    #[arg(short, long, default_value = "50051")]
-    port: i32,
+    #[arg(short, long)]
+    portfile: String,
 }
 
 #[derive(Default)]
@@ -93,7 +94,9 @@ impl SystemMonitor for SystemMonitorImpl {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    let addr = format!("[::1]:{}", args.port).parse().unwrap();
+    // Bind only to the loopback interface
+    let addr = (std::net::Ipv4Addr::LOCALHOST, 0);
+    let listener = tokio::net::TcpListener::bind(addr).await?;
 
     // Create the shutdown signal channel
     let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel::<()>();
@@ -104,8 +107,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         sampler: Some(ThreadSafeSampler::new()?),
     };
 
-    // Reflection service
-    // TODO: clean up this code
+    // TODO: Reflection service
     let descriptor = "/Users/dimaduev/dev/sdk/gpu_stats/src/descriptor.bin";
     let binding = std::fs::read(descriptor).unwrap();
     let descriptor_bytes = binding.as_slice();
@@ -115,16 +117,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_v1()
         .unwrap();
 
-    println!("System metrics service listening on {}", addr);
+    let local_addr = listener.local_addr()?;
+
+    // Write the port to the portfile
+    std::fs::write(&args.portfile, local_addr.port().to_string())?;
+
+    println!("System metrics service listening on {}", local_addr);
 
     Server::builder()
         .add_service(SystemMonitorServer::new(system_monitor))
         .add_service(reflection_service)
-        .serve_with_shutdown(addr, async {
-            // Wait for the shutdown signal
-            shutdown_receiver.await.ok();
-            println!("Server is shutting down...");
-        })
+        .serve_with_incoming_shutdown(
+            tokio_stream::wrappers::TcpListenerStream::new(listener),
+            async {
+                // Wait for the shutdown signal
+                shutdown_receiver.await.ok();
+                println!("Server is shutting down...");
+            },
+        )
         .await?;
 
     Ok(())
