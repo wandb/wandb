@@ -24,7 +24,7 @@ ipykernel
 nbclient
 
 scikit-learn
-tensorflow; python_version > '3.11'
+tensorflow; python_version > '3.11' and  python_version < '3.13'
 tensorflow<2.14; sys_platform != 'darwin' and python_version < '3.12'
 tensorflow-macos; python_version < '3.11' and sys_platform == 'darwin' and platform.machine == 'arm64'
 torch
