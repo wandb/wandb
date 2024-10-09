@@ -43,7 +43,7 @@ class SupportsLeveledLogging(Protocol):
 
 def termsetup(
     settings: wandb.Settings,
-    logger: SupportsLeveledLogging,
+    logger: SupportsLeveledLogging | None,
 ) -> None:
     """Configures the global logging functions.
 
