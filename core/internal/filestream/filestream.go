@@ -10,6 +10,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
+	"github.com/wandb/wandb/core/internal/wboperation"
 	"golang.org/x/time/rate"
 )
 
@@ -81,6 +82,9 @@ type fileStream struct {
 	// A logger for internal debug logging.
 	logger *observability.CoreLogger
 
+	// The context in which to track filestream operations.
+	operations *wboperation.WandbOperations
+
 	// A way to print console messages to the user.
 	printer *observability.Printer
 
@@ -102,6 +106,7 @@ type fileStream struct {
 type FileStreamParams struct {
 	Settings           *settings.Settings
 	Logger             *observability.CoreLogger
+	Operations         *wboperation.WandbOperations
 	Printer            *observability.Printer
 	ApiClient          api.Client
 	TransmitRateLimit  *rate.Limiter
@@ -120,6 +125,7 @@ func NewFileStream(params FileStreamParams) FileStream {
 	fs := &fileStream{
 		settings:     params.Settings,
 		logger:       params.Logger,
+		operations:   params.Operations,
 		printer:      params.Printer,
 		apiClient:    params.ApiClient,
 		processChan:  make(chan Update, BufferSize),

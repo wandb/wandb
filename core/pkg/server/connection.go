@@ -11,12 +11,14 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const (
@@ -264,6 +266,8 @@ func (nc *Connection) handleIncomingRequests() {
 		slog.Debug("handleIncomingRequests: processing message", "msg", msg, "id", nc.id)
 
 		switch x := msg.ServerRequestType.(type) {
+		case *spb.ServerRequest_Authenticate:
+			nc.handleAuthenticate(x.Authenticate)
 		case *spb.ServerRequest_InformInit:
 			nc.handleInformInit(x.InformInit)
 		case *spb.ServerRequest_InformStart:
@@ -379,6 +383,53 @@ func (nc *Connection) handleInformAttach(msg *spb.ServerInformAttachRequest) {
 		}
 		nc.Respond(resp)
 	}
+}
+
+// handleAuthenticate processes client authentication messages.
+//
+// It validates client credentials and responds with the default entity
+// associated with the provided API key. This lightweight authentication
+// method avoids the overhead of starting a new stream while still
+// leveraging wandb-core's features.
+//
+// An alternative approach would be implementing a GraphQL Viewer query
+// on the client side for each supported language.
+//
+// Note: This function will be deprecated once the Public API workflow
+// in wandb-core is implemented.
+func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
+	slog.Debug("handleAuthenticate: received", "id", nc.id)
+
+	s := &settings.Settings{
+		Proto: &spb.Settings{
+			ApiKey:  &wrapperspb.StringValue{Value: msg.ApiKey},
+			BaseUrl: &wrapperspb.StringValue{Value: msg.BaseUrl},
+		},
+	}
+	backend := NewBackend(observability.NewNoOpLogger(), s) // TODO: use a real logger
+	graphqlClient := NewGraphQLClient(backend, s, &observability.Peeker{})
+
+	data, err := gql.Viewer(context.Background(), graphqlClient)
+	if err != nil || data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
+		nc.Respond(&spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
+				AuthenticateResponse: &spb.ServerAuthenticateResponse{
+					ErrorStatus: "Invalid credentials",
+					XInfo:       msg.XInfo,
+				},
+			},
+		})
+		return
+	}
+
+	nc.Respond(&spb.ServerResponse{
+		ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
+			AuthenticateResponse: &spb.ServerAuthenticateResponse{
+				DefaultEntity: *data.GetViewer().GetEntity(),
+				XInfo:         msg.XInfo,
+			},
+		},
+	})
 }
 
 // handleInformRecord processes a regular record message from the client.

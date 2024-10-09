@@ -46,7 +46,13 @@ func makeSender(client graphql.Client, recordChan chan *spb.Record, resultChan c
 	})
 	backend := server.NewBackend(logger, settings)
 	fileStream := server.NewFileStream(
-		backend, logger, observability.NewPrinter(), settings, nil)
+		backend,
+		logger,
+		nil,
+		observability.NewPrinter(),
+		settings,
+		nil,
+	)
 	fileTransferManager := server.NewFileTransferManager(
 		filetransfer.NewFileTransferStats(),
 		logger,
@@ -55,6 +61,7 @@ func makeSender(client graphql.Client, recordChan chan *spb.Record, resultChan c
 	runfilesUploader := server.NewRunfilesUploader(
 		runWork,
 		logger,
+		nil,
 		settings,
 		fileStream,
 		fileTransferManager,

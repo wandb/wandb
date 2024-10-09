@@ -16,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/watcher"
+	"github.com/wandb/wandb/core/internal/wboperation"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -24,6 +25,7 @@ import (
 type uploader struct {
 	extraWork     runwork.ExtraWork
 	logger        *observability.CoreLogger
+	operations    *wboperation.WandbOperations
 	fs            filestream.FileStream
 	ftm           filetransfer.FileTransferManager
 	settings      *settings.Settings
@@ -68,12 +70,13 @@ func newUploader(params UploaderParams) *uploader {
 	}
 
 	uploader := &uploader{
-		extraWork: params.ExtraWork,
-		logger:    params.Logger,
-		fs:        params.FileStream,
-		ftm:       params.FileTransfer,
-		settings:  params.Settings,
-		graphQL:   params.GraphQL,
+		extraWork:  params.ExtraWork,
+		logger:     params.Logger,
+		operations: params.Operations,
+		fs:         params.FileStream,
+		ftm:        params.FileTransfer,
+		settings:   params.Settings,
+		graphQL:    params.GraphQL,
 
 		knownFiles:  make(map[paths.RelativePath]*savedFile),
 		uploadAtEnd: make(map[paths.RelativePath]struct{}),
@@ -238,6 +241,7 @@ func (u *uploader) knownFile(runPath paths.RelativePath) *savedFile {
 			u.fs,
 			u.ftm,
 			u.logger,
+			u.operations,
 			u.toRealPath(string(runPath)),
 			runPath,
 		)
