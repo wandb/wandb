@@ -1,17 +1,14 @@
 import errno
-import logging
 import os
 import random
 import tempfile
 from multiprocessing import Pool
 from pathlib import Path
-from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
 import pytest
 import wandb
 from pyfakefs.fake_filesystem import FakeFilesystem
-from wandb.errors import term
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -396,11 +393,9 @@ def test_gcs_storage_handler_load_path_uses_cache(artifact_file_cache):
 
 
 def test_cache_add_gives_useful_error_when_out_of_space(
-    artifact_file_cache, monkeypatch
+    artifact_file_cache,
+    mock_wandb_log,
 ):
-    term_log = MagicMock()
-    monkeypatch.setattr(term, "_log", term_log)
-
     # Ask to create a 1 quettabyte file to ensure the cache won't find room.
     _, _, opener = artifact_file_cache.check_md5_obj_path(example_digest, size=10**30)
 
@@ -408,14 +403,7 @@ def test_cache_add_gives_useful_error_when_out_of_space(
         with opener():
             pass
 
-    assert term_log.call_count >= 1
-    check_warning = False
-    for call in term_log.call_args_list:
-        print(call)
-        if "Cache size exceeded. Attempting to reclaim space..." in call[1]["string"]:
-            assert call[1]["level"] == logging.WARNING
-            check_warning = True
-    assert check_warning
+    assert mock_wandb_log.warned("Cache size exceeded. Attempting to reclaim space...")
 
 
 # todo: fix this test

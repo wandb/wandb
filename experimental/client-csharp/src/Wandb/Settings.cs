@@ -112,7 +112,7 @@ namespace Wandb
         /// <returns>
         /// A lowercase string of the resume option, or <c>null</c> if not set.
         /// </returns>
-        public string ResumeOptionToString()
+        public string? ResumeOptionToString()
         {
             if (!Resume.HasValue)
             {
@@ -152,7 +152,7 @@ namespace Wandb
             float serviceWait = 30.0f
 )
         {
-            Lib.RandomStringGenerator generator = new();
+            Library.RandomStringGenerator generator = new();
 
             ApiKey = apiKey ?? Environment.GetEnvironmentVariable("WANDB_API_KEY") ?? "";
             BaseUrl = baseUrl ?? Environment.GetEnvironmentVariable("WANDB_BASE_URL") ?? "https://api.wandb.ai";

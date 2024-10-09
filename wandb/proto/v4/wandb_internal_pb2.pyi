@@ -1486,6 +1486,7 @@ class LinkArtifactRequest(google.protobuf.message.Message):
     PORTFOLIO_ENTITY_FIELD_NUMBER: builtins.int
     PORTFOLIO_PROJECT_FIELD_NUMBER: builtins.int
     PORTFOLIO_ALIASES_FIELD_NUMBER: builtins.int
+    PORTFOLIO_ORGANIZATION_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     client_id: builtins.str
     server_id: builtins.str
@@ -1494,6 +1495,7 @@ class LinkArtifactRequest(google.protobuf.message.Message):
     portfolio_project: builtins.str
     @property
     def portfolio_aliases(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    portfolio_organization: builtins.str
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -1505,10 +1507,11 @@ class LinkArtifactRequest(google.protobuf.message.Message):
         portfolio_entity: builtins.str = ...,
         portfolio_project: builtins.str = ...,
         portfolio_aliases: collections.abc.Iterable[builtins.str] | None = ...,
+        portfolio_organization: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "client_id", b"client_id", "portfolio_aliases", b"portfolio_aliases", "portfolio_entity", b"portfolio_entity", "portfolio_name", b"portfolio_name", "portfolio_project", b"portfolio_project", "server_id", b"server_id"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "client_id", b"client_id", "portfolio_aliases", b"portfolio_aliases", "portfolio_entity", b"portfolio_entity", "portfolio_name", b"portfolio_name", "portfolio_organization", b"portfolio_organization", "portfolio_project", b"portfolio_project", "server_id", b"server_id"]) -> None: ...
 
 global___LinkArtifactRequest = LinkArtifactRequest
 
@@ -2404,6 +2407,7 @@ class PollExitResponse(google.protobuf.message.Message):
     EXIT_RESULT_FIELD_NUMBER: builtins.int
     PUSHER_STATS_FIELD_NUMBER: builtins.int
     FILE_COUNTS_FIELD_NUMBER: builtins.int
+    OPERATION_STATS_FIELD_NUMBER: builtins.int
     done: builtins.bool
     @property
     def exit_result(self) -> global___RunExitResult: ...
@@ -2411,6 +2415,8 @@ class PollExitResponse(google.protobuf.message.Message):
     def pusher_stats(self) -> global___FilePusherStats: ...
     @property
     def file_counts(self) -> global___FileCounts: ...
+    @property
+    def operation_stats(self) -> global___OperationStats: ...
     def __init__(
         self,
         *,
@@ -2418,11 +2424,108 @@ class PollExitResponse(google.protobuf.message.Message):
         exit_result: global___RunExitResult | None = ...,
         pusher_stats: global___FilePusherStats | None = ...,
         file_counts: global___FileCounts | None = ...,
+        operation_stats: global___OperationStats | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["exit_result", b"exit_result", "file_counts", b"file_counts", "pusher_stats", b"pusher_stats"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["done", b"done", "exit_result", b"exit_result", "file_counts", b"file_counts", "pusher_stats", b"pusher_stats"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["exit_result", b"exit_result", "file_counts", b"file_counts", "operation_stats", b"operation_stats", "pusher_stats", b"pusher_stats"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["done", b"done", "exit_result", b"exit_result", "file_counts", b"file_counts", "operation_stats", b"operation_stats", "pusher_stats", b"pusher_stats"]) -> None: ...
 
 global___PollExitResponse = PollExitResponse
+
+@typing_extensions.final
+class OperationStats(google.protobuf.message.Message):
+    """Information about ongoing operations in the internal process.
+
+    This is printed in the console to help the user estimate how long
+    they have to wait for a run to finish, and why.
+
+    For example, it may be displayed like this:
+
+    wandb: (41s) uploading artifact my-dataset (13/68 files)
+    wandb:   (1.0s) my-dataset-14.h5 (1.2 MB / 100 MB)
+    wandb:   (0.2s) my-dataset-15.h5 (43 MB / 100 MB)
+    wandb: (24s) uploading history, summary, console logs
+    wandb:   retrying HTTP 500 in 13s; attempt 22/10085 - see logs
+    wandb: + 7 more tasks
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    OPERATIONS_FIELD_NUMBER: builtins.int
+    TOTAL_OPERATIONS_FIELD_NUMBER: builtins.int
+    @property
+    def operations(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___Operation]:
+        """The ongoing operations sorted by usefulness for the user to see.
+
+        This may not contain all operations, but it may also contain more than can
+        be displayed in the terminal.
+        """
+    total_operations: builtins.int
+    """The actual total number of ongoing operations.
+
+    This is at least the number of items in `operations`, but could be more.
+    """
+    def __init__(
+        self,
+        *,
+        operations: collections.abc.Iterable[global___Operation] | None = ...,
+        total_operations: builtins.int = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["operations", b"operations", "total_operations", b"total_operations"]) -> None: ...
+
+global___OperationStats = OperationStats
+
+@typing_extensions.final
+class Operation(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    DESC_FIELD_NUMBER: builtins.int
+    RUNTIME_SECONDS_FIELD_NUMBER: builtins.int
+    PROGRESS_FIELD_NUMBER: builtins.int
+    ERROR_STATUS_FIELD_NUMBER: builtins.int
+    SUBTASKS_FIELD_NUMBER: builtins.int
+    desc: builtins.str
+    """A short description for the operation.
+
+    For top-level operations, it should be a present continuous verb phrase,
+    such as "uploading artifact my-dataset".
+
+    For subtasks, it should be as short as possible while making sense in
+    the parent operation's context, such as "my_dataset.h5" for a file upload
+    subtask that's part of an artifact upload operation.
+
+    This does not start with a capital letter and does not end in punctuation.
+    """
+    runtime_seconds: builtins.float
+    """The number of seconds the operation has been running for."""
+    progress: builtins.str
+    """A short description of the operation's progress.
+
+    Examples:
+      - "3.1 MB / 100 MB"
+      - "4/5 files"
+    """
+    error_status: builtins.str
+    """A short message describing the operation's latest problem.
+
+    This does not start with a capital letter and does not end in punctuation.
+
+    Example: "retrying HTTP 500 error".
+    """
+    @property
+    def subtasks(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___Operation]:
+        """The top few most interesting subtasks for this operation."""
+    def __init__(
+        self,
+        *,
+        desc: builtins.str = ...,
+        runtime_seconds: builtins.float = ...,
+        progress: builtins.str = ...,
+        error_status: builtins.str = ...,
+        subtasks: collections.abc.Iterable[global___Operation] | None = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["desc", b"desc", "error_status", b"error_status", "progress", b"progress", "runtime_seconds", b"runtime_seconds", "subtasks", b"subtasks"]) -> None: ...
+
+global___Operation = Operation
 
 @typing_extensions.final
 class SyncOverwrite(google.protobuf.message.Message):
