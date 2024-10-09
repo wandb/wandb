@@ -878,23 +878,19 @@ class Issues(google.protobuf.message.Message):
     SETTINGS__VALIDATION_WARNINGS_FIELD_NUMBER: builtins.int
     SETTINGS__UNEXPECTED_ARGS_FIELD_NUMBER: builtins.int
     SETTINGS__PREPROCESSING_WARNINGS_FIELD_NUMBER: builtins.int
-    DATA_TYPES__VIDEO_FPS_FIELD_NUMBER: builtins.int
     settings__validation_warnings: builtins.bool
     """validation warnings for settings"""
     settings__unexpected_args: builtins.bool
     """unexpected settings init args"""
     settings__preprocessing_warnings: builtins.bool
     """settings preprocessing warnings"""
-    data_types__video_fps: builtins.bool
-    """wandb.sdk.data_types.video.Video.fps used with string or bytes"""
     def __init__(
         self,
         *,
         settings__validation_warnings: builtins.bool = ...,
         settings__unexpected_args: builtins.bool = ...,
         settings__preprocessing_warnings: builtins.bool = ...,
-        data_types__video_fps: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["data_types__video_fps", b"data_types__video_fps", "settings__preprocessing_warnings", b"settings__preprocessing_warnings", "settings__unexpected_args", b"settings__unexpected_args", "settings__validation_warnings", b"settings__validation_warnings"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["settings__preprocessing_warnings", b"settings__preprocessing_warnings", "settings__unexpected_args", b"settings__unexpected_args", "settings__validation_warnings", b"settings__validation_warnings"]) -> None: ...
 
 global___Issues = Issues

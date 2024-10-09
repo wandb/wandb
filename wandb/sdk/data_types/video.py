@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union
 
 import wandb
 from wandb import util
-from wandb.sdk.lib import filesystem, runid, telemetry
+from wandb.sdk.lib import filesystem, runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -102,14 +102,10 @@ class Video(BatchableMedia):
                 "wandb.Video accepts {} formats".format(", ".join(Video.EXTS))
             )
 
-        # TODO: Throw an error if fps is provided when passing raw bytes, or file path.
-        # For now display warning if fps is provided when passing raw bytes, or file path.
         if isinstance(data_or_path, (BytesIO, str)) and fps:
-            with telemetry.context(obj=wandb.run._telemetry_obj) as tel:
-                wandb.termwarn(
-                    "`fps` argument does not affect the frame rate of the video when providing raw bytes."
-                )
-                tel.issues.data_types__video_fps = True
+            wandb.termwarn(
+                "`fps` argument does not affect the frame rate of the video when providing raw bytes."
+            )
 
         if isinstance(data_or_path, BytesIO):
             filename = os.path.join(
