@@ -259,7 +259,11 @@ class Artifact:
         # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
         # we need to fetch the org entity to for the user behind the scenes.
         if is_artifact_registry_project(project):
-            entity = InternalApi()._resolve_org_entity_name(entity, organization)
+            try:
+                entity = InternalApi()._resolve_org_entity_name(entity, organization)
+            except ValueError as e:
+                wandb.termerror(str(e))
+                raise
 
         response = client.execute(
             query,
