@@ -22,6 +22,7 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
+	"github.com/wandb/wandb/core/internal/wboperation"
 	"golang.org/x/time/rate"
 )
 
@@ -141,6 +142,7 @@ func NewGraphQLClient(
 func NewFileStream(
 	backend *api.Backend,
 	logger *observability.CoreLogger,
+	operations *wboperation.WandbOperations,
 	printer *observability.Printer,
 	settings *settings.Settings,
 	peeker api.Peeker,
@@ -177,10 +179,11 @@ func NewFileStream(
 	fileStreamRetryClient := backend.NewClient(opts)
 
 	params := filestream.FileStreamParams{
-		Settings:  settings,
-		Logger:    logger,
-		Printer:   printer,
-		ApiClient: fileStreamRetryClient,
+		Settings:   settings,
+		Logger:     logger,
+		Operations: operations,
+		Printer:    printer,
+		ApiClient:  fileStreamRetryClient,
 	}
 
 	if txInterval := settings.GetFileStreamTransmitInterval(); txInterval > 0 {
@@ -247,6 +250,7 @@ func NewFileTransferManager(
 func NewRunfilesUploader(
 	extraWork runwork.ExtraWork,
 	logger *observability.CoreLogger,
+	operations *wboperation.WandbOperations,
 	settings *settings.Settings,
 	fileStream filestream.FileStream,
 	fileTransfer filetransfer.FileTransferManager,
@@ -256,6 +260,7 @@ func NewRunfilesUploader(
 	return runfiles.NewUploader(runfiles.UploaderParams{
 		ExtraWork:    extraWork,
 		Logger:       logger,
+		Operations:   operations,
 		Settings:     settings,
 		FileStream:   fileStream,
 		FileTransfer: fileTransfer,
