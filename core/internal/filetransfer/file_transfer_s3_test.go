@@ -13,7 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filetransfer"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 // mockS3Client mocks the s3 client with the following buckets/objects:
@@ -238,15 +238,11 @@ func TestS3FileTransfer_Download(t *testing.T) {
 		},
 	}
 
-	ft, ftErr := filetransfer.NewS3FileTransfer(
+	ft := filetransfer.NewS3FileTransfer(
 		mockS3Client,
 		observability.NewNoOpLogger(),
 		filetransfer.NewFileTransferStats(),
 	)
-	if ftErr != nil {
-		t.Errorf("S3StorageHandler could not be created")
-		return
-	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
