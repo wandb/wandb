@@ -12,7 +12,7 @@ moviepy
 imageio[ffmpeg]
 matplotlib
 soundfile
-rdkit
+rdkit; python_version < '3.12'
 plotly
 bokeh
 
