@@ -1,23 +1,57 @@
+"""Global functions for printing to stderr for wandb."""
+
+from __future__ import annotations
+
 import logging
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Protocol
 
 import click
+
+if TYPE_CHECKING:
+    import wandb
 
 LOG_STRING = click.style("wandb", fg="blue", bold=True)
 LOG_STRING_NOCOLOR = "wandb"
 ERROR_STRING = click.style("ERROR", bg="red", fg="green")
 WARN_STRING = click.style("WARNING", fg="yellow")
-PRINTED_MESSAGES = set()  # type: ignore
+PRINTED_MESSAGES: set[str] = set()
 
-_silent = False
-_show_info = True
-_show_warnings = True
-_show_errors = True
-_logger = None
+_silent: bool = False
+"""If true, _logger is used instead of printing to stderr."""
+
+_logger: SupportsLeveledLogging | None = None
+"""A fallback logger for _silent mode."""
+
+_show_info: bool = True
+"""If false, then termlog() uses silent mode (see _silent)."""
+
+_show_warnings: bool = True
+"""If false, then termwarn() uses silent mode (see _silent)."""
+
+_show_errors: bool = True
+"""If false, then termerror() uses silent mode (see _silent)."""
 
 
-def termsetup(settings, logger) -> None:
+class SupportsLeveledLogging(Protocol):
+    """Portion of the standard logging.Logger used in this module."""
+
+    def info(self, msg: str) -> None: ...
+    def warning(self, msg: str) -> None: ...
+    def error(self, msg: str) -> None: ...
+
+
+def termsetup(
+    settings: wandb.Settings,
+    logger: SupportsLeveledLogging | None,
+) -> None:
+    """Configures the global logging functions.
+
+    Args:
+        settings: The settings object passed to wandb.setup() or wandb.init().
+        logger: A fallback logger to use for "silent" mode. In this mode,
+            the logger is used instead of printing to stderr.
+    """
     global _silent, _show_info, _show_warnings, _show_errors, _logger
     _silent = settings.silent
     _show_info = settings.show_info
@@ -32,15 +66,21 @@ def termlog(
     repeat: bool = True,
     prefix: bool = True,
 ) -> None:
-    """Log to standard error with formatting.
+    r"""Log an informational message to stderr.
 
-    Arguments:
-        string (str, optional): The string to print
-        newline (bool, optional): Print a newline at the end of the string
-        repeat (bool, optional): If set to False only prints the string once per process
+    The message may contain ANSI color sequences and the \n character.
+    Colors are stripped if stderr is not a TTY.
+
+    Args:
+        string: The message to display.
+        newline: Whether to add a newline to the end of the string.
+        repeat: If false, then the string is not printed if an exact match has
+            already been printed through any of the other logging functions
+            in this file.
+        prefix: Whether to include the 'wandb:' prefix.
     """
     _log(
-        string=string,
+        string,
         newline=newline,
         repeat=repeat,
         prefix=prefix,
@@ -48,25 +88,45 @@ def termlog(
     )
 
 
-def termwarn(string: str, **kwargs: Any) -> None:
+def termwarn(
+    string: str,
+    newline: bool = True,
+    repeat: bool = True,
+    prefix: bool = True,
+) -> None:
+    """Log a warning to stderr.
+
+    The arguments are the same as for `termlog()`.
+    """
     string = "\n".join([f"{WARN_STRING} {s}" for s in string.split("\n")])
     _log(
-        string=string,
-        newline=True,
+        string,
+        newline=newline,
+        repeat=repeat,
+        prefix=prefix,
         silent=not _show_warnings,
         level=logging.WARNING,
-        **kwargs,
     )
 
 
-def termerror(string: str, **kwargs: Any) -> None:
+def termerror(
+    string: str,
+    newline: bool = True,
+    repeat: bool = True,
+    prefix: bool = True,
+) -> None:
+    """Log an error to stderr.
+
+    The arguments are the same as for `termlog()`.
+    """
     string = "\n".join([f"{ERROR_STRING} {s}" for s in string.split("\n")])
     _log(
-        string=string,
-        newline=True,
+        string,
+        newline=newline,
+        repeat=repeat,
+        prefix=prefix,
         silent=not _show_errors,
         level=logging.ERROR,
-        **kwargs,
     )
 
 
@@ -78,26 +138,24 @@ def _log(
     silent=False,
     level=logging.INFO,
 ):
-    global _logger
+    if not repeat:
+        if string in PRINTED_MESSAGES:
+            return
+
+        if len(PRINTED_MESSAGES) < 1000:
+            PRINTED_MESSAGES.add(string)
+
+    if prefix:
+        string = "\n".join([f"{LOG_STRING}: {s}" for s in string.split("\n")])
+
     silent = silent or _silent
-    if string:
-        if prefix:
-            line = "\n".join([f"{LOG_STRING}: {s}" for s in string.split("\n")])
-        else:
-            line = string
+    if not silent:
+        click.echo(string, file=sys.stderr, nl=newline)
+    elif not _logger:
+        pass  # No fallback logger, so nothing to do.
+    elif level == logging.ERROR:
+        _logger.error(click.unstyle(string))
+    elif level == logging.WARNING:
+        _logger.warning(click.unstyle(string))
     else:
-        line = ""
-    if not repeat and line in PRINTED_MESSAGES:
-        return
-    # Repeated line tracking limited to 1k messages
-    if len(PRINTED_MESSAGES) < 1000:
-        PRINTED_MESSAGES.add(line)
-    if silent:
-        if level == logging.ERROR:
-            _logger.error(line)
-        elif level == logging.WARNING:
-            _logger.warning(line)
-        else:
-            _logger.info(line)
-    else:
-        click.echo(line, file=sys.stderr, nl=newline)
+        _logger.info(click.unstyle(string))
