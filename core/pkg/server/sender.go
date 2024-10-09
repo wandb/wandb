@@ -35,6 +35,7 @@ import (
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
+	"github.com/wandb/wandb/core/internal/wboperation"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	"github.com/wandb/wandb/core/pkg/launch"
 
@@ -50,6 +51,7 @@ const (
 
 type SenderParams struct {
 	Logger              *observability.CoreLogger
+	Operations          *wboperation.WandbOperations
 	Settings            *settings.Settings
 	Backend             *api.Backend
 	FileStream          fs.FileStream
@@ -74,6 +76,8 @@ type Sender struct {
 
 	// logger is the logger for the sender
 	logger *observability.CoreLogger
+
+	operations *wboperation.WandbOperations
 
 	// settings is the settings for the sender
 	settings *settings.Settings
@@ -177,6 +181,7 @@ func NewSender(
 		telemetry:           &spb.TelemetryRecord{CoreVersion: version.Version},
 		runConfigMetrics:    runmetric.NewRunConfigMetrics(),
 		logger:              params.Logger,
+		operations:          params.Operations,
 		settings:            params.Settings,
 		fileStream:          params.FileStream,
 		fileTransferManager: params.FileTransferManager,
@@ -535,8 +540,11 @@ func (s *Sender) sendJobFlush() {
 
 	output := s.runSummary.ToNestedMaps()
 
+	op := s.operations.New("saving job artifact")
+	defer op.Finish()
+
 	artifact, err := s.jobBuilder.Build(
-		s.runWork.BeforeEndCtx(),
+		op.Context(s.runWork.BeforeEndCtx()),
 		s.graphqlClient,
 		output,
 	)
@@ -552,7 +560,7 @@ func (s *Sender) sendJobFlush() {
 	}
 
 	result := <-s.artifactsSaver.Save(
-		s.runWork.BeforeEndCtx(),
+		op.Context(s.runWork.BeforeEndCtx()),
 		artifact,
 		0,
 		"",
@@ -1017,6 +1025,10 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 		clients.UpsertBucketRetryPolicy,
 	)
 
+	operation := s.operations.New("updating run metadata")
+	defer operation.Finish()
+	ctx = operation.Context(ctx)
+
 	// if the record has a mailbox slot, create a new cancelable context
 	// and store the cancel function in the message registry so that
 	// the context can be canceled if requested by the client
@@ -1202,6 +1214,11 @@ func (s *Sender) upsertConfig() {
 		clients.CtxRetryPolicyKey,
 		clients.UpsertBucketRetryPolicy,
 	)
+
+	operation := s.operations.New("updating run config")
+	defer operation.Finish()
+	ctx = operation.Context(ctx)
+
 	_, err = gql.UpsertBucket(
 		ctx,                                     // ctx
 		s.graphqlClient,                         // client
@@ -1483,8 +1500,13 @@ func (s *Sender) sendFiles(_ *spb.Record, filesRecord *spb.FilesRecord) {
 }
 
 func (s *Sender) sendArtifact(_ *spb.Record, msg *spb.ArtifactRecord) {
+	op := s.operations.New(
+		fmt.Sprintf(
+			"uploading artifact %s",
+			msg.Name))
+
 	resultChan := s.artifactsSaver.Save(
-		s.runWork.BeforeEndCtx(),
+		op.Context(s.runWork.BeforeEndCtx()),
 		msg,
 		0,
 		"",
@@ -1494,6 +1516,7 @@ func (s *Sender) sendArtifact(_ *spb.Record, msg *spb.ArtifactRecord) {
 	go func() {
 		defer s.artifactWG.Done()
 		result := <-resultChan
+		op.Finish()
 		if result.Err != nil {
 			s.logger.CaptureError(
 				fmt.Errorf("sender: failed to log artifact: %v", result.Err),
@@ -1503,8 +1526,13 @@ func (s *Sender) sendArtifact(_ *spb.Record, msg *spb.ArtifactRecord) {
 }
 
 func (s *Sender) sendRequestLogArtifact(record *spb.Record, msg *spb.LogArtifactRequest) {
+	op := s.operations.New(
+		fmt.Sprintf(
+			"uploading artifact %s",
+			msg.Artifact.Name))
+
 	resultChan := s.artifactsSaver.Save(
-		s.runWork.BeforeEndCtx(),
+		op.Context(s.runWork.BeforeEndCtx()),
 		msg.Artifact,
 		msg.HistoryStep,
 		msg.StagingDir,
@@ -1517,6 +1545,8 @@ func (s *Sender) sendRequestLogArtifact(record *spb.Record, msg *spb.LogArtifact
 		var response spb.LogArtifactResponse
 
 		result := <-resultChan
+		op.Finish()
+
 		if result.Err != nil {
 			response.ErrorMessage = result.Err.Error()
 		} else {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/pkg/monitor"
+	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -57,8 +58,7 @@ type HandlerParams struct {
 	SkipSummary bool
 }
 
-// Handler is the handler for a stream it handles the incoming messages, processes them
-// and passes them to the writer
+// Handler handles the incoming messages, processes them, and passes them to the writer.
 type Handler struct {
 	// commit is the W&B Git commit hash
 	commit string
@@ -75,6 +75,9 @@ type Handler struct {
 
 	// logger is the logger for the handler
 	logger *observability.CoreLogger
+
+	// pollExitLogRateLimit limits log messages when handling PollExit requests
+	pollExitLogRateLimit *rate.Limiter
 
 	// operations tracks the status of the run's uploads
 	operations *wboperation.WandbOperations
@@ -143,23 +146,24 @@ func NewHandler(
 	params HandlerParams,
 ) *Handler {
 	return &Handler{
-		commit:            commit,
-		runTimer:          timer.New(),
-		terminalPrinter:   params.TerminalPrinter,
-		logger:            params.Logger,
-		operations:        params.Operations,
-		settings:          params.Settings,
-		clientID:          randomid.GenerateUniqueID(32),
-		fwdChan:           params.FwdChan,
-		outChan:           params.OutChan,
-		mailbox:           params.Mailbox,
-		runSummary:        runsummary.New(),
-		skipSummary:       params.SkipSummary,
-		runHistorySampler: runhistory.NewRunHistorySampler(),
-		metricHandler:     runmetric.New(),
-		fileTransferStats: params.FileTransferStats,
-		tbHandler:         params.TBHandler,
-		systemMonitor:     params.SystemMonitor,
+		commit:               commit,
+		runTimer:             timer.New(),
+		terminalPrinter:      params.TerminalPrinter,
+		logger:               params.Logger,
+		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
+		operations:           params.Operations,
+		settings:             params.Settings,
+		clientID:             randomid.GenerateUniqueID(32),
+		fwdChan:              params.FwdChan,
+		outChan:              params.OutChan,
+		mailbox:              params.Mailbox,
+		runSummary:           runsummary.New(),
+		skipSummary:          params.SkipSummary,
+		runHistorySampler:    runhistory.NewRunHistorySampler(),
+		metricHandler:        runmetric.New(),
+		fileTransferStats:    params.FileTransferStats,
+		tbHandler:            params.TBHandler,
+		systemMonitor:        params.SystemMonitor,
 	}
 }
 
@@ -445,6 +449,14 @@ func (h *Handler) handleRequestLinkArtifact(record *spb.Record) {
 func (h *Handler) handleRequestPollExit(record *spb.Record) {
 	pollExitResponse := &spb.PollExitResponse{
 		OperationStats: h.operations.ToProto(),
+	}
+
+	if h.pollExitLogRateLimit.Allow() {
+		// Log these for now while we don't display them.
+		h.logger.Info(
+			"handler: operation stats",
+			"stats", pollExitResponse.OperationStats,
+		)
 	}
 
 	if h.fileTransferStats != nil {

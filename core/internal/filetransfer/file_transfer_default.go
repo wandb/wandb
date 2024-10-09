@@ -11,6 +11,7 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/wboperation"
 )
 
 // DefaultFileTransfer uploads or downloads files to/from the server
@@ -101,6 +102,11 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 			return fmt.Errorf("file transfer: file too large (%d bytes)", task.Size)
 		}
 
+		progress, err := wboperation.Get(task.Context).NewProgress()
+		if err != nil {
+			ft.logger.CaptureError(fmt.Errorf("file transfer: %v", err))
+		}
+
 		requestBody = NewProgressReader(
 			io.NewSectionReader(file, task.Offset, task.Size),
 			int(task.Size),
@@ -108,6 +114,8 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 				if task.ProgressCallback != nil {
 					task.ProgressCallback(processed, total)
 				}
+
+				progress.SetBytesOfTotal(processed, total)
 
 				ft.fileTransferStats.UpdateUploadStats(FileUploadInfo{
 					FileKind:      task.FileKind,
