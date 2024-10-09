@@ -291,7 +291,6 @@ func TestS3FileTransfer_Download(t *testing.T) {
 
 	// Read the downloaded file2
 	content, err = os.ReadFile(path2)
-	println(content)
 	assert.NoError(t, err)
 	assert.Equal(t, file2.Content, content)
 }
