@@ -3493,7 +3493,7 @@ class Api:
             try:
                 org_entity = self._resolve_org_entity_name(entity, organization)
             except ValueError as e:
-                wandb.termerror(e)
+                wandb.termerror(str(e))
                 raise
 
         def replace(a: str, b: str) -> None:
@@ -3525,9 +3525,14 @@ class Api:
         return link_artifact
 
     def _resolve_org_entity_name(self, entity: str, organization: str = "") -> str:
-        # Fetches the org entity of the portfolio entity to
-        # 1. validate the user inputted the correct display org name or org entity name and
-        # 2. return the org entity name so we can use the correct entity name to link the artifact.
+        # resolveOrgEntityName fetches the portfolio's org entity's name.
+        #
+        # The organization parameter may be empty, an org's display name, or an org entity name.
+        #
+        # If the server doesn't support fetching the org name of a portfolio, then this returns
+        # the organization parameter, or an error if it is empty. Otherwise, this returns the
+        # fetched value after validating that the given organization, if not empty, matches
+        # either the org's display or entity name.
         org_fields = self.server_organization_type_introspection()
         can_fetch_org_entity = "orgEntity" in org_fields
         if not organization and not can_fetch_org_entity:
@@ -3546,7 +3551,7 @@ class Api:
             if organization != org_name and organization != org_entity:
                 raise ValueError(
                     f"Artifact belongs to the organization {org_name!r} "
-                    f"and cannot be linked to {organization!r}. "
+                    f"and cannot be linked/fetched with {organization!r}. "
                     "Please update the target path with the correct organization name."
                 )
         return org_entity
@@ -3581,7 +3586,8 @@ class Api:
         except (LookupError, TypeError) as e:
             raise ValueError(
                 f"Unable to find organization for artifact under entity: {entity!r} "
-                "Please make sure you are using a team entity when linking to the Registry"
+                "Please make sure the right org in the path is provided "
+                "or a team entity, not a personal entity, is used when using the shorthand path without an org."
             ) from e
         else:
             return org_entity_name, org_name

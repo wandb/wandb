@@ -82,11 +82,14 @@ func (al *ArtifactLinker) Link() error {
 	return err
 }
 
-// resolveOrgEntityName take an Entity and an potentially empty Organization(display org name or org entity name)
-// and using those inputs we fetch the org entity and:
-// 1. validate the user inputted the correct org name or org entity name for the link path
-// 2. return the org entity name in place of if no org was inputted or the display org name
-// so we can use the correct entity name to link the artifact.
+// resolveOrgEntityName fetches the portfolio's org entity's name.
+//
+// The organization parameter may be empty, an org's display name, or an org entity name.
+//
+// If the server doesn't support fetching the org name of a portfolio, then this returns
+// the organization parameter, or an error if it is empty. Otherwise, this returns the
+// fetched value after validating that the given organization, if not empty, matches
+// either the org's display or entity name.
 func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organization string) (string, error) {
 	orgFieldNames, err := GetGraphQLFields(al.Ctx, al.GraphqlClient, "Organization")
 	if err != nil {
@@ -94,8 +97,8 @@ func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organizat
 	}
 	canFetchOrgEntity := slices.Contains(orgFieldNames, "orgEntity")
 	if organization == "" && !canFetchOrgEntity {
-		return "", fmt.Errorf("Fetching Registry artifacts without inputting an organization is " +
-			"unavailable for your server version. Please upgrade your server to 0.50.0 or later.")
+		// Support is added in version 0.50.0 of the wandb server.
+		return "", fmt.Errorf("Fetching Registry artifacts unsupported and no organization given")
 	}
 	if !canFetchOrgEntity {
 		// Use traditional registry path with org entity if server doesn't support it
@@ -115,7 +118,9 @@ func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organizat
 		response.GetEntity().GetOrganization() == nil ||
 		response.GetEntity().GetOrganization().GetOrgEntity() == nil {
 		return "", fmt.Errorf("Unable to find organization for artifact under entity: %s. "+
-			"Please make sure you are using a team entity when linking to the Registry", portfolioEntity)
+			"Please make sure the right org in the path is provided "+
+			"or a team entity, not a personal entity, is used when using the shorthand path without an org.",
+			portfolioEntity)
 	}
 
 	// Validate organization inputted by user
@@ -123,7 +128,7 @@ func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organizat
 	inputMatchesOrgName := organization == response.Entity.Organization.Name
 	inputMatchesOrgEntityName := organization == orgEntityName
 	if organization != "" && !inputMatchesOrgName && !inputMatchesOrgEntityName {
-		return "", fmt.Errorf("Artifact belongs to the organization %s and cannot be linked to %s. "+
+		return "", fmt.Errorf("Artifact belongs to the organization %s and cannot be linked/fetched with %s. "+
 			"Please update the target path with the correct organization name.", orgEntityName, organization)
 	}
 	return orgEntityName, nil

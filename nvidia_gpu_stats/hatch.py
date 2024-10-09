@@ -1,7 +1,7 @@
 """Builds the nvidia_gpu_stats binary for monitoring NVIDIA GPUs."""
 
+import json
 import pathlib
-import platform
 import subprocess
 
 
@@ -25,19 +25,16 @@ def build_nvidia_gpu_stats(
             workspace root.
     """
     rust_pkg_root = pathlib.Path("./nvidia_gpu_stats")
-    built_binary_path = rust_pkg_root / "target" / "release" / "nvidia_gpu_stats"
-
-    if platform.system().lower() == "windows":
-        built_binary_path = built_binary_path.with_suffix(".exe")
 
     cmd = (
         str(cargo_binary),
         "build",
         "--release",
+        "--message-format=json",
     )
 
     try:
-        subprocess.check_call(cmd, cwd=rust_pkg_root)
+        cargo_output = subprocess.check_output(cmd, cwd=rust_pkg_root)
     except subprocess.CalledProcessError as e:
         raise NvidiaGpuStatsBuildError(
             "Failed to build the `nvidia_gpu_stats` Rust binary. If you didn't"
@@ -49,6 +46,32 @@ def build_nvidia_gpu_stats(
             " package that doesn't collect NVIDIA GPU metrics."
         ) from e
 
+    built_binary_path = _get_executable_path(cargo_output)
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
     built_binary_path.replace(output_path)
     output_path.chmod(0o755)
+
+
+def _get_executable_path(cargo_output: bytes) -> pathlib.Path:
+    """Returns the path to the nvidia_gpu_stats binary.
+
+    Args:
+        cargo_output: The output from `cargo build` with
+            --message-format="json".
+
+    Returns:
+        The path to the binary.
+
+    Raises:
+        NvidiaGpuStatsBuildError: if the path could not be determined.
+    """
+    for line in cargo_output.splitlines():
+        path = json.loads(line).get("executable")
+        if path:
+            return pathlib.Path(path)
+
+    raise NvidiaGpuStatsBuildError(
+        "Failed to find the `nvidia_gpu_stats` binary. `cargo build` output:\n"
+        + str(cargo_output),
+    )

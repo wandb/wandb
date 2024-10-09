@@ -23,7 +23,7 @@ func GenerateUniqueID(length int) string {
 		err = fmt.Errorf("rand error: %s", err.Error())
 		slog.LogAttrs(context.Background(),
 			slog.LevelError,
-			"ShortID: error",
+			"GenerateUniqueID: error",
 			slog.String("error", err.Error()))
 		panic(err)
 	}

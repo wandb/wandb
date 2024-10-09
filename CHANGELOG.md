@@ -11,6 +11,14 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Added
+
+- Allow users to link Registry artifacts without inputting the organization entity name (@estellazx in https://github.com/wandb/wandb/pull/8482)
+
+### Fixed
+
+- Fixed typing issue of `wandb.Api` (@bdvllrs in https://github.com/wandb/wandb/pull/8548)
+
 ## [0.18.3] - 2024-10-01
 
 ### Added
