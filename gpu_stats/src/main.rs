@@ -1,15 +1,19 @@
 mod gpu_apple;
 mod gpu_apple_sources;
+mod gpu_nvidia;
+mod metrics;
 mod wandb_internal;
 
 use clap::Parser;
 
+use sentry::types::Dsn;
 use tokio_stream;
 use tonic;
 use tonic::{transport::Server, Request, Response, Status};
 use tonic_reflection;
 
 use gpu_apple::ThreadSafeSampler;
+use gpu_nvidia::NvidiaGpu;
 use wandb_internal::record::RecordType;
 use wandb_internal::{
     stats_record::StatsType,
@@ -22,13 +26,18 @@ use wandb_internal::{
 struct Args {
     #[arg(short, long)]
     portfile: String,
+
+    /// Monitor this process ID and its children for GPU usage
+    #[arg(short, long, default_value_t = 0)]
+    pid: i32,
 }
 
 #[derive(Default)]
 pub struct SystemMonitorImpl {
     shutdown_sender: tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
-    // apple_sampler: Option<Sampler>,
-    sampler: Option<ThreadSafeSampler>,
+    pid: i32,
+    apple_sampler: Option<ThreadSafeSampler>,
+    nvidia_gpu: Option<tokio::sync::Mutex<NvidiaGpu>>,
 }
 
 #[tonic::async_trait]
@@ -55,12 +64,16 @@ impl SystemMonitor for SystemMonitorImpl {
         // Initialize an empty vector to store all metrics
         let mut all_metrics = Vec::new();
 
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs_f64();
+
         // Gather Apple metrics if sampler is available
-        if let Some(sampler) = &self.sampler {
-            match sampler.get_metrics().await {
+        if let Some(apple_sampler) = &self.apple_sampler {
+            match apple_sampler.get_metrics().await {
                 Ok(apple_stats) => {
                     let apple_metrics = ThreadSafeSampler::metrics_to_vec(apple_stats);
-                    println!("Apple metrics: {:?}", apple_metrics);
                     all_metrics.extend(apple_metrics);
                 }
                 Err(e) => {
@@ -69,6 +82,19 @@ impl SystemMonitor for SystemMonitorImpl {
             }
         }
 
+        // Gather Nvidia metrics if GPU is available
+        if let Some(nvidia_gpu) = &self.nvidia_gpu {
+            match nvidia_gpu.lock().await.get_metrics(self.pid) {
+                Ok(nvidia_metrics) => {
+                    all_metrics.extend(nvidia_metrics);
+                }
+                Err(e) => {
+                    println!("Failed to get Nvidia metrics: {}", e);
+                }
+            }
+        }
+
+        // package metrics into a StatsRecord
         let stats_items: Vec<StatsItem> = all_metrics
             .iter()
             .map(|(name, value)| StatsItem {
@@ -90,9 +116,37 @@ impl SystemMonitor for SystemMonitorImpl {
     }
 }
 
+fn parse_bool(s: &str) -> bool {
+    match s.to_lowercase().as_str() {
+        "true" | "1" => true,
+        "false" | "0" => false,
+        _ => true,
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Parse command-line arguments
     let args = Args::parse();
+
+    // Set up error reporting with Sentry
+    let error_reporting_enabled = std::env::var("WANDB_ERROR_REPORTING")
+        .map(|v| parse_bool(&v))
+        .unwrap_or(true);
+
+    let dsn: Option<Dsn> = if error_reporting_enabled {
+        "https://9e9d0694aa7ccd41aeb5bc34aadd716a@o151352.ingest.us.sentry.io/4506068829470720"
+            .parse()
+            .ok()
+    } else {
+        None
+    };
+
+    let _guard = sentry::init(sentry::ClientOptions {
+        dsn,
+        release: sentry::release_name!(),
+        ..Default::default()
+    });
 
     // Bind only to the loopback interface
     let addr = (std::net::Ipv4Addr::LOCALHOST, 0);
@@ -104,7 +158,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // System monitor service
     let system_monitor = SystemMonitorImpl {
         shutdown_sender: tokio::sync::Mutex::new(Some(shutdown_sender)),
-        sampler: Some(ThreadSafeSampler::new()?),
+        pid: args.pid,
+        apple_sampler: Some(ThreadSafeSampler::new()?),
+        nvidia_gpu: Some(tokio::sync::Mutex::new(NvidiaGpu::new()?)),
     };
 
     // TODO: Reflection service
@@ -118,7 +174,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
 
     let local_addr = listener.local_addr()?;
-
     // Write the port to the portfile
     std::fs::write(&args.portfile, local_addr.port().to_string())?;
 

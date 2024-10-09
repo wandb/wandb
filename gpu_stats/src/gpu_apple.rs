@@ -26,6 +26,7 @@ use core_foundation::dictionary::CFDictionaryRef;
 use crate::gpu_apple_sources::{
     cfio_get_residencies, cfio_watts, libc_ram, libc_swap, IOHIDSensors, IOReport, SocInfo, SMC,
 };
+use crate::metrics::MetricValue;
 
 type WithError<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -355,7 +356,7 @@ impl ThreadSafeSampler {
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
     }
 
-    pub fn metrics_to_vec(metrics: Metrics) -> Vec<(&'static str, f64)> {
+    pub fn metrics_to_vec(metrics: Metrics) -> Vec<(String, MetricValue)> {
         let mut result = Vec::new();
 
         // Helper function to safely add metrics
@@ -432,6 +433,9 @@ impl ThreadSafeSampler {
         }
 
         result
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), MetricValue::Float(value)))
+            .collect()
     }
 }
 
