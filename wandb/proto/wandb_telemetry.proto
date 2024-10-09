@@ -260,6 +260,8 @@ message Deprecated {
 
   // wandb.run.define_metric() called with summary="best" and goal="maximize/minimize"
   bool run__define_metric_best_goal = 18;
+
+  bool video_fps = 19;  // wandb.sdk.data_types.video.Video.fps used with string or bytes
 }
 
 message Issues {
