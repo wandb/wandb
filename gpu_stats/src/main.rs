@@ -10,9 +10,11 @@ use sentry::types::Dsn;
 use tokio_stream;
 use tonic;
 use tonic::{transport::Server, Request, Response, Status};
-use tonic_reflection;
+// use tonic_reflection;
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 use gpu_apple::ThreadSafeSampler;
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 use gpu_nvidia::NvidiaGpu;
 use wandb_internal::record::RecordType;
 use wandb_internal::{
@@ -36,8 +38,47 @@ struct Args {
 pub struct SystemMonitorImpl {
     shutdown_sender: tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
     pid: i32,
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     apple_sampler: Option<ThreadSafeSampler>,
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
     nvidia_gpu: Option<tokio::sync::Mutex<NvidiaGpu>>,
+}
+
+impl SystemMonitorImpl {
+    fn new(pid: i32) -> Self {
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        let apple_sampler = match ThreadSafeSampler::new() {
+            Ok(sampler) => {
+                println!("Successfully initialized Apple GPU sampler");
+                Some(sampler)
+            }
+            Err(e) => {
+                println!("Failed to initialize Apple GPU sampler: {}", e);
+                None
+            }
+        };
+
+        #[cfg(any(target_os = "linux", target_os = "windows"))]
+        let nvidia_gpu = match NvidiaGpu::new() {
+            Ok(gpu) => {
+                println!("Successfully initialized NVIDIA GPU monitoring");
+                Some(tokio::sync::Mutex::new(gpu))
+            }
+            Err(e) => {
+                println!("Failed to initialize NVIDIA GPU monitoring: {}", e);
+                None
+            }
+        };
+
+        SystemMonitorImpl {
+            shutdown_sender: tokio::sync::Mutex::new(None), // Sender will be set later
+            pid,
+            #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+            apple_sampler,
+            #[cfg(any(target_os = "linux", target_os = "windows"))]
+            nvidia_gpu,
+        }
+    }
 }
 
 #[tonic::async_trait]
@@ -69,7 +110,8 @@ impl SystemMonitor for SystemMonitorImpl {
             .unwrap_or_default()
             .as_secs_f64();
 
-        // Gather Apple metrics if sampler is available
+        // Apple metrics (ARM Mac only)
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         if let Some(apple_sampler) = &self.apple_sampler {
             match apple_sampler.get_metrics().await {
                 Ok(apple_stats) => {
@@ -82,7 +124,8 @@ impl SystemMonitor for SystemMonitorImpl {
             }
         }
 
-        // Gather Nvidia metrics if GPU is available
+        // Nvidia metrics (Linux and Windows only)
+        #[cfg(any(target_os = "linux", target_os = "windows"))]
         if let Some(nvidia_gpu) = &self.nvidia_gpu {
             match nvidia_gpu.lock().await.get_metrics(self.pid) {
                 Ok(nvidia_metrics) => {
@@ -156,22 +199,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel::<()>();
 
     // System monitor service
-    let system_monitor = SystemMonitorImpl {
-        shutdown_sender: tokio::sync::Mutex::new(Some(shutdown_sender)),
-        pid: args.pid,
-        apple_sampler: Some(ThreadSafeSampler::new()?),
-        nvidia_gpu: Some(tokio::sync::Mutex::new(NvidiaGpu::new()?)),
-    };
+    let mut system_monitor = SystemMonitorImpl::new(args.pid);
+    system_monitor.shutdown_sender = tokio::sync::Mutex::new(Some(shutdown_sender));
 
     // TODO: Reflection service
-    let descriptor = "/Users/dimaduev/dev/sdk/gpu_stats/src/descriptor.bin";
-    let binding = std::fs::read(descriptor).unwrap();
-    let descriptor_bytes = binding.as_slice();
+    // let descriptor = "/Users/dimaduev/dev/sdk/gpu_stats/src/descriptor.bin";
+    // let binding = std::fs::read(descriptor).unwrap();
+    // let descriptor_bytes = binding.as_slice();
 
-    let reflection_service = tonic_reflection::server::Builder::configure()
-        .register_encoded_file_descriptor_set(descriptor_bytes)
-        .build_v1()
-        .unwrap();
+    // let reflection_service = tonic_reflection::server::Builder::configure()
+    //     .register_encoded_file_descriptor_set(descriptor_bytes)
+    //     .build_v1()
+    //     .unwrap();
 
     let local_addr = listener.local_addr()?;
     // Write the port to the portfile
@@ -181,7 +220,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Server::builder()
         .add_service(SystemMonitorServer::new(system_monitor))
-        .add_service(reflection_service)
+        // .add_service(reflection_service)
         .serve_with_incoming_shutdown(
             tokio_stream::wrappers::TcpListenerStream::new(listener),
             async {
