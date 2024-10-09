@@ -72,16 +72,16 @@ func (s *TFEventReader) NextEvent(
 	if !s.ensureBuffer(bytesRead+4, onNewFile) {
 		return nil, nil
 	}
-	headerCRC32 := binary.LittleEndian.Uint32(s.buffer[bytesRead : bytesRead+4])
+	expectedHeaderCRC32C := binary.LittleEndian.Uint32(s.buffer[bytesRead : bytesRead+4])
 	bytesRead += 4
 
 	// Check the CRC32 checksum of the header.
-	headerMaskedCrc32c := MaskedCRC32C(headerBytes)
-	if headerMaskedCrc32c != headerCRC32 {
+	actualHeaderCRC32C := MaskedCRC32C(headerBytes)
+	if actualHeaderCRC32C != expectedHeaderCRC32C {
 		return nil, fmt.Errorf(
 			"tensorboard: unexpected CRC-32C checksum for event header. Expected: %d, got: %d",
-			headerCRC32,
-			headerMaskedCrc32c,
+			expectedHeaderCRC32C,
+			actualHeaderCRC32C,
 		)
 	}
 
@@ -96,16 +96,16 @@ func (s *TFEventReader) NextEvent(
 	if !s.ensureBuffer(bytesRead+4, onNewFile) {
 		return nil, nil
 	}
-	eventCRC32 := binary.LittleEndian.Uint32(s.buffer[bytesRead : bytesRead+4])
+	expectedEventCRC32C := binary.LittleEndian.Uint32(s.buffer[bytesRead : bytesRead+4])
 	bytesRead += 4
 
 	// Check the CRC32 checksum of the event.
-	eventMaskedCRC32 := MaskedCRC32C(eventBytes)
-	if eventMaskedCRC32 != eventCRC32 {
+	actualEventCRC32C := MaskedCRC32C(eventBytes)
+	if actualEventCRC32C != expectedEventCRC32C {
 		return nil, fmt.Errorf(
 			"tensorboard: unexpected CRC-32C checksum for event. Expected: %d, got: %d",
-			eventCRC32,
-			eventMaskedCRC32,
+			expectedEventCRC32C,
+			actualEventCRC32C,
 		)
 	}
 
