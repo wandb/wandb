@@ -128,9 +128,6 @@ func getStorageProvider(ref string, fts *FileTransfers) (ReferenceArtifactFileTr
 	case err != nil:
 		return nil, err
 	case uriParts.Scheme == "gs":
-		if fts.GCS == nil {
-			return nil, fmt.Errorf("reference artifact task: gcs client could not be instantiated")
-		}
 		return fts.GCS, nil
 	case uriParts.Scheme == "s3":
 		if fts.S3 == nil {

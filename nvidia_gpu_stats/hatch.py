@@ -1,5 +1,6 @@
 """Builds the nvidia_gpu_stats binary for monitoring NVIDIA GPUs."""
 
+import json
 import pathlib
 import subprocess
 
@@ -10,7 +11,7 @@ class NvidiaGpuStatsBuildError(Exception):
 
 def build_nvidia_gpu_stats(
     cargo_binary: pathlib.Path,
-    output_path: pathlib.PurePath,
+    output_path: pathlib.Path,
 ) -> None:
     """Builds the `nvidia_gpu_stats` Rust binary for monitoring NVIDIA GPUs.
 
@@ -23,16 +24,17 @@ def build_nvidia_gpu_stats(
         output_path: The path where to output the binary, relative to the
             workspace root.
     """
-    source_path = pathlib.Path("./nvidia_gpu_stats")
+    rust_pkg_root = pathlib.Path("./nvidia_gpu_stats")
 
     cmd = (
         str(cargo_binary),
         "build",
         "--release",
+        "--message-format=json",
     )
 
     try:
-        subprocess.check_call(cmd, cwd=source_path)
+        cargo_output = subprocess.check_output(cmd, cwd=rust_pkg_root)
     except subprocess.CalledProcessError as e:
         raise NvidiaGpuStatsBuildError(
             "Failed to build the `nvidia_gpu_stats` Rust binary. If you didn't"
@@ -44,7 +46,32 @@ def build_nvidia_gpu_stats(
             " package that doesn't collect NVIDIA GPU metrics."
         ) from e
 
+    built_binary_path = _get_executable_path(cargo_output)
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    source_path = source_path / "target" / "release" / "nvidia_gpu_stats"
-    source_path.replace(output_path)
+    built_binary_path.replace(output_path)
     output_path.chmod(0o755)
+
+
+def _get_executable_path(cargo_output: bytes) -> pathlib.Path:
+    """Returns the path to the nvidia_gpu_stats binary.
+
+    Args:
+        cargo_output: The output from `cargo build` with
+            --message-format="json".
+
+    Returns:
+        The path to the binary.
+
+    Raises:
+        NvidiaGpuStatsBuildError: if the path could not be determined.
+    """
+    for line in cargo_output.splitlines():
+        path = json.loads(line).get("executable")
+        if path:
+            return pathlib.Path(path)
+
+    raise NvidiaGpuStatsBuildError(
+        "Failed to find the `nvidia_gpu_stats` binary. `cargo build` output:\n"
+        + str(cargo_output),
+    )

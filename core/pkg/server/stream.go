@@ -23,6 +23,7 @@ import (
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
+	"github.com/wandb/wandb/core/internal/wboperation"
 	"github.com/wandb/wandb/core/pkg/monitor"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -131,21 +132,25 @@ func streamLogger(
 	return logger
 }
 
+type StreamOptions struct {
+	Commit     string
+	Settings   *settings.Settings
+	Sentry     *sentry_ext.Client
+	LoggerPath string
+}
+
 // NewStream creates a new stream with the given settings and responders.
 func NewStream(
-	commit string,
-	settings *settings.Settings,
-	sentryClient *sentry_ext.Client,
-	loggerPath string,
+	opts StreamOptions,
 ) *Stream {
-	logger := streamLogger(settings, sentryClient, loggerPath)
-	runWork := runwork.New(BufferSize, logger)
+	operations := wboperation.NewOperations()
 
+	logger := streamLogger(opts.Settings, opts.Sentry, opts.LoggerPath)
 	s := &Stream{
-		runWork:      runWork,
+		runWork:      runwork.New(BufferSize, logger),
 		logger:       logger,
-		settings:     settings,
-		sentryClient: sentryClient,
+		settings:     opts.Settings,
+		sentryClient: opts.Sentry,
 	}
 
 	hostname, err := os.Hostname()
@@ -163,7 +168,7 @@ func NewStream(
 	peeker := &observability.Peeker{}
 	terminalPrinter := observability.NewPrinter()
 
-	backendOrNil := NewBackend(s.logger, settings)
+	backendOrNil := NewBackend(s.logger, opts.Settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	fileWatcher := watcher.New(watcher.Params{Logger: s.logger})
 	tbHandler := tensorboard.NewTBHandler(tensorboard.Params{
@@ -177,23 +182,25 @@ func NewStream(
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
 	var runfilesUploaderOrNil runfiles.Uploader
 	if backendOrNil != nil {
-		graphqlClientOrNil = NewGraphQLClient(backendOrNil, settings, peeker)
+		graphqlClientOrNil = NewGraphQLClient(backendOrNil, opts.Settings, peeker)
 		fileStreamOrNil = NewFileStream(
 			backendOrNil,
 			s.logger,
+			operations,
 			terminalPrinter,
-			settings,
+			opts.Settings,
 			peeker,
 		)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileTransferStats,
 			s.logger,
-			settings,
+			opts.Settings,
 		)
 		runfilesUploaderOrNil = NewRunfilesUploader(
 			s.runWork,
 			s.logger,
-			settings,
+			operations,
+			opts.Settings,
 			fileStreamOrNil,
 			fileTransferManagerOrNil,
 			fileWatcher,
@@ -203,9 +210,10 @@ func NewStream(
 
 	mailbox := mailbox.New()
 
-	s.handler = NewHandler(commit,
+	s.handler = NewHandler(opts.Commit,
 		HandlerParams{
 			Logger:            s.logger,
+			Operations:        operations,
 			Settings:          s.settings.Proto,
 			FwdChan:           make(chan runwork.Work, BufferSize),
 			OutChan:           make(chan *spb.Result, BufferSize),
@@ -226,7 +234,7 @@ func NewStream(
 	)
 
 	var outputFile *paths.RelativePath
-	if settings.Proto.GetConsoleMultipart().GetValue() {
+	if opts.Settings.Proto.GetConsoleMultipart().GetValue() {
 		// This is guaranteed not to fail.
 		outputFile, _ = paths.Relative(
 			filepath.Join(
@@ -243,6 +251,7 @@ func NewStream(
 		s.runWork,
 		SenderParams{
 			Logger:              s.logger,
+			Operations:          operations,
 			Settings:            s.settings,
 			Backend:             backendOrNil,
 			FileStream:          fileStreamOrNil,

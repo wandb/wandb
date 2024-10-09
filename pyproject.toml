@@ -74,7 +74,7 @@ media = [
     "bokeh",
     "soundfile",
     "plotly>=5.18.0",
-    "rdkit-pypi",
+    "rdkit",
 ]
 sweeps = ["sweeps>=0.2.0"]
 launch = [

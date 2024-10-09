@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/pkg/monitor"
+	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
+	"github.com/wandb/wandb/core/internal/wboperation"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -43,6 +45,7 @@ type HandlerParams struct {
 	FwdChan           chan runwork.Work
 	OutChan           chan *spb.Result
 	Logger            *observability.CoreLogger
+	Operations        *wboperation.WandbOperations
 	Mailbox           *mailbox.Mailbox
 	FileTransferStats filetransfer.FileTransferStats
 	TBHandler         *tensorboard.TBHandler
@@ -55,8 +58,7 @@ type HandlerParams struct {
 	SkipSummary bool
 }
 
-// Handler is the handler for a stream it handles the incoming messages, processes them
-// and passes them to the writer
+// Handler handles the incoming messages, processes them, and passes them to the writer.
 type Handler struct {
 	// commit is the W&B Git commit hash
 	commit string
@@ -73,6 +75,12 @@ type Handler struct {
 
 	// logger is the logger for the handler
 	logger *observability.CoreLogger
+
+	// pollExitLogRateLimit limits log messages when handling PollExit requests
+	pollExitLogRateLimit *rate.Limiter
+
+	// operations tracks the status of the run's uploads
+	operations *wboperation.WandbOperations
 
 	// fwdChan is the channel for forwarding messages to the next component
 	fwdChan chan runwork.Work
@@ -138,22 +146,24 @@ func NewHandler(
 	params HandlerParams,
 ) *Handler {
 	return &Handler{
-		commit:            commit,
-		runTimer:          timer.New(),
-		terminalPrinter:   params.TerminalPrinter,
-		logger:            params.Logger,
-		settings:          params.Settings,
-		clientID:          randomid.GenerateUniqueID(32),
-		fwdChan:           params.FwdChan,
-		outChan:           params.OutChan,
-		mailbox:           params.Mailbox,
-		runSummary:        runsummary.New(),
-		skipSummary:       params.SkipSummary,
-		runHistorySampler: runhistory.NewRunHistorySampler(),
-		metricHandler:     runmetric.New(),
-		fileTransferStats: params.FileTransferStats,
-		tbHandler:         params.TBHandler,
-		systemMonitor:     params.SystemMonitor,
+		commit:               commit,
+		runTimer:             timer.New(),
+		terminalPrinter:      params.TerminalPrinter,
+		logger:               params.Logger,
+		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
+		operations:           params.Operations,
+		settings:             params.Settings,
+		clientID:             randomid.GenerateUniqueID(32),
+		fwdChan:              params.FwdChan,
+		outChan:              params.OutChan,
+		mailbox:              params.Mailbox,
+		runSummary:           runsummary.New(),
+		skipSummary:          params.SkipSummary,
+		runHistorySampler:    runhistory.NewRunHistorySampler(),
+		metricHandler:        runmetric.New(),
+		fileTransferStats:    params.FileTransferStats,
+		tbHandler:            params.TBHandler,
+		systemMonitor:        params.SystemMonitor,
 	}
 }
 
@@ -343,6 +353,8 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestSenderRead(record)
 	case *spb.Request_JobInput:
 		h.handleRequestJobInput(record)
+	case *spb.Request_RunFinishWithoutExit:
+		h.handleRequestRunFinishWithoutExit(record)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRequest: request type is nil"))
@@ -435,25 +447,31 @@ func (h *Handler) handleRequestLinkArtifact(record *spb.Record) {
 }
 
 func (h *Handler) handleRequestPollExit(record *spb.Record) {
-	var pollExitResponse *spb.PollExitResponse
-	if h.fileTransferStats != nil {
-		pollExitResponse = &spb.PollExitResponse{
-			PusherStats: h.fileTransferStats.GetFilesStats(),
-			FileCounts:  h.fileTransferStats.GetFileCounts(),
-			Done:        h.fileTransferStats.IsDone(),
-		}
-	} else {
-		pollExitResponse = &spb.PollExitResponse{
-			Done: true,
-		}
+	pollExitResponse := &spb.PollExitResponse{
+		OperationStats: h.operations.ToProto(),
 	}
 
-	response := &spb.Response{
+	if h.pollExitLogRateLimit.Allow() {
+		// Log these for now while we don't display them.
+		h.logger.Info(
+			"handler: operation stats",
+			"stats", pollExitResponse.OperationStats,
+		)
+	}
+
+	if h.fileTransferStats != nil {
+		pollExitResponse.PusherStats = h.fileTransferStats.GetFilesStats()
+		pollExitResponse.FileCounts = h.fileTransferStats.GetFileCounts()
+		pollExitResponse.Done = h.fileTransferStats.IsDone()
+	} else {
+		pollExitResponse.Done = true
+	}
+
+	h.respond(record, &spb.Response{
 		ResponseType: &spb.Response_PollExitResponse{
 			PollExitResponse: pollExitResponse,
 		},
-	}
-	h.respond(record, response)
+	})
 }
 
 func (h *Handler) handleHeader(record *spb.Record) {
@@ -730,6 +748,14 @@ func (h *Handler) handleRun(record *spb.Record) {
 			control.AlwaysSend = true
 		},
 	)
+}
+
+func (h *Handler) handleRequestRunFinishWithoutExit(record *spb.Record) {
+	h.runTimer.Pause()
+	h.updateRunTiming()
+	h.systemMonitor.Finish()
+	h.flushPartialHistory(true, h.partialHistoryStep+1)
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {

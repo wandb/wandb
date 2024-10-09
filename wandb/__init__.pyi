@@ -95,12 +95,14 @@ from wandb.wandb_controller import _WandbController
 if TYPE_CHECKING:
     import torch  # type: ignore [import-not-found]
 
-__version__: str = "0.18.2.dev1"
+    from wandb.plot.viz import CustomChart
+
+__version__: str = "0.18.4.dev1"
 
 run: Run | None
 config: wandb_config.Config
 summary: wandb_summary.Summary
-Api: PublicApi
+Api: type[PublicApi]
 
 # private attributes
 _sentry: Sentry
@@ -420,7 +422,7 @@ def init(
     """
     ...
 
-def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> None:
+def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
     """Mark a run as finished, and finish uploading all data.
 
     This is used when creating multiple runs in the same process.
@@ -470,10 +472,10 @@ def login(
     ...
 
 def log(
-    data: Dict[str, Any],
-    step: Optional[int] = None,
-    commit: Optional[bool] = None,
-    sync: Optional[bool] = None,
+    data: dict[str, Any],
+    step: int | None = None,
+    commit: bool | None = None,
+    sync: bool | None = None,
 ) -> None:
     """Upload run data.
 
@@ -704,10 +706,10 @@ def log(
     ...
 
 def save(
-    glob_str: Optional[Union[str, os.PathLike]] = None,
-    base_path: Optional[Union[str, os.PathLike]] = None,
+    glob_str: str | os.PathLike | None = None,
+    base_path: str | os.PathLike | None = None,
     policy: PolicyName = "live",
-) -> Union[bool, List[str]]:
+) -> bool | list[str]:
     """Sync one or more files to W&B.
 
     Relative paths are relative to the current working directory.
@@ -846,12 +848,12 @@ def agent(
 
 def define_metric(
     name: str,
-    step_metric: Union[str, wandb_metric.Metric, None] = None,
-    step_sync: Optional[bool] = None,
-    hidden: Optional[bool] = None,
-    summary: Optional[str] = None,
-    goal: Optional[str] = None,
-    overwrite: Optional[bool] = None,
+    step_metric: str | wandb_metric.Metric | None = None,
+    step_sync: bool | None = None,
+    hidden: bool | None = None,
+    summary: str | None = None,
+    goal: str | None = None,
+    overwrite: bool | None = None,
 ) -> wandb_metric.Metric:
     """Customize metrics logged with `wandb.log()`.
 
@@ -882,11 +884,11 @@ def define_metric(
     ...
 
 def log_artifact(
-    artifact_or_path: Union[Artifact, StrPath],
-    name: Optional[str] = None,
-    type: Optional[str] = None,
-    aliases: Optional[List[str]] = None,
-    tags: Optional[List[str]] = None,
+    artifact_or_path: Artifact | StrPath,
+    name: str | None = None,
+    type: str | None = None,
+    aliases: list[str] | None = None,
+    tags: list[str] | None = None,
 ) -> Artifact:
     """Declare an artifact as an output of a run.
 
@@ -915,10 +917,10 @@ def log_artifact(
     ...
 
 def use_artifact(
-    artifact_or_name: Union[str, Artifact],
-    type: Optional[str] = None,
-    aliases: Optional[List[str]] = None,
-    use_as: Optional[str] = None,
+    artifact_or_name: str | Artifact,
+    type: str | None = None,
+    aliases: list[str] | None = None,
+    use_as: str | None = None,
 ) -> Artifact:
     """Declare an artifact as an input to a run.
 
@@ -943,8 +945,8 @@ def use_artifact(
 
 def log_model(
     path: StrPath,
-    name: Optional[str] = None,
-    aliases: Optional[List[str]] = None,
+    name: str | None = None,
+    aliases: list[str] | None = None,
 ) -> None:
     """Logs a model artifact containing the contents inside the 'path' to a run and marks it as an output to this run.
 
@@ -1031,8 +1033,8 @@ def use_model(name: str) -> FilePathStr:
 def link_model(
     path: StrPath,
     registered_model_name: str,
-    name: Optional[str] = None,
-    aliases: Optional[List[str]] = None,
+    name: str | None = None,
+    aliases: list[str] | None = None,
 ) -> None:
     """Log a model artifact version and link it to a registered model in the model registry.
 
@@ -1096,6 +1098,28 @@ def link_model(
 
     Returns:
         None
+    """
+    ...
+
+def plot_table(
+    vega_spec_name: str,
+    data_table: Table,
+    fields: dict[str, Any],
+    string_fields: dict[str, Any] | None = None,
+    split_table: bool | None = False,
+) -> CustomChart:
+    """Create a custom plot on a table.
+
+    Arguments:
+        vega_spec_name: the name of the spec for the plot
+        data_table: a wandb.Table object containing the data to
+            be used on the visualization
+        fields: a dict mapping from table keys to fields that the custom
+            visualization needs
+        string_fields: a dict that provides values for any string constants
+            the custom visualization needs
+        split_table: a boolean that indicates whether the table should be in
+            a separate section in the UI
     """
     ...
 
