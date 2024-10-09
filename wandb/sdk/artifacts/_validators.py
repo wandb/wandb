@@ -18,6 +18,10 @@ if TYPE_CHECKING:
 
     ArtifactT = TypeVar("ArtifactT", bound=Artifact)
 
+    from typing_extensions import Final
+
+REGISTRY_PREFIX: Final[str] = "wandb-registry-"
+
 
 def validate_aliases(aliases: Collection[str]) -> list[str]:
     """Validate the artifact aliases and return them as a list.
@@ -88,3 +92,7 @@ def ensure_not_finalized(method: DecoratedF) -> DecoratedF:
         return method(self, *args, **kwargs)
 
     return cast(DecoratedF, wrapper)
+
+
+def is_artifact_registry_project(project: str) -> bool:
+    return project.startswith(REGISTRY_PREFIX)
