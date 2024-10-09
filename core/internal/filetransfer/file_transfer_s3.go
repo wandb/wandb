@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -29,7 +30,11 @@ type S3FileTransfer struct {
 	// fileTransferStats is used to track upload/download progress
 	fileTransferStats FileTransferStats
 
+	// background context is used to create a reader and get the client
 	ctx context.Context
+
+	// S3Once ensures that we only set up the S3 Client once
+	S3Once *sync.Once
 }
 
 // News3FileTransfer creates a new fileTransfer.
@@ -37,23 +42,31 @@ func NewS3FileTransfer(
 	client *s3.Client,
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
-) (*S3FileTransfer, error) {
+) *S3FileTransfer {
 	ctx := context.Background()
-	if client == nil {
-		cfg, err := config.LoadDefaultConfig(ctx)
-		if err != nil {
-			return nil, err
-		}
-		client = s3.NewFromConfig(cfg)
-	}
-
-	fileTransfer := &S3FileTransfer{
+	return &S3FileTransfer{
 		logger:            logger,
 		client:            client,
 		fileTransferStats: fileTransferStats,
 		ctx:               ctx,
+		S3Once:            &sync.Once{},
 	}
-	return fileTransfer, nil
+}
+
+// SetupClient sets up the S3 client if it is not currently set
+func (ft *S3FileTransfer) SetupClient() {
+	ft.S3Once.Do(func() {
+		if ft.client != nil {
+			return
+		}
+		cfg, err := config.LoadDefaultConfig(ft.ctx)
+		if err != nil {
+			ft.logger.Error("Unable to load config to set up S3 client", "err", err)
+			return
+		}
+		client := s3.NewFromConfig(cfg)
+		ft.client = client
+	})
 }
 
 // Upload uploads a file to the server.
@@ -70,6 +83,11 @@ func (ft *S3FileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 		"path", task.PathOrPrefix,
 		"ref", task.Reference,
 	)
+
+	ft.SetupClient()
+	if ft.client == nil {
+		return fmt.Errorf("S3FileTransfer: Download: Unable to set up S3 Client")
+	}
 
 	// Parse the reference path to get the scheme, bucket, and object
 	bucketName, rootObjectName, err := parseCloudReference(task.Reference, s3Scheme)
@@ -180,9 +198,9 @@ func (ft *S3FileTransfer) listObjectsWithPrefix(
 		}
 
 		if output.IsTruncated != nil {
-		    isTruncated = *output.IsTruncated
+			isTruncated = *output.IsTruncated
 		} else {
-		    isTruncated = false
+			isTruncated = false
 		}
 		if isTruncated {
 			params.ContinuationToken = output.NextContinuationToken
@@ -218,9 +236,9 @@ func (ft *S3FileTransfer) getCorrectObjectVersion(
 			}
 		}
 		if versions.IsTruncated != nil {
-		    isTruncated = *versions.IsTruncated
+			isTruncated = *versions.IsTruncated
 		} else {
-		    isTruncated = false
+			isTruncated = false
 		}
 		if isTruncated {
 			params.KeyMarker = versions.NextKeyMarker

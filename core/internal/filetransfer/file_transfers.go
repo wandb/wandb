@@ -35,11 +35,11 @@ func NewFileTransfers(
 ) *FileTransfers {
 	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats)
 	gcsFileTransfer := NewGCSFileTransfer(nil, logger, fileTransferStats)
-	s3FileTransfer, _ := NewS3FileTransfer(nil, logger, fileTransferStats)
+	s3FileTransfer := NewS3FileTransfer(nil, logger, fileTransferStats)
 
 	return &FileTransfers{
 		Default: defaultFileTransfer,
 		GCS:     gcsFileTransfer,
-		S3:		 s3FileTransfer,
+		S3:      s3FileTransfer,
 	}
 }
