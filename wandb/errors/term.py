@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 import click
 
@@ -20,7 +20,7 @@ PRINTED_MESSAGES: set[str] = set()
 _silent: bool = False
 """If true, _logger is used instead of printing to stderr."""
 
-_logger: logging.Logger | None = None
+_logger: SupportsLeveledLogging | None = None
 """A fallback logger for _silent mode."""
 
 _show_info: bool = True
@@ -33,9 +33,17 @@ _show_errors: bool = True
 """If false, then termerror() uses silent mode (see _silent)."""
 
 
+class SupportsLeveledLogging(Protocol):
+    """Portion of the standard logging.Logger used in this module."""
+
+    def info(self, msg: str) -> None: ...
+    def warning(self, msg: str) -> None: ...
+    def error(self, msg: str) -> None: ...
+
+
 def termsetup(
     settings: wandb.Settings,
-    logger: logging.Logger,
+    logger: SupportsLeveledLogging,
 ) -> None:
     """Configures the global logging functions.
 
