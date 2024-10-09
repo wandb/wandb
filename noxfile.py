@@ -11,7 +11,7 @@ import nox
 
 nox.options.default_venv_backend = "uv"
 
-_SUPPORTED_PYTHONS = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+_SUPPORTED_PYTHONS = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
 # Directories in which to create temporary per-session directories
 # containing test results and pytest/Go coverage.

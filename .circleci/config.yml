@@ -596,7 +596,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.12"]
+              python: ["3.13"]
 
       #
       # W&B Importer tests on Linux, using 2 real wandb servers
