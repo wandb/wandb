@@ -247,7 +247,11 @@ def test_compat_tensorboard(relay_server, wandb_init):
     feature="tensorboard",
     reason="hangs on processing data",
 )
-def test_tb_sync_with_explicit_step_and_log(wandb_init, relay_server):
+def test_tb_sync_with_explicit_step_and_log(
+    wandb_init,
+    relay_server,
+    mock_wandb_log,
+):
     with relay_server() as relay:
         with wandb_init(sync_tensorboard=True) as run:
             with tf.summary.create_file_writer(
@@ -261,9 +265,7 @@ def test_tb_sync_with_explicit_step_and_log(wandb_init, relay_server):
                     )
             run.log({"y_scalar": 1337}, step=42)
 
-    assert "Step cannot be set when using tensorboard syncing" in "".join(
-        term.PRINTED_MESSAGES
-    )
+    assert mock_wandb_log.warned("Step cannot be set when using tensorboard syncing")
     history = relay.context.get_run_history(run.id)
     assert len(history) == 11
     assert history["x_scalar"].dropna().tolist() == [i**2 for i in range(10)]
