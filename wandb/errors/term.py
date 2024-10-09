@@ -60,10 +60,8 @@ def termlog(
 ) -> None:
     r"""Log an informational message to stderr.
 
-    The message may contain ANSI color sequences and the \r and \n characters.
-    Newlines should use \n rather than \r\n.
-
-    Colors and \r are stripped if stderr is not a TTY.
+    The message may contain ANSI color sequences and the \n character.
+    Colors are stripped if stderr is not a TTY.
 
     Args:
         string: The message to display.
