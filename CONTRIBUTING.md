@@ -216,9 +216,9 @@ Install Go version `1.23.2` following the instructions [here](https://go.dev/doc
 brew install go@1.22
 ```
 
-### Setting up Rust on Linux and MacOS
+### Setting up Rust
 
-If you are developing on a Linux or a MacOS machine, you will need the Rust toolchain to build the `gpu_stats` binary used to monitor Nvidia GPUs on Linux and Apple Arm GPUs on MacOS. Refer to the official Rust [docs](https://www.rust-lang.org/tools/install) and install it by running:
+You will need the Rust toolchain to build the `gpu_stats` binary used to monitor Nvidia GPUs and Apple Arm GPUs. Refer to the official Rust [docs](https://www.rust-lang.org/tools/install) and install it by running:
 ```shell
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
