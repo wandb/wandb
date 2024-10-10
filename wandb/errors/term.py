@@ -238,7 +238,7 @@ class DynamicBlock:
         self._num_printed_lines = 0
 
     def _l_print(self) -> None:
-        """Prints out this block of text.
+        """Print out this block of text.
 
         The lock must be held.
         """

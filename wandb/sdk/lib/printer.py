@@ -142,19 +142,21 @@ class DynamicText(abc.ABC):
 
     @abc.abstractmethod
     def set_text(self, text: str) -> None:
-        r"""Replaces the text.
+        r"""Change the text.
 
         Args:
             text: The text to put in the block, with lines separated
                 by \n characters. The text should not end in \n unless
                 a blank line at the end of the block is desired.
+                May include styled output from methods on the Printer
+                that created this.
         """
 
     @abc.abstractmethod
     def remove(self) -> None:
-        """Removes the text.
+        """Remove the text.
 
-        After this, further updates are ignored.
+        Further updates are ignored.
         """
 
 
