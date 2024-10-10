@@ -1,4 +1,6 @@
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 mod gpu_apple;
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 mod gpu_apple_sources;
 mod gpu_nvidia;
 mod metrics;
