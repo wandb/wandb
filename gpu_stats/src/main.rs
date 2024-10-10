@@ -26,7 +26,8 @@ use wandb_internal::{
     request::RequestType,
     stats_record::StatsType,
     system_monitor_server::{SystemMonitor, SystemMonitorServer},
-    AppleInfo, GetMetadataRequest, GetStatsRequest, Record, Request as Req, StatsItem, StatsRecord,
+    AppleInfo, GetMetadataRequest, GetStatsRequest, GpuNvidiaInfo, Record, Request as Req,
+    StatsItem, StatsRecord,
 };
 
 #[derive(Parser, Debug)]
@@ -194,6 +195,56 @@ impl SystemMonitor for SystemMonitorImpl {
             }
 
             metadata_request.apple = Some(gpu_apple);
+        }
+
+        // Nvidia metadata (Linux and Windows only)
+        #[cfg(any(target_os = "linux", target_os = "windows"))]
+        {
+            let n_gpu = match samples.get("_gpu.count") {
+                Some(metrics::MetricValue::Int(n_gpu)) => *n_gpu as u32,
+                _ => 0,
+            };
+
+            if n_gpu > 0 {
+                metadata_request.gpu_nvidia = [].to_vec();
+                metadata_request.gpu_count = n_gpu;
+                // TODO: assume all GPUs are the same
+                if let Some(&value) = samples.get("_gpu.0.name") {
+                    if let metrics::MetricValue::String(gpu_name) = value {
+                        metadata_request.gpu_type = gpu_name.to_string();
+                    }
+                }
+                if let Some(&value) = samples.get("cuda_version") {
+                    if let metrics::MetricValue::String(cuda_version) = value {
+                        metadata_request.cuda_version = cuda_version.to_string();
+                    }
+                }
+            }
+
+            for i in 0..n_gpu {
+                let mut gpu_nvidia = GpuNvidiaInfo {
+                    ..Default::default()
+                };
+                if let Some(&value) = samples.get(&format!("_gpu.{}.name", i)) {
+                    gpu_nvidia.name = value.to_string();
+                }
+                if let Some(&value) = samples.get(&format!("_gpu.{}.memoryTotal", i)) {
+                    if let metrics::MetricValue::Int(memory_total) = value {
+                        gpu_nvidia.memory_total = *memory_total as u64;
+                    }
+                }
+                // cuda cores
+                if let Some(&value) = samples.get(&format!("_gpu.{}.cudaCores", i)) {
+                    if let metrics::MetricValue::Int(cuda_cores) = value {
+                        gpu_nvidia.cuda_cores = *cuda_cores as u32;
+                    }
+                }
+                // architecture
+                if let Some(&value) = samples.get(&format!("_gpu.{}.architecture", i)) {
+                    gpu_nvidia.architecture = value.to_string();
+                }
+                metadata_request.gpu_nvidia.push(gpu_nvidia);
+            }
         }
 
         let record = Record {
