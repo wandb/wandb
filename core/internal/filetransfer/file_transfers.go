@@ -19,7 +19,12 @@ type ReferenceArtifactFileTransfer interface {
 type FileTransfers struct {
 	// Default makes an HTTP request to the destination URL with the file contents.
 	Default FileTransfer
-	GCS     ReferenceArtifactFileTransfer
+
+	// GCS connects to GCloud to upload/download files given their paths
+	GCS ReferenceArtifactFileTransfer
+
+	// S3 connects to AWS to upload/download files given their paths
+	S3 ReferenceArtifactFileTransfer
 }
 
 // NewFileTransfers creates a new fileTransfers
@@ -28,17 +33,13 @@ func NewFileTransfers(
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
 ) *FileTransfers {
-	filetransfers := &FileTransfers{}
-
 	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats)
-	filetransfers.Default = defaultFileTransfer
+	gcsFileTransfer := NewGCSFileTransfer(nil, logger, fileTransferStats)
+	s3FileTransfer := NewS3FileTransfer(nil, logger, fileTransferStats)
 
-	gcsFileTransfer, err := NewGCSFileTransfer(nil, logger, fileTransferStats)
-	if err == nil {
-		filetransfers.GCS = gcsFileTransfer
-	} else {
-		logger.Error("Unable to set up GCS file transfer", "error", err)
+	return &FileTransfers{
+		Default: defaultFileTransfer,
+		GCS:     gcsFileTransfer,
+		S3:      s3FileTransfer,
 	}
-
-	return filetransfers
 }

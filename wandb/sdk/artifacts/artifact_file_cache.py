@@ -15,7 +15,6 @@ from typing import IO, TYPE_CHECKING, ContextManager, Iterator
 
 import wandb
 from wandb import env, util
-from wandb.errors import term
 from wandb.sdk.lib.filesystem import files_in
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
@@ -191,7 +190,7 @@ class ArtifactFileCache:
         if size <= self._free_space():
             return
 
-        term.termwarn("Cache size exceeded. Attempting to reclaim space...")
+        wandb.termwarn("Cache size exceeded. Attempting to reclaim space...")
         self.cleanup(target_fraction=0.5)
         if size <= self._free_space():
             return
