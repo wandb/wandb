@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Optional, Sequence, TextIO
+from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Sequence, TextIO
 
 import requests
 

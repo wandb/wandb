@@ -259,7 +259,7 @@ class StreamMux:
         pass
 
     def _on_progress_exit_all(self, progress_all_handle: MailboxProgressAll) -> None:
-        probe_handles: "list[MailboxProbe]" = []
+        probe_handles: list[MailboxProbe] = []
         progress_handles = progress_all_handle.get_progress_handles()
         for progress_handle in progress_handles:
             probe_handles.extend(progress_handle.get_probe_handles())
