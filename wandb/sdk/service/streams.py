@@ -20,6 +20,7 @@ import wandb
 import wandb.util
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.lib import progress
 from wandb.sdk.lib.mailbox import (
     Mailbox,
     MailboxProbe,
@@ -258,7 +259,7 @@ class StreamMux:
         pass
 
     def _on_progress_exit_all(self, progress_all_handle: MailboxProgressAll) -> None:
-        probe_handles = []
+        probe_handles: list[MailboxProbe] = []
         progress_handles = progress_all_handle.get_progress_handles()
         for progress_handle in progress_handles:
             probe_handles.extend(progress_handle.get_probe_handles())
@@ -268,13 +269,13 @@ class StreamMux:
         if self._check_orphaned():
             self._stopped.set()
 
-        poll_exit_responses: List[Optional[pb.PollExitResponse]] = []
+        poll_exit_responses: List[pb.PollExitResponse] = []
         for probe_handle in probe_handles:
             result = probe_handle.get_probe_result()
             if result:
                 poll_exit_responses.append(result.response.poll_exit_response)
 
-        Run._footer_file_pusher_status_info(poll_exit_responses, printer=self._printer)
+        self._progress_printer.update(poll_exit_responses)
 
     def _finish_all(self, streams: Dict[str, StreamRecord], exit_code: int) -> None:
         if not streams:
@@ -283,7 +284,7 @@ class StreamMux:
         printer = get_printer(
             all(stream._settings._jupyter for stream in streams.values())
         )
-        self._printer = printer
+        self._progress_printer = progress.ProgressPrinter(printer)
 
         # fixme: for now we have a single printer for all streams,
         # and jupyter is disabled if at least single stream's setting set `_jupyter` to false
@@ -313,6 +314,8 @@ class StreamMux:
             handles=exit_handles, timeout=-1, on_progress_all=self._on_progress_exit_all
         )
         assert got_result
+
+        self._progress_printer.finish()
 
         # These could be done in parallel in the future
         for _sid, stream in started_streams.items():
