@@ -3049,13 +3049,17 @@ pub struct CpuInfo {
     pub count_logical: u32,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GpuAppleInfo {
+pub struct AppleInfo {
     #[prost(string, tag = "1")]
-    pub gpu_type: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub vendor: ::prost::alloc::string::String,
+    pub name: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "2")]
+    pub ecpu_cores: u32,
     #[prost(uint32, tag = "3")]
-    pub cores: u32,
+    pub pcpu_cores: u32,
+    #[prost(uint32, tag = "4")]
+    pub gpu_cores: u32,
+    #[prost(uint32, tag = "5")]
+    pub memory_gb: u32,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GpuNvidiaInfo {
@@ -3172,7 +3176,7 @@ pub struct MetadataRequest {
     #[prost(message, optional, tag = "25")]
     pub cpu: ::core::option::Option<CpuInfo>,
     #[prost(message, optional, tag = "26")]
-    pub gpu_apple: ::core::option::Option<GpuAppleInfo>,
+    pub apple: ::core::option::Option<AppleInfo>,
     #[prost(message, repeated, tag = "27")]
     pub gpu_nvidia: ::prost::alloc::vec::Vec<GpuNvidiaInfo>,
     #[prost(message, repeated, tag = "28")]

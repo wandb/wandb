@@ -1,3 +1,6 @@
+/// System metrics service for W&B
+#![allow(dead_code)]
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 mod gpu_apple;
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -24,7 +27,8 @@ use wandb_internal::{
     request::RequestType,
     stats_record::StatsType,
     system_monitor_server::{SystemMonitor, SystemMonitorServer},
-    GetMetadataRequest, GetStatsRequest, Record, Request as Req, StatsItem, StatsRecord,
+    GetMetadataRequest, GetStatsRequest, GpuAppleInfo, Record, Request as Req, StatsItem,
+    StatsRecord,
 };
 
 #[derive(Parser, Debug)]
@@ -149,9 +153,29 @@ impl SystemMonitor for SystemMonitorImpl {
     ) -> Result<Response<Record>, Status> {
         println!("Got a request to get metadata: {:?}", request);
 
+        let all_metrics: Vec<(String, metrics::MetricValue)> = self.sample().await;
+
+        // convert to hashmap
+        let samples: std::collections::HashMap<String, &metrics::MetricValue> = all_metrics
+            .iter()
+            .map(|(name, value)| (name.to_string(), value))
+            .collect();
+
         let metadata_request = MetadataRequest {
             ..Default::default()
         };
+
+        // Apple metrics (ARM Mac only)
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        {
+            // let mut gpu_apple = GpuAppleInfo {
+            //     ..Default::default()
+            // };
+            // if let Some(&value) = samples.get("chip_name") {
+            //     // println!("Chip name: {}", value.to_string());
+            //     gpu_apple.gpu_type = value.to_string();
+            // }
+        }
 
         let record = Record {
             record_type: Some(RecordType::Request(Req {

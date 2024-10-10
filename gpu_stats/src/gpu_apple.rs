@@ -52,6 +52,11 @@ pub struct MemMetrics {
 
 #[derive(Debug, Default)]
 pub struct Metrics {
+    pub chip_name: String,
+    pub ecpu_cores: u8,
+    pub pcpu_cores: u8,
+    pub gpu_cores: u8,
+    pub memory_gb: u8,
     pub temp: TempMetrics,
     pub memory: MemMetrics,
     pub ecpu_usage: (u32, f32), // freq, percent_from_max
@@ -258,6 +263,12 @@ impl Sampler {
     pub fn get_metrics(&mut self, duration: u64) -> WithError<Metrics> {
         let mut rs = Metrics::default();
 
+        rs.chip_name = self.soc.chip_name.clone();
+        rs.ecpu_cores = self.soc.ecpu_cores;
+        rs.pcpu_cores = self.soc.pcpu_cores;
+        rs.gpu_cores = self.soc.gpu_cores;
+        rs.memory_gb = self.soc.memory_gb;
+
         let mut ecpu_usages = Vec::new();
         let mut pcpu_usages = Vec::new();
 
@@ -360,82 +371,145 @@ impl ThreadSafeSampler {
         let mut result = Vec::new();
 
         // Helper function to safely add metrics
-        fn add_metric(vec: &mut Vec<(&'static str, f64)>, key: &'static str, value: f64) {
+        fn add_finite_float(vec: &mut Vec<(String, MetricValue)>, key: String, value: f64) {
             // Only add non-NaN, non-infinite values
             if value.is_finite() {
-                vec.push((key, value));
+                vec.push((key, MetricValue::Float(value)));
             }
         }
 
         // Helper function for optional integer metrics
-        fn add_optional_int(vec: &mut Vec<(&'static str, f64)>, key: &'static str, value: u64) {
+        fn add_optional_int(vec: &mut Vec<(String, MetricValue)>, key: String, value: u64) {
             if value > 0 {
-                add_metric(vec, key, value as f64);
+                add_finite_float(vec, key, value as f64);
             }
         }
 
+        // Static metadata
+        result.push((
+            "chip_name".to_string(),
+            MetricValue::String(metrics.chip_name),
+        ));
+        result.push((
+            "ecpu_cores".to_string(),
+            MetricValue::Int(metrics.ecpu_cores as i64),
+        ));
+        result.push((
+            "pcpu_cores".to_string(),
+            MetricValue::Int(metrics.pcpu_cores as i64),
+        ));
+        result.push((
+            "gpu_cores".to_string(),
+            MetricValue::Int(metrics.gpu_cores as i64),
+        ));
+        result.push((
+            "memory_gb".to_string(),
+            MetricValue::Int(metrics.memory_gb as i64),
+        ));
+
         // Temperature metrics
         if metrics.temp.cpu_temp_avg.is_finite() {
-            add_metric(
+            add_finite_float(
                 &mut result,
-                "cpu.avg_temp",
+                "cpu.avg_temp".to_string(),
                 metrics.temp.cpu_temp_avg as f64,
             );
         }
         if metrics.temp.gpu_temp_avg.is_finite() {
-            add_metric(&mut result, "gpu.0.temp", metrics.temp.gpu_temp_avg as f64);
+            add_finite_float(
+                &mut result,
+                "gpu.0.temp".to_string(),
+                metrics.temp.gpu_temp_avg as f64,
+            );
         }
 
         // Memory metrics
-        add_optional_int(&mut result, "memory.total", metrics.memory.ram_total);
-        add_optional_int(&mut result, "memory.used", metrics.memory.ram_usage);
-        add_optional_int(&mut result, "swap.total", metrics.memory.swap_total);
-        add_optional_int(&mut result, "swap.used", metrics.memory.swap_usage);
+        add_optional_int(
+            &mut result,
+            "memory.total".to_string(),
+            metrics.memory.ram_total,
+        );
+        add_optional_int(
+            &mut result,
+            "memory.used".to_string(),
+            metrics.memory.ram_usage,
+        );
+        add_optional_int(
+            &mut result,
+            "swap.total".to_string(),
+            metrics.memory.swap_total,
+        );
+        add_optional_int(
+            &mut result,
+            "swap.used".to_string(),
+            metrics.memory.swap_usage,
+        );
 
         // CPU metrics
         let (ecpu_freq, ecpu_percent) = metrics.ecpu_usage;
         if ecpu_freq > 0 {
-            add_metric(&mut result, "cpu.ecpu_freq", ecpu_freq as f64);
+            add_finite_float(&mut result, "cpu.ecpu_freq".to_string(), ecpu_freq as f64);
         }
         if ecpu_percent.is_finite() {
-            add_metric(&mut result, "cpu.ecpu_percent", ecpu_percent as f64);
+            add_finite_float(
+                &mut result,
+                "cpu.ecpu_percent".to_string(),
+                ecpu_percent as f64,
+            );
         }
 
         let (pcpu_freq, pcpu_percent) = metrics.pcpu_usage;
         if pcpu_freq > 0 {
-            add_metric(&mut result, "cpu.pcpu_freq", pcpu_freq as f64);
+            add_finite_float(&mut result, "cpu.pcpu_freq".to_string(), pcpu_freq as f64);
         }
         if pcpu_percent.is_finite() {
-            add_metric(&mut result, "cpu.pcpu_percent", pcpu_percent as f64);
+            add_finite_float(
+                &mut result,
+                "cpu.pcpu_percent".to_string(),
+                pcpu_percent as f64,
+            );
         }
 
         // GPU metrics
         let (gpu_freq, gpu_percent) = metrics.gpu_usage;
         if gpu_freq > 0 {
-            add_metric(&mut result, "gpu.0.freq", gpu_freq as f64);
+            add_finite_float(&mut result, "gpu.0.freq".to_string(), gpu_freq as f64);
         }
         if gpu_percent.is_finite() {
-            add_metric(&mut result, "gpu.0.gpu", gpu_percent as f64);
+            add_finite_float(&mut result, "gpu.0.gpu".to_string(), gpu_percent as f64);
         }
 
         // Power metrics
         if metrics.cpu_power.is_finite() {
-            add_metric(&mut result, "cpu.powerWatts", metrics.cpu_power as f64);
+            add_finite_float(
+                &mut result,
+                "cpu.powerWatts".to_string(),
+                metrics.cpu_power as f64,
+            );
         }
         if metrics.gpu_power.is_finite() {
-            add_metric(&mut result, "gpu.0.powerWatts", metrics.gpu_power as f64);
+            add_finite_float(
+                &mut result,
+                "gpu.0.powerWatts".to_string(),
+                metrics.gpu_power as f64,
+            );
         }
         if metrics.ane_power.is_finite() {
-            add_metric(&mut result, "ane.power", metrics.ane_power as f64);
+            add_finite_float(
+                &mut result,
+                "ane.power".to_string(),
+                metrics.ane_power as f64,
+            );
         }
         if metrics.sys_power.is_finite() {
-            add_metric(&mut result, "system.powerWatts", metrics.sys_power as f64);
+            add_finite_float(
+                &mut result,
+                "system.powerWatts".to_string(),
+                metrics.sys_power as f64,
+            );
         }
 
         result
-            .into_iter()
-            .map(|(key, value)| (key.to_string(), MetricValue::Float(value)))
-            .collect()
     }
 }
 

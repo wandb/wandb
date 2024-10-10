@@ -1229,10 +1229,12 @@ message CpuInfo {
   uint32 count_logical = 2;
 }
 
-message GpuAppleInfo {
-  string gpuType = 1;
-  string vendor = 2;
-  uint32 cores = 3;
+message AppleInfo {
+  string name = 1;
+  uint32 ecpu_cores = 2;
+  uint32 pcpu_cores = 3;
+  uint32 gpu_cores = 4;
+  uint32 memory_gb = 5;
 }
 
 message GpuNvidiaInfo {
@@ -1298,7 +1300,7 @@ message MetadataRequest {
   map<string, DiskInfo> disk = 23;
   MemoryInfo memory = 24;
   CpuInfo cpu = 25;
-  GpuAppleInfo gpu_apple = 26 [json_name = "gpuapple"];
+  AppleInfo apple = 26;
   repeated GpuNvidiaInfo gpu_nvidia = 27 [json_name = "gpu_nvidia"];
   repeated GpuAmdInfo gpu_amd = 28 [json_name = "gpu_amd"];
   map<string, string> slurm = 29;
