@@ -6,7 +6,6 @@ import tensorboard.plugins.pr_curve.summary as pr_curve_plugins_summary
 import tensorboard.summary.v1 as tensorboard_summary_v1
 import tensorflow as tf
 import wandb
-from wandb.errors import term
 
 PR_CURVE_SPEC = {
     "panel_type": "Vega2",

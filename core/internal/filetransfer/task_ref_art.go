@@ -3,6 +3,7 @@ package filetransfer
 import (
 	"fmt"
 	"net/url"
+	"strings"
 )
 
 // ReferenceArtifactTask is a task to upload/download a reference artifacts
@@ -116,6 +117,11 @@ func (t *ReferenceArtifactDownloadTask) VersionIDNumber() (int64, bool) {
 	return intVal, ok
 }
 
+func (t *ReferenceArtifactDownloadTask) VersionIDString() (string, bool) {
+	strVersionId, ok := t.VersionId.(string)
+	return strVersionId, ok
+}
+
 func getStorageProvider(ref string, fts *FileTransfers) (ReferenceArtifactFileTransfer, error) {
 	uriParts, err := url.Parse(ref)
 	switch {
@@ -123,7 +129,28 @@ func getStorageProvider(ref string, fts *FileTransfers) (ReferenceArtifactFileTr
 		return nil, err
 	case uriParts.Scheme == "gs":
 		return fts.GCS, nil
+	case uriParts.Scheme == "s3":
+		return fts.S3, nil
 	default:
 		return nil, fmt.Errorf("reference artifact task: unknown reference type: %s", ref)
 	}
+}
+
+// parseReference parses the reference path and returns the bucket name and
+// object name.
+func parseCloudReference(
+	reference string,
+	expectedScheme string,
+) (string, string, error) {
+	uriParts, err := url.Parse(reference)
+	if err != nil {
+		return "", "", err
+	}
+	if uriParts.Scheme != expectedScheme {
+		err := fmt.Errorf("invalid %s URI %s", expectedScheme, reference)
+		return "", "", err
+	}
+	bucketName := uriParts.Host
+	objectName := strings.TrimPrefix(uriParts.Path, "/")
+	return bucketName, objectName, nil
 }

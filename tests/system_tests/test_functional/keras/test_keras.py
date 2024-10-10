@@ -1,7 +1,6 @@
 import pathlib
 
 import pytest
-from wandb.errors import term
 
 # TODO: these tests do not test much beyond the callback initialization.
 # We should add tests that check that the callbacks actually log the expected data.

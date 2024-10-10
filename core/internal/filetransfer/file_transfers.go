@@ -22,6 +22,9 @@ type FileTransfers struct {
 
 	// GCS connects to GCloud to upload/download files given their paths
 	GCS ReferenceArtifactFileTransfer
+
+	// S3 connects to AWS to upload/download files given their paths
+	S3 ReferenceArtifactFileTransfer
 }
 
 // NewFileTransfers creates a new fileTransfers
@@ -32,9 +35,11 @@ func NewFileTransfers(
 ) *FileTransfers {
 	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats)
 	gcsFileTransfer := NewGCSFileTransfer(nil, logger, fileTransferStats)
+	s3FileTransfer := NewS3FileTransfer(nil, logger, fileTransferStats)
 
 	return &FileTransfers{
 		Default: defaultFileTransfer,
 		GCS:     gcsFileTransfer,
+		S3:      s3FileTransfer,
 	}
 }
