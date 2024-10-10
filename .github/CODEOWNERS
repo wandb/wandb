@@ -15,7 +15,6 @@
 /core/ @wandb/sdk-team
 # system metrics
 /gpu_stats/ @wandb/sdk-team
-/apple_stats/ @wandb/sdk-team
 # CircleCI configuration
 /.circleci @wandb/sdk-team
 # GitHub configuration
