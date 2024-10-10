@@ -19,10 +19,12 @@ use gpu_apple::ThreadSafeSampler;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use gpu_nvidia::NvidiaGpu;
 use wandb_internal::record::RecordType;
+use wandb_internal::MetadataRequest;
 use wandb_internal::{
+    request::RequestType,
     stats_record::StatsType,
     system_monitor_server::{SystemMonitor, SystemMonitorServer},
-    GetMetadataRequest, GetStatsRequest, Record, StatsItem, StatsRecord,
+    GetMetadataRequest, GetStatsRequest, Record, Request as Req, StatsItem, StatsRecord,
 };
 
 #[derive(Parser, Debug)]
@@ -81,36 +83,19 @@ impl SystemMonitorImpl {
             nvidia_gpu,
         }
     }
-}
 
-#[tonic::async_trait]
-impl SystemMonitor for SystemMonitorImpl {
-    // tear_down takes an empty request and returns an empty response
-    async fn tear_down(&self, request: Request<()>) -> Result<Response<()>, Status> {
-        println!("Got a request to shutdown: {:?}", request);
-
-        // Signal the server to shutdown
-        let mut sender = self.shutdown_sender.lock().await;
-
-        if let Some(sender) = sender.take() {
-            sender.send(()).unwrap();
-        }
-        Ok(Response::new(()))
-    }
-
-    async fn get_stats(
-        &self,
-        request: Request<GetStatsRequest>,
-    ) -> Result<Response<Record>, Status> {
-        println!("Got a request to get stats: {:?}", request);
-
-        // Initialize an empty vector to store all metrics
+    async fn sample(&self) -> Vec<(String, metrics::MetricValue)> {
         let mut all_metrics = Vec::new();
 
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs_f64();
+
+        all_metrics.push((
+            "_timestamp".to_string(),
+            metrics::MetricValue::Float(timestamp),
+        ));
 
         // Apple metrics (ARM Mac only)
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -138,6 +123,53 @@ impl SystemMonitor for SystemMonitorImpl {
                 }
             }
         }
+
+        all_metrics
+    }
+}
+
+#[tonic::async_trait]
+impl SystemMonitor for SystemMonitorImpl {
+    // tear_down takes an empty request and returns an empty response
+    async fn tear_down(&self, request: Request<()>) -> Result<Response<()>, Status> {
+        println!("Got a request to shutdown: {:?}", request);
+
+        // Signal the server to shutdown
+        let mut sender = self.shutdown_sender.lock().await;
+
+        if let Some(sender) = sender.take() {
+            sender.send(()).unwrap();
+        }
+        Ok(Response::new(()))
+    }
+
+    async fn get_metadata(
+        &self,
+        request: Request<GetMetadataRequest>,
+    ) -> Result<Response<Record>, Status> {
+        println!("Got a request to get metadata: {:?}", request);
+
+        let metadata_request = MetadataRequest {
+            ..Default::default()
+        };
+
+        let record = Record {
+            record_type: Some(RecordType::Request(Req {
+                request_type: Some(RequestType::Metadata(metadata_request)),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+        Ok(Response::new(record))
+    }
+
+    async fn get_stats(
+        &self,
+        request: Request<GetStatsRequest>,
+    ) -> Result<Response<Record>, Status> {
+        println!("Got a request to get stats: {:?}", request);
+
+        let all_metrics = self.sample().await;
 
         // package metrics into a StatsRecord
         let stats_items: Vec<StatsItem> = all_metrics
@@ -205,14 +237,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     system_monitor.shutdown_sender = tokio::sync::Mutex::new(Some(shutdown_sender));
 
     // TODO: Reflection service
-    // let descriptor = "/Users/dimaduev/dev/sdk/gpu_stats/src/descriptor.bin";
-    // let binding = std::fs::read(descriptor).unwrap();
-    // let descriptor_bytes = binding.as_slice();
+    let descriptor = "/Users/dimaduev/dev/sdk/gpu_stats/src/descriptor.bin";
+    let binding = std::fs::read(descriptor).unwrap();
+    let descriptor_bytes = binding.as_slice();
 
-    // let reflection_service = tonic_reflection::server::Builder::configure()
-    //     .register_encoded_file_descriptor_set(descriptor_bytes)
-    //     .build_v1()
-    //     .unwrap();
+    let reflection_service = tonic_reflection::server::Builder::configure()
+        .register_encoded_file_descriptor_set(descriptor_bytes)
+        .build_v1()
+        .unwrap();
 
     let local_addr = listener.local_addr()?;
     // Write the port to the portfile
@@ -222,7 +254,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Server::builder()
         .add_service(SystemMonitorServer::new(system_monitor))
-        // .add_service(reflection_service)
+        .add_service(reflection_service)
         .serve_with_incoming_shutdown(
             tokio_stream::wrappers::TcpListenerStream::new(listener),
             async {

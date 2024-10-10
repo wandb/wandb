@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -25,7 +24,12 @@ type portfile struct {
 }
 
 func NewPortfile() *portfile {
-	return &portfile{path: filepath.Join(os.TempDir(), uuid.New().String())}
+	file, err := os.CreateTemp("", ".system-monitor-portfile")
+	if err != nil {
+		return nil
+	}
+	file.Close()
+	return &portfile{path: file.Name()}
 }
 
 func (p *portfile) Read(ctx context.Context) (int, error) {
@@ -82,6 +86,9 @@ func NewGPU(pid int32) *GPU {
 	g := &GPU{pid: pid}
 
 	pf := NewPortfile()
+	if pf == nil {
+		return nil
+	}
 
 	// start the gpu_stats binary, which will start a gRPC service and
 	// write the port number to the portfile
@@ -101,6 +108,7 @@ func NewGPU(pid int32) *GPU {
 		return nil
 	}
 
+	// TODO: make the timeout configurable
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	port, err := pf.Read(ctx)

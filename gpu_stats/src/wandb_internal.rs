@@ -3263,11 +3263,9 @@ pub struct JobInputRequest {
     #[prost(string, tag = "4")]
     pub input_schema: ::prost::alloc::string::String,
 }
-/// ***************************
-/// SystemMonitor GRPC service
-/// *************************
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct GetStatsRequest {
+    /// The ID of the process to track system metrics for, in addition to system-wide metrics.
     #[prost(int64, tag = "1")]
     pub pid: i64,
 }
@@ -3284,6 +3282,9 @@ pub mod system_monitor_client {
     )]
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    /// SystemMonitor gRPC service.
+    ///
+    /// This service is used to collect system metrics from the host machine.
     #[derive(Debug, Clone)]
     pub struct SystemMonitorClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -3364,6 +3365,7 @@ pub mod system_monitor_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
+        /// GetStats samples system metrics.
         pub async fn get_stats(
             &mut self,
             request: impl tonic::IntoRequest<super::GetStatsRequest>,
@@ -3385,7 +3387,29 @@ pub mod system_monitor_client {
                 .insert(GrpcMethod::new("wandb_internal.SystemMonitor", "GetStats"));
             self.inner.unary(req, path, codec).await
         }
-        /// rpc GetMetadata(GetMetadataRequest) returns (Record) {}
+        /// GetMetadata returns static metadata about the system.
+        pub async fn get_metadata(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetMetadataRequest>,
+        ) -> std::result::Result<tonic::Response<super::Record>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/wandb_internal.SystemMonitor/GetMetadata",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("wandb_internal.SystemMonitor", "GetMetadata"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// TearDown tears down the system monitor.
         pub async fn tear_down(
             &mut self,
             request: impl tonic::IntoRequest<()>,
@@ -3422,16 +3446,25 @@ pub mod system_monitor_server {
     /// Generated trait containing gRPC methods that should be implemented for use with SystemMonitorServer.
     #[async_trait]
     pub trait SystemMonitor: std::marker::Send + std::marker::Sync + 'static {
+        /// GetStats samples system metrics.
         async fn get_stats(
             &self,
             request: tonic::Request<super::GetStatsRequest>,
         ) -> std::result::Result<tonic::Response<super::Record>, tonic::Status>;
-        /// rpc GetMetadata(GetMetadataRequest) returns (Record) {}
+        /// GetMetadata returns static metadata about the system.
+        async fn get_metadata(
+            &self,
+            request: tonic::Request<super::GetMetadataRequest>,
+        ) -> std::result::Result<tonic::Response<super::Record>, tonic::Status>;
+        /// TearDown tears down the system monitor.
         async fn tear_down(
             &self,
             request: tonic::Request<()>,
         ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
     }
+    /// SystemMonitor gRPC service.
+    ///
+    /// This service is used to collect system metrics from the host machine.
     #[derive(Debug)]
     pub struct SystemMonitorServer<T> {
         inner: Arc<T>,
@@ -3538,6 +3571,51 @@ pub mod system_monitor_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = GetStatsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/wandb_internal.SystemMonitor/GetMetadata" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetMetadataSvc<T: SystemMonitor>(pub Arc<T>);
+                    impl<
+                        T: SystemMonitor,
+                    > tonic::server::UnaryService<super::GetMetadataRequest>
+                    for GetMetadataSvc<T> {
+                        type Response = super::Record;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetMetadataRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as SystemMonitor>::get_metadata(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetMetadataSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

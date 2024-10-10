@@ -1358,17 +1358,21 @@ message JobInputRequest {
   string input_schema = 4;
 }
 
-/****************************
- * SystemMonitor GRPC service
- ***************************/
+// SystemMonitor gRPC service.
+//
+// This service is used to collect system metrics from the host machine.
+service SystemMonitor {
+  // GetStats samples system metrics.
+  rpc GetStats(GetStatsRequest) returns (Record) {}
+  // GetMetadata returns static metadata about the system.
+  rpc GetMetadata(GetMetadataRequest) returns (Record) {}
+  // TearDown tears down the system monitor.
+  rpc TearDown(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+}
+
 message GetStatsRequest {
+  // The ID of the process to track system metrics for, in addition to system-wide metrics.
   int64 pid = 1;
 }
 
 message GetMetadataRequest {}
-
-service SystemMonitor {
-  rpc GetStats(GetStatsRequest) returns (Record) {}
-  // rpc GetMetadata(GetMetadataRequest) returns (Record) {}
-  rpc TearDown(google.protobuf.Empty) returns (google.protobuf.Empty) {}
-}
