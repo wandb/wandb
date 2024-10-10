@@ -93,7 +93,6 @@ func NewGPU(pid int32) *GPU {
 	// start the gpu_stats binary, which will start a gRPC service and
 	// write the port number to the portfile
 	cmdPath, err := getGPUStatsCmdPath()
-	fmt.Println(cmdPath, err)
 	if err != nil {
 		return nil
 	}
@@ -102,9 +101,7 @@ func NewGPU(pid int32) *GPU {
 		"--portfile",
 		pf.path,
 	)
-	fmt.Println(cmd)
 	if err := cmd.Start(); err != nil {
-		fmt.Println(err)
 		return nil
 	}
 
@@ -117,7 +114,7 @@ func NewGPU(pid int32) *GPU {
 	}
 	err = pf.Delete()
 	if err != nil {
-		fmt.Println(err)
+		return nil
 	}
 
 	// Establish connection to gpu_stats via gRPC.
@@ -180,6 +177,10 @@ func (g *GPU) Sample() (map[string]any, error) {
 		if err != nil {
 			continue
 		}
+		// skip underscored keys
+		if strings.HasPrefix(item.Key, "_") {
+			continue
+		}
 		metrics[item.Key] = unmarshalled
 	}
 
@@ -187,7 +188,11 @@ func (g *GPU) Sample() (map[string]any, error) {
 }
 
 func (g *GPU) Probe() *spb.MetadataRequest {
-	return &spb.MetadataRequest{}
+	metadata, err := g.client.GetMetadata(context.Background(), &spb.GetMetadataRequest{})
+	if err != nil {
+		return nil
+	}
+	return metadata.GetRequest().GetMetadata()
 }
 
 func (g *GPU) Close() {

@@ -1,5 +1,4 @@
 /// System metrics service for W&B
-#![allow(dead_code)]
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 mod gpu_apple;
@@ -27,8 +26,7 @@ use wandb_internal::{
     request::RequestType,
     stats_record::StatsType,
     system_monitor_server::{SystemMonitor, SystemMonitorServer},
-    GetMetadataRequest, GetStatsRequest, GpuAppleInfo, Record, Request as Req, StatsItem,
-    StatsRecord,
+    AppleInfo, GetMetadataRequest, GetStatsRequest, Record, Request as Req, StatsItem, StatsRecord,
 };
 
 #[derive(Parser, Debug)]
@@ -161,20 +159,41 @@ impl SystemMonitor for SystemMonitorImpl {
             .map(|(name, value)| (name.to_string(), value))
             .collect();
 
-        let metadata_request = MetadataRequest {
+        let mut metadata_request = MetadataRequest {
             ..Default::default()
         };
 
-        // Apple metrics (ARM Mac only)
+        // Apple metadata (ARM Mac only)
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         {
-            // let mut gpu_apple = GpuAppleInfo {
-            //     ..Default::default()
-            // };
-            // if let Some(&value) = samples.get("chip_name") {
-            //     // println!("Chip name: {}", value.to_string());
-            //     gpu_apple.gpu_type = value.to_string();
-            // }
+            let mut gpu_apple = AppleInfo {
+                ..Default::default()
+            };
+            if let Some(&value) = samples.get("_apple.chip_name") {
+                gpu_apple.name = value.to_string();
+            }
+            if let Some(&value) = samples.get("_apple.ecpu_cores") {
+                if let metrics::MetricValue::Int(ecpu_cores) = value {
+                    gpu_apple.ecpu_cores = *ecpu_cores as u32;
+                }
+            }
+            if let Some(&value) = samples.get("_apple.pcpu_cores") {
+                if let metrics::MetricValue::Int(pcpu_cores) = value {
+                    gpu_apple.pcpu_cores = *pcpu_cores as u32;
+                }
+            }
+            if let Some(&value) = samples.get("_apple.gpu_cores") {
+                if let metrics::MetricValue::Int(gpu_cores) = value {
+                    gpu_apple.gpu_cores = *gpu_cores as u32;
+                }
+            }
+            if let Some(&value) = samples.get("_apple.memory_gb") {
+                if let metrics::MetricValue::Int(memory_gb) = value {
+                    gpu_apple.memory_gb = *memory_gb as u32;
+                }
+            }
+
+            metadata_request.apple = Some(gpu_apple);
         }
 
         let record = Record {

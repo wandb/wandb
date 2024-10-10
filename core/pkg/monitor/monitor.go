@@ -133,16 +133,9 @@ func (sm *SystemMonitor) InitializeAssets(settings *spb.Settings) {
 	if gpu := NewGPU(pid); gpu != nil {
 		sm.assets = append(sm.assets, gpu)
 	}
-	cmdPath := ""
-	if gpu := NewGPUNvidia(sm.logger, pid, samplingInterval, cmdPath); gpu != nil {
-		sm.assets = append(sm.assets, gpu)
-	}
 	if gpu := NewGPUAMD(sm.logger); gpu != nil {
 		sm.assets = append(sm.assets, gpu)
 	}
-	// if gpu := NewGPUApple(); gpu != nil {
-	// 	sm.assets = append(sm.assets, gpu)
-	// }
 	if tpu := NewTPU(); tpu != nil {
 		sm.assets = append(sm.assets, tpu)
 	}
@@ -319,8 +312,6 @@ func (sm *SystemMonitor) monitorAsset(asset Asset) {
 			// NOTE: the pattern in Sample is to capture whatever metrics are available,
 			// accumulate errors along the way, and log them here.
 			metrics, err := asset.Sample()
-			fmt.Println(metrics)
-			fmt.Println()
 			if err != nil {
 				sm.logger.CaptureError(
 					fmt.Errorf("monitor: %v: error sampling metrics: %v", asset.Name(), err),

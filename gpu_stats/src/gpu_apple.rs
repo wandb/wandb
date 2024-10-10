@@ -387,23 +387,23 @@ impl ThreadSafeSampler {
 
         // Static metadata
         result.push((
-            "chip_name".to_string(),
+            "_apple.chip_name".to_string(),
             MetricValue::String(metrics.chip_name),
         ));
         result.push((
-            "ecpu_cores".to_string(),
+            "_apple.ecpu_cores".to_string(),
             MetricValue::Int(metrics.ecpu_cores as i64),
         ));
         result.push((
-            "pcpu_cores".to_string(),
+            "_apple.pcpu_cores".to_string(),
             MetricValue::Int(metrics.pcpu_cores as i64),
         ));
         result.push((
-            "gpu_cores".to_string(),
+            "_apple.gpu_cores".to_string(),
             MetricValue::Int(metrics.gpu_cores as i64),
         ));
         result.push((
-            "memory_gb".to_string(),
+            "_apple.memory_gb".to_string(),
             MetricValue::Int(metrics.memory_gb as i64),
         ));
 

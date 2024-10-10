@@ -13,7 +13,6 @@ from typing_extensions import override
 
 # A small hack to allow importing build scripts from the source tree.
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from apple_stats import hatch as hatch_apple_stats  # noqa: I001 E402
 from core import hatch as hatch_core  # noqa: I001 E402
 from gpu_stats import hatch as hatch_gpu_stats  # noqa: I001 E402
 
@@ -41,9 +40,6 @@ class CustomBuildHook(BuildHookInterface):
 
         if self._include_wandb_core():
             artifacts.extend(self._build_wandb_core())
-
-        if self._include_apple_stats():
-            artifacts.extend(self._build_apple_stats())
 
         if self._include_gpu_stats():
             artifacts.extend(self._build_gpu_stats())
@@ -87,33 +83,13 @@ class CustomBuildHook(BuildHookInterface):
         """Returns whether we should produce a wheel with wandb-core."""
         return not self._must_build_universal()
 
-    def _include_apple_stats(self) -> bool:
-        """Returns whether we should produce a wheel with apple_gpu_stats.
-
-        The Apple GPU stats binary is only built for macOS arm64.
-        """
-        return (
-            not self._must_build_universal()
-            and not _get_env_bool(_WANDB_BUILD_SKIP_APPLE, default=False)
-            and self._target_platform().goos == "darwin"
-            and self._target_platform().goarch == "arm64"
-        )
-
     def _include_gpu_stats(self) -> bool:
         """Returns whether we should produce a wheel with gpu_stats."""
         return not _get_env_bool(_WANDB_BUILD_SKIP_GPU_STATS, default=False)
 
     def _is_platform_wheel(self) -> bool:
         """Returns whether we're producing a platform-specific wheel."""
-        return self._include_wandb_core() or self._include_apple_stats()
-
-    def _build_apple_stats(self) -> List[str]:
-        output = pathlib.Path("wandb", "bin", "apple_gpu_stats")
-
-        self.app.display_waiting("Building apple_gpu_stats...")
-        hatch_apple_stats.build_applestats(output_path=output)
-
-        return [output.as_posix()]
+        return self._include_wandb_core()
 
     def _get_and_require_cargo_binary(self) -> pathlib.Path:
         cargo = shutil.which("cargo")
