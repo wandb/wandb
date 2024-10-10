@@ -280,3 +280,49 @@ def test_summary_remove_nested(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run.id)
     assert summary == {"a": {"c": 3}}
+
+
+@pytest.mark.parametrize(
+    "method, args",
+    [
+        ("alert", ["test", "test"]),
+        ("define_metric", ["test"]),
+        ("log", [{"test": 2}]),
+        ("log_code", []),
+        ("mark_preempting", []),
+        ("save", []),
+        ("status", []),
+        ("link_artifact", [wandb.Artifact("test", type="dataset"), "input"]),
+        ("use_artifact", ["test"]),
+        ("log_artifact", ["test"]),
+        ("upsert_artifact", ["test"]),
+        ("finish_artifact", ["test"]),
+    ],
+)
+def test_error_when_using_methods_of_finished_run(wandb_init, method, args):
+    run = wandb_init()
+    run.finish()
+
+    with pytest.raises(wandb.errors.UsageError):
+        getattr(run, method)(*args)
+
+
+@pytest.mark.parametrize(
+    "attribute, value",
+    [
+        ("config", ["test", 2]),
+        ("summary", ["test", 2]),
+        ("name", "test"),
+        ("notes", "test"),
+        ("tags", "test"),
+    ],
+)
+def test_error_when_using_attributes_of_finished_run(wandb_init, attribute, value):
+    run = wandb_init()
+    run.finish()
+
+    with pytest.raises(wandb.errors.UsageError):
+        if isinstance(value, list):
+            setattr(getattr(run, attribute), *value)
+        else:
+            setattr(run, attribute, value)
