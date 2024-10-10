@@ -2678,8 +2678,14 @@ class Run:
         # wait for them, it's ok to do this serially but this can be improved
         result = poll_exit_handle.wait(timeout=-1)
         assert result
+
         progress_printer.update([result.response.poll_exit_response])
         progress_printer.finish()
+        progress.print_sync_dedupe_stats(
+            self._printer,
+            result.response.poll_exit_response,
+        )
+
         self._poll_exit_response = result.response.poll_exit_response
         internal_messages_handle = self._backend.interface.deliver_internal_messages()
         result = internal_messages_handle.wait(timeout=-1)

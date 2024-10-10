@@ -7,6 +7,25 @@ from wandb.proto import wandb_internal_pb2
 from . import printer as p
 
 
+def print_sync_dedupe_stats(
+    printer: p.PrinterJupyter | p.PrinterTerm,
+    final_result: wandb_internal_pb2.PollExitResponse,
+) -> None:
+    """Print how much W&B sync reduced the amount of uploaded data.
+
+    Args:
+        final_result: The final PollExit result.
+    """
+    deduped_bytes = final_result.pusher_stats.deduped_bytes
+    total_bytes = final_result.pusher_stats.total_bytes
+
+    if total_bytes <= 0 or deduped_bytes <= 0:
+        return
+
+    frac = deduped_bytes / total_bytes
+    printer.display(f"W&B sync reduced upload amount by {frac:.1%}")
+
+
 class ProgressPrinter:
     """Displays PollExitResponse results to the user."""
 
