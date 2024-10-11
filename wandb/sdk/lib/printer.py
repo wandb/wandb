@@ -167,7 +167,7 @@ class PrinterTerm(_Printer):
         self._progress = itertools.cycle(["-", "\\", "|", "/"])
 
     @override
-    def dynamic_text(self) -> DynamicText | None:
+    def dynamic_text(self) -> Optional[DynamicText]:
         handle = term.dynamic_text()
 
         if not handle:
