@@ -5,6 +5,8 @@ package wandb_internal;
 import "google/protobuf/empty.proto";
 import "wandb/proto/wandb_internal.proto";
 
+option go_package = "core/pkg/service_go_proto";
+
 // SystemMonitor gRPC service.
 //
 // This service is used to collect system metrics from the host machine.
