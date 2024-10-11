@@ -66,6 +66,16 @@ namespace Wandb.Internal
                 ? message.RecordCommunicate.Control.MailboxSlot
                 : string.Empty;
 
+            // TODO: Authenticate message is a ServerRequest, which normally does not
+            // expect a response, but in this case, we do. A random ID stored as
+            // StreamId is used to identify the response.
+            if (string.IsNullOrEmpty(messageId))
+            {
+                messageId = message.Authenticate != null
+                    ? message.Authenticate.Info.StreamId
+                    : string.Empty;
+            }
+
             var data = message.ToByteArray();
             var packet = Pack(data);
 
@@ -210,7 +220,17 @@ namespace Wandb.Internal
         private void ProcessReceivedMessage(ServerResponse message)
         {
             // TODO: This must exist in the message, but need to gracefully handle it if it doesn't
-            var messageId = message.ResultCommunicate.Control.MailboxSlot;
+            var messageId = message.ResultCommunicate != null
+                ? message.ResultCommunicate.Control.MailboxSlot
+                : string.Empty;
+
+            // A special case/hack for login messages
+            if (string.IsNullOrEmpty(messageId))
+            {
+                messageId = message.AuthenticateResponse != null
+                    ? message.AuthenticateResponse.Info.StreamId
+                    : string.Empty;
+            }
 
             if (_pendingRequests.TryRemove(messageId, out var tcs))
             {

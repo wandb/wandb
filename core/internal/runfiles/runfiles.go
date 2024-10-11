@@ -15,6 +15,7 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
+	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -59,6 +60,7 @@ type UploaderTesting interface {
 type UploaderParams struct {
 	ExtraWork    runwork.ExtraWork
 	Logger       *observability.CoreLogger
+	Operations   *wboperation.WandbOperations
 	Settings     *settings.Settings
 	FileStream   filestream.FileStream
 	FileTransfer filetransfer.FileTransferManager

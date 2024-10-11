@@ -36,7 +36,7 @@ const validLinkArtifactResponse = `{
 	"linkArtifact": { "versionIndex": 0 }
 }`
 
-func makeSender(client graphql.Client, recordChan chan *spb.Record, resultChan chan *spb.Result) *server.Sender {
+func makeSender(client graphql.Client, resultChan chan *spb.Result) *server.Sender {
 	runWork := runworktest.New()
 	logger := observability.NewNoOpLogger()
 	settings := wbsettings.From(&spb.Settings{
@@ -46,7 +46,13 @@ func makeSender(client graphql.Client, recordChan chan *spb.Record, resultChan c
 	})
 	backend := server.NewBackend(logger, settings)
 	fileStream := server.NewFileStream(
-		backend, logger, observability.NewPrinter(), settings, nil)
+		backend,
+		logger,
+		nil, // operations
+		observability.NewPrinter(),
+		settings,
+		nil, // peeker
+	)
 	fileTransferManager := server.NewFileTransferManager(
 		filetransfer.NewFileTransferStats(),
 		logger,
@@ -55,6 +61,7 @@ func makeSender(client graphql.Client, recordChan chan *spb.Record, resultChan c
 	runfilesUploader := server.NewRunfilesUploader(
 		runWork,
 		logger,
+		nil, // operations
 		settings,
 		fileStream,
 		fileTransferManager,
@@ -86,7 +93,7 @@ func TestSendRun(t *testing.T) {
 		validUpsertBucketResponse,
 	)
 	outChan := make(chan *spb.Result, 1)
-	sender := makeSender(mockGQL, make(chan *spb.Record, 1), outChan)
+	sender := makeSender(mockGQL, outChan)
 
 	run := &spb.Record{
 		RecordType: &spb.Record_Run{
@@ -124,7 +131,7 @@ func TestSendRun(t *testing.T) {
 func TestSendLinkArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 	outChan := make(chan *spb.Result, 1)
-	sender := makeSender(mockGQL, make(chan *spb.Record, 1), outChan)
+	sender := makeSender(mockGQL, outChan)
 
 	// 1. When both clientId and serverId are sent, serverId is used
 	linkArtifact := &spb.Record{
@@ -240,7 +247,7 @@ func TestSendLinkArtifact(t *testing.T) {
 
 func TestSendUseArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	sender := makeSender(mockGQL, make(chan *spb.Record, 1), make(chan *spb.Result, 1))
+	sender := makeSender(mockGQL, make(chan *spb.Result, 1))
 
 	useArtifact := &spb.Record{
 		RecordType: &spb.Record_UseArtifact{

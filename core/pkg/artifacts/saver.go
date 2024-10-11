@@ -23,6 +23,7 @@ import (
 	"github.com/wandb/wandb/core/internal/namedgoroutines"
 	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -176,7 +177,7 @@ func (as *ArtifactSaver) createArtifact() (
 	}
 
 	// Check which fields are actually supported on the input
-	inputFieldNames, err := getInputFields(as.ctx, as.graphqlClient, "CreateArtifactInput")
+	inputFieldNames, err := GetGraphQLInputFields(as.ctx, as.graphqlClient, "CreateArtifactInput")
 	if err != nil {
 		return gql.CreatedArtifactArtifact{}, err
 	}
@@ -215,23 +216,6 @@ func (as *ArtifactSaver) createArtifact() (
 		return gql.CreatedArtifactArtifact{}, err
 	}
 	return response.GetCreateArtifact().GetArtifact(), nil
-}
-
-func getInputFields(ctx context.Context, client graphql.Client, typeName string) ([]string, error) {
-	response, err := gql.InputFields(ctx, client, typeName)
-	if err != nil {
-		return nil, err
-	}
-	typeInfo := response.GetTypeInfo()
-	if typeInfo == nil {
-		return nil, fmt.Errorf("unable to verify allowed fields for %s", typeName)
-	}
-	fields := typeInfo.GetInputFields()
-	fieldNames := make([]string, len(fields))
-	for i, field := range fields {
-		fieldNames[i] = field.GetName()
-	}
-	return fieldNames, nil
 }
 
 type createArtifactManifest = gql.CreateArtifactManifestCreateArtifactManifestCreateArtifactManifestPayloadArtifactManifest
@@ -363,7 +347,8 @@ func (as *ArtifactSaver) uploadFiles(
 }
 
 func (as *ArtifactSaver) processFiles(
-	manifest *Manifest, namedFileSpecs map[string]gql.CreateArtifactFileSpecInput,
+	manifest *Manifest,
+	namedFileSpecs map[string]gql.CreateArtifactFileSpecInput,
 ) (map[string]gql.CreateArtifactFileSpecInput, error) {
 	// Channels to get responses from the batch url retrievers.
 	readyChan := make(chan serverFileResponse)
@@ -406,8 +391,11 @@ func (as *ArtifactSaver) processFiles(
 					doneChan <- as.uploadMultipart(*entry.LocalPath, fileInfo, partData)
 				}()
 			} else {
+				suboperation := wboperation.Get(as.ctx).Subtask(fileInfo.name)
 				task := newUploadTask(fileInfo, *entry.LocalPath)
+				task.Context = suboperation.Context(as.ctx)
 				task.OnComplete = func() {
+					suboperation.Finish()
 					doneChan <- uploadResult{name: fileInfo.name, err: task.Err}
 				}
 				as.fileTransferManager.AddTask(task)
@@ -484,7 +472,10 @@ func (as *ArtifactSaver) batchSize() int {
 	return max(min(maxBatchSize, filesPerMin), minBatchSize)
 }
 
-func newUploadTask(fileInfo serverFileResponse, localPath string) *filetransfer.DefaultUploadTask {
+func newUploadTask(
+	fileInfo serverFileResponse,
+	localPath string,
+) *filetransfer.DefaultUploadTask {
 	return &filetransfer.DefaultUploadTask{
 		FileKind: filetransfer.RunFileKindArtifact,
 		Path:     localPath,
@@ -569,7 +560,13 @@ func (as *ArtifactSaver) uploadMultipart(
 
 	partInfo := fileInfo.multipartUploadInfo
 	for i, part := range partInfo {
+		suboperation := wboperation.Get(as.ctx).Subtask(
+			fmt.Sprintf(
+				"%s (%d/%d)",
+				fileInfo.name, i+1, len(partInfo),
+			))
 		task := newUploadTask(fileInfo, path)
+		task.Context = suboperation.Context(as.ctx)
 		task.Url = part.UploadUrl
 		task.Offset = int64(i) * chunkSize
 		remainingSize := statInfo.Size() - task.Offset
@@ -584,6 +581,7 @@ func (as *ArtifactSaver) uploadMultipart(
 			"Content-Type:" + contentType,
 		}
 		task.OnComplete = func() {
+			suboperation.Finish()
 			partResponses <- partResponse{partNumber: partData[i].PartNumber, task: task}
 			wg.Done()
 		}

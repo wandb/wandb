@@ -66,3 +66,28 @@ func CopyFile(src, dst string) error {
 
 	return nil
 }
+
+// CopyReaderToFile copies the contents of a reader to the destination path.
+//
+// If the destination directory does not exist, it will be created.
+// If the destination file already exists, it will be overwritten.
+// Returns an error if something goes wrong during the process.
+func CopyReaderToFile(reader io.Reader, dst string) error {
+	// Create destination directory if it doesn't exist
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return fmt.Errorf("unable to create destination directory %s: %w", filepath.Dir(dst), err)
+	}
+
+	destination, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("unable to create destination file %s: %w", dst, err)
+	}
+	defer destination.Close()
+
+	// Copy the contents of the reader to the destination file
+	if _, err := io.Copy(destination, reader); err != nil {
+		return fmt.Errorf("copy failed: %w", err)
+	}
+
+	return nil
+}
