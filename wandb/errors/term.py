@@ -92,7 +92,7 @@ def dynamic_text() -> DynamicBlock | None:
     # NOTE: In Jupyter notebooks, this will return False. Notebooks
     #   support ANSI color sequences and the '\r' character, but not
     #   cursor motions or line clear commands.
-    if not sys.stderr.isatty():
+    if not _sys_stderr_isatty():
         return None
 
     # This is a convention to indicate that the terminal doesn't support
@@ -111,6 +111,14 @@ def dynamic_text() -> DynamicBlock | None:
         block = DynamicBlock()
         _dynamic_blocks.append(block)
         return block
+
+
+def _sys_stderr_isatty() -> bool:
+    """Returns sys.stderr.isatty().
+
+    Defined here for patching in tests.
+    """
+    return sys.stderr.isatty()
 
 
 def termlog(
@@ -187,7 +195,8 @@ class DynamicBlock:
     """A handle to a changeable text area in the terminal."""
 
     def __init__(self):
-        self._num_printed_lines = 0
+        self._lines_to_print = []
+        self._num_lines_printed = 0
 
     def set_text(self, text: str, prefix=True) -> None:
         r"""Replace the text in this block.
@@ -199,10 +208,12 @@ class DynamicBlock:
             prefix: Whether to include the "wandb:" prefix.
         """
         with _dynamic_text_lock:
-            self._lines = text.splitlines()
+            self._lines_to_print = text.splitlines()
 
             if prefix:
-                self._lines = [f"{LOG_STRING}: {line}" for line in self._lines]
+                self._lines_to_print = [
+                    f"{LOG_STRING}: {line}" for line in self._lines_to_print
+                ]
 
             _l_rerender_dynamic_blocks()
 
@@ -212,7 +223,7 @@ class DynamicBlock:
         After this, updates to this dynamic block are ignored.
         """
         with _dynamic_text_lock:
-            self._lines = []
+            self._lines_to_print = []
             _l_rerender_dynamic_blocks()
             _dynamic_blocks.remove(self)
 
@@ -231,20 +242,20 @@ class DynamicBlock:
         # \r       move cursor to start of line
         move_up_and_delete_line = "\r\x1b[Am\x1b[2K\r"
         click.echo(
-            move_up_and_delete_line * self._num_printed_lines,
+            move_up_and_delete_line * self._num_lines_printed,
             file=sys.stderr,
             nl=False,
         )
-        self._num_printed_lines = 0
+        self._num_lines_printed = 0
 
     def _l_print(self) -> None:
         """Print out this block of text.
 
         The lock must be held.
         """
-        for line in self._lines:
+        for line in self._lines_to_print:
             click.echo(line, file=sys.stderr)
-            self._num_printed_lines += 1
+            self._num_lines_printed += 1
 
 
 def _log(
