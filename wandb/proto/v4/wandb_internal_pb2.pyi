@@ -4278,31 +4278,3 @@ class JobInputRequest(google.protobuf.message.Message):
     def ClearField(self, field_name: typing_extensions.Literal["exclude_paths", b"exclude_paths", "include_paths", b"include_paths", "input_schema", b"input_schema", "input_source", b"input_source"]) -> None: ...
 
 global___JobInputRequest = JobInputRequest
-
-@typing_extensions.final
-class GetStatsRequest(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    PID_FIELD_NUMBER: builtins.int
-    pid: builtins.int
-    """Capture the system metrics for the process with this PID, in addition to
-    system-wide metrics.
-    """
-    def __init__(
-        self,
-        *,
-        pid: builtins.int = ...,
-    ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["pid", b"pid"]) -> None: ...
-
-global___GetStatsRequest = GetStatsRequest
-
-@typing_extensions.final
-class GetMetadataRequest(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    def __init__(
-        self,
-    ) -> None: ...
-
-global___GetMetadataRequest = GetMetadataRequest

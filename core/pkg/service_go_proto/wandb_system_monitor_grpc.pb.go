@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v4.23.4
-// source: wandb/proto/wandb_internal.proto
+// source: wandb/proto/wandb_system_monitor.proto
 
 package service_go_proto
 
@@ -208,5 +208,5 @@ var SystemMonitor_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "wandb/proto/wandb_internal.proto",
+	Metadata: "wandb/proto/wandb_system_monitor.proto",
 }
