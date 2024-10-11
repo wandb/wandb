@@ -1,4 +1,4 @@
-package server
+package stream
 
 // This file contains functions to construct the objects used by a Stream.
 

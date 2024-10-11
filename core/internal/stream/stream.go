@@ -1,4 +1,4 @@
-package server
+package stream
 
 import (
 	"fmt"
@@ -29,6 +29,8 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+const BufferSize = 32
+
 // Stream processes incoming records for a single run.
 //
 // wandb consists of a service process (this code) to which one or more
@@ -39,14 +41,14 @@ type Stream struct {
 	// runWork is a channel of records to process.
 	runWork runwork.RunWork
 
-	// logger is the logger for the stream
-	logger *observability.CoreLogger
+	// Logger is the Logger for the stream
+	Logger *observability.CoreLogger
 
 	// wg is the WaitGroup for the stream
 	wg sync.WaitGroup
 
-	// settings is the settings for the stream
-	settings *settings.Settings
+	// Settings is the Settings for the stream
+	Settings *settings.Settings
 
 	// handler is the handler for the stream
 	handler *Handler
@@ -148,8 +150,8 @@ func NewStream(
 	logger := streamLogger(opts.Settings, opts.Sentry, opts.LoggerPath)
 	s := &Stream{
 		runWork:      runwork.New(BufferSize, logger),
-		logger:       logger,
-		settings:     opts.Settings,
+		Logger:       logger,
+		Settings:     opts.Settings,
 		sentryClient: opts.Sentry,
 	}
 
@@ -159,7 +161,7 @@ func NewStream(
 		// Better behavior would be to inform the user and turn off any
 		// components that rely on the hostname, but it's not easy to do
 		// with our current code structure.
-		s.logger.CaptureError(
+		s.Logger.CaptureError(
 			fmt.Errorf("stream: could not get hostname: %v", err))
 		hostname = ""
 	}
@@ -168,13 +170,13 @@ func NewStream(
 	peeker := &observability.Peeker{}
 	terminalPrinter := observability.NewPrinter()
 
-	backendOrNil := NewBackend(s.logger, opts.Settings)
+	backendOrNil := NewBackend(s.Logger, opts.Settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
-	fileWatcher := watcher.New(watcher.Params{Logger: s.logger})
+	fileWatcher := watcher.New(watcher.Params{Logger: s.Logger})
 	tbHandler := tensorboard.NewTBHandler(tensorboard.Params{
 		ExtraWork: s.runWork,
-		Logger:    s.logger,
-		Settings:  s.settings,
+		Logger:    s.Logger,
+		Settings:  s.Settings,
 		Hostname:  hostname,
 	})
 	var graphqlClientOrNil graphql.Client
@@ -185,7 +187,7 @@ func NewStream(
 		graphqlClientOrNil = NewGraphQLClient(backendOrNil, opts.Settings, peeker)
 		fileStreamOrNil = NewFileStream(
 			backendOrNil,
-			s.logger,
+			s.Logger,
 			operations,
 			terminalPrinter,
 			opts.Settings,
@@ -193,12 +195,12 @@ func NewStream(
 		)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileTransferStats,
-			s.logger,
+			s.Logger,
 			opts.Settings,
 		)
 		runfilesUploaderOrNil = NewRunfilesUploader(
 			s.runWork,
-			s.logger,
+			s.Logger,
 			operations,
 			opts.Settings,
 			fileStreamOrNil,
@@ -212,12 +214,12 @@ func NewStream(
 
 	s.handler = NewHandler(opts.Commit,
 		HandlerParams{
-			Logger:            s.logger,
+			Logger:            s.Logger,
 			Operations:        operations,
-			Settings:          s.settings.Proto,
+			Settings:          s.Settings.Proto,
 			FwdChan:           make(chan runwork.Work, BufferSize),
 			OutChan:           make(chan *spb.Result, BufferSize),
-			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.runWork),
+			SystemMonitor:     monitor.NewSystemMonitor(s.Logger, s.Settings.Proto, s.runWork),
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
 			Mailbox:           mailbox,
@@ -227,8 +229,8 @@ func NewStream(
 
 	s.writer = NewWriter(
 		WriterParams{
-			Logger:   s.logger,
-			Settings: s.settings.Proto,
+			Logger:   s.Logger,
+			Settings: s.Settings.Proto,
 			FwdChan:  make(chan runwork.Work, BufferSize),
 		},
 	)
@@ -250,9 +252,9 @@ func NewStream(
 	s.sender = NewSender(
 		s.runWork,
 		SenderParams{
-			Logger:              s.logger,
+			Logger:              s.Logger,
 			Operations:          operations,
-			Settings:            s.settings,
+			Settings:            s.Settings,
 			Backend:             backendOrNil,
 			FileStream:          fileStreamOrNil,
 			FileTransferManager: fileTransferManagerOrNil,
@@ -269,9 +271,9 @@ func NewStream(
 		},
 	)
 
-	s.dispatcher = NewDispatcher(s.logger)
+	s.dispatcher = NewDispatcher(s.Logger)
 
-	s.logger.Info("created new stream", "id", s.settings.GetRunID())
+	s.Logger.Info("created new stream", "id", s.Settings.GetRunID())
 	return s
 }
 
@@ -316,27 +318,27 @@ func (s *Stream) Start() {
 		}(ch)
 	}
 
-	s.logger.Info("stream: started", "id", s.settings.GetRunID())
+	s.Logger.Info("stream: started", "id", s.Settings.GetRunID())
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
 func (s *Stream) HandleRecord(rec *spb.Record) {
-	s.logger.Debug("handling record", "record", rec)
+	s.Logger.Debug("handling record", "record", rec)
 	s.runWork.AddWork(runwork.WorkFromRecord(rec))
 }
 
 // Close waits for all run messages to be fully processed.
 func (s *Stream) Close() {
-	s.logger.Info("stream: closing", "id", s.settings.GetRunID())
+	s.Logger.Info("stream: closing", "id", s.Settings.GetRunID())
 	s.runWork.Close()
 	s.wg.Wait()
-	s.logger.Info("stream: closed", "id", s.settings.GetRunID())
+	s.Logger.Info("stream: closed", "id", s.Settings.GetRunID())
 }
 
 // FinishAndClose emits an exit record, waits for all run messages
 // to be fully processed, and prints the run footer to the terminal.
 func (s *Stream) FinishAndClose(exitCode int32) {
-	if !s.settings.IsSync() {
+	if !s.Settings.IsSync() {
 		s.HandleRecord(&spb.Record{
 			RecordType: &spb.Record_Exit{
 				Exit: &spb.RunExitRecord{
@@ -348,10 +350,10 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 
 	s.Close()
 
-	if s.settings.IsOffline() {
-		PrintFooterOffline(s.settings.Proto)
+	if s.Settings.IsOffline() {
+		PrintFooterOffline(s.Settings.Proto)
 	} else {
 		run := s.handler.GetRun()
-		PrintFooterOnline(run, s.settings.Proto)
+		PrintFooterOnline(run, s.Settings.Proto)
 	}
 }
