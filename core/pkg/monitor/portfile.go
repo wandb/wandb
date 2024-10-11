@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+// portfile is used to communicate the port number of the gRPC service
+// started by the gpu_stats binary to the wandb-core process.
 type portfile struct {
 	path string
 }
@@ -23,6 +25,7 @@ func NewPortfile() *portfile {
 	return &portfile{path: file.Name()}
 }
 
+// Read reads the port number from the portfile.
 func (p *portfile) Read(ctx context.Context) (int, error) {
 	for {
 		select {
