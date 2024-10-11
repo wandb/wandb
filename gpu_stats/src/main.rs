@@ -10,8 +10,10 @@ mod wandb_internal;
 use clap::Parser;
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use sentry::types::Dsn;
+use tokio::task::JoinHandle;
 use tokio_stream;
 use tonic;
 use tonic::{transport::Server, Request, Response, Status};
@@ -21,13 +23,15 @@ use tonic::{transport::Server, Request, Response, Status};
 use gpu_apple::ThreadSafeSampler;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use gpu_nvidia::NvidiaGpu;
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+use wandb_internal::GpuNvidiaInfo;
 use wandb_internal::{
     record::RecordType,
     request::RequestType,
     stats_record::StatsType,
     system_monitor_server::{SystemMonitor, SystemMonitorServer},
-    GetMetadataRequest, GetStatsRequest, GpuNvidiaInfo, MetadataRequest, Record, Request as Req,
-    StatsItem, StatsRecord,
+    GetMetadataRequest, GetStatsRequest, MetadataRequest, Record, Request as Req, StatsItem,
+    StatsRecord,
 };
 
 #[derive(Parser, Debug)]
@@ -43,7 +47,8 @@ struct Args {
 
 #[derive(Default)]
 pub struct SystemMonitorImpl {
-    shutdown_sender: tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
+    parent_monitor_handle: Option<JoinHandle<()>>,
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     apple_sampler: Option<ThreadSafeSampler>,
     #[cfg(any(target_os = "linux", target_os = "windows"))]
@@ -51,7 +56,10 @@ pub struct SystemMonitorImpl {
 }
 
 impl SystemMonitorImpl {
-    fn new() -> Self {
+    fn new(
+        ppid: i32,
+        shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
+    ) -> Self {
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         let apple_sampler = match ThreadSafeSampler::new() {
             Ok(sampler) => {
@@ -76,13 +84,34 @@ impl SystemMonitorImpl {
             }
         };
 
-        SystemMonitorImpl {
-            shutdown_sender: tokio::sync::Mutex::new(None), // Sender will be set later
+        let mut system_monitor = SystemMonitorImpl {
+            shutdown_sender: shutdown_sender.clone(),
+            parent_monitor_handle: None,
             #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
             apple_sampler,
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             nvidia_gpu,
-        }
+        };
+
+        if ppid > 0 {
+            let shutdown_sender_clone = shutdown_sender.clone();
+            let handle = tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    if !is_parent_alive(ppid) {
+                        // Trigger shutdown
+                        let mut sender = shutdown_sender_clone.lock().await;
+                        if let Some(sender) = sender.take() {
+                            sender.send(()).ok();
+                        }
+                        break;
+                    }
+                }
+            });
+            system_monitor.parent_monitor_handle = Some(handle);
+        };
+
+        system_monitor
     }
 
     async fn sample(&self, pid: i32) -> Vec<(String, metrics::MetricValue)> {
@@ -241,6 +270,19 @@ fn parse_bool(s: &str) -> bool {
     }
 }
 
+/// Check if the parent process is still alive
+#[cfg(not(target_os = "windows"))]
+fn is_parent_alive(ppid: i32) -> bool {
+    use nix::unistd::getppid;
+    getppid() == nix::unistd::Pid::from_raw(ppid)
+}
+
+#[cfg(target_os = "windows")]
+fn is_parent_alive(ppid: i32) -> bool {
+    // TODO: Implement
+    true
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command-line arguments
@@ -271,10 +313,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create the shutdown signal channel
     let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel::<()>();
+    let shutdown_sender = Arc::new(tokio::sync::Mutex::new(Some(shutdown_sender)));
 
     // System monitor service
-    let mut system_monitor = SystemMonitorImpl::new();
-    system_monitor.shutdown_sender = tokio::sync::Mutex::new(Some(shutdown_sender));
+    let system_monitor = SystemMonitorImpl::new(args.ppid, shutdown_sender.clone());
 
     // TODO: Reflection service
     let descriptor = "/Users/dimaduev/dev/sdk/gpu_stats/src/descriptor.bin";

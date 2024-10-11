@@ -32,6 +32,9 @@ func NewGPU(pid int32) *GPU {
 		return nil
 	}
 
+	// pid of the current process. the gpu_binary would shut down if this process dies.
+	ppid := os.Getpid()
+
 	// start the gpu_stats binary, which will start a gRPC service and
 	// write the port number to the portfile
 	cmdPath, err := getGPUStatsCmdPath()
@@ -42,6 +45,8 @@ func NewGPU(pid int32) *GPU {
 		cmdPath,
 		"--portfile",
 		pf.path,
+		"--ppid",
+		strconv.Itoa(ppid),
 	)
 	if err := g.cmd.Start(); err != nil {
 		return nil
