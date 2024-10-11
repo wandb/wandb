@@ -51,28 +51,7 @@ def test_no_dynamic_text_if_dumb_term(monkeypatch):
     assert term.dynamic_text() is None
 
 
-def test_dynamic_text_change(capsys):
-    text = term.dynamic_text()
-    assert text
-
-    text.set_text("one\ntwo\nthree")
-    text.set_text("abc\ndef")
-
-    captured = capsys.readouterr()
-    assert (
-        captured.err
-        == (
-            f"{BLUE_WANDB}: one\n"
-            f"{BLUE_WANDB}: two\n"
-            f"{BLUE_WANDB}: three\n"  #
-            + (3 * ANSI_DEL_LINE)  #
-            + f"{BLUE_WANDB}: abc\n"
-            f"{BLUE_WANDB}: def\n"
-        )
-    )
-
-
-def test_multiple_dynamic_text_blocks(capsys):
+def test_dynamic_text(capsys):
     text1 = term.dynamic_text()
     text2 = term.dynamic_text()
     assert text1 and text2
