@@ -873,7 +873,8 @@ class _WandbInit:
         assert backend.interface
         assert run._run_obj
 
-        run._run_obj.settings = self.settings.to_proto()
+        # a way to communicate back to the service the final settings
+        run._run_obj.settings.CopyFrom(self.settings.to_proto())
         run_start_handle = backend.interface.deliver_run_start(run._run_obj)
         # TODO: add progress to let user know we are doing something
         run_start_result = run_start_handle.wait(timeout=30)
