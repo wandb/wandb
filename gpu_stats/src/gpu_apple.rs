@@ -466,7 +466,7 @@ impl ThreadSafeSampler {
             add_finite_float(
                 &mut result,
                 "cpu.ecpu_percent".to_string(),
-                ecpu_percent as f64,
+                (ecpu_percent as f64) * 100.0,
             );
         }
 
@@ -478,7 +478,7 @@ impl ThreadSafeSampler {
             add_finite_float(
                 &mut result,
                 "cpu.pcpu_percent".to_string(),
-                pcpu_percent as f64,
+                (pcpu_percent as f64) * 100.0,
             );
         }
 
@@ -488,7 +488,11 @@ impl ThreadSafeSampler {
             add_finite_float(&mut result, "gpu.0.freq".to_string(), gpu_freq as f64);
         }
         if gpu_percent.is_finite() {
-            add_finite_float(&mut result, "gpu.0.gpu".to_string(), gpu_percent as f64);
+            add_finite_float(
+                &mut result,
+                "gpu.0.gpu".to_string(),
+                (gpu_percent as f64) * 100.0,
+            );
         }
 
         // Power metrics
