@@ -73,6 +73,7 @@ from .lib import (
     filesystem,
     ipython,
     module,
+    progress,
     proto_util,
     redirect,
     telemetry,
@@ -2644,17 +2645,6 @@ class Run:
         handle = self._backend.interface.deliver_poll_exit()
         probe_handle.set_mailbox_handle(handle)
 
-    def _on_progress_exit(self, progress_handle: MailboxProgress) -> None:
-        probe_handles = progress_handle.get_probe_handles()
-        assert probe_handles and len(probe_handles) == 1
-
-        result = probe_handles[0].get_probe_result()
-        if not result:
-            return
-        self._footer_file_pusher_status_info(
-            result.response.poll_exit_response, printer=self._printer
-        )
-
     def _on_finish(self) -> None:
         trigger.call("on_finished")
 
@@ -2663,21 +2653,39 @@ class Run:
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
+        progress_printer = progress.ProgressPrinter(self._printer)
+
+        def on_progress_exit(progress_handle: MailboxProgress) -> None:
+            probe_handles = progress_handle.get_probe_handles()
+            if not probe_handles or len(probe_handles) != 1:
+                return
+
+            result = probe_handles[0].get_probe_result()
+            if not result:
+                return
+
+            progress_printer.update([result.response.poll_exit_response])
+
         assert self._backend and self._backend.interface
 
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
         # wait for the exit to complete
-        _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
+        _ = exit_handle.wait(timeout=-1, on_progress=on_progress_exit)
 
         poll_exit_handle = self._backend.interface.deliver_poll_exit()
         # wait for them, it's ok to do this serially but this can be improved
         result = poll_exit_handle.wait(timeout=-1)
         assert result
-        self._footer_file_pusher_status_info(
-            result.response.poll_exit_response, printer=self._printer
+
+        progress_printer.update([result.response.poll_exit_response])
+        progress_printer.finish()
+        progress.print_sync_dedupe_stats(
+            self._printer,
+            result.response.poll_exit_response,
         )
+
         self._poll_exit_response = result.response.poll_exit_response
         internal_messages_handle = self._backend.interface.deliver_internal_messages()
         result = internal_messages_handle.wait(timeout=-1)
@@ -3844,133 +3852,6 @@ class Run:
         Run._footer_reporter_warn_err(
             reporter=reporter, quiet=quiet, settings=settings, printer=printer
         )
-
-    # fixme: Temporary hack until we move to rich which allows multiple spinners
-    @staticmethod
-    def _footer_file_pusher_status_info(
-        poll_exit_responses: PollExitResponse
-        | list[PollExitResponse | None]
-        | None = None,
-        *,
-        printer: PrinterTerm | PrinterJupyter,
-    ) -> None:
-        if not poll_exit_responses:
-            return
-        if isinstance(poll_exit_responses, PollExitResponse):
-            Run._footer_single_run_file_pusher_status_info(
-                poll_exit_responses, printer=printer
-            )
-        elif isinstance(poll_exit_responses, list):
-            poll_exit_responses_list = poll_exit_responses
-            assert all(
-                response is None or isinstance(response, PollExitResponse)
-                for response in poll_exit_responses_list
-            )
-            if len(poll_exit_responses_list) == 0:
-                return
-            elif len(poll_exit_responses_list) == 1:
-                Run._footer_single_run_file_pusher_status_info(
-                    poll_exit_responses_list[0], printer=printer
-                )
-            else:
-                Run._footer_multiple_runs_file_pusher_status_info(
-                    poll_exit_responses_list, printer=printer
-                )
-        else:
-            logger.error(
-                f"Got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. "
-                "Expected either None, PollExitResponse or a List[Union[PollExitResponse, None]]"
-            )
-
-    @staticmethod
-    def _footer_single_run_file_pusher_status_info(
-        poll_exit_response: PollExitResponse | None = None,
-        *,
-        printer: PrinterTerm | PrinterJupyter,
-    ) -> None:
-        # todo: is this same as settings._offline?
-        if not poll_exit_response:
-            return
-
-        stats = poll_exit_response.pusher_stats
-
-        megabyte = wandb.util.POW_2_BYTES[2][1]
-        line = (
-            f"{stats.uploaded_bytes / megabyte:.3f} MB"
-            f" of {stats.total_bytes / megabyte:.3f} MB uploaded"
-        )
-        if stats.deduped_bytes > 0:
-            line += f" ({stats.deduped_bytes / megabyte:.3f} MB deduped)"
-        line += "\r"
-
-        if stats.total_bytes > 0:
-            printer.progress_update(line, stats.uploaded_bytes / stats.total_bytes)
-        else:
-            printer.progress_update(line, 1.0)
-
-        if poll_exit_response.done:
-            printer.progress_close()
-
-            if stats.total_bytes > 0:
-                dedupe_fraction = stats.deduped_bytes / float(stats.total_bytes)
-            else:
-                dedupe_fraction = 0
-
-            if stats.deduped_bytes > 0.01:
-                printer.display(
-                    f"W&B sync reduced upload amount by {dedupe_fraction:.1%}"
-                )
-
-    @staticmethod
-    def _footer_multiple_runs_file_pusher_status_info(
-        poll_exit_responses: list[PollExitResponse | None],
-        *,
-        printer: PrinterTerm | PrinterJupyter,
-    ) -> None:
-        # todo: is this same as settings._offline?
-        if not all(poll_exit_responses):
-            return
-
-        megabyte = wandb.util.POW_2_BYTES[2][1]
-        total_files: int = sum(
-            sum(
-                [
-                    response.file_counts.wandb_count,
-                    response.file_counts.media_count,
-                    response.file_counts.artifact_count,
-                    response.file_counts.other_count,
-                ]
-            )
-            for response in poll_exit_responses
-            if response is not None and response.file_counts is not None
-        )
-        uploaded = sum(
-            response.pusher_stats.uploaded_bytes
-            for response in poll_exit_responses
-            if response is not None and response.pusher_stats is not None
-        )
-        total = sum(
-            response.pusher_stats.total_bytes
-            for response in poll_exit_responses
-            if response is not None and response.pusher_stats is not None
-        )
-
-        line = (
-            f"Processing {len(poll_exit_responses)} runs with {total_files} files "
-            f"({uploaded/megabyte :.2f} MB/{total/megabyte :.2f} MB)\r"
-        )
-        # line = "{}{:<{max_len}}\r".format(line, " ", max_len=(80 - len(line)))
-        printer.progress_update(line)  # type:ignore[call-arg]
-
-        done = all(
-            [
-                poll_exit_response.done
-                for poll_exit_response in poll_exit_responses
-                if poll_exit_response
-            ]
-        )
-        if done:
-            printer.progress_close()
 
     @staticmethod
     def _footer_sync_info(
