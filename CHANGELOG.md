@@ -14,7 +14,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Added
 
 - Allow users to link Registry artifacts without inputting the organization entity name (@estellazx in https://github.com/wandb/wandb/pull/8482)
-- Added a warning message indicating that the `fps` argument will be ignored when creating a wandb.Video object with a string or a bytes object. (@jacobromero in https://github.com/wandb/wandb/pull/8585)
+- Added a warning message indicating that the `fps` argument will be ignored when creating a wandb.Video object from a file path string or a bytes object. (@jacobromero in https://github.com/wandb/wandb/pull/8585)
 
 ### Fixed
 
