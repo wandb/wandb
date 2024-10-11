@@ -1060,7 +1060,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 	data, err := gql.UpsertBucket(
 		ctx,                                // ctx
 		s.graphqlClient,                    // client
-		nullify.NilIfZero(run.StorageId),   // id, required to avoid writes by users without perms
+		nullify.NilIfZero(run.StorageId),   // id, required for auth checks when writing to a resumed run
 		&run.RunId,                         // name
 		nullify.NilIfZero(run.Project),     // project
 		nullify.NilIfZero(run.Entity),      // entity
