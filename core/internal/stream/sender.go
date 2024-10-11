@@ -468,7 +468,6 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 // updateSettings updates the settings from the run record upon a run start
 // with the information from the server
 func (s *Sender) updateSettings() {
-
 	if s.settings == nil || !s.startState.Initialized {
 		return
 	}
@@ -508,11 +507,6 @@ func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
 			s.startState.FileStreamOffset,
 		)
 	}
-
-	// update sentry tags add attrs from settings:
-	s.logger.SetGlobalTags(observability.Tags{
-		"run_url": s.settings.GetRunURL(),
-	})
 }
 
 func (s *Sender) sendRequestNetworkStatus(
