@@ -2,12 +2,11 @@
 
 import json
 import pathlib
-import platform
 import subprocess
 
 
-class NvidiaGpuStatsBuildError(Exception):
-    """Raised when building Nvidia GPU stats fails."""
+class GpuStatsBuildError(Exception):
+    """Raised when building GPU stats service fails."""
 
 
 def build_gpu_stats(
@@ -26,10 +25,6 @@ def build_gpu_stats(
             workspace root.
     """
     rust_pkg_root = pathlib.Path("./gpu_stats")
-    built_binary_path = rust_pkg_root / "target" / "release" / "gpu_stats"
-
-    if platform.system().lower() == "windows":
-        built_binary_path = built_binary_path.with_suffix(".exe")
 
     cmd = (
         str(cargo_binary),
@@ -41,14 +36,14 @@ def build_gpu_stats(
     try:
         cargo_output = subprocess.check_output(cmd, cwd=rust_pkg_root)
     except subprocess.CalledProcessError as e:
-        raise NvidiaGpuStatsBuildError(
+        raise GpuStatsBuildError(
             "Failed to build the `gpu_stats` Rust binary. If you didn't"
             " break the build, you may need to install Rust; see"
             " https://www.rust-lang.org/tools/install."
             "\n\n"
-            "As a workaround, you can set the WANDB_BUILD_SKIP_NVIDIA"
+            "As a workaround, you can set the WANDB_BUILD_SKIP_GPU_STATS"
             " environment variable to true to skip this step and build a wandb"
-            " package that doesn't collect NVIDIA GPU metrics."
+            " package that doesn't collect NVIDIA and Apple ARM GPU stats."
         ) from e
 
     built_binary_path = _get_executable_path(cargo_output)
@@ -59,7 +54,7 @@ def build_gpu_stats(
 
 
 def _get_executable_path(cargo_output: bytes) -> pathlib.Path:
-    """Returns the path to the nvidia_gpu_stats binary.
+    """Returns the path to the gpu_stats binary.
 
     Args:
         cargo_output: The output from `cargo build` with
@@ -69,14 +64,14 @@ def _get_executable_path(cargo_output: bytes) -> pathlib.Path:
         The path to the binary.
 
     Raises:
-        NvidiaGpuStatsBuildError: if the path could not be determined.
+        GpuStatsBuildError: if the path could not be determined.
     """
     for line in cargo_output.splitlines():
         path = json.loads(line).get("executable")
         if path:
             return pathlib.Path(path)
 
-    raise NvidiaGpuStatsBuildError(
-        "Failed to find the `nvidia_gpu_stats` binary. `cargo build` output:\n"
+    raise GpuStatsBuildError(
+        "Failed to find the `gpu_stats` binary. `cargo build` output:\n"
         + str(cargo_output),
     )

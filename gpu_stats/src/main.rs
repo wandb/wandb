@@ -32,8 +32,6 @@ use tonic::{transport::Server, Request, Response, Status};
 use gpu_apple::ThreadSafeSampler;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use gpu_nvidia::NvidiaGpu;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
-use wandb_internal::GpuNvidiaInfo;
 use wandb_internal::{
     record::RecordType,
     request::RequestType,
@@ -207,7 +205,7 @@ impl SystemMonitor for SystemMonitorImpl {
         // Shutdown NVML
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         if let Some(nvidia_gpu) = &self.nvidia_gpu {
-            self.nvidia_gpu.lock().await.shutdown();
+            nvidia_gpu.shutdown();
         }
 
         // Signal the gRPC server to shutdown

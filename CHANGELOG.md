@@ -13,6 +13,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Added
 
+- Detailed system metrics for Apple ARM systems (@dmitryduev in https://github.com/wandb/wandb/pull/8550)
 - Allow users to link Registry artifacts without inputting the organization entity name (@estellazx in https://github.com/wandb/wandb/pull/8482)
 
 ### Fixed
