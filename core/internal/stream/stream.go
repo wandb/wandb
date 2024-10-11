@@ -303,7 +303,7 @@ func (s *Stream) Start() {
 	// send the data to the server
 	s.wg.Add(1)
 	go func() {
-		s.sender.Do(s.writer.FwdChan)
+		s.sender.Do(s.writer.fwdChan)
 		s.wg.Done()
 	}()
 

@@ -27,8 +27,8 @@ type Writer struct {
 	// logger is the logger for the writer
 	logger *observability.CoreLogger
 
-	// FwdChan is a channel of work to pass to the Sender
-	FwdChan chan runwork.Work
+	// fwdChan is a channel of work to pass to the Sender
+	fwdChan chan runwork.Work
 
 	// storeChan is the channel for messages to be stored
 	storeChan chan *spb.Record
@@ -49,7 +49,7 @@ func NewWriter(params WriterParams) *Writer {
 		wg:       sync.WaitGroup{},
 		logger:   params.Logger,
 		settings: params.Settings,
-		FwdChan:  params.FwdChan,
+		fwdChan:  params.FwdChan,
 	}
 	return w
 }
@@ -110,7 +110,7 @@ func (w *Writer) Do(allWork <-chan runwork.Work) {
 			continue
 		}
 
-		w.FwdChan <- work
+		w.fwdChan <- work
 	}
 
 	w.Close()
@@ -120,7 +120,7 @@ func (w *Writer) Do(allWork <-chan runwork.Work) {
 // Close closes the writer and all its resources
 // which includes the store
 func (w *Writer) Close() {
-	close(w.FwdChan)
+	close(w.fwdChan)
 	if w.storeChan != nil {
 		close(w.storeChan)
 	}
