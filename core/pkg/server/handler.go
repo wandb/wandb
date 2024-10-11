@@ -15,6 +15,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/fileutil"
+	"github.com/wandb/wandb/core/internal/gitops"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pathtree"
@@ -627,7 +628,7 @@ func (h *Handler) handlePatchSave() {
 		return
 	}
 
-	git := NewGit(h.settings.GetRootDir().GetValue(), h.logger)
+	git := gitops.New(h.settings.GetRootDir().GetValue(), h.logger)
 	if !git.IsAvailable() {
 		return
 	}
