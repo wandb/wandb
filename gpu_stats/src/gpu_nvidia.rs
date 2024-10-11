@@ -1,8 +1,10 @@
 use crate::metrics::MetricValue;
+use crate::wandb_internal::{GpuNvidiaInfo, MetadataRequest};
 
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::error::NvmlError;
 use nvml_wrapper::{Device, Nvml};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// Static information about a GPU.
@@ -672,6 +674,57 @@ impl NvidiaGpu {
         }
 
         Ok(metrics)
+    }
+
+    pub fn get_metadata(&self, samples: &HashMap<String, &MetricValue>) -> MetadataRequest {
+        let mut metadata_request = MetadataRequest {
+            ..Default::default()
+        };
+
+        let n_gpu = match samples.get("_gpu.count") {
+            Some(MetricValue::Int(n_gpu)) => *n_gpu as u32,
+            _ => return metadata_request,
+        };
+
+        metadata_request.gpu_nvidia = [].to_vec();
+        metadata_request.gpu_count = n_gpu;
+        // TODO: do not assume all GPUs are the same
+        if let Some(value) = samples.get("_gpu.0.name") {
+            if let MetricValue::String(gpu_name) = value {
+                metadata_request.gpu_type = gpu_name.to_string();
+            }
+        }
+        if let Some(value) = samples.get("cuda_version") {
+            if let MetricValue::String(cuda_version) = value {
+                metadata_request.cuda_version = cuda_version.to_string();
+            }
+        }
+
+        for i in 0..n_gpu {
+            let mut gpu_nvidia = GpuNvidiaInfo {
+                ..Default::default()
+            };
+            if let Some(value) = samples.get(&format!("_gpu.{}.name", i)) {
+                gpu_nvidia.name = value.to_string();
+            }
+            if let Some(value) = samples.get(&format!("_gpu.{}.memoryTotal", i)) {
+                if let MetricValue::Int(memory_total) = value {
+                    gpu_nvidia.memory_total = *memory_total as u64;
+                }
+            }
+            // cuda cores
+            if let Some(value) = samples.get(&format!("_gpu.{}.cudaCores", i)) {
+                if let MetricValue::Int(cuda_cores) = value {
+                    gpu_nvidia.cuda_cores = *cuda_cores as u32;
+                }
+            }
+            // architecture
+            if let Some(value) = samples.get(&format!("_gpu.{}.architecture", i)) {
+                gpu_nvidia.architecture = value.to_string();
+            }
+            metadata_request.gpu_nvidia.push(gpu_nvidia);
+        }
+        metadata_request
     }
 
     pub fn shutdown(self) -> Result<(), NvmlError> {

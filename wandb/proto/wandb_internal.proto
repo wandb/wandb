@@ -1373,8 +1373,9 @@ service SystemMonitor {
 }
 
 message GetStatsRequest {
-  // The ID of the process to track system metrics for, in addition to system-wide metrics.
-  int64 pid = 1;
+  // Capture the system metrics for the process with this PID, in addition to
+  // system-wide metrics.
+  int32 pid = 1;
 }
 
 message GetMetadataRequest {}

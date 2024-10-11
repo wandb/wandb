@@ -1,10 +1,8 @@
 package monitor
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,65 +17,9 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-type portfile struct {
-	path string
-}
-
-func NewPortfile() *portfile {
-	file, err := os.CreateTemp("", ".system-monitor-portfile")
-	if err != nil {
-		return nil
-	}
-	file.Close()
-	return &portfile{path: file.Name()}
-}
-
-func (p *portfile) Read(ctx context.Context) (int, error) {
-	for {
-		select {
-		case <-ctx.Done():
-			return 0, fmt.Errorf("timeout reading portfile %s", p.path)
-		default:
-			port, err := p.readFile()
-			if err != nil {
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
-			return port, nil
-		}
-	}
-}
-
-func (p *portfile) readFile() (int, error) {
-	file, err := os.Open(p.path)
-	if err != nil {
-		return 0, err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	if scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		port, err := strconv.Atoi(line)
-		if err != nil {
-			return 0, fmt.Errorf("failed to parse integer: %v", err)
-		}
-		return port, nil
-	}
-
-	if err := scanner.Err(); err != nil {
-		return 0, fmt.Errorf("error reading file: %v", err)
-	}
-
-	return 0, fmt.Errorf("no data found in file %s", p.path)
-}
-
-func (p *portfile) Delete() error {
-	return os.Remove(p.path)
-}
-
 type GPU struct {
 	pid    int32
+	cmd    *exec.Cmd
 	conn   *grpc.ClientConn
 	client spb.SystemMonitorClient
 }
@@ -96,12 +38,12 @@ func NewGPU(pid int32) *GPU {
 	if err != nil {
 		return nil
 	}
-	cmd := exec.Command(
+	g.cmd = exec.Command(
 		cmdPath,
 		"--portfile",
 		pf.path,
 	)
-	if err := cmd.Start(); err != nil {
+	if err := g.cmd.Start(); err != nil {
 		return nil
 	}
 
@@ -163,7 +105,7 @@ func (g *GPU) IsAvailable() bool {
 }
 
 func (g *GPU) Sample() (map[string]any, error) {
-	stats, err := g.client.GetStats(context.Background(), &spb.GetStatsRequest{Pid: int64(g.pid)})
+	stats, err := g.client.GetStats(context.Background(), &spb.GetStatsRequest{Pid: g.pid})
 	if err != nil {
 		return nil, err
 	}
@@ -198,5 +140,10 @@ func (g *GPU) Probe() *spb.MetadataRequest {
 func (g *GPU) Close() {
 	if _, err := g.client.TearDown(context.Background(), &emptypb.Empty{}); err == nil { // ignore error
 		g.conn.Close()
+		// Wait for the process to exit to prevent zombie processes.
+		// This is a best-effort attempt to clean up the process.
+		go func() {
+			_ = g.cmd.Wait()
+		}()
 	}
 }

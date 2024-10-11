@@ -3269,9 +3269,10 @@ pub struct JobInputRequest {
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct GetStatsRequest {
-    /// The ID of the process to track system metrics for, in addition to system-wide metrics.
-    #[prost(int64, tag = "1")]
-    pub pid: i64,
+    /// Capture the system metrics for the process with this PID, in addition to
+    /// system-wide metrics.
+    #[prost(int32, tag = "1")]
+    pub pid: i32,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct GetMetadataRequest {}

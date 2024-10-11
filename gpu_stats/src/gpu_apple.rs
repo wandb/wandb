@@ -21,12 +21,13 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-use core_foundation::dictionary::CFDictionaryRef;
-
 use crate::gpu_apple_sources::{
     cfio_get_residencies, cfio_watts, libc_ram, libc_swap, IOHIDSensors, IOReport, SocInfo, SMC,
 };
 use crate::metrics::MetricValue;
+use crate::wandb_internal::{AppleInfo, MetadataRequest};
+use core_foundation::dictionary::CFDictionaryRef;
+use std::collections::HashMap;
 
 type WithError<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -367,7 +368,7 @@ impl ThreadSafeSampler {
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
     }
 
-    pub fn metrics_to_vec(metrics: Metrics) -> Vec<(String, MetricValue)> {
+    pub fn metrics_to_vec(&self, metrics: Metrics) -> Vec<(String, MetricValue)> {
         let mut result = Vec::new();
 
         // Helper function to safely add metrics
@@ -510,6 +511,39 @@ impl ThreadSafeSampler {
         }
 
         result
+    }
+
+    pub fn get_metadata(&self, samples: &HashMap<String, &MetricValue>) -> MetadataRequest {
+        let mut gpu_apple = AppleInfo {
+            ..Default::default()
+        };
+        if let Some(&value) = samples.get("_apple.chip_name") {
+            gpu_apple.name = value.to_string();
+        }
+        if let Some(&value) = samples.get("_apple.ecpu_cores") {
+            if let MetricValue::Int(ecpu_cores) = value {
+                gpu_apple.ecpu_cores = *ecpu_cores as u32;
+            }
+        }
+        if let Some(&value) = samples.get("_apple.pcpu_cores") {
+            if let MetricValue::Int(pcpu_cores) = value {
+                gpu_apple.pcpu_cores = *pcpu_cores as u32;
+            }
+        }
+        if let Some(&value) = samples.get("_apple.gpu_cores") {
+            if let MetricValue::Int(gpu_cores) = value {
+                gpu_apple.gpu_cores = *gpu_cores as u32;
+            }
+        }
+        if let Some(&value) = samples.get("_apple.memory_gb") {
+            if let MetricValue::Int(memory_gb) = value {
+                gpu_apple.memory_gb = *memory_gb as u32;
+            }
+        }
+        MetadataRequest {
+            apple: Some(gpu_apple),
+            ..Default::default()
+        }
     }
 }
 

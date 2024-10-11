@@ -4285,7 +4285,9 @@ class GetStatsRequest(google.protobuf.message.Message):
 
     PID_FIELD_NUMBER: builtins.int
     pid: builtins.int
-    """The ID of the process to track system metrics for, in addition to system-wide metrics."""
+    """Capture the system metrics for the process with this PID, in addition to
+    system-wide metrics.
+    """
     def __init__(
         self,
         *,
