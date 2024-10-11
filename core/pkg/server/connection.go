@@ -272,7 +272,7 @@ func (nc *Connection) handleIncomingRequests() {
 		case *spb.ServerRequest_InformInit:
 			nc.handleInformInit(x.InformInit)
 		case *spb.ServerRequest_InformStart:
-			nc.handleInformStart(x.InformStart)
+			// TODO: remove this once we remove legacy service
 		case *spb.ServerRequest_InformAttach:
 			nc.handleInformAttach(x.InformAttach)
 		case *spb.ServerRequest_RecordPublish:
@@ -330,31 +330,14 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	nc.stream.Start()
 	slog.Info("handleInformInit: stream started", "streamId", streamId, "id", nc.id)
 
+	// TODO: remove this once we have a better observability setup
+	nc.stream.Logger.CaptureInfo("wandb-core", nil)
+
 	if err := nc.streamMux.AddStream(streamId, nc.stream); err != nil {
 		slog.Error("handleInformInit: error adding stream", "err", err, "streamId", streamId, "id", nc.id)
 		// TODO: should we Close the stream?
 		return
 	}
-}
-
-// handleInformStart handles the update of the stream settings.
-//
-// This function is invoked when the server receives an `InformStart` message
-// from the client. It updates the stream settings with the new settings.
-//
-// TODO: This function should probably be replaced with a regular record message
-func (nc *Connection) handleInformStart(msg *spb.ServerInformStartRequest) {
-	// todo: if we keep this and end up updating the settings here
-	//       we should update the stream logger to use the new settings as well
-	nc.stream.Settings = settings.From(msg.GetSettings())
-
-	// update sentry tags
-	// add attrs from settings:
-	nc.stream.Logger.SetGlobalTags(observability.Tags{
-		"run_url": nc.stream.Settings.GetRunURL(),
-	})
-	// TODO: remove this once we have a better observability setup
-	nc.stream.Logger.CaptureInfo("wandb-core", nil)
 }
 
 // handleInformAttach handles the new connection attaching to an existing stream.
