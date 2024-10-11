@@ -716,9 +716,4 @@ impl NvidiaGpu {
         }
         metadata_request
     }
-
-    // Shutdown the NVML library.
-    pub fn shutdown(self) -> Result<(), NvmlError> {
-        self.nvml.shutdown()
-    }
 }

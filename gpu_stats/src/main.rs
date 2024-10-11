@@ -202,12 +202,6 @@ impl SystemMonitor for SystemMonitorImpl {
     async fn tear_down(&self, request: Request<()>) -> Result<Response<()>, Status> {
         debug!("Got a request to shutdown: {:?}", request);
 
-        // Shutdown NVML
-        #[cfg(any(target_os = "linux", target_os = "windows"))]
-        if let Some(nvidia_gpu) = &self.nvidia_gpu {
-            nvidia_gpu.shutdown();
-        }
-
         // Signal the gRPC server to shutdown
         let mut sender = self.shutdown_sender.lock().await;
         if let Some(sender) = sender.take() {
