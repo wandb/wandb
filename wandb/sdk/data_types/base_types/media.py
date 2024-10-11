@@ -27,6 +27,14 @@ SYS_PLATFORM = platform.system()
 def _wb_filename(
     key: Union[str, int], step: Union[str, int], id: Union[str, int], extension: str
 ) -> str:
+    # Avoid writing to absolute paths by striping any leading slashes.
+    key = str(key).lstrip(os.sep)
+
+    # Avoid directory traversal by replacing dots with underscores.
+    keys = key.split(os.sep)
+    keys = [k.replace(".", "_") if k == "." or k == ".." else k for k in keys]
+    key = os.sep.join(keys)
+
     return f"{str(key)}_{str(step)}_{str(id)}{extension}"
 
 
