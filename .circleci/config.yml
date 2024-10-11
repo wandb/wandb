@@ -303,6 +303,7 @@ jobs:
           name: Install system deps
           command: brew install ffmpeg python@<<parameters.python>>
       - install_go
+      - install_rust
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
