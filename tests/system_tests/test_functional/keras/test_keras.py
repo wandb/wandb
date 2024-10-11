@@ -1,7 +1,6 @@
 import pathlib
 
 import pytest
-from wandb.errors import term
 
 # TODO: these tests do not test much beyond the callback initialization.
 # We should add tests that check that the callbacks actually log the expected data.
@@ -83,7 +82,12 @@ def test_model_checkpoint(user, relay_server, execute_script):
 
 
 @pytest.mark.wandb_core_only
-def test_deprecated_keras_callback(user, relay_server, execute_script):
+def test_deprecated_keras_callback(
+    user,
+    relay_server,
+    execute_script,
+    mock_wandb_log,
+):
     with relay_server() as relay:
         script_path = pathlib.Path(__file__).parent / "keras_deprecated.py"
         execute_script(script_path)
@@ -105,7 +109,6 @@ def test_deprecated_keras_callback(user, relay_server, execute_script):
     telemetry = relay.context.get_run_telemetry(run_id)
     assert 8 in telemetry["3"]  # feature=keras
 
-    assert (
+    assert mock_wandb_log.warned(
         "WandbCallback is deprecated and will be removed in a future release."
-        in "".join(term.PRINTED_MESSAGES)
     )
