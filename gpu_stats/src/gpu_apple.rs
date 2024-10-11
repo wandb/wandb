@@ -1,4 +1,6 @@
 /*
+Based on https://github.com/vladkens/macmon.
+
 MIT License
 
 Copyright (c) 2024 vladkens
@@ -27,6 +29,7 @@ use crate::gpu_apple_sources::{
 use crate::metrics::MetricValue;
 use crate::wandb_internal::{AppleInfo, MetadataRequest};
 use core_foundation::dictionary::CFDictionaryRef;
+use log::warn;
 use std::collections::HashMap;
 
 type WithError<T> = Result<T, Box<dyn std::error::Error>>;
@@ -53,13 +56,13 @@ pub struct MemMetrics {
 
 #[derive(Debug, Default)]
 pub struct Metrics {
-    pub chip_name: String,
-    pub ecpu_cores: u8,
-    pub pcpu_cores: u8,
-    pub gpu_cores: u8,
-    pub memory_gb: u8,
-    pub temp: TempMetrics,
-    pub memory: MemMetrics,
+    pub chip_name: String,      // M1, M2, M3 etc.
+    pub ecpu_cores: u8,         // number of high-efficiency cores
+    pub pcpu_cores: u8,         // number of high-performance cores
+    pub gpu_cores: u8,          // number of GPU cores
+    pub memory_gb: u8,          // memory size in GB
+    pub temp: TempMetrics,      // temperature in Celsius
+    pub memory: MemMetrics,     // memory usage
     pub ecpu_usage: (u32, f32), // freq, percent_from_max
     pub pcpu_usage: (u32, f32), // freq, percent_from_max
     pub gpu_usage: (u32, f32),  // freq, percent_from_max
@@ -86,7 +89,6 @@ fn calc_freq(item: CFDictionaryRef, freqs: &Vec<u32>) -> (u32, f32) {
     let usage = residencies.iter().map(|x| x.1 as f64).skip(1).sum::<f64>();
     let total = residencies.iter().map(|x| x.1 as f64).sum::<f64>();
     let count = freqs.len();
-    // println!("{:?}", residencies);
 
     let mut freq = 0f64;
     for i in 0..count {
@@ -336,11 +338,17 @@ impl std::fmt::Display for SamplerError {
 
 impl std::error::Error for SamplerError {}
 
+/// Commands that can be sent to the sampler thread via the command channel.
 enum SamplerCommand {
     GetMetrics(oneshot::Sender<Result<Metrics, SamplerError>>),
     Shutdown,
 }
 
+/// A thread-safe wrapper around the Sampler struct.
+///
+/// This struct is intended to be used in a multi-threaded environment (such as
+/// a Tokio async runtime), where the sampler is running in a separate thread and
+/// the main thread needs to periodically query the sampler for metrics.
 pub struct ThreadSafeSampler {
     command_sender: Sender<SamplerCommand>,
 }
@@ -356,6 +364,9 @@ impl ThreadSafeSampler {
         Ok(Self { command_sender })
     }
 
+    /// Get the latest metrics from the sampler.
+    ///
+    /// Works by sending a command to the sampler thread and waiting for the response.
     pub async fn get_metrics(&self) -> Result<Metrics, Box<dyn std::error::Error>> {
         let (response_sender, response_receiver) = oneshot::channel();
         self.command_sender
@@ -557,7 +568,7 @@ fn sampler_thread(receiver: Receiver<SamplerCommand>) {
     let mut sampler = match Sampler::new() {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("Failed to create Sampler: {}", e);
+            warn!("Failed to create Sampler: {}", e);
             return;
         }
     };

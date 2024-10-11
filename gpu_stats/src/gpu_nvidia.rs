@@ -62,6 +62,7 @@ impl Default for GpuMetricAvailability {
     }
 }
 
+/// Get the path to the NVML library.
 pub fn get_lib_path() -> Result<PathBuf, NvmlError> {
     #[cfg(target_os = "windows")]
     {
@@ -109,6 +110,7 @@ pub fn get_lib_path() -> Result<PathBuf, NvmlError> {
     }
 }
 
+/// A struct to collect metrics from NVIDIA GPUs using NVML.
 pub struct NvidiaGpu {
     nvml: Nvml,
     cuda_version: String,
@@ -153,7 +155,7 @@ impl NvidiaGpu {
             gpu_static_info.push(static_info);
         }
 
-        // Initialize metric availability with default (all true)
+        // Initialize metric availability with default values.
         let gpu_metric_availability = vec![GpuMetricAvailability::default(); device_count as usize];
 
         Ok(NvidiaGpu {
@@ -265,34 +267,21 @@ impl NvidiaGpu {
     /// gpu.process.{i}.*: Various metrics specific to the monitored process
     ///    (if the GPU is in use by the process). These include GPU utilization, memory utilization,
     ///     temperature, and power consumption.
-    /// _timestamp: The Unix timestamp when the metrics were collected.
     ///
     /// Note that {i} represents the index of each GPU in the system, starting from 0.
     ///
     /// # Arguments
     ///
-    /// * `metrics` - A mutable reference to a `Metrics` struct to store the collected metrics.
     /// * `pid` - The process ID to monitor for GPU usage.
     ///
     /// # Returns
     ///
-    /// Returns a `Result` with an empty tuple on success or an `NvmlError` on failure.
-    /// The collected metrics are stored in the `Metrics` struct provided as an argument.
+    /// A vector of tuples containing the metric name and value for each metric collected.
+    /// If an error occurs while collecting metrics, an `NvmlError` is returned.
     ///
     /// # Errors
     ///
-    /// This function will return an error if:
-    /// * NVML fails to retrieve device information
-    /// * Any of the metric collection operations fail
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use crate::gpu_nvidia::NvidiaGpu;
-    /// use crate::metrics::Metrics;
-    /// let nvidia_gpu = NvidiaGpu::new().unwrap();
-    /// let mut metrics = Metrics::new();
-    /// nvidia_gpu.sample_metrics(&mut metrics, 1234).unwrap();
+    /// This function should return an error only if an internal NVML call fails.
     /// ```
     pub fn get_metrics(&mut self, pid: i32) -> Result<Vec<(String, MetricValue)>, NvmlError> {
         let mut metrics: Vec<(String, MetricValue)> = vec![];
@@ -676,6 +665,7 @@ impl NvidiaGpu {
         Ok(metrics)
     }
 
+    /// Extract metadata about the GPUs in the system from the provided samples.
     pub fn get_metadata(&self, samples: &HashMap<String, &MetricValue>) -> MetadataRequest {
         let mut metadata_request = MetadataRequest {
             ..Default::default()
@@ -727,6 +717,7 @@ impl NvidiaGpu {
         metadata_request
     }
 
+    // Shutdown the NVML library.
     pub fn shutdown(self) -> Result<(), NvmlError> {
         self.nvml.shutdown()
     }

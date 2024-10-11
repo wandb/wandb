@@ -1,4 +1,6 @@
 /*
+https://github.com/vladkens/macmon
+
 MIT License
 
 Copyright (c) 2024 vladkens
