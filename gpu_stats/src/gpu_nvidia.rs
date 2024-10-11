@@ -125,11 +125,6 @@ impl NvidiaGpu {
 
         let nvml = Nvml::builder().lib_path(lib_path.as_os_str()).init()?;
         let cuda_version = nvml.sys_cuda_driver_version()?;
-        format!(
-            "{}.{}",
-            nvml_wrapper::cuda_driver_version_major(cuda_version),
-            nvml_wrapper::cuda_driver_version_minor(cuda_version)
-        );
         let device_count = nvml.device_count()?;
 
         // Collect static information about each GPU
