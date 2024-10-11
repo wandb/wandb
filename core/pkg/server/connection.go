@@ -351,6 +351,7 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 func (nc *Connection) handleInformStart(msg *spb.ServerInformStartRequest) {
 	slog.Debug("handleInformStart: received", "id", nc.id)
 	nc.stream.UpdateSettings(settings.From(msg.GetSettings()))
+	nc.stream.UpdateRunURLTag()
 }
 
 // handleInformAttach handles the new connection attaching to an existing stream.

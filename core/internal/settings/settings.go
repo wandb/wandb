@@ -8,7 +8,6 @@ import (
 
 	"github.com/wandb/wandb/core/internal/auth"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -26,17 +25,6 @@ type Settings struct {
 // Parses the Settings proto into a Settings object.
 func From(proto *spb.Settings) *Settings {
 	return &Settings{Proto: proto}
-}
-
-// Merges the settings from another Settings object into this one.
-func (s *Settings) Merge(other *Settings) {
-	if other == nil || other.Proto == nil {
-		return
-	}
-	if s.Proto == nil {
-		s.Proto = &spb.Settings{}
-	}
-	proto.Merge(s.Proto, other.Proto)
 }
 
 // Ensures the APIKey is set if it needs to be.

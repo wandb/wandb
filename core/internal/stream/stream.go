@@ -292,6 +292,14 @@ func (s *Stream) GetSettings() *settings.Settings {
 	return s.settings
 }
 
+// UpdateRunURLTag updates the run URL tag in the stream's logger.
+// TODO: this should be removed when we remove informStart.
+func (s *Stream) UpdateRunURLTag() {
+	s.logger.SetGlobalTags(observability.Tags{
+		"run_url": s.settings.GetRunURL(),
+	})
+}
+
 // Start starts the stream's handler, writer, sender, and dispatcher.
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
