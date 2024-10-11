@@ -29,6 +29,7 @@ type Bucket struct {
 	EventsTail       string   `json:"eventsTail"`
 	Tags             []string `json:"tags"`
 	WandbConfig      string   `json:"wandbConfig"`
+	Id               string   `json:"id"`
 }
 
 func TestNeverResumeEmptyResponse(t *testing.T) {
@@ -528,6 +529,53 @@ func TestMustResumeValidTags(t *testing.T) {
 	assert.Contains(t, params.Tags, "tag2", "GetUpdates should return correct tags")
 }
 
+func TestMustResumeValidStorageId(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+
+	historyLineCount := 0
+	eventsLineCount := 0
+	logLineCount := 0
+	history := "[]"
+	config := "{}"
+	summary := "{}"
+	rr := ResumeResponse{
+		Model: Model{
+			Bucket: Bucket{
+				Name:             "FakeName",
+				HistoryLineCount: &historyLineCount,
+				EventsLineCount:  &eventsLineCount,
+				LogLineCount:     &logLineCount,
+				HistoryTail:      &history,
+				SummaryMetrics:   &summary,
+				Config:           &config,
+				EventsTail:       "[]",
+				WandbConfig:      `{"t": 1}`,
+				Id:               `storage_id`,
+			},
+		},
+	}
+
+	jsonData, err := json.MarshalIndent(rr, "", "    ")
+	assert.Nil(t, err, "Failed to marshal json data")
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		string(jsonData),
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"must")
+
+	params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
+	assert.Nil(t, err, "GetUpdates should not return an error")
+	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
+	assert.Equal(t, int64(0), params.StartingStep, "GetUpdates should return correct starting step")
+	assert.Equal(t, int32(0), params.Runtime, "GetUpdates should return correct runtime")
+	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
+	assert.Equal(t, "storage_id", params.StorageID, "GetUpdates should return correct storage id")
+}
+
 func TestMustResumeValidEvents(t *testing.T) {
 
 	mockGQL := gqlmock.NewMockClient()
@@ -988,6 +1036,7 @@ func TestExtractRunState(t *testing.T) {
 	summary := `{"loss": 0.5, "_runtime": 120, "wandb": {"runtime": 130}, "_step": 4}`
 	config := `{"lr": {"value": 0.001}, "batch_size": {"value": 32}}`
 	eventsTail := `["{\"_runtime\":110}", "{\"_runtime\":120}"]`
+	storageId := "test_storage_id"
 
 	rr := ResumeResponse{
 		Model: Model{
@@ -1002,6 +1051,7 @@ func TestExtractRunState(t *testing.T) {
 				EventsTail:       eventsTail,
 				Tags:             []string{"test", "extract"},
 				WandbConfig:      `{"t": 1}`,
+				Id:               storageId,
 			},
 		},
 	}
@@ -1057,6 +1107,9 @@ func TestExtractRunState(t *testing.T) {
 
 	// Test Tags
 	assert.Equal(t, []string{"test", "extract"}, params.Tags, "Incorrect tags")
+
+	// Test GQL ID
+	assert.Equal(t, storageId, params.StorageID, "GetUpdates should set storage id")
 }
 
 func TestExtractRunStateNilCases(t *testing.T) {

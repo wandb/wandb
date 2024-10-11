@@ -1,4 +1,4 @@
-package server
+package gitops
 
 import (
 	"fmt"
@@ -40,7 +40,7 @@ type Git struct {
 	logger *observability.CoreLogger
 }
 
-func NewGit(path string, logger *observability.CoreLogger) *Git {
+func New(path string, logger *observability.CoreLogger) *Git {
 	return &Git{
 		path:   path,
 		logger: logger,
