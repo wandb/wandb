@@ -27,6 +27,11 @@ func From(proto *spb.Settings) *Settings {
 	return &Settings{Proto: proto}
 }
 
+// Checks if the underlying proto is nil.
+func (s *Settings) IsZero() bool {
+	return s.Proto == nil
+}
+
 // Ensures the APIKey is set if it needs to be.
 //
 // Reads the API key from .netrc if it's not already set.

@@ -468,7 +468,10 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 // updateSettings updates the settings from the run record upon a run start
 // with the information from the server
 func (s *Sender) updateSettings(update *settings.Settings) {
-	s.settings = update
+
+	if !update.IsZero() {
+		s.settings = update
+	}
 
 	if s.settings == nil || !s.startState.Initialized {
 		return

@@ -331,7 +331,7 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	slog.Info("handleInformInit: stream started", "streamId", streamId, "id", nc.id)
 
 	// TODO: remove this once we have a better observability setup
-	nc.stream.Logger.CaptureInfo("wandb-core", nil)
+	sentryClient.CaptureMessage("wandb-core", nil)
 
 	if err := nc.streamMux.AddStream(streamId, nc.stream); err != nil {
 		slog.Error("handleInformInit: error adding stream", "err", err, "streamId", streamId, "id", nc.id)
