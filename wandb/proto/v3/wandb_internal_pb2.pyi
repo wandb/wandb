@@ -13,7 +13,6 @@ import google.protobuf.timestamp_pb2
 import sys
 import typing
 import wandb.proto.wandb_base_pb2
-import wandb.proto.wandb_settings_pb2
 import wandb.proto.wandb_telemetry_pb2
 
 if sys.version_info >= (3, 10):
@@ -355,6 +354,7 @@ class RunRecord(google.protobuf.message.Message):
     DISPLAY_NAME_FIELD_NUMBER: builtins.int
     NOTES_FIELD_NUMBER: builtins.int
     TAGS_FIELD_NUMBER: builtins.int
+    SETTINGS_FIELD_NUMBER: builtins.int
     SWEEP_ID_FIELD_NUMBER: builtins.int
     HOST_FIELD_NUMBER: builtins.int
     STARTING_STEP_FIELD_NUMBER: builtins.int
@@ -365,7 +365,6 @@ class RunRecord(google.protobuf.message.Message):
     RUNTIME_FIELD_NUMBER: builtins.int
     GIT_FIELD_NUMBER: builtins.int
     FORKED_FIELD_NUMBER: builtins.int
-    SETTINGS_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     run_id: builtins.str
     entity: builtins.str
@@ -380,6 +379,8 @@ class RunRecord(google.protobuf.message.Message):
     notes: builtins.str
     @property
     def tags(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    @property
+    def settings(self) -> global___SettingsRecord: ...
     sweep_id: builtins.str
     host: builtins.str
     starting_step: builtins.int
@@ -393,8 +394,6 @@ class RunRecord(google.protobuf.message.Message):
     @property
     def git(self) -> global___GitRepoRecord: ...
     forked: builtins.bool
-    @property
-    def settings(self) -> wandb.proto.wandb_settings_pb2.Settings: ...
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -410,6 +409,7 @@ class RunRecord(google.protobuf.message.Message):
         display_name: builtins.str = ...,
         notes: builtins.str = ...,
         tags: collections.abc.Iterable[builtins.str] | None = ...,
+        settings: global___SettingsRecord | None = ...,
         sweep_id: builtins.str = ...,
         host: builtins.str = ...,
         starting_step: builtins.int = ...,
@@ -420,7 +420,6 @@ class RunRecord(google.protobuf.message.Message):
         runtime: builtins.int = ...,
         git: global___GitRepoRecord | None = ...,
         forked: builtins.bool = ...,
-        settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "config", b"config", "git", b"git", "settings", b"settings", "start_time", b"start_time", "summary", b"summary", "telemetry", b"telemetry"]) -> builtins.bool: ...

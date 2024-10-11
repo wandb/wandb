@@ -41,14 +41,14 @@ type Stream struct {
 	// runWork is a channel of records to process.
 	runWork runwork.RunWork
 
-	// Logger is the Logger for the stream
-	Logger *observability.CoreLogger
+	// logger is the logger for the stream
+	logger *observability.CoreLogger
 
 	// wg is the WaitGroup for the stream
 	wg sync.WaitGroup
 
-	// Settings is the Settings for the stream
-	Settings *settings.Settings
+	// settings is the settings for the stream
+	settings *settings.Settings
 
 	// handler is the handler for the stream
 	handler *Handler
@@ -150,8 +150,8 @@ func NewStream(
 	logger := streamLogger(opts.Settings, opts.Sentry, opts.LoggerPath)
 	s := &Stream{
 		runWork:      runwork.New(BufferSize, logger),
-		Logger:       logger,
-		Settings:     opts.Settings,
+		logger:       logger,
+		settings:     opts.Settings,
 		sentryClient: opts.Sentry,
 	}
 
@@ -161,7 +161,7 @@ func NewStream(
 		// Better behavior would be to inform the user and turn off any
 		// components that rely on the hostname, but it's not easy to do
 		// with our current code structure.
-		s.Logger.CaptureError(
+		s.logger.CaptureError(
 			fmt.Errorf("stream: could not get hostname: %v", err))
 		hostname = ""
 	}
@@ -170,13 +170,13 @@ func NewStream(
 	peeker := &observability.Peeker{}
 	terminalPrinter := observability.NewPrinter()
 
-	backendOrNil := NewBackend(s.Logger, opts.Settings)
+	backendOrNil := NewBackend(s.logger, opts.Settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
-	fileWatcher := watcher.New(watcher.Params{Logger: s.Logger})
+	fileWatcher := watcher.New(watcher.Params{Logger: s.logger})
 	tbHandler := tensorboard.NewTBHandler(tensorboard.Params{
 		ExtraWork: s.runWork,
-		Logger:    s.Logger,
-		Settings:  s.Settings,
+		Logger:    s.logger,
+		Settings:  s.settings,
 		Hostname:  hostname,
 	})
 	var graphqlClientOrNil graphql.Client
@@ -187,7 +187,7 @@ func NewStream(
 		graphqlClientOrNil = NewGraphQLClient(backendOrNil, opts.Settings, peeker)
 		fileStreamOrNil = NewFileStream(
 			backendOrNil,
-			s.Logger,
+			s.logger,
 			operations,
 			terminalPrinter,
 			opts.Settings,
@@ -195,12 +195,12 @@ func NewStream(
 		)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileTransferStats,
-			s.Logger,
+			s.logger,
 			opts.Settings,
 		)
 		runfilesUploaderOrNil = NewRunfilesUploader(
 			s.runWork,
-			s.Logger,
+			s.logger,
 			operations,
 			opts.Settings,
 			fileStreamOrNil,
@@ -214,12 +214,12 @@ func NewStream(
 
 	s.handler = NewHandler(opts.Commit,
 		HandlerParams{
-			Logger:            s.Logger,
+			Logger:            s.logger,
 			Operations:        operations,
-			Settings:          s.Settings.Proto,
+			Settings:          s.settings.Proto,
 			FwdChan:           make(chan runwork.Work, BufferSize),
 			OutChan:           make(chan *spb.Result, BufferSize),
-			SystemMonitor:     monitor.NewSystemMonitor(s.Logger, s.Settings.Proto, s.runWork),
+			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.runWork),
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
 			Mailbox:           mailbox,
@@ -229,8 +229,8 @@ func NewStream(
 
 	s.writer = NewWriter(
 		WriterParams{
-			Logger:   s.Logger,
-			Settings: s.Settings.Proto,
+			Logger:   s.logger,
+			Settings: s.settings.Proto,
 			FwdChan:  make(chan runwork.Work, BufferSize),
 		},
 	)
@@ -252,9 +252,9 @@ func NewStream(
 	s.sender = NewSender(
 		s.runWork,
 		SenderParams{
-			Logger:              s.Logger,
+			Logger:              s.logger,
 			Operations:          operations,
-			Settings:            s.Settings,
+			Settings:            s.settings,
 			Backend:             backendOrNil,
 			FileStream:          fileStreamOrNil,
 			FileTransferManager: fileTransferManagerOrNil,
@@ -271,15 +271,25 @@ func NewStream(
 		},
 	)
 
-	s.dispatcher = NewDispatcher(s.Logger)
+	s.dispatcher = NewDispatcher(s.logger)
 
-	s.Logger.Info("created new stream", "id", s.Settings.GetRunID())
+	s.logger.Info("created new stream", "id", s.settings.GetRunID())
 	return s
 }
 
 // AddResponders adds the given responders to the stream's dispatcher.
 func (s *Stream) AddResponders(entries ...ResponderEntry) {
 	s.dispatcher.AddResponders(entries...)
+}
+
+// UpdateSettings updates the stream's settings with the given settings.
+func (s *Stream) UpdateSettings(newSettings *settings.Settings) {
+	s.settings = newSettings
+}
+
+// GetSettings returns the stream's settings.
+func (s *Stream) GetSettings() *settings.Settings {
+	return s.settings
 }
 
 // Start starts the stream's handler, writer, sender, and dispatcher.
@@ -318,27 +328,27 @@ func (s *Stream) Start() {
 		}(ch)
 	}
 
-	s.Logger.Info("stream: started", "id", s.Settings.GetRunID())
+	s.logger.Info("stream: started", "id", s.settings.GetRunID())
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
 func (s *Stream) HandleRecord(rec *spb.Record) {
-	s.Logger.Debug("handling record", "record", rec)
+	s.logger.Debug("handling record", "record", rec)
 	s.runWork.AddWork(runwork.WorkFromRecord(rec))
 }
 
 // Close waits for all run messages to be fully processed.
 func (s *Stream) Close() {
-	s.Logger.Info("stream: closing", "id", s.Settings.GetRunID())
+	s.logger.Info("stream: closing", "id", s.settings.GetRunID())
 	s.runWork.Close()
 	s.wg.Wait()
-	s.Logger.Info("stream: closed", "id", s.Settings.GetRunID())
+	s.logger.Info("stream: closed", "id", s.settings.GetRunID())
 }
 
 // FinishAndClose emits an exit record, waits for all run messages
 // to be fully processed, and prints the run footer to the terminal.
 func (s *Stream) FinishAndClose(exitCode int32) {
-	if !s.Settings.IsSync() {
+	if !s.settings.IsSync() {
 		s.HandleRecord(&spb.Record{
 			RecordType: &spb.Record_Exit{
 				Exit: &spb.RunExitRecord{
@@ -350,10 +360,10 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 
 	s.Close()
 
-	if s.Settings.IsOffline() {
-		PrintFooterOffline(s.Settings.Proto)
+	if s.settings.IsOffline() {
+		PrintFooterOffline(s.settings.Proto)
 	} else {
 		run := s.handler.GetRun()
-		PrintFooterOnline(run, s.Settings.Proto)
+		PrintFooterOnline(run, s.settings.Proto)
 	}
 }

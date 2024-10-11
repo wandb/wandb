@@ -6,7 +6,6 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_telemetry.proto";
-import "wandb/proto/wandb_settings.proto";
 
 option go_package = "core/pkg/service_go_proto";
 
@@ -127,8 +126,6 @@ message FooterRecord {
  * RunRecord: wandb/sdk/wandb_run/Run
  */
 message RunRecord {
-  reserved 11;
-
   string run_id = 1;
   string entity = 2;
   string project = 3;
@@ -139,6 +136,7 @@ message RunRecord {
   string display_name = 8;
   string notes = 9;
   repeated string tags = 10;
+  SettingsRecord settings = 11;
   string sweep_id = 12;
   string host = 13;
   int64 starting_step = 14;
@@ -150,7 +148,6 @@ message RunRecord {
   int32 runtime = 20;
   GitRepoRecord git = 21;
   bool forked = 22;
-  Settings settings = 23;
   _RecordInfo _info = 200;
 }
 

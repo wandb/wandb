@@ -272,7 +272,7 @@ func (nc *Connection) handleIncomingRequests() {
 		case *spb.ServerRequest_InformInit:
 			nc.handleInformInit(x.InformInit)
 		case *spb.ServerRequest_InformStart:
-			// TODO: remove this once we remove legacy service
+			nc.handleInformStart(x.InformStart)
 		case *spb.ServerRequest_InformAttach:
 			nc.handleInformAttach(x.InformAttach)
 		case *spb.ServerRequest_RecordPublish:
@@ -340,6 +340,19 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	}
 }
 
+// handleInformStart handles the start message from the client.
+//
+// This function is invoked when the server receives an `InformStart` message
+// from the client. It updates the stream settings with the provided settings
+// from the client.
+//
+// TODO: should probably remove this message and use a different mechanism
+// to update stream settings
+func (nc *Connection) handleInformStart(msg *spb.ServerInformStartRequest) {
+	slog.Debug("handleInformStart: received", "id", nc.id)
+	nc.stream.UpdateSettings(settings.From(msg.GetSettings()))
+}
+
 // handleInformAttach handles the new connection attaching to an existing stream.
 //
 // This function is invoked when the server receives an `InformAttach` message
@@ -361,7 +374,7 @@ func (nc *Connection) handleInformAttach(msg *spb.ServerInformAttachRequest) {
 			ServerResponseType: &spb.ServerResponse_InformAttachResponse{
 				InformAttachResponse: &spb.ServerInformAttachResponse{
 					XInfo:    msg.XInfo,
-					Settings: nc.stream.Settings.Proto,
+					Settings: nc.stream.GetSettings().Proto,
 				},
 			},
 		}
