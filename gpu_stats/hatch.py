@@ -1,19 +1,19 @@
-"""Builds the nvidia_gpu_stats binary for monitoring NVIDIA GPUs."""
+"""Builds the gpu_stats binary for monitoring NVIDIA and Apple ARM GPUs."""
 
 import json
 import pathlib
 import subprocess
 
 
-class NvidiaGpuStatsBuildError(Exception):
-    """Raised when building Nvidia GPU stats fails."""
+class GpuStatsBuildError(Exception):
+    """Raised when building GPU stats service fails."""
 
 
-def build_nvidia_gpu_stats(
+def build_gpu_stats(
     cargo_binary: pathlib.Path,
     output_path: pathlib.Path,
 ) -> None:
-    """Builds the `nvidia_gpu_stats` Rust binary for monitoring NVIDIA GPUs.
+    """Builds the `gpu_stats` Rust binary for monitoring NVIDIA and Apple ARM GPUs.
 
     NOTE: Cargo creates a cache under `./target/release` which speeds up subsequent builds,
     but may grow large over time and/or cause issues when changing the commands here.
@@ -24,7 +24,7 @@ def build_nvidia_gpu_stats(
         output_path: The path where to output the binary, relative to the
             workspace root.
     """
-    rust_pkg_root = pathlib.Path("./nvidia_gpu_stats")
+    rust_pkg_root = pathlib.Path("./gpu_stats")
 
     cmd = (
         str(cargo_binary),
@@ -36,14 +36,14 @@ def build_nvidia_gpu_stats(
     try:
         cargo_output = subprocess.check_output(cmd, cwd=rust_pkg_root)
     except subprocess.CalledProcessError as e:
-        raise NvidiaGpuStatsBuildError(
-            "Failed to build the `nvidia_gpu_stats` Rust binary. If you didn't"
+        raise GpuStatsBuildError(
+            "Failed to build the `gpu_stats` Rust binary. If you didn't"
             " break the build, you may need to install Rust; see"
             " https://www.rust-lang.org/tools/install."
             "\n\n"
-            "As a workaround, you can set the WANDB_BUILD_SKIP_NVIDIA"
+            "As a workaround, you can set the WANDB_BUILD_SKIP_GPU_STATS"
             " environment variable to true to skip this step and build a wandb"
-            " package that doesn't collect NVIDIA GPU metrics."
+            " package that doesn't collect NVIDIA and Apple ARM GPU stats."
         ) from e
 
     built_binary_path = _get_executable_path(cargo_output)
@@ -54,7 +54,7 @@ def build_nvidia_gpu_stats(
 
 
 def _get_executable_path(cargo_output: bytes) -> pathlib.Path:
-    """Returns the path to the nvidia_gpu_stats binary.
+    """Returns the path to the gpu_stats binary.
 
     Args:
         cargo_output: The output from `cargo build` with
@@ -64,14 +64,14 @@ def _get_executable_path(cargo_output: bytes) -> pathlib.Path:
         The path to the binary.
 
     Raises:
-        NvidiaGpuStatsBuildError: if the path could not be determined.
+        GpuStatsBuildError: if the path could not be determined.
     """
     for line in cargo_output.splitlines():
         path = json.loads(line).get("executable")
         if path:
             return pathlib.Path(path)
 
-    raise NvidiaGpuStatsBuildError(
-        "Failed to find the `nvidia_gpu_stats` binary. `cargo build` output:\n"
+    raise GpuStatsBuildError(
+        "Failed to find the `gpu_stats` binary. `cargo build` output:\n"
         + str(cargo_output),
     )
