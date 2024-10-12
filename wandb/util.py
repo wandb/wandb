@@ -881,6 +881,23 @@ def no_retry_4xx(e: Exception) -> bool:
     raise UsageError(body["errors"][0]["message"])
 
 
+def parse_backend_error_messages(response: requests.Response) -> List[str]:
+    errors = []
+    try:
+        data = response.json()
+    except ValueError:
+        return errors
+
+    if "errors" in data and isinstance(data["errors"], list):
+        for error in data["errors"]:
+            # Our tests and potentially some api endpoints return a string error?
+            if isinstance(error, str):
+                error = {"message": error}
+            if "message" in error:
+                errors.append(error["message"])
+    return errors
+
+
 def no_retry_auth(e: Any) -> bool:
     if hasattr(e, "exception"):
         e = e.exception
@@ -891,6 +908,12 @@ def no_retry_auth(e: Any) -> bool:
     # Don't retry bad request errors; raise immediately
     if e.response.status_code in (400, 409):
         return False
+    if e.response.status_code == 404:
+        # Don't retry 404 errors, raise 404 error if it has a non-empty error message
+        # Otherwise trickle down to the default error handling below
+        error_messages = parse_backend_error_messages(e.response)
+        if len(error_messages) > 0:
+            return False
     # Retry all non-forbidden/unauthorized/not-found errors.
     if e.response.status_code not in (401, 403, 404):
         return True
