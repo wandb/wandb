@@ -800,6 +800,7 @@ class WandbImporter:
         history: bool = True,
         summary: bool = True,
         terminal_output: bool = True,
+        force_retry: bool = False
     ):
         logger.info("START: Import runs")
 
@@ -815,6 +816,7 @@ class WandbImporter:
             runs,
             skip_previously_validated=incremental,
             remapping=remapping,
+            force_retry=force_retry
         )
 
         logger.info("Collecting failed runs")
@@ -950,6 +952,7 @@ class WandbImporter:
         incremental: bool = True,
         parallel: bool = True,
         max_workers: int = None,
+        force_retry_runs: bool = False,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
     ):
         logger.info(f"START: Importing all, {runs=}, {artifacts=}, {reports=}")
@@ -960,7 +963,8 @@ class WandbImporter:
                 remapping=remapping,
                 max_workers=max_workers,
                 parallel=parallel,
-                terminal_output=False
+                terminal_output=False,
+                force_retry=force_retry_runs
             )
 
         if reports:
@@ -986,6 +990,7 @@ class WandbImporter:
         src_run: Run,
         *,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
+        force_retry: bool
     ) -> None:
         namespace = Namespace(src_run.entity, src_run.project)
         if remapping is not None and namespace in remapping:
@@ -1000,7 +1005,7 @@ class WandbImporter:
         except wandb.CommError:
             problems = [f"run does not exist in dst at {dst_entity=}/{dst_project=}"]
         else:
-            problems = self._get_run_problems(src_run, dst_run)
+            problems = self._get_run_problems(src_run, dst_run, force_retry)
 
         d = {
             "src_entity": src_run.entity,
@@ -1132,6 +1137,7 @@ class WandbImporter:
         *,
         skip_previously_validated: bool = True,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
+        force_retry: bool
     ):
         base_runs = [r.run for r in runs]
         if skip_previously_validated:
@@ -1144,7 +1150,7 @@ class WandbImporter:
 
         def _validate_run(run):
             logger.info(f"Validating {run=}")
-            self._validate_run(run, remapping=remapping)
+            self._validate_run(run, remapping=remapping, force_retry=force_retry)
             logger.info(f"Finished validating {run=}")
 
         for_each(_validate_run, base_runs)
