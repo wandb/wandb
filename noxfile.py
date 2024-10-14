@@ -557,6 +557,7 @@ def mypy_report(session: nox.Session) -> None:
     This session will install the package and run mypy with the --install-types flag.
     If the report parameter is set to True, it will also generate an html report.
     """
+    install_wandb(session)
     session.install(
         # https://github.com/python/mypy/issues/17166
         "mypy != 1.10.0",
