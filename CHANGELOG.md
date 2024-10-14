@@ -13,6 +13,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Added
 
+- Track detailed metrics for Apple ARM systems including GPU, eCPU, and pCPU utilization, power consumption, and temperature, and memory/swap utilization (@dmitryduev in https://github.com/wandb/wandb/pull/8550)
 - Allow users to link Registry artifacts without inputting the organization entity name (@estellazx in https://github.com/wandb/wandb/pull/8482)
 
 ### Fixed

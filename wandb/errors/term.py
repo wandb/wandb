@@ -7,7 +7,7 @@ import logging
 import os
 import sys
 import threading
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Iterator, Protocol
 
 import click
 
@@ -76,29 +76,48 @@ def termsetup(
     _logger = logger
 
 
-def dynamic_text() -> DynamicBlock | None:
-    """Returns a handle to a new dynamic text area.
+@contextlib.contextmanager
+def dynamic_text() -> Iterator[DynamicBlock | None]:
+    """A context manager that provides a handle to a new dynamic text area.
+
+    The text goes to stderr. Returns None if dynamic text is not supported.
 
     Dynamic text must only be used while `wandb` has control of the terminal,
     or else text written by other programs will be overwritten. It's
     appropriate to use during a blocking operation.
 
-    Returns None if dynamic text is not supported.
+    ```
+    with term.dynamic_text() as text_area:
+        if text_area:
+            text_area.set_text("Writing to a terminal.")
+            for i in range(2000):
+                text_area.set_text(f"Still going... ({i}/2000)")
+                time.sleep(0.001)
+        else:
+            click.echo("Writing to a file or dumb terminal.", err=True)
+            time.sleep(1)
+            click.echo("Finished 1000/2000 tasks, still working...", err=True)
+            time.sleep(1)
+    click.echo("Done!", err=True)
+    ```
     """
     # For now, dynamic text always corresponds to the "INFO" level.
     if _silent or not _show_info:
-        return None
+        yield None
+        return
 
     # NOTE: In Jupyter notebooks, this will return False. Notebooks
     #   support ANSI color sequences and the '\r' character, but not
     #   cursor motions or line clear commands.
     if not _sys_stderr_isatty():
-        return None
+        yield None
+        return
 
     # This is a convention to indicate that the terminal doesn't support
     # clearing the screen / positioning the cursor.
     if os.environ.get("TERM") == "dumb":
-        return None
+        yield None
+        return
 
     # NOTE: On Windows < 10, ANSI escape sequences such as \x1b[Am and \x1b[2K,
     #   used to move the cursor and clear text, aren't supported by the built-in
@@ -107,10 +126,17 @@ def dynamic_text() -> DynamicBlock | None:
     #
     #   For this reason, we don't have special checks for Windows.
 
+    block = DynamicBlock()
+
     with _dynamic_text_lock:
-        block = DynamicBlock()
         _dynamic_blocks.append(block)
-        return block
+
+    yield block
+
+    with _dynamic_text_lock:
+        block._lines_to_print = []
+        _l_rerender_dynamic_blocks()
+        _dynamic_blocks.remove(block)
 
 
 def _sys_stderr_isatty() -> bool:
@@ -217,16 +243,6 @@ class DynamicBlock:
 
             _l_rerender_dynamic_blocks()
 
-    def remove(self) -> None:
-        """Remove the block of text from the terminal.
-
-        After this, updates to this dynamic block are ignored.
-        """
-        with _dynamic_text_lock:
-            self._lines_to_print = []
-            _l_rerender_dynamic_blocks()
-            _dynamic_blocks.remove(self)
-
     def _l_clear(self) -> None:
         """Send terminal commands to clear all previously printed lines.
 
@@ -253,9 +269,9 @@ class DynamicBlock:
 
         The lock must be held.
         """
-        for line in self._lines_to_print:
-            click.echo(line, file=sys.stderr)
-            self._num_lines_printed += 1
+        if self._lines_to_print:
+            click.echo("\n".join(self._lines_to_print), file=sys.stderr)
+        self._num_lines_printed += len(self._lines_to_print)
 
 
 def _log(

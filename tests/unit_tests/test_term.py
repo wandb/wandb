@@ -36,54 +36,73 @@ def allow_dynamic_text(monkeypatch):
 def test_no_dynamic_text_if_silent():
     wandb.termsetup(wandb.Settings(silent=True), None)
 
-    assert term.dynamic_text() is None
+    with term.dynamic_text() as text:
+        assert text is None
 
 
 def test_no_dynamic_text_if_not_tty(monkeypatch):
     monkeypatch.setattr(term, "_sys_stderr_isatty", lambda: False)
 
-    assert term.dynamic_text() is None
+    with term.dynamic_text() as text:
+        assert text is None
 
 
 def test_no_dynamic_text_if_dumb_term(monkeypatch):
     monkeypatch.setenv("TERM", "dumb")
 
-    assert term.dynamic_text() is None
+    with term.dynamic_text() as text:
+        assert text is None
 
 
 def test_dynamic_text(capsys):
-    text1 = term.dynamic_text()
-    text2 = term.dynamic_text()
-    assert text1 and text2
+    with term.dynamic_text() as text1:
+        assert text1
 
-    text1.set_text("one\ntwo\nthree")
-    text2.set_text("four\nfive")
-    text1.set_text("updated")
-    text1.remove()
+        with term.dynamic_text() as text2:
+            assert text2
+
+            text1.set_text("one\ntwo\nthree")
+            text2.set_text("four\nfive")
+            text1.set_text("updated")
 
     captured = capsys.readouterr()
-    assert (
-        captured.err
-        == (
-            # text1.set_text()
-            f"{BLUE_WANDB}: one\n"
-            f"{BLUE_WANDB}: two\n"
-            f"{BLUE_WANDB}: three\n"
-            # text2.set_text()
-            + (3 * ANSI_DEL_LINE)
-            + f"{BLUE_WANDB}: one\n"
-            f"{BLUE_WANDB}: two\n"
-            f"{BLUE_WANDB}: three\n"
-            f"{BLUE_WANDB}: four\n"
-            f"{BLUE_WANDB}: five\n"
-            # text1.set_text()
-            + (5 * ANSI_DEL_LINE)  #
-            + f"{BLUE_WANDB}: updated\n"
-            f"{BLUE_WANDB}: four\n"
-            f"{BLUE_WANDB}: five\n"
-            # text1.remove()
-            + (3 * ANSI_DEL_LINE)  #
-            + f"{BLUE_WANDB}: four\n"
-            f"{BLUE_WANDB}: five\n"
-        )
-    )
+    assert captured.err.split("\n") == [
+        # text1.set_text()
+        f"{BLUE_WANDB}: one",
+        f"{BLUE_WANDB}: two",
+        f"{BLUE_WANDB}: three",
+        # text2.set_text()
+        (3 * ANSI_DEL_LINE) + f"{BLUE_WANDB}: one",
+        f"{BLUE_WANDB}: two",
+        f"{BLUE_WANDB}: three",
+        f"{BLUE_WANDB}: four",
+        f"{BLUE_WANDB}: five",
+        # text1.set_text()
+        (5 * ANSI_DEL_LINE) + f"{BLUE_WANDB}: updated",
+        f"{BLUE_WANDB}: four",
+        f"{BLUE_WANDB}: five",
+        # <end of text2>
+        (3 * ANSI_DEL_LINE) + f"{BLUE_WANDB}: updated",
+        # <end of text1>
+        (1 * ANSI_DEL_LINE),
+    ]
+
+
+def test_static_and_dynamic_text(capsys):
+    with term.dynamic_text() as text:
+        assert text
+
+        text.set_text("my\nanimated\ntext")
+        wandb.termlog("static text above animated text")
+
+    captured = capsys.readouterr()
+    assert captured.err.split("\n") == [
+        f"{BLUE_WANDB}: my",
+        f"{BLUE_WANDB}: animated",
+        f"{BLUE_WANDB}: text",
+        (3 * ANSI_DEL_LINE) + f"{BLUE_WANDB}: static text above animated text",
+        f"{BLUE_WANDB}: my",
+        f"{BLUE_WANDB}: animated",
+        f"{BLUE_WANDB}: text",
+        (3 * ANSI_DEL_LINE),
+    ]
