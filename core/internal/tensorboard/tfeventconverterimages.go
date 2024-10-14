@@ -41,11 +41,11 @@ func processImagesTensor(
 	tensorValue *tbproto.TensorProto,
 	logger *observability.CoreLogger,
 ) {
-	if len(tensorValue.StringVal) != 3 {
+	if len(tensorValue.StringVal) < 3 {
 		logger.CaptureError(
 			fmt.Errorf(
 				"tensorboard: expected images tensor string_val"+
-					" to have 3 values, but it has %d",
+					" to have at least 3 values, but it has %d",
 				len(tensorValue.StringVal)))
 		return
 	}
@@ -53,7 +53,6 @@ func processImagesTensor(
 	// Format: https://github.com/tensorflow/tensorboard/blob/b56c65521cbccf3097414cbd7e30e55902e08cab/tensorboard/plugins/image/summary.py#L17-L18
 	width, err1 := strconv.Atoi(string(tensorValue.StringVal[0]))
 	height, err2 := strconv.Atoi(string(tensorValue.StringVal[1]))
-	png := tensorValue.StringVal[2]
 	if err1 != nil || err2 != nil {
 		logger.CaptureError(
 			fmt.Errorf(
@@ -62,8 +61,14 @@ func processImagesTensor(
 		return
 	}
 
-	emitImage(width, height, png, emitter, tag, logger)
-
+	// If we receive a batch of images then we want to loop through them and emit each one with a unique tag.
+	if len(tensorValue.StringVal) > 3 {
+		images := tensorValue.StringVal[2:]
+		emitImages(width, height, images, emitter, tag, logger)
+	} else {
+		png := tensorValue.StringVal[2]
+		emitImage(width, height, png, emitter, tag, logger)
+	}
 }
 
 // processImagesProto processes a summary with the 'image' field.
@@ -81,6 +86,21 @@ func processImagesProto(
 		tag,
 		logger,
 	)
+}
+
+// Handle emitting multiple images sent in batch, by adding a sample suffix to each image tag.
+func emitImages(
+	width int,
+	height int,
+	images [][]byte,
+	emitter Emitter,
+	tag string,
+	logger *observability.CoreLogger,
+) {
+	for i, encodedData := range images {
+		tagWithSample := tag + " - sample: " + strconv.Itoa(i)
+		emitImage(width, height, encodedData, emitter, tagWithSample, logger)
+	}
 }
 
 func emitImage(

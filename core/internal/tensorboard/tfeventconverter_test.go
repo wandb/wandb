@@ -410,6 +410,44 @@ func TestConvertImage(t *testing.T) {
 		emitter.EmitImageCalls)
 }
 
+func TestConvertBatchOfImages(t *testing.T) {
+	converter := tensorboard.TFEventConverter{Namespace: "train"}
+
+	emitter := &mockEmitter{}
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValueStrings(
+				"my_img",
+				"images",
+				"2",
+				"4",
+				testPNG2x4,
+				testPNG2x4,
+			)),
+		observability.NewNoOpLogger(),
+	)
+
+	expectedImage := wbvalue.Image{
+		Width:       2,
+		Height:      4,
+		EncodedData: []byte(testPNG2x4),
+		Format:      "png",
+	}
+	assert.Equal(t,
+		[]mockEmitter_EmitImage{
+			{
+				Key:   pathtree.PathOf("train/my_img - sample: 0"),
+				Image: expectedImage,
+			},
+			{
+				Key:   pathtree.PathOf("train/my_img - sample: 1"),
+				Image: expectedImage,
+			},
+		},
+		emitter.EmitImageCalls)
+}
+
 func TestConvertGif(t *testing.T) {
 	converter := tensorboard.TFEventConverter{Namespace: "train"}
 
@@ -487,7 +525,7 @@ func TestConvertImage_UnknownTBFormat(t *testing.T) {
 
 	assert.Empty(t, emitter.EmitImageCalls)
 	assert.Contains(t, logs.String(),
-		"expected images tensor string_val to have 3 values, but it has 1")
+		"expected images tensor string_val to have at least 3 values, but it has 1")
 }
 
 func TestConvertPRCurve(t *testing.T) {
