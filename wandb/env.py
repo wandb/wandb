@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 from typing import List, MutableMapping, Optional, Union
 
-import platformdirs  # type: ignore
+import platformdirs
 
 Env = Optional[MutableMapping]
 
