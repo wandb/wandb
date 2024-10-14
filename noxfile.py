@@ -243,6 +243,10 @@ def functional_tests(session: nox.Session):
     run_pytest(
         session,
         paths=(session.posargs or ["tests/system_tests/test_functional"]),
+        # the default n=auto spins up too many workers on CircleCI as it's
+        # based on the number of detected CPUs in the system, and doesn't
+        # take into account the number of available CPUs in the container,
+        # which results in OOM errors.
         opts={"n": 4},
     )
 
