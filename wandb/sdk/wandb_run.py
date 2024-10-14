@@ -2645,6 +2645,21 @@ class Run:
         handle = self._backend.interface.deliver_poll_exit()
         probe_handle.set_mailbox_handle(handle)
 
+    def _on_progress_exit(
+        self,
+        progress_printer: progress.ProgressPrinter,
+        progress_handle: MailboxProgress,
+    ) -> None:
+        probe_handles = progress_handle.get_probe_handles()
+        if not probe_handles or len(probe_handles) != 1:
+            return
+
+        result = probe_handles[0].get_probe_result()
+        if not result:
+            return
+
+        progress_printer.update([result.response.poll_exit_response])
+
     def _on_finish(self) -> None:
         trigger.call("on_finished")
 
@@ -2653,34 +2668,25 @@ class Run:
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
-        progress_printer = progress.ProgressPrinter(self._printer)
-
-        def on_progress_exit(progress_handle: MailboxProgress) -> None:
-            probe_handles = progress_handle.get_probe_handles()
-            if not probe_handles or len(probe_handles) != 1:
-                return
-
-            result = probe_handles[0].get_probe_result()
-            if not result:
-                return
-
-            progress_printer.update([result.response.poll_exit_response])
-
         assert self._backend and self._backend.interface
 
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
-        # wait for the exit to complete
-        _ = exit_handle.wait(timeout=-1, on_progress=on_progress_exit)
+        with progress.progress_printer(self._printer) as progress_printer:
+            # Wait for the run to complete.
+            _ = exit_handle.wait(
+                timeout=-1,
+                on_progress=functools.partial(
+                    self._on_progress_exit,
+                    progress_printer,
+                ),
+            )
 
+        # Print some final statistics.
         poll_exit_handle = self._backend.interface.deliver_poll_exit()
-        # wait for them, it's ok to do this serially but this can be improved
         result = poll_exit_handle.wait(timeout=-1)
         assert result
-
-        progress_printer.update([result.response.poll_exit_response])
-        progress_printer.finish()
         progress.print_sync_dedupe_stats(
             self._printer,
             result.response.poll_exit_response,
