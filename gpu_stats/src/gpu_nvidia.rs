@@ -282,7 +282,7 @@ impl NvidiaGpu {
         let mut metrics: Vec<(String, MetricValue)> = vec![];
 
         metrics.push((
-            "cuda_version".to_string(),
+            "_cuda_version".to_string(),
             MetricValue::String(self.cuda_version.clone()),
         ));
         metrics.push((
@@ -679,7 +679,7 @@ impl NvidiaGpu {
                 metadata_request.gpu_type = gpu_name.to_string();
             }
         }
-        if let Some(value) = samples.get("cuda_version") {
+        if let Some(value) = samples.get("_cuda_version") {
             if let MetricValue::String(cuda_version) = value {
                 metadata_request.cuda_version = cuda_version.to_string();
             }
