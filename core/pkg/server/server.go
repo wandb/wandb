@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/sentry_ext"
+	"github.com/wandb/wandb/core/internal/stream"
 )
 
 const (
@@ -136,7 +137,7 @@ func (s *Server) Serve() {
 func (s *Server) serve() {
 	slog.Info("server is running", "addr", s.listener.Addr())
 
-	streamMux := NewStreamMux()
+	streamMux := stream.NewStreamMux()
 
 	// Run a separate goroutine to handle incoming connections
 	for {

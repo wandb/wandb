@@ -21,7 +21,7 @@ const rocmSMICmd string = "/usr/bin/rocm-smi"
 type StatsKeys string
 
 const (
-	GPU                     StatsKeys = "gpu"
+	GPUUtilization          StatsKeys = "gpu"
 	MemoryAllocated         StatsKeys = "memoryAllocated"
 	MemoryReadWriteActivity StatsKeys = "memoryReadWriteActivity"
 	MemoryOverDrive         StatsKeys = "memoryOverDrive"
@@ -242,7 +242,7 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 	for key, statFunc := range map[string]func(string) *Stats{
 		"GPU use (%)": func(s string) *Stats {
 			if f, err := parseFloat(s); err == nil {
-				return &Stats{GPU: f}
+				return &Stats{GPUUtilization: f}
 			}
 			return nil
 		},

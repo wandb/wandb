@@ -1,10 +1,11 @@
 # Note: this is a helper printer class, this file might go away once we switch to rich console printing
 
 import abc
+import contextlib
 import itertools
 import platform
 import sys
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, Iterator, List, Optional, Tuple, Union
 
 if sys.version_info >= (3, 12):
     from typing import override
@@ -61,16 +62,17 @@ class _Printer(abc.ABC):
     ) -> str:
         return "Control-C" if platform.system() != "Windows" else "Ctrl-C"
 
+    @contextlib.contextmanager
     @abc.abstractmethod
-    def dynamic_text(self) -> "Optional[DynamicText]":
-        """Returns a handle to a new block of changeable text.
+    def dynamic_text(self) -> "Iterator[Optional[DynamicText]]":
+        """A context manager providing a handle to a block of changeable text.
 
         Since `wandb` may be outputting to a terminal, it's important to only
         use this when `wandb` is performing blocking calls, or else text output
         by non-`wandb` code may get overwritten.
 
         Returns None if dynamic text is not supported, such as if stderr is not
-        a TTY.
+        a TTY and we're not in a Jupyter notebook.
         """
 
     def display(
@@ -142,19 +144,14 @@ class DynamicText(abc.ABC):
 
     @abc.abstractmethod
     def set_text(self, text: str) -> None:
-        r"""Replaces the text.
+        r"""Change the text.
 
         Args:
             text: The text to put in the block, with lines separated
                 by \n characters. The text should not end in \n unless
                 a blank line at the end of the block is desired.
-        """
-
-    @abc.abstractmethod
-    def remove(self) -> None:
-        """Removes the text.
-
-        After this, further updates are ignored.
+                May include styled output from methods on the Printer
+                that created this.
         """
 
 
@@ -165,13 +162,13 @@ class PrinterTerm(_Printer):
         self._progress = itertools.cycle(["-", "\\", "|", "/"])
 
     @override
-    def dynamic_text(self) -> DynamicText | None:
-        handle = term.dynamic_text()
-
-        if not handle:
-            return None
-
-        return _DynamicTermText(handle)
+    @contextlib.contextmanager
+    def dynamic_text(self) -> Iterator[Optional[DynamicText]]:
+        with term.dynamic_text() as handle:
+            if not handle:
+                yield None
+            else:
+                yield _DynamicTermText(handle)
 
     def _display(
         self,
@@ -271,10 +268,6 @@ class _DynamicTermText(DynamicText):
     def set_text(self, text: str) -> None:
         self._handle.set_text(text)
 
-    @override
-    def remove(self) -> None:
-        self._handle.remove()
-
 
 class PrinterJupyter(_Printer):
     def __init__(self) -> None:
@@ -283,9 +276,10 @@ class PrinterJupyter(_Printer):
         self._progress = ipython.jupyter_progress_bar()
 
     @override
-    def dynamic_text(self) -> DynamicText | None:
+    @contextlib.contextmanager
+    def dynamic_text(self) -> "Iterator[Optional[DynamicText]]":
         # TODO: Support dynamic text in Jupyter notebooks.
-        return None
+        yield None
 
     def _display(
         self,

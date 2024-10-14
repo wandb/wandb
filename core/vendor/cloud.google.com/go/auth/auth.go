@@ -345,13 +345,14 @@ func (c *cachedTokenProvider) tokenState() tokenState {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	t := c.cachedToken
+	now := timeNow()
 	if t == nil || t.Value == "" {
 		return invalid
 	} else if t.Expiry.IsZero() {
 		return fresh
-	} else if timeNow().After(t.Expiry.Round(0)) {
+	} else if now.After(t.Expiry.Round(0)) {
 		return invalid
-	} else if timeNow().After(t.Expiry.Round(0).Add(-c.expireEarly)) {
+	} else if now.After(t.Expiry.Round(0).Add(-c.expireEarly)) {
 		return stale
 	}
 	return fresh
