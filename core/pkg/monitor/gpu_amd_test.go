@@ -31,7 +31,7 @@ func TestGPUAMD_ParseStatsROCM5(t *testing.T) {
 	parsedStats := gpu.ParseStats(stats)
 
 	expected := monitor.Stats{
-		monitor.GPU:             10,
+		monitor.GPUUtilization:  10,
 		monitor.MemoryAllocated: 20,
 		monitor.Temp:            43,
 		monitor.PowerWatts:      89,
@@ -54,7 +54,7 @@ func TestGPUAMD_ParseStatsROCM6(t *testing.T) {
 	parsedStats := gpu.ParseStats(stats)
 
 	expected := monitor.Stats{
-		monitor.GPU:             10,
+		monitor.GPUUtilization:  10,
 		monitor.MemoryAllocated: 20,
 		monitor.Temp:            43,
 		monitor.PowerWatts:      89,
