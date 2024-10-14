@@ -94,11 +94,11 @@ def dynamic_text() -> Iterator[DynamicBlock | None]:
                 text_area.set_text(f"Still going... ({i}/2000)")
                 time.sleep(0.001)
         else:
-            click.echo("Writing to a file or dumb terminal.", err=True)
+            wandb.termlog("Writing to a file or dumb terminal.")
             time.sleep(1)
-            click.echo("Finished 1000/2000 tasks, still working...", err=True)
+            wandb.termlog("Finished 1000/2000 tasks, still working...")
             time.sleep(1)
-    click.echo("Done!", err=True)
+    wandb.termlog("Done!", err=True)
     ```
     """
     # For now, dynamic text always corresponds to the "INFO" level.
