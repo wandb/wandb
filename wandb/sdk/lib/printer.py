@@ -1,14 +1,21 @@
 # Note: this is a helper printer class, this file might go away once we switch to rich console printing
 
+import abc
+import contextlib
 import itertools
 import platform
 import sys
-from abc import abstractmethod
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, Iterator, List, Optional, Tuple, Union
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 import click
 
 import wandb
+from wandb.errors import term
 
 from . import ipython, sparkline
 
@@ -43,7 +50,7 @@ _name_to_level = {
 }
 
 
-class _Printer:
+class _Printer(abc.ABC):
     def sparklines(self, series: List[Union[int, float]]) -> Optional[str]:
         # Only print sparklines if the terminal is utf-8
         if wandb.util.is_unicode_safe(sys.stdout):
@@ -54,6 +61,19 @@ class _Printer:
         self,
     ) -> str:
         return "Control-C" if platform.system() != "Windows" else "Ctrl-C"
+
+    @contextlib.contextmanager
+    @abc.abstractmethod
+    def dynamic_text(self) -> "Iterator[Optional[DynamicText]]":
+        """A context manager providing a handle to a block of changeable text.
+
+        Since `wandb` may be outputting to a terminal, it's important to only
+        use this when `wandb` is performing blocking calls, or else text output
+        by non-`wandb` code may get overwritten.
+
+        Returns None if dynamic text is not supported, such as if stderr is not
+        a TTY and we're not in a Jupyter notebook.
+        """
 
     def display(
         self,
@@ -67,15 +87,14 @@ class _Printer:
             return
         self._display(text, level=level, default_text=default_text)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _display(
         self,
         text: Union[str, List[str], Tuple[str]],
         *,
         level: Optional[Union[str, int]] = None,
         default_text: Optional[Union[str, List[str], Tuple[str]]] = None,
-    ) -> None:
-        raise NotImplementedError
+    ) -> None: ...
 
     @staticmethod
     def _sanitize_level(name_or_level: Optional[Union[str, int]]) -> int:
@@ -95,37 +114,45 @@ class _Printer:
 
         raise ValueError(f"Unknown status level {name_or_level}")
 
-    @abstractmethod
-    def code(self, text: str) -> str:
-        raise NotImplementedError
+    @abc.abstractmethod
+    def code(self, text: str) -> str: ...
 
-    @abstractmethod
-    def name(self, text: str) -> str:
-        raise NotImplementedError
+    @abc.abstractmethod
+    def name(self, text: str) -> str: ...
 
-    @abstractmethod
-    def link(self, link: str, text: Optional[str] = None) -> str:
-        raise NotImplementedError
+    @abc.abstractmethod
+    def link(self, link: str, text: Optional[str] = None) -> str: ...
 
-    @abstractmethod
-    def emoji(self, name: str) -> str:
-        raise NotImplementedError
+    @abc.abstractmethod
+    def emoji(self, name: str) -> str: ...
 
-    @abstractmethod
-    def status(self, text: str, failure: Optional[bool] = None) -> str:
-        raise NotImplementedError
+    @abc.abstractmethod
+    def status(self, text: str, failure: Optional[bool] = None) -> str: ...
 
-    @abstractmethod
-    def files(self, text: str) -> str:
-        raise NotImplementedError
+    @abc.abstractmethod
+    def files(self, text: str) -> str: ...
 
-    @abstractmethod
-    def grid(self, rows: List[List[str]], title: Optional[str] = None) -> str:
-        raise NotImplementedError
+    @abc.abstractmethod
+    def grid(self, rows: List[List[str]], title: Optional[str] = None) -> str: ...
 
-    @abstractmethod
-    def panel(self, columns: List[str]) -> str:
-        raise NotImplementedError
+    @abc.abstractmethod
+    def panel(self, columns: List[str]) -> str: ...
+
+
+class DynamicText(abc.ABC):
+    """A handle to a block of text that's allowed to change."""
+
+    @abc.abstractmethod
+    def set_text(self, text: str) -> None:
+        r"""Change the text.
+
+        Args:
+            text: The text to put in the block, with lines separated
+                by \n characters. The text should not end in \n unless
+                a blank line at the end of the block is desired.
+                May include styled output from methods on the Printer
+                that created this.
+        """
 
 
 class PrinterTerm(_Printer):
@@ -133,6 +160,15 @@ class PrinterTerm(_Printer):
         super().__init__()
         self._html = False
         self._progress = itertools.cycle(["-", "\\", "|", "/"])
+
+    @override
+    @contextlib.contextmanager
+    def dynamic_text(self) -> Iterator[Optional[DynamicText]]:
+        with term.dynamic_text() as handle:
+            if not handle:
+                yield None
+            else:
+                yield _DynamicTermText(handle)
 
     def _display(
         self,
@@ -224,11 +260,26 @@ class PrinterTerm(_Printer):
         return "\n" + "\n".join(columns)
 
 
+class _DynamicTermText(DynamicText):
+    def __init__(self, handle: term.DynamicBlock) -> None:
+        self._handle = handle
+
+    @override
+    def set_text(self, text: str) -> None:
+        self._handle.set_text(text)
+
+
 class PrinterJupyter(_Printer):
     def __init__(self) -> None:
         super().__init__()
         self._html = True
         self._progress = ipython.jupyter_progress_bar()
+
+    @override
+    @contextlib.contextmanager
+    def dynamic_text(self) -> "Iterator[Optional[DynamicText]]":
+        # TODO: Support dynamic text in Jupyter notebooks.
+        yield None
 
     def _display(
         self,
