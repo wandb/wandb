@@ -1859,7 +1859,7 @@ def sample_with_exponential_decay_weights(
     sampled_indices = np.random.choice(len(xs_array), size=sample_size, p=weights)
     sampled_xs = xs_array[sampled_indices].tolist()
     sampled_ys = ys_array[sampled_indices].tolist()
-    sampled_keys = keys_array[sampled_indices].tolist() if keys else None
+    sampled_keys = keys_array[sampled_indices].tolist() if keys_array else None
 
     return sampled_xs, sampled_ys, sampled_keys
 
