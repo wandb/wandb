@@ -18098,12 +18098,17 @@ func awsRestxml_deserializeDocumentLifecycleRuleAndOperator(v **types.LifecycleR
 	return nil
 }
 
-func awsRestxml_deserializeDocumentLifecycleRuleFilter(v *types.LifecycleRuleFilter, decoder smithyxml.NodeDecoder) error {
+func awsRestxml_deserializeDocumentLifecycleRuleFilter(v **types.LifecycleRuleFilter, decoder smithyxml.NodeDecoder) error {
 	if v == nil {
 		return fmt.Errorf("unexpected nil of type %T", v)
 	}
-	var uv types.LifecycleRuleFilter
-	var memberFound bool
+	var sv *types.LifecycleRuleFilter
+	if *v == nil {
+		sv = &types.LifecycleRuleFilter{}
+	} else {
+		sv = *v
+	}
+
 	for {
 		t, done, err := decoder.Token()
 		if err != nil {
@@ -18112,27 +18117,16 @@ func awsRestxml_deserializeDocumentLifecycleRuleFilter(v *types.LifecycleRuleFil
 		if done {
 			break
 		}
-		if memberFound {
-			if err = decoder.Decoder.Skip(); err != nil {
-				return err
-			}
-		}
 		originalDecoder := decoder
 		decoder = smithyxml.WrapNodeDecoder(originalDecoder.Decoder, t)
 		switch {
 		case strings.EqualFold("And", t.Name.Local):
-			var mv types.LifecycleRuleAndOperator
 			nodeDecoder := smithyxml.WrapNodeDecoder(decoder.Decoder, t)
-			destAddr := &mv
-			if err := awsRestxml_deserializeDocumentLifecycleRuleAndOperator(&destAddr, nodeDecoder); err != nil {
+			if err := awsRestxml_deserializeDocumentLifecycleRuleAndOperator(&sv.And, nodeDecoder); err != nil {
 				return err
 			}
-			mv = *destAddr
-			uv = &types.LifecycleRuleFilterMemberAnd{Value: mv}
-			memberFound = true
 
 		case strings.EqualFold("ObjectSizeGreaterThan", t.Name.Local):
-			var mv int64
 			val, err := decoder.Value()
 			if err != nil {
 				return err
@@ -18146,13 +18140,10 @@ func awsRestxml_deserializeDocumentLifecycleRuleFilter(v *types.LifecycleRuleFil
 				if err != nil {
 					return err
 				}
-				mv = i64
+				sv.ObjectSizeGreaterThan = ptr.Int64(i64)
 			}
-			uv = &types.LifecycleRuleFilterMemberObjectSizeGreaterThan{Value: mv}
-			memberFound = true
 
 		case strings.EqualFold("ObjectSizeLessThan", t.Name.Local):
-			var mv int64
 			val, err := decoder.Value()
 			if err != nil {
 				return err
@@ -18166,13 +18157,10 @@ func awsRestxml_deserializeDocumentLifecycleRuleFilter(v *types.LifecycleRuleFil
 				if err != nil {
 					return err
 				}
-				mv = i64
+				sv.ObjectSizeLessThan = ptr.Int64(i64)
 			}
-			uv = &types.LifecycleRuleFilterMemberObjectSizeLessThan{Value: mv}
-			memberFound = true
 
 		case strings.EqualFold("Prefix", t.Name.Local):
-			var mv string
 			val, err := decoder.Value()
 			if err != nil {
 				return err
@@ -18182,30 +18170,26 @@ func awsRestxml_deserializeDocumentLifecycleRuleFilter(v *types.LifecycleRuleFil
 			}
 			{
 				xtv := string(val)
-				mv = xtv
+				sv.Prefix = ptr.String(xtv)
 			}
-			uv = &types.LifecycleRuleFilterMemberPrefix{Value: mv}
-			memberFound = true
 
 		case strings.EqualFold("Tag", t.Name.Local):
-			var mv types.Tag
 			nodeDecoder := smithyxml.WrapNodeDecoder(decoder.Decoder, t)
-			destAddr := &mv
-			if err := awsRestxml_deserializeDocumentTag(&destAddr, nodeDecoder); err != nil {
+			if err := awsRestxml_deserializeDocumentTag(&sv.Tag, nodeDecoder); err != nil {
 				return err
 			}
-			mv = *destAddr
-			uv = &types.LifecycleRuleFilterMemberTag{Value: mv}
-			memberFound = true
 
 		default:
-			uv = &types.UnknownUnionMember{Tag: t.Name.Local}
-			memberFound = true
+			// Do nothing and ignore the unexpected tag element
+			err = decoder.Decoder.Skip()
+			if err != nil {
+				return err
+			}
 
 		}
 		decoder = originalDecoder
 	}
-	*v = uv
+	*v = sv
 	return nil
 }
 
@@ -21397,12 +21381,17 @@ func awsRestxml_deserializeDocumentReplicationRuleAndOperator(v **types.Replicat
 	return nil
 }
 
-func awsRestxml_deserializeDocumentReplicationRuleFilter(v *types.ReplicationRuleFilter, decoder smithyxml.NodeDecoder) error {
+func awsRestxml_deserializeDocumentReplicationRuleFilter(v **types.ReplicationRuleFilter, decoder smithyxml.NodeDecoder) error {
 	if v == nil {
 		return fmt.Errorf("unexpected nil of type %T", v)
 	}
-	var uv types.ReplicationRuleFilter
-	var memberFound bool
+	var sv *types.ReplicationRuleFilter
+	if *v == nil {
+		sv = &types.ReplicationRuleFilter{}
+	} else {
+		sv = *v
+	}
+
 	for {
 		t, done, err := decoder.Token()
 		if err != nil {
@@ -21411,27 +21400,16 @@ func awsRestxml_deserializeDocumentReplicationRuleFilter(v *types.ReplicationRul
 		if done {
 			break
 		}
-		if memberFound {
-			if err = decoder.Decoder.Skip(); err != nil {
-				return err
-			}
-		}
 		originalDecoder := decoder
 		decoder = smithyxml.WrapNodeDecoder(originalDecoder.Decoder, t)
 		switch {
 		case strings.EqualFold("And", t.Name.Local):
-			var mv types.ReplicationRuleAndOperator
 			nodeDecoder := smithyxml.WrapNodeDecoder(decoder.Decoder, t)
-			destAddr := &mv
-			if err := awsRestxml_deserializeDocumentReplicationRuleAndOperator(&destAddr, nodeDecoder); err != nil {
+			if err := awsRestxml_deserializeDocumentReplicationRuleAndOperator(&sv.And, nodeDecoder); err != nil {
 				return err
 			}
-			mv = *destAddr
-			uv = &types.ReplicationRuleFilterMemberAnd{Value: mv}
-			memberFound = true
 
 		case strings.EqualFold("Prefix", t.Name.Local):
-			var mv string
 			val, err := decoder.Value()
 			if err != nil {
 				return err
@@ -21441,30 +21419,26 @@ func awsRestxml_deserializeDocumentReplicationRuleFilter(v *types.ReplicationRul
 			}
 			{
 				xtv := string(val)
-				mv = xtv
+				sv.Prefix = ptr.String(xtv)
 			}
-			uv = &types.ReplicationRuleFilterMemberPrefix{Value: mv}
-			memberFound = true
 
 		case strings.EqualFold("Tag", t.Name.Local):
-			var mv types.Tag
 			nodeDecoder := smithyxml.WrapNodeDecoder(decoder.Decoder, t)
-			destAddr := &mv
-			if err := awsRestxml_deserializeDocumentTag(&destAddr, nodeDecoder); err != nil {
+			if err := awsRestxml_deserializeDocumentTag(&sv.Tag, nodeDecoder); err != nil {
 				return err
 			}
-			mv = *destAddr
-			uv = &types.ReplicationRuleFilterMemberTag{Value: mv}
-			memberFound = true
 
 		default:
-			uv = &types.UnknownUnionMember{Tag: t.Name.Local}
-			memberFound = true
+			// Do nothing and ignore the unexpected tag element
+			err = decoder.Decoder.Skip()
+			if err != nil {
+				return err
+			}
 
 		}
 		decoder = originalDecoder
 	}
-	*v = uv
+	*v = sv
 	return nil
 }
 
