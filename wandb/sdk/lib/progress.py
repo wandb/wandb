@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
+from typing import Iterator
+
 from wandb.proto import wandb_internal_pb2
 
 from . import printer as p
@@ -26,15 +29,26 @@ def print_sync_dedupe_stats(
     printer.display(f"W&B sync reduced upload amount by {frac:.1%}")
 
 
+@contextlib.contextmanager
+def progress_printer(
+    printer: p.PrinterJupyter | p.PrinterTerm,
+) -> Iterator[ProgressPrinter]:
+    """Context manager providing an object for printing run progress."""
+    with printer.dynamic_text() as text_area:
+        yield ProgressPrinter(printer, text_area)
+        printer.progress_close()
+
+
 class ProgressPrinter:
     """Displays PollExitResponse results to the user."""
 
     def __init__(
         self,
         printer: p.PrinterJupyter | p.PrinterTerm,
+        progress_text_area: p.DynamicText | None,
     ) -> None:
         self._printer = printer
-        self._progress_text_area = printer.dynamic_text()
+        self._progress_text_area = progress_text_area
 
     def update(
         self,
@@ -48,16 +62,6 @@ class ProgressPrinter:
             self._update_single_run(progress[0])
         else:
             self._update_multiple_runs(progress)
-
-    def finish(self) -> None:
-        """Mark as done.
-
-        After this, `update` must not be used.
-        """
-        if self._progress_text_area:
-            self._progress_text_area.remove()
-        else:
-            self._printer.progress_close()
 
     def _update_single_run(
         self,
