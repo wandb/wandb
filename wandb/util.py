@@ -882,7 +882,7 @@ def no_retry_4xx(e: Exception) -> bool:
 
 
 def parse_backend_error_messages(response: requests.Response) -> List[str]:
-    errors = []
+    errors: List[str] = []
     try:
         data = response.json()
     except ValueError:
@@ -912,7 +912,7 @@ def no_retry_auth(e: Any) -> bool:
         # Don't retry 404 errors, raise 404 error if it has a non-empty error message
         # Otherwise trickle down to the default error handling below
         error_messages = parse_backend_error_messages(e.response)
-        if len(error_messages) > 0:
+        if error_messages:
             return False
     # Retry all non-forbidden/unauthorized/not-found errors.
     if e.response.status_code not in (401, 403, 404):
