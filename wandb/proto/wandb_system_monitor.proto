@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package wandb_internal;
+
+import "google/protobuf/empty.proto";
+import "wandb/proto/wandb_internal.proto";
+
+option go_package = "core/pkg/service_go_proto";
+
+// SystemMonitor gRPC service.
+//
+// This service is used to collect system metrics from the host machine.
+service SystemMonitor {
+  // GetStats samples system metrics.
+  rpc GetStats(GetStatsRequest) returns (Record) {}
+  // GetMetadata returns static metadata about the system.
+  rpc GetMetadata(GetMetadataRequest) returns (Record) {}
+  // TearDown tears down the system monitor.
+  rpc TearDown(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+}
+
+message GetStatsRequest {
+  // Capture the system metrics for the process with this PID, in addition to
+  // system-wide metrics.
+  int32 pid = 1;
+}
+
+message GetMetadataRequest {}
