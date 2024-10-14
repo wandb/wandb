@@ -118,10 +118,10 @@ class Sentry:
         status: Optional["SessionStatus"] = None,
     ) -> Optional[str]:
         """Log an exception to Sentry."""
-        error = Exception(exc) if isinstance(exc, str) else exc
-        # based on self.hub.capture_exception(_exc)
-        if error is not None:
-            exc_info = sentry_sdk.utils.exc_info_from_error(error)
+        if isinstance(exc, str):
+            exc_info = sentry_sdk.utils.exc_info_from_error(Exception(exc))
+        elif isinstance(exc, BaseException):
+            exc_info = sentry_sdk.utils.exc_info_from_error(exc)
         else:
             exc_info = sys.exc_info()
 
