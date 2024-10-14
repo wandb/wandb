@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"maps"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -101,7 +102,7 @@ func (ad *ArtifactDownloader) getEntriesWithDownloadURLs(
 		artifactID,
 		entriesToFetch,
 		manifest.StoragePolicyConfig.StorageLayout,
-		string(manifest.Version),
+		strconv.Itoa(int(manifest.Version)),
 	)
 	if err != nil {
 		return nil, err
