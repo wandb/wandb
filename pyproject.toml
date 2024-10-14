@@ -28,7 +28,9 @@ dependencies = [
     "PyYAML",
     "setproctitle",
     "platformdirs",
-    "typing_extensions; python_version < '3.10'",
+    # typing_extensions 4.4.0 adds 'override'.
+    # Python 3.12 adds 'override' to the typing module.
+    "typing_extensions>=4.4,<5; python_version < '3.12'",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
