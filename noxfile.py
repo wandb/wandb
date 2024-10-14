@@ -563,6 +563,7 @@ def mypy_report(session: nox.Session) -> None:
         "pycobertura",
         "lxml",
         "pandas-stubs",
+        "platformdirs",
         "types-click",
         "types-jsonschema",
         "types-openpyxl",
