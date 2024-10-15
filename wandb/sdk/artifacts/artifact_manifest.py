@@ -48,18 +48,19 @@ class ArtifactManifest:
     def digest(self) -> HexMD5:
         raise NotImplementedError
 
-    def add_entry(self, entry: ArtifactManifestEntry) -> None:
-        if (
-            entry.path in self.entries
-            and entry.digest != self.entries[entry.path].digest
-        ):
-            raise ValueError("Cannot add the same path twice: {}".format(entry.path))
-        self.entries[entry.path] = entry
+    def add_entry(self, entry: ArtifactManifestEntry, overwrite: bool = False) -> None:
+        path = entry.path
+        if not overwrite:
+            prev_entry = self.entries.get(path)
+            if prev_entry and (entry.digest != prev_entry.digest):
+                raise ValueError(f"Cannot add the same path twice: {path!r}")
+        self.entries[path] = entry
 
     def remove_entry(self, entry: ArtifactManifestEntry) -> None:
-        if entry.path not in self.entries:
+        try:
+            del self.entries[entry.path]
+        except LookupError:
             raise FileNotFoundError(f"Cannot remove missing entry: '{entry.path}'")
-        del self.entries[entry.path]
 
     def get_entry_by_path(self, path: str) -> ArtifactManifestEntry | None:
         return self.entries.get(path)
