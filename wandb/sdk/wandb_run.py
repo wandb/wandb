@@ -3717,9 +3717,7 @@ class Run:
             return
 
         # TODO: add this to a higher verbosity level
-        printer.display(
-            f"Tracking run with wandb version {wandb.__version__}", off=False
-        )
+        printer.display(f"Tracking run with wandb version {wandb.__version__}")
 
     @staticmethod
     def _header_sync_info(
@@ -3741,7 +3739,8 @@ class Run:
                 info.append(
                     f"Run {printer.code('`wandb offline`')} to turn off syncing."
                 )
-            printer.display(info, off=settings.quiet or settings.silent)
+            if not settings.quiet and not settings.silent:
+                printer.display(info)
 
     @staticmethod
     def _header_run_info(
@@ -3784,10 +3783,8 @@ class Run:
                     [f"{run_state_str} {run_line} {project_line}", sweep_line],
                 )
 
-        else:
-            printer.display(
-                f"{run_state_str} {printer.name(run_name)}", off=not run_name
-            )
+        elif run_name:
+            printer.display(f"{run_state_str} {printer.name(run_name)}")
 
         if not settings.quiet:
             # TODO: add verbosity levels and add this to higher levels
@@ -3803,11 +3800,13 @@ class Run:
         )
 
         # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
-        if Api().api.settings().get("anonymous") == "true":
+        if run_name and Api().api.settings().get("anonymous") == "true":
             printer.display(
-                "Do NOT share these links with anyone. They can be used to claim your runs.",
+                (
+                    "Do NOT share these links with anyone."
+                    " They can be used to claim your runs."
+                ),
                 level="warn",
-                off=not run_name,
             )
 
     # ------------------------------------------------------------------------------
@@ -3869,31 +3868,32 @@ class Run:
             return
 
         if settings._offline:
-            printer.display(
-                [
-                    "You can sync this run to the cloud by running:",
-                    printer.code(f"wandb sync {settings.sync_dir}"),
-                ],
-                off=(quiet or settings.quiet),
+            if not quiet and not settings.quiet:
+                printer.display(
+                    [
+                        "You can sync this run to the cloud by running:",
+                        printer.code(f"wandb sync {settings.sync_dir}"),
+                    ],
+                )
+            return
+
+        info = []
+        if settings.run_name and settings.run_url:
+            info.append(
+                f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
             )
-        else:
-            info = []
-            if settings.run_name and settings.run_url:
-                info.append(
-                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
-                )
-            if settings.project_url:
-                info.append(
-                    f"{printer.emoji('star')} View project at: {printer.link(settings.project_url)}"
-                )
-            if poll_exit_response and poll_exit_response.file_counts:
-                logger.info("logging synced files")
-                file_counts = poll_exit_response.file_counts
-                info.append(
-                    f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), "
-                    f"{file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)",
-                )
-            printer.display(info)
+        if settings.project_url:
+            info.append(
+                f"{printer.emoji('star')} View project at: {printer.link(settings.project_url)}"
+            )
+        if poll_exit_response and poll_exit_response.file_counts:
+            logger.info("logging synced files")
+            file_counts = poll_exit_response.file_counts
+            info.append(
+                f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), "
+                f"{file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)",
+            )
+        printer.display(info)
 
     @staticmethod
     def _footer_log_dir_info(
