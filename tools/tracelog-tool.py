@@ -10,6 +10,7 @@ Usage:
 """
 
 import argparse
+import io
 import pathlib
 import sys
 from dataclasses import dataclass
@@ -100,14 +101,15 @@ end box
             print(line)
         print("@enduml")
 
-    def output_mermaid(self) -> None:
+    def output_mermaid(self, output_dir: str) -> None:
         lines = []
         for item in self._items:
             line = f"{item.src} ->> {item.dst}: {item.info}"
             lines.append((item.ts, line))
 
-        header = """
-sequenceDiagram
+        output = io.StringIO()
+
+        header = """sequenceDiagram
 participant MainThread as User
 participant MsgRouterThr as router
 participant ChkStopThr as check_stop
@@ -117,18 +119,54 @@ participant record_q as record_q
 participant result_q as result_q
 
 participant HandlerThread as handler
-participant StatsThr as stats
-participant send_q as send_q
 participant write_q as write_q
 participant WriterThread as writer
+participant send_q as send_q
 participant SenderThread as sender
-        """
-        print(header)
+participant SockSrvIntRdThr as SockServerInterfaceReader
+participant SystemMonitor as SystemMonitor\n\n"""
+        output.write(header)
         # TODO: move to common place (sorted sequence items)
         for _, line in sorted(lines):
-            print(line)
+            output.write(line)
+            output.write("\n")
 
-    def load(self, fname: str) -> None:
+        parent_dir = pathlib.Path(output_dir).parent
+        if parent_dir.is_symlink():
+            parent_dir = parent_dir.readlink()
+        run_name = parent_dir.name
+
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mermaid Sequence Diagram</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({{startOnLoad:true}});</script>
+    <style>
+        body {{
+            font-family: "Arial", sans-serif;
+            width: 100%;
+            margin: auto;
+        }}
+        h1 {{
+            text-align: center;
+        }}
+    </style>
+</head>
+<body>
+    <h1>{run_name}</h1>
+    <div class="mermaid">
+        {output.getvalue()}
+    </div>
+</body>
+</html>
+"""
+        with open(f"{output_dir}/mermaid.html", "w") as f:
+            f.write(html)
+
+    def load(self, fname: pathlib.Path) -> None:
         with open(fname) as f:
             for line in f.readlines():
                 self._parse(line)
@@ -155,7 +193,7 @@ def main():
     if args.format == "plantuml":
         parser.output_plantuml()
     elif args.format == "mermaid":
-        parser.output_mermaid()
+        parser.output_mermaid(args.logdir)
     else:
         print(f"Unknown format: {args.format}")
         sys.exit(1)
