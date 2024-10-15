@@ -2205,7 +2205,7 @@ type LifecycleRule struct {
 	// The Filter is used to identify objects that a Lifecycle Rule applies to. A
 	// Filter must have exactly one of Prefix , Tag , or And specified. Filter is
 	// required if the LifecycleRule does not contain a Prefix element.
-	Filter LifecycleRuleFilter
+	Filter *LifecycleRuleFilter
 
 	// Unique identifier for the rule. The value cannot be longer than 255 characters.
 	ID *string
@@ -2266,69 +2266,32 @@ type LifecycleRuleAndOperator struct {
 // Filter can have exactly one of Prefix , Tag , ObjectSizeGreaterThan ,
 // ObjectSizeLessThan , or And specified. If the Filter element is left empty, the
 // Lifecycle Rule applies to all objects in the bucket.
-//
-// The following types satisfy this interface:
-//
-//	LifecycleRuleFilterMemberAnd
-//	LifecycleRuleFilterMemberObjectSizeGreaterThan
-//	LifecycleRuleFilterMemberObjectSizeLessThan
-//	LifecycleRuleFilterMemberPrefix
-//	LifecycleRuleFilterMemberTag
-type LifecycleRuleFilter interface {
-	isLifecycleRuleFilter()
-}
+type LifecycleRuleFilter struct {
 
-// This is used in a Lifecycle Rule Filter to apply a logical AND to two or more
-// predicates. The Lifecycle Rule will apply to any object matching all of the
-// predicates configured inside the And operator.
-type LifecycleRuleFilterMemberAnd struct {
-	Value LifecycleRuleAndOperator
+	// This is used in a Lifecycle Rule Filter to apply a logical AND to two or more
+	// predicates. The Lifecycle Rule will apply to any object matching all of the
+	// predicates configured inside the And operator.
+	And *LifecycleRuleAndOperator
 
-	noSmithyDocumentSerde
-}
+	// Minimum object size to which the rule applies.
+	ObjectSizeGreaterThan *int64
 
-func (*LifecycleRuleFilterMemberAnd) isLifecycleRuleFilter() {}
+	// Maximum object size to which the rule applies.
+	ObjectSizeLessThan *int64
 
-// Minimum object size to which the rule applies.
-type LifecycleRuleFilterMemberObjectSizeGreaterThan struct {
-	Value int64
+	// Prefix identifying one or more objects to which the rule applies.
+	//
+	// Replacement must be made for object keys containing special characters (such as
+	// carriage returns) when using XML requests. For more information, see [XML related object key constraints].
+	//
+	// [XML related object key constraints]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-xml-related-constraints
+	Prefix *string
+
+	// This tag must exist in the object's tag set in order for the rule to apply.
+	Tag *Tag
 
 	noSmithyDocumentSerde
 }
-
-func (*LifecycleRuleFilterMemberObjectSizeGreaterThan) isLifecycleRuleFilter() {}
-
-// Maximum object size to which the rule applies.
-type LifecycleRuleFilterMemberObjectSizeLessThan struct {
-	Value int64
-
-	noSmithyDocumentSerde
-}
-
-func (*LifecycleRuleFilterMemberObjectSizeLessThan) isLifecycleRuleFilter() {}
-
-// Prefix identifying one or more objects to which the rule applies.
-//
-// Replacement must be made for object keys containing special characters (such as
-// carriage returns) when using XML requests. For more information, see [XML related object key constraints].
-//
-// [XML related object key constraints]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-xml-related-constraints
-type LifecycleRuleFilterMemberPrefix struct {
-	Value string
-
-	noSmithyDocumentSerde
-}
-
-func (*LifecycleRuleFilterMemberPrefix) isLifecycleRuleFilter() {}
-
-// This tag must exist in the object's tag set in order for the rule to apply.
-type LifecycleRuleFilterMemberTag struct {
-	Value Tag
-
-	noSmithyDocumentSerde
-}
-
-func (*LifecycleRuleFilterMemberTag) isLifecycleRuleFilter() {}
 
 // Specifies the location where the bucket will be created.
 //
@@ -3316,7 +3279,7 @@ type ReplicationRule struct {
 	// A filter that identifies the subset of objects to which the replication rule
 	// applies. A Filter must specify exactly one Prefix , Tag , or an And child
 	// element.
-	Filter ReplicationRuleFilter
+	Filter *ReplicationRuleFilter
 
 	// A unique identifier for the rule. The maximum value is 255 characters.
 	ID *string
@@ -3380,58 +3343,35 @@ type ReplicationRuleAndOperator struct {
 // A filter that identifies the subset of objects to which the replication rule
 // applies. A Filter must specify exactly one Prefix , Tag , or an And child
 // element.
-//
-// The following types satisfy this interface:
-//
-//	ReplicationRuleFilterMemberAnd
-//	ReplicationRuleFilterMemberPrefix
-//	ReplicationRuleFilterMemberTag
-type ReplicationRuleFilter interface {
-	isReplicationRuleFilter()
-}
+type ReplicationRuleFilter struct {
 
-// A container for specifying rule filters. The filters determine the subset of
-// objects to which the rule applies. This element is required only if you specify
-// more than one filter. For example:
-//
-//   - If you specify both a Prefix and a Tag filter, wrap these filters in an And
-//     tag.
-//
-//   - If you specify a filter based on multiple tags, wrap the Tag elements in an
-//     And tag.
-type ReplicationRuleFilterMemberAnd struct {
-	Value ReplicationRuleAndOperator
+	// A container for specifying rule filters. The filters determine the subset of
+	// objects to which the rule applies. This element is required only if you specify
+	// more than one filter. For example:
+	//
+	//   - If you specify both a Prefix and a Tag filter, wrap these filters in an And
+	//   tag.
+	//
+	//   - If you specify a filter based on multiple tags, wrap the Tag elements in an
+	//   And tag.
+	And *ReplicationRuleAndOperator
 
-	noSmithyDocumentSerde
-}
+	// An object key name prefix that identifies the subset of objects to which the
+	// rule applies.
+	//
+	// Replacement must be made for object keys containing special characters (such as
+	// carriage returns) when using XML requests. For more information, see [XML related object key constraints].
+	//
+	// [XML related object key constraints]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-xml-related-constraints
+	Prefix *string
 
-func (*ReplicationRuleFilterMemberAnd) isReplicationRuleFilter() {}
-
-// An object key name prefix that identifies the subset of objects to which the
-// rule applies.
-//
-// Replacement must be made for object keys containing special characters (such as
-// carriage returns) when using XML requests. For more information, see [XML related object key constraints].
-//
-// [XML related object key constraints]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-xml-related-constraints
-type ReplicationRuleFilterMemberPrefix struct {
-	Value string
+	// A container for specifying a tag key and value.
+	//
+	// The rule applies only to objects that have the tag in their tag set.
+	Tag *Tag
 
 	noSmithyDocumentSerde
 }
-
-func (*ReplicationRuleFilterMemberPrefix) isReplicationRuleFilter() {}
-
-// A container for specifying a tag key and value.
-//
-// The rule applies only to objects that have the tag in their tag set.
-type ReplicationRuleFilterMemberTag struct {
-	Value Tag
-
-	noSmithyDocumentSerde
-}
-
-func (*ReplicationRuleFilterMemberTag) isReplicationRuleFilter() {}
 
 //	A container specifying S3 Replication Time Control (S3 RTC) related
 //
@@ -4224,7 +4164,5 @@ type UnknownUnionMember struct {
 }
 
 func (*UnknownUnionMember) isAnalyticsFilter()                {}
-func (*UnknownUnionMember) isLifecycleRuleFilter()            {}
 func (*UnknownUnionMember) isMetricsFilter()                  {}
-func (*UnknownUnionMember) isReplicationRuleFilter()          {}
 func (*UnknownUnionMember) isSelectObjectContentEventStream() {}
