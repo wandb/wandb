@@ -217,9 +217,8 @@ class Sentry:
             "_disable_service",
             "_require_legacy_service",
             "launch",
+            "_platform",
         )
-
-        self.scope.set_tag("platform", wandb.util.get_platform_name())
 
         # set context
         if process_context:

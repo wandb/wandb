@@ -103,35 +103,6 @@ else:
     SENTRY_ENV = "production"
 
 
-PLATFORM_WINDOWS = "windows"
-PLATFORM_LINUX = "linux"
-PLATFORM_BSD = "bsd"
-PLATFORM_DARWIN = "darwin"
-PLATFORM_UNKNOWN = "unknown"
-
-LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
-
-
-def get_platform_name() -> str:
-    if sys.platform.startswith("win"):
-        return PLATFORM_WINDOWS
-    elif sys.platform.startswith("darwin"):
-        return PLATFORM_DARWIN
-    elif sys.platform.startswith("linux"):
-        return PLATFORM_LINUX
-    elif sys.platform.startswith(
-        (
-            "dragonfly",
-            "freebsd",
-            "netbsd",
-            "openbsd",
-        )
-    ):
-        return PLATFORM_BSD
-    else:
-        return PLATFORM_UNKNOWN
-
-
 POW_10_BYTES = [
     ("B", 10**0),
     ("KB", 10**3),

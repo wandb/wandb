@@ -715,7 +715,7 @@ class Settings(SettingsData):
                 ),
                 "auto_hook": True,
             },
-            _platform={"value": util.get_platform_name()},
+            _platform={"value": f"{platform.system()}-{platform.machine()}".lower()},
             _proxies={
                 # TODO: deprecate and ask the user to use http_proxy and https_proxy instead
                 "preprocessor": _str_as_json,
