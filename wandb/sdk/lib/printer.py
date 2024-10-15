@@ -392,7 +392,7 @@ class _PrinterJupyter(Printer):
         return f'{ipython.TABLE_STYLES}<div class="wandb-row">{row}</div>'
 
 
-def get_printer(_jupyter: bool) -> Printer:
-    if _jupyter:
+def get_printer(jupyter: bool) -> Printer:
+    if jupyter:
         return _PrinterJupyter()
     return _PrinterTerm()
