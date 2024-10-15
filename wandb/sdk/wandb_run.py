@@ -73,6 +73,7 @@ from .lib import (
     filesystem,
     ipython,
     module,
+    printer,
     progress,
     proto_util,
     redirect,
@@ -81,7 +82,6 @@ from .lib import (
 from .lib.exit_hooks import ExitHooks
 from .lib.gitlib import GitRepo
 from .lib.mailbox import MailboxError, MailboxHandle, MailboxProbe, MailboxProgress
-from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
@@ -104,8 +104,6 @@ if TYPE_CHECKING:
         InternalMessagesResponse,
         SampledHistoryResponse,
     )
-
-    from .lib.printer import PrinterJupyter, PrinterTerm
 
     class GitSourceDict(TypedDict):
         remote: str
@@ -574,7 +572,7 @@ class Run:
     _settings: Settings
 
     _launch_artifacts: dict[str, Any] | None
-    _printer: PrinterTerm | PrinterJupyter
+    _printer: printer.Printer
 
     def __init__(
         self,
@@ -628,7 +626,7 @@ class Run:
 
         _datatypes_set_callback(self._datatypes_callback)
 
-        self._printer = get_printer(self._settings._jupyter)
+        self._printer = printer.get_printer(self._settings._jupyter)
         self._wl = None
         self._reporter: Reporter | None = None
 
@@ -2645,6 +2643,21 @@ class Run:
         handle = self._backend.interface.deliver_poll_exit()
         probe_handle.set_mailbox_handle(handle)
 
+    def _on_progress_exit(
+        self,
+        progress_printer: progress.ProgressPrinter,
+        progress_handle: MailboxProgress,
+    ) -> None:
+        probe_handles = progress_handle.get_probe_handles()
+        if not probe_handles or len(probe_handles) != 1:
+            return
+
+        result = probe_handles[0].get_probe_result()
+        if not result:
+            return
+
+        progress_printer.update([result.response.poll_exit_response])
+
     def _on_finish(self) -> None:
         trigger.call("on_finished")
 
@@ -2653,34 +2666,25 @@ class Run:
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
-        progress_printer = progress.ProgressPrinter(self._printer)
-
-        def on_progress_exit(progress_handle: MailboxProgress) -> None:
-            probe_handles = progress_handle.get_probe_handles()
-            if not probe_handles or len(probe_handles) != 1:
-                return
-
-            result = probe_handles[0].get_probe_result()
-            if not result:
-                return
-
-            progress_printer.update([result.response.poll_exit_response])
-
         assert self._backend and self._backend.interface
 
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
-        # wait for the exit to complete
-        _ = exit_handle.wait(timeout=-1, on_progress=on_progress_exit)
+        with progress.progress_printer(self._printer) as progress_printer:
+            # Wait for the run to complete.
+            _ = exit_handle.wait(
+                timeout=-1,
+                on_progress=functools.partial(
+                    self._on_progress_exit,
+                    progress_printer,
+                ),
+            )
 
+        # Print some final statistics.
         poll_exit_handle = self._backend.interface.deliver_poll_exit()
-        # wait for them, it's ok to do this serially but this can be improved
         result = poll_exit_handle.wait(timeout=-1)
         assert result
-
-        progress_printer.update([result.response.poll_exit_response])
-        progress_printer.finish()
         progress.print_sync_dedupe_stats(
             self._printer,
             result.response.poll_exit_response,
@@ -3697,7 +3701,7 @@ class Run:
     def _header(
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         Run._header_wandb_version_info(settings=settings, printer=printer)
         Run._header_sync_info(settings=settings, printer=printer)
@@ -3707,21 +3711,19 @@ class Run:
     def _header_wandb_version_info(
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         if settings.quiet or settings.silent:
             return
 
         # TODO: add this to a higher verbosity level
-        printer.display(
-            f"Tracking run with wandb version {wandb.__version__}", off=False
-        )
+        printer.display(f"Tracking run with wandb version {wandb.__version__}")
 
     @staticmethod
     def _header_sync_info(
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         if settings._offline:
             printer.display(
@@ -3733,17 +3735,18 @@ class Run:
             )
         else:
             info = [f"Run data is saved locally in {printer.files(settings.sync_dir)}"]
-            if not printer._html:
+            if not printer.supports_html:
                 info.append(
                     f"Run {printer.code('`wandb offline`')} to turn off syncing."
                 )
-            printer.display(info, off=settings.quiet or settings.silent)
+            if not settings.quiet and not settings.silent:
+                printer.display(info)
 
     @staticmethod
     def _header_run_info(
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         if settings._offline or settings.silent:
             return
@@ -3761,7 +3764,7 @@ class Run:
         if not run_name:
             return
 
-        if printer._html:
+        if printer.supports_html:
             if not wandb.jupyter.maybe_display():  # type: ignore
                 run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
@@ -3780,10 +3783,8 @@ class Run:
                     [f"{run_state_str} {run_line} {project_line}", sweep_line],
                 )
 
-        else:
-            printer.display(
-                f"{run_state_str} {printer.name(run_name)}", off=not run_name
-            )
+        elif run_name:
+            printer.display(f"{run_state_str} {printer.name(run_name)}")
 
         if not settings.quiet:
             # TODO: add verbosity levels and add this to higher levels
@@ -3799,11 +3800,13 @@ class Run:
         )
 
         # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
-        if Api().api.settings().get("anonymous") == "true":
+        if run_name and Api().api.settings().get("anonymous") == "true":
             printer.display(
-                "Do NOT share these links with anyone. They can be used to claim your runs.",
+                (
+                    "Do NOT share these links with anyone."
+                    " They can be used to claim your runs."
+                ),
                 level="warn",
-                off=not run_name,
             )
 
     # ------------------------------------------------------------------------------
@@ -3821,7 +3824,7 @@ class Run:
         quiet: bool | None = None,
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         Run._footer_history_summary_info(
             history=sampled_history,
@@ -3859,44 +3862,45 @@ class Run:
         quiet: bool | None = None,
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         if settings.silent:
             return
 
         if settings._offline:
-            printer.display(
-                [
-                    "You can sync this run to the cloud by running:",
-                    printer.code(f"wandb sync {settings.sync_dir}"),
-                ],
-                off=(quiet or settings.quiet),
+            if not quiet and not settings.quiet:
+                printer.display(
+                    [
+                        "You can sync this run to the cloud by running:",
+                        printer.code(f"wandb sync {settings.sync_dir}"),
+                    ],
+                )
+            return
+
+        info = []
+        if settings.run_name and settings.run_url:
+            info.append(
+                f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
             )
-        else:
-            info = []
-            if settings.run_name and settings.run_url:
-                info.append(
-                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
-                )
-            if settings.project_url:
-                info.append(
-                    f"{printer.emoji('star')} View project at: {printer.link(settings.project_url)}"
-                )
-            if poll_exit_response and poll_exit_response.file_counts:
-                logger.info("logging synced files")
-                file_counts = poll_exit_response.file_counts
-                info.append(
-                    f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), "
-                    f"{file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)",
-                )
-            printer.display(info)
+        if settings.project_url:
+            info.append(
+                f"{printer.emoji('star')} View project at: {printer.link(settings.project_url)}"
+            )
+        if poll_exit_response and poll_exit_response.file_counts:
+            logger.info("logging synced files")
+            file_counts = poll_exit_response.file_counts
+            info.append(
+                f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), "
+                f"{file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)",
+            )
+        printer.display(info)
 
     @staticmethod
     def _footer_log_dir_info(
         quiet: bool | None = None,
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         if (quiet or settings.quiet) or settings.silent:
             return
@@ -3915,7 +3919,7 @@ class Run:
         quiet: bool | None = None,
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         if (quiet or settings.quiet) or settings.silent:
             return
@@ -3985,7 +3989,7 @@ class Run:
         quiet: bool | None = None,
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         if (quiet or settings.quiet) or settings.silent:
             return
@@ -4001,7 +4005,7 @@ class Run:
         *,
         quiet: bool | None = None,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         """Prints a message advertising the upcoming core release."""
         if quiet or not settings._require_legacy_service:
@@ -4020,7 +4024,7 @@ class Run:
         quiet: bool | None = None,
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         if (quiet or settings.quiet) or settings.silent:
             return
