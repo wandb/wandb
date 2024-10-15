@@ -210,7 +210,7 @@ def init(
     resume_from: Optional[str] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Run:
-    """Start a new run to track and log to W&B.
+    r"""Start a new run to track and log to W&B.
 
     In an ML training pipeline, you could add `wandb.init()`
     to the beginning of your training script as well as your evaluation
