@@ -73,6 +73,7 @@ from .lib import (
     filesystem,
     ipython,
     module,
+    printer,
     progress,
     proto_util,
     redirect,
@@ -81,7 +82,6 @@ from .lib import (
 from .lib.exit_hooks import ExitHooks
 from .lib.gitlib import GitRepo
 from .lib.mailbox import MailboxError, MailboxHandle, MailboxProbe, MailboxProgress
-from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
@@ -104,8 +104,6 @@ if TYPE_CHECKING:
         InternalMessagesResponse,
         SampledHistoryResponse,
     )
-
-    from .lib.printer import PrinterJupyter, PrinterTerm
 
     class GitSourceDict(TypedDict):
         remote: str
@@ -574,7 +572,7 @@ class Run:
     _settings: Settings
 
     _launch_artifacts: dict[str, Any] | None
-    _printer: PrinterTerm | PrinterJupyter
+    _printer: printer.Printer
 
     def __init__(
         self,
@@ -628,7 +626,7 @@ class Run:
 
         _datatypes_set_callback(self._datatypes_callback)
 
-        self._printer = get_printer(self._settings._jupyter)
+        self._printer = printer.get_printer(self._settings._jupyter)
         self._wl = None
         self._reporter: Reporter | None = None
 
@@ -3703,7 +3701,7 @@ class Run:
     def _header(
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         Run._header_wandb_version_info(settings=settings, printer=printer)
         Run._header_sync_info(settings=settings, printer=printer)
@@ -3713,7 +3711,7 @@ class Run:
     def _header_wandb_version_info(
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         if settings.quiet or settings.silent:
             return
@@ -3727,7 +3725,7 @@ class Run:
     def _header_sync_info(
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         if settings._offline:
             printer.display(
@@ -3739,7 +3737,7 @@ class Run:
             )
         else:
             info = [f"Run data is saved locally in {printer.files(settings.sync_dir)}"]
-            if not printer._html:
+            if not printer.supports_html:
                 info.append(
                     f"Run {printer.code('`wandb offline`')} to turn off syncing."
                 )
@@ -3749,7 +3747,7 @@ class Run:
     def _header_run_info(
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         if settings._offline or settings.silent:
             return
@@ -3767,7 +3765,7 @@ class Run:
         if not run_name:
             return
 
-        if printer._html:
+        if printer.supports_html:
             if not wandb.jupyter.maybe_display():  # type: ignore
                 run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
@@ -3827,7 +3825,7 @@ class Run:
         quiet: bool | None = None,
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         Run._footer_history_summary_info(
             history=sampled_history,
@@ -3865,7 +3863,7 @@ class Run:
         quiet: bool | None = None,
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         if settings.silent:
             return
@@ -3902,7 +3900,7 @@ class Run:
         quiet: bool | None = None,
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         if (quiet or settings.quiet) or settings.silent:
             return
@@ -3921,7 +3919,7 @@ class Run:
         quiet: bool | None = None,
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         if (quiet or settings.quiet) or settings.silent:
             return
@@ -3991,7 +3989,7 @@ class Run:
         quiet: bool | None = None,
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         if (quiet or settings.quiet) or settings.silent:
             return
@@ -4007,7 +4005,7 @@ class Run:
         *,
         quiet: bool | None = None,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         """Prints a message advertising the upcoming core release."""
         if quiet or not settings._require_legacy_service:
@@ -4026,7 +4024,7 @@ class Run:
         quiet: bool | None = None,
         *,
         settings: Settings,
-        printer: PrinterTerm | PrinterJupyter,
+        printer: printer.Printer,
     ) -> None:
         if (quiet or settings.quiet) or settings.silent:
             return
