@@ -908,16 +908,12 @@ def no_retry_auth(e: Any) -> bool:
     # Don't retry bad request errors; raise immediately
     if e.response.status_code in (400, 409):
         return False
-    if e.response.status_code == 404:
-        # Don't retry 404 errors, raise 404 error if it has a non-empty error message
-        # Otherwise trickle down to the default error handling below
-        error_messages = parse_backend_error_messages(e.response)
-        if error_messages:
-            return False
     # Retry all non-forbidden/unauthorized/not-found errors.
     if e.response.status_code not in (401, 403, 404):
         return True
-    # Crash w/message on forbidden/unauthorized errors.
+
+    # Crash with more informational message on forbidden/unauthorized errors.
+    # UnauthorizedError
     if e.response.status_code == 401:
         raise AuthenticationError(
             "The API key you provided is either invalid or missing.  "
@@ -927,15 +923,28 @@ def no_retry_auth(e: Any) -> bool:
             "If you're not sure, you can try logging in again using the 'wandb login --relogin --host [hostname]' command."
             f"(Error {e.response.status_code}: {e.response.reason})"
         )
-    elif wandb.run:
-        raise CommError(f"Permission denied to access {wandb.run.path}")
-    else:
-        raise CommError(
-            "It appears that you do not have permission to access the requested resource. "
-            "Please reach out to the project owner to grant you access. "
-            "If you have the correct permissions, verify that there are no issues with your networking setup."
-            f"(Error {e.response.status_code}: {e.response.reason})"
-        )
+    # ForbiddenError
+    if e.response.status_code == 403:
+        if wandb.run:
+            raise CommError(f"Permission denied to access {wandb.run.path}")
+        else:
+            raise CommError(
+                "It appears that you do not have permission to access the requested resource. "
+                "Please reach out to the project owner to grant you access. "
+                "If you have the correct permissions, verify that there are no issues with your networking setup."
+                f"(Error {e.response.status_code}: {e.response.reason})"
+            )
+
+    # NotFoundError
+    if e.response.status_code == 404:
+        # If error message is empty, raise a more generic NotFoundError message.
+        if parse_backend_error_messages(e.response):
+            return False
+        else:
+            raise LookupError(
+                f"Failed to find resource. Please make sure you have the correct resource path. "
+                f"(Error {e.response.status_code}: {e.response.reason})"
+            )
 
 
 def check_retry_conflict(e: Any) -> Optional[bool]:
