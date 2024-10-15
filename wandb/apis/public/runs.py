@@ -753,10 +753,14 @@ class Run(Attrs):
             )
 
     @normalize_exceptions
-    def logged_artifacts(self, per_page=100):
+    def logged_artifacts(self, per_page: int = 100) -> public.RunArtifacts:
         """Return an iterable collection of all artifacts logged by this run.
 
         This method retrieves all output artifacts that were logged during the run.
+
+        Note:
+            This method returns a paginated result. You can iterate over all artifacts
+            or use list() to collect them into a single list.
 
         Arguments:
             per_page (int, optional): Number of artifacts to fetch per API request. Defaults to 100.
@@ -770,19 +774,19 @@ class Run(Attrs):
             for artifact in run.logged_artifacts():
                 print(f"{artifact.name}:{artifact.version}")
             ```
-
-        Note:
-            This method returns a paginated result. You can iterate over all artifacts
-            or use list() to collect them into a single list.
         """
         return public.RunArtifacts(self.client, self, mode="logged", per_page=per_page)
 
     @normalize_exceptions
-    def used_artifacts(self, per_page=100):
+    def used_artifacts(self, per_page: int = 100) -> public.RunArtifacts:
         """Return an iterable collection of artifacts explicitly used by this run.
 
         This method retrieves only the input artifacts that were explicitly declared as used
         during the run, typically via `run.use_artifact()`.
+
+        Note:
+            This method returns a paginated result. You can iterate over all artifacts
+            or use list() to collect them into a single list.
 
         Arguments:
             per_page (int, optional): Number of artifacts to fetch per API request. Defaults to 100.
@@ -797,10 +801,6 @@ class Run(Attrs):
             for artifact in run.used_artifacts():
                 print(f"{artifact.name}:{artifact.version}")
             ```
-
-        Note:
-            This method returns a paginated result. You can iterate over all artifacts
-            or use list() to collect them into a single list.
         """
         return public.RunArtifacts(self.client, self, mode="used", per_page=per_page)
 
