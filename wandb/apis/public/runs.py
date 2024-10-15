@@ -756,14 +756,11 @@ class Run(Attrs):
     def logged_artifacts(self, per_page: int = 100) -> public.RunArtifacts:
         """Fetches all artifacts logged by this run.
 
-        Retrieves all output artifacts that were logged during the run.
-
-        Note:
-            This method returns a paginated result. You can iterate over all artifacts
-            or use list() to collect them into a single list.
+        Retrieves all output artifacts that were logged during the run. Returns a
+        paginated result that can be iterated over or collected into a single list.
 
         Args:
-            per_page: Number of artifacts to fetch per API request. Defaults to 100.
+            per_page: Number of artifacts to fetch per API request.
 
         Returns:
             An iterable collection of all Artifact objects logged as outputs during this run.
@@ -780,14 +777,11 @@ class Run(Attrs):
         """Fetches artifacts explicitly used by this run.
 
         Retrieves only the input artifacts that were explicitly declared as used
-        during the run, typically via `run.use_artifact()`.
-
-        Note:
-            This method returns a paginated result. You can iterate over all artifacts
-            or use list() to collect them into a single list.
+        during the run, typically via `run.use_artifact()`. Returns a paginated
+        result that can be iterated over or collected into a single list.
 
         Args:
-            per_page: Number of artifacts to fetch per API request. Defaults to 100.
+            per_page: Number of artifacts to fetch per API request.
 
         Returns:
             An iterable collection of Artifact objects explicitly used as inputs in this run.
