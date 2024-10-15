@@ -52,17 +52,6 @@ _name_to_level = {
 
 
 class Printer(abc.ABC):
-    def sparklines(self, series: list[int | float]) -> str | None:
-        # Only print sparklines if the terminal is utf-8
-        if wandb.util.is_unicode_safe(sys.stdout):
-            return sparkline.sparkify(series)
-        return None
-
-    def abort(
-        self,
-    ) -> str:
-        return "Control-C" if platform.system() != "Windows" else "Ctrl-C"
-
     @contextlib.contextmanager
     @abc.abstractmethod
     def dynamic_text(self) -> Iterator[DynamicText | None]:
@@ -76,39 +65,55 @@ class Printer(abc.ABC):
         a TTY and we're not in a Jupyter notebook.
         """
 
+    @abc.abstractmethod
     def display(
         self,
         text: str | list[str] | tuple[str],
         *,
         level: str | int | None = None,
-        off: bool | None = None,
-        default_text: str | list[str] | tuple[str] | None = None,
     ) -> None:
-        if off:
-            return
-        self._display(text, level=level, default_text=default_text)
+        """Display text to the user.
 
-    @abc.abstractmethod
-    def _display(
-        self,
-        text: str | list[str] | tuple[str],
-        *,
-        level: str | int | None = None,
-        default_text: str | list[str] | tuple[str] | None = None,
-    ) -> None: ...
+        Args:
+            text: The text to display. If given an iterable of strings, they're
+                joined with newlines.
+            level: The logging level, for controlling verbosity.
+        """
 
     @abc.abstractmethod
     def progress_update(
         self,
         text: str,
         percent_done: float | None = None,
-    ) -> None: ...
+    ) -> None:
+        r"""Set the text on the progress indicator.
+
+        Args:
+            text: The text to set, which must end with \r.
+            percent_done: The current progress, between 0 and 1.
+        """
 
     @abc.abstractmethod
-    def progress_close(self, text: str | None = None) -> None: ...
+    def progress_close(self, text: str | None = None) -> None:
+        """Close the progress indicator.
+
+        After this, `progress_update` should not be used.
+
+        Args:
+            text: The final text to set on the progress indicator.
+                Ignored in Jupyter notebooks.
+        """
 
     @staticmethod
     def _sanitize_level(name_or_level: str | int | None) -> int:
+        """Returns the number corresponding to the logging level.
+
+        Args:
+            name_or_level: The logging level passed to `display`.
+
+        Raises:
+            ValueError: if the input is not a valid logging level.
+        """
         if isinstance(name_or_level, str):
             try:
                 return _name_to_level[name_or_level.upper()]
@@ -130,29 +135,57 @@ class Printer(abc.ABC):
     def supports_html(self) -> bool:
         """Whether text passed to display may contain HTML styling."""
 
-    @abc.abstractmethod
-    def code(self, text: str) -> str: ...
+    def sparklines(self, series: list[int | float]) -> str | None:
+        """Returns a Unicode art representation of the series of numbers.
+
+        Also known as "ASCII art", except this uses non-ASCII
+        Unicode characters.
+
+        Returns None if the output doesn't support Unicode.
+        """
+        # Only print sparklines if the terminal is utf-8
+        if wandb.util.is_unicode_safe(sys.stderr):
+            return sparkline.sparkify(series)
+        return None
 
     @abc.abstractmethod
-    def name(self, text: str) -> str: ...
+    def code(self, text: str) -> str:
+        """Returns the text styled like code."""
 
     @abc.abstractmethod
-    def link(self, link: str, text: str | None = None) -> str: ...
+    def name(self, text: str) -> str:
+        """Returns the text styled like a run name."""
 
     @abc.abstractmethod
-    def emoji(self, name: str) -> str: ...
+    def link(self, link: str, text: str | None = None) -> str:
+        """Returns the text styled like a link.
+
+        Args:
+            link: The target link.
+            text: The text to show for the link. If not set, or if we're not
+                in an environment that supports clickable links,
+                this is ignored.
+        """
 
     @abc.abstractmethod
-    def status(self, text: str, failure: bool | None = None) -> str: ...
+    def emoji(self, name: str) -> str:
+        """Returns the string for a named emoji, or an empty string."""
 
     @abc.abstractmethod
-    def files(self, text: str) -> str: ...
+    def status(self, text: str, failure: bool | None = None) -> str:
+        """Returns the text styled as a success or error status."""
 
     @abc.abstractmethod
-    def grid(self, rows: list[list[str]], title: str | None = None) -> str: ...
+    def files(self, text: str) -> str:
+        """Returns the text styled like a file path."""
 
     @abc.abstractmethod
-    def panel(self, columns: list[str]) -> str: ...
+    def grid(self, rows: list[list[str]], title: str | None = None) -> str:
+        """Returns a grid of strings with an optional title."""
+
+    @abc.abstractmethod
+    def panel(self, columns: list[str]) -> str:
+        """Returns the column text combined in a compact way."""
 
 
 class DynamicText(abc.ABC):
@@ -185,21 +218,14 @@ class _PrinterTerm(Printer):
             else:
                 yield _DynamicTermText(handle)
 
-    def _display(
+    @override
+    def display(
         self,
         text: str | list[str] | tuple[str],
         *,
         level: str | int | None = None,
-        default_text: str | list[str] | tuple[str] | None = None,
     ) -> None:
         text = "\n".join(text) if isinstance(text, (list, tuple)) else text
-        if default_text is not None:
-            default_text = (
-                "\n".join(default_text)
-                if isinstance(default_text, (list, tuple))
-                else default_text
-            )
-            text = text or default_text
         self._display_fn_mapping(level)(text)
 
     @staticmethod
@@ -302,21 +328,14 @@ class _PrinterJupyter(Printer):
         # TODO: Support dynamic text in Jupyter notebooks.
         yield None
 
-    def _display(
+    @override
+    def display(
         self,
         text: str | list[str] | tuple[str],
         *,
         level: str | int | None = None,
-        default_text: str | list[str] | tuple[str] | None = None,
     ) -> None:
         text = "<br/>".join(text) if isinstance(text, (list, tuple)) else text
-        if default_text is not None:
-            default_text = (
-                "<br/>".join(default_text)
-                if isinstance(default_text, (list, tuple))
-                else default_text
-            )
-            text = text or default_text
         self._display_fn_mapping(level)(text)
 
     @staticmethod
