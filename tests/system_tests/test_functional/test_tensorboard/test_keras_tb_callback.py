@@ -19,13 +19,12 @@ class MyModel(keras.Model):
         return outputs
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="hangs on processing data",
-)
+@pytest.mark.wandb_core_only
 def test_tb_callback(relay_server, wandb_init):
+    np.random.seed(42)
+
     with relay_server() as relay:
-        with wandb.init(sync_tensorboard=True):
+        with wandb_init(sync_tensorboard=True):
             model = MyModel()
             model.compile("sgd", "mse")
 
@@ -48,21 +47,21 @@ def test_tb_callback(relay_server, wandb_init):
 
         summary = relay.context.get_run_summary(run_id)
         history = relay.context.get_run_history(run_id)
-        assert len(history) == 10
+        # assert that there are 10 non-nan epoch_loss values
+        assert len(history["epoch_loss"].dropna()) == 10
 
-        for tag in ["global_step", "train/global_step"]:
-            assert summary[tag] == 9
+        assert summary["global_step"] == 9
 
-        for tag in ["train/epoch_loss", "train/epoch_learning_rate"]:
+        for tag in ["epoch_loss", "epoch_learning_rate"]:
             assert tag in summary
 
-        for tag in ["train/kernel/histogram", "train/bias/histogram"]:
+        for tag in ["kernel/histogram", "bias/histogram"]:
             assert summary[tag]["_type"] == "histogram"
-            assert history[tag].dropna().index.tolist() == [0, 5]
+            assert len(history[tag].dropna()) == 2
 
-        for tag in ["train/kernel_image", "train/bias_image"]:
-            assert summary[tag]["_type"] == "images/separated"
-            assert history[tag].dropna().index.tolist() == [0, 5]
+        for tag in ["kernel/image", "bias/image"]:
+            assert summary[tag]["_type"] == "image-file"
+            assert len(history[tag].dropna()) == 2
 
         telemetry = relay.context.get_run_telemetry(run_id)
         assert 35 in telemetry["3"]
