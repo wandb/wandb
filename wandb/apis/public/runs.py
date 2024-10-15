@@ -754,10 +754,52 @@ class Run(Attrs):
 
     @normalize_exceptions
     def logged_artifacts(self, per_page=100):
+        """Return an iterable collection of artifacts logged by this run.
+
+        This method retrieves the output artifacts associated with the run.
+
+        Arguments:
+            per_page (int, optional): Number of artifacts to fetch per API request. Defaults to 100.
+
+        Returns:
+            RunArtifacts: An iterable collection of Artifact objects logged as outputs by this run.
+
+        Example:
+            ```python
+            run = api.run("entity/project/run_id")
+            for artifact in run.logged_artifacts():
+                print(artifact.name, artifact.version)
+            ```
+
+        Note:
+            This method returns a paginated result. You can iterate over all artifacts
+            or use list() to collect them into a single list.
+        """
         return public.RunArtifacts(self.client, self, mode="logged", per_page=per_page)
 
     @normalize_exceptions
     def used_artifacts(self, per_page=100):
+        """Return an iterable collection of artifacts used by this run.
+
+        This method retrieves the input artifacts associated with the run.
+
+        Arguments:
+            per_page (int, optional): Number of artifacts to fetch per API request. Defaults to 100.
+
+        Returns:
+            RunArtifacts: An iterable collection of Artifact objects used as inputs by this run.
+
+        Example:
+            ```python
+            run = api.run("entity/project/run_id")
+            for artifact in run.used_artifacts():
+                print(artifact.name, artifact.version)
+            ```
+
+        Note:
+            This method returns a paginated result. You can iterate over all artifacts
+            or use list() to collect them into a single list.
+        """
         return public.RunArtifacts(self.client, self, mode="used", per_page=per_page)
 
     @normalize_exceptions
