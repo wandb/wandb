@@ -259,20 +259,24 @@ class _PrinterTerm(Printer):
     def supports_html(self) -> bool:
         return False
 
+    @override
     def code(self, text: str) -> str:
         ret: str = click.style(text, bold=True)
         return ret
 
+    @override
     def name(self, text: str) -> str:
         ret: str = click.style(text, fg="yellow")
         return ret
 
+    @override
     def link(self, link: str, text: str | None = None) -> str:
         ret: str = click.style(link, fg="blue", underline=True)
         # ret = f"\x1b[m{text or link}\x1b[0m"
         # ret = f"\x1b]8;;{link}\x1b\\{ret}\x1b]8;;\x1b\\"
         return ret
 
+    @override
     def emoji(self, name: str) -> str:
         emojis = dict()
         if platform.system() != "Windows" and wandb.util.is_unicode_safe(sys.stdout):
@@ -287,15 +291,18 @@ class _PrinterTerm(Printer):
 
         return emojis.get(name, "")
 
+    @override
     def status(self, text: str, failure: bool | None = None) -> str:
         color = "red" if failure else "green"
         ret: str = click.style(text, fg=color)
         return ret
 
+    @override
     def files(self, text: str) -> str:
         ret: str = click.style(text, fg="magenta", bold=True)
         return ret
 
+    @override
     def grid(self, rows: list[list[str]], title: str | None = None) -> str:
         max_len = max(len(row[0]) for row in rows)
         format_row = " ".join(["{:>{max_len}}", "{}" * (len(rows[0]) - 1)])
@@ -304,6 +311,7 @@ class _PrinterTerm(Printer):
             return f"{title}\n{grid}\n"
         return f"{grid}\n"
 
+    @override
     def panel(self, columns: list[str]) -> str:
         return "\n" + "\n".join(columns)
 
@@ -360,22 +368,28 @@ class _PrinterJupyter(Printer):
     def supports_html(self) -> bool:
         return True
 
+    @override
     def code(self, text: str) -> str:
         return f"<code>{text}<code>"
 
+    @override
     def name(self, text: str) -> str:
         return f'<strong style="color:#cdcd00">{text}</strong>'
 
+    @override
     def link(self, link: str, text: str | None = None) -> str:
         return f'<a href={link!r} target="_blank">{text or link}</a>'
 
+    @override
     def emoji(self, name: str) -> str:
         return ""
 
+    @override
     def status(self, text: str, failure: bool | None = None) -> str:
         color = "red" if failure else "green"
         return f'<strong style="color:{color}">{text}</strong>'
 
+    @override
     def files(self, text: str) -> str:
         return f"<code>{text}</code>"
 
@@ -398,6 +412,7 @@ class _PrinterJupyter(Printer):
         if self._progress:
             self._progress.close()
 
+    @override
     def grid(self, rows: list[list[str]], title: str | None = None) -> str:
         format_row = "".join(["<tr>", "<td>{}</td>" * len(rows[0]), "</tr>"])
         grid = "".join([format_row.format(*row) for row in rows])
@@ -406,6 +421,7 @@ class _PrinterJupyter(Printer):
             return f"<h3>{title}</h3><br/>{grid}<br/>"
         return f"{grid}<br/>"
 
+    @override
     def panel(self, columns: list[str]) -> str:
         row = "".join([f'<div class="wandb-col">{col}</div>' for col in columns])
         return f'{ipython.TABLE_STYLES}<div class="wandb-row">{row}</div>'
