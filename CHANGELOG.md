@@ -19,6 +19,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Fixed
 
 - Fixed typing issue of `wandb.Api` (@bdvllrs in https://github.com/wandb/wandb/pull/8548)
+- Fixed an issue handling batches of images when syncing tensorboard (@jacobromero in https://github.com/wandb/wandb/pull/8615)
 
 ### Changed
 
