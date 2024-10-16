@@ -20,7 +20,7 @@ require (
 	github.com/wandb/simplejsonext v0.0.0-20240710214335-0cdf78d14700
 	golang.org/x/sync v0.8.0
 	golang.org/x/time v0.7.0
-	google.golang.org/api v0.200.0
+	google.golang.org/api v0.201.0
 	google.golang.org/grpc v1.67.1
 	google.golang.org/protobuf v1.35.1
 	gopkg.in/yaml.v3 v3.0.1
@@ -45,7 +45,7 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.115.1 // indirect
+	cloud.google.com/go v0.116.0 // indirect
 	cloud.google.com/go/auth v0.9.8 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.4 // indirect
 	cloud.google.com/go/compute/metadata v0.5.2 // indirect
@@ -77,7 +77,7 @@ require (
 	github.com/agnivade/levenshtein v1.2.0 // indirect
 	github.com/alexflint/go-arg v1.5.1 // indirect
 	github.com/alexflint/go-scalar v1.2.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.65.2
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.65.3
 	github.com/cloudflare/circl v1.4.0 // indirect
 	github.com/cyphar/filepath-securejoin v0.3.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

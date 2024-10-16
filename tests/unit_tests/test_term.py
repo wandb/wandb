@@ -1,63 +1,61 @@
-import click
-import pytest
 import wandb
 from wandb.errors import term
 
-ANSI_DEL_LINE = "\r\x1b[Am\x1b[2K\r"
-"""ANSI sequence to delete the previous line.
 
-Copied directly from the code being tested. The only way to test
-that this actually works is to try it in many terminals. It's also
-useful to consult online references about these escape sequences.
-"""
+def test_no_dynamic_text_if_silent(emulated_terminal):
+    # Set up as if stderr is a terminal.
+    _ = emulated_terminal
 
-BLUE_WANDB = click.style("wandb", fg="blue", bold=True)
-
-
-@pytest.fixture(autouse=True)
-def reset_logger():
-    """Resets the logger before each test."""
-    wandb.termsetup(wandb.Settings(silent=False), None)
-    term._dynamic_blocks = []
-
-
-@pytest.fixture(autouse=True)
-def allow_dynamic_text(monkeypatch):
-    """Pretends stderr is a TTY in each test by default."""
-    monkeypatch.setenv("TERM", "xterm")
-
-    monkeypatch.setattr(term, "_sys_stderr_isatty", lambda: True)
-
-    # Make click pretend we're a TTY, so it doesn't strip ANSI sequences.
-    # This is fragile and could break when click is updated.
-    monkeypatch.setattr("click._compat.isatty", lambda *args, **kwargs: True)
-
-
-def test_no_dynamic_text_if_silent():
     wandb.termsetup(wandb.Settings(silent=True), None)
 
     with term.dynamic_text() as text:
         assert text is None
 
 
-def test_no_dynamic_text_if_not_tty(monkeypatch):
+def test_no_dynamic_text_if_not_tty(emulated_terminal, monkeypatch):
+    # Set up as if stderr is a terminal.
+    _ = emulated_terminal
+
     monkeypatch.setattr(term, "_sys_stderr_isatty", lambda: False)
 
     with term.dynamic_text() as text:
         assert text is None
 
 
-def test_no_dynamic_text_if_dumb_term(monkeypatch):
+def test_no_dynamic_text_if_dumb_term(emulated_terminal, monkeypatch):
+    # Set up as if stderr is a terminal.
+    _ = emulated_terminal
+
     monkeypatch.setenv("TERM", "dumb")
 
     with term.dynamic_text() as text:
         assert text is None
 
 
-def test_dynamic_text(capsys):
+def test_dynamic_text_prints(emulated_terminal):
+    with term.dynamic_text() as text:
+        assert text
+
+        text.set_text("one\ntwo\nthree")
+
+        assert emulated_terminal.read_stderr() == [
+            "wandb: one",
+            "wandb: two",
+            "wandb: three",
+        ]
+
+
+def test_dynamic_text_clears_at_end(emulated_terminal):
+    with term.dynamic_text() as text:
+        assert text
+        text.set_text("one\ntwo\nthree")
+
+    assert emulated_terminal.read_stderr() == []
+
+
+def test_dynamic_text_multiple(emulated_terminal):
     with term.dynamic_text() as text1:
         assert text1
-
         with term.dynamic_text() as text2:
             assert text2
 
@@ -65,44 +63,27 @@ def test_dynamic_text(capsys):
             text2.set_text("four\nfive")
             text1.set_text("updated")
 
-    captured = capsys.readouterr()
-    assert captured.err.split("\n") == [
-        # text1.set_text()
-        f"{BLUE_WANDB}: one",
-        f"{BLUE_WANDB}: two",
-        f"{BLUE_WANDB}: three",
-        # text2.set_text()
-        (3 * ANSI_DEL_LINE) + f"{BLUE_WANDB}: one",
-        f"{BLUE_WANDB}: two",
-        f"{BLUE_WANDB}: three",
-        f"{BLUE_WANDB}: four",
-        f"{BLUE_WANDB}: five",
-        # text1.set_text()
-        (5 * ANSI_DEL_LINE) + f"{BLUE_WANDB}: updated",
-        f"{BLUE_WANDB}: four",
-        f"{BLUE_WANDB}: five",
-        # <end of text2>
-        (3 * ANSI_DEL_LINE) + f"{BLUE_WANDB}: updated",
-        # <end of text1>
-        (1 * ANSI_DEL_LINE),
-    ]
+            assert emulated_terminal.read_stderr() == [
+                "wandb: updated",
+                "wandb: four",
+                "wandb: five",
+            ]
+        assert emulated_terminal.read_stderr() == ["wandb: updated"]
 
 
-def test_static_and_dynamic_text(capsys):
+def test_static_and_dynamic_text(emulated_terminal):
     with term.dynamic_text() as text:
         assert text
 
         text.set_text("my\nanimated\ntext")
         wandb.termlog("static text above animated text")
+        wandb.termlog("static text #2")
+        text.set_text("my\nanimated, updated\ntext")
 
-    captured = capsys.readouterr()
-    assert captured.err.split("\n") == [
-        f"{BLUE_WANDB}: my",
-        f"{BLUE_WANDB}: animated",
-        f"{BLUE_WANDB}: text",
-        (3 * ANSI_DEL_LINE) + f"{BLUE_WANDB}: static text above animated text",
-        f"{BLUE_WANDB}: my",
-        f"{BLUE_WANDB}: animated",
-        f"{BLUE_WANDB}: text",
-        (3 * ANSI_DEL_LINE),
-    ]
+        assert emulated_terminal.read_stderr() == [
+            "wandb: static text above animated text",
+            "wandb: static text #2",
+            "wandb: my",
+            "wandb: animated, updated",
+            "wandb: text",
+        ]

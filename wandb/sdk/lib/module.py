@@ -19,6 +19,8 @@ def set_global(
     log_model=None,
     use_model=None,
     link_model=None,
+    watch=None,
+    unwatch=None,
 ):
     if run:
         wandb.run = run
@@ -48,6 +50,10 @@ def set_global(
         wandb.use_model = use_model
     if link_model:
         wandb.link_model = link_model
+    if watch:
+        wandb.watch = watch
+    if unwatch:
+        wandb.unwatch = unwatch
 
 
 def unset_globals():
@@ -55,6 +61,12 @@ def unset_globals():
     wandb.config = preinit.PreInitObject("wandb.config")
     wandb.summary = preinit.PreInitObject("wandb.summary")
     wandb.log = preinit.PreInitCallable("wandb.log", wandb.wandb_sdk.wandb_run.Run.log)
+    wandb.watch = preinit.PreInitCallable(
+        "wandb.watch", wandb.wandb_sdk.wandb_run.Run.watch
+    )
+    wandb.unwatch = preinit.PreInitCallable(
+        "wandb.unwatch", wandb.wandb_sdk.wandb_run.Run.unwatch
+    )
     wandb.save = preinit.PreInitCallable(
         "wandb.save", wandb.wandb_sdk.wandb_run.Run.save
     )

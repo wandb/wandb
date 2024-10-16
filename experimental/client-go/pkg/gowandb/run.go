@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/wandb/wandb/core/pkg/service"
-	"github.com/wandb/wandb/core/pkg/utils"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+
 	"github.com/wandb/wandb/experimental/client-go/pkg/opts/runopts"
 	"github.com/wandb/wandb/experimental/client-go/pkg/runconfig"
 )
@@ -21,17 +21,17 @@ type Settings map[string]interface{}
 type Run struct {
 	// ctx is the context for the run
 	ctx            context.Context
-	settings       *service.Settings
+	settings       *spb.Settings
 	config         *runconfig.Config
 	conn           *Connection
 	wg             sync.WaitGroup
-	run            *service.RunRecord
+	run            *spb.RunRecord
 	params         *runopts.RunParams
 	partialHistory History
 }
 
 // NewRun creates a new run with the given settings and responders.
-func NewRun(ctx context.Context, settings *service.Settings, conn *Connection, runParams *runopts.RunParams) *Run {
+func NewRun(ctx context.Context, settings *spb.Settings, conn *Connection, runParams *runopts.RunParams) *Run {
 	run := &Run{
 		ctx:      ctx,
 		settings: settings,
@@ -61,10 +61,10 @@ func (r *Run) setup() {
 }
 
 func (r *Run) init() {
-	serverRecord := service.ServerRequest{
-		ServerRequestType: &service.ServerRequest_InformInit{InformInit: &service.ServerInformInitRequest{
+	serverRecord := spb.ServerRequest{
+		ServerRequestType: &spb.ServerRequest_InformInit{InformInit: &spb.ServerInformInitRequest{
 			Settings: r.settings,
-			XInfo:    &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
+			XInfo:    &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 		}},
 	}
 	err := r.conn.Send(&serverRecord)
@@ -72,7 +72,7 @@ func (r *Run) init() {
 		return
 	}
 
-	config := &service.ConfigRecord{}
+	config := &spb.ConfigRecord{}
 	if r.config == nil {
 		r.config = &runconfig.Config{}
 	}
@@ -81,7 +81,7 @@ func (r *Run) init() {
 		if err != nil {
 			panic(err)
 		}
-		config.Update = append(config.Update, &service.ConfigItem{
+		config.Update = append(config.Update, &spb.ConfigItem{
 			Key:       key,
 			ValueJson: string(data),
 		})
@@ -90,22 +90,22 @@ func (r *Run) init() {
 	if r.params.Name != nil {
 		DisplayName = *r.params.Name
 	}
-	runRecord := service.Record_Run{Run: &service.RunRecord{
+	runRecord := spb.Record_Run{Run: &spb.RunRecord{
 		RunId:       r.settings.GetRunId().GetValue(),
 		DisplayName: DisplayName,
 		Config:      config,
 		Telemetry:   r.params.Telemetry,
-		XInfo:       &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
+		XInfo:       &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}}
 	if r.params.Project != nil {
 		runRecord.Run.Project = *r.params.Project
 	}
-	record := service.Record{
+	record := spb.Record{
 		RecordType: &runRecord,
-		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
+		XInfo:      &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}
-	serverRecord = service.ServerRequest{
-		ServerRequestType: &service.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
+	serverRecord = spb.ServerRequest{
+		ServerRequestType: &spb.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
 	}
 
 	handle := r.conn.Mbox.Deliver(&record)
@@ -115,14 +115,14 @@ func (r *Run) init() {
 	}
 	result := handle.wait()
 	r.run = result.GetRunResult().GetRun()
-	utils.PrintHeadFoot(r.run, r.settings, false)
+	PrintHeadFoot(r.run, r.settings, false)
 }
 
 func (r *Run) start() {
-	serverRecord := service.ServerRequest{
-		ServerRequestType: &service.ServerRequest_InformStart{InformStart: &service.ServerInformStartRequest{
+	serverRecord := spb.ServerRequest{
+		ServerRequestType: &spb.ServerRequest_InformStart{InformStart: &spb.ServerInformStartRequest{
 			Settings: r.settings,
-			XInfo:    &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
+			XInfo:    &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 		}},
 	}
 	err := r.conn.Send(&serverRecord)
@@ -130,18 +130,18 @@ func (r *Run) start() {
 		return
 	}
 
-	request := service.Request{RequestType: &service.Request_RunStart{
-		RunStart: &service.RunStartRequest{Run: &service.RunRecord{
+	request := spb.Request{RequestType: &spb.Request_RunStart{
+		RunStart: &spb.RunStartRequest{Run: &spb.RunRecord{
 			RunId: r.settings.GetRunId().GetValue(),
 		}}}}
-	record := service.Record{
-		RecordType: &service.Record_Request{Request: &request},
-		Control:    &service.Control{Local: true},
-		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
+	record := spb.Record{
+		RecordType: &spb.Record_Request{Request: &request},
+		Control:    &spb.Control{Local: true},
+		XInfo:      &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}
 
-	serverRecord = service.ServerRequest{
-		ServerRequestType: &service.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
+	serverRecord = spb.ServerRequest{
+		ServerRequestType: &spb.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
 	}
 
 	handle := r.conn.Mbox.Deliver(&record)
@@ -153,29 +153,29 @@ func (r *Run) start() {
 }
 
 func (r *Run) logCommit(data map[string]interface{}) {
-	history := service.PartialHistoryRequest{}
+	history := spb.PartialHistoryRequest{}
 	for key, value := range data {
 		// strValue := strconv.FormatFloat(value, 'f', -1, 64)
 		data, err := json.Marshal(value)
 		if err != nil {
 			panic(err)
 		}
-		history.Item = append(history.Item, &service.HistoryItem{
+		history.Item = append(history.Item, &spb.HistoryItem{
 			Key:       key,
 			ValueJson: string(data),
 		})
 	}
-	request := service.Request{
-		RequestType: &service.Request_PartialHistory{PartialHistory: &history},
+	request := spb.Request{
+		RequestType: &spb.Request_PartialHistory{PartialHistory: &history},
 	}
-	record := service.Record{
-		RecordType: &service.Record_Request{Request: &request},
-		Control:    &service.Control{Local: true},
-		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
+	record := spb.Record{
+		RecordType: &spb.Record_Request{Request: &request},
+		Control:    &spb.Control{Local: true},
+		XInfo:      &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}
 
-	serverRecord := service.ServerRequest{
-		ServerRequestType: &service.ServerRequest_RecordPublish{RecordPublish: &record},
+	serverRecord := spb.ServerRequest{
+		ServerRequestType: &spb.ServerRequest_RecordPublish{RecordPublish: &record},
 	}
 
 	err := r.conn.Send(&serverRecord)
@@ -207,14 +207,14 @@ func (r *Run) Log(data map[string]interface{}) {
 }
 
 func (r *Run) sendExit() {
-	record := service.Record{
-		RecordType: &service.Record_Exit{
-			Exit: &service.RunExitRecord{
-				ExitCode: 0, XInfo: &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()}}},
-		XInfo: &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
+	record := spb.Record{
+		RecordType: &spb.Record_Exit{
+			Exit: &spb.RunExitRecord{
+				ExitCode: 0, XInfo: &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()}}},
+		XInfo: &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}
-	serverRecord := service.ServerRequest{
-		ServerRequestType: &service.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
+	serverRecord := spb.ServerRequest{
+		ServerRequestType: &spb.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
 	}
 	handle := r.conn.Mbox.Deliver(&record)
 	err := r.conn.Send(&serverRecord)
@@ -225,17 +225,17 @@ func (r *Run) sendExit() {
 }
 
 func (r *Run) sendShutdown() {
-	record := &service.Record{
-		RecordType: &service.Record_Request{
-			Request: &service.Request{
-				RequestType: &service.Request_Shutdown{
-					Shutdown: &service.ShutdownRequest{},
+	record := &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_Shutdown{
+					Shutdown: &spb.ShutdownRequest{},
 				},
 			}},
-		Control: &service.Control{AlwaysSend: true, ReqResp: true},
+		Control: &spb.Control{AlwaysSend: true, ReqResp: true},
 	}
-	serverRecord := service.ServerRequest{
-		ServerRequestType: &service.ServerRequest_RecordCommunicate{RecordCommunicate: record},
+	serverRecord := spb.ServerRequest{
+		ServerRequestType: &spb.ServerRequest_RecordCommunicate{RecordCommunicate: record},
 	}
 	handle := r.conn.Mbox.Deliver(record)
 	err := r.conn.Send(&serverRecord)
@@ -246,9 +246,9 @@ func (r *Run) sendShutdown() {
 }
 
 func (r *Run) sendInformFinish() {
-	serverRecord := service.ServerRequest{
-		ServerRequestType: &service.ServerRequest_InformFinish{InformFinish: &service.ServerInformFinishRequest{
-			XInfo: &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
+	serverRecord := spb.ServerRequest{
+		ServerRequestType: &spb.ServerRequest_InformFinish{InformFinish: &spb.ServerInformFinishRequest{
+			XInfo: &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 		}},
 	}
 	err := r.conn.Send(&serverRecord)
@@ -264,7 +264,39 @@ func (r *Run) Finish() {
 
 	r.conn.Close()
 	r.wg.Wait()
-	utils.PrintHeadFoot(r.run, r.settings, true)
+	PrintHeadFoot(r.run, r.settings, true)
+}
+
+// This is used by the go wandb client to print the header and footer of the run
+func PrintHeadFoot(run *spb.RunRecord, settings *spb.Settings, footer bool) {
+	if run == nil {
+		return
+	}
+
+	appURL := strings.Replace(settings.GetBaseUrl().GetValue(), "//api.", "//", 1)
+	url := fmt.Sprintf("%v/%v/%v/runs/%v", appURL, run.Entity, run.Project, run.RunId)
+
+	fmt.Printf("%v: 🚀 View run %v at: %v\n",
+		format("wandb", colorBrightBlue),
+		format(run.DisplayName, colorYellow),
+		format(url, colorBlue),
+	)
+
+	if footer {
+		currentDir, err := os.Getwd()
+		if err != nil {
+			return
+		}
+		logDir := settings.GetLogDir().GetValue()
+		relLogDir, err := filepath.Rel(currentDir, logDir)
+		if err != nil {
+			return
+		}
+		fmt.Printf("%v: Find logs at: %v\n",
+			format("wandb", colorBrightBlue),
+			format(relLogDir, colorBrightMagenta),
+		)
+	}
 }
 
 const (
