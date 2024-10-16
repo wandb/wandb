@@ -8,5 +8,5 @@ profile = "release"
 features = ["pyo3/extension-module"]
 include = [
     { path = "wandbrs/wandb-core", format = "wheel" },
-    { path = "wandbrs/apple_gpu_stats", format = "wheel" },
+    { path = "wandbrs/gpu_stats", format = "wheel" },
 ]
