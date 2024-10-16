@@ -117,7 +117,7 @@ func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organizat
 		response.GetEntity() == nil ||
 		response.GetEntity().GetOrganization() == nil ||
 		response.GetEntity().GetOrganization().GetOrgEntity() == nil {
-		return "", fmt.Errorf("Unable to an organization under entity: %s. "+
+		return "", fmt.Errorf("Unable to find an organization under entity: %s. "+
 			"Please make sure the right org in the path is provided "+
 			"or a team entity, not a personal entity, is used when using the shorthand path without an org.",
 			portfolioEntity)

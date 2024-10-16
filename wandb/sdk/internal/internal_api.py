@@ -3585,7 +3585,7 @@ class Api:
             },
         )
         try:
-            is_team = response["entity"]["isTeam"]
+            is_team = response["entity"].get("isTeam", False)
             org = response["entity"]["organization"]
             org_name = org["name"] or ""
             org_entity_name = org["orgEntity"]["name"] or ""
