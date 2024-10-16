@@ -7,22 +7,18 @@ import platform
 import sys
 import tempfile
 import time
-from typing import Literal, Sequence
+from typing import Any, Literal, Sequence
 from urllib.parse import quote, unquote, urlencode
 
-from pydantic import AnyHttpUrl, BaseModel, Field, computed_field, field_validator
+from pydantic import AnyHttpUrl, BaseModel, computed_field, field_validator
 
 from wandb import termwarn, util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
 
-from .lib import apikey
+from .lib import apikey, credentials
 from .lib.ipython import _get_python_type
-
-
-def now() -> str:
-    datetime_now = datetime.datetime.fromtimestamp(time.time())
-    return datetime_now.strftime("%Y%m%d_%H%M%S")
+from .lib.run_moment import RunMoment
 
 
 class Settings(BaseModel, validate_assignment=True):
@@ -32,8 +28,6 @@ class Settings(BaseModel, validate_assignment=True):
     _cli_only_mode: bool = False
     # Do not collect system metadata
     _disable_meta: bool = False
-    # Do not collect system stats
-    _disable_stats: bool = False
     # Do not collect system metrics
     _disable_service: bool = False
     # Do not use setproctitle on internal process
@@ -79,22 +73,66 @@ class Settings(BaseModel, validate_assignment=True):
     _live_policy_wait_time: int | None = None
     _log_level: int = logging.INFO
     _network_buffer: int | None = None
-    # [deprecated, use http(s)_proxy] custom proxy servers for the requests to W&B [scheme -> url]
+    # [deprecated, use http(s)_proxy] custom proxy servers for the requests to W&B
+    # [scheme -> url].
     _proxies: dict[str, str] | None = None
+    _runqueue_item_id: str | None = None
+    _require_legacy_service: bool = False
+    _save_requirements: bool = False
+    _service_transport: str | None = None
+    _service_wait: float = 30.0
+    _start_time: float = time.time()
+    # PID of the process that started the wandb-core process to collect system stats for.
+    _stats_pid: int = os.getpid()
+    # Sampling interval for the system monitor.
+    _stats_sampling_interval: float = 10.0
+    # Path to store the default config file for neuron-monitor tool
+    # used to monitor AWS Trainium devices.
+    _stats_neuron_monitor_config_path: str | None = None
+    # open metrics endpoint names/urls
+    _stats_open_metrics_endpoints: dict[str, str] | None = None
+    # open metrics filters in one of the two formats:
+    # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
+    # - ("metric regex pattern 1", "metric regex pattern 2", ...)
+    _stats_open_metrics_filters: dict[str, dict[str, str]] | Sequence[str] | None = None
+    # paths to monitor disk usage
+    _stats_disk_paths: Sequence[str] | None = None
+    # number of system metric samples to buffer in memory in wandb-core before purging.
+    # can be accessed via wandb._system_metrics
+    _stats_buffer_size: int = 0
     _sync: bool = False
+    _tracelog: str | None = None
+    allow_val_change: bool = False
+    anonymous: Literal["allow", "must", "never", "false", "true"] | None = None
     api_key: str | None = None
+    azure_account_url_to_access_key: dict[str, str] | None = None
     # The base URL for the W&B API.
     base_url: AnyHttpUrl = "https://api.wandb.ai"
+    code_dir: str | None = None
+    config_paths: Sequence[str] | None = None
     console: Literal["auto", "off", "wrap", "redirect", "wrap_raw", "wrap_emu"] = "auto"
+    # whether to produce multipart console log files
+    console_multipart: bool = False
+    # file path to write access tokens
+    credentials_file: str = str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE)
+    disable_code: bool = False
+    disable_git: bool = False
+    disable_job_creation: bool = False
+    docker: str | None = None
+    email: str | None = None
     entity: str | None = None
+    force: bool = False
+    fork_from: RunMoment | None = None
+
     http_proxy: AnyHttpUrl | None = None
     https_proxy: AnyHttpUrl | None = None
     mode: Literal["online", "offline", "dryrun", "disabled", "run", "shared"] = "online"
     program: str | None = None
     project: str | None = None
+    resume_from: RunMoment | None = None
     root_dir: str | None = None
     run_id: str | None = None
-    start_datetime: str = Field(default_factory=now)
+
     sweep_id: str | None = None
 
     # Field validators.
@@ -136,6 +174,46 @@ class Settings(BaseModel, validate_assignment=True):
             value = "redirect"
         return value
 
+    @field_validator("_disable_meta", mode="after")
+    @classmethod
+    def validate_disable_meta(cls, value, info):
+        if info.data.get("_disable_machine_info"):
+            return True
+        return value
+
+    @field_validator("_disable_stats", mode="after")
+    @classmethod
+    def validate_disable_stats(cls, value, info):
+        if info.data.get("_disable_machine_info"):
+            return True
+        return value
+
+    @field_validator("disable_code", mode="after")
+    @classmethod
+    def validate_disable_code(cls, value, info):
+        if info.data.get("_disable_machine_info"):
+            return True
+        return value
+
+    @field_validator("disable_git", mode="after")
+    @classmethod
+    def validate_disable_git(cls, value, info):
+        if info.data.get("_disable_machine_info"):
+            return True
+        return value
+
+    @field_validator("disable_job_creation", mode="after")
+    @classmethod
+    def validate_disable_job_creation(cls, value, info):
+        if info.data.get("_disable_machine_info"):
+            return True
+        return value
+
+    @field_validator("fork_from", mode="before")
+    @classmethod
+    def validate_fork_from(cls, value) -> RunMoment | None:
+        return cls._runmoment_preprocessor(value)
+
     @field_validator("program", mode="after")
     @classmethod
     def validate_program(cls, program, info):
@@ -173,6 +251,11 @@ class Settings(BaseModel, validate_assignment=True):
             )
         return value
 
+    @field_validator("resume_from", mode="before")
+    @classmethod
+    def validate_resume_from(cls, value) -> RunMoment | None:
+        return cls._runmoment_preprocessor(value)
+
     @field_validator("root_dir", mode="before")
     @classmethod
     def validate_root_dir(cls, value):
@@ -189,6 +272,20 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("Run ID cannot contain only whitespace")
         return value
 
+    @field_validator("_service_wait", mode="before")
+    @classmethod
+    def validate_service_wait(cls, value):
+        if value < 0:
+            raise UsageError("Service wait time cannot be negative")
+        return
+
+    @field_validator("_stats_sampling_interval", mode="before")
+    @classmethod
+    def validate_stats_sampling_interval(cls, value):
+        if value < 0.1:
+            raise UsageError("Stats sampling interval cannot be less than 0.1 seconds")
+        return value
+
     @field_validator("sweep_id", mode="after")
     @classmethod
     def validate_sweep_id(cls, value):
@@ -203,7 +300,7 @@ class Settings(BaseModel, validate_assignment=True):
     # Computed fields.
     @computed_field
     @property
-    def _args(self) -> Sequence[str]:
+    def _args(self) -> list[str]:
         if not self._jupyter:
             return sys.argv[1:]
         return []
@@ -283,6 +380,12 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field
     @property
+    def _start_datetime(self) -> str:
+        datetime_now = datetime.datetime.fromtimestamp(self._start_time)
+        return datetime_now.strftime("%Y%m%d_%H%M%S")
+
+    @computed_field
+    @property
     def _tmp_code_dir(self) -> str:
         return self._path_convert(self.wandb_dir, "code")
 
@@ -303,8 +406,17 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field
     @property
-    def deploymenet(self) -> Literal["local", "cloud"]:
+    def deployment(self) -> Literal["local", "cloud"]:
         return "local" if self.is_local else "cloud"
+
+    @computed_field
+    @property
+    def files_dir(self) -> str:
+        return self._path_convert(
+            self.wandb_dir,
+            f"{self.run_mode}-{self.timespec}-{self.run_id}",
+            "files",
+        )
 
     @computed_field
     @property
@@ -438,3 +550,10 @@ class Settings(BaseModel, validate_assignment=True):
             )
 
         return os.path.expanduser(path)
+
+    @staticmethod
+    def _runmoment_preprocessor(val: RunMoment | str | None) -> RunMoment | None:
+        if isinstance(val, RunMoment) or val is None:
+            return val
+        elif isinstance(val, str):
+            return RunMoment.from_uri(val)

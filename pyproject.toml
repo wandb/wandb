@@ -29,7 +29,7 @@ dependencies = [
     "setproctitle",
     "platformdirs",
     "typing_extensions>=4.4,<5; python_version < '3.12'",
-    "pydantic>2",
+    "pydantic>2,<3",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",

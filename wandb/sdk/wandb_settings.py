@@ -410,6 +410,7 @@ class SettingsData:
     force: bool
     fork_from: RunMoment
     resume_from: RunMoment
+    # TODO:
     git_commit: str
     git_remote: str
     git_remote_url: str
