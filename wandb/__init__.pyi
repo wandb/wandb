@@ -52,6 +52,7 @@ __all__ = (
     "Settings",
     "teardown",
     "watch",
+    "unwatch",
 )
 
 import os
@@ -1130,7 +1131,7 @@ def watch(
     log_freq: int = 1000,
     idx: int | None = None,
     log_graph: bool = False,
-) -> Graph:
+) -> None:
     """Hooks into the given PyTorch model(s) to monitor gradients and the model's computational graph.
 
     This function can track parameters, gradients, or both during training. It should be
@@ -1148,16 +1149,23 @@ def watch(
             Frequency (in batches) to log gradients and parameters. (default=1000)
         idx (Optional[int]):
             Index used when tracking multiple models with `wandb.watch`. (default=None)
-         log_graph (bool):
+        log_graph (bool):
             Whether to log the model's computational graph. (default=False)
-
-    Returns:
-        wandb.Graph:
-            The graph object, which will be populated after the first backward pass.
 
     Raises:
         ValueError:
             If `wandb.init` has not been called or if any of the models are not instances
             of `torch.nn.Module`.
+    """
+    ...
+
+def unwatch(
+    models: torch.nn.Module | Sequence[torch.nn.Module] | None = None,
+) -> None:
+    """Remove pytorch model topology, gradient and parameter hooks.
+
+    Args:
+        models (torch.nn.Module | Sequence[torch.nn.Module]):
+            Optional list of pytorch models that have had watch called on them
     """
     ...
