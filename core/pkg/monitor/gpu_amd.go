@@ -305,7 +305,7 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 				return &powerStats
 			}
 			return nil
-		}
+		},
 	} {
 		strVal, ok := queryMapString(stats, key)
 		if ok {
