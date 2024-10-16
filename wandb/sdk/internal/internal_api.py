@@ -3597,11 +3597,12 @@ class Api:
                 ) from e
             else:
                 raise ValueError(
-                    f"Unable to find an organization under entity: {entity!r}. "
-                    "Please re-initialize the API or Run with a team entity like "
+                    f"Unable to resolve an organization associated with the entity: {entity!r} "
+                    "that is initialized in the API or Run settings. This could be because "
+                    f"{entity!r} is a personal entity or doesn't exist. "
+                    "Please re-initialize the API or Run with a team entity using "
                     "wandb.Api(overrides={'entity': '<my_team_entity>'}) "
                     "or wandb.init(entity='<my_team_entity>') "
-                    "and fetch/link a Registry artifact by using: <my_registry_name>/<artifact_name> "
                 ) from e
         else:
             return org_entity_name, org_name
