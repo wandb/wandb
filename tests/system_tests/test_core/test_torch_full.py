@@ -1,5 +1,6 @@
 import pytest
 import wandb
+import wandb.sdk
 
 try:
     import torch
@@ -208,35 +209,36 @@ def test_embedding_dict_watch(relay_server, wandb_init):
 
 @pytest.mark.timeout(120)
 def test_sequence_net(wandb_init):
+    """Test logging a sequence model.
+
+    Use intrenal function wandb.sdk._watch to query the graph object.
+    """
     pytest.importorskip("torch")
-    run = wandb_init()
-    net = Sequence()
-    graph = wandb.watch(net, log_graph=True)[0]
-    output = net.forward(dummy_torch_tensor((97, 100)))
-    output.backward(torch.zeros((97, 100)))
-    graph = graph._to_graph_json()
+    with wandb_init() as run:
+        net = Sequence()
+        graph = wandb.sdk._watch(run, net, log_graph=True)[0]
+        output = net.forward(dummy_torch_tensor((97, 100)))
+        output.backward(torch.zeros((97, 100)))
+        graph = graph._to_graph_json()
 
-    assert len(graph["nodes"]) == 3
-    assert len(graph["nodes"][0]["parameters"]) == 4
-    assert graph["nodes"][0]["class_name"] == "LSTMCell(1, 51)"
-    assert graph["nodes"][0]["name"] == "lstm1"
-
-    run.finish()
+        assert len(graph["nodes"]) == 3
+        assert len(graph["nodes"][0]["parameters"]) == 4
+        assert graph["nodes"][0]["class_name"] == "LSTMCell(1, 51)"
+        assert graph["nodes"][0]["name"] == "lstm1"
 
 
 def test_multi_net(wandb_init):
     pytest.importorskip("torch")
-    run = wandb_init()
-    net1 = ConvNet()
-    net2 = ConvNet()
-    graphs = wandb.watch((net1, net2), log_graph=True)
-    output1 = net1.forward(dummy_torch_tensor((64, 1, 28, 28)))
-    output2 = net2.forward(dummy_torch_tensor((64, 1, 28, 28)))
-    grads = torch.ones(64, 10)
-    output1.backward(grads)
-    output2.backward(grads)
-    graph1 = graphs[0]._to_graph_json()
-    graph2 = graphs[1]._to_graph_json()
-    assert len(graph1["nodes"]) == 5
-    assert len(graph2["nodes"]) == 5
-    run.finish()
+    with wandb_init() as run:
+        net1 = ConvNet()
+        net2 = ConvNet()
+        graphs = wandb.sdk._watch(run, (net1, net2), log_graph=True)
+        output1 = net1.forward(dummy_torch_tensor((64, 1, 28, 28)))
+        output2 = net2.forward(dummy_torch_tensor((64, 1, 28, 28)))
+        grads = torch.ones(64, 10)
+        output1.backward(grads)
+        output2.backward(grads)
+        graph1 = graphs[0]._to_graph_json()
+        graph2 = graphs[1]._to_graph_json()
+        assert len(graph1["nodes"]) == 5
+        assert len(graph2["nodes"]) == 5
