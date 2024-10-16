@@ -7,7 +7,6 @@ from typing import Any, Callable, Generator, Iterable, Optional, Union
 
 import pyte
 import pyte.modes
-
 from wandb.errors import term
 
 # Don't write to Sentry in wandb.
@@ -203,7 +202,7 @@ class EmulatedTerminal:
         self._screen.set_mode(pyte.modes.LNM)  # \n implies \r
         self._stream = pyte.Stream(self._screen)
 
-    def read_stderr(self) -> list[str]:
+    def read_stderr(self) -> "list[str]":
         """Returns the text in the emulated terminal.
 
         This processes the stderr text captured by pytest since the last
