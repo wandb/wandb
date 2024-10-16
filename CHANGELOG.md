@@ -22,6 +22,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Log power on AMD MI300X series GPUs (@dmitryduev in https://github.com/wandb/wandb/pull/8630)
 - Fixed typing issue of `wandb.Api` (@bdvllrs in https://github.com/wandb/wandb/pull/8548)
+- Fixed tensorboard failing to sync when logging batches of images. (@jacobromero in https://github.com/wandb/wandb/pull/8641)
 
 ### Changed
 
