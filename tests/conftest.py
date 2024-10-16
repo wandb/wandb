@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import os
 import shutil
 import unittest.mock
 from pathlib import Path
 from queue import Queue
-from typing import Any, Callable, Generator, Iterable, Optional, Union
+from typing import Any, Callable, Generator, Iterable
 
 import pyte
 import pyte.modes
@@ -104,7 +106,7 @@ def assets_path() -> Generator[Callable, None, None]:
 
 @pytest.fixture
 def copy_asset(assets_path) -> Generator[Callable, None, None]:
-    def copy_asset_fn(path: StrPath, dst: Optional[StrPath] = None) -> Path:
+    def copy_asset_fn(path: StrPath, dst: StrPath | None = None) -> Path:
         src = assets_path(path)
         if src.is_file():
             return shutil.copy(src, dst or path)
@@ -202,7 +204,7 @@ class EmulatedTerminal:
         self._screen.set_mode(pyte.modes.LNM)  # \n implies \r
         self._stream = pyte.Stream(self._screen)
 
-    def read_stderr(self) -> "list[str]":
+    def read_stderr(self) -> list[str]:
         """Returns the text in the emulated terminal.
 
         This processes the stderr text captured by pytest since the last
@@ -371,12 +373,12 @@ def api():
 
 
 @pytest.fixture()
-def record_q() -> "Queue":
+def record_q() -> Queue:
     return Queue()
 
 
 @pytest.fixture()
-def mocked_interface(record_q: "Queue") -> InterfaceQueue:
+def mocked_interface(record_q: Queue) -> InterfaceQueue:
     return InterfaceQueue(record_q=record_q)
 
 
@@ -389,25 +391,21 @@ def mocked_backend(mocked_interface: InterfaceQueue) -> Generator[object, None, 
     yield MockedBackend()
 
 
-def dict_factory():
-    def helper():
-        return dict()
-
-    return helper
-
-
 @pytest.fixture(scope="function")
 def test_settings():
     def update_test_settings(
-        extra_settings: Union[dict, wandb.sdk.wandb_settings.Settings] = dict_factory(),  # noqa: B008
+        extra_settings: dict | wandb.Settings | None = None,
     ):
+        if not extra_settings:
+            extra_settings = dict()
+
         settings = wandb.Settings(
             console="off",
             save_code=False,
         )
         if isinstance(extra_settings, dict):
             settings.update(extra_settings, source=wandb.sdk.wandb_settings.Source.BASE)
-        elif isinstance(extra_settings, wandb.sdk.wandb_settings.Settings):
+        elif isinstance(extra_settings, wandb.Settings):
             settings.update(extra_settings)
         settings._set_run_start_time()
         return settings
@@ -419,7 +417,7 @@ def test_settings():
 def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
     from wandb.sdk.lib.module import unset_globals
 
-    def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> "wandb.sdk.wandb_run.Run":
+    def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> wandb.sdk.wandb_run.Run:
         kwargs_settings = kwargs.pop("settings", dict())
         kwargs_settings = {
             **{
