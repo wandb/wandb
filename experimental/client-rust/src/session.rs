@@ -16,11 +16,6 @@ use crate::run::Run;
 use crate::settings::Settings;
 use crate::wandb_internal;
 
-// #[pyclass]
-// pub struct Session {
-//     settings: Settings,
-//     addr: String,
-// }
 
 #[pyclass]
 pub struct Session {
@@ -62,29 +57,6 @@ pub fn get_core_address() -> String {
 
 #[pymethods]
 impl Session {
-    // #[new]
-    // pub fn new(settings: Settings) -> Session {
-    //     let addr = get_core_address();
-    //     let session = Session { settings, addr };
-    //     tracing::debug!("Session created");
-
-    //     session
-    // }
-
-    // pub fn init_run(&self, run_id: Option<String>) -> Run {
-    //     let conn = Connection::new(self.connect());
-    //     let interface = Interface::new(conn);
-
-    //     let mut run = Run {
-    //         settings: self.settings.clone(),
-    //         interface,
-    //         _session: Arc::new(self.clone()),
-    //     };
-
-    //     run.init(run_id);
-
-    //     return run;
-    // }
     #[new]
     pub fn new(settings: Settings) -> PyResult<Self> {
         let addr = get_core_address();
