@@ -602,6 +602,8 @@ class _WandbInit:
             define_metric=drun.define_metric,
             plot_table=drun.plot_table,
             alert=drun.alert,
+            watch=drun.watch,
+            unwatch=drun.unwatch,
         )
         return drun
 
