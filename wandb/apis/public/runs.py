@@ -753,11 +753,62 @@ class Run(Attrs):
             )
 
     @normalize_exceptions
-    def logged_artifacts(self, per_page=100):
+    def logged_artifacts(self, per_page: int = 100) -> public.RunArtifacts:
+        """Fetches all artifacts logged by this run.
+
+        Retrieves all output artifacts that were logged during the run. Returns a
+        paginated result that can be iterated over or collected into a single list.
+
+        Args:
+            per_page: Number of artifacts to fetch per API request.
+
+        Returns:
+            An iterable collection of all Artifact objects logged as outputs during this run.
+
+        Example:
+            >>> import wandb
+            >>> import tempfile
+            >>> with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as tmp:
+            ...     tmp.write("This is a test artifact")
+            ...     tmp_path = tmp.name
+            >>> run = wandb.init(project="artifact-example")
+            >>> artifact = wandb.Artifact("test_artifact", type="dataset")
+            >>> artifact.add_file(tmp_path)
+            >>> run.log_artifact(artifact)
+            >>> run.finish()
+            >>> api = wandb.Api()
+            >>> finished_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+            >>> for logged_artifact in finished_run.logged_artifacts():
+            ...     print(logged_artifact.name)
+            test_artifact
+        """
         return public.RunArtifacts(self.client, self, mode="logged", per_page=per_page)
 
     @normalize_exceptions
-    def used_artifacts(self, per_page=100):
+    def used_artifacts(self, per_page: int = 100) -> public.RunArtifacts:
+        """Fetches artifacts explicitly used by this run.
+
+        Retrieves only the input artifacts that were explicitly declared as used
+        during the run, typically via `run.use_artifact()`. Returns a paginated
+        result that can be iterated over or collected into a single list.
+
+        Args:
+            per_page: Number of artifacts to fetch per API request.
+
+        Returns:
+            An iterable collection of Artifact objects explicitly used as inputs in this run.
+
+        Example:
+            >>> import wandb
+            >>> run = wandb.init(project="artifact-example")
+            >>> run.use_artifact("test_artifact:latest")
+            >>> run.finish()
+            >>> api = wandb.Api()
+            >>> finished_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+            >>> for used_artifact in finished_run.used_artifacts():
+            ...     print(used_artifact.name)
+            test_artifact
+        """
         return public.RunArtifacts(self.client, self, mode="used", per_page=per_page)
 
     @normalize_exceptions

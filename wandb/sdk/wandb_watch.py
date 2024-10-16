@@ -17,12 +17,15 @@ from .lib import telemetry
 if TYPE_CHECKING:
     import torch  # type: ignore [import-not-found]
 
+    from wandb.sdk.wandb_run import Run
+
 logger = logging.getLogger("wandb")
 
 _global_watch_idx = 0
 
 
-def watch(
+def _watch(
+    run: Run,
     models: torch.nn.Module | Sequence[torch.nn.Module],
     criterion: torch.F | None = None,
     log: Literal["gradients", "parameters", "all"] | None = "gradients",
@@ -36,6 +39,7 @@ def watch(
     extended to support arbitrary machine learning models in the future.
 
     Args:
+        run (wandb.sdk.wandb_run.Run): The run object to log to.
         models (Union[torch.nn.Module, Sequence[torch.nn.Module]]):
             A single model or a sequence of models to be monitored.
         criterion (Optional[torch.F]):
@@ -65,9 +69,6 @@ def watch(
         tel.feature.watch = True
 
     logger.info("Watching")
-
-    if wandb.run is None:
-        raise ValueError("You must call `wandb.init` before calling watch")
 
     if log not in {"gradients", "parameters", "all", None}:
         raise ValueError("log must be one of 'gradients', 'parameters', 'all', or None")
@@ -102,31 +103,36 @@ def watch(
             prefix = "graph_%i" % global_idx
 
         if log_parameters:
-            wandb.run._torch.add_log_parameters_hook(
+            run._torch.add_log_parameters_hook(
                 model,
                 prefix=prefix,
                 log_freq=log_freq,
             )
 
         if log_gradients:
-            wandb.run._torch.add_log_gradients_hook(
+            run._torch.add_log_gradients_hook(
                 model,
                 prefix=prefix,
                 log_freq=log_freq,
             )
 
         if log_graph:
-            graph = wandb.run._torch.hook_torch(model, criterion, graph_idx=global_idx)
+            graph = run._torch.hook_torch(model, criterion, graph_idx=global_idx)
             graphs.append(graph)
             # NOTE: the graph is set in run.summary by hook_torch on the backward pass
     return graphs
 
 
-def unwatch(models=None):
+def _unwatch(
+    run: Run, models: torch.nn.Module | Sequence[torch.nn.Module] | None = None
+) -> None:
     """Remove pytorch model topology, gradient and parameter hooks.
 
     Args:
-        models: (list) Optional list of pytorch models that have had watch called on them
+        run (wandb.sdk.wandb_run.Run):
+            The run object to log to.
+        models (torch.nn.Module | Sequence[torch.nn.Module]):
+            Optional list of pytorch models that have had watch called on them
     """
     if models:
         if not isinstance(models, (tuple, list)):
@@ -136,9 +142,9 @@ def unwatch(models=None):
                 wandb.termwarn("{} model has not been watched".format(model))
             else:
                 for name in model._wandb_hook_names:
-                    wandb.run._torch.unhook(name)
+                    run._torch.unhook(name)
                 delattr(model, "_wandb_hook_names")
                 # TODO: we should also remove recursively model._wandb_watch_called
 
     else:
-        wandb.run._torch.unhook_all()
+        run._torch.unhook_all()
