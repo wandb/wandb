@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"github.com/wandb/wandb/core/internal/waiting"
-	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 // tfEventStream creates a stream of TFEvent protos from a TensorBoard

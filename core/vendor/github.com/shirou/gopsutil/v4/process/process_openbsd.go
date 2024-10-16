@@ -7,9 +7,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"unsafe"
@@ -285,18 +287,21 @@ func (p *Process) MemoryInfoWithContext(ctx context.Context) (*MemoryInfoStat, e
 }
 
 func (p *Process) ChildrenWithContext(ctx context.Context) ([]*Process, error) {
-	pids, err := common.CallPgrepWithContext(ctx, invoke, p.Pid)
+	procs, err := ProcessesWithContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil
 	}
-	ret := make([]*Process, 0, len(pids))
-	for _, pid := range pids {
-		np, err := NewProcessWithContext(ctx, pid)
+	ret := make([]*Process, 0, len(procs))
+	for _, proc := range procs {
+		ppid, err := proc.PpidWithContext(ctx)
 		if err != nil {
-			return nil, err
+			continue
 		}
-		ret = append(ret, np)
+		if ppid == p.Pid {
+			ret = append(ret, proc)
+		}
 	}
+	sort.Slice(ret, func(i, j int) bool { return ret[i].Pid < ret[j].Pid })
 	return ret, nil
 }
 
@@ -304,7 +309,7 @@ func (p *Process) ConnectionsWithContext(ctx context.Context) ([]net.ConnectionS
 	return nil, common.ErrNotImplementedError
 }
 
-func (p *Process) ConnectionsMaxWithContext(ctx context.Context, max int) ([]net.ConnectionStat, error) {
+func (p *Process) ConnectionsMaxWithContext(ctx context.Context, maxConn int) ([]net.ConnectionStat, error) {
 	return nil, common.ErrNotImplementedError
 }
 
@@ -343,7 +348,7 @@ func (p *Process) getKProc() (*KinfoProc, error) {
 		return nil, err
 	}
 	if length != sizeOfKinfoProc {
-		return nil, err
+		return nil, errors.New("unexpected size of KinfoProc")
 	}
 
 	k, err := parseKinfoProc(buf)

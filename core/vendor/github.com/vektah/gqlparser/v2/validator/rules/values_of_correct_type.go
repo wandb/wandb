@@ -1,4 +1,4 @@
-package validator
+package rules
 
 import (
 	"errors"
@@ -11,8 +11,9 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-func init() {
-	AddRule("ValuesOfCorrectType", func(observers *Events, addError AddErrFunc) {
+var ValuesOfCorrectTypeRule = Rule{
+	Name: "ValuesOfCorrectType",
+	RuleFunc: func(observers *Events, addError AddErrFunc) {
 		observers.OnValue(func(walker *Walker, value *ast.Value) {
 			if value.Definition == nil || value.ExpectedType == nil {
 				return
@@ -134,7 +135,11 @@ func init() {
 				panic(fmt.Errorf("unhandled %T", value))
 			}
 		})
-	})
+	},
+}
+
+func init() {
+	AddRule(ValuesOfCorrectTypeRule.Name, ValuesOfCorrectTypeRule.RuleFunc)
 }
 
 func unexpectedTypeMessage(addError AddErrFunc, v *ast.Value) {

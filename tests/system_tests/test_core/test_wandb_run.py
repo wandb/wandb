@@ -209,63 +209,6 @@ def test_offline_resume(wandb_init, test_settings, capsys, resume, found):
     run.finish()
 
 
-@pytest.mark.parametrize(
-    "server_info, warn",
-    [
-        (
-            {
-                "serverInfo": {
-                    "latestLocalVersionInfo": {
-                        "outOfDate": True,
-                        "latestVersionString": "12.0.0",
-                    },
-                },
-            },
-            True,
-        ),
-        (
-            {
-                "serverInfo": {
-                    "latestLocalVersionInfo": {
-                        "outOfDate": False,
-                        "latestVersionString": "12.0.0",
-                    },
-                },
-            },
-            False,
-        ),
-        ({}, False),
-    ],
-)
-@pytest.mark.wandb_core_only(
-    "we are using a different query and the behavior is different"
-)
-def test_local_warning(
-    relay_server,
-    inject_graphql_response,
-    wandb_init,
-    capsys,
-    server_info,
-    warn,
-):
-    inject_response = inject_graphql_response(
-        body=json.dumps({"data": server_info}),
-        status=200,
-        query_match_fn=lambda query, _: "query ServerInfo" in query,
-        application_pattern="1",
-    )
-    with relay_server(inject=[inject_response]):
-        run = wandb_init()
-        run.finish()
-
-    captured = capsys.readouterr().err
-    msg = "version of W&B Server to get the latest features"
-    if warn:
-        assert msg in captured
-    else:
-        assert msg not in captured
-
-
 def test_ignore_globs_wandb_files(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(settings=dict(ignore_globs=["requirements.txt"]))
@@ -337,3 +280,49 @@ def test_summary_remove_nested(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run.id)
     assert summary == {"a": {"c": 3}}
+
+
+@pytest.mark.parametrize(
+    "method, args",
+    [
+        ("alert", ["test", "test"]),
+        ("define_metric", ["test"]),
+        ("log", [{"test": 2}]),
+        ("log_code", []),
+        ("mark_preempting", []),
+        ("save", []),
+        ("status", []),
+        ("link_artifact", [wandb.Artifact("test", type="dataset"), "input"]),
+        ("use_artifact", ["test"]),
+        ("log_artifact", ["test"]),
+        ("upsert_artifact", ["test"]),
+        ("finish_artifact", ["test"]),
+    ],
+)
+def test_error_when_using_methods_of_finished_run(wandb_init, method, args):
+    run = wandb_init()
+    run.finish()
+
+    with pytest.raises(wandb.errors.UsageError):
+        getattr(run, method)(*args)
+
+
+@pytest.mark.parametrize(
+    "attribute, value",
+    [
+        ("config", ["test", 2]),
+        ("summary", ["test", 2]),
+        ("name", "test"),
+        ("notes", "test"),
+        ("tags", "test"),
+    ],
+)
+def test_error_when_using_attributes_of_finished_run(wandb_init, attribute, value):
+    run = wandb_init()
+    run.finish()
+
+    with pytest.raises(wandb.errors.UsageError):
+        if isinstance(value, list):
+            setattr(getattr(run, attribute), *value)
+        else:
+            setattr(run, attribute, value)

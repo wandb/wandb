@@ -1,7 +1,6 @@
 package runconsolelogs_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -15,7 +14,6 @@ func TestInvokesCallback(t *testing.T) {
 	flushes := make(chan sparselist.SparseList[*RunLogsLine], 1)
 	writer := NewDebouncedWriter(
 		rate.NewLimiter(rate.Inf, 1),
-		context.Background(),
 		func(lines sparselist.SparseList[*RunLogsLine]) {
 			flushes <- lines
 		},
@@ -32,27 +30,5 @@ func TestInvokesCallback(t *testing.T) {
 		assert.Equal(t, "content", string(lineActual.Content))
 	case <-time.After(time.Second):
 		t.Error("timeout after 1 second")
-	}
-}
-
-func TestRespectsCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	flushes := make(chan sparselist.SparseList[*RunLogsLine], 1)
-	writer := NewDebouncedWriter(
-		rate.NewLimiter(rate.Inf, 1),
-		ctx,
-		func(lines sparselist.SparseList[*RunLogsLine]) {
-			flushes <- lines
-		},
-	)
-
-	cancel()
-	writer.OnChanged(1, &RunLogsLine{})
-	writer.Wait()
-
-	select {
-	case <-flushes:
-		t.Error("writer flushed despite being cancelled")
-	default:
 	}
 }

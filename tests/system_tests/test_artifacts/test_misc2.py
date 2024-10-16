@@ -4,17 +4,19 @@ import numpy as np
 import pytest
 import wandb
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
-from wandb.testing.relay import TokenizedCircularPattern
 
 
-def test_artifact_log_with_network_error(user, relay_server, inject_graphql_response):
+def test_artifact_log_with_network_error(
+    user, relay_server, inject_graphql_response, tokenized_circular_pattern
+):
     create_artifact_response = inject_graphql_response(
         # request
         query_match_fn=lambda query, variables: query.startswith(
             "mutation CreateArtifact("
         ),
         application_pattern=(
-            TokenizedCircularPattern.APPLY_TOKEN + TokenizedCircularPattern.STOP_TOKEN
+            tokenized_circular_pattern.APPLY_TOKEN
+            + tokenized_circular_pattern.STOP_TOKEN
         ),
         # response
         status=500,

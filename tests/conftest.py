@@ -5,6 +5,10 @@ from pathlib import Path
 from queue import Queue
 from typing import Any, Callable, Generator, Iterable, Optional, Union
 
+import pyte
+import pyte.modes
+from wandb.errors import term
+
 # Don't write to Sentry in wandb.
 #
 # For wandb-core, this setting is configured below.
@@ -31,35 +35,28 @@ from wandb.sdk.lib.paths import StrPath  # noqa: E402
 @pytest.fixture(autouse=True)
 def setup_wandb_env_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     """Configures wandb env variables to suitable defaults for tests."""
-    # Don't write to Sentry in wandb-core.
-    #
-    # The corresponding setting for wandb is read on import, so it is
-    # configured above the imports in this file.
-    monkeypatch.setenv("WANDB_CORE_ERROR_REPORTING", "false")
-
     # Set the _network_buffer setting to 1000 to increase the likelihood
     # of triggering flow control logic.
     monkeypatch.setenv("WANDB__NETWORK_BUFFER", "1000")
 
 
 @pytest.fixture(autouse=True)
-def toggle_wandb_core(
+def toggle_legacy_service(
     monkeypatch: pytest.MonkeyPatch,
     request: pytest.FixtureRequest,
 ) -> None:
-    """Sets WANDB__REQUIRE_CORE in each test.
+    """Sets WANDB__REQUIRE_LEGACY_SERVICE in each test.
 
-    wandb-core is a Go rewrite of some Python logic, and all tests should work
-    the same both with and without it.
+    This fixture is used to run each test both with and without wandb-core.
     """
-    monkeypatch.setenv("WANDB__REQUIRE_CORE", str(request.param))
+    monkeypatch.setenv("WANDB__REQUIRE_LEGACY_SERVICE", str(request.param))
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     # See https://docs.pytest.org/en/7.1.x/how-to/parametrize.html#basic-pytest-generate-tests-example
 
     # Run each test both with and without wandb-core.
-    if toggle_wandb_core.__name__ in metafunc.fixturenames:
+    if toggle_legacy_service.__name__ in metafunc.fixturenames:
         # Allow tests to opt-out of wandb-core until we have feature parity.
         skip_wandb_core = False
         wandb_core_only = False
@@ -75,17 +72,17 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
                 not skip_wandb_core
             ), "Cannot mark test both skip_wandb_core and wandb_core_only"
 
-            values = [True]
+            values = [False]
             ids = ["wandb_core"]
         elif skip_wandb_core:
-            values = [False]
+            values = [True]
             ids = ["no_wandb_core"]
         else:
-            values = [False, True]
+            values = [True, False]
             ids = ["no_wandb_core", "wandb_core"]
 
         metafunc.parametrize(
-            toggle_wandb_core.__name__,
+            toggle_legacy_service.__name__,
             values,
             ids=ids,
             indirect=True,  # Causes the fixture to be invoked.
@@ -119,6 +116,13 @@ def copy_asset(assets_path) -> Generator[Callable, None, None]:
 # --------------------------------
 # Misc Fixtures
 # --------------------------------
+
+
+@pytest.fixture(autouse=True)
+def reset_logger():
+    """Resets the `wandb.errors.term` module before each test."""
+    wandb.termsetup(wandb.Settings(silent=False), None)
+    term._dynamic_blocks = []
 
 
 class MockWandbTerm:
@@ -187,6 +191,66 @@ def mock_wandb_log() -> Generator[MockWandbTerm, None, None]:
             patched["termwarn"],
             patched["termerror"],
         )
+
+
+class EmulatedTerminal:
+    """The return value of the emulated_terminal fixture."""
+
+    def __init__(self, capsys: pytest.CaptureFixture[str]):
+        self._capsys = capsys
+        self._screen = pyte.Screen(80, 24)
+        self._screen.set_mode(pyte.modes.LNM)  # \n implies \r
+        self._stream = pyte.Stream(self._screen)
+
+    def read_stderr(self) -> "list[str]":
+        """Returns the text in the emulated terminal.
+
+        This processes the stderr text captured by pytest since the last
+        invocation and returns the updated state of the screen. Empty lines
+        at the top and bottom of the screen and empty text at the end of
+        any line are trimmed.
+
+        NOTE: This resets pytest's stderr and stdout buffers. You should not
+        use this with anything else that uses capsys.
+        """
+        self._stream.feed(self._capsys.readouterr().err)
+
+        lines = [line.rstrip() for line in self._screen.display]
+
+        n_empty_at_start = 0
+        for i in range(len(lines)):
+            if not lines[i]:
+                n_empty_at_start += 1
+            else:
+                break
+
+        n_empty_at_end = 0
+        for i in range(len(lines)):
+            if not lines[-1 - i]:
+                n_empty_at_end += 1
+            else:
+                break
+
+        return lines[n_empty_at_start:-n_empty_at_end]
+
+
+@pytest.fixture()
+def emulated_terminal(monkeypatch, capsys) -> EmulatedTerminal:
+    """Emulates a terminal for the duration of a test.
+
+    This makes functions in the `wandb.errors.term` module act as if
+    stderr is a terminal.
+    """
+
+    monkeypatch.setenv("TERM", "xterm")
+
+    monkeypatch.setattr(term, "_sys_stderr_isatty", lambda: True)
+
+    # Make click pretend we're a TTY, so it doesn't strip ANSI sequences.
+    # This is fragile and could break when click is updated.
+    monkeypatch.setattr("click._compat.isatty", lambda *args, **kwargs: True)
+
+    return EmulatedTerminal(capsys)
 
 
 @pytest.fixture(scope="function", autouse=True)

@@ -41,6 +41,7 @@ from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messa
 from wandb.errors import AuthenticationError, CommError, UnsupportedError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
@@ -52,6 +53,8 @@ from . import context
 from .progress import Progress
 
 logger = logging.getLogger(__name__)
+
+LAUNCH_DEFAULT_PROJECT = "model-registry"
 
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
@@ -304,6 +307,7 @@ class Api:
         self.server_use_artifact_input_info: Optional[List[str]] = None
         self.server_create_artifact_input_info: Optional[List[str]] = None
         self.server_artifact_fields_info: Optional[List[str]] = None
+        self.server_organization_type_fields_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
         self.fail_run_queue_item_input_info: Optional[List[str]] = None
@@ -673,6 +677,11 @@ class Api:
             self.server_create_run_queue_supports_drc,
             self.server_create_run_queue_supports_priority,
         )
+
+    @normalize_exceptions
+    def upsert_run_queue_introspection(self) -> bool:
+        _, _, mutations = self.server_info_introspection()
+        return "upsertRunQueue" in mutations
 
     @normalize_exceptions
     def push_to_run_queue_introspection(self) -> Tuple[bool, bool]:
@@ -1579,6 +1588,70 @@ class Api:
             "createRunQueue"
         ]
         return result
+
+    @normalize_exceptions
+    def upsert_run_queue(
+        self,
+        queue_name: str,
+        entity: str,
+        resource_type: str,
+        resource_config: dict,
+        project: str = LAUNCH_DEFAULT_PROJECT,
+        prioritization_mode: Optional[str] = None,
+        template_variables: Optional[dict] = None,
+        external_links: Optional[dict] = None,
+    ) -> Optional[Dict[str, Any]]:
+        if not self.upsert_run_queue_introspection():
+            raise UnsupportedError(
+                "upserting run queues is not supported by this version of "
+                "wandb server. Consider updating to the latest version."
+            )
+        query = gql(
+            """
+            mutation upsertRunQueue(
+                $entityName: String!
+                $projectName: String!
+                $queueName: String!
+                $resourceType: String!
+                $resourceConfig: JSONString!
+                $templateVariables: JSONString
+                $prioritizationMode: RunQueuePrioritizationMode
+                $externalLinks: JSONString
+                $clientMutationId: String
+            ) {
+                upsertRunQueue(
+                    input: {
+                        entityName: $entityName
+                        projectName: $projectName
+                        queueName: $queueName
+                        resourceType: $resourceType
+                        resourceConfig: $resourceConfig
+                        templateVariables: $templateVariables
+                        prioritizationMode: $prioritizationMode
+                        externalLinks: $externalLinks
+                        clientMutationId: $clientMutationId
+                    }
+                ) {
+                    success
+                    configSchemaValidationErrors
+                }
+            }
+            """
+        )
+        variable_values = {
+            "entityName": entity,
+            "projectName": project,
+            "queueName": queue_name,
+            "resourceType": resource_type,
+            "resourceConfig": json.dumps(resource_config),
+            "templateVariables": (
+                json.dumps(template_variables) if template_variables else None
+            ),
+            "prioritizationMode": prioritization_mode,
+            "externalLinks": json.dumps(external_links) if external_links else None,
+        }
+        result: Dict[str, Any] = self.gql(query, variable_values)
+        return result["upsertRunQueue"]
 
     @normalize_exceptions
     def push_to_run_queue_by_name(
@@ -3393,6 +3466,7 @@ class Api:
         entity: str,
         project: str,
         aliases: Sequence[str],
+        organization: str,
     ) -> Dict[str, Any]:
         template = """
                 mutation LinkArtifact(
@@ -3414,6 +3488,14 @@ class Api:
                     }
             """
 
+        org_entity = ""
+        if is_artifact_registry_project(project):
+            try:
+                org_entity = self._resolve_org_entity_name(entity, organization)
+            except ValueError as e:
+                wandb.termerror(str(e))
+                raise
+
         def replace(a: str, b: str) -> None:
             nonlocal template
             template = template.replace(a, b)
@@ -3429,7 +3511,7 @@ class Api:
             "clientID": client_id,
             "artifactID": server_id,
             "artifactPortfolioName": portfolio_name,
-            "entityName": entity,
+            "entityName": org_entity or entity,
             "projectName": project,
             "aliases": [
                 {"alias": alias, "artifactCollectionName": portfolio_name}
@@ -3441,6 +3523,74 @@ class Api:
         response = self.gql(mutation, variable_values=variable_values)
         link_artifact: Dict[str, Any] = response["linkArtifact"]
         return link_artifact
+
+    def _resolve_org_entity_name(self, entity: str, organization: str = "") -> str:
+        # resolveOrgEntityName fetches the portfolio's org entity's name.
+        #
+        # The organization parameter may be empty, an org's display name, or an org entity name.
+        #
+        # If the server doesn't support fetching the org name of a portfolio, then this returns
+        # the organization parameter, or an error if it is empty. Otherwise, this returns the
+        # fetched value after validating that the given organization, if not empty, matches
+        # either the org's display or entity name.
+        org_fields = self.server_organization_type_introspection()
+        can_fetch_org_entity = "orgEntity" in org_fields
+        if not organization and not can_fetch_org_entity:
+            raise ValueError(
+                "Fetching Registry artifacts without inputting an organization "
+                "is unavailable for your server version. "
+                "Please upgrade your server to 0.50.0 or later."
+            )
+        if not can_fetch_org_entity:
+            # Server doesn't support fetching org entity to validate,
+            # assume org entity is correctly inputted
+            return organization
+
+        org_entity, org_name = self.fetch_org_entity_from_entity(entity)
+        if organization:
+            if organization != org_name and organization != org_entity:
+                raise ValueError(
+                    f"Artifact belongs to the organization {org_name!r} "
+                    f"and cannot be linked/fetched with {organization!r}. "
+                    "Please update the target path with the correct organization name."
+                )
+        return org_entity
+
+    def fetch_org_entity_from_entity(self, entity: str) -> Tuple[str, str]:
+        query = gql(
+            """
+            query FetchOrgEntityFromEntity(
+                $entityName: String!,
+            ) {
+                entity(name: $entityName) {
+                    organization {
+                        name
+                        orgEntity {
+                            name
+                        }
+                    }
+                }
+            }
+            """
+        )
+        response = self.gql(
+            query,
+            variable_values={
+                "entityName": entity,
+            },
+        )
+        try:
+            org = response["entity"]["organization"]
+            org_name = org["name"] or ""
+            org_entity_name = org["orgEntity"]["name"] or ""
+        except (LookupError, TypeError) as e:
+            raise ValueError(
+                f"Unable to find organization for artifact under entity: {entity!r} "
+                "Please make sure the right org in the path is provided "
+                "or a team entity, not a personal entity, is used when using the shorthand path without an org."
+            ) from e
+        else:
+            return org_entity_name, org_name
 
     def use_artifact(
         self,
@@ -3509,6 +3659,28 @@ class Api:
             return artifact
         return None
 
+    # Fetch fields available in backend of Organization type
+    def server_organization_type_introspection(self) -> List[str]:
+        query_string = """
+            query ProbeServerOrganization {
+                OrganizationInfoType: __type(name:"Organization") {
+                    fields {
+                        name
+                    }
+                }
+            }
+        """
+
+        if self.server_organization_type_fields_info is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            input_fields = res.get("OrganizationInfoType", {}).get("fields", [{}])
+            self.server_organization_type_fields_info = [
+                field["name"] for field in input_fields if "name" in field
+            ]
+
+        return self.server_organization_type_fields_info
+
     def create_artifact_type(
         self,
         artifact_type_name: str,
@@ -3551,7 +3723,7 @@ class Api:
         _id: Optional[str] = response["createArtifactType"]["artifactType"]["id"]
         return _id
 
-    def server_artifact_introspection(self) -> List:
+    def server_artifact_introspection(self) -> List[str]:
         query_string = """
             query ProbeServerArtifact {
                 ArtifactInfoType: __type(name:"Artifact") {
@@ -3572,7 +3744,7 @@ class Api:
 
         return self.server_artifact_fields_info
 
-    def server_create_artifact_introspection(self) -> List:
+    def server_create_artifact_introspection(self) -> List[str]:
         query_string = """
             query ProbeServerCreateArtifactInput {
                 CreateArtifactInputInfoType: __type(name:"CreateArtifactInput") {
@@ -3626,6 +3798,10 @@ class Api:
         if "ttlDurationSeconds" in fields:
             types += "$ttlDurationSeconds: Int64,"
             values += "ttlDurationSeconds: $ttlDurationSeconds,"
+
+        if "tags" in fields:
+            types += "$tags: [TagInput!],"
+            values += "tags: $tags,"
 
         query_template = """
             mutation CreateArtifact(
@@ -3686,18 +3862,25 @@ class Api:
         metadata: Optional[Dict] = None,
         ttl_duration_seconds: Optional[int] = None,
         aliases: Optional[List[Dict[str, str]]] = None,
+        tags: Optional[List[Dict[str, str]]] = None,
         distributed_id: Optional[str] = None,
         is_user_created: Optional[bool] = False,
         history_step: Optional[int] = None,
     ) -> Tuple[Dict, Dict]:
         fields = self.server_create_artifact_introspection()
         artifact_fields = self.server_artifact_introspection()
-        if "ttlIsInherited" not in artifact_fields and ttl_duration_seconds:
+        if ("ttlIsInherited" not in artifact_fields) and ttl_duration_seconds:
             wandb.termwarn(
                 "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
             )
             # ttlDurationSeconds is only usable if ttlIsInherited is also present
             ttl_duration_seconds = None
+        if ("tags" not in artifact_fields) and tags:
+            wandb.termwarn(
+                "Server not compatible with Artifact tags. "
+                "To use Artifact tags, please upgrade the server to v0.85 or higher."
+            )
+
         query_template = self._get_create_artifact_mutation(
             fields, history_step, distributed_id
         )
@@ -3706,8 +3889,6 @@ class Api:
         project_name = project_name or self.settings("project")
         if not is_user_created:
             run_name = run_name or self.current_run_id
-        if aliases is None:
-            aliases = []
 
         mutation = gql(query_template)
         response = self.gql(
@@ -3722,7 +3903,8 @@ class Api:
                 "sequenceClientID": sequence_client_id,
                 "digest": digest,
                 "description": description,
-                "aliases": [alias for alias in aliases],
+                "aliases": list(aliases or []),
+                "tags": list(tags or []),
                 "metadata": json.dumps(util.make_safe_for_json(metadata))
                 if metadata
                 else None,

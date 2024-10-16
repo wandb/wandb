@@ -2,6 +2,7 @@ syntax = "proto3";
 
 option go_package = "github.com/wandb/wandb/core/internal/tensorboard/tbproto";
 
+import "core/internal/tensorboard/tbproto/histogram.proto";
 import "core/internal/tensorboard/tbproto/tensor.proto";
 
 // An Event proto written by TensorBoard into a tfevents file.
@@ -37,6 +38,19 @@ message TFEvent {
 //
 // We only include fields that are relevant to us.
 message Summary {
+  message Image {
+    int32 height = 1;
+    int32 width = 2;
+
+    // Encoded image data.
+    //
+    // The most common type is PNG, but the TB images plugin seems to also
+    // support BMP, GIF, JPEG, and SVG.
+    //
+    // https://github.com/tensorflow/tensorboard/blob/b56c65521cbccf3097414cbd7e30e55902e08cab/tensorboard/plugins/image/images_plugin.py#L31-L37
+    bytes encoded_image_string = 4;
+  }
+
   message Value {
     // Tag name for the data.
     string tag = 1;
@@ -50,6 +64,8 @@ message Summary {
     // Value associated with the tag.
     oneof value {
       float simple_value = 2;
+      Image image = 4;
+      HistogramProto histo = 5;
       TensorProto tensor = 8;
     }
   }

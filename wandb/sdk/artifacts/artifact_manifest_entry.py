@@ -1,10 +1,12 @@
 """Artifact manifest entry."""
 
+from __future__ import annotations
+
 import json
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Optional, Union
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from wandb.sdk.lib import filesystem
@@ -32,7 +34,7 @@ if TYPE_CHECKING:
         ref: str
         birthArtifactID: str
         size: int
-        extra: Dict
+        extra: dict
         local_path: str
 
 
@@ -40,27 +42,27 @@ class ArtifactManifestEntry:
     """A single entry in an artifact manifest."""
 
     path: LogicalPath
-    digest: Union[B64MD5, URIStr, FilePathStr, ETag]
+    digest: B64MD5 | URIStr | FilePathStr | ETag
     skip_cache: bool
-    ref: Optional[Union[FilePathStr, URIStr]]
-    birth_artifact_id: Optional[str]
-    size: Optional[int]
-    extra: Dict
-    local_path: Optional[str]
+    ref: FilePathStr | URIStr | None
+    birth_artifact_id: str | None
+    size: int | None
+    extra: dict
+    local_path: str | None
 
-    _parent_artifact: Optional["Artifact"] = None
-    _download_url: Optional[str] = None
+    _parent_artifact: Artifact | None = None
+    _download_url: str | None = None
 
     def __init__(
         self,
         path: StrPath,
-        digest: Union[B64MD5, URIStr, FilePathStr, ETag],
-        skip_cache: Optional[bool] = False,
-        ref: Optional[Union[FilePathStr, URIStr]] = None,
-        birth_artifact_id: Optional[str] = None,
-        size: Optional[int] = None,
-        extra: Optional[Dict] = None,
-        local_path: Optional[StrPath] = None,
+        digest: B64MD5 | URIStr | FilePathStr | ETag,
+        skip_cache: bool | None = False,
+        ref: FilePathStr | URIStr | None = None,
+        birth_artifact_id: str | None = None,
+        size: int | None = None,
+        extra: dict | None = None,
+        local_path: StrPath | None = None,
     ) -> None:
         self.path = LogicalPath(path)
         self.digest = digest
@@ -116,7 +118,7 @@ class ArtifactManifestEntry:
         )
         return self.path
 
-    def parent_artifact(self) -> "Artifact":
+    def parent_artifact(self) -> Artifact:
         """Get the artifact to which this artifact entry belongs.
 
         Returns:
@@ -127,7 +129,7 @@ class ArtifactManifestEntry:
         return self._parent_artifact
 
     def download(
-        self, root: Optional[str] = None, skip_cache: Optional[bool] = None
+        self, root: str | None = None, skip_cache: bool | None = None
     ) -> FilePathStr:
         """Download this artifact entry to the specified root path.
 
@@ -177,7 +179,7 @@ class ArtifactManifestEntry:
                 str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
             )
 
-    def ref_target(self) -> Union[FilePathStr, URIStr]:
+    def ref_target(self) -> FilePathStr | URIStr:
         """Get the reference URL that is targeted by this artifact entry.
 
         Returns:
@@ -219,7 +221,7 @@ class ArtifactManifestEntry:
             + self.path
         )
 
-    def to_json(self) -> "ArtifactManifestEntryDict":
+    def to_json(self) -> ArtifactManifestEntryDict:
         contents: ArtifactManifestEntryDict = {
             "path": self.path,
             "digest": self.digest,
@@ -241,7 +243,7 @@ class ArtifactManifestEntry:
     def _is_artifact_reference(self) -> bool:
         return self.ref is not None and urlparse(self.ref).scheme == "wandb-artifact"
 
-    def _referenced_artifact_id(self) -> Optional[str]:
+    def _referenced_artifact_id(self) -> str | None:
         if not self._is_artifact_reference():
             return None
         return hex_to_b64_id(urlparse(self.ref).netloc)

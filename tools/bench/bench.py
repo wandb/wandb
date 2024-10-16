@@ -70,14 +70,14 @@ def run_parallel(args):
 
 def setup(args):
     if args.core == "true":
-        os.environ["WANDB__REQUIRE_CORE"] = "true"
+        os.environ["WANDB__REQUIRE_LEGACY_SERVICE"] = "false"
     elif args.core == "false":
-        os.environ["WANDB__REQUIRE_CORE"] = "false"
+        os.environ["WANDB__REQUIRE_LEGACY_SERVICE"] = "true"
 
 
 def teardown(args):
     wandb.teardown()
-    os.environ.pop("WANDB__REQUIRE_CORE", None)
+    os.environ.pop("WANDB__REQUIRE_LEGACY_SERVICE", None)
 
 
 @_timing.timeit(TIMING_DATA)

@@ -15,20 +15,22 @@ dependencies = [
     "GitPython>=1.0.0,!=3.1.29", # CVE-2022-24439
     "requests>=2.0.0,<3",
     "psutil>=5.0.0",
-    "sentry-sdk>=1.0.0",
+    "sentry-sdk>=2.0.0",
     "docker-pycreds>=0.4.0",
     # setuptools is needed for distutils in dependencies after Python 3.12 :(
     # One such dependency is docker-pycreds, where the latest release is 0.4.0
     # which was released in 2018.
     "setuptools",
-    "protobuf>=3.12.0,!=4.21.0,<6; python_version < '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.15.0,!=4.21.0,<6; python_version == '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,<6; python_version > '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,<6; sys_platform != 'linux'",
+    "protobuf>=3.12.0,!=4.21.0,!=5.28.0,<6; python_version < '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.15.0,!=4.21.0,!=5.28.0,<6; python_version == '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<6; python_version > '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<6; sys_platform != 'linux'",
     "PyYAML",
     "setproctitle",
     "platformdirs",
-    "typing_extensions; python_version < '3.10'",
+    # typing_extensions 4.4.0 adds 'override'.
+    # Python 3.12 adds 'override' to the typing module.
+    "typing_extensions>=4.4,<5; python_version < '3.12'",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -69,11 +71,13 @@ azure = ["azure-identity", "azure-storage-blob"]
 media = [
     "numpy",
     "moviepy",
+    # imageio is a dependency of moviepy but incase that changes we also pin it here
+    "imageio",
     "pillow",
     "bokeh",
     "soundfile",
     "plotly>=5.18.0",
-    "rdkit-pypi",
+    "rdkit",
 ]
 sweeps = ["sweeps>=0.2.0"]
 launch = [
@@ -123,14 +127,21 @@ markers = [
 timeout = 60
 log_format = "%(asctime)s %(levelname)s %(message)s"
 log_date_format = "%Y-%m-%d %H:%M:%S"
-testpaths = "tests"
 filterwarnings = ["ignore::DeprecationWarning", "error:ResourceWarning"]
+testpaths = "tests"
+# The testpaths setting is ignored by VSCode's usage of pytest --collect-only,
+# causing it to execute files named test_*.py while trying to do pytest
+# discovery. Some of these files, in particular old "yea" tests, execute
+# code at the top-level.
 norecursedirs = [
+    # Custom directories to ignore:
     "vendor",
     "wandb/vendor",
-    "build/",
-    "tests/functional_tests",
-    "tests/standalone_tests",
+    "landfill",
+    # Standard directories to ignore:
+    ".*",
+    "build",
+    "dist",
 ]
 
 [tool.coverage.paths]
@@ -149,7 +160,12 @@ ignore_errors = true
 
 
 [tool.ruff]
-extend-exclude = ["wandb/__init__.py", "wandb/vendor/**", "wandb/proto/**"]
+extend-exclude = [
+    "landfill/**",
+    "wandb/__init__.py",
+    "wandb/vendor/**",
+    "wandb/proto/**",
+]
 target-version = "py37"
 
 [tool.ruff.lint]
@@ -232,11 +248,9 @@ ignore_errors = false
 
 [[tool.mypy.overrides]]
 module = [
-    "wandb.testing.*",
     "wandb.integration.*",
     "wandb.apis.*",
     "wandb.proto.*",
-    "wandb.sklearn.*",
     "wandb.beta.*",
     "wandb.sdk.wandb_login",
     "wandb.cli.*",

@@ -1554,9 +1554,13 @@ def _is_databricks() -> bool:
     return False
 
 
-def _is_py_or_dockerfile(path: str) -> bool:
+def _is_py_requirements_or_dockerfile(path: str) -> bool:
     file = os.path.basename(path)
-    return file.endswith(".py") or file.startswith("Dockerfile")
+    return (
+        file.endswith(".py")
+        or file.startswith("Dockerfile")
+        or file == "requirements.txt"
+    )
 
 
 def check_windows_valid_filename(path: Union[int, str]) -> bool:
@@ -1855,7 +1859,7 @@ def sample_with_exponential_decay_weights(
     sampled_indices = np.random.choice(len(xs_array), size=sample_size, p=weights)
     sampled_xs = xs_array[sampled_indices].tolist()
     sampled_ys = ys_array[sampled_indices].tolist()
-    sampled_keys = keys_array[sampled_indices].tolist() if keys else None
+    sampled_keys = keys_array[sampled_indices].tolist() if keys_array else None
 
     return sampled_xs, sampled_ys, sampled_keys
 
@@ -1884,7 +1888,18 @@ def working_set() -> Iterable[InstalledDistribution]:
         from importlib_metadata import distributions  # type: ignore
 
     for d in distributions():
-        yield InstalledDistribution(key=d.metadata["Name"], version=d.version)
+        try:
+            # In some distributions, the "Name" attribute may not be present,
+            # which can raise a KeyError. To handle this, we catch the exception
+            # and skip those distributions.
+            # For additional context, see: https://github.com/python/importlib_metadata/issues/371.
+
+            # From Sentry events we observed that UnicodeDecodeError can occur when
+            # trying to decode the metadata of a distribution. To handle this, we catch
+            # the exception and skip those distributions.
+            yield InstalledDistribution(key=d.metadata["Name"], version=d.version)
+        except (KeyError, UnicodeDecodeError):
+            pass
 
 
 def parse_version(version: str) -> "packaging.version.Version":

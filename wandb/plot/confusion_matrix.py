@@ -1,9 +1,10 @@
 from typing import Optional, Sequence
 
-import wandb
 from wandb import util
+from wandb.data_types import Table
+from wandb.plot.viz import custom_chart
 
-chart_limit = wandb.Table.MAX_ROWS
+chart_limit = Table.MAX_ROWS
 
 
 def confusion_matrix(
@@ -90,9 +91,9 @@ def confusion_matrix(
         "nPredictions": "nPredictions",
     }
     title = title or ""
-    return wandb.plot_table(
+    return custom_chart(
         "wandb/confusion_matrix/v1",
-        wandb.Table(columns=["Actual", "Predicted", "nPredictions"], data=data),
+        Table(columns=["Actual", "Predicted", "nPredictions"], data=data),
         fields,
         {"title": title},
         split_table=split_table,

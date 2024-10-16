@@ -390,6 +390,7 @@ class InterfaceBase:
         aliases: Iterable[str],
         entity: Optional[str] = None,
         project: Optional[str] = None,
+        organization: Optional[str] = None,
     ) -> MailboxHandle:
         link_artifact = pb.LinkArtifactRequest()
         if artifact.is_draft():
@@ -398,6 +399,7 @@ class InterfaceBase:
             link_artifact.server_id = artifact.id if artifact.id else ""
         link_artifact.portfolio_name = portfolio_name
         link_artifact.portfolio_entity = entity or run.entity
+        link_artifact.portfolio_organization = organization or ""
         link_artifact.portfolio_project = project or run.project
         link_artifact.portfolio_aliases.extend(aliases)
 
@@ -519,6 +521,7 @@ class InterfaceBase:
         run: "Run",
         artifact: "Artifact",
         aliases: Iterable[str],
+        tags: Optional[Iterable[str]] = None,
         history_step: Optional[int] = None,
         is_user_created: bool = False,
         use_after_commit: bool = False,
@@ -532,8 +535,9 @@ class InterfaceBase:
         proto_artifact.user_created = is_user_created
         proto_artifact.use_after_commit = use_after_commit
         proto_artifact.finalize = finalize
-        for alias in aliases:
-            proto_artifact.aliases.append(alias)
+
+        proto_artifact.aliases.extend(aliases or [])
+        proto_artifact.tags.extend(tags or [])
 
         log_artifact = pb.LogArtifactRequest()
         log_artifact.artifact.CopyFrom(proto_artifact)
@@ -577,6 +581,7 @@ class InterfaceBase:
         run: "Run",
         artifact: "Artifact",
         aliases: Iterable[str],
+        tags: Optional[Iterable[str]] = None,
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
@@ -589,8 +594,8 @@ class InterfaceBase:
         proto_artifact.user_created = is_user_created
         proto_artifact.use_after_commit = use_after_commit
         proto_artifact.finalize = finalize
-        for alias in aliases:
-            proto_artifact.aliases.append(alias)
+        proto_artifact.aliases.extend(aliases or [])
+        proto_artifact.tags.extend(tags or [])
         self._publish_artifact(proto_artifact)
 
     @abstractmethod
@@ -888,20 +893,6 @@ class InterfaceBase:
     def _deliver_attach(self, status: pb.AttachRequest) -> MailboxHandle:
         raise NotImplementedError
 
-    def deliver_check_version(
-        self, current_version: Optional[str] = None
-    ) -> MailboxHandle:
-        check_version = pb.CheckVersionRequest()
-        if current_version:
-            check_version.current_version = current_version
-        return self._deliver_check_version(check_version)
-
-    @abstractmethod
-    def _deliver_check_version(
-        self, check_version: pb.CheckVersionRequest
-    ) -> MailboxHandle:
-        raise NotImplementedError
-
     def deliver_stop_status(self) -> MailboxHandle:
         status = pb.StopStatusRequest()
         return self._deliver_stop_status(status)
@@ -960,16 +951,6 @@ class InterfaceBase:
 
     @abstractmethod
     def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
-        raise NotImplementedError
-
-    def deliver_request_server_info(self) -> MailboxHandle:
-        server_info = pb.ServerInfoRequest()
-        return self._deliver_request_server_info(server_info)
-
-    @abstractmethod
-    def _deliver_request_server_info(
-        self, server_info: pb.ServerInfoRequest
-    ) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_request_sampled_history(self) -> MailboxHandle:

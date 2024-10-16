@@ -10,9 +10,8 @@ import (
 
 // debouncedWriter buffers and rate limits line modifications.
 type debouncedWriter struct {
-	mu  sync.Mutex
-	wg  sync.WaitGroup
-	ctx context.Context
+	mu sync.Mutex
+	wg sync.WaitGroup
 
 	isFlushing bool
 	flush      func(sparselist.SparseList[*RunLogsLine])
@@ -27,11 +26,9 @@ type debouncedWriter struct {
 // Stops invoking `flush` after the context is cancelled.
 func NewDebouncedWriter(
 	rateLimit *rate.Limiter,
-	ctx context.Context,
 	flush func(sparselist.SparseList[*RunLogsLine]),
 ) *debouncedWriter {
 	return &debouncedWriter{
-		ctx:       ctx,
 		flush:     flush,
 		rateLimit: rateLimit,
 	}
@@ -56,9 +53,9 @@ func (b *debouncedWriter) OnChanged(lineNum int, line *RunLogsLine) {
 
 func (b *debouncedWriter) loopFlushBuffer() {
 	for {
-		err := b.rateLimit.Wait(b.ctx)
+		err := b.rateLimit.Wait(context.Background())
 		if err != nil {
-			// Cancelled or deadline exceeded.
+			// Not possible: canceled or deadline exceeded.
 			return
 		}
 

@@ -4,7 +4,7 @@ package watcher
 import (
 	"time"
 
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 // Watcher invokes callbacks when registered files are modified.

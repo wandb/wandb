@@ -174,12 +174,19 @@ class _WandbInit:
 
         # we add this logic to be backward compatible with the old behavior of disable
         # where it would disable the service if the mode was set to disabled
+        # TODO: use the regular settins object to handle this
         mode = kwargs.get("mode")
         settings_mode = (kwargs.get("settings") or {}).get("mode") or os.environ.get(
-            "WANDB_MODE"
+            wandb.env.MODE
         )
-        _disable_service = mode == "disabled" or settings_mode == "disabled"
-        setup_settings = {"_disable_service": _disable_service}
+        settings__disable_service = (kwargs.get("settings") or {}).get(
+            "_disable_service"
+        ) or os.environ.get(wandb.env._DISABLE_SERVICE)
+
+        setup_settings = {
+            "mode": mode or settings_mode,
+            "_disable_service": settings__disable_service,
+        }
 
         self._wl = wandb_setup.setup(settings=setup_settings)
         # Make sure we have a logger setup (might be an early logger)
@@ -273,8 +280,9 @@ class _WandbInit:
 
         tensorboard = kwargs.pop("tensorboard", None)
         sync_tensorboard = kwargs.pop("sync_tensorboard", None)
-        if tensorboard or sync_tensorboard and len(wandb.patched["tensorboard"]) == 0:
-            wandb.tensorboard.patch()  # type: ignore
+        if tensorboard or sync_tensorboard:
+            if len(wandb.patched["tensorboard"]) == 0:
+                wandb.tensorboard.patch()  # type: ignore
             with telemetry.context(obj=self._init_telemetry_obj) as tel:
                 tel.feature.tensorboard_sync = True
 
@@ -566,9 +574,11 @@ class _WandbInit:
             "watch",
             "unwatch",
             "upsert_artifact",
+            "_finish",
         ):
             setattr(drun, symbol, lambda *_, **__: None)  # type: ignore
         # attributes
+        drun._backend = None
         drun._step = 0
         drun._attach_id = None
         drun._run_obj = None
@@ -592,6 +602,8 @@ class _WandbInit:
             define_metric=drun.define_metric,
             plot_table=drun.plot_table,
             alert=drun.alert,
+            watch=drun.watch,
+            unwatch=drun.unwatch,
         )
         return drun
 
@@ -646,9 +658,9 @@ class _WandbInit:
                         f"Successfully finished last run (ID:{latest_run._run_id}). Initializing new run:<br/>"
                     )
         elif isinstance(wandb.run, Run):
-            manager = self._wl._get_manager()
+            service = self._wl.service
             # We shouldn't return a stale global run if we are in a new pid
-            if not manager or os.getpid() == wandb.run._init_pid:
+            if not service or os.getpid() == wandb.run._init_pid:
                 logger.info("wandb.init() called when a run is still active")
                 with telemetry.context() as tel:
                     tel.feature.init_return_run = True
@@ -656,15 +668,20 @@ class _WandbInit:
 
         logger.info("starting backend")
 
-        manager = self._wl._get_manager()
-        if manager:
-            logger.info("setting up manager")
-            manager._inform_init(
-                settings=self.settings.to_proto(), run_id=self.settings.run_id
+        service = self._wl.service
+        if service:
+            logger.info("sending inform_init request")
+            service.inform_init(
+                settings=self.settings.to_proto(),
+                run_id=self.settings.run_id,
             )
 
         mailbox = Mailbox()
-        backend = Backend(settings=self.settings, manager=manager, mailbox=mailbox)
+        backend = Backend(
+            settings=self.settings,
+            service=service,
+            mailbox=mailbox,
+        )
         backend.ensure_launched()
         logger.info("backend started and connected")
         # Make sure we are logged in
@@ -730,16 +747,13 @@ class _WandbInit:
             if os.environ.get(wandb.env._DISABLE_SERVICE):
                 tel.feature.service_disabled = True
 
-            if manager:
+            if service:
                 tel.feature.service = True
             if self.settings._flow_control_disabled:
                 tel.feature.flow_control_disabled = True
             if self.settings._flow_control_custom:
                 tel.feature.flow_control_custom = True
-            if (
-                self.settings._require_core
-                and not self.settings._require_legacy_service
-            ):
+            if not self.settings._require_legacy_service:
                 tel.feature.core = True
             if self.settings._shared:
                 wandb.termwarn(
@@ -824,7 +838,7 @@ class _WandbInit:
 
         if error is not None:
             logger.error(f"encountered error: {error}")
-            if not manager:
+            if not service:
                 # Shutdown the backend and get rid of the logger
                 # we don't need to do console cleanup at this point
                 backend.cleanup()
@@ -851,9 +865,10 @@ class _WandbInit:
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
 
-        if manager:
-            manager._inform_start(
-                settings=self.settings.to_proto(), run_id=self.settings.run_id
+        if service:
+            service.inform_start(
+                settings=self.settings.to_proto(),
+                run_id=self.settings.run_id,
             )
 
         assert backend.interface
@@ -928,33 +943,37 @@ def _attach(
     if logger is None:
         raise UsageError("logger is not initialized")
 
-    manager = _wl._get_manager()
-    response = manager._inform_attach(attach_id=attach_id) if manager else None
-    if response is None:
-        raise UsageError(f"Unable to attach to run {attach_id}")
+    service = _wl.service
+    if not service:
+        raise UsageError(f"Unable to attach to run {attach_id} (no service process)")
+
+    try:
+        attach_settings = service.inform_attach(attach_id=attach_id)
+    except Exception as e:
+        raise UsageError(f"Unable to attach to run {attach_id}") from e
 
     settings: Settings = copy.copy(_wl._settings)
 
     settings.update(
         {
             "run_id": attach_id,
-            "_start_time": response._start_time.value,
-            "_start_datetime": response._start_datetime.value,
-            "_offline": response._offline.value,
+            "_start_time": attach_settings._start_time.value,
+            "_start_datetime": attach_settings._start_datetime.value,
+            "_offline": attach_settings._offline.value,
         },
         source=Source.INIT,
     )
 
     # TODO: consolidate this codepath with wandb.init()
     mailbox = Mailbox()
-    backend = Backend(settings=settings, manager=manager, mailbox=mailbox)
+    backend = Backend(settings=settings, service=service, mailbox=mailbox)
     backend.ensure_launched()
     logger.info("attach backend started and connected")
 
     if run is None:
         run = Run(settings=settings)
     else:
-        run._init()
+        run._init(settings=settings)
     run._set_library(_wl)
     run._set_backend(backend)
     backend._hack_set_run(run)
@@ -1156,6 +1175,7 @@ def init(
             mode if a user isn't logged in to W&B. (default: `False`)
         sync_tensorboard: (bool, optional) Synchronize wandb logs from tensorboard or
             tensorboardX and save the relevant events file. (default: `False`)
+        tensorboard: (bool, optional) Alias for `sync_tensorboard`, deprecated.
         monitor_gym: (bool, optional) Automatically log videos of environment when
             using OpenAI Gym. (default: `False`)
             See [our guide to this integration](https://docs.wandb.com/guides/integrations/openai-gym).
@@ -1169,6 +1189,12 @@ def init(
             a moment in a previous run to fork a new run from. Creates a new run that picks up
             logging history from the specified run at the specified moment. The target run must
             be in the current project. Example: `fork_from="my-run-id?_step=1234"`.
+        resume_from: (str, optional) A string with the format {run_id}?_step={step} describing
+            a moment in a previous run to resume a run from. This allows users to truncate
+            the history logged to a run at an intermediate step and resume logging from that step.
+            It uses run forking under the hood. The target run must be in the
+            current project. Example: `resume_from="my-run-id?_step=1234"`.
+        settings: (dict, wandb.Settings, optional) Settings to use for this run. (default: None)
 
     Examples:
     ### Set where the run is logged

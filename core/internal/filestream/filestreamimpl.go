@@ -1,13 +1,16 @@
 package filestream
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/wboperation"
 )
 
 // startProcessingUpdates asynchronously ingests updates.
@@ -121,6 +124,10 @@ func (fs *fileStream) send(
 		},
 	}
 
+	op := fs.trackUploadOperation(data)
+	defer op.Finish()
+	req.Context = op.Context(context.Background())
+
 	resp, err := fs.apiClient.Send(req)
 
 	switch {
@@ -163,4 +170,41 @@ func (fs *fileStream) send(
 	feedbackChan <- res
 	fs.logger.Debug("filestream: post response", "response", res)
 	return nil
+}
+
+// trackUploadOperation returns a WandbOperation for tracking
+// a filestream upload.
+func (fs *fileStream) trackUploadOperation(
+	data *FileStreamRequestJSON,
+) *wboperation.WandbOperation {
+	hasHistory := false
+	hasSummary := false
+	hasConsole := false
+
+	if history, ok := data.Files[HistoryFileName]; ok {
+		hasHistory = len(history.Content) > 0
+	}
+	if summary, ok := data.Files[SummaryFileName]; ok {
+		hasSummary = len(summary.Content) > 0
+	}
+	if console, ok := data.Files[OutputFileName]; ok {
+		hasConsole = len(console.Content) > 0
+	}
+
+	if !hasHistory && !hasSummary && !hasConsole {
+		return nil
+	}
+
+	parts := make([]string, 0, 3)
+	if hasHistory {
+		parts = append(parts, "history")
+	}
+	if hasSummary {
+		parts = append(parts, "summary")
+	}
+	if hasConsole {
+		parts = append(parts, "console logs")
+	}
+
+	return fs.operations.New("uploading " + strings.Join(parts, ", "))
 }

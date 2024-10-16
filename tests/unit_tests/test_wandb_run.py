@@ -8,6 +8,62 @@ import wandb
 import wandb.errors
 from wandb import wandb_sdk
 
+REFERENCE_ATTRIBUTES = set(
+    [
+        "alert",
+        "config",
+        "config_static",
+        "define_metric",
+        "detach",
+        "dir",
+        "disabled",
+        "display",
+        "entity",
+        "finish",
+        "finish_artifact",
+        "get_project_url",
+        "get_sweep_url",
+        "get_url",
+        "group",
+        "id",
+        "job_type",
+        "join",
+        "link_artifact",
+        "link_model",
+        "log",
+        "log_artifact",
+        "log_code",
+        "log_model",
+        "mark_preempting",
+        "mode",
+        "name",
+        "notes",
+        "offline",
+        "path",
+        "plot_table",
+        "project",
+        "project_name",
+        "restore",
+        "resumed",
+        "save",
+        "settings",
+        "start_time",
+        "starting_step",
+        "status",
+        "step",
+        "summary",
+        "sweep_id",
+        "tags",
+        "to_html",
+        "unwatch",
+        "upsert_artifact",
+        "url",
+        "use_artifact",
+        "use_model",
+        "watch",
+    ]
+)
+
 
 def test_run_step_property(mock_run):
     run = mock_run()
@@ -273,47 +329,10 @@ def test_resumed_run_resume_file_state(mock_run, tmp_path, settings, expected):
     assert tmp_file.exists() == expected
 
 
-@pytest.mark.parametrize(
-    "method, args",
-    [
-        ("alert", ["test", "test"]),
-        ("define_metric", ["test"]),
-        ("log", [{"test": 2}]),
-        ("log_code", []),
-        ("mark_preempting", []),
-        ("save", []),
-        ("status", []),
-        ("link_artifact", [wandb.Artifact("test", type="dataset"), "input"]),
-        ("use_artifact", ["test"]),
-        ("log_artifact", ["test"]),
-        ("upsert_artifact", ["test"]),
-        ("finish_artifact", ["test"]),
-    ],
-)
-def test_error_when_using_methods_of_finished_run(mock_run, method, args):
-    run = mock_run(use_magic_mock=True)
-    run.finish()
-    assert run._is_finished
-    with pytest.raises(wandb.errors.UsageError):
-        getattr(run, method)(*args)
-
-
-@pytest.mark.parametrize(
-    "attribute, value",
-    [
-        ("config", ["test", 2]),
-        ("summary", ["test", 2]),
-        ("name", "test"),
-        ("notes", "test"),
-        ("tags", "test"),
-    ],
-)
-def test_error_when_using_attributes_of_finished_run(mock_run, attribute, value):
-    run = mock_run(use_magic_mock=True)
-    run.finish()
-    assert run._is_finished
-    with pytest.raises(wandb.errors.UsageError):
-        if isinstance(value, list):
-            setattr(getattr(run, attribute), *value)
-        else:
-            setattr(run, attribute, value)
+def test_new_attributes(mock_run):
+    run = mock_run()
+    current_attributes = set([attr for attr in dir(run) if not attr.startswith("_")])
+    added_attributes = current_attributes - REFERENCE_ATTRIBUTES
+    removed_attributes = REFERENCE_ATTRIBUTES - current_attributes
+    assert not added_attributes, f"New attributes: {added_attributes}"
+    assert not removed_attributes, f"Removed attributes: {removed_attributes}"

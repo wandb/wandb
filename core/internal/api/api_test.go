@@ -14,15 +14,22 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/api"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
+	wbsettings "github.com/wandb/wandb/core/internal/settings"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func TestSend(t *testing.T) {
 	server := NewRecordingServer()
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
+		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
+	})
 
 	{
 		defer server.Close()
-		_, err := newClient(t, server.URL+"/wandb", api.ClientOptions{
+		_, err := newClient(t, settings, api.ClientOptions{
 			ExtraHeaders: map[string]string{
 				"ClientHeader": "xyz",
 			},
@@ -50,11 +57,16 @@ func TestSend(t *testing.T) {
 	assert.Equal(t, "two", req.Header.Get("Header2"))
 	assert.Equal(t, "xyz", req.Header.Get("ClientHeader"))
 	assert.Equal(t, "wandb-core", req.Header.Get("User-Agent"))
-	assert.Equal(t, "Basic YXBpOg==", req.Header.Get("Authorization"))
+	assert.Equal(t, "Basic YXBpOnRlc3RfYXBpX2tleQ==",
+		req.Header.Get("Authorization"))
 }
 
 func TestDo_ToWandb_SetsAuth(t *testing.T) {
 	server := NewRecordingServer()
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
+		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
+	})
 
 	{
 		defer server.Close()
@@ -64,7 +76,7 @@ func TestDo_ToWandb_SetsAuth(t *testing.T) {
 			bytes.NewBufferString("test body"),
 		)
 
-		_, err := newClient(t, server.URL+"/wandb", api.ClientOptions{}).
+		_, err := newClient(t, settings, api.ClientOptions{}).
 			Do(req)
 
 		assert.NoError(t, err)
@@ -76,6 +88,10 @@ func TestDo_ToWandb_SetsAuth(t *testing.T) {
 
 func TestDo_NotToWandb_NoAuth(t *testing.T) {
 	server := NewRecordingServer()
+	clientSettings := wbsettings.From(&spb.Settings{
+		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
+		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
+	})
 
 	{
 		defer server.Close()
@@ -85,7 +101,7 @@ func TestDo_NotToWandb_NoAuth(t *testing.T) {
 			bytes.NewBufferString("test body"),
 		)
 
-		_, err := newClient(t, server.URL+"/wandb", api.ClientOptions{}).
+		_, err := newClient(t, clientSettings, api.ClientOptions{}).
 			Do(req)
 
 		assert.NoError(t, err)
@@ -97,13 +113,17 @@ func TestDo_NotToWandb_NoAuth(t *testing.T) {
 
 func newClient(
 	t *testing.T,
-	baseURLString string,
+	settings *wbsettings.Settings,
 	opts api.ClientOptions,
 ) api.Client {
-	baseURL, err := url.Parse(baseURLString)
+	baseURL, err := url.Parse(settings.GetBaseURL())
 	require.NoError(t, err)
 
-	backend := api.New(api.BackendOptions{BaseURL: baseURL})
+	credentialProvider, err := api.NewCredentialProvider(settings)
+	require.NoError(t, err)
+
+	backend := api.New(api.BackendOptions{BaseURL: baseURL,
+		CredentialProvider: credentialProvider})
 	return backend.NewClient(opts)
 }
 
@@ -168,10 +188,15 @@ func TestNewClientWithProxy(t *testing.T) {
 
 	proxyParsedURL, _ := url.Parse(testServer.URL)
 
+	credentialProvider, err := api.NewCredentialProvider(wbsettings.From(&spb.Settings{
+		ApiKey: &wrapperspb.StringValue{Value: "test_api_key"},
+	}))
+	require.NoError(t, err)
+
 	backend := api.New(api.BackendOptions{
-		BaseURL: &url.URL{Scheme: "http", Host: "api.example.com"},
-		Logger:  observability.NewNoOpLogger().Logger,
-		APIKey:  "test_api_key",
+		BaseURL:            &url.URL{Scheme: "http", Host: "api.example.com"},
+		Logger:             observability.NewNoOpLogger().Logger,
+		CredentialProvider: credentialProvider,
 	})
 
 	clientOptions := api.ClientOptions{

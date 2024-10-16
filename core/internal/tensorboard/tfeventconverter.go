@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
-	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 // TFEventConverter converts TF events into W&B requests.
@@ -48,26 +48,35 @@ func (h *TFEventConverter) ConvertNext(
 			continue
 		}
 
+		taggedLogger := logger.With("tag", tag)
+
 		switch h.rememberPluginName(tag, value) {
 		case "":
 			// This is an older style for TB summaries. The interpretation
 			// depends on the value field that is set.
 
-			if value, ok := value.GetValue().(*tbproto.Summary_Value_SimpleValue); ok {
-				processScalarsSimpleValue(emitter, tag, value.SimpleValue)
+			switch value := value.GetValue().(type) {
+			case *tbproto.Summary_Value_SimpleValue:
+				processScalarsSimpleValue(emitter, tag, value.SimpleValue, taggedLogger)
+
+			case *tbproto.Summary_Value_Histo:
+				processHistogramsProto(emitter, tag, value.Histo, taggedLogger)
+
+			case *tbproto.Summary_Value_Image:
+				processImagesProto(emitter, tag, value.Image, taggedLogger)
 			}
 
 		case "scalars":
-			processScalars(emitter, tag, value, logger)
+			processScalars(emitter, tag, value, taggedLogger)
 
 		case "histograms":
-			processHistograms(emitter, tag, value, logger)
+			processHistograms(emitter, tag, value, taggedLogger)
 
 		case "images":
-			processImages(emitter, tag, value, logger)
+			processImages(emitter, tag, value, taggedLogger)
 
 		case "pr_curves":
-			processPRCurves(emitter, tag, value, logger)
+			processPRCurves(emitter, tag, value, taggedLogger)
 		}
 	}
 }

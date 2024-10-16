@@ -3,7 +3,7 @@
   <img src="./assets/logo-light.svg#gh-light-mode-only" width="600" alt="Weights & Biases" />
 </p>
 
-<p align='center'>
+<p align="center">
 <a href="https://pypi.python.org/pypi/wandb"><img src="https://img.shields.io/pypi/v/wandb" /></a>
 <a href="https://anaconda.org/conda-forge/wandb"><img src="https://img.shields.io/conda/vn/conda-forge/wandb" /></a>
 <a href="https://circleci.com/gh/wandb/wandb"><img src="https://img.shields.io/circleci/build/github/wandb/wandb/main" /></a>

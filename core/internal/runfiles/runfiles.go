@@ -9,12 +9,13 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -26,12 +27,12 @@ type Uploader interface {
 	// UploadNow asynchronously uploads a run file.
 	//
 	// The path is relative to the run's file directory.
-	UploadNow(path paths.RelativePath)
+	UploadNow(path paths.RelativePath, category filetransfer.RunFileKind)
 
 	// UploadAtEnd marks a file to be uploaded at the end of the run.
 	//
 	// The path is relative to the run's file directory.
-	UploadAtEnd(path paths.RelativePath)
+	UploadAtEnd(path paths.RelativePath, category filetransfer.RunFileKind)
 
 	// UploadRemaining asynchronously uploads all files that should be
 	// uploaded at the end of the run.
@@ -59,6 +60,7 @@ type UploaderTesting interface {
 type UploaderParams struct {
 	ExtraWork    runwork.ExtraWork
 	Logger       *observability.CoreLogger
+	Operations   *wboperation.WandbOperations
 	Settings     *settings.Settings
 	FileStream   filestream.FileStream
 	FileTransfer filetransfer.FileTransferManager

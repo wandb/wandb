@@ -11,11 +11,12 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/watcher"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/wboperation"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -24,6 +25,7 @@ import (
 type uploader struct {
 	extraWork     runwork.ExtraWork
 	logger        *observability.CoreLogger
+	operations    *wboperation.WandbOperations
 	fs            filestream.FileStream
 	ftm           filetransfer.FileTransferManager
 	settings      *settings.Settings
@@ -50,13 +52,31 @@ type uploader struct {
 }
 
 func newUploader(params UploaderParams) *uploader {
+	switch {
+	case params.ExtraWork == nil:
+		panic("runfiles: ExtraWork is nil")
+	case params.Logger == nil:
+		panic("runfiles: Logger is nil")
+	case params.Settings == nil:
+		panic("runfiles: Settings is nil")
+	case params.FileStream == nil:
+		panic("runfiles: FileStream is nil")
+	case params.FileTransfer == nil:
+		panic("runfiles: FileTransfer is nil")
+	case params.GraphQL == nil:
+		panic("runfiles: GraphQL is nil")
+	case params.FileWatcher == nil:
+		panic("runfiles: FileWatcher is nil")
+	}
+
 	uploader := &uploader{
-		extraWork: params.ExtraWork,
-		logger:    params.Logger,
-		fs:        params.FileStream,
-		ftm:       params.FileTransfer,
-		settings:  params.Settings,
-		graphQL:   params.GraphQL,
+		extraWork:  params.ExtraWork,
+		logger:     params.Logger,
+		operations: params.Operations,
+		fs:         params.FileStream,
+		ftm:        params.FileTransfer,
+		settings:   params.Settings,
+		graphQL:    params.GraphQL,
 
 		knownFiles:  make(map[paths.RelativePath]*savedFile),
 		uploadAtEnd: make(map[paths.RelativePath]struct{}),
@@ -143,23 +163,31 @@ func (u *uploader) toRealPath(path string) string {
 	return filepath.Join(u.settings.GetFilesDir(), path)
 }
 
-func (u *uploader) UploadNow(path paths.RelativePath) {
+func (u *uploader) UploadNow(
+	path paths.RelativePath,
+	category filetransfer.RunFileKind,
+) {
 	if err := u.lockForOperation("UploadNow"); err != nil {
 		u.logger.CaptureError(err, "path", string(path))
 		return
 	}
 	defer u.stateMu.Unlock()
 
+	u.knownFile(path).SetCategory(category)
 	u.uploadBatcher.Add([]paths.RelativePath{path})
 }
 
-func (u *uploader) UploadAtEnd(path paths.RelativePath) {
+func (u *uploader) UploadAtEnd(
+	path paths.RelativePath,
+	category filetransfer.RunFileKind,
+) {
 	if err := u.lockForOperation("UploadAtEnd"); err != nil {
 		u.logger.CaptureError(err, "path", string(path))
 		return
 	}
 	defer u.stateMu.Unlock()
 
+	u.knownFile(path).SetCategory(category)
 	u.uploadAtEnd[path] = struct{}{}
 }
 
@@ -213,6 +241,7 @@ func (u *uploader) knownFile(runPath paths.RelativePath) *savedFile {
 			u.fs,
 			u.ftm,
 			u.logger,
+			u.operations,
 			u.toRealPath(string(runPath)),
 			runPath,
 		)

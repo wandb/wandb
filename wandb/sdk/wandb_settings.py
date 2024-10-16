@@ -315,6 +315,7 @@ class SettingsData:
     _executable: str
     _extra_http_headers: Mapping[str, str]
     _file_stream_max_bytes: int  # max size for filestream requests in core
+    _file_stream_transmit_interval: float  # tx interval for filestream requests in core
     # file stream retry client configuration
     _file_stream_retry_max: int  # max number of retries
     _file_stream_retry_wait_min_seconds: float  # min wait time between retries
@@ -355,7 +356,6 @@ class SettingsData:
     ]  # custom proxy servers for the requests to W&B [scheme -> url]
     _python: str
     _runqueue_item_id: str
-    _require_core: bool
     _require_legacy_service: bool
     _save_requirements: bool
     _service_transport: str
@@ -665,6 +665,7 @@ class Settings(SettingsData):
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
             _file_stream_max_bytes={"preprocessor": int},
+            _file_stream_transmit_interval={"preprocessor": float},
             _file_stream_retry_max={"preprocessor": int},
             _file_stream_retry_wait_min_seconds={"preprocessor": float},
             _file_stream_retry_wait_max_seconds={"preprocessor": float},
@@ -719,7 +720,6 @@ class Settings(SettingsData):
                 # TODO: deprecate and ask the user to use http_proxy and https_proxy instead
                 "preprocessor": _str_as_json,
             },
-            _require_core={"value": False, "preprocessor": _str_as_bool},
             _require_legacy_service={"value": False, "preprocessor": _str_as_bool},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _service_wait={
@@ -1183,7 +1183,7 @@ class Settings(SettingsData):
         value = _str_as_bool(value)
         if value:
             wandb.termwarn(
-                "Disabling the wandb service is deprecated as of version 0.18.0 and will be removed in version 0.19.0.",
+                "Disabling the wandb service is deprecated as of version 0.18.0 and will be removed in future versions. ",
                 repeat=False,
             )
         return value

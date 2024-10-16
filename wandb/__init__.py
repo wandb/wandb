@@ -8,7 +8,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.17.9.dev1"
+__version__ = "0.18.4.dev1"
 
 from typing import Optional
 
@@ -28,8 +28,6 @@ setup = wandb_sdk.setup
 _attach = wandb_sdk._attach
 _sync = wandb_sdk._sync
 _teardown = wandb_sdk.teardown
-watch = wandb_sdk.watch
-unwatch = wandb_sdk.unwatch
 finish = wandb_sdk.finish
 join = finish
 login = wandb_sdk.login
@@ -51,7 +49,7 @@ _lazyloader = wandb.wandb_lib.lazyloader  # type: ignore
 # Call import module hook to set up any needed require hooks
 wandb.sdk.wandb_require._import_module_hook()
 
-from wandb import wandb_torch
+from wandb.integration.torch import wandb_torch
 
 # Move this (keras.__init__ expects it at top level)
 from wandb.sdk.data_types._private import _cleanup_media_tmp_dir
@@ -76,9 +74,7 @@ from wandb.data_types import JoinedTable
 
 from wandb.wandb_agent import agent
 
-# from wandb.core import *
-from wandb.viz import visualize
-from wandb import plot
+from wandb.plot.viz import visualize
 from wandb.integration.sagemaker import sagemaker_auth
 from wandb.sdk.internal import profiler
 
@@ -118,6 +114,8 @@ run: Optional["wandb_sdk.wandb_run.Run"] = None
 config = _preinit.PreInitObject("wandb.config", wandb_sdk.wandb_config.Config)
 summary = _preinit.PreInitObject("wandb.summary", wandb_sdk.wandb_summary.Summary)
 log = _preinit.PreInitCallable("wandb.log", wandb_sdk.wandb_run.Run.log)  # type: ignore
+watch = _preinit.PreInitCallable("wandb.watch", wandb_sdk.wandb_run.Run.watch)  # type: ignore
+unwatch = _preinit.PreInitCallable("wandb.unwatch", wandb_sdk.wandb_run.Run.unwatch)  # type: ignore
 save = _preinit.PreInitCallable("wandb.save", wandb_sdk.wandb_run.Run.save)  # type: ignore
 restore = wandb_sdk.wandb_run.restore
 use_artifact = _preinit.PreInitCallable(
@@ -207,11 +205,6 @@ if "dev" in __version__:
         wandb.env.ERROR_REPORTING, "false"
     )
 
-    # turn on wandb-core for dev versions
-    if not wandb.env.is_require_legacy_service():
-        os.environ[wandb.env._REQUIRE_CORE] = os.environ.get(
-            wandb.env._REQUIRE_CORE, "true")
-
 _sentry = _Sentry()
 _sentry.setup()
 
@@ -219,6 +212,7 @@ _sentry.setup()
 __all__ = (
     "__version__",
     "init",
+    "finish",
     "setup",
     "save",
     "sweep",
@@ -241,8 +235,12 @@ __all__ = (
     "Molecule",
     "Histogram",
     "ArtifactTTL",
+    "log_artifact",
+    "use_artifact",
     "log_model",
     "use_model",
     "link_model",
     "define_metric",
+    "watch",
+    "unwatch",
 )

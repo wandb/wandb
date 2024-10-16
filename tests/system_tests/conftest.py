@@ -17,7 +17,8 @@ import requests
 import wandb
 import wandb.old.settings
 import wandb.util
-from wandb.testing.relay import (
+
+from .relay import (
     DeliberateHTTPError,
     InjectedResponse,
     RelayServer,
@@ -341,11 +342,6 @@ def _stop_backend(
         handle = _internal_sender.deliver_exit(0)
         record = handle.wait(timeout=30)
         assert record
-
-        server_info_handle = _internal_sender.deliver_request_server_info()
-        result = server_info_handle.wait(timeout=30)
-        assert result
-        # collect_responses.server_info_resp = result.response.server_info_response
 
         _internal_sender.join()
         for t in threads:
@@ -1042,3 +1038,8 @@ def inject_graphql_response(base_url, user):
         )
 
     yield helper
+
+
+@pytest.fixture(scope="function")
+def tokenized_circular_pattern():
+    return TokenizedCircularPattern

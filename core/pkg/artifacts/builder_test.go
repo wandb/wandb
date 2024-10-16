@@ -2,7 +2,6 @@ package artifacts
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"testing"
 
@@ -72,5 +71,4 @@ func TestArtifactBuilder(t *testing.T) {
 
 	art := builder.GetArtifact()
 	assert.Equal(t, art.Digest, "2f122f2bff8133c0d5806d9bac1b958c")
-	fmt.Printf("ART %+v\n", art)
 }

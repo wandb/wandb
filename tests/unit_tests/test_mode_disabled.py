@@ -35,3 +35,19 @@ def test_disabled_can_pickle():
 
     with tempfile.NamedTemporaryFile() as temp_file:
         pickle.dump(run, temp_file)
+
+
+def test_disabled_context_manager():
+    with wandb.init(mode="disabled") as run:
+        run.log({"a": 1})
+        run.summary.update({"b": 2})
+        run.config.update({"c": 3})
+        run.log_artifact("artifact")
+        run.use_artifact("artifact")
+        run.log_model("model")
+        run.use_model("model")
+        run.link_model("model")
+        run.define_metric("metric")
+        run.mark_preempting()
+        run.plot_table("table")
+        run.alert("alert")

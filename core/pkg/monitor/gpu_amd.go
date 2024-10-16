@@ -1,15 +1,15 @@
-//go:build linux && !libwandb_core
+//go:build linux
 
 package monitor
 
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -21,11 +21,13 @@ const rocmSMICmd string = "/usr/bin/rocm-smi"
 type StatsKeys string
 
 const (
-	GPU             StatsKeys = "gpu"
-	MemoryAllocated StatsKeys = "memoryAllocated"
-	Temp            StatsKeys = "temp"
-	PowerWatts      StatsKeys = "powerWatts"
-	PowerPercent    StatsKeys = "powerPercent"
+	GPUUtilization          StatsKeys = "gpu"
+	MemoryAllocated         StatsKeys = "memoryAllocated"
+	MemoryReadWriteActivity StatsKeys = "memoryReadWriteActivity"
+	MemoryOverDrive         StatsKeys = "memoryOverDrive"
+	Temp                    StatsKeys = "temp"
+	PowerWatts              StatsKeys = "powerWatts"
+	PowerPercent            StatsKeys = "powerPercent"
 )
 
 type Stats map[StatsKeys]float64
@@ -34,13 +36,15 @@ type InfoDict map[string]interface{}
 
 type GPUAMD struct {
 	name                string
+	logger              *observability.CoreLogger
 	GetROCMSMIStatsFunc func() (InfoDict, error)
 	IsAvailableFunc     func() bool
 }
 
-func NewGPUAMD() *GPUAMD {
+func NewGPUAMD(logger *observability.CoreLogger) *GPUAMD {
 	g := &GPUAMD{
-		name: "gpu",
+		name:   "gpu",
+		logger: logger,
 		// this is done this way to be able to mock the function in tests
 		GetROCMSMIStatsFunc: getROCMSMIStats,
 	}
@@ -70,6 +74,7 @@ func (g *GPUAMD) IsAvailable() bool {
 		return false
 	}
 
+	// See inspired by https://github.com/ROCm/rocm_smi_lib/blob/5d2cd0c2715ae45b8f9cfe1e777c6c2cd52fb601/python_smi_tools/rocm_smi.py#L71C1-L81C17
 	isDriverInitialized := false
 	fileContent, err := os.ReadFile("/sys/module/amdgpu/initstate")
 	if err == nil && strings.Contains(string(fileContent), "live") {
@@ -87,12 +92,11 @@ func (g *GPUAMD) IsAvailable() bool {
 	return isDriverInitialized && canReadRocmSmi
 }
 
-func (g *GPUAMD) getCards() map[int]Stats {
+func (g *GPUAMD) getCards() (map[int]Stats, error) {
 
 	rawStats, err := g.GetROCMSMIStatsFunc()
 	if err != nil {
-		log.Printf("Error getting ROCm SMI stats: %v", err)
-		return nil
+		return nil, err
 	}
 
 	cards := make(map[int]Stats)
@@ -107,14 +111,14 @@ func (g *GPUAMD) getCards() map[int]Stats {
 			}
 			cardStats, ok := value.(map[string]interface{})
 			if !ok {
-				log.Printf("Type assertion failed for key %s", key)
+				g.logger.CaptureError(fmt.Errorf("gpuamd: type assertion failed for key %s", key))
 				continue
 			}
 			stats := g.ParseStats(cardStats)
 			cards[cardID] = stats
 		}
 	}
-	return cards
+	return cards, nil
 }
 
 //gocyclo:ignore
@@ -125,7 +129,7 @@ func (g *GPUAMD) Probe() *spb.MetadataRequest {
 
 	rawStats, err := g.GetROCMSMIStatsFunc()
 	if err != nil {
-		log.Printf("Error getting ROCm SMI stats: %v", err)
+		g.logger.CaptureError(fmt.Errorf("gpuamd: error getting ROCm SMI stats: %v", err))
 		return nil
 	}
 
@@ -141,7 +145,7 @@ func (g *GPUAMD) Probe() *spb.MetadataRequest {
 			}
 			stats, ok := value.(map[string]interface{})
 			if !ok {
-				log.Printf("Type assertion failed for key %s", key)
+				g.logger.CaptureError(fmt.Errorf("gpuamd: type assertion failed for key %s", key))
 				continue
 			}
 			cards[cardID] = stats
@@ -155,16 +159,17 @@ func (g *GPUAMD) Probe() *spb.MetadataRequest {
 	info.GpuCount = uint32(len(cards))
 
 	keyMapping := map[string]string{
-		"Id":                 "GPU ID",
+		"GPUID":              "GPU ID",
+		"DeviceID":           "Device ID",
 		"UniqueId":           "Unique ID",
 		"VbiosVersion":       "VBIOS version",
 		"PerformanceLevel":   "Performance Level",
 		"GpuOverdrive":       "GPU OverDrive value (%)",
 		"GpuMemoryOverdrive": "GPU Memory OverDrive value (%)",
 		"MaxPower":           "Max Graphics Package Power (W)",
-		"Series":             "Card series",
-		"Model":              "Card model",
-		"Vendor":             "Card vendor",
+		"Series":             "Card Series",
+		"Model":              "Card Model",
+		"Vendor":             "Card Vendor",
 		"Sku":                "Card SKU",
 		"SclkRange":          "Valid sclk range",
 		"MclkRange":          "Valid mclk range",
@@ -175,7 +180,9 @@ func (g *GPUAMD) Probe() *spb.MetadataRequest {
 		for key, statKey := range keyMapping {
 			if value, ok := queryMapString(stats, statKey); ok {
 				switch key {
-				case "Id":
+				case "GPUID":
+					gpuInfo.Id = value
+				case "DeviceID":
 					gpuInfo.Id = value
 				case "UniqueId":
 					gpuInfo.UniqueId = value
@@ -235,13 +242,31 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 	for key, statFunc := range map[string]func(string) *Stats{
 		"GPU use (%)": func(s string) *Stats {
 			if f, err := parseFloat(s); err == nil {
-				return &Stats{GPU: f}
+				return &Stats{GPUUtilization: f}
 			}
 			return nil
 		},
 		"GPU memory use (%)": func(s string) *Stats {
 			if f, err := parseFloat(s); err == nil {
 				return &Stats{MemoryAllocated: f}
+			}
+			return nil
+		},
+		"GPU Memory Allocated (VRAM%)": func(s string) *Stats {
+			if f, err := parseFloat(s); err == nil {
+				return &Stats{MemoryAllocated: f}
+			}
+			return nil
+		},
+		"GPU Memory Read/Write Activity (%)": func(s string) *Stats {
+			if f, err := parseFloat(s); err == nil {
+				return &Stats{MemoryReadWriteActivity: f}
+			}
+			return nil
+		},
+		"GPU Memory OverDrive value (%)": func(s string) *Stats {
+			if f, err := parseFloat(s); err == nil {
+				return &Stats{MemoryOverDrive: f}
 			}
 			return nil
 		},
@@ -282,7 +307,11 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 
 func (g *GPUAMD) Sample() (map[string]any, error) {
 	metrics := make(map[string]any)
-	cards := g.getCards()
+	cards, err := g.getCards()
+	if err != nil {
+		err = fmt.Errorf("gpuamd: error getting ROCm SMI stats: %v", err)
+		return nil, err
+	}
 
 	for gpu_id, stats := range cards {
 		for statKey, value := range stats {

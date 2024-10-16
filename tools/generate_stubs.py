@@ -96,16 +96,16 @@ def extract_functions_from_template(template_content: str) -> Dict[str, str]:
     return {match.split("::")[-1]: match for match in matches}
 
 
-def generate_stubs(wandb_root: Path, template: str, output: str) -> None:
+def generate_stubs(wandb_root: Path, template: str, generated_stub: str) -> None:
     """Generate stubs for public APIs in the wandb module.
 
     Args:
         wandb_root (Path): The root directory of the wandb module.
         template (str): The name of the template file.
-        output (str): The name of the output file.
+        generated_stub (str): The name of the output file.
     """
     template_path = wandb_root / template
-    output_path = wandb_root / output
+    output_path = wandb_root / generated_stub
     template_content = template_path.read_text()
 
     functions_to_update = extract_functions_from_template(template_content)
@@ -120,44 +120,44 @@ def generate_stubs(wandb_root: Path, template: str, output: str) -> None:
             continue
 
         placeholder = f'"""<{source_info}>"""'
-        template_content = template_content.replace(placeholder, f'"""{docstring}"""')
+        template_content = template_content.replace(placeholder, f'"""{docstring}\n"""')
         print(f"Docstring updated for '{func_name}'.")
 
     output_path.write_text(template_content)
     print("All updates completed.")
 
 
-def lint_and_format_stub(wandb_root: Path, output: str) -> None:
+def lint_and_format_stub(wandb_root: Path, generated_stub: str) -> None:
     """Lint and format the generated stub file using ruff.
 
     Args:
         wandb_root (Path): The root directory of the wandb module.
-        output (str): The name of the output file.
+        generated_stub (str): The name of the output file.
     """
-    subprocess.run(["ruff", "format", str(wandb_root / output)], check=True)
+    subprocess.run(["ruff", "format", str(wandb_root / generated_stub)], check=True)
     subprocess.run(
         [
             "ruff",
             "check",
-            str(wandb_root / output),
+            str(wandb_root / generated_stub),
             "--fix",
         ],
         check=True,
     )
 
 
-def verify_signatures(wandb_root: Path, output: str, template: str) -> int:
+def verify_signatures(wandb_root: Path, generated_stub: str, template: str) -> int:
     """Verifies that generated stubs match their source signatures.
 
     Args:
         wandb_root (Path): The root directory of the wandb module.
-        output (str): The name of the output file.
+        generated_stub (str): The name of the output file.
         template (str): The name of the template file.
 
     Returns:
         int: Exit code (0 for success, 1 for mismatch).
     """
-    output_path = wandb_root / output
+    output_path = wandb_root / generated_stub
     template_path = wandb_root / template
 
     output_content = output_path.read_text()
@@ -210,7 +210,7 @@ def verify_signatures(wandb_root: Path, output: str, template: str) -> int:
                 break
 
         if output_func is None:
-            print(f"Error: Could not find function '{func_name}' in {output}")
+            print(f"Error: Could not find function '{func_name}' in {generated_stub}")
             continue
 
         # Compare signatures
@@ -244,10 +244,10 @@ def verify_signatures(wandb_root: Path, output: str, template: str) -> int:
 if __name__ == "__main__":
     wandb_root = Path(__file__).parent.parent / "wandb"
     template = "__init__.template.pyi"
-    output = "__init__.pyi"
+    generated_stub = "__init__.pyi"
 
-    generate_stubs(wandb_root, template, output)
-    lint_and_format_stub(wandb_root, output)
-    exit_code = verify_signatures(wandb_root, output, template)
+    generate_stubs(wandb_root, template, generated_stub)
+    lint_and_format_stub(wandb_root, generated_stub)
+    exit_code = verify_signatures(wandb_root, generated_stub, template)
 
     exit(exit_code)

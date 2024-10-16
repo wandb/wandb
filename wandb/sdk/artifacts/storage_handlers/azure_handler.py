@@ -1,8 +1,10 @@
 """Azure storage handler."""
 
+from __future__ import annotations
+
 from pathlib import PurePosixPath
 from types import ModuleType
-from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Sequence
 from urllib.parse import ParseResult, parse_qsl, urlparse
 
 import wandb
@@ -21,16 +23,16 @@ if TYPE_CHECKING:
 
 
 class AzureHandler(StorageHandler):
-    def can_handle(self, parsed_url: "ParseResult") -> bool:
+    def can_handle(self, parsed_url: ParseResult) -> bool:
         return parsed_url.scheme == "https" and parsed_url.netloc.endswith(
             ".blob.core.windows.net"
         )
 
     def load_path(
         self,
-        manifest_entry: "ArtifactManifestEntry",
+        manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> URIStr | FilePathStr:
         assert manifest_entry.ref is not None
         if not local:
             return manifest_entry.ref
@@ -91,12 +93,12 @@ class AzureHandler(StorageHandler):
 
     def store_path(
         self,
-        artifact: "Artifact",
-        path: Union[URIStr, FilePathStr],
-        name: Optional[StrPath] = None,
+        artifact: Artifact,
+        path: URIStr | FilePathStr,
+        name: StrPath | None = None,
         checksum: bool = True,
-        max_objects: Optional[int] = None,
-    ) -> Sequence["ArtifactManifestEntry"]:
+        max_objects: int | None = None,
+    ) -> Sequence[ArtifactManifestEntry]:
         account_url, container_name, blob_name, query = self._parse_uri(path)
         path = URIStr(f"{account_url}/{container_name}/{blob_name}")
 
@@ -127,7 +129,7 @@ class AzureHandler(StorageHandler):
                     )
                 ]
 
-        entries: List[ArtifactManifestEntry] = []
+        entries: list[ArtifactManifestEntry] = []
         container_client = blob_service_client.get_container_client(container_name)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         for blob_properties in container_client.list_blobs(
@@ -163,7 +165,7 @@ class AzureHandler(StorageHandler):
 
     def _get_credential(
         self, account_url: str
-    ) -> Union["azure.identity.DefaultAzureCredential", str]:
+    ) -> azure.identity.DefaultAzureCredential | str:
         if (
             wandb.run
             and wandb.run.settings.azure_account_url_to_access_key is not None
@@ -172,7 +174,7 @@ class AzureHandler(StorageHandler):
             return wandb.run.settings.azure_account_url_to_access_key[account_url]
         return self._get_module("azure.identity").DefaultAzureCredential()
 
-    def _parse_uri(self, uri: str) -> Tuple[str, str, str, Dict[str, str]]:
+    def _parse_uri(self, uri: str) -> tuple[str, str, str, dict[str, str]]:
         parsed_url = urlparse(uri)
         query = dict(parse_qsl(parsed_url.query))
         account_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
@@ -181,7 +183,7 @@ class AzureHandler(StorageHandler):
 
     def _create_entry(
         self,
-        blob_properties: "azure.storage.blob.BlobProperties",
+        blob_properties: azure.storage.blob.BlobProperties,
         path: StrPath,
         ref: URIStr,
     ) -> ArtifactManifestEntry:
@@ -197,7 +199,7 @@ class AzureHandler(StorageHandler):
         )
 
     def _is_directory_stub(
-        self, blob_properties: "azure.storage.blob.BlobProperties"
+        self, blob_properties: azure.storage.blob.BlobProperties
     ) -> bool:
         return (
             blob_properties.has_key("metadata")

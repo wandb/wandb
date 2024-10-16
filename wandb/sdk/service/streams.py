@@ -20,6 +20,7 @@ import wandb
 import wandb.util
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.lib import progress
 from wandb.sdk.lib.mailbox import (
     Mailbox,
     MailboxProbe,
@@ -257,8 +258,12 @@ class StreamMux:
     def _on_progress_exit(self, progress_handle: MailboxProgress) -> None:
         pass
 
-    def _on_progress_exit_all(self, progress_all_handle: MailboxProgressAll) -> None:
-        probe_handles = []
+    def _on_progress_exit_all(
+        self,
+        progress_printer: progress.ProgressPrinter,
+        progress_all_handle: MailboxProgressAll,
+    ) -> None:
+        probe_handles: list[MailboxProbe] = []
         progress_handles = progress_all_handle.get_progress_handles()
         for progress_handle in progress_handles:
             probe_handles.extend(progress_handle.get_probe_handles())
@@ -268,13 +273,13 @@ class StreamMux:
         if self._check_orphaned():
             self._stopped.set()
 
-        poll_exit_responses: List[Optional[pb.PollExitResponse]] = []
+        poll_exit_responses: List[pb.PollExitResponse] = []
         for probe_handle in probe_handles:
             result = probe_handle.get_probe_result()
             if result:
                 poll_exit_responses.append(result.response.poll_exit_response)
 
-        Run._footer_file_pusher_status_info(poll_exit_responses, printer=self._printer)
+        progress_printer.update(poll_exit_responses)
 
     def _finish_all(self, streams: Dict[str, StreamRecord], exit_code: int) -> None:
         if not streams:
@@ -283,7 +288,6 @@ class StreamMux:
         printer = get_printer(
             all(stream._settings._jupyter for stream in streams.values())
         )
-        self._printer = printer
 
         # fixme: for now we have a single printer for all streams,
         # and jupyter is disabled if at least single stream's setting set `_jupyter` to false
@@ -307,17 +311,22 @@ class StreamMux:
             #     exit_code, settings=stream._settings, printer=printer  # type: ignore
             # )
 
-        # todo: should we wait for the max timeout (?) of all exit handles or just wait forever?
-        # timeout = max(stream._settings._exit_timeout for stream in streams.values())
-        got_result = self._mailbox.wait_all(
-            handles=exit_handles, timeout=-1, on_progress_all=self._on_progress_exit_all
-        )
-        assert got_result
+        with progress.progress_printer(printer) as progress_printer:
+            # todo: should we wait for the max timeout (?) of all exit handles or just wait forever?
+            # timeout = max(stream._settings._exit_timeout for stream in streams.values())
+            got_result = self._mailbox.wait_all(
+                handles=exit_handles,
+                timeout=-1,
+                on_progress_all=functools.partial(
+                    self._on_progress_exit_all,
+                    progress_printer,
+                ),
+            )
+            assert got_result
 
         # These could be done in parallel in the future
         for _sid, stream in started_streams.items():
             # dispatch all our final requests
-            server_info_handle = stream.interface.deliver_request_server_info()
             poll_exit_handle = stream.interface.deliver_poll_exit()
             final_summary_handle = stream.interface.deliver_get_summary()
             sampled_history_handle = stream.interface.deliver_request_sampled_history()
@@ -326,11 +335,6 @@ class StreamMux:
             result = internal_messages_handle.wait(timeout=-1)
             assert result
             internal_messages_response = result.response.internal_messages_response
-
-            # wait for them, it's ok to do this serially but this can be improved
-            result = server_info_handle.wait(timeout=-1)
-            assert result
-            server_info_response = result.response.server_info_response
 
             result = poll_exit_handle.wait(timeout=-1)
             assert result
@@ -348,7 +352,6 @@ class StreamMux:
                 sampled_history=sampled_history,
                 final_summary=final_summary,
                 poll_exit_response=poll_exit_response,
-                server_info_response=server_info_response,
                 internal_messages_response=internal_messages_response,
                 settings=stream._settings,  # type: ignore
                 printer=printer,

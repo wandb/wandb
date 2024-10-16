@@ -5,13 +5,14 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/wandb/wandb/core/internal/hashencode"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wbvalue"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 // Emitter modifies the run with data from a TF event.
@@ -69,15 +70,15 @@ func NewTFEmitter(settings *settings.Settings) *tfEmitter {
 // Emit sends accumulated data to the run.
 func (e *tfEmitter) Emit(extraWork runwork.ExtraWork) {
 	if rec := e.filesRecord(); rec != nil {
-		extraWork.AddRecord(rec)
+		extraWork.AddWork(runwork.WorkFromRecord(rec))
 	}
 
 	if rec := e.configRecord(); rec != nil {
-		extraWork.AddRecord(rec)
+		extraWork.AddWork(runwork.WorkFromRecord(rec))
 	}
 
 	if rec := e.historyRecord(); rec != nil {
-		extraWork.AddRecord(rec)
+		extraWork.AddWork(runwork.WorkFromRecord(rec))
 	}
 }
 
@@ -237,7 +238,7 @@ func (e *tfEmitter) EmitTable(
 
 	historyJSON, err := table.HistoryValueJSON(
 		runRelativePath,
-		string(utils.ComputeSHA256(content)),
+		string(hashencode.ComputeSHA256(content)),
 		len(content),
 	)
 	if err != nil {
@@ -266,7 +267,7 @@ func (e *tfEmitter) EmitImage(
 ) error {
 	maybeRunFilePath, err := runRelativePath(
 		filepath.Join("media", "images"),
-		".png",
+		fmt.Sprintf(".%s", img.Format),
 	)
 	if err != nil {
 		return err
@@ -286,7 +287,7 @@ func (e *tfEmitter) EmitImage(
 	if err := os.MkdirAll(filepath.Dir(fsPath), 0777); err != nil {
 		return fmt.Errorf("error creating directory: %v", err)
 	}
-	if err := os.WriteFile(fsPath, img.PNG, 0644); err != nil {
+	if err := os.WriteFile(fsPath, img.EncodedData, 0644); err != nil {
 		return fmt.Errorf("error writing image to file: %v", err)
 	}
 
@@ -312,7 +313,7 @@ func runRelativePath(
 	maybeRunFilePath, err := paths.Relative(
 		filepath.Join(
 			subdir,
-			fmt.Sprintf("%s%s", utils.ShortID(32), ext)),
+			fmt.Sprintf("%s%s", randomid.GenerateUniqueID(32), ext)),
 	)
 
 	if err != nil {

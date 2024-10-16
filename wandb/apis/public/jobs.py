@@ -474,6 +474,12 @@ class RunQueue:
         return self._access
 
     @property
+    def external_links(self) -> Dict[str, str]:
+        if self._external_links is None:
+            self._get_metadata()
+        return self._external_links
+
+    @property
     def type(self) -> RunQueueResourceType:
         if self._type is None:
             if self._default_resource_config_id is None:
@@ -549,6 +555,7 @@ class RunQueue:
                         access
                         defaultResourceConfigID
                         prioritizationMode
+                        externalLinks
                     }
                 }
             }
@@ -565,6 +572,7 @@ class RunQueue:
         self._default_resource_config_id = res["project"]["runQueue"][
             "defaultResourceConfigID"
         ]
+        self._external_links = res["project"]["runQueue"]["externalLinks"]
         if self._default_resource_config_id is None:
             self._default_resource_config = {}
         self._prioritization_mode = res["project"]["runQueue"]["prioritizationMode"]

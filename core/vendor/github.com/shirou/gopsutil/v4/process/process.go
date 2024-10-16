@@ -18,7 +18,7 @@ import (
 
 var (
 	invoke                 common.Invoker = common.Invoke{}
-	ErrorNoChildren                       = errors.New("process does not have children")
+	ErrorNoChildren                       = errors.New("process does not have children") // Deprecated: ErrorNoChildren is never returned by process.Children(), check its returned []*Process slice length instead
 	ErrorProcessNotRunning                = errors.New("process does not exist")
 	ErrorNotPermitted                     = errors.New("operation not permitted")
 )
@@ -325,7 +325,11 @@ func calculatePercent(t1, t2 *cpu.TimesStat, delta float64, numcpu int) float64 
 	if delta == 0 {
 		return 0
 	}
-	delta_proc := t2.Total() - t1.Total()
+	// https://github.com/giampaolo/psutil/blob/c034e6692cf736b5e87d14418a8153bb03f6cf42/psutil/__init__.py#L1064
+	delta_proc := (t2.User - t1.User) + (t2.System - t1.System)
+	if delta_proc <= 0 {
+		return 0
+	}
 	overall_percent := ((delta_proc / delta) * 100) * float64(numcpu)
 	return overall_percent
 }
@@ -547,8 +551,8 @@ func (p *Process) Connections() ([]net.ConnectionStat, error) {
 }
 
 // ConnectionsMax returns a slice of net.ConnectionStat used by the process at most `max`.
-func (p *Process) ConnectionsMax(max int) ([]net.ConnectionStat, error) {
-	return p.ConnectionsMaxWithContext(context.Background(), max)
+func (p *Process) ConnectionsMax(maxConn int) ([]net.ConnectionStat, error) {
+	return p.ConnectionsMaxWithContext(context.Background(), maxConn)
 }
 
 // MemoryMaps get memory maps from /proc/(pid)/smaps

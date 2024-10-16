@@ -3,16 +3,15 @@ package launch_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/gqlmock"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	. "github.com/wandb/wandb/core/pkg/launch"
-	"github.com/wandb/wandb/core/pkg/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -217,7 +216,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 			Name: "testArtifact",
 			Type: "code",
 		}
-		jobBuilder.HandleLogArtifactResult(&spb.LogArtifactResponse{ArtifactId: "testArtifactId"}, artifactRecord)
+		jobBuilder.SetRunCodeArtifact("testArtifactId", artifactRecord.GetName())
 		artifact, err := jobBuilder.Build(ctx, gql, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testArtifact", artifact.Name)
@@ -281,7 +280,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 			Name: "testArtifact",
 			Type: "code",
 		}
-		jobBuilder.HandleLogArtifactResult(&spb.LogArtifactResponse{ArtifactId: "testArtifactId"}, artifactRecord)
+		jobBuilder.SetRunCodeArtifact("testArtifactId", artifactRecord.GetName())
 		artifact, err := jobBuilder.Build(ctx, gql, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testArtifact", artifact.Name)
@@ -592,10 +591,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 		for index, testCase := range testCases {
 			jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
 			if index == 0 {
-				jobBuilder.RunCodeArtifact = &ArtifactInfoForJob{
-					ID:   "testID",
-					Name: "testName",
-				}
+				jobBuilder.SetRunCodeArtifact("testID", "testName")
 			}
 			res, err := jobBuilder.GetSourceType(testCase.metadata)
 			if testCase.expectedSourceType != nil {
@@ -929,7 +925,6 @@ func TestConfigFileParameters(t *testing.T) {
 	var artifactMetadata map[string]interface{}
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
 	inputs := artifactMetadata["input_types"].(map[string]interface{})
-	fmt.Println(inputs)
 	files := inputs["files"].(map[string]interface{})
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{

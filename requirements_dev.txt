@@ -43,6 +43,8 @@ urllib3
 docker
 catboost
 openai
+gymnasium < 1.0.0
+stable_baselines3
 
 responses
 prometheus_client
