@@ -145,7 +145,7 @@ SYMBOLS_TYPING = {
     "Type",
     "TypeVar",
     "Union",
-    "annotation",
+    "annotations",
 }
 
 SYMBOLS_SERVICE = {"attach", "detach", "teardown"}
