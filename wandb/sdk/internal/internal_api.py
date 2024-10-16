@@ -3368,6 +3368,7 @@ class Api:
         project: Optional[str] = None,
         description: Optional[str] = None,
         force: bool = True,
+        progress: Union[TextIO, Literal[False]] = False,
     ) -> "List[Optional[requests.Response]]":
         """Uploads multiple files to W&B.
 
@@ -3378,6 +3379,8 @@ class Api:
             project (str, optional): The name of the project to upload to. Defaults to the one in settings.
             description (str, optional): The description of the changes
             force (bool, optional): Whether to prevent push if git has uncommitted changes
+            progress (callable, or stream): If callable, will be called with (chunk_bytes,
+                total_bytes) as argument. If TextIO, renders a progress bar to it.
 
         Returns:
             A list of `requests.Response` objects
@@ -3423,14 +3426,36 @@ class Api:
             except OSError:
                 print(f"{file_name} does not exist")
                 continue
-
-            responses.append(
-                self.upload_file_retry(
-                    file_info["uploadUrl"], open_file, extra_headers=extra_headers
+            if progress is False:
+                responses.append(
+                    self.upload_file_retry(
+                        file_info["uploadUrl"], open_file, extra_headers=extra_headers
+                    )
                 )
-            )
+            else:
+                if callable(progress):
+                    responses.append(  # type: ignore
+                        self.upload_file_retry(
+                            file_url, open_file, progress, extra_headers=extra_headers
+                        )
+                    )
+                else:
+                    length = os.fstat(open_file.fileno()).st_size
+                    with click.progressbar(  # type: ignore
+                        file=progress,
+                        length=length,
+                        label=f"Uploading file: {file_name}",
+                        fill_char=click.style("&", fg="green"),
+                    ) as bar:
+                        responses.append(
+                            self.upload_file_retry(
+                                file_url,
+                                open_file,
+                                lambda bites, _: bar.update(bites),
+                                extra_headers=extra_headers,
+                            )
+                        )
             open_file.close()
-
         return responses
 
     def link_artifact(
