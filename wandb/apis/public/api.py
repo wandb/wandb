@@ -1169,6 +1169,8 @@ class Api:
                 organization, _, _ = name.split("/")
             except ValueError:
                 organization = ""
+            # set entity to match the settings since in above code it was potentially set to an org
+            entity = self.settings["entity"] or self.default_entity
         artifact = wandb.Artifact._from_name(
             entity, project, artifact_name, self.client, organization
         )
