@@ -15,8 +15,8 @@ from wandb.errors import UsageError, WandbCoreNotAvailableError
 from wandb.util import get_core_path
 
 
-@click.group()
-def beta():
+@click.group(help="Beta versions of wandb CLI commands.", name="beta")
+def beta_cli():
     """Beta versions of wandb CLI commands. Requires wandb-core."""
     # this is the future that requires wandb-core!
     import wandb.env
@@ -40,7 +40,7 @@ def beta():
         )
 
 
-@beta.command(
+@beta_cli.command(
     name="sync",
     context_settings={"default_map": {}},
     help="Upload a training run to W&B",
