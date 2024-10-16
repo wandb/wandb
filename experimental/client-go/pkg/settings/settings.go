@@ -7,16 +7,16 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type SettingsWrap struct {
-	*service.Settings
+	*spb.Settings
 }
 
 func (s *SettingsWrap) Copy() *SettingsWrap {
-	protoSettings := proto.Clone(s.Settings).(*service.Settings)
+	protoSettings := proto.Clone(s.Settings).(*spb.Settings)
 	newSettings := &SettingsWrap{protoSettings}
 	return newSettings
 }
@@ -51,7 +51,7 @@ func NewSettings(args ...any) *SettingsWrap {
 		baseURL = "https://api.wandb.ai"
 	}
 
-	settings := &service.Settings{
+	settings := &spb.Settings{
 		BaseUrl: &wrapperspb.StringValue{
 			Value: baseURL,
 		},

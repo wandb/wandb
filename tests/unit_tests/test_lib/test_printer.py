@@ -1,17 +1,17 @@
 import pytest
-from wandb.sdk.lib.printer import CRITICAL, DEBUG, NOTSET, PrinterTerm
+from wandb.sdk.lib import printer as p
 
 
 @pytest.mark.parametrize("level", [1.3, {}, []])
 def test_printer_invalid_level_type(level):
-    printer = PrinterTerm()
+    printer = p.get_printer(False)
     with pytest.raises(ValueError, match="Unknown status level"):
         printer.display("test string", level=level)
 
 
 @pytest.mark.parametrize("level", ["random", ""])
 def test_printer_invalid_level_str(level):
-    printer = PrinterTerm()
+    printer = p.get_printer(False)
     with pytest.raises(ValueError, match="Unknown level name"):
         printer.display("test string", level=level)
 
@@ -19,13 +19,13 @@ def test_printer_invalid_level_str(level):
 @pytest.mark.parametrize(
     "level, prefix",
     [
-        (CRITICAL, "wandb: ERROR"),
-        (DEBUG, "wandb:"),
-        (NOTSET, "wandb:"),
+        (p.CRITICAL, "wandb: ERROR"),
+        (p.DEBUG, "wandb:"),
+        (p.NOTSET, "wandb:"),
     ],
 )
 def test_printer_levels(level, prefix, capsys):
-    printer = PrinterTerm()
+    printer = p.get_printer(False)
     printer.display("test string", level=level)
     outerr = capsys.readouterr()
     assert outerr.out == ""

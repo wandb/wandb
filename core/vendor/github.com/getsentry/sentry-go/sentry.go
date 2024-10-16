@@ -6,7 +6,7 @@ import (
 )
 
 // The version of the SDK.
-const SDKVersion = "0.29.0"
+const SDKVersion = "0.29.1"
 
 // apiVersion is the minimum version of the Sentry API compatible with the
 // sentry-go SDK.

@@ -11,7 +11,7 @@ from . import printer as p
 
 
 def print_sync_dedupe_stats(
-    printer: p.PrinterJupyter | p.PrinterTerm,
+    printer: p.Printer,
     final_result: wandb_internal_pb2.PollExitResponse,
 ) -> None:
     """Print how much W&B sync reduced the amount of uploaded data.
@@ -31,7 +31,7 @@ def print_sync_dedupe_stats(
 
 @contextlib.contextmanager
 def progress_printer(
-    printer: p.PrinterJupyter | p.PrinterTerm,
+    printer: p.Printer,
 ) -> Iterator[ProgressPrinter]:
     """Context manager providing an object for printing run progress."""
     with printer.dynamic_text() as text_area:
@@ -44,7 +44,7 @@ class ProgressPrinter:
 
     def __init__(
         self,
-        printer: p.PrinterJupyter | p.PrinterTerm,
+        printer: p.Printer,
         progress_text_area: p.DynamicText | None,
     ) -> None:
         self._printer = printer

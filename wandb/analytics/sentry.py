@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 __all__ = ("Sentry",)
 
 
@@ -7,7 +9,7 @@ import os
 import pathlib
 import sys
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, Callable
 from urllib.parse import quote
 
 if sys.version_info >= (3, 8):
@@ -37,7 +39,7 @@ def _safe_noop(func: Callable) -> Callable:
     """Decorator to ensure that Sentry methods do nothing if disabled and don't raise."""
 
     @functools.wraps(func)
-    def wrapper(self: Type["Sentry"], *args: Any, **kwargs: Any) -> Any:
+    def wrapper(self: type[Sentry], *args: Any, **kwargs: Any) -> Any:
         if self._disabled:
             return None
         try:
@@ -60,7 +62,7 @@ class Sentry:
 
         self.dsn = os.environ.get(wandb.env.SENTRY_DSN, SENTRY_DEFAULT_DSN)
 
-        self.scope: Optional[sentry_sdk.scope.Scope] = None
+        self.scope: sentry_sdk.scope.Scope | None = None
 
         # ensure we always end the Sentry session
         atexit.register(self.end_session)
@@ -93,7 +95,7 @@ class Sentry:
         self.scope.set_client(client)
 
     @_safe_noop
-    def message(self, message: str, repeat: bool = True) -> Optional[str]:
+    def message(self, message: str, repeat: bool = True) -> str | None:
         """Send a message to Sentry."""
         if not repeat and message in self._sent_messages:
             return None
@@ -104,19 +106,17 @@ class Sentry:
     @_safe_noop
     def exception(
         self,
-        exc: Union[
-            str,
-            BaseException,
-            Tuple[
-                Optional[Type[BaseException]],
-                Optional[BaseException],
-                Optional[TracebackType],
-            ],
-            None,
-        ],
+        exc: str
+        | BaseException
+        | tuple[
+            type[BaseException] | None,
+            BaseException | None,
+            TracebackType | None,
+        ]
+        | None,
         handled: bool = False,
-        status: Optional["SessionStatus"] = None,
-    ) -> Optional[str]:
+        status: SessionStatus | None = None,
+    ) -> str | None:
         """Log an exception to Sentry."""
         if isinstance(exc, str):
             exc_info = sentry_sdk.utils.exc_info_from_error(Exception(exc))
@@ -125,7 +125,7 @@ class Sentry:
         else:
             exc_info = sys.exc_info()
 
-        event, hint = sentry_sdk.utils.event_from_exception(
+        event, _ = sentry_sdk.utils.event_from_exception(
             exc_info,
             client_options=self.scope.get_client().options,  # type: ignore
             mechanism={"type": "generic", "handled": handled},
@@ -184,7 +184,7 @@ class Sentry:
             client.flush()
 
     @_safe_noop
-    def mark_session(self, status: Optional["SessionStatus"] = None) -> None:
+    def mark_session(self, status: SessionStatus | None = None) -> None:
         """Mark the current session with a status."""
         assert self.scope is not None
         session = self.scope._session
@@ -195,8 +195,8 @@ class Sentry:
     @_safe_noop
     def configure_scope(
         self,
-        tags: Optional[Dict[str, Any]] = None,
-        process_context: Optional[str] = None,
+        tags: dict[str, Any] | None = None,
+        process_context: str | None = None,
     ) -> None:
         """Configure the Sentry scope for the current thread.
 
