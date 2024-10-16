@@ -766,9 +766,17 @@ class Run(Attrs):
             An iterable collection of all Artifact objects logged as outputs during this run.
 
         Example:
-            run = api.run("entity/project/run_id")
-            for artifact in run.logged_artifacts():
-                print(f"{artifact.name}:{artifact.version}")
+            >>> import wandb
+            >>> run = wandb.init(project="artifact-example")
+            >>> artifact = wandb.Artifact("test_artifact", type="dataset")
+            >>> artifact.add_file("path/to/file.txt")
+            >>> run.log_artifact(artifact)
+            >>> run.finish()
+            >>> api = wandb.Api()
+            >>> finished_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+            >>> for logged_artifact in finished_run.logged_artifacts():
+            ...     print(logged_artifact.name)
+            test_artifact
         """
         return public.RunArtifacts(self.client, self, mode="logged", per_page=per_page)
 
@@ -787,10 +795,15 @@ class Run(Attrs):
             An iterable collection of Artifact objects explicitly used as inputs in this run.
 
         Example:
-            run = api.run("entity/project/run_id")
-            run.use_artifact("model:latest")
-            for artifact in run.used_artifacts():
-                print(f"{artifact.name}:{artifact.version}")
+            >>> import wandb
+            >>> run = wandb.init(project="artifact-example")
+            >>> run.use_artifact("test_artifact:latest")
+            >>> run.finish()
+            >>> api = wandb.Api()
+            >>> finished_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+            >>> for used_artifact in finished_run.used_artifacts():
+            ...     print(used_artifact.name)
+            test_artifact
         """
         return public.RunArtifacts(self.client, self, mode="used", per_page=per_page)
 
