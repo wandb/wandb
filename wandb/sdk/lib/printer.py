@@ -1,14 +1,22 @@
 # Note: this is a helper printer class, this file might go away once we switch to rich console printing
+from __future__ import annotations
 
+import abc
+import contextlib
 import itertools
 import platform
 import sys
-from abc import abstractmethod
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, Iterator
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 import click
 
 import wandb
+from wandb.errors import term
 
 from . import ipython, sparkline
 
@@ -43,42 +51,69 @@ _name_to_level = {
 }
 
 
-class _Printer:
-    def sparklines(self, series: List[Union[int, float]]) -> Optional[str]:
-        # Only print sparklines if the terminal is utf-8
-        if wandb.util.is_unicode_safe(sys.stdout):
-            return sparkline.sparkify(series)
-        return None
+class Printer(abc.ABC):
+    @contextlib.contextmanager
+    @abc.abstractmethod
+    def dynamic_text(self) -> Iterator[DynamicText | None]:
+        """A context manager providing a handle to a block of changeable text.
 
-    def abort(
-        self,
-    ) -> str:
-        return "Control-C" if platform.system() != "Windows" else "Ctrl-C"
+        Since `wandb` may be outputting to a terminal, it's important to only
+        use this when `wandb` is performing blocking calls, or else text output
+        by non-`wandb` code may get overwritten.
 
+        Returns None if dynamic text is not supported, such as if stderr is not
+        a TTY and we're not in a Jupyter notebook.
+        """
+
+    @abc.abstractmethod
     def display(
         self,
-        text: Union[str, List[str], Tuple[str]],
+        text: str | list[str] | tuple[str],
         *,
-        level: Optional[Union[str, int]] = None,
-        off: Optional[bool] = None,
-        default_text: Optional[Union[str, List[str], Tuple[str]]] = None,
+        level: str | int | None = None,
     ) -> None:
-        if off:
-            return
-        self._display(text, level=level, default_text=default_text)
+        """Display text to the user.
 
-    @abstractmethod
-    def _display(
+        Args:
+            text: The text to display. If given an iterable of strings, they're
+                joined with newlines.
+            level: The logging level, for controlling verbosity.
+        """
+
+    @abc.abstractmethod
+    def progress_update(
         self,
-        text: Union[str, List[str], Tuple[str]],
-        *,
-        level: Optional[Union[str, int]] = None,
-        default_text: Optional[Union[str, List[str], Tuple[str]]] = None,
+        text: str,
+        percent_done: float | None = None,
     ) -> None:
-        raise NotImplementedError
+        r"""Set the text on the progress indicator.
+
+        Args:
+            text: The text to set, which must end with \r.
+            percent_done: The current progress, between 0 and 1.
+        """
+
+    @abc.abstractmethod
+    def progress_close(self, text: str | None = None) -> None:
+        """Close the progress indicator.
+
+        After this, `progress_update` should not be used.
+
+        Args:
+            text: The final text to set on the progress indicator.
+                Ignored in Jupyter notebooks.
+        """
 
     @staticmethod
-    def _sanitize_level(name_or_level: Optional[Union[str, int]]) -> int:
+    def _sanitize_level(name_or_level: str | int | None) -> int:
+        """Returns the number corresponding to the logging level.
+
+        Args:
+            name_or_level: The logging level passed to `display`.
+
+        Raises:
+            ValueError: if the input is not a valid logging level.
+        """
         if isinstance(name_or_level, str):
             try:
                 return _name_to_level[name_or_level.upper()]
@@ -95,65 +130,107 @@ class _Printer:
 
         raise ValueError(f"Unknown status level {name_or_level}")
 
-    @abstractmethod
+    @property
+    @abc.abstractmethod
+    def supports_html(self) -> bool:
+        """Whether text passed to display may contain HTML styling."""
+
+    def sparklines(self, series: list[int | float]) -> str | None:
+        """Returns a Unicode art representation of the series of numbers.
+
+        Also known as "ASCII art", except this uses non-ASCII
+        Unicode characters.
+
+        Returns None if the output doesn't support Unicode.
+        """
+        # Only print sparklines if the terminal is utf-8
+        if wandb.util.is_unicode_safe(sys.stderr):
+            return sparkline.sparkify(series)
+        return None
+
+    @abc.abstractmethod
     def code(self, text: str) -> str:
-        raise NotImplementedError
+        """Returns the text styled like code."""
 
-    @abstractmethod
+    @abc.abstractmethod
     def name(self, text: str) -> str:
-        raise NotImplementedError
+        """Returns the text styled like a run name."""
 
-    @abstractmethod
-    def link(self, link: str, text: Optional[str] = None) -> str:
-        raise NotImplementedError
+    @abc.abstractmethod
+    def link(self, link: str, text: str | None = None) -> str:
+        """Returns the text styled like a link.
 
-    @abstractmethod
+        Args:
+            link: The target link.
+            text: The text to show for the link. If not set, or if we're not
+                in an environment that supports clickable links,
+                this is ignored.
+        """
+
+    @abc.abstractmethod
     def emoji(self, name: str) -> str:
-        raise NotImplementedError
+        """Returns the string for a named emoji, or an empty string."""
 
-    @abstractmethod
-    def status(self, text: str, failure: Optional[bool] = None) -> str:
-        raise NotImplementedError
+    @abc.abstractmethod
+    def status(self, text: str, failure: bool | None = None) -> str:
+        """Returns the text styled as a success or error status."""
 
-    @abstractmethod
+    @abc.abstractmethod
     def files(self, text: str) -> str:
-        raise NotImplementedError
+        """Returns the text styled like a file path."""
 
-    @abstractmethod
-    def grid(self, rows: List[List[str]], title: Optional[str] = None) -> str:
-        raise NotImplementedError
+    @abc.abstractmethod
+    def grid(self, rows: list[list[str]], title: str | None = None) -> str:
+        """Returns a grid of strings with an optional title."""
 
-    @abstractmethod
-    def panel(self, columns: List[str]) -> str:
-        raise NotImplementedError
+    @abc.abstractmethod
+    def panel(self, columns: list[str]) -> str:
+        """Returns the column text combined in a compact way."""
 
 
-class PrinterTerm(_Printer):
+class DynamicText(abc.ABC):
+    """A handle to a block of text that's allowed to change."""
+
+    @abc.abstractmethod
+    def set_text(self, text: str) -> None:
+        r"""Change the text.
+
+        Args:
+            text: The text to put in the block, with lines separated
+                by \n characters. The text should not end in \n unless
+                a blank line at the end of the block is desired.
+                May include styled output from methods on the Printer
+                that created this.
+        """
+
+
+class _PrinterTerm(Printer):
     def __init__(self) -> None:
         super().__init__()
-        self._html = False
         self._progress = itertools.cycle(["-", "\\", "|", "/"])
 
-    def _display(
+    @override
+    @contextlib.contextmanager
+    def dynamic_text(self) -> Iterator[DynamicText | None]:
+        with term.dynamic_text() as handle:
+            if not handle:
+                yield None
+            else:
+                yield _DynamicTermText(handle)
+
+    @override
+    def display(
         self,
-        text: Union[str, List[str], Tuple[str]],
+        text: str | list[str] | tuple[str],
         *,
-        level: Optional[Union[str, int]] = None,
-        default_text: Optional[Union[str, List[str], Tuple[str]]] = None,
+        level: str | int | None = None,
     ) -> None:
         text = "\n".join(text) if isinstance(text, (list, tuple)) else text
-        if default_text is not None:
-            default_text = (
-                "\n".join(default_text)
-                if isinstance(default_text, (list, tuple))
-                else default_text
-            )
-            text = text or default_text
         self._display_fn_mapping(level)(text)
 
     @staticmethod
-    def _display_fn_mapping(level: Optional[Union[str, int]]) -> Callable[[str], None]:
-        level = _Printer._sanitize_level(level)
+    def _display_fn_mapping(level: str | int | None = None) -> Callable[[str], None]:
+        level = Printer._sanitize_level(level)
 
         if level >= CRITICAL:
             return wandb.termerror
@@ -168,27 +245,38 @@ class PrinterTerm(_Printer):
         else:
             return wandb.termlog
 
-    def progress_update(self, text: str, percent_done: Optional[float] = None) -> None:
+    @override
+    def progress_update(self, text: str, percent_done: float | None = None) -> None:
         wandb.termlog(f"{next(self._progress)} {text}", newline=False)
 
-    def progress_close(self, text: Optional[str] = None) -> None:
+    @override
+    def progress_close(self, text: str | None = None) -> None:
         text = text or " " * 79
         wandb.termlog(text)
 
+    @override
+    @property
+    def supports_html(self) -> bool:
+        return False
+
+    @override
     def code(self, text: str) -> str:
         ret: str = click.style(text, bold=True)
         return ret
 
+    @override
     def name(self, text: str) -> str:
         ret: str = click.style(text, fg="yellow")
         return ret
 
-    def link(self, link: str, text: Optional[str] = None) -> str:
+    @override
+    def link(self, link: str, text: str | None = None) -> str:
         ret: str = click.style(link, fg="blue", underline=True)
         # ret = f"\x1b[m{text or link}\x1b[0m"
         # ret = f"\x1b]8;;{link}\x1b\\{ret}\x1b]8;;\x1b\\"
         return ret
 
+    @override
     def emoji(self, name: str) -> str:
         emojis = dict()
         if platform.system() != "Windows" and wandb.util.is_unicode_safe(sys.stdout):
@@ -203,16 +291,19 @@ class PrinterTerm(_Printer):
 
         return emojis.get(name, "")
 
-    def status(self, text: str, failure: Optional[bool] = None) -> str:
+    @override
+    def status(self, text: str, failure: bool | None = None) -> str:
         color = "red" if failure else "green"
         ret: str = click.style(text, fg=color)
         return ret
 
+    @override
     def files(self, text: str) -> str:
         ret: str = click.style(text, fg="magenta", bold=True)
         return ret
 
-    def grid(self, rows: List[List[str]], title: Optional[str] = None) -> str:
+    @override
+    def grid(self, rows: list[list[str]], title: str | None = None) -> str:
         max_len = max(len(row[0]) for row in rows)
         format_row = " ".join(["{:>{max_len}}", "{}" * (len(rows[0]) - 1)])
         grid = "\n".join([format_row.format(*row, max_len=max_len) for row in rows])
@@ -220,36 +311,44 @@ class PrinterTerm(_Printer):
             return f"{title}\n{grid}\n"
         return f"{grid}\n"
 
-    def panel(self, columns: List[str]) -> str:
+    @override
+    def panel(self, columns: list[str]) -> str:
         return "\n" + "\n".join(columns)
 
 
-class PrinterJupyter(_Printer):
+class _DynamicTermText(DynamicText):
+    def __init__(self, handle: term.DynamicBlock) -> None:
+        self._handle = handle
+
+    @override
+    def set_text(self, text: str) -> None:
+        self._handle.set_text(text)
+
+
+class _PrinterJupyter(Printer):
     def __init__(self) -> None:
         super().__init__()
-        self._html = True
         self._progress = ipython.jupyter_progress_bar()
 
-    def _display(
+    @override
+    @contextlib.contextmanager
+    def dynamic_text(self) -> Iterator[DynamicText | None]:
+        # TODO: Support dynamic text in Jupyter notebooks.
+        yield None
+
+    @override
+    def display(
         self,
-        text: Union[str, List[str], Tuple[str]],
+        text: str | list[str] | tuple[str],
         *,
-        level: Optional[Union[str, int]] = None,
-        default_text: Optional[Union[str, List[str], Tuple[str]]] = None,
+        level: str | int | None = None,
     ) -> None:
         text = "<br/>".join(text) if isinstance(text, (list, tuple)) else text
-        if default_text is not None:
-            default_text = (
-                "<br/>".join(default_text)
-                if isinstance(default_text, (list, tuple))
-                else default_text
-            )
-            text = text or default_text
         self._display_fn_mapping(level)(text)
 
     @staticmethod
-    def _display_fn_mapping(level: Optional[Union[str, int]]) -> Callable[[str], None]:
-        level = _Printer._sanitize_level(level)
+    def _display_fn_mapping(level: str | int | None) -> Callable[[str], None]:
+        level = Printer._sanitize_level(level)
 
         if level >= CRITICAL:
             return ipython.display_html
@@ -264,34 +363,57 @@ class PrinterJupyter(_Printer):
         else:
             return ipython.display_html
 
+    @override
+    @property
+    def supports_html(self) -> bool:
+        return True
+
+    @override
     def code(self, text: str) -> str:
         return f"<code>{text}<code>"
 
+    @override
     def name(self, text: str) -> str:
         return f'<strong style="color:#cdcd00">{text}</strong>'
 
-    def link(self, link: str, text: Optional[str] = None) -> str:
+    @override
+    def link(self, link: str, text: str | None = None) -> str:
         return f'<a href={link!r} target="_blank">{text or link}</a>'
 
+    @override
     def emoji(self, name: str) -> str:
         return ""
 
-    def status(self, text: str, failure: Optional[bool] = None) -> str:
+    @override
+    def status(self, text: str, failure: bool | None = None) -> str:
         color = "red" if failure else "green"
         return f'<strong style="color:{color}">{text}</strong>'
 
+    @override
     def files(self, text: str) -> str:
         return f"<code>{text}</code>"
 
-    def progress_update(self, text: str, percent_done: float) -> None:
-        if self._progress:
-            self._progress.update(percent_done, text)
+    @override
+    def progress_update(
+        self,
+        text: str,
+        percent_done: float | None = None,
+    ) -> None:
+        if not self._progress:
+            return
 
-    def progress_close(self, _: Optional[str] = None) -> None:
+        if percent_done is None:
+            percent_done = 1.0
+
+        self._progress.update(percent_done, text)
+
+    @override
+    def progress_close(self, _: str | None = None) -> None:
         if self._progress:
             self._progress.close()
 
-    def grid(self, rows: List[List[str]], title: Optional[str] = None) -> str:
+    @override
+    def grid(self, rows: list[list[str]], title: str | None = None) -> str:
         format_row = "".join(["<tr>", "<td>{}</td>" * len(rows[0]), "</tr>"])
         grid = "".join([format_row.format(*row) for row in rows])
         grid = f'<table class="wandb">{grid}</table>'
@@ -299,15 +421,13 @@ class PrinterJupyter(_Printer):
             return f"<h3>{title}</h3><br/>{grid}<br/>"
         return f"{grid}<br/>"
 
-    def panel(self, columns: List[str]) -> str:
+    @override
+    def panel(self, columns: list[str]) -> str:
         row = "".join([f'<div class="wandb-col">{col}</div>' for col in columns])
         return f'{ipython.TABLE_STYLES}<div class="wandb-row">{row}</div>'
 
 
-Printer = Union[PrinterTerm, PrinterJupyter]
-
-
-def get_printer(_jupyter: bool) -> Printer:
-    if _jupyter:
-        return PrinterJupyter()
-    return PrinterTerm()
+def get_printer(jupyter: bool) -> Printer:
+    if jupyter:
+        return _PrinterJupyter()
+    return _PrinterTerm()

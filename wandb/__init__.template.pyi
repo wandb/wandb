@@ -52,6 +52,7 @@ __all__ = (
     "Settings",
     "teardown",
     "watch",
+    "unwatch",
 )
 
 import os
@@ -279,6 +280,12 @@ def watch(
     log_freq: int = 1000,
     idx: int | None = None,
     log_graph: bool = False,
-) -> Graph:
-    """<sdk/wandb_watch.py::watch>"""
+) -> None:
+    """<sdk/wandb_run.py::Run::watch>"""
+    ...
+
+def unwatch(
+    models: torch.nn.Module | Sequence[torch.nn.Module] | None = None,
+) -> None:
+    """<sdk/wandb_run.py::Run::unwatch>"""
     ...

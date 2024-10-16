@@ -35,8 +35,5 @@ cover-results/
 mypy-results/
 .mypy_cache/
 
-# Build output in apple_stats.
-apple_stats/.build/
-
-# Build output in nvidia_gpu_stats
-nvidia_gpu_stats/target/
+# Build output in gpu_stats
+gpu_stats/target/

@@ -15,9 +15,8 @@ include = [
 
 [build.targets.sdist]
 include = [
-    "apple_stats",
     "core",
-    "nvidia_gpu_stats",
+    "gpu_stats",
     "wandb/py.typed",
     "package_readme.md",
     "wandb/__init__.pyi",
