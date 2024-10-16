@@ -38,10 +38,7 @@ fn main() -> Result<()> {
     //  - either place it under wandbrs/ and use the env var to point to it like we do now
     //  - or embed as in https://zameermanji.com/blog/2021/6/17/embedding-a-rust-binary-in-another-rust-binary
 
-    let bin_paths = [
-        "../../wandb/bin/wandb-core",
-        "../../wandb/bin/apple_gpu_stats",
-    ];
+    let bin_paths = ["../../wandb/bin/wandb-core", "../../wandb/bin/gpu_stats"];
     for bin_path in &bin_paths {
         let bin_name = Path::new(bin_path).file_name().unwrap();
         let dest_path = Path::new("wandbrs").join(bin_name);
