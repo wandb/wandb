@@ -22,7 +22,17 @@ def dynamic_progress_printer(
         yield progress_printer
 
 
-def test_minimal_operations(emulated_terminal, dynamic_progress_printer):
+@pytest.fixture()
+def static_progress_printer() -> Iterator[progress.ProgressPrinter]:
+    """A ProgressPrinter that writes to a file or dumb terminal."""
+    with progress.progress_printer(
+        p.get_printer(jupyter=False),
+        settings=wandb.Settings(_show_operation_stats=True),
+    ) as progress_printer:
+        yield progress_printer
+
+
+def test_minimal_operations_dynamic(emulated_terminal, dynamic_progress_printer):
     dynamic_progress_printer.update(
         [
             pb.PollExitResponse(
@@ -45,6 +55,24 @@ def test_minimal_operations(emulated_terminal, dynamic_progress_printer):
         "wandb: ⢿ op 3 (2.1m)",
         "wandb: ⢿ op 4 (1h23m)",
     ]
+
+
+def test_minimal_operations_static(mock_wandb_log, static_progress_printer):
+    static_progress_printer.update(
+        [
+            pb.PollExitResponse(
+                operation_stats=pb.OperationStats(
+                    total_operations=4,
+                    operations=[
+                        pb.Operation(desc=f"op {i}", runtime_seconds=45.315)
+                        for i in range(1, 101)
+                    ],
+                ),
+            )
+        ]
+    )
+
+    assert mock_wandb_log.logged("op 1; op 2; op 3; op 4; op 5 (+ 95 more)")
 
 
 def test_operation_progress_and_error(
