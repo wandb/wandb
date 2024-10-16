@@ -201,9 +201,16 @@ if "dev" in __version__:
     import wandb.env
     import os
 
-    # disable error reporting in dev versions for the python client
+    # Disable error reporting in dev versions.
     os.environ[wandb.env.ERROR_REPORTING] = os.environ.get(
-        wandb.env.ERROR_REPORTING, "false"
+        wandb.env.ERROR_REPORTING,
+        "false",
+    )
+
+    # Enable new features in dev versions.
+    os.environ["WANDB__SHOW_OPERATION_STATS"] = os.environ.get(
+        "WANDB__SHOW_OPERATION_STATS",
+        "true",
     )
 
 _sentry = _Sentry()

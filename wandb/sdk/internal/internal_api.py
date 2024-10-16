@@ -20,6 +20,7 @@ from typing import (
     Dict,
     Iterable,
     List,
+    Literal,
     Mapping,
     MutableMapping,
     Optional,
@@ -3368,7 +3369,7 @@ class Api:
         project: Optional[str] = None,
         description: Optional[str] = None,
         force: bool = True,
-        progress: Union[TextIO, bool] = False,
+        progress: Union[TextIO, Literal[False]] = False,
     ) -> "List[Optional[requests.Response]]":
         """Uploads multiple files to W&B.
 
@@ -3380,7 +3381,7 @@ class Api:
             description (str, optional): The description of the changes
             force (bool, optional): Whether to prevent push if git has uncommitted changes
             progress (callable, or stream): If callable, will be called with (chunk_bytes,
-                total_bytes) as argument else if True, renders a progress bar to stream.
+                total_bytes) as argument. If TextIO, renders a progress bar to it.
 
         Returns:
             A list of `requests.Response` objects
@@ -3441,8 +3442,8 @@ class Api:
                     )
                 else:
                     length = os.fstat(open_file.fileno()).st_size
-                    with click.progressbar(
-                        file=progress,  # type: ignore
+                    with click.progressbar(  # type: ignore
+                        file=progress,
                         length=length,
                         label=f"Uploading file: {file_name}",
                         fill_char=click.style("&", fg="green"),
