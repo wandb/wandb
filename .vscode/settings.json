@@ -27,6 +27,6 @@
     "./gpu_stats/Cargo.toml",
     "./experimental/client-rust/Cargo.toml"
   ],
-  "python.analysis.autoImportCompletions": true,
+  "python.analysis.autoImportCompletions": false,
   "python.analysis.typeCheckingMode": "off"
 }

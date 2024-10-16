@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import logging
 import os
 import platform
 import sys
@@ -28,7 +29,60 @@ class Settings(BaseModel, validate_assignment=True):
     """Settings for W&B."""
 
     # ???
-    _args: Sequence[str] | None = None
+    _cli_only_mode: bool = False
+    # Do not collect system metadata
+    _disable_meta: bool = False
+    # Do not collect system stats
+    _disable_stats: bool = False
+    # Do not collect system metrics
+    _disable_service: bool = False
+    # Do not use setproctitle on internal process
+    _disable_setproctitle: bool = False
+    # Do not collect system metrics
+    _disable_stats: bool = False
+    # Disable version check
+    _disable_update_check: bool = False
+    # Prevent early viewer query
+    _disable_viewer: bool = False
+    # Disable automatic machine info collection
+    _disable_machine_info: bool = False
+    _extra_http_headers: dict[str, str] | None = None
+    # max size for filestream requests in core
+    _file_stream_max_bytes: int | None = None
+    # tx interval for filestream requests in core
+    _file_stream_transmit_interval: float | None = None
+    # file stream retry client configuration
+    # max number of retries
+    _file_stream_retry_max: int | None = None
+    # min wait time between retries
+    _file_stream_retry_wait_min_seconds: float | None = None
+    # max wait time between retries
+    _file_stream_retry_wait_max_seconds: float | None = None
+    # timeout for individual HTTP requests
+    _file_stream_timeout_seconds: float | None = None
+    # file transfer retry client configuration
+    _file_transfer_retry_max: int | None = None
+    _file_transfer_retry_wait_min_seconds: float | None = None
+    _file_transfer_retry_wait_max_seconds: float | None = None
+    _file_transfer_timeout_seconds: float | None = None
+    # graphql retry client configuration
+    _graphql_retry_max: int | None = None
+    _graphql_retry_wait_min_seconds: float | None = None
+    _graphql_retry_wait_max_seconds: float | None = None
+    _graphql_timeout_seconds: float | None = None
+    _internal_check_process: float = 8.0
+    _internal_queue_timeout: float = 2.0
+    _jupyter_name: str | None = None
+    _jupyter_path: str | None = None
+    _jupyter_root: str | None = None
+    _live_policy_rate_limit: int | None = None
+    _live_policy_wait_time: int | None = None
+    _log_level: int = logging.INFO
+    _network_buffer: int | None = None
+    # [deprecated, use http(s)_proxy] custom proxy servers for the requests to W&B [scheme -> url]
+    _proxies: dict[str, str] | None = None
+    _sync: bool = False
+    api_key: str | None = None
     # The base URL for the W&B API.
     base_url: AnyHttpUrl = "https://api.wandb.ai"
     console: Literal["auto", "off", "wrap", "redirect", "wrap_raw", "wrap_emu"] = "auto"
@@ -36,6 +90,7 @@ class Settings(BaseModel, validate_assignment=True):
     http_proxy: AnyHttpUrl | None = None
     https_proxy: AnyHttpUrl | None = None
     mode: Literal["online", "offline", "dryrun", "disabled", "run", "shared"] = "online"
+    program: str | None = None
     project: str | None = None
     root_dir: str | None = None
     run_id: str | None = None
@@ -43,6 +98,23 @@ class Settings(BaseModel, validate_assignment=True):
     sweep_id: str | None = None
 
     # Field validators.
+    @field_validator("_disable_service", mode="before")
+    @classmethod
+    def validate_disable_service_before(cls, value):
+        if value:
+            termwarn(
+                "Disabling the wandb service is deprecated as of version 0.18.0 and will be removed in future versions. ",
+                repeat=False,
+            )
+        return value
+
+    @field_validator("api_key", mode="before")
+    @classmethod
+    def validate_api_key_before(cls, value):
+        if len(value) > len(value.strip()):
+            raise UsageError("API key cannot start or end with whitespace")
+        return value
+
     @field_validator("base_url", mode="before")
     @classmethod
     def validate_base_url(cls, value):
@@ -54,19 +126,41 @@ class Settings(BaseModel, validate_assignment=True):
         if value != "auto":
             return value
         if (
-            info.data._jupyter
-            or (info.data.start_method == "thread")
-            or not info.data._disable_service
-            or info.data._windows
+            _get_python_type() == "jupyter"
+            or (info.data.get("start_method") == "thread")
+            or not info.data.get("_disable_service")
+            or platform.system() == "Windows"
         ):
             value = "wrap"
         else:
             value = "redirect"
         return value
 
+    @field_validator("program", mode="after")
+    @classmethod
+    def validate_program(cls, program, info):
+        if program is not None and program != "<python with no main file>":
+            return program
+
+        if not _get_python_type() == "jupyter":
+            return program
+
+        notebook_name = info.data.get("notebook_name")
+        if notebook_name:
+            return notebook_name
+
+        _jupyter_path = info.data.get("_jupyter_path")
+        if not _jupyter_path:
+            return program
+
+        if _jupyter_path.startswith("fileId="):
+            return info.data.get("_jupyter_name")
+        else:
+            return _jupyter_path
+
     @field_validator("project", mode="after")
     @classmethod
-    def validate_project(cls, value, info):
+    def validate_project(cls, value):
         invalid_chars_list = list("/\\#?%:")
         if len(value) > 128:
             raise UsageError(f"Invalid project name {value!r}: exceeded 128 characters")
@@ -107,6 +201,13 @@ class Settings(BaseModel, validate_assignment=True):
         return value
 
     # Computed fields.
+    @computed_field
+    @property
+    def _args(self) -> Sequence[str]:
+        if not self._jupyter:
+            return sys.argv[1:]
+        return []
+
     @computed_field
     @property
     def _aws_lambda(self) -> bool:
@@ -162,13 +263,28 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field
     @property
+    def _os(self) -> str:
+        return platform.platform(aliased=True)
+
+    @computed_field
+    @property
     def _platform(self) -> str:
         return f"{platform.system()}-{platform.machine()}".lower()
 
     @computed_field
     @property
+    def _python(self) -> str:
+        return f"{platform.python_implementation()} {platform.python_version()}"
+
+    @computed_field
+    @property
     def _shared(self) -> bool:
         return self.mode == "shared"
+
+    @computed_field
+    @property
+    def _tmp_code_dir(self) -> str:
+        return self._path_convert(self.wandb_dir, "code")
 
     @computed_field
     @property
