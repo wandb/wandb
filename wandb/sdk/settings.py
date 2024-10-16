@@ -7,10 +7,17 @@ import platform
 import sys
 import tempfile
 import time
-from typing import Any, Literal, Sequence
+from typing import Literal, Sequence
 from urllib.parse import quote, unquote, urlencode
 
-from pydantic import AnyHttpUrl, BaseModel, computed_field, field_validator
+from pydantic import (
+    AnyHttpUrl,
+    BaseModel,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from wandb import termwarn, util
 from wandb.apis.internal import Api
@@ -24,84 +31,6 @@ from .lib.run_moment import RunMoment
 class Settings(BaseModel, validate_assignment=True):
     """Settings for W&B."""
 
-    # ???
-    _cli_only_mode: bool = False
-    # Do not collect system metadata
-    _disable_meta: bool = False
-    # Do not collect system metrics
-    _disable_service: bool = False
-    # Do not use setproctitle on internal process
-    _disable_setproctitle: bool = False
-    # Do not collect system metrics
-    _disable_stats: bool = False
-    # Disable version check
-    _disable_update_check: bool = False
-    # Prevent early viewer query
-    _disable_viewer: bool = False
-    # Disable automatic machine info collection
-    _disable_machine_info: bool = False
-    _extra_http_headers: dict[str, str] | None = None
-    # max size for filestream requests in core
-    _file_stream_max_bytes: int | None = None
-    # tx interval for filestream requests in core
-    _file_stream_transmit_interval: float | None = None
-    # file stream retry client configuration
-    # max number of retries
-    _file_stream_retry_max: int | None = None
-    # min wait time between retries
-    _file_stream_retry_wait_min_seconds: float | None = None
-    # max wait time between retries
-    _file_stream_retry_wait_max_seconds: float | None = None
-    # timeout for individual HTTP requests
-    _file_stream_timeout_seconds: float | None = None
-    # file transfer retry client configuration
-    _file_transfer_retry_max: int | None = None
-    _file_transfer_retry_wait_min_seconds: float | None = None
-    _file_transfer_retry_wait_max_seconds: float | None = None
-    _file_transfer_timeout_seconds: float | None = None
-    # graphql retry client configuration
-    _graphql_retry_max: int | None = None
-    _graphql_retry_wait_min_seconds: float | None = None
-    _graphql_retry_wait_max_seconds: float | None = None
-    _graphql_timeout_seconds: float | None = None
-    _internal_check_process: float = 8.0
-    _internal_queue_timeout: float = 2.0
-    _jupyter_name: str | None = None
-    _jupyter_path: str | None = None
-    _jupyter_root: str | None = None
-    _live_policy_rate_limit: int | None = None
-    _live_policy_wait_time: int | None = None
-    _log_level: int = logging.INFO
-    _network_buffer: int | None = None
-    # [deprecated, use http(s)_proxy] custom proxy servers for the requests to W&B
-    # [scheme -> url].
-    _proxies: dict[str, str] | None = None
-    _runqueue_item_id: str | None = None
-    _require_legacy_service: bool = False
-    _save_requirements: bool = False
-    _service_transport: str | None = None
-    _service_wait: float = 30.0
-    _start_time: float = time.time()
-    # PID of the process that started the wandb-core process to collect system stats for.
-    _stats_pid: int = os.getpid()
-    # Sampling interval for the system monitor.
-    _stats_sampling_interval: float = 10.0
-    # Path to store the default config file for neuron-monitor tool
-    # used to monitor AWS Trainium devices.
-    _stats_neuron_monitor_config_path: str | None = None
-    # open metrics endpoint names/urls
-    _stats_open_metrics_endpoints: dict[str, str] | None = None
-    # open metrics filters in one of the two formats:
-    # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
-    # - ("metric regex pattern 1", "metric regex pattern 2", ...)
-    _stats_open_metrics_filters: dict[str, dict[str, str]] | Sequence[str] | None = None
-    # paths to monitor disk usage
-    _stats_disk_paths: Sequence[str] | None = None
-    # number of system metric samples to buffer in memory in wandb-core before purging.
-    # can be accessed via wandb._system_metrics
-    _stats_buffer_size: int = 0
-    _sync: bool = False
-    _tracelog: str | None = None
     allow_val_change: bool = False
     anonymous: Literal["allow", "must", "never", "false", "true"] | None = None
     api_key: str | None = None
@@ -123,9 +52,24 @@ class Settings(BaseModel, validate_assignment=True):
     entity: str | None = None
     force: bool = False
     fork_from: RunMoment | None = None
-
+    git_commit: str | None = None
+    git_remote: str = "origin"
+    git_remote_url: str | None = None
+    git_root: str | None = None
+    heartbeat_seconds: int = 30
+    host: str | None = None
     http_proxy: AnyHttpUrl | None = None
     https_proxy: AnyHttpUrl | None = None
+    # file path to supply a jwt for authentication
+    identity_token_file: str | None = None
+    ignore_globs: tuple[str] = ()
+    init_timeout: float = 90.0
+    job_name: str | None = None
+    job_source: Literal["repo", "artifact", "image"] | None = None
+    label_disable: bool = False
+    launch: bool = False
+    launch_config_path: str | None = None
+
     mode: Literal["online", "offline", "dryrun", "disabled", "run", "shared"] = "online"
     program: str | None = None
     project: str | None = None
@@ -135,20 +79,125 @@ class Settings(BaseModel, validate_assignment=True):
 
     sweep_id: str | None = None
 
-    # Field validators.
-    @field_validator("_disable_service", mode="before")
+    # Internal settings.
+    #
+    # These are typically not meant to be set by the user and should not be considered
+    # a part of the public API as they may change or be removed in future versions.
+
+    # CLI mode.
+    x_cli_only_mode: bool = False
+    # Do not collect system metadata
+    x_disable_meta: bool = False
+    # Do not collect system metrics
+    x_disable_service: bool = False
+    # Do not use setproctitle on internal process
+    x_disable_setproctitle: bool = False
+    # Do not collect system metrics
+    x_disable_stats: bool = False
+    # Disable version check
+    x_disable_update_check: bool = False
+    # Prevent early viewer query
+    x_disable_viewer: bool = False
+    # Disable automatic machine info collection
+    x_disable_machine_info: bool = False
+    x_extra_http_headers: dict[str, str] | None = None
+    # max size for filestream requests in core
+    x_file_stream_max_bytes: int | None = None
+    # tx interval for filestream requests in core
+    x_file_stream_transmit_interval: float | None = None
+    # file stream retry client configuration
+    # max number of retries
+    x_file_stream_retry_max: int | None = None
+    # min wait time between retries
+    x_file_stream_retry_wait_min_seconds: float | None = None
+    # max wait time between retries
+    x_file_stream_retry_wait_max_seconds: float | None = None
+    # timeout for individual HTTP requests
+    x_file_stream_timeout_seconds: float | None = None
+    # file transfer retry client configuration
+    x_file_transfer_retry_max: int | None = None
+    x_file_transfer_retry_wait_min_seconds: float | None = None
+    x_file_transfer_retry_wait_max_seconds: float | None = None
+    x_file_transfer_timeout_seconds: float | None = None
+    # graphql retry client configuration
+    x_graphql_retry_max: int | None = None
+    x_graphql_retry_wait_min_seconds: float | None = None
+    x_graphql_retry_wait_max_seconds: float | None = None
+    x_graphql_timeout_seconds: float | None = None
+    x_internal_check_process: float = 8.0
+    x_internal_queue_timeout: float = 2.0
+    x_jupyter_name: str | None = None
+    x_jupyter_path: str | None = None
+    x_jupyter_root: str | None = None
+    x_live_policy_rate_limit: int | None = None
+    x_live_policy_wait_time: int | None = None
+    x_log_level: int = logging.INFO
+    x_network_buffer: int | None = None
+    # [deprecated, use http(s)_proxy] custom proxy servers for the requests to W&B
+    # [scheme -> url].
+    x_proxies: dict[str, str] | None = None
+    x_runqueue_item_id: str | None = None
+    x_require_legacy_service: bool = False
+    x_save_requirements: bool = False
+    x_service_transport: str | None = None
+    x_service_wait: float = Field(default=30.0, internal=True)
+    x_start_time: float = time.time()
+    # PID of the process that started the wandb-core process to collect system stats for.
+    x_stats_pid: int = os.getpid()
+    # Sampling interval for the system monitor.
+    x_stats_sampling_interval: float = Field(default=10.0)
+    # Path to store the default config file for neuron-monitor tool
+    # used to monitor AWS Trainium devices.
+    x_stats_neuron_monitor_config_path: str | None = None
+    # open metrics endpoint names/urls
+    x_stats_open_metrics_endpoints: dict[str, str] | None = None
+    # open metrics filters in one of the two formats:
+    # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
+    # - ("metric regex pattern 1", "metric regex pattern 2", ...)
+    x_stats_open_metrics_filters: dict[str, dict[str, str]] | Sequence[str] | None = (
+        None
+    )
+    # paths to monitor disk usage
+    x_stats_disk_paths: Sequence[str] | None = None
+    # number of system metric samples to buffer in memory in wandb-core before purging.
+    # can be accessed via wandb._system_metrics
+    x_stats_buffer_size: int = 0
+    x_sync: bool = False
+    x_tracelog: str | None = None
+
+    # Model validator to catch legacy settings.
+    @model_validator(mode="before")
     @classmethod
-    def validate_disable_service_before(cls, value):
+    def catch_private_settings(cls, values):
+        """Check if a private field is provided and assign to the corrsponding public one.
+
+        This is a compatibility layer to handle previous versions of the settings.
+        """
+        new_values = {}
+        for key in values:
+            # Internal settings are prefixed with "x_" instead of "_"
+            # as Pydantic does not allow "_" in field names.
+            if key.startswith("_"):
+                new_values["x" + key] = values[key]
+            else:
+                new_values[key] = values[key]
+        return new_values
+
+    # Field validators.
+    @field_validator("x_disable_service", mode="before")
+    @classmethod
+    def validate_disable_service(cls, value):
         if value:
             termwarn(
-                "Disabling the wandb service is deprecated as of version 0.18.0 and will be removed in future versions. ",
+                "Disabling the wandb service is deprecated as of version 0.18.0 "
+                "and will be removed in future versions. ",
                 repeat=False,
             )
         return value
 
     @field_validator("api_key", mode="before")
     @classmethod
-    def validate_api_key_before(cls, value):
+    def validate_api_key(cls, value):
         if len(value) > len(value.strip()):
             raise UsageError("API key cannot start or end with whitespace")
         return value
@@ -166,7 +215,7 @@ class Settings(BaseModel, validate_assignment=True):
         if (
             _get_python_type() == "jupyter"
             or (info.data.get("start_method") == "thread")
-            or not info.data.get("_disable_service")
+            or not info.data.get("disable_service")
             or platform.system() == "Windows"
         ):
             value = "wrap"
@@ -174,38 +223,38 @@ class Settings(BaseModel, validate_assignment=True):
             value = "redirect"
         return value
 
-    @field_validator("_disable_meta", mode="after")
+    @field_validator("x_disable_meta", mode="after")
     @classmethod
     def validate_disable_meta(cls, value, info):
-        if info.data.get("_disable_machine_info"):
+        if info.data.get("x_disable_machine_info"):
             return True
         return value
 
-    @field_validator("_disable_stats", mode="after")
+    @field_validator("x_disable_stats", mode="after")
     @classmethod
     def validate_disable_stats(cls, value, info):
-        if info.data.get("_disable_machine_info"):
+        if info.data.get("x_disable_machine_info"):
             return True
         return value
 
     @field_validator("disable_code", mode="after")
     @classmethod
     def validate_disable_code(cls, value, info):
-        if info.data.get("_disable_machine_info"):
+        if info.data.get("x_disable_machine_info"):
             return True
         return value
 
     @field_validator("disable_git", mode="after")
     @classmethod
     def validate_disable_git(cls, value, info):
-        if info.data.get("_disable_machine_info"):
+        if info.data.get("x_disable_machine_info"):
             return True
         return value
 
     @field_validator("disable_job_creation", mode="after")
     @classmethod
     def validate_disable_job_creation(cls, value, info):
-        if info.data.get("_disable_machine_info"):
+        if info.data.get("x_disable_machine_info"):
             return True
         return value
 
@@ -213,6 +262,11 @@ class Settings(BaseModel, validate_assignment=True):
     @classmethod
     def validate_fork_from(cls, value) -> RunMoment | None:
         return cls._runmoment_preprocessor(value)
+
+    @field_validator("ignore_globs", mode="before")
+    @classmethod
+    def validate_ignore_globs(cls, value):
+        return tuple(value) if not isinstance(value, tuple) else value
 
     @field_validator("program", mode="after")
     @classmethod
@@ -272,14 +326,14 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("Run ID cannot contain only whitespace")
         return value
 
-    @field_validator("_service_wait", mode="before")
+    @field_validator("x_service_wait", mode="before")
     @classmethod
     def validate_service_wait(cls, value):
         if value < 0:
             raise UsageError("Service wait time cannot be negative")
         return
 
-    @field_validator("_stats_sampling_interval", mode="before")
+    @field_validator("x_stats_sampling_interval", mode="before")
     @classmethod
     def validate_stats_sampling_interval(cls, value):
         if value < 0.1:
@@ -381,7 +435,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field
     @property
     def _start_datetime(self) -> str:
-        datetime_now = datetime.datetime.fromtimestamp(self._start_time)
+        datetime_now = datetime.datetime.fromtimestamp(self.x_start_time)
         return datetime_now.strftime("%Y%m%d_%H%M%S")
 
     @computed_field
@@ -422,6 +476,13 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def is_local(self) -> bool:
         return self.base_url != "https://api.wandb.ai"
+
+    @computed_field
+    @property
+    def log_dir(self) -> str:
+        return self._path_convert(
+            self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", "logs"
+        )
 
     @computed_field
     @property
@@ -474,7 +535,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field
     @property
     def timespec(self) -> str:
-        return self.start_datetime
+        return self._start_datetime
 
     @computed_field
     @property
