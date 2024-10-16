@@ -290,7 +290,7 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 			}
 			return nil
 		},
-		// For MI300x GPUs, instead of "Average Graphics Package Power (W)",
+		// For MI300X GPUs, instead of "Average Graphics Package Power (W)",
 		// "Current Socket Graphics Package Power (W)" is reported.
 		"Current Socket Graphics Package Power (W)": func(s string) *Stats {
 			maxPowerWatts, ok := queryMapString(stats, "Max Graphics Package Power (W)")
