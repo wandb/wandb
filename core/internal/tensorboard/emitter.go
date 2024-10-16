@@ -37,9 +37,8 @@ type Emitter interface {
 	// in the run history.
 	EmitTable(key pathtree.TreePath, table wbvalue.Table) error
 
-	// EmitImage uploads an image as a file and records metadata
-	// in the run history.
-	EmitImage(key pathtree.TreePath, image wbvalue.Image) error
+	// EmitImages uploads one or more images as files and records metadata
+	EmitImages(key pathtree.TreePath, images []wbvalue.Image) error
 }
 
 type nestedKeyAndJSON struct {
@@ -232,8 +231,8 @@ func (e *tfEmitter) EmitTable(
 	runRelativePath := *maybeRunFilePath
 	fsPath := filepath.Join(e.settings.GetFilesDir(), string(runRelativePath))
 
-	if _, err := os.Stat(fsPath); !os.IsNotExist(err) {
-		return fmt.Errorf("table file exists: %v", err)
+	if err := e.writeDataToPath(fsPath, content); err != nil {
+		return err
 	}
 
 	historyJSON, err := table.HistoryValueJSON(
@@ -245,13 +244,6 @@ func (e *tfEmitter) EmitTable(
 		return fmt.Errorf("error encoding table metadata: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(fsPath), 0777); err != nil {
-		return fmt.Errorf("error creating directory: %v", err)
-	}
-	if err := os.WriteFile(fsPath, content, 0644); err != nil {
-		return fmt.Errorf("error writing table to file: %v", err)
-	}
-
 	e.mediaFiles = append(e.mediaFiles, string(runRelativePath))
 	e.historyStep = append(e.historyStep,
 		nestedKeyAndJSON{
@@ -261,42 +253,65 @@ func (e *tfEmitter) EmitTable(
 	return nil
 }
 
-func (e *tfEmitter) EmitImage(
+func (e *tfEmitter) EmitImages(
 	key pathtree.TreePath,
-	img wbvalue.Image,
+	images []wbvalue.Image,
 ) error {
-	maybeRunFilePath, err := runRelativePath(
-		filepath.Join("media", "images"),
-		fmt.Sprintf(".%s", img.Format),
-	)
-	if err != nil {
-		return err
-	}
-	runRelativePath := *maybeRunFilePath
-	fsPath := filepath.Join(e.settings.GetFilesDir(), string(runRelativePath))
+	// We assume that all images have the same format, height, and width.
+	// This aligns with the legacy way of logging images in TensorBoard.
+	format := images[0].Format
+	height := images[0].Height
+	width := images[0].Width
 
-	if _, err := os.Stat(fsPath); !os.IsNotExist(err) {
-		return fmt.Errorf("image file exists: %v", err)
+	imagePaths := []paths.RelativePath{}
+	for _, img := range images {
+		maybeRunFilePath, err := runRelativePath(
+			filepath.Join("media", "images"),
+			fmt.Sprintf(".%s", img.Format),
+		)
+		if err != nil {
+			return err
+		}
+
+		runRelativePath := *maybeRunFilePath
+		fsPath := filepath.Join(e.settings.GetFilesDir(), string(runRelativePath))
+
+		if err := e.writeDataToPath(fsPath, img.EncodedData); err != nil {
+			return err
+		}
+
+		e.mediaFiles = append(e.mediaFiles, string(runRelativePath))
+		imagePaths = append(imagePaths, runRelativePath)
 	}
 
-	historyJSON, err := img.HistoryValueJSON(runRelativePath)
+	historyJSON, err := wbvalue.HistoryImageValuesJSON(imagePaths, format, width, height)
 	if err != nil {
 		return fmt.Errorf("error encoding image metadata: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(fsPath), 0777); err != nil {
-		return fmt.Errorf("error creating directory: %v", err)
-	}
-	if err := os.WriteFile(fsPath, img.EncodedData, 0644); err != nil {
-		return fmt.Errorf("error writing image to file: %v", err)
-	}
-
-	e.mediaFiles = append(e.mediaFiles, string(runRelativePath))
 	e.historyStep = append(e.historyStep,
 		nestedKeyAndJSON{
 			KeyPath: key,
 			JSON:    historyJSON,
 		})
+	return nil
+}
+
+// Write data to a file at the given path.
+func (e *tfEmitter) writeDataToPath(path string, data []byte) error {
+	// Check that file does not already exist.
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		return fmt.Errorf("file exists: %v", err)
+	}
+
+	// Create path, and write data to file.
+	if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
+		return fmt.Errorf("error creating directory: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("error writing data to file: %v", err)
+	}
+
 	return nil
 }
 
