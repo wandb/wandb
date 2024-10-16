@@ -262,21 +262,22 @@ class Artifact:
             try:
                 entity = InternalApi()._resolve_org_entity_name(entity, organization)
             except ValueError as entity_error:
-                if organization and organization != entity:
-                    try:
-                        entity = InternalApi()._resolve_org_entity_name(
-                            organization, organization
-                        )
-                    except ValueError as org_error:
-                        wandb.termerror(
-                            f"Error resolving organization of entity: {entity!r}, failed with error: {entity_error!r}."
-                        )
-                        wandb.termerror(
-                            f"Defaulted to trying to use {organization!r} as an org entity and failed with error: {org_error!r}."
-                        )
-                        raise
-                else:
+                if not organization or organization == entity:
                     wandb.termerror(str(entity_error))
+                    raise
+
+                # Try to resolve the organization using an org entity.
+                try:
+                    entity = InternalApi()._resolve_org_entity_name(
+                        organization, organization
+                    )
+                except ValueError as org_error:
+                    wandb.termerror(
+                        f"Error resolving organization of entity: {entity!r}. Failed with error: {entity_error!r}."
+                    )
+                    wandb.termerror(
+                        f"Defaulted to use {organization!r} as an org entity to resolve organization. Failed with error: {org_error!r}."
+                    )
                     raise
 
         response = client.execute(
