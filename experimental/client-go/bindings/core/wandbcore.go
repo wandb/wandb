@@ -12,7 +12,7 @@ import "C"
 import (
 	"unsafe"
 
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"github.com/wandb/wandb/experimental/client-go/internal/gowandb/internal_runopts"
 	"github.com/wandb/wandb/experimental/client-go/pkg/gowandb"
 	"github.com/wandb/wandb/experimental/client-go/pkg/opts/runopts"
@@ -41,9 +41,9 @@ func wandbcoreSetup() {
 	wandbData = NewPartialData()
 }
 
-func getTelemetry(library C.library_t) *service.TelemetryRecord {
-	telemetry := &service.TelemetryRecord{
-		Feature: &service.Feature{},
+func getTelemetry(library C.library_t) *spb.TelemetryRecord {
+	telemetry := &spb.TelemetryRecord{
+		Feature: &spb.Feature{},
 	}
 	switch library {
 	case C.LIB_C:
