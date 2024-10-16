@@ -1,24 +1,21 @@
-#!/usr/bin/env python
-
 """All of W&B's environment variables.
 
-Getters and putters for all of them should go here. That
-way it'll be easier to avoid typos with names and be
-consistent about environment variables' semantics.
+Getters and putters for all of them should go here. That way it'll be easier to
+avoid typos with names and be consistent about environment variables' semantics.
 
-Environment variables are not the authoritative source for
-these values in many cases.
+Environment variables are not the authoritative source for these values in many
+cases.
 """
+
+from __future__ import annotations
 
 import json
 import os
 import sys
 from pathlib import Path
-from typing import List, MutableMapping, Optional, Union
+from typing import MutableMapping
 
 import platformdirs
-
-Env = Optional[MutableMapping]
 
 CONFIG_PATHS = "WANDB_CONFIG_PATHS"
 SWEEP_PARAM_PATH = "WANDB_SWEEP_PARAM_PATH"
@@ -95,7 +92,7 @@ _REQUIRE_LEGACY_SERVICE = "WANDB__REQUIRE_LEGACY_SERVICE"
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
 
 
-def immutable_keys() -> List[str]:
+def immutable_keys() -> list[str]:
     """These are env keys that shouldn't change within a single process.
 
     We use this to maintain certain values between multiple calls to wandb.init within a single process.
@@ -139,7 +136,7 @@ def immutable_keys() -> List[str]:
 
 
 def _env_as_bool(
-    var: str, default: Optional[str] = None, env: Optional[Env] = None
+    var: str, default: str | None = None, env: MutableMapping | None = None
 ) -> bool:
     if env is None:
         env = os.environ
@@ -152,16 +149,16 @@ def _env_as_bool(
         return False
 
 
-def is_require_legacy_service(env: Optional[Env] = None) -> bool:
+def is_require_legacy_service(env: MutableMapping | None = None) -> bool:
     """Return whether wandb.require("legacy-service") was used."""
     return _env_as_bool(_REQUIRE_LEGACY_SERVICE, default="False", env=env)
 
 
-def is_debug(default: Optional[str] = None, env: Optional[Env] = None) -> bool:
+def is_debug(default: str | None = None, env: MutableMapping | None = None) -> bool:
     return _env_as_bool(DEBUG, default=default, env=env)
 
 
-def is_offline(env: Optional[Env] = None) -> bool:
+def is_offline(env: MutableMapping | None = None) -> bool:
     if env is None:
         env = os.environ
     return env.get(MODE) == "offline"
@@ -171,7 +168,7 @@ def error_reporting_enabled() -> bool:
     return _env_as_bool(ERROR_REPORTING, default="True")
 
 
-def core_debug(default: Optional[str] = None) -> bool:
+def core_debug(default: str | None = None) -> bool:
     return _env_as_bool(CORE_DEBUG, default=default)
 
 
@@ -180,16 +177,18 @@ def ssl_disabled() -> bool:
 
 
 def get_error_reporting(
-    default: Union[bool, str] = True,
-    env: Optional[Env] = None,
-) -> Union[bool, str]:
+    default: bool | str = True,
+    env: MutableMapping | None = None,
+) -> bool | str:
     if env is None:
         env = os.environ
 
     return env.get(ERROR_REPORTING, default)
 
 
-def get_run(default: Optional[str] = None, env: Optional[Env] = None) -> Optional[str]:
+def get_run(
+    default: str | None = None, env: MutableMapping | None = None
+) -> str | None:
     if env is None:
         env = os.environ
 
@@ -197,8 +196,8 @@ def get_run(default: Optional[str] = None, env: Optional[Env] = None) -> Optiona
 
 
 def get_args(
-    default: Optional[List[str]] = None, env: Optional[Env] = None
-) -> Optional[List[str]]:
+    default: list[str] | None = None, env: MutableMapping | None = None
+) -> list[str] | None:
     if env is None:
         env = os.environ
     if env.get(ARGS):
@@ -211,15 +210,15 @@ def get_args(
 
 
 def get_docker(
-    default: Optional[str] = None, env: Optional[Env] = None
-) -> Optional[str]:
+    default: str | None = None, env: MutableMapping | None = None
+) -> str | None:
     if env is None:
         env = os.environ
 
     return env.get(DOCKER, default)
 
 
-def get_http_timeout(default: int = 20, env: Optional[Env] = None) -> int:
+def get_http_timeout(default: int = 20, env: MutableMapping | None = None) -> int:
     if env is None:
         env = os.environ
 
@@ -227,9 +226,9 @@ def get_http_timeout(default: int = 20, env: Optional[Env] = None) -> int:
 
 
 def get_file_pusher_timeout(
-    default: Optional[int] = None,
-    env: Optional[Env] = None,
-) -> Optional[int]:
+    default: int | None = None,
+    env: MutableMapping | None = None,
+) -> int | None:
     if env is None:
         env = os.environ
 
@@ -238,8 +237,8 @@ def get_file_pusher_timeout(
 
 
 def get_ignore(
-    default: Optional[List[str]] = None, env: Optional[Env] = None
-) -> Optional[List[str]]:
+    default: list[str] | None = None, env: MutableMapping | None = None
+) -> list[str] | None:
     if env is None:
         env = os.environ
     ignore = env.get(IGNORE)
@@ -250,8 +249,8 @@ def get_ignore(
 
 
 def get_project(
-    default: Optional[str] = None, env: Optional[Env] = None
-) -> Optional[str]:
+    default: str | None = None, env: MutableMapping | None = None
+) -> str | None:
     if env is None:
         env = os.environ
 
@@ -259,8 +258,8 @@ def get_project(
 
 
 def get_username(
-    default: Optional[str] = None, env: Optional[Env] = None
-) -> Optional[str]:
+    default: str | None = None, env: MutableMapping | None = None
+) -> str | None:
     if env is None:
         env = os.environ
 
@@ -268,8 +267,8 @@ def get_username(
 
 
 def get_user_email(
-    default: Optional[str] = None, env: Optional[Env] = None
-) -> Optional[str]:
+    default: str | None = None, env: MutableMapping | None = None
+) -> str | None:
     if env is None:
         env = os.environ
 
@@ -277,8 +276,8 @@ def get_user_email(
 
 
 def get_entity(
-    default: Optional[str] = None, env: Optional[Env] = None
-) -> Optional[str]:
+    default: str | None = None, env: MutableMapping | None = None
+) -> str | None:
     if env is None:
         env = os.environ
 
@@ -286,8 +285,8 @@ def get_entity(
 
 
 def get_base_url(
-    default: Optional[str] = None, env: Optional[Env] = None
-) -> Optional[str]:
+    default: str | None = None, env: MutableMapping | None = None
+) -> str | None:
     if env is None:
         env = os.environ
 
@@ -297,15 +296,15 @@ def get_base_url(
 
 
 def get_app_url(
-    default: Optional[str] = None, env: Optional[Env] = None
-) -> Optional[str]:
+    default: str | None = None, env: MutableMapping | None = None
+) -> str | None:
     if env is None:
         env = os.environ
 
     return env.get(APP_URL, default)
 
 
-def get_show_run(default: Optional[str] = None, env: Optional[Env] = None) -> bool:
+def get_show_run(default: str | None = None, env: MutableMapping | None = None) -> bool:
     if env is None:
         env = os.environ
 
@@ -313,38 +312,40 @@ def get_show_run(default: Optional[str] = None, env: Optional[Env] = None) -> bo
 
 
 def get_description(
-    default: Optional[str] = None, env: Optional[Env] = None
-) -> Optional[str]:
+    default: str | None = None, env: MutableMapping | None = None
+) -> str | None:
     if env is None:
         env = os.environ
 
     return env.get(DESCRIPTION, default)
 
 
-def get_tags(default: str = "", env: Optional[Env] = None) -> List[str]:
+def get_tags(default: str = "", env: MutableMapping | None = None) -> list[str]:
     if env is None:
         env = os.environ
 
     return [tag for tag in env.get(TAGS, default).split(",") if tag]
 
 
-def get_dir(default: Optional[str] = None, env: Optional[Env] = None) -> Optional[str]:
+def get_dir(
+    default: str | None = None, env: MutableMapping | None = None
+) -> str | None:
     if env is None:
         env = os.environ
     return env.get(DIR, default)
 
 
 def get_config_paths(
-    default: Optional[str] = None, env: Optional[Env] = None
-) -> Optional[str]:
+    default: str | None = None, env: MutableMapping | None = None
+) -> str | None:
     if env is None:
         env = os.environ
     return env.get(CONFIG_PATHS, default)
 
 
 def get_agent_report_interval(
-    default: Optional[str] = None, env: Optional[Env] = None
-) -> Optional[int]:
+    default: str | None = None, env: MutableMapping | None = None
+) -> int | None:
     if env is None:
         env = os.environ
     val = env.get(AGENT_REPORT_INTERVAL, default)
@@ -356,8 +357,8 @@ def get_agent_report_interval(
 
 
 def get_agent_kill_delay(
-    default: Optional[str] = None, env: Optional[Env] = None
-) -> Optional[int]:
+    default: str | None = None, env: MutableMapping | None = None
+) -> int | None:
     if env is None:
         env = os.environ
     val = env.get(AGENT_KILL_DELAY, default)
@@ -369,8 +370,8 @@ def get_agent_kill_delay(
 
 
 def get_crash_nosync_time(
-    default: Optional[str] = None, env: Optional[Env] = None
-) -> Optional[int]:
+    default: str | None = None, env: MutableMapping | None = None
+) -> int | None:
     if env is None:
         env = os.environ
     val = env.get(CRASH_NOSYNC_TIME, default)
@@ -382,15 +383,15 @@ def get_crash_nosync_time(
 
 
 def get_magic(
-    default: Optional[str] = None, env: Optional[Env] = None
-) -> Optional[str]:
+    default: str | None = None, env: MutableMapping | None = None
+) -> str | None:
     if env is None:
         env = os.environ
     val = env.get(MAGIC, default)
     return val
 
 
-def get_data_dir(env: Optional[Env] = None) -> str:
+def get_data_dir(env: MutableMapping | None = None) -> str:
     default_dir = platformdirs.user_data_dir("wandb")
     if env is None:
         env = os.environ
@@ -398,7 +399,7 @@ def get_data_dir(env: Optional[Env] = None) -> str:
     return val
 
 
-def get_artifact_dir(env: Optional[Env] = None) -> str:
+def get_artifact_dir(env: MutableMapping | None = None) -> str:
     default_dir = os.path.join(".", "artifacts")
     if env is None:
         env = os.environ
@@ -406,7 +407,7 @@ def get_artifact_dir(env: Optional[Env] = None) -> str:
     return os.path.abspath(str(val))
 
 
-def get_artifact_fetch_file_url_batch_size(env: Optional[Env] = None) -> int:
+def get_artifact_fetch_file_url_batch_size(env: MutableMapping | None = None) -> int:
     default_batch_size = 5000
     if env is None:
         env = os.environ
@@ -414,12 +415,12 @@ def get_artifact_fetch_file_url_batch_size(env: Optional[Env] = None) -> int:
     return val
 
 
-def get_cache_dir(env: Optional[Env] = None) -> Path:
+def get_cache_dir(env: MutableMapping | None = None) -> Path:
     env = env or os.environ
     return Path(env.get(CACHE_DIR, platformdirs.user_cache_dir("wandb")))
 
 
-def get_use_v1_artifacts(env: Optional[Env] = None) -> bool:
+def get_use_v1_artifacts(env: MutableMapping | None = None) -> bool:
     if env is None:
         env = os.environ
     val = bool(env.get(USE_V1_ARTIFACTS, False))
@@ -427,8 +428,8 @@ def get_use_v1_artifacts(env: Optional[Env] = None) -> bool:
 
 
 def get_agent_max_initial_failures(
-    default: Optional[int] = None, env: Optional[Env] = None
-) -> Optional[int]:
+    default: int | None = None, env: MutableMapping | None = None
+) -> int | None:
     if env is None:
         env = os.environ
     val = env.get(AGENT_MAX_INITIAL_FAILURES, default)
@@ -439,13 +440,13 @@ def get_agent_max_initial_failures(
     return val
 
 
-def set_entity(value: str, env: Optional[Env] = None) -> None:
+def set_entity(value: str, env: MutableMapping | None = None) -> None:
     if env is None:
         env = os.environ
     env[ENTITY] = value
 
 
-def set_project(value: str, env: Optional[Env] = None) -> None:
+def set_project(value: str, env: MutableMapping | None = None) -> None:
     if env is None:
         env = os.environ
     env[PROJECT] = value or "uncategorized"
@@ -457,7 +458,7 @@ def should_save_code() -> bool:
     return save_code and not code_disabled
 
 
-def disable_git(env: Optional[Env] = None) -> bool:
+def disable_git(env: MutableMapping | None = None) -> bool:
     if env is None:
         env = os.environ
     val = env.get(DISABLE_GIT, default="False")
@@ -466,28 +467,28 @@ def disable_git(env: Optional[Env] = None) -> bool:
     return val
 
 
-def get_launch_queue_name(env: Optional[Env] = None) -> Optional[str]:
+def get_launch_queue_name(env: MutableMapping | None = None) -> str | None:
     if env is None:
         env = os.environ
     val = env.get(LAUNCH_QUEUE_NAME, None)
     return val
 
 
-def get_launch_queue_entity(env: Optional[Env] = None) -> Optional[str]:
+def get_launch_queue_entity(env: MutableMapping | None = None) -> str | None:
     if env is None:
         env = os.environ
     val = env.get(LAUNCH_QUEUE_ENTITY, None)
     return val
 
 
-def get_launch_trace_id(env: Optional[Env] = None) -> Optional[str]:
+def get_launch_trace_id(env: MutableMapping | None = None) -> str | None:
     if env is None:
         env = os.environ
     val = env.get(LAUNCH_TRACE_ID, None)
     return val
 
 
-def get_credentials_file(default: str, env: Optional[Env] = None) -> Path:
+def get_credentials_file(default: str, env: MutableMapping | None = None) -> Path:
     """Retrieve the path for the credentials file used to save access tokens.
 
     The credentials file path can be set via an environment variable, otherwise
