@@ -31,6 +31,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Log power on AMD MI300X series GPUs (@dmitryduev in https://github.com/wandb/wandb/pull/8630)
 - Fixed typing issue of `wandb.Api` (@bdvllrs in https://github.com/wandb/wandb/pull/8548)
+- Fixed calling `wandb.log()` with file system reserved characters (`/`, `.`, `..`) could write outside of the run directory. (@jacobromero in https://github.com/wandb/wandb/pull/8578)
 
 ### Changed
 
