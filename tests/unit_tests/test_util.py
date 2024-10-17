@@ -535,7 +535,7 @@ def test_no_retry_auth():
         with pytest.raises(wandb.CommError):
             util.no_retry_auth(e)
     e.response.status_code = 404
-    with pytest.raises(wandb.CommError):
+    with pytest.raises(LookupError):
         util.no_retry_auth(e)
 
     e.response = None
