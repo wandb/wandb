@@ -18,10 +18,18 @@ def _robust_scan(ds):
             raise e
 
 
-def run(
-    wandb_file: str,
-    pause: bool = False,
-) -> None:
+def inspect_wandb_transaction_log(wandb_file: str, pause: bool = False) -> None:
+    """Inspect a wandb transaction log file.
+
+    The wandb transaction log file is a leveldb-based append-only transaction log
+    that contains the data logged for a W&B run. The data is stored in protocol buffer
+    format in the log file run-<run_id>.wandb in the run directory.
+    This function will parse the protocol buffer data and print it to the console.
+
+    Args:
+        wandb_file (str): Path to the wandb transaction log file.
+        pause (bool, optional): Pause after each record. Defaults to False.
+    """
     ds = datastore.DataStore()
     try:
         ds.open_for_scan(wandb_file)
@@ -29,7 +37,6 @@ def run(
         print(f".wandb file is empty ({e}), skipping: {wandb_file}")
         return
 
-    # save exit for final send
     while True:
         data = _robust_scan(ds)
         if data is None:
@@ -45,4 +52,4 @@ def run(
 
 
 if __name__ == "__main__":
-    fire.Fire(run)
+    fire.Fire(inspect_wandb_transaction_log)

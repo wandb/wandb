@@ -213,7 +213,7 @@ pip install -U nox uv
 
 Install Go version `1.23.2` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
 ```shell
-brew install go@1.22
+brew install go@1.23
 ```
 
 ### Setting up Rust
@@ -246,7 +246,7 @@ We are using [pre-commit hooks](https://pre-commit.com/#install) to manage our l
 
 To install `pre-commit` run the following:
 ```shell
-pip install -U pre-commit
+uv pip install -U pre-commit
 ```
 
 To install all of our pre-commit hooks run:
