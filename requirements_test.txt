@@ -1,18 +1,18 @@
-pytest
-pytest-asyncio
-pytest-cov
-pytest-xdist
-pytest-split
-pytest-mock
-pytest-timeout
-pytest-flakefinder
-pyfakefs
-parameterized
+pytest~=8.3
+pytest-asyncio~=0.24.0
+pytest-cov~=5.0
+pytest-xdist~=3.6
+pytest-split~=0.10.0
+pytest-mock~=3.14
+pytest-timeout~=2.3
+pytest-flakefinder~=1.1
+pyfakefs~=5.7
+parameterized~=0.9.0
 
-flask>2.0.0
-pandas
-responses
+flask~=3.0
+pandas~=2.2.3
+responses~=0.25.3
 
-coverage[toml]
+coverage[toml]~=7.6
 
 pyte~=0.8.0  # Terminal emulator for testing interactions with the terminal.
