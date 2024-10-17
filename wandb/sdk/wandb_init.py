@@ -33,10 +33,17 @@ from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import SummaryDisabled, filesystem, ipython, module, reporting, telemetry
+from .lib import (
+    SummaryDisabled,
+    filesystem,
+    ipython,
+    module,
+    printer,
+    reporting,
+    telemetry,
+)
 from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxProgress
-from .lib.printer import Printer, get_printer
 from .lib.wburls import wburls
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
@@ -125,16 +132,11 @@ class _WandbInit:
         self._wl: wandb_setup._WandbSetup | None = None
         self._reporter: wandb.sdk.lib.reporting.Reporter | None = None
         self.notebook: wandb.jupyter.Notebook | None = None  # type: ignore
-        self.printer: Printer | None = None
+        self.printer = printer.new_printer()
 
         self._init_telemetry_obj = telemetry.TelemetryRecord()
 
         self.deprecated_features_used: dict[str, str] = dict()
-
-    def _setup_printer(self, settings: Settings) -> None:
-        if self.printer:
-            return
-        self.printer = get_printer(settings._jupyter)
 
     def setup(self, kwargs: Any) -> None:  # noqa: C901
         """Complete setup for `wandb.init()`.
@@ -148,8 +150,6 @@ class _WandbInit:
         # in between, they will be ignored, which we need to inform the user about.
         singleton = wandb_setup._WandbSetup._instance
         if singleton is not None:
-            self._setup_printer(settings=singleton._settings)
-            assert self.printer
             exclude_env_vars = {"WANDB_SERVICE", "WANDB_KUBEFLOW_URL"}
             # check if environment variables have changed
             singleton_env = {
@@ -202,7 +202,6 @@ class _WandbInit:
         if settings_param is not None and isinstance(settings_param, (Settings, dict)):
             settings.update(settings_param, source=Source.INIT)
 
-        self._setup_printer(settings)
         self._reporter = reporting.setup_reporter(settings=settings)
 
         sagemaker_config: dict = (
@@ -610,7 +609,6 @@ class _WandbInit:
         return drun
 
     def _on_progress_init(self, handle: MailboxProgress) -> None:
-        assert self.printer
         line = "Waiting for wandb.init()...\r"
         percent_done = handle.percent_done
         self.printer.progress_update(line, percent_done=percent_done)
