@@ -317,7 +317,7 @@ func (p *WandbProgress) SetBytesOfTotal(doneBytes, totalBytes int) {
 	defer p.op.mu.Unlock()
 
 	p.op.progress = fmt.Sprintf(
-		"%s / %s",
+		"%s/%s",
 		bytesToShortString(doneBytes),
 		bytesToShortString(totalBytes),
 	)
