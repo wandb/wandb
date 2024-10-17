@@ -9,6 +9,7 @@ import yaml
 
 import wandb
 from wandb import trigger
+from wandb.sdk.lib import ipython
 from wandb.util import add_import_hook, get_optional_module
 
 _import_hook = None
@@ -505,8 +506,7 @@ def magic_install(init_args=None):
     # process system args
     _process_system_args()
     # install argparse wrapper
-    in_jupyter_or_ipython = wandb.wandb_sdk.lib.ipython._get_python_type() != "python"
-    if not in_jupyter_or_ipython:
+    if not ipython.in_notebook():
         _monkey_argparse()
 
     # track init calls
