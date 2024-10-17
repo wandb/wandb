@@ -648,4 +648,4 @@ workflows:
           filters:
             branches:
               only:
-                - /^.*-gpu-ci-win$/
+                - /^.*gpu-ci-win$/
