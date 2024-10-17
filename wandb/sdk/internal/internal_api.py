@@ -3600,7 +3600,7 @@ class Api:
                 raise ValueError(
                     f"Unable to resolve an organization associated with the entity: {entity!r} "
                     "that is initialized in the API or Run settings. This could be because "
-                    f"{entity!r} is a personal entity or doesn't exist. "
+                    f"{entity!r} is a personal entity or the team entity doesn't exist. "
                     "Please re-initialize the API or Run with a team entity using "
                     "wandb.Api(overrides={'entity': '<my_team_entity>'}) "
                     "or wandb.init(entity='<my_team_entity>') "
