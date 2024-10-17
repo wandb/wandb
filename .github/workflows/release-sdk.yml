@@ -125,7 +125,7 @@ jobs:
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=10.14
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: wandb-sdk-distributions
           path: ./dist
@@ -223,7 +223,7 @@ jobs:
           CIBW_ENVIRONMENT_LINUX:
             PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: wandb-sdk-distributions
           path: ./dist
@@ -252,7 +252,7 @@ jobs:
           mkdir dist/
           cp wheelhouse/wandb-*-py3-none-any.whl dist/
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: wandb-sdk-distributions
           path: ./dist
@@ -277,7 +277,7 @@ jobs:
       - name: Create sdist
         run: hatch build -t sdist
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: wandb-sdk-distributions
           path: ./dist
