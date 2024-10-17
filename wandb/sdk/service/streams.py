@@ -20,6 +20,7 @@ import wandb
 import wandb.util
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.lib import printer as printerlib
 from wandb.sdk.lib import progress
 from wandb.sdk.lib.mailbox import (
     Mailbox,
@@ -27,7 +28,6 @@ from wandb.sdk.lib.mailbox import (
     MailboxProgress,
     MailboxProgressAll,
 )
-from wandb.sdk.lib.printer import get_printer
 from wandb.sdk.wandb_run import Run
 
 from ..interface.interface_relay import InterfaceRelay
@@ -285,9 +285,7 @@ class StreamMux:
         if not streams:
             return
 
-        printer = get_printer(
-            all(stream._settings._jupyter for stream in streams.values())
-        )
+        printer = printerlib.new_printer()
 
         # fixme: for now we have a single printer for all streams,
         # and jupyter is disabled if at least single stream's setting set `_jupyter` to false

@@ -64,6 +64,14 @@ _PROGRESS_SYMBOL_COLOR = 0xB2
 """Color from the 256-color palette for the progress symbol."""
 
 
+def new_printer() -> Printer:
+    """Returns a new printer based on the environment we're in."""
+    if ipython.in_jupyter():
+        return _PrinterJupyter()
+    else:
+        return _PrinterTerm()
+
+
 class Printer(abc.ABC):
     """An object that shows styled text to the user."""
 
@@ -491,9 +499,3 @@ class _PrinterJupyter(Printer):
     def panel(self, columns: list[str]) -> str:
         row = "".join([f'<div class="wandb-col">{col}</div>' for col in columns])
         return f'{ipython.TABLE_STYLES}<div class="wandb-row">{row}</div>'
-
-
-def get_printer(jupyter: bool) -> Printer:
-    if jupyter:
-        return _PrinterJupyter()
-    return _PrinterTerm()

@@ -16,7 +16,7 @@ def dynamic_progress_printer(
     _ = emulated_terminal
 
     with progress.progress_printer(
-        p.get_printer(jupyter=False),
+        p.new_printer(),
         settings=wandb.Settings(_show_operation_stats=True),
     ) as progress_printer:
         yield progress_printer
@@ -26,7 +26,7 @@ def dynamic_progress_printer(
 def static_progress_printer() -> Iterator[progress.ProgressPrinter]:
     """A ProgressPrinter that writes to a file or dumb terminal."""
     with progress.progress_printer(
-        p.get_printer(jupyter=False),
+        p.new_printer(),
         settings=wandb.Settings(_show_operation_stats=True),
     ) as progress_printer:
         yield progress_printer
