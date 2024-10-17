@@ -105,6 +105,30 @@ func tensorValueStrings(
 	}
 }
 
+func tensorValueImage(
+	tag string,
+	plugin string,
+	width int,
+	height int,
+	encodedImageData string,
+) *tbproto.Summary_Value {
+	return &tbproto.Summary_Value{
+		Tag: tag,
+		Value: &tbproto.Summary_Value_Image{
+			Image: &tbproto.Summary_Image{
+				Height:             int32(height),
+				Width:              int32(width),
+				EncodedImageString: []byte(encodedImageData),
+			},
+		},
+		Metadata: &tbproto.SummaryMetadata{
+			PluginData: &tbproto.SummaryMetadata_PluginData{
+				PluginName: plugin,
+			},
+		},
+	}
+}
+
 func tensorValueBytes(
 	tag string,
 	plugin string,
@@ -381,6 +405,33 @@ func TestConvertHistogramRebin(t *testing.T) {
 		sumOfWeights += x.(float64)
 	}
 	assert.EqualValues(t, 1000, sumOfWeights)
+}
+
+func TestConvertImageNoPluginName(t *testing.T) {
+	converter := tensorboard.TFEventConverter{Namespace: "train"}
+
+	emitter := &mockEmitter{}
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValueImage("my_img", "",
+				2, 4, testPNG2x4)),
+		observability.NewNoOpLogger(),
+	)
+
+	assert.Equal(t,
+		[]mockEmitter_EmitImages{
+			{
+				Key: pathtree.PathOf("train/my_img"),
+				Images: []wbvalue.Image{{
+					Width:       2,
+					Height:      4,
+					EncodedData: []byte(testPNG2x4),
+					Format:      "png",
+				}},
+			},
+		},
+		emitter.EmitImagesCalls)
 }
 
 func TestConvertImage(t *testing.T) {
