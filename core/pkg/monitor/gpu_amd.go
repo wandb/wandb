@@ -21,7 +21,7 @@ const rocmSMICmd string = "/usr/bin/rocm-smi"
 type StatsKeys string
 
 const (
-	GPU                     StatsKeys = "gpu"
+	GPUUtilization          StatsKeys = "gpu"
 	MemoryAllocated         StatsKeys = "memoryAllocated"
 	MemoryReadWriteActivity StatsKeys = "memoryReadWriteActivity"
 	MemoryOverDrive         StatsKeys = "memoryOverDrive"
@@ -242,7 +242,7 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 	for key, statFunc := range map[string]func(string) *Stats{
 		"GPU use (%)": func(s string) *Stats {
 			if f, err := parseFloat(s); err == nil {
-				return &Stats{GPU: f}
+				return &Stats{GPUUtilization: f}
 			}
 			return nil
 		},
@@ -286,6 +286,22 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 
 			if err1 == nil && err2 == nil && mp != 0 {
 				powerStats := Stats{PowerWatts: ap, PowerPercent: (ap / mp) * 100}
+				return &powerStats
+			}
+			return nil
+		},
+		// For MI300X GPUs, instead of "Average Graphics Package Power (W)",
+		// "Current Socket Graphics Package Power (W)" is reported.
+		"Current Socket Graphics Package Power (W)": func(s string) *Stats {
+			maxPowerWatts, ok := queryMapString(stats, "Max Graphics Package Power (W)")
+			if !ok {
+				return nil
+			}
+			mp, err1 := parseFloat(maxPowerWatts)
+			cp, err2 := parseFloat(s)
+
+			if err1 == nil && err2 == nil && cp != 0 {
+				powerStats := Stats{PowerWatts: cp, PowerPercent: (cp / mp) * 100}
 				return &powerStats
 			}
 			return nil

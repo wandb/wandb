@@ -52,6 +52,7 @@ __all__ = (
     "Settings",
     "teardown",
     "watch",
+    "unwatch",
 )
 
 import os
@@ -183,32 +184,32 @@ def teardown(exit_code: Optional[int] = None) -> None:
     ...
 
 def init(
-    job_type: Optional[str] = None,
-    dir: Optional[StrPath] = None,
-    config: Union[Dict, str, None] = None,
-    project: Optional[str] = None,
-    entity: Optional[str] = None,
-    reinit: Optional[bool] = None,
-    tags: Optional[Sequence] = None,
-    group: Optional[str] = None,
-    name: Optional[str] = None,
-    notes: Optional[str] = None,
-    magic: Optional[Union[dict, str, bool]] = None,
-    config_exclude_keys: Optional[List[str]] = None,
-    config_include_keys: Optional[List[str]] = None,
-    anonymous: Optional[str] = None,
-    mode: Optional[str] = None,
-    allow_val_change: Optional[bool] = None,
-    resume: Optional[Union[bool, str]] = None,
-    force: Optional[bool] = None,
-    tensorboard: Optional[bool] = None,
-    sync_tensorboard: Optional[bool] = None,
-    monitor_gym: Optional[bool] = None,
-    save_code: Optional[bool] = None,
-    id: Optional[str] = None,
-    fork_from: Optional[str] = None,
-    resume_from: Optional[str] = None,
-    settings: Union[Settings, Dict[str, Any], None] = None,
+    job_type: str | None = None,
+    dir: StrPath | None = None,
+    config: dict | str | None = None,
+    project: str | None = None,
+    entity: str | None = None,
+    reinit: bool | None = None,
+    tags: Sequence | None = None,
+    group: str | None = None,
+    name: str | None = None,
+    notes: str | None = None,
+    magic: dict | str | bool | None = None,
+    config_exclude_keys: list[str] | None = None,
+    config_include_keys: list[str] | None = None,
+    anonymous: str | None = None,
+    mode: str | None = None,
+    allow_val_change: bool | None = None,
+    resume: bool | str | None = None,
+    force: bool | None = None,
+    tensorboard: bool | None = None,  # alias for sync_tensorboard
+    sync_tensorboard: bool | None = None,
+    monitor_gym: bool | None = None,
+    save_code: bool | None = None,
+    id: str | None = None,
+    fork_from: str | None = None,
+    resume_from: str | None = None,
+    settings: Settings | dict[str, Any] | None = None,
 ) -> Run:
     r"""Start a new run to track and log to W&B.
 
@@ -928,8 +929,9 @@ def use_artifact(
 
     Arguments:
         artifact_or_name: (str or Artifact) An artifact name.
-            May be prefixed with entity/project/. Valid names
-            can be in the following forms:
+            May be prefixed with project/ or entity/project/.
+            If no entity is specified in the name, the Run or API setting's entity is used.
+            Valid names can be in the following forms:
                 - name:version
                 - name:alias
             You can also pass an Artifact object created by calling `wandb.Artifact`
@@ -1130,7 +1132,7 @@ def watch(
     log_freq: int = 1000,
     idx: int | None = None,
     log_graph: bool = False,
-) -> Graph:
+) -> None:
     """Hooks into the given PyTorch model(s) to monitor gradients and the model's computational graph.
 
     This function can track parameters, gradients, or both during training. It should be
@@ -1148,16 +1150,23 @@ def watch(
             Frequency (in batches) to log gradients and parameters. (default=1000)
         idx (Optional[int]):
             Index used when tracking multiple models with `wandb.watch`. (default=None)
-         log_graph (bool):
+        log_graph (bool):
             Whether to log the model's computational graph. (default=False)
-
-    Returns:
-        wandb.Graph:
-            The graph object, which will be populated after the first backward pass.
 
     Raises:
         ValueError:
             If `wandb.init` has not been called or if any of the models are not instances
             of `torch.nn.Module`.
+    """
+    ...
+
+def unwatch(
+    models: torch.nn.Module | Sequence[torch.nn.Module] | None = None,
+) -> None:
+    """Remove pytorch model topology, gradient and parameter hooks.
+
+    Args:
+        models (torch.nn.Module | Sequence[torch.nn.Module]):
+            Optional list of pytorch models that have had watch called on them
     """
     ...

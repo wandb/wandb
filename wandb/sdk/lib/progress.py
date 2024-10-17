@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import contextlib
+from typing import Iterator
+
 from wandb.proto import wandb_internal_pb2
 
 from . import printer as p
 
 
 def print_sync_dedupe_stats(
-    printer: p.PrinterJupyter | p.PrinterTerm,
+    printer: p.Printer,
     final_result: wandb_internal_pb2.PollExitResponse,
 ) -> None:
     """Print how much W&B sync reduced the amount of uploaded data.
@@ -26,14 +29,26 @@ def print_sync_dedupe_stats(
     printer.display(f"W&B sync reduced upload amount by {frac:.1%}")
 
 
+@contextlib.contextmanager
+def progress_printer(
+    printer: p.Printer,
+) -> Iterator[ProgressPrinter]:
+    """Context manager providing an object for printing run progress."""
+    with printer.dynamic_text() as text_area:
+        yield ProgressPrinter(printer, text_area)
+        printer.progress_close()
+
+
 class ProgressPrinter:
     """Displays PollExitResponse results to the user."""
 
     def __init__(
         self,
-        printer: p.PrinterJupyter | p.PrinterTerm,
+        printer: p.Printer,
+        progress_text_area: p.DynamicText | None,
     ) -> None:
         self._printer = printer
+        self._progress_text_area = progress_text_area
 
     def update(
         self,
@@ -48,13 +63,6 @@ class ProgressPrinter:
         else:
             self._update_multiple_runs(progress)
 
-    def finish(self) -> None:
-        """Mark as done.
-
-        After this, `update` must not be used.
-        """
-        self._printer.progress_close()
-
     def _update_single_run(
         self,
         progress: wandb_internal_pb2.PollExitResponse,
@@ -68,15 +76,13 @@ class ProgressPrinter:
         if stats.deduped_bytes > 0:
             line += f" ({_megabytes(stats.deduped_bytes):.3f} MB deduped)"
 
-        line += "\r"
-
         if stats.total_bytes > 0:
-            self._printer.progress_update(
+            self._update_progress_text(
                 line,
                 stats.uploaded_bytes / stats.total_bytes,
             )
         else:
-            self._printer.progress_update(line, 1.0)
+            self._update_progress_text(line, 1.0)
 
     def _update_multiple_runs(
         self,
@@ -98,13 +104,19 @@ class ProgressPrinter:
         line = (
             f"Processing {len(progress_list)} runs with {total_files} files"
             f" ({_megabytes(uploaded_bytes):.2f} MB"
-            f" / {_megabytes(total_bytes):.2f} MB)\r"
+            f" / {_megabytes(total_bytes):.2f} MB)"
         )
 
         if total_bytes > 0:
-            self._printer.progress_update(line, uploaded_bytes / total_bytes)
+            self._update_progress_text(line, uploaded_bytes / total_bytes)
         else:
-            self._printer.progress_update(line, 1.0)
+            self._update_progress_text(line, 1.0)
+
+    def _update_progress_text(self, text: str, progress: float) -> None:
+        if self._progress_text_area:
+            self._progress_text_area.set_text(text)
+        else:
+            self._printer.progress_update(text + "\r", progress)
 
 
 def _megabytes(bytes: int) -> float:

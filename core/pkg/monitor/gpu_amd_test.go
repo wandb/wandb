@@ -31,7 +31,7 @@ func TestGPUAMD_ParseStatsROCM5(t *testing.T) {
 	parsedStats := gpu.ParseStats(stats)
 
 	expected := monitor.Stats{
-		monitor.GPU:             10,
+		monitor.GPUUtilization:  10,
 		monitor.MemoryAllocated: 20,
 		monitor.Temp:            43,
 		monitor.PowerWatts:      89,
@@ -54,7 +54,30 @@ func TestGPUAMD_ParseStatsROCM6(t *testing.T) {
 	parsedStats := gpu.ParseStats(stats)
 
 	expected := monitor.Stats{
-		monitor.GPU:             10,
+		monitor.GPUUtilization:  10,
+		monitor.MemoryAllocated: 20,
+		monitor.Temp:            43,
+		monitor.PowerWatts:      89,
+		monitor.PowerPercent:    15.892857142857142,
+	}
+
+	assert.Equal(t, expected, parsedStats)
+}
+
+func TestGPUAMD_ParseStatsROCM6_MI300x(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	gpu := monitor.NewGPUAMD(logger)
+	stats := map[string]interface{}{
+		"GPU use (%)":                               "10",
+		"GPU Memory Allocated (VRAM%)":              "20",
+		"Temperature (Sensor memory) (C)":           "43.0",
+		"Current Socket Graphics Package Power (W)": "89.0",
+		"Max Graphics Package Power (W)":            "560.0",
+	}
+	parsedStats := gpu.ParseStats(stats)
+
+	expected := monitor.Stats{
+		monitor.GPUUtilization:  10,
 		monitor.MemoryAllocated: 20,
 		monitor.Temp:            43,
 		monitor.PowerWatts:      89,

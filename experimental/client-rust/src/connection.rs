@@ -146,7 +146,9 @@ impl Connection {
         tracing::debug!("Magic byte: {:?}", magic_byte);
 
         if magic_byte != [b'W'] {
-            tracing::warn!("Magic number is not 'W': {}", magic_byte[0]);
+            // this errot means that the connection was closed
+            tracing::debug!("Magic number is not 'W': {}", magic_byte[0]);
+            tracing::debug!("Connection closed");
             return vec![];
         }
 

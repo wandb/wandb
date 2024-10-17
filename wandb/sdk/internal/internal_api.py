@@ -3554,6 +3554,10 @@ class Api:
                     f"and cannot be linked/fetched with {organization!r}. "
                     "Please update the target path with the correct organization name."
                 )
+            wandb.termwarn(
+                "Registries can be linked/fetched using a shorthand form without specifying the organization name. "
+                "Try using shorthand path format: <my_registry_name>/<artifact_name>"
+            )
         return org_entity
 
     def fetch_org_entity_from_entity(self, entity: str) -> Tuple[str, str]:
@@ -3563,6 +3567,7 @@ class Api:
                 $entityName: String!,
             ) {
                 entity(name: $entityName) {
+                    isTeam
                     organization {
                         name
                         orgEntity {
@@ -3580,15 +3585,25 @@ class Api:
             },
         )
         try:
+            is_team = response["entity"].get("isTeam", False)
             org = response["entity"]["organization"]
             org_name = org["name"] or ""
             org_entity_name = org["orgEntity"]["name"] or ""
         except (LookupError, TypeError) as e:
-            raise ValueError(
-                f"Unable to find organization for artifact under entity: {entity!r} "
-                "Please make sure the right org in the path is provided "
-                "or a team entity, not a personal entity, is used when using the shorthand path without an org."
-            ) from e
+            if is_team:
+                # This path should pretty much never be reached as all team entities have an organization.
+                raise ValueError(
+                    f"Unable to find an organization under entity {entity!r}. "
+                ) from e
+            else:
+                raise ValueError(
+                    f"Unable to resolve an organization associated with the entity: {entity!r} "
+                    "that is initialized in the API or Run settings. This could be because "
+                    f"{entity!r} is a personal entity or the team entity doesn't exist. "
+                    "Please re-initialize the API or Run with a team entity using "
+                    "wandb.Api(overrides={'entity': '<my_team_entity>'}) "
+                    "or wandb.init(entity='<my_team_entity>') "
+                ) from e
         else:
             return org_entity_name, org_name
 

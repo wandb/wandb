@@ -258,7 +258,11 @@ class StreamMux:
     def _on_progress_exit(self, progress_handle: MailboxProgress) -> None:
         pass
 
-    def _on_progress_exit_all(self, progress_all_handle: MailboxProgressAll) -> None:
+    def _on_progress_exit_all(
+        self,
+        progress_printer: progress.ProgressPrinter,
+        progress_all_handle: MailboxProgressAll,
+    ) -> None:
         probe_handles: list[MailboxProbe] = []
         progress_handles = progress_all_handle.get_progress_handles()
         for progress_handle in progress_handles:
@@ -275,7 +279,7 @@ class StreamMux:
             if result:
                 poll_exit_responses.append(result.response.poll_exit_response)
 
-        self._progress_printer.update(poll_exit_responses)
+        progress_printer.update(poll_exit_responses)
 
     def _finish_all(self, streams: Dict[str, StreamRecord], exit_code: int) -> None:
         if not streams:
@@ -284,7 +288,6 @@ class StreamMux:
         printer = get_printer(
             all(stream._settings._jupyter for stream in streams.values())
         )
-        self._progress_printer = progress.ProgressPrinter(printer)
 
         # fixme: for now we have a single printer for all streams,
         # and jupyter is disabled if at least single stream's setting set `_jupyter` to false
@@ -308,14 +311,18 @@ class StreamMux:
             #     exit_code, settings=stream._settings, printer=printer  # type: ignore
             # )
 
-        # todo: should we wait for the max timeout (?) of all exit handles or just wait forever?
-        # timeout = max(stream._settings._exit_timeout for stream in streams.values())
-        got_result = self._mailbox.wait_all(
-            handles=exit_handles, timeout=-1, on_progress_all=self._on_progress_exit_all
-        )
-        assert got_result
-
-        self._progress_printer.finish()
+        with progress.progress_printer(printer) as progress_printer:
+            # todo: should we wait for the max timeout (?) of all exit handles or just wait forever?
+            # timeout = max(stream._settings._exit_timeout for stream in streams.values())
+            got_result = self._mailbox.wait_all(
+                handles=exit_handles,
+                timeout=-1,
+                on_progress_all=functools.partial(
+                    self._on_progress_exit_all,
+                    progress_printer,
+                ),
+            )
+            assert got_result
 
         # These could be done in parallel in the future
         for _sid, stream in started_streams.items():

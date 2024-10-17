@@ -1,7 +1,10 @@
-use crate::metrics::Metrics;
+use crate::metrics::MetricValue;
+use crate::wandb_internal::{GpuNvidiaInfo, MetadataRequest};
+
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::error::NvmlError;
 use nvml_wrapper::{Device, Nvml};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// Static information about a GPU.
@@ -59,6 +62,7 @@ impl Default for GpuMetricAvailability {
     }
 }
 
+/// Get the path to the NVML library.
 pub fn get_lib_path() -> Result<PathBuf, NvmlError> {
     #[cfg(target_os = "windows")]
     {
@@ -98,11 +102,15 @@ pub fn get_lib_path() -> Result<PathBuf, NvmlError> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        // On Linux, return the standard library name
+        // On Linux, Nvml::init() attempts to load libnvidia-ml.so, which is usually a symlink
+        // to libnvidia-ml.so.1 and not available in certain environments.
+        // We follow NVIDIA's go-nvml example and attempt to load libnvidia-ml.so.1 directly, see:
+        // https://github.com/NVIDIA/go-nvml/blob/0e815c71ca6e8184387d8b502b2ef2d2722165b9/pkg/nvml/lib.go#L30
         Ok(PathBuf::from("libnvidia-ml.so.1"))
     }
 }
 
+/// A struct to collect metrics from NVIDIA GPUs using NVML.
 pub struct NvidiaGpu {
     nvml: Nvml,
     cuda_version: String,
@@ -113,19 +121,10 @@ pub struct NvidiaGpu {
 
 impl NvidiaGpu {
     pub fn new() -> Result<Self, NvmlError> {
-        // On Linux, Nvml::init() attempts to load libnvidia-ml.so which is usually a symlink
-        // to libnvidia-ml.so.1 and not available in certain environments.
-        // We follow go-nvml example and attempt to load libnvidia-ml.so.1 directly, see:
-        // https://github.com/NVIDIA/go-nvml/blob/0e815c71ca6e8184387d8b502b2ef2d2722165b9/pkg/nvml/lib.go#L30
         let lib_path = get_lib_path()?;
 
         let nvml = Nvml::builder().lib_path(lib_path.as_os_str()).init()?;
         let cuda_version = nvml.sys_cuda_driver_version()?;
-        format!(
-            "{}.{}",
-            nvml_wrapper::cuda_driver_version_major(cuda_version),
-            nvml_wrapper::cuda_driver_version_minor(cuda_version)
-        );
         let device_count = nvml.device_count()?;
 
         // Collect static information about each GPU
@@ -151,7 +150,7 @@ impl NvidiaGpu {
             gpu_static_info.push(static_info);
         }
 
-        // Initialize metric availability with default (all true)
+        // Initialize metric availability with default values.
         let gpu_metric_availability = vec![GpuMetricAvailability::default(); device_count as usize];
 
         Ok(NvidiaGpu {
@@ -263,38 +262,33 @@ impl NvidiaGpu {
     /// gpu.process.{i}.*: Various metrics specific to the monitored process
     ///    (if the GPU is in use by the process). These include GPU utilization, memory utilization,
     ///     temperature, and power consumption.
-    /// _timestamp: The Unix timestamp when the metrics were collected.
     ///
     /// Note that {i} represents the index of each GPU in the system, starting from 0.
     ///
     /// # Arguments
     ///
-    /// * `metrics` - A mutable reference to a `Metrics` struct to store the collected metrics.
     /// * `pid` - The process ID to monitor for GPU usage.
     ///
     /// # Returns
     ///
-    /// Returns a `Result` with an empty tuple on success or an `NvmlError` on failure.
-    /// The collected metrics are stored in the `Metrics` struct provided as an argument.
+    /// A vector of tuples containing the metric name and value for each metric collected.
+    /// If an error occurs while collecting metrics, an `NvmlError` is returned.
     ///
     /// # Errors
     ///
-    /// This function will return an error if:
-    /// * NVML fails to retrieve device information
-    /// * Any of the metric collection operations fail
-    ///
-    /// # Examples
-    ///
+    /// This function should return an error only if an internal NVML call fails.
     /// ```
-    /// use crate::gpu_nvidia::NvidiaGpu;
-    /// use crate::metrics::Metrics;
-    /// let nvidia_gpu = NvidiaGpu::new().unwrap();
-    /// let mut metrics = Metrics::new();
-    /// nvidia_gpu.sample_metrics(&mut metrics, 1234).unwrap();
-    /// ```
-    pub fn sample_metrics(&mut self, metrics: &mut Metrics, pid: i32) -> Result<(), NvmlError> {
-        metrics.add_metric("cuda_version", &*self.cuda_version);
-        metrics.add_metric("_gpu.count", self.device_count);
+    pub fn get_metrics(&mut self, pid: i32) -> Result<Vec<(String, MetricValue)>, NvmlError> {
+        let mut metrics: Vec<(String, MetricValue)> = vec![];
+
+        metrics.push((
+            "_cuda_version".to_string(),
+            MetricValue::String(self.cuda_version.clone()),
+        ));
+        metrics.push((
+            "_gpu.count".to_string(),
+            MetricValue::Int(self.device_count as i64),
+        ));
 
         for di in 0..self.device_count {
             let device = match self.nvml.device_by_index(di) {
@@ -305,22 +299,22 @@ impl NvidiaGpu {
             };
 
             // Populate static information about the GPU
-            metrics.add_metric(
-                &format!("_gpu.{}.name", di),
-                self.gpu_static_info[di as usize].name.as_str(),
-            );
-            metrics.add_metric(
-                &format!("_gpu.{}.brand", di),
-                self.gpu_static_info[di as usize].brand.as_str(),
-            );
-            metrics.add_metric(
-                &format!("_gpu.{}.cudaCores", di),
-                self.gpu_static_info[di as usize].cuda_cores,
-            );
-            metrics.add_metric(
-                &format!("_gpu.{}.architecture", di),
-                self.gpu_static_info[di as usize].architecture.as_str(),
-            );
+            metrics.push((
+                format!("_gpu.{}.name", di),
+                MetricValue::String(self.gpu_static_info[di as usize].name.clone()),
+            ));
+            metrics.push((
+                format!("_gpu.{}.brand", di),
+                MetricValue::String(self.gpu_static_info[di as usize].brand.clone()),
+            ));
+            metrics.push((
+                format!("_gpu.{}.cudaCores", di),
+                MetricValue::Int(self.gpu_static_info[di as usize].cuda_cores as i64),
+            ));
+            metrics.push((
+                format!("_gpu.{}.architecture", di),
+                MetricValue::String(self.gpu_static_info[di as usize].architecture.clone()),
+            ));
 
             // Collect dynamic metrics for the GPU if pid != 0
             let gpu_in_use = match pid {
@@ -334,15 +328,24 @@ impl NvidiaGpu {
             if availability.utilization {
                 match device.utilization_rates() {
                     Ok(utilization) => {
-                        metrics.add_metric(&format!("gpu.{}.gpu", di), utilization.gpu);
-                        metrics.add_metric(&format!("gpu.{}.memory", di), utilization.memory);
+                        metrics.push((
+                            format!("gpu.{}.gpu", di),
+                            MetricValue::Float(utilization.gpu as f64),
+                        ));
+                        metrics.push((
+                            format!("gpu.{}.memory", di),
+                            MetricValue::Int(utilization.memory as i64),
+                        ));
 
                         if gpu_in_use {
-                            metrics.add_metric(&format!("gpu.process.{}.gpu", di), utilization.gpu);
-                            metrics.add_metric(
-                                &format!("gpu.process.{}.memory", di),
-                                utilization.memory,
-                            );
+                            metrics.push((
+                                format!("gpu.process.{}.gpu", di),
+                                MetricValue::Float(utilization.gpu as f64),
+                            ));
+                            metrics.push((
+                                format!("gpu.process.{}.memory", di),
+                                MetricValue::Int(utilization.memory as i64),
+                            ));
                         }
                     }
                     Err(_) => {
@@ -355,25 +358,30 @@ impl NvidiaGpu {
             if availability.memory_info {
                 match device.memory_info() {
                     Ok(memory_info) => {
-                        metrics.add_metric(&format!("_gpu.{}.memoryTotal", di), memory_info.total);
+                        metrics.push((
+                            format!("_gpu.{}.memoryTotal", di),
+                            MetricValue::Int(memory_info.total as i64),
+                        ));
                         let memory_allocated =
                             (memory_info.used as f64 / memory_info.total as f64) * 100.0;
-                        metrics
-                            .add_metric(&format!("gpu.{}.memoryAllocated", di), memory_allocated);
-                        metrics.add_metric(
-                            &format!("gpu.{}.memoryAllocatedBytes", di),
-                            memory_info.used,
-                        );
+                        metrics.push((
+                            format!("gpu.{}.memoryAllocated", di),
+                            MetricValue::Float(memory_allocated),
+                        ));
+                        metrics.push((
+                            format!("gpu.{}.memoryAllocatedBytes", di),
+                            MetricValue::Int(memory_info.used as i64),
+                        ));
 
                         if gpu_in_use {
-                            metrics.add_metric(
-                                &format!("gpu.process.{}.memoryAllocated", di),
-                                memory_allocated,
-                            );
-                            metrics.add_metric(
-                                &format!("gpu.process.{}.memoryAllocatedBytes", di),
-                                memory_info.used,
-                            );
+                            metrics.push((
+                                format!("gpu.process.{}.memoryAllocated", di),
+                                MetricValue::Float(memory_allocated),
+                            ));
+                            metrics.push((
+                                format!("gpu.process.{}.memoryAllocatedBytes", di),
+                                MetricValue::Int(memory_info.used as i64),
+                            ));
                         }
                     }
                     Err(_) => {
@@ -386,9 +394,15 @@ impl NvidiaGpu {
             if availability.temperature {
                 match device.temperature(TemperatureSensor::Gpu) {
                     Ok(temperature) => {
-                        metrics.add_metric(&format!("gpu.{}.temp", di), temperature);
+                        metrics.push((
+                            format!("gpu.{}.temp", di),
+                            MetricValue::Float(temperature as f64),
+                        ));
                         if gpu_in_use {
-                            metrics.add_metric(&format!("gpu.process.{}.temp", di), temperature);
+                            metrics.push((
+                                format!("gpu.process.{}.temp", di),
+                                MetricValue::Float(temperature as f64),
+                            ));
                         }
                     }
                     Err(_) => {
@@ -402,35 +416,40 @@ impl NvidiaGpu {
                 match device.power_usage() {
                     Ok(power_usage) => {
                         let power_usage = power_usage as f64 / 1000.0;
-                        metrics.add_metric(&format!("gpu.{}.powerWatts", di), power_usage);
+                        metrics.push((
+                            format!("gpu.{}.powerWatts", di),
+                            MetricValue::Float(power_usage),
+                        ));
                         if gpu_in_use {
-                            metrics
-                                .add_metric(&format!("gpu.process.{}.powerWatts", di), power_usage);
+                            metrics.push((
+                                format!("gpu.process.{}.powerWatts", di),
+                                MetricValue::Float(power_usage),
+                            ));
                         }
 
                         if availability.enforced_power_limit {
                             match device.enforced_power_limit() {
                                 Ok(power_limit) => {
                                     let power_limit = power_limit as f64 / 1000.0;
-                                    metrics.add_metric(
-                                        &format!("gpu.{}.enforcedPowerLimitWatts", di),
-                                        power_limit,
-                                    );
+                                    metrics.push((
+                                        format!("gpu.{}.enforcedPowerLimitWatts", di),
+                                        MetricValue::Float(power_limit),
+                                    ));
                                     let power_percent = (power_usage / power_limit) * 100.0;
-                                    metrics.add_metric(
-                                        &format!("gpu.{}.powerPercent", di),
-                                        power_percent,
-                                    );
+                                    metrics.push((
+                                        format!("gpu.{}.powerPercent", di),
+                                        MetricValue::Float(power_percent),
+                                    ));
 
                                     if gpu_in_use {
-                                        metrics.add_metric(
-                                            &format!("gpu.process.{}.enforcedPowerLimitWatts", di),
-                                            power_limit,
-                                        );
-                                        metrics.add_metric(
-                                            &format!("gpu.process.{}.powerPercent", di),
-                                            power_percent,
-                                        );
+                                        metrics.push((
+                                            format!("gpu.process.{}.enforcedPowerLimitWatts", di),
+                                            MetricValue::Float(power_limit),
+                                        ));
+                                        metrics.push((
+                                            format!("gpu.process.{}.powerPercent", di),
+                                            MetricValue::Float(power_percent),
+                                        ));
                                     }
                                 }
                                 Err(_) => {
@@ -449,7 +468,10 @@ impl NvidiaGpu {
             if availability.sm_clock {
                 match device.clock_info(Clock::SM) {
                     Ok(sm_clock) => {
-                        metrics.add_metric(&format!("gpu.{}.smClock", di), sm_clock);
+                        metrics.push((
+                            format!("gpu.{}.smClock", di),
+                            MetricValue::Int(sm_clock as i64),
+                        ));
                     }
                     Err(_) => {
                         availability.sm_clock = false;
@@ -461,7 +483,10 @@ impl NvidiaGpu {
             if availability.mem_clock {
                 match device.clock_info(Clock::Memory) {
                     Ok(mem_clock) => {
-                        metrics.add_metric(&format!("gpu.{}.memoryClock", di), mem_clock);
+                        metrics.push((
+                            format!("gpu.{}.memoryClock", di),
+                            MetricValue::Int(mem_clock as i64),
+                        ));
                     }
                     Err(_) => {
                         availability.mem_clock = false;
@@ -473,7 +498,10 @@ impl NvidiaGpu {
             if availability.graphics_clock {
                 match device.clock_info(Clock::Graphics) {
                     Ok(graphics_clock) => {
-                        metrics.add_metric(&format!("gpu.{}.graphicsClock", di), graphics_clock);
+                        metrics.push((
+                            format!("gpu.{}.graphicsClock", di),
+                            MetricValue::Int(graphics_clock as i64),
+                        ));
                     }
                     Err(_) => {
                         availability.graphics_clock = false;
@@ -489,7 +517,10 @@ impl NvidiaGpu {
                     nvml_wrapper::enum_wrappers::device::MemoryLocation::Device,
                 ) {
                     Ok(errors) => {
-                        metrics.add_metric(&format!("gpu.{}.correctedMemoryErrors", di), errors);
+                        metrics.push((
+                            format!("gpu.{}.correctedMemoryErrors", di),
+                            MetricValue::Int(errors as i64),
+                        ));
                     }
                     Err(_) => {
                         availability.corrected_memory_errors = false;
@@ -505,7 +536,10 @@ impl NvidiaGpu {
                     nvml_wrapper::enum_wrappers::device::MemoryLocation::Device,
                 ) {
                     Ok(errors) => {
-                        metrics.add_metric(&format!("gpu.{}.uncorrectedMemoryErrors", di), errors);
+                        metrics.push((
+                            format!("gpu.{}.uncorrectedMemoryErrors", di),
+                            MetricValue::Int(errors as i64),
+                        ));
                     }
                     Err(_) => {
                         availability.uncorrected_memory_errors = false;
@@ -517,7 +551,10 @@ impl NvidiaGpu {
             if availability.fan_speed {
                 match device.fan_speed(0) {
                     Ok(fan_speed) => {
-                        metrics.add_metric(&format!("gpu.{}.fanSpeed", di), fan_speed);
+                        metrics.push((
+                            format!("gpu.{}.fanSpeed", di),
+                            MetricValue::Int(fan_speed as i64),
+                        ));
                     }
                     Err(_) => {
                         availability.fan_speed = false;
@@ -529,10 +566,10 @@ impl NvidiaGpu {
             if availability.encoder_utilization {
                 match device.encoder_utilization() {
                     Ok(encoder_util) => {
-                        metrics.add_metric(
-                            &format!("gpu.{}.encoderUtilization", di),
-                            encoder_util.utilization,
-                        );
+                        metrics.push((
+                            format!("gpu.{}.encoderUtilization", di),
+                            MetricValue::Float(encoder_util.utilization as f64),
+                        ));
                     }
                     Err(_) => {
                         availability.encoder_utilization = false;
@@ -544,7 +581,10 @@ impl NvidiaGpu {
             if availability.link_gen {
                 match device.current_pcie_link_gen() {
                     Ok(link_gen) => {
-                        metrics.add_metric(&format!("_gpu.{}.pcieLinkGen", di), link_gen);
+                        metrics.push((
+                            format!("gpu.{}.pcieLinkGen", di),
+                            MetricValue::Int(link_gen as i64),
+                        ));
                     }
                     Err(_) => {
                         availability.link_gen = false;
@@ -560,7 +600,10 @@ impl NvidiaGpu {
                     .map(|x| x * 1_000_000)
                 {
                     Ok(link_speed) => {
-                        metrics.add_metric(&format!("_gpu.{}.pcieLinkSpeed", di), link_speed);
+                        metrics.push((
+                            format!("_gpu.{}.pcieLinkSpeed", di),
+                            MetricValue::Int(link_speed as i64),
+                        ));
                     }
                     Err(_) => {
                         availability.link_speed = false;
@@ -572,7 +615,10 @@ impl NvidiaGpu {
             if availability.link_width {
                 match device.current_pcie_link_width() {
                     Ok(link_width) => {
-                        metrics.add_metric(&format!("_gpu.{}.pcieLinkWidth", di), link_width);
+                        metrics.push((
+                            format!("_gpu.{}.pcieLinkWidth", di),
+                            MetricValue::Int(link_width as i64),
+                        ));
                     }
                     Err(_) => {
                         availability.link_width = false;
@@ -584,7 +630,10 @@ impl NvidiaGpu {
             if availability.max_link_gen {
                 match device.max_pcie_link_gen() {
                     Ok(max_link_gen) => {
-                        metrics.add_metric(&format!("_gpu.{}.maxPcieLinkGen", di), max_link_gen);
+                        metrics.push((
+                            format!("_gpu.{}.maxPcieLinkGen", di),
+                            MetricValue::Int(max_link_gen as i64),
+                        ));
                     }
                     Err(_) => {
                         availability.max_link_gen = false;
@@ -596,8 +645,10 @@ impl NvidiaGpu {
             if availability.max_link_width {
                 match device.max_pcie_link_width() {
                     Ok(max_link_width) => {
-                        metrics
-                            .add_metric(&format!("_gpu.{}.maxPcieLinkWidth", di), max_link_width);
+                        metrics.push((
+                            format!("_gpu.{}.maxPcieLinkWidth", di),
+                            MetricValue::Int(max_link_width as i64),
+                        ));
                     }
                     Err(_) => {
                         availability.max_link_width = false;
@@ -606,10 +657,58 @@ impl NvidiaGpu {
             }
         }
 
-        Ok(())
+        Ok(metrics)
     }
 
-    pub fn shutdown(self) -> Result<(), NvmlError> {
-        self.nvml.shutdown()
+    /// Extract metadata about the GPUs in the system from the provided samples.
+    pub fn get_metadata(&self, samples: &HashMap<String, &MetricValue>) -> MetadataRequest {
+        let mut metadata_request = MetadataRequest {
+            ..Default::default()
+        };
+
+        let n_gpu = match samples.get("_gpu.count") {
+            Some(MetricValue::Int(n_gpu)) => *n_gpu as u32,
+            _ => return metadata_request,
+        };
+
+        metadata_request.gpu_nvidia = [].to_vec();
+        metadata_request.gpu_count = n_gpu;
+        // TODO: do not assume all GPUs are the same
+        if let Some(value) = samples.get("_gpu.0.name") {
+            if let MetricValue::String(gpu_name) = value {
+                metadata_request.gpu_type = gpu_name.to_string();
+            }
+        }
+        if let Some(value) = samples.get("_cuda_version") {
+            if let MetricValue::String(cuda_version) = value {
+                metadata_request.cuda_version = cuda_version.to_string();
+            }
+        }
+
+        for i in 0..n_gpu {
+            let mut gpu_nvidia = GpuNvidiaInfo {
+                ..Default::default()
+            };
+            if let Some(value) = samples.get(&format!("_gpu.{}.name", i)) {
+                gpu_nvidia.name = value.to_string();
+            }
+            if let Some(value) = samples.get(&format!("_gpu.{}.memoryTotal", i)) {
+                if let MetricValue::Int(memory_total) = value {
+                    gpu_nvidia.memory_total = *memory_total as u64;
+                }
+            }
+            // cuda cores
+            if let Some(value) = samples.get(&format!("_gpu.{}.cudaCores", i)) {
+                if let MetricValue::Int(cuda_cores) = value {
+                    gpu_nvidia.cuda_cores = *cuda_cores as u32;
+                }
+            }
+            // architecture
+            if let Some(value) = samples.get(&format!("_gpu.{}.architecture", i)) {
+                gpu_nvidia.architecture = value.to_string();
+            }
+            metadata_request.gpu_nvidia.push(gpu_nvidia);
+        }
+        metadata_request
     }
 }

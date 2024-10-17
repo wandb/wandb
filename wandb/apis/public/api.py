@@ -1143,11 +1143,12 @@ class Api:
 
     @normalize_exceptions
     def artifact(self, name, type=None):
-        """Return a single artifact by parsing path in the form `entity/project/name`.
+        """Return a single artifact by parsing path in the form `project/name` or `entity/project/name`.
 
         Arguments:
-            name: (str) An artifact name. May be prefixed with entity/project. Valid names
-                can be in the following forms:
+            name: (str) An artifact name. May be prefixed with project/ or entity/project/.
+                    If no entity is specified in the name, the Run or API setting's entity is used.
+                Valid names can be in the following forms:
                     name:version
                     name:alias
             type: (str, optional) The type of artifact to fetch.
@@ -1168,6 +1169,8 @@ class Api:
                 organization, _, _ = name.split("/")
             except ValueError:
                 organization = ""
+            # set entity to match the settings since in above code it was potentially set to an org
+            entity = self.settings["entity"] or self.default_entity
         artifact = wandb.Artifact._from_name(
             entity, project, artifact_name, self.client, organization
         )

@@ -1,3 +1,7 @@
+# v1.65.3 (2024-10-11)
+
+* **Bug Fix**:  S3 ReplicationRuleFilter and LifecycleRuleFilter shapes are being changed from union to structure types
+
 # v1.65.2 (2024-10-08)
 
 * **Dependency Update**: Updated to the latest SDK module versions

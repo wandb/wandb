@@ -3,6 +3,7 @@ import os
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union
 
+import wandb
 from wandb import util
 from wandb.sdk.lib import filesystem, runid
 
@@ -58,7 +59,9 @@ class Video(BatchableMedia):
             Channels should be (time, channel, height, width) or
             (batch, time, channel, height width)
         caption: (string) caption associated with the video for display
-        fps: (int) frames per second for video. Default is 4.
+        fps: (int)
+            The frame rate to use when encoding raw video frames. Default value is 4.
+            This parameter has no effect when data_or_path is a string, or bytes.
         format: (string) format of video, necessary if initializing with path or io object.
 
     Examples:
@@ -84,12 +87,11 @@ class Video(BatchableMedia):
         self,
         data_or_path: Union["np.ndarray", str, "TextIO", "BytesIO"],
         caption: Optional[str] = None,
-        fps: int = 4,
+        fps: Optional[int] = None,
         format: Optional[str] = None,
     ):
         super().__init__()
 
-        self._fps = fps
         self._format = format or "gif"
         self._width = None
         self._height = None
@@ -98,6 +100,12 @@ class Video(BatchableMedia):
         if self._format not in Video.EXTS:
             raise ValueError(
                 "wandb.Video accepts {} formats".format(", ".join(Video.EXTS))
+            )
+
+        if isinstance(data_or_path, (BytesIO, str)) and fps:
+            wandb.termwarn(
+                "`fps` argument does not affect the frame rate of the video "
+                + "when providing a file path or raw bytes."
             )
 
         if isinstance(data_or_path, BytesIO):
@@ -125,9 +133,10 @@ class Video(BatchableMedia):
                 raise ValueError(
                     "wandb.Video accepts a file path or numpy like data as input"
                 )
-            self.encode()
+            fps = fps or 4
+            self.encode(fps=fps)
 
-    def encode(self) -> None:
+    def encode(self, fps: int = 4) -> None:
         mpy = util.get_module(
             "moviepy.editor",
             required='wandb.Video requires moviepy when passing raw data.  Install with "pip install wandb[media]"',
@@ -136,7 +145,7 @@ class Video(BatchableMedia):
         _, self._height, self._width, self._channels = tensor.shape  # type: ignore
 
         # encode sequence of images into gif string
-        clip = mpy.ImageSequenceClip(list(tensor), fps=self._fps)
+        clip = mpy.ImageSequenceClip(list(tensor), fps=fps)
 
         filename = os.path.join(
             MEDIA_TMP.name, runid.generate_id() + "." + self._format
