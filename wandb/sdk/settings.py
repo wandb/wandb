@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import multiprocessing
 import os
 import platform
 import sys
@@ -69,15 +70,46 @@ class Settings(BaseModel, validate_assignment=True):
     label_disable: bool = False
     launch: bool = False
     launch_config_path: str | None = None
-
+    login_timeout: float | None = None
     mode: Literal["online", "offline", "dryrun", "disabled", "run", "shared"] = "online"
+    notebook_name: str | None = None
     program: str | None = None
+    program_abspath: str | None = None
+    program_relpath: str | None = None
     project: str | None = None
+    quiet: bool = False
+    reinit: bool = False
+    relogin: bool = False
+    resume: Literal["allow", "must", "never", "auto"] | None = None
     resume_from: RunMoment | None = None
-    root_dir: str | None = None
+    # Indication from the server about the state of the run.
+    # NOTE: this is different from resume, a user provided flag
+    resumed: bool = False
+    root_dir: str = os.path.abspath(os.getcwd())
+    run_group: str | None = None
     run_id: str | None = None
-
+    run_job_type: str | None = None
+    run_name: str | None = None
+    run_notes: str | None = None
+    run_tags: tuple[str] | None = None
+    sagemaker_disable: bool = False
+    save_code: bool | None = None
+    settings_system: str = os.path.join("~", ".config", "wandb", "settings")
+    show_colors: bool | None = None
+    show_emoji: bool | None = None
+    show_errors: bool = True
+    show_info: bool = True
+    show_warnings: bool = True
+    silent: bool = False
+    start_method: str | None = None
+    strict: bool | None = None
+    summary_timeout: int = 60
+    summary_warnings: int = 5  # TODO: kill this with fire
     sweep_id: str | None = None
+    sweep_param_path: str | None = None
+    symlink: bool = False if platform.system() == "Windows" else True
+    table_raise_on_max_row_limit_exceeded: bool = False
+    username: str | None = None
 
     # Internal settings.
     #
@@ -305,15 +337,19 @@ class Settings(BaseModel, validate_assignment=True):
             )
         return value
 
+    @field_validator("resume", mode="before")
+    @classmethod
+    def validate_resume(cls, value):
+        if value is False:
+            return None
+        if value is True:
+            return "auto"
+        return value
+
     @field_validator("resume_from", mode="before")
     @classmethod
     def validate_resume_from(cls, value) -> RunMoment | None:
         return cls._runmoment_preprocessor(value)
-
-    @field_validator("root_dir", mode="before")
-    @classmethod
-    def validate_root_dir(cls, value):
-        return str(value) or os.path.abspath(os.getcwd())
 
     @field_validator("run_id", mode="after")
     @classmethod
@@ -326,12 +362,29 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("Run ID cannot contain only whitespace")
         return value
 
+    @field_validator("settings_system", mode="after")
+    @classmethod
+    def validate_settings_system(cls, value):
+        return cls._path_convert(value)
+
     @field_validator("x_service_wait", mode="before")
     @classmethod
     def validate_service_wait(cls, value):
         if value < 0:
             raise UsageError("Service wait time cannot be negative")
         return
+
+    @field_validator("start_method")
+    @classmethod
+    def validate_start_method(cls, value):
+        available_methods = ["thread"]
+        if hasattr(multiprocessing, "get_all_start_methods"):
+            available_methods += multiprocessing.get_all_start_methods()
+        if value not in available_methods:
+            raise UsageError(
+                f"Settings field `start_method`: {value!r} not in {available_methods}"
+            )
+        return value
 
     @field_validator("x_stats_sampling_interval", mode="before")
     @classmethod
@@ -352,6 +405,7 @@ class Settings(BaseModel, validate_assignment=True):
         return value
 
     # Computed fields.
+    # TODO: remove underscores from underscored fields.
     @computed_field
     @property
     def _args(self) -> list[str]:
@@ -375,7 +429,23 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field
     @property
     def _code_path_local(self) -> str:
-        return self._get_program_relpath(self.program)
+        if not self.program:
+            return None
+
+        root = os.getcwd()
+        if not root:
+            return None
+
+        full_path_to_program = os.path.join(
+            root, os.path.relpath(os.getcwd(), root), self.program
+        )
+        if os.path.exists(full_path_to_program):
+            relative_path = os.path.relpath(full_path_to_program, start=root)
+            if "../" in relative_path:
+                return None
+            return relative_path
+
+        return None
 
     @computed_field
     @property
@@ -441,7 +511,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field
     @property
     def _tmp_code_dir(self) -> str:
-        return self._path_convert(self.wandb_dir, "code")
+        return self._path_convert(self.wandb_dir, "tmp", "code")
 
     @computed_field
     @property
@@ -486,6 +556,26 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field
     @property
+    def log_internal(self) -> str:
+        return self._path_convert(self.log_dir, "debug-internal.log")
+
+    @computed_field
+    @property
+    def log_symlink_internal(self) -> str:
+        return self._path_convert(self.wandb_dir, "debug-internal.log")
+
+    @computed_field
+    @property
+    def log_symlink_user(self) -> str:
+        return self._path_convert(self.wandb_dir, "debug.log")
+
+    @computed_field
+    @property
+    def log_user(self) -> str:
+        return self._path_convert(self.log_dir, "debug.log")
+
+    @computed_field
+    @property
     def project_url(self) -> AnyHttpUrl:
         project_url = self._project_url_base()
         if not project_url:
@@ -512,6 +602,11 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field
     @property
+    def settings_workspace(self) -> str:
+        return self._path_convert(self.wandb_dir, "settings")
+
+    @computed_field
+    @property
     def sweep_url(self) -> AnyHttpUrl:
         project_url = self._project_url_base()
         if not all([project_url, self.sweep_id]):
@@ -534,13 +629,41 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field
     @property
+    def sync_symlink_latest(self) -> str:
+        return self._path_convert(self.wandb_dir, "latest-run")
+
+    @computed_field
+    @property
     def timespec(self) -> str:
         return self._start_datetime
 
     @computed_field
     @property
     def wandb_dir(self) -> str:
-        return self._get_wandb_dir(self.root_dir or "")
+        """Full path to the wandb directory.
+
+        The setting exposed to users as `dir=` or `WANDB_DIR` is the `root_dir`.
+        We add the `__stage_dir__` to it to get the full `wandb_dir`
+        """
+        root_dir = self.root_dir or ""
+
+        # We use the hidden version if it already exists, otherwise non-hidden.
+        if os.path.exists(os.path.join(root_dir, ".wandb")):
+            __stage_dir__ = ".wandb" + os.sep
+        else:
+            __stage_dir__ = "wandb" + os.sep
+
+        path = os.path.join(root_dir, __stage_dir__)
+        if not os.access(root_dir or ".", os.W_OK):
+            termwarn(
+                f"Path {path} wasn't writable, using system temp directory.",
+                repeat=False,
+            )
+            path = os.path.join(
+                tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep)
+            )
+
+        return os.path.expanduser(path)
 
     # TODO: Methods to collect settings from different sources.
     def from_env(self): ...
@@ -566,51 +689,6 @@ class Settings(BaseModel, validate_assignment=True):
         api_key = apikey.api_key(settings=self)
 
         return f"?{urlencode({'apiKey': api_key})}"
-
-    @staticmethod
-    def _get_program_relpath(program: str, root: str | None = None) -> str | None:
-        if not program:
-            return None
-
-        root = root or os.getcwd()
-        if not root:
-            return None
-
-        full_path_to_program = os.path.join(
-            root, os.path.relpath(os.getcwd(), root), program
-        )
-        if os.path.exists(full_path_to_program):
-            relative_path = os.path.relpath(full_path_to_program, start=root)
-            if "../" in relative_path:
-                return None
-            return relative_path
-
-        return None
-
-    @staticmethod
-    def _get_wandb_dir(root_dir: str) -> str:
-        """Get the full path to the wandb directory.
-
-        The setting exposed to users as `dir=` or `WANDB_DIR` is the `root_dir`.
-        We add the `__stage_dir__` to it to get the full `wandb_dir`
-        """
-        # We use the hidden version if it already exists, otherwise non-hidden.
-        if os.path.exists(os.path.join(root_dir, ".wandb")):
-            __stage_dir__ = ".wandb" + os.sep
-        else:
-            __stage_dir__ = "wandb" + os.sep
-
-        path = os.path.join(root_dir, __stage_dir__)
-        if not os.access(root_dir or ".", os.W_OK):
-            termwarn(
-                f"Path {path} wasn't writable, using system temp directory.",
-                repeat=False,
-            )
-            path = os.path.join(
-                tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep)
-            )
-
-        return os.path.expanduser(path)
 
     @staticmethod
     def _runmoment_preprocessor(val: RunMoment | str | None) -> RunMoment | None:
