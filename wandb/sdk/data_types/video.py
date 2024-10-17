@@ -103,10 +103,11 @@ class Video(BatchableMedia):
             )
 
         if isinstance(data_or_path, (BytesIO, str)) and fps:
-            wandb.termwarn(
+            msg = (
                 "`fps` argument does not affect the frame rate of the video "
-                + "when providing a file path or raw bytes."
+                "when providing a file path or raw bytes."
             )
+            wandb.termwarn(msg)
 
         if isinstance(data_or_path, BytesIO):
             filename = os.path.join(
