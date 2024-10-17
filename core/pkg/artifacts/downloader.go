@@ -14,8 +14,8 @@ import (
 	"github.com/wandb/wandb/core/internal/gql"
 )
 
-const BATCH_SIZE int = 10000
-const MAX_BACKLOG int = 10000
+const BATCH_SIZE int = 5000
+const MAX_BACKLOG int = 5000
 
 type ArtifactDownloader struct {
 	// Resources
@@ -92,10 +92,9 @@ func (ad *ArtifactDownloader) getEntriesWithDownloadURLs(
 	artifactID string,
 	entriesToFetch []gql.ArtifactManifestEntryInput,
 	manifest Manifest,
-	nameToScheduledTime map[string]time.Time,
+	manifestEntries map[string]ManifestEntry,
 ) ([]ManifestEntry, error) {
 	var entries []ManifestEntry
-	var now = time.Now()
 	response, err := gql.ArtifactFileURLsByManifestEntries(
 		ad.Ctx,
 		ad.GraphqlClient,
@@ -119,8 +118,8 @@ func (ad *ArtifactDownloader) getEntriesWithDownloadURLs(
 		}
 		entry.DownloadURL = &node.DirectUrl
 		entry.LocalPath = &filePath
-		nameToScheduledTime[*entry.LocalPath] = now
 		entries = append(entries, entry)
+		delete(manifestEntries, filePath)
 	}
 	return entries, nil
 }
@@ -148,7 +147,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 		hasNextPage := true
 		for hasNextPage {
 			// Prepare a batch
-			// now := time.Now()
+			now := time.Now()
 			manifestEntriesBatch = manifestEntriesBatch[:0]
 			curBatchSize := 0
 			var entriesToFetch []gql.ArtifactManifestEntryInput
@@ -157,6 +156,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 					continue
 				}
 				if entry.Ref != nil {
+					// Reference artifacts will temporarily be handled by the python user process
 					// entry.LocalPath = &filePath
 					// nameToScheduledTime[*entry.LocalPath] = now
 					// manifestEntriesBatch = append(manifestEntriesBatch, entry)
@@ -171,21 +171,21 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 						Size:            &entry.Size,
 					}
 					entriesToFetch = append(entriesToFetch, entryInput)
-					delete(manifestEntriesCopy, filePath)
+					nameToScheduledTime[*entry.LocalPath] = now
 				}
 				curBatchSize += 1
 				if curBatchSize >= batchSize {
 					break
 				}
 			}
-			hasNextPage = len(manifestEntriesCopy) > 0
 			if len(entriesToFetch) > 0 {
-				entries, err := ad.getEntriesWithDownloadURLs(artifactID, entriesToFetch, manifest, nameToScheduledTime)
+				entries, err := ad.getEntriesWithDownloadURLs(artifactID, entriesToFetch, manifest, manifestEntriesCopy)
 				if err != nil {
 					return err
 				}
 				manifestEntriesBatch = append(manifestEntriesBatch, entries...)
 			}
+			hasNextPage = len(manifestEntriesCopy) > 0
 
 			// Schedule downloads
 			if len(manifestEntriesBatch) > 0 {
