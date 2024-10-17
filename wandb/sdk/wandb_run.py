@@ -20,7 +20,12 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, Sequence, TextIO
+from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Sequence, TextIO
+
+if sys.version_info < (3, 8):
+    from typing_extensions import Literal
+else:
+    from typing import Literal
 
 import requests
 
