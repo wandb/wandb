@@ -386,6 +386,7 @@ class SettingsData:
     _tracelog: str
     _unsaved_keys: Sequence[str]
     _windows: bool
+    _show_operation_stats: bool
     allow_val_change: bool
     anonymous: str
     api_key: str
@@ -776,6 +777,7 @@ class Settings(SettingsData):
                 "hook": lambda _: platform.system() == "Windows",
                 "auto_hook": True,
             },
+            _show_operation_stats={"preprocessor": _str_as_bool},
             anonymous={"validator": self._validate_anonymous},
             api_key={"validator": self._validate_api_key},
             base_url={
