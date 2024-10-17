@@ -4,7 +4,7 @@ orbs:
   win: circleci/windows@5.0.0
   slack: circleci/slack@4.12.5
   gcloud: circleci/gcp-cli@3.1.1
-  codecov: codecov/codecov@4.0.1
+  codecov: codecov/codecov@5.0.0
 
 parameters:
   go_version:
@@ -90,16 +90,6 @@ commands:
       - store_artifacts:
           path: cover-results
 
-  # We only need a separate command to include this workaround to a bug:
-  # https://github.com/codecov/codecov-circleci-orb/issues/185#issuecomment-2072147831
-  upload_codecov:
-    description: Upload code coverage to codecov.io
-    parameters:
-      flags: { type: string }
-    steps:
-      - run: mkdir -p ~/.gnupg
-      - codecov/upload: { flags: <<parameters.flags>> }
-
   run-nox-tests:
     description:
       Helper command for the nox-tests-* jobs. Runs a nox session and uploads
@@ -120,7 +110,7 @@ commands:
           command: >
             nox -s "<<parameters.session>>" --python <<parameters.python>>
 
-      - upload_codecov: { flags: <<parameters.codecov_flags>> }
+      - codecov/upload: { flags: <<parameters.codecov_flags>> }
       - save-test-results
 
   install_go:
@@ -404,7 +394,7 @@ jobs:
             nox -s "importer_tests-<< parameters.python >>(importer='<< parameters.tests >>')" \
               -- $(if [ "<< parameters.tests >>" = "wandb" ]; then echo "--wandb-second-server=true"; fi) \
               tests/system_tests/test_importers/test_<< parameters.tests >>
-      - upload_codecov: { flags: system }
+      - codecov/upload: { flags: system }
       - save-test-results
 
   unit-tests-go:
@@ -417,7 +407,7 @@ jobs:
           command: |
             cd core
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
-      - upload_codecov: { flags: unit }
+      - codecov/upload: { flags: unit }
 
   # Download the local-testcontainer image corresponding to the latest server release
   # and store it in wandb-client-cicd/images/local-testcontainer.
