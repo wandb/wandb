@@ -25,7 +25,8 @@
   },
   "rust-analyzer.linkedProjects": [
     "./gpu_stats/Cargo.toml",
-    "./experimental/client-rust/Cargo.toml"
+    "./experimental/client-rust/Cargo.toml",
+    "./experimental/leet/Cargo.toml"
   ],
   "python.analysis.autoImportCompletions": true,
   "python.analysis.typeCheckingMode": "off"
