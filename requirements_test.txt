@@ -15,4 +15,4 @@ responses
 
 coverage[toml]
 
-pyte~=0.8  # Terminal emulator for testing interactions with the terminal.
+pyte~=0.8.0  # Terminal emulator for testing interactions with the terminal.
