@@ -23,7 +23,6 @@ __all__ = (
 
 from . import wandb_helper as helper
 from .artifacts.artifact import Artifact
-from .settings import Settings as NGSettings
 from .wandb_alerts import AlertLevel
 from .wandb_config import Config
 from .wandb_init import _attach, init
