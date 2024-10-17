@@ -186,7 +186,7 @@ def notebook(user, run_id, assets_path):
             "import pytest\n"
             "mp = pytest.MonkeyPatch()\n"
             "import wandb\n"
-            f"mp.setattr(wandb.sdk.wandb_settings, '_get_python_type', lambda: '{notebook_type}')"
+            f"mp.setattr(wandb.sdk.lib.ipython, '_get_python_type', lambda: '{notebook_type}')"
         )
 
         # inject:
