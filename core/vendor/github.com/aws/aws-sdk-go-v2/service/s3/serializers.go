@@ -4941,12 +4941,20 @@ func awsRestxml_serializeOpHttpBindingsListBucketsInput(v *ListBucketsInput, enc
 		return fmt.Errorf("unsupported serialization of nil %T", v)
 	}
 
+	if v.BucketRegion != nil {
+		encoder.SetQuery("bucket-region").String(*v.BucketRegion)
+	}
+
 	if v.ContinuationToken != nil {
 		encoder.SetQuery("continuation-token").String(*v.ContinuationToken)
 	}
 
 	if v.MaxBuckets != nil {
 		encoder.SetQuery("max-buckets").Integer(*v.MaxBuckets)
+	}
+
+	if v.Prefix != nil {
+		encoder.SetQuery("prefix").String(*v.Prefix)
 	}
 
 	return nil
