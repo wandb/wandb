@@ -279,20 +279,12 @@ Note: you only need to do that if you change any of our protocol buffer files.
 
 #### Adding a new setting
 
-- Add a new type-annotated `SettingsData` class attribute.
+- Update the `wandb/sdk/wandb_settings.py::Settings` class.
+  - Public settings should be declared as class attributes with optional default value and validator methods.
+  - Modifiable settings meant for internal use should be prefixed with `x_`.
+  - Read-only computed settings should be defined as class methods using the `@computed_field` and `@property` decorators. If meant for intenal use only, should be prefixed with `_`.
 - Add the new field to `wandb/proto/wandb_settings.proto` following the existing pattern.
   - Run `nox -t proto` to re-generate the python stubs.
-- If the setting comes with a default value/preprocessor/additional validators/runtime hooks, add them to
-  the template dictionary that the `Settings._default_props` method returns, using the same key name as
-  the corresponding class variable.
-  - For any setting that is only computed (from other settings) and need/should not be set/updated
-    (and so does not require any validation etc.), define a hook (which does not have to depend on the setting's value)
-    and use `"auto_hook": True` in the template dictionary (see e.g. the `wandb_dir` setting).
-- Add tests for the new setting to `tests/wandb_settings_test.py`.
-- Note that individual settings may depend on other settings through validator methods and runtime hooks,
-  but the resulting directed dependency graph must be acyclic. You should re-generate the topologically-sorted
-  modification order list with `nox -s codegen` -- it will also automatically
-  detect cyclic dependencies and throw an exception.
 
 #### Adding URLs
 
