@@ -324,6 +324,33 @@ def test_update_aliases_on_artifact(user, wandb_init):
     assert "sequence" not in aliases
 
 
+def test_linked_artifact_update(wandb_init):
+    project = "test"
+
+    with wandb_init(project=project) as run:
+        art = None
+        for i in range(3):
+            art = wandb.Artifact("test-artifact", "test-type")
+            with art.new_file("boom.txt", "w") as f:
+                f.write(f"testing {i}")
+            run.log_artifact(art, aliases=["a"])
+            if i == 1:
+                run.link_artifact(art, f"{project}/my-sample-portfolio")
+
+    linked_artifact = Api().artifact(f"{project}/my-sample-portfolio:v0")
+    assert linked_artifact.name == "my-sample-portfolio:v0"
+    assert linked_artifact.source_name == "test-artifact:v1"
+
+    linked_artifact.aliases.append("x")
+    linked_artifact.save()
+    linked_artifact.wait()
+
+    # Check that the artifact attributes haven't been overridden by the source artifact.
+    assert linked_artifact.name == "my-sample-portfolio:v0"
+    assert linked_artifact.version == "v0"
+    assert linked_artifact.source_version == "v1"
+
+
 def test_artifact_version(wandb_init):
     def create_test_artifact(content: str):
         art = wandb.Artifact("test-artifact", "test-type")

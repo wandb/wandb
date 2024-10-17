@@ -200,19 +200,19 @@ class Artifact:
             return artifact
 
         query = gql(
-            """
-            query ArtifactByID($id: ID!) {
-                artifact(id: $id) {
+            f"""
+            query ArtifactByID($id: ID!) {{
+                artifact(id: $id) {{
                     ...ArtifactFragment
-                    currentManifest {
-                        file {
+                    currentManifest {{
+                        file {{
                             directUrl
-                        }
-                    }
-                }
-            }
+                        }}
+                    }}
+                }}
+            }}
+            {cls._get_gql_artifact_fragment()}
             """
-            + cls._get_gql_artifact_fragment()
         )
         response = client.execute(
             query,
@@ -240,20 +240,20 @@ class Artifact:
         organization: str = "",
     ) -> Artifact:
         query = gql(
-            """
+            f"""
             query ArtifactByName(
                 $entityName: String!,
                 $projectName: String!,
                 $name: String!
-            ) {
-                project(name: $projectName, entityName: $entityName) {
-                    artifact(name: $name) {
+            ) {{
+                project(name: $projectName, entityName: $entityName) {{
+                    artifact(name: $name) {{
                         ...ArtifactFragment
-                    }
-                }
-            }
+                    }}
+                }}
+            }}
+            {cls._get_gql_artifact_fragment()}
             """
-            + cls._get_gql_artifact_fragment()
         )
 
         # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
@@ -307,67 +307,13 @@ class Artifact:
     ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
+        artifact._populate_common_attributes(attrs, entity, project, name)
         artifact._client = client
-        artifact._id = attrs["id"]
-        artifact._entity = entity
-        artifact._project = project
-        artifact._name = name
-        aliases = [
-            alias["alias"]
-            for alias in attrs["aliases"]
-            if alias["artifactCollection"]
-            and alias["artifactCollection"]["project"]
-            and alias["artifactCollection"]["project"]["entityName"] == entity
-            and alias["artifactCollection"]["project"]["name"] == project
-            and alias["artifactCollection"]["name"] == name.split(":")[0]
-        ]
-        tags = [tag_obj["name"] for tag_obj in attrs.get("tags", [])]
-        version_aliases = [
-            alias for alias in aliases if util.alias_is_version_index(alias)
-        ]
-        assert len(version_aliases) == 1
-        artifact._version = version_aliases[0]
-        attr_project = attrs["artifactSequence"]["project"]
-        artifact._source_entity = ""
-        artifact._source_project = ""
-        if attr_project:
-            artifact._source_entity = attr_project["entityName"]
-            artifact._source_project = attr_project["name"]
-        artifact._source_name = "{}:v{}".format(
-            attrs["artifactSequence"]["name"], attrs["versionIndex"]
-        )
-        artifact._source_version = "v{}".format(attrs["versionIndex"])
-        artifact._type = attrs["artifactType"]["name"]
-        artifact._description = attrs["description"]
-        artifact.metadata = cls._normalize_metadata(
-            json.loads(attrs["metadata"] or "{}")
-        )
-        artifact._ttl_duration_seconds = artifact._ttl_duration_seconds_from_gql(
-            attrs.get("ttlDurationSeconds")
-        )
-        artifact._ttl_is_inherited = (
-            True if attrs.get("ttlIsInherited") is None else attrs["ttlIsInherited"]
-        )
-        artifact._aliases = [
-            alias for alias in aliases if not util.alias_is_version_index(alias)
-        ]
-        artifact._saved_aliases = copy(artifact._aliases)
-        artifact._tags = tags
-        artifact._saved_tags = copy(artifact._tags)
-        artifact._state = ArtifactState(attrs["state"])
-        if "currentManifest" in attrs:
-            artifact._load_manifest(attrs["currentManifest"]["file"]["directUrl"])
-        else:
-            artifact._manifest = None
-        artifact._commit_hash = attrs["commitHash"]
-        artifact._file_count = attrs["fileCount"]
-        artifact._created_at = attrs["createdAt"]
-        artifact._updated_at = attrs["updatedAt"]
-        artifact._final = True
-        # Cache.
 
+        # Cache.
         assert artifact.id is not None
         artifact_instance_cache[artifact.id] = artifact
+
         return artifact
 
     @ensure_logged
@@ -845,86 +791,48 @@ class Artifact:
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
-        fields = InternalApi().server_artifact_introspection()
-
-        supports_ttl = "ttlIsInherited" in fields
-        ttl_duration_seconds = "ttlDurationSeconds" if supports_ttl else ""
-        ttl_is_inherited = "ttlIsInherited" if supports_ttl else ""
-
-        supports_tags = "tags" in fields
-        tags = "tags {name}" if supports_tags else ""
-
-        query_template = f"""
+        query = gql(
+            f"""
             query ArtifactByIDShort($id: ID!) {{
                 artifact(id: $id) {{
-                    artifactSequence {{
-                        project {{
-                            entityName
-                            name
-                        }}
-                        name
-                    }}
-                    versionIndex
-                    {ttl_duration_seconds}
-                    {ttl_is_inherited}
-                    aliases {{
-                        artifactCollection {{
-                            project {{
-                                entityName
-                                name
-                            }}
-                            name
-                        }}
-                        alias
-                    }}
-                    {tags!s}
-                    state
+                    ...ArtifactFragment
                     currentManifest {{
                         file {{
                             directUrl
                         }}
                     }}
-                    commitHash
-                    fileCount
-                    createdAt
-                    updatedAt
                 }}
             }}
-        """
-
-        query = gql(query_template)
-
-        assert self._client is not None
-        response = self._client.execute(
-            query,
-            variable_values={"id": artifact_id},
+            {self._get_gql_artifact_fragment()}
+            """
         )
+        assert self._client is not None  # Appease mypy.
+        response = self._client.execute(query, variable_values={"id": artifact_id})
         attrs = response.get("artifact")
         if attrs is None:
             raise ValueError(f"Unable to fetch artifact with id {artifact_id}")
-        self._id = artifact_id
+
+        self._populate_common_attributes(attrs)
+
+    def _populate_common_attributes(
+        self,
+        attrs: dict[str, Any],
+        entity: str | None = None,
+        project: str | None = None,
+        name: str | None = None,
+    ) -> None:
+        self._id = attrs["id"]
         attr_project = attrs["artifactSequence"]["project"]
-        self._entity = ""
-        self._project = ""
-        if attr_project:
-            self._entity = attr_project["entityName"]
-            self._project = attr_project["name"]
-        self._name = "{}:v{}".format(
+        self._source_entity = attr_project["entityName"] if attr_project else ""
+        self._entity = entity or self._source_entity
+        self._source_project = attr_project["name"] if attr_project else ""
+        self._project = project or self._source_project
+        self._source_name = "{}:v{}".format(
             attrs["artifactSequence"]["name"], attrs["versionIndex"]
         )
-        self._version = "v{}".format(attrs["versionIndex"])
-        self._source_entity = self._entity
-        self._source_project = self._project
-        self._source_name = self._name
-        self._source_version = self._version
-        self._ttl_duration_seconds = self._ttl_duration_seconds_from_gql(
-            attrs.get("ttlDurationSeconds")
-        )
-        self._ttl_is_inherited = (
-            True if attrs.get("ttlIsInherited") is None else attrs["ttlIsInherited"]
-        )
-        self._ttl_changed = False  # Reset after saving artifact
-        self._aliases = [
+        self._name = name or self._source_name
+        self._source_version = "v{}".format(attrs["versionIndex"])
+        all_aliases = [
             alias["alias"]
             for alias in attrs["aliases"]
             if alias["artifactCollection"]
@@ -932,15 +840,42 @@ class Artifact:
             and alias["artifactCollection"]["project"]["entityName"] == self._entity
             and alias["artifactCollection"]["project"]["name"] == self._project
             and alias["artifactCollection"]["name"] == self._name.split(":")[0]
-            and not util.alias_is_version_index(alias["alias"])
         ]
+        version_aliases = [
+            alias for alias in all_aliases if util.alias_is_version_index(alias)
+        ]
+        if len(version_aliases) == 1:
+            self._version = version_aliases[0]
+        else:
+            self._version = self._source_version
+        self._aliases = [
+            alias for alias in all_aliases if not util.alias_is_version_index(alias)
+        ]
+        self._saved_aliases = copy(self._aliases)
+
+        self._ttl_duration_seconds = self._ttl_duration_seconds_from_gql(
+            attrs.get("ttlDurationSeconds")
+        )
+        self._ttl_is_inherited = (
+            True if attrs.get("ttlIsInherited") is None else attrs["ttlIsInherited"]
+        )
+        self._ttl_changed = False
         self._tags = [tag_obj["name"] for tag_obj in attrs.get("tags", [])]
+        self._saved_tags = copy(self._tags)
+        self._type = attrs["artifactType"]["name"]
+        self._description = attrs["description"]
+        self.metadata = self._normalize_metadata(json.loads(attrs["metadata"] or "{}"))
         self._state = ArtifactState(attrs["state"])
-        self._load_manifest(attrs["currentManifest"]["file"]["directUrl"])
+        if "currentManifest" in attrs:
+            self._load_manifest(attrs["currentManifest"]["file"]["directUrl"])
+        else:
+            self._manifest = None
         self._commit_hash = attrs["commitHash"]
         self._file_count = attrs["fileCount"]
         self._created_at = attrs["createdAt"]
         self._updated_at = attrs["updatedAt"]
+        self._final = True
+        self._save_future = None
 
     @normalize_exceptions
     def _update(self) -> None:
@@ -2341,53 +2276,50 @@ class Artifact:
     @staticmethod
     def _get_gql_artifact_fragment() -> str:
         fields = InternalApi().server_artifact_introspection()
-        fragment = """
-            fragment ArtifactFragment on Artifact {
-                id
-                artifactSequence {
-                    project {
-                        entityName
-                        name
-                    }
-                    name
-                }
-                versionIndex
-                artifactType {
-                    name
-                }
-                description
-                metadata
-                ttlDurationSeconds
-                ttlIsInherited
-                aliases {
-                    artifactCollection {
-                        project {
+
+        supports_ttl = "ttlIsInherited" in fields
+        ttl_duration_seconds = "ttlDurationSeconds" if supports_ttl else ""
+        ttl_is_inherited = "ttlIsInherited" if supports_ttl else ""
+
+        supports_tags = "tags" in fields
+        tags = "tags {name}" if supports_tags else ""
+
+        return f"""
+            fragment ArtifactFragment on Artifact {{
+                    id
+                    artifactSequence {{
+                        project {{
                             entityName
                             name
-                        }
+                        }}
                         name
-                    }
-                    alias
-                }
-                _MAYBE_TAGS_
-                state
-                commitHash
-                fileCount
-                createdAt
-                updatedAt
-            }
+                    }}
+                    versionIndex
+                    artifactType {{
+                        name
+                    }}
+                    description
+                    metadata
+                    {ttl_duration_seconds}
+                    {ttl_is_inherited}
+                    aliases {{
+                        artifactCollection {{
+                            project {{
+                                entityName
+                                name
+                            }}
+                            name
+                        }}
+                        alias
+                    }}
+                    {tags!s}
+                    state
+                    commitHash
+                    fileCount
+                    createdAt
+                    updatedAt
+                }}
         """
-        if "ttlIsInherited" not in fields:
-            fragment = fragment.replace("ttlDurationSeconds", "").replace(
-                "ttlIsInherited", ""
-            )
-
-        if "tags" in fields:
-            fragment = fragment.replace("_MAYBE_TAGS_", "tags {name}")
-        else:
-            fragment = fragment.replace("_MAYBE_TAGS_", "")
-
-        return fragment
 
     def _ttl_duration_seconds_to_gql(self) -> int | None:
         # Set artifact ttl value to ttl_duration_seconds if the user set a value

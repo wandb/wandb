@@ -3,7 +3,7 @@
 import json
 import re
 from copy import copy
-from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, List, Literal, Mapping, Optional, Sequence, Union
 
 from wandb_gql import Client, gql
 
@@ -774,12 +774,15 @@ class Artifacts(Paginator):
             "collection": self.collection_name,
             "filters": json.dumps(self.filters),
         }
+        collection_edge_name = artifact_collection_edge_name(
+            server_supports_artifact_collections_gql_edges(client)
+        )
         self.QUERY = gql(
-            """
+            f"""
             query Artifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
                 project(name: $project, entityName: $entity) {{
                     artifactType(name: $type) {{
-                        artifactCollection: {}(name: $collection) {{
+                        artifactCollection: {collection_edge_name}(name: $collection) {{
                             name
                             artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
                                 totalCount
@@ -799,13 +802,8 @@ class Artifacts(Paginator):
                     }}
                 }}
             }}
-            {}
-            """.format(
-                artifact_collection_edge_name(
-                    server_supports_artifact_collections_gql_edges(client)
-                ),
-                wandb.Artifact._get_gql_artifact_fragment(),
-            )
+            {wandb.Artifact._get_gql_artifact_fragment()}
+            """
         )
         super().__init__(client, variables, per_page)
 
@@ -857,78 +855,46 @@ class Artifacts(Paginator):
 
 class RunArtifacts(Paginator):
     def __init__(
-        self, client: Client, run: "Run", mode="logged", per_page: Optional[int] = 50
+        self,
+        client: Client,
+        run: "Run",
+        mode: Literal["logged", "used"] = "logged",
+        per_page: Optional[int] = 50,
     ):
-        output_query = gql(
-            """
-            query RunOutputArtifacts(
+        artifact_fragment = wandb.Artifact._get_gql_artifact_fragment()
+        query_name = "RunOutputArtifacts" if mode == "logged" else "RunInputArtifacts"
+        self.run_key = "outputArtifacts" if mode == "logged" else "inputArtifacts"
+        self.QUERY = gql(
+            f"""
+            query {query_name}(
                 $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
-            ) {
-                project(name: $project, entityName: $entity) {
-                    run(name: $runName) {
-                        outputArtifacts(after: $cursor, first: $perPage) {
+            ) {{
+                project(name: $project, entityName: $entity) {{
+                    run(name: $runName) {{
+                        {self.run_key}(after: $cursor, first: $perPage) {{
                             totalCount
-                            edges {
-                                node {
+                            edges {{
+                                node {{
                                     ...ArtifactFragment
-                                }
+                                }}
                                 cursor
-                            }
-                            pageInfo {
+                            }}
+                            pageInfo {{
                                 endCursor
                                 hasNextPage
-                            }
-                        }
-                    }
-                }
-            }
+                            }}
+                        }}
+                    }}
+                }}
+            }}
+            {artifact_fragment}
             """
-            + wandb.Artifact._get_gql_artifact_fragment()
         )
-
-        input_query = gql(
-            """
-            query RunInputArtifacts(
-                $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
-            ) {
-                project(name: $project, entityName: $entity) {
-                    run(name: $runName) {
-                        inputArtifacts(after: $cursor, first: $perPage) {
-                            totalCount
-                            edges {
-                                node {
-                                    ...ArtifactFragment
-                                }
-                                cursor
-                            }
-                            pageInfo {
-                                endCursor
-                                hasNextPage
-                            }
-                        }
-                    }
-                }
-            }
-            """
-            + wandb.Artifact._get_gql_artifact_fragment()
-        )
-
-        self.run = run
-        if mode == "logged":
-            self.run_key = "outputArtifacts"
-            self.QUERY = output_query
-        elif mode == "used":
-            self.run_key = "inputArtifacts"
-            self.QUERY = input_query
-        else:
-            raise ValueError("mode must be logged or used")
-
         variable_values = {
             "entity": run.entity,
             "project": run.project,
             "runName": run.id,
         }
-
         super().__init__(client, variable_values, per_page)
 
     @property
