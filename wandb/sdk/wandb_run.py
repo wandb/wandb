@@ -2680,7 +2680,10 @@ class Run:
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
-        with progress.progress_printer(self._printer) as progress_printer:
+        with progress.progress_printer(
+            self._printer,
+            self._settings,
+        ) as progress_printer:
             # Wait for the run to complete.
             _ = exit_handle.wait(
                 timeout=-1,
