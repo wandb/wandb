@@ -7,7 +7,12 @@ import logging
 import os
 import sys
 import threading
-from typing import TYPE_CHECKING, Iterator, Protocol
+from typing import TYPE_CHECKING, Iterator
+
+if sys.version_info < (3, 8):
+    from typing_extensions import Protocol
+else:
+    from typing import Protocol
 
 import click
 

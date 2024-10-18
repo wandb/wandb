@@ -161,10 +161,10 @@ func TestProgress_Bytes(t *testing.T) {
 	progress.SetBytesOfTotal(37<<20, 91<<30+123<<20)
 
 	proto := ops.ToProto()
-	assert.Equal(t, "20B / 47B", proto.Operations[0].Progress)
-	assert.Equal(t, "1.0KB / 3.9KB", proto.Operations[1].Progress)
-	assert.Equal(t, "3.3KB / 12.3MB", proto.Operations[2].Progress)
-	assert.Equal(t, "37.0MB / 91.12GB", proto.Operations[3].Progress)
+	assert.Equal(t, "20B/47B", proto.Operations[0].Progress)
+	assert.Equal(t, "1.0KB/3.9KB", proto.Operations[1].Progress)
+	assert.Equal(t, "3.3KB/12.3MB", proto.Operations[2].Progress)
+	assert.Equal(t, "37.0MB/91.12GB", proto.Operations[3].Progress)
 }
 
 func TestProgress_ArbitraryUnits(t *testing.T) {
