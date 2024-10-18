@@ -1,4 +1,5 @@
-# Note: this is a helper printer class, this file might go away once we switch to rich console printing
+"""Terminal, Jupyter and file output for W&B."""
+
 from __future__ import annotations
 
 import abc
@@ -7,6 +8,8 @@ import itertools
 import platform
 import sys
 from typing import Callable, Iterator
+
+import wandb.util
 
 if sys.version_info >= (3, 12):
     from typing import override
@@ -50,8 +53,20 @@ _name_to_level = {
     "NOTSET": NOTSET,
 }
 
+_PROGRESS_SYMBOL_ANIMATION = "⢿⣻⣽⣾⣷⣯⣟⡿"
+"""Sequence of characters for a progress spinner.
+
+Unicode characters from the Braille Patterns block arranged
+to form a subtle clockwise spinning animation.
+"""
+
+_PROGRESS_SYMBOL_COLOR = 0xB2
+"""Color from the 256-color palette for the progress symbol."""
+
 
 class Printer(abc.ABC):
+    """An object that shows styled text to the user."""
+
     @contextlib.contextmanager
     @abc.abstractmethod
     def dynamic_text(self) -> Iterator[DynamicText | None]:
@@ -135,6 +150,11 @@ class Printer(abc.ABC):
     def supports_html(self) -> bool:
         """Whether text passed to display may contain HTML styling."""
 
+    @property
+    @abc.abstractmethod
+    def supports_unicode(self) -> bool:
+        """Whether text passed to display may contain arbitrary Unicode."""
+
     def sparklines(self, series: list[int | float]) -> str | None:
         """Returns a Unicode art representation of the series of numbers.
 
@@ -143,10 +163,10 @@ class Printer(abc.ABC):
 
         Returns None if the output doesn't support Unicode.
         """
-        # Only print sparklines if the terminal is utf-8
-        if wandb.util.is_unicode_safe(sys.stderr):
+        if self.supports_unicode:
             return sparkline.sparkify(series)
-        return None
+        else:
+            return None
 
     @abc.abstractmethod
     def code(self, text: str) -> str:
@@ -168,12 +188,26 @@ class Printer(abc.ABC):
         """
 
     @abc.abstractmethod
-    def emoji(self, name: str) -> str:
-        """Returns the string for a named emoji, or an empty string."""
+    def secondary_text(self, text: str) -> str:
+        """Returns the text styled to draw less attention."""
 
     @abc.abstractmethod
-    def status(self, text: str, failure: bool | None = None) -> str:
-        """Returns the text styled as a success or error status."""
+    def loading_symbol(self, tick: int) -> str:
+        """Returns a frame of an animated loading symbol.
+
+        May return an empty string.
+
+        Args:
+            tick: An index into the animation.
+        """
+
+    @abc.abstractmethod
+    def error(self, text: str) -> str:
+        """Returns the text colored like an error."""
+
+    @abc.abstractmethod
+    def emoji(self, name: str) -> str:
+        """Returns the string for a named emoji, or an empty string."""
 
     @abc.abstractmethod
     def files(self, text: str) -> str:
@@ -260,6 +294,11 @@ class _PrinterTerm(Printer):
         return False
 
     @override
+    @property
+    def supports_unicode(self) -> bool:
+        return wandb.util.is_unicode_safe(sys.stderr)
+
+    @override
     def code(self, text: str) -> str:
         ret: str = click.style(text, bold=True)
         return ret
@@ -292,10 +331,25 @@ class _PrinterTerm(Printer):
         return emojis.get(name, "")
 
     @override
-    def status(self, text: str, failure: bool | None = None) -> str:
-        color = "red" if failure else "green"
-        ret: str = click.style(text, fg=color)
-        return ret
+    def secondary_text(self, text: str) -> str:
+        # NOTE: "white" is really a light gray, and is usually distinct
+        #   from the terminal's foreground color (i.e. default text color)
+        return click.style(text, fg="white")
+
+    @override
+    def loading_symbol(self, tick: int) -> str:
+        if not self.supports_unicode:
+            return ""
+
+        idx = tick % len(_PROGRESS_SYMBOL_ANIMATION)
+        return click.style(
+            _PROGRESS_SYMBOL_ANIMATION[idx],
+            fg=_PROGRESS_SYMBOL_COLOR,
+        )
+
+    @override
+    def error(self, text: str) -> str:
+        return click.style(text, fg="red")
 
     @override
     def files(self, text: str) -> str:
@@ -369,6 +423,11 @@ class _PrinterJupyter(Printer):
         return True
 
     @override
+    @property
+    def supports_unicode(self) -> bool:
+        return True
+
+    @override
     def code(self, text: str) -> str:
         return f"<code>{text}<code>"
 
@@ -385,9 +444,16 @@ class _PrinterJupyter(Printer):
         return ""
 
     @override
-    def status(self, text: str, failure: bool | None = None) -> str:
-        color = "red" if failure else "green"
-        return f'<strong style="color:{color}">{text}</strong>'
+    def secondary_text(self, text: str) -> str:
+        return text
+
+    @override
+    def loading_symbol(self, tick: int) -> str:
+        return ""
+
+    @override
+    def error(self, text: str) -> str:
+        return f'<strong style="color:red">{text}</strong>'
 
     @override
     def files(self, text: str) -> str:
