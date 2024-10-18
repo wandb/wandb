@@ -4,16 +4,19 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/nullify"
 )
 
-const BATCH_SIZE int = 10000
-const MAX_BACKLOG int = 10000
+const BATCH_SIZE int = 5000
+const MAX_BACKLOG int = 5000
 
 type ArtifactDownloader struct {
 	// Resources
@@ -86,6 +89,43 @@ func (ad *ArtifactDownloader) getArtifactManifest(artifactID string) (manifest M
 	return manifest, nil
 }
 
+func (ad *ArtifactDownloader) getEntriesWithDownloadURLs(
+	artifactID string,
+	entriesToFetch []gql.ArtifactManifestEntryInput,
+	manifest Manifest,
+	manifestEntries map[string]ManifestEntry,
+) ([]ManifestEntry, error) {
+	var entries []ManifestEntry
+	response, err := gql.ArtifactFileURLsByManifestEntries(
+		ad.Ctx,
+		ad.GraphqlClient,
+		artifactID,
+		entriesToFetch,
+		manifest.StoragePolicyConfig.StorageLayout,
+		strconv.Itoa(int(manifest.Version)),
+		nullify.NilIfZero(manifest.StoragePolicyConfig.StorageRegion),
+	)
+	if err != nil {
+		return nil, err
+	}
+	for _, edge := range response.GetArtifact().GetFilesByManifestEntries().Edges {
+		filePath := edge.GetNode().Name
+		entry, err := manifest.GetManifestEntryFromArtifactFilePath(filePath)
+		if err != nil {
+			return nil, err
+		}
+		node := edge.GetNode()
+		if node == nil {
+			return nil, fmt.Errorf("error reading entry from fetched file urls")
+		}
+		entry.DownloadURL = &node.DirectUrl
+		entry.LocalPath = &filePath
+		entries = append(entries, entry)
+		delete(manifestEntries, filePath)
+	}
+	return entries, nil
+}
+
 func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest) error {
 	// retrieve from "WANDB_ARTIFACT_FETCH_FILE_URL_BATCH_SIZE"?
 	batchSize := BATCH_SIZE
@@ -102,49 +142,52 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 	nameToScheduledTime := map[string]time.Time{}
 	taskResultsChan := make(chan TaskResult)
 	manifestEntriesBatch := make([]ManifestEntry, 0, batchSize)
+	manifestEntriesCopy := map[string]ManifestEntry{}
+	maps.Copy(manifestEntriesCopy, manifestEntries)
 
 	for numDone < len(manifestEntries) {
-		var cursor *string
 		hasNextPage := true
 		for hasNextPage {
 			// Prepare a batch
 			now := time.Now()
 			manifestEntriesBatch = manifestEntriesBatch[:0]
-			response, err := gql.ArtifactFileURLs(
-				ad.Ctx,
-				ad.GraphqlClient,
-				artifactID,
-				cursor,
-				&batchSize,
-			)
-			if err != nil {
-				return err
-			}
-			hasNextPage = response.Artifact.Files.PageInfo.HasNextPage
-			cursor = response.Artifact.Files.PageInfo.EndCursor
-			for _, edge := range response.GetArtifact().GetFiles().Edges {
-				filePath := edge.GetNode().Name
-				entry, err := manifest.GetManifestEntryFromArtifactFilePath(filePath)
-				if err != nil {
-					return err
-				}
+			curBatchSize := 0
+			var entriesToFetch []gql.ArtifactManifestEntryInput
+			for filePath, entry := range manifestEntriesCopy {
 				if _, ok := nameToScheduledTime[filePath]; ok {
 					continue
 				}
-				// Reference artifacts will temporarily be handled by the python user process
 				if entry.Ref != nil {
+					// Reference artifacts will temporarily be handled by the python user process
+					// entry.LocalPath = &filePath
+					// nameToScheduledTime[*entry.LocalPath] = now
+					// manifestEntriesBatch = append(manifestEntriesBatch, entry)
 					numDone++
+					delete(manifestEntriesCopy, filePath)
 					continue
+				} else {
+					entryInput := gql.ArtifactManifestEntryInput{
+						Name:            filePath,
+						Digest:          entry.Digest,
+						BirthArtifactID: entry.BirthArtifactID,
+						Size:            &entry.Size,
+					}
+					entriesToFetch = append(entriesToFetch, entryInput)
+					nameToScheduledTime[*entry.LocalPath] = now
 				}
-				node := edge.GetNode()
-				if node == nil {
-					return fmt.Errorf("error reading entry from fetched file urls")
+				curBatchSize += 1
+				if curBatchSize >= batchSize {
+					break
 				}
-				entry.DownloadURL = &node.DirectUrl
-				entry.LocalPath = &filePath
-				nameToScheduledTime[*entry.LocalPath] = now
-				manifestEntriesBatch = append(manifestEntriesBatch, entry)
 			}
+			if len(entriesToFetch) > 0 {
+				entries, err := ad.getEntriesWithDownloadURLs(artifactID, entriesToFetch, manifest, manifestEntriesCopy)
+				if err != nil {
+					return err
+				}
+				manifestEntriesBatch = append(manifestEntriesBatch, entries...)
+			}
+			hasNextPage = len(manifestEntriesCopy) > 0
 
 			// Schedule downloads
 			if len(manifestEntriesBatch) > 0 {
