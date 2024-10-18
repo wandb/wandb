@@ -743,6 +743,8 @@ class Api:
             return entity, parts[0], parts[1] + full_alias
         else:
             entity_part, project, collection = parts
+            # If its a Registry project, the "entity" passed in is actually an org.
+            # So we don't want to override the entity with an org
             entity = entity if is_artifact_registry_project(project) else entity_part
             return entity, project, collection + full_alias
 
