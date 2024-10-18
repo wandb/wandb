@@ -60,7 +60,8 @@ def test_parse_path(path):
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_parse_project_path():
     with mock.patch.object(wandb, "login", mock.MagicMock()):
-        entity, project = Api()._parse_project_path("user/proj")
+        org, entity, project = Api()._parse_project_path("user/proj")
+        assert org == ""
         assert entity == "user"
         assert project == "proj"
 
@@ -68,9 +69,28 @@ def test_parse_project_path():
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_parse_project_path_proj():
     with mock.patch.dict("os.environ", {"WANDB_ENTITY": "mock_entity"}):
-        entity, project = Api()._parse_project_path("proj")
+        org, entity, project = Api()._parse_project_path("proj")
+        assert org == ""
         assert entity == "mock_entity"
         assert project == "proj"
+
+
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt")
+def test_parse_project_path_registry():
+    with mock.patch.dict("os.environ", {"WANDB_ENTITY": "mock_entity"}):
+        org, entity, project = Api()._parse_project_path("org-name/wandb-registry-proj")
+        assert org == "org-name"
+        assert entity == "mock_entity"
+        assert project == "wandb-registry-proj"
+
+
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt")
+def test_parse_project_path_registry_no_org():
+    with mock.patch.dict("os.environ", {"WANDB_ENTITY": "mock_entity"}):
+        org, entity, project = Api()._parse_project_path("wandb-registry-proj")
+        assert org == ""
+        assert entity == "mock_entity"
+        assert project == "wandb-registry-proj"
 
 
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")

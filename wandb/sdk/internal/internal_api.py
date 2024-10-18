@@ -3542,7 +3542,7 @@ class Api:
         can_fetch_org_entity = "orgEntity" in org_fields
         if not organization and not can_fetch_org_entity:
             raise ValueError(
-                "Fetching Registry artifacts without inputting an organization "
+                "Fetching Registry projects and artifacts without inputting an organization "
                 "is unavailable for your server version. "
                 "Please upgrade your server to 0.50.0 or later."
             )
@@ -3555,7 +3555,7 @@ class Api:
         if organization:
             if organization != org_name and organization != org_entity:
                 raise ValueError(
-                    f"Artifact belongs to the organization {org_name!r} "
+                    f"Artifact or project belongs to the organization {org_name!r} "
                     f"and cannot be linked/fetched with {organization!r}. "
                     "Please update the target path with the correct organization name."
                 )
