@@ -1415,7 +1415,7 @@ class Run:
             if is_id:
                 artifact = Artifact._from_id(artifact_string, public_api._client)
             else:
-                artifact = public_api.artifact(name=artifact_string)
+                artifact = public_api._artifact(name=artifact_string)
             # in the future we'll need to support using artifacts from
             # different instances of wandb.
 
@@ -3073,7 +3073,7 @@ class Run:
             else:
                 name = artifact_or_name
             public_api = self._public_api()
-            artifact = public_api.artifact(type=type, name=name)
+            artifact = public_api._artifact(type=type, name=name)
             if type is not None and type != artifact.type:
                 raise ValueError(
                     "Supplied type {} does not match type {} of artifact {}".format(
@@ -3615,7 +3615,7 @@ class Run:
 
         public_api = self._public_api()
         try:
-            artifact = public_api.artifact(name=f"{name}:latest")
+            artifact = public_api._artifact(name=f"{name}:latest")
             assert (
                 "model" in str(artifact.type.lower())
             ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."

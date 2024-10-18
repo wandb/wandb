@@ -717,7 +717,7 @@ def test_container_queued_run(monkeypatch, user):
     )
     monkeypatch.setattr(
         wandb.PublicApi,
-        "artifact",
+        "_artifact",
         lambda *arg, **kwargs: "artifact",
     )
 
