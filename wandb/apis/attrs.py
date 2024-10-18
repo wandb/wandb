@@ -1,7 +1,6 @@
 from typing import Any, MutableMapping
 
 import wandb
-from wandb.sdk.lib import ipython
 
 
 class Attrs:
