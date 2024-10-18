@@ -16,7 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
 class BoundingBoxes2D(JSONMetadata):
     """Format images with 2D bounding box overlays for logging to W&B.
 
-    Arguments:
+    Args:
         val: (dictionary) A dictionary of the following form:
             box_data: (list of dictionaries) One dictionary for each bounding box, containing:
                 position: (dictionary) the position and size of the bounding box, in one of two formats

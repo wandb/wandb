@@ -6,7 +6,7 @@ import wandb
 def scatter(table, x, y, title=None, split_table: Optional[bool] = False):
     """Construct a scatter plot.
 
-    Arguments:
+    Args:
         table (wandb.Table): Table of data.
         x (string): Name of column to as for x-axis values.
         y (string): Name of column to as for y-axis values.

@@ -94,7 +94,7 @@ class Retry(Generic[_R]):
     def __call__(self, *args: Any, **kwargs: Any) -> _R:  # noqa: C901
         """Call the wrapped function, with retries.
 
-        Arguments:
+        Args:
            retry_timedelta (kwarg): amount of time to retry before giving up.
            sleep_base (kwarg): amount of time to sleep upon first failure, all other sleeps
                are derived from this one.
