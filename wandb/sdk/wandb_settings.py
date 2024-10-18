@@ -689,11 +689,11 @@ class Settings(SettingsData):
             _internal_check_process={"value": 8, "preprocessor": float},
             _internal_queue_timeout={"value": 2, "preprocessor": float},
             _ipython={
-                "hook": lambda _: ipython._get_python_type() == "ipython",
+                "hook": lambda _: ipython.in_ipython(),
                 "auto_hook": True,
             },
             _jupyter={
-                "hook": lambda _: ipython._get_python_type() == "jupyter",
+                "hook": lambda _: ipython.in_jupyter(),
                 "auto_hook": True,
             },
             _kaggle={"hook": lambda _: util._is_likely_kaggle(), "auto_hook": True},

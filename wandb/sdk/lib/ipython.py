@@ -62,10 +62,17 @@ def _get_python_type() -> PythonType:
 
 
 def in_jupyter() -> bool:
+    """Returns True if we're in a Jupyter notebook."""
     return _get_python_type() == "jupyter"
 
 
+def in_ipython() -> bool:
+    """Returns True if we're running in IPython in the terminal."""
+    return _get_python_type() == "ipython"
+
+
 def in_notebook() -> bool:
+    """Returns True if we're running in Jupyter or IPython."""
     return _get_python_type() != "python"
 
 
