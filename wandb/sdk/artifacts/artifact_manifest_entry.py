@@ -133,7 +133,7 @@ class ArtifactManifestEntry:
     ) -> FilePathStr:
         """Download this artifact entry to the specified root path.
 
-        Arguments:
+        Args:
             root: (str, optional) The root path in which to download this
                 artifact entry. Defaults to the artifact's root.
 

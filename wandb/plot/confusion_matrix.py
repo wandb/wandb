@@ -17,7 +17,7 @@ def confusion_matrix(
 ):
     """Compute a multi-run confusion matrix.
 
-    Arguments:
+    Args:
         probs (2-d arr): Shape [n_examples, n_classes]
         y_true (arr): Array of label indices.
         preds (arr): Array of predicted label indices.

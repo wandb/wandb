@@ -146,7 +146,7 @@ class File(Attrs):
     ) -> io.TextIOWrapper:
         """Downloads a file previously saved by a run from the wandb server.
 
-        Arguments:
+        Args:
             replace (boolean): If `True`, download will overwrite a local file
                 if it exists. Defaults to `False`.
             root (str): Local directory to save the file.  Defaults to ".".

@@ -129,7 +129,7 @@ class FilePusher:
     def file_changed(self, save_name: LogicalPath, path: str, copy: bool = True):
         """Tell the file pusher that a file's changed and should be uploaded.
 
-        Arguments:
+        Args:
             save_name: string logical location of the file relative to the run
                 directory.
             path: actual string path of the file to upload on the filesystem.

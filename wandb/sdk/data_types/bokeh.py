@@ -13,7 +13,7 @@ from .base_types.media import Media
 class Bokeh(Media):
     """Wandb class for Bokeh plots.
 
-    Arguments:
+    Args:
         val: Bokeh plot
     """
 

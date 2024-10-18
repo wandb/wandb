@@ -23,13 +23,9 @@ def _generate_address(length: int = 12) -> str:
 class MailboxError(Error):
     """Generic Mailbox Exception."""
 
-    pass
-
 
 class ContextCancelledError(MailboxError):
     """Context cancelled Exception."""
-
-    pass
 
 
 class _MailboxWaitAll:
