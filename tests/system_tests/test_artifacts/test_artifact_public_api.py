@@ -254,48 +254,64 @@ def test_artifact_save_norun_nosettings(user, assets_path):
 
 
 def test_parse_artifact_path(user, api):
-    entity, project, path = api._parse_artifact_path(
+    org, entity, project, path = api._parse_artifact_path(
         "entity/project/artifact:alias/with/slashes"
     )
     assert (
-        entity == "entity"
+        org == ""
+        and entity == "entity"
         and project == "project"
         and path == "artifact:alias/with/slashes"
     )
 
-    entity, project, path = api._parse_artifact_path(
+    org, entity, project, path = api._parse_artifact_path(
         "entity/project/artifact:alias:with:colons"
     )
     assert (
-        entity == "entity"
+        org == ""
+        and entity == "entity"
         and project == "project"
         and path == "artifact:alias:with:colons"
     )
 
-    entity, project, path = api._parse_artifact_path(
+    org, entity, project, path = api._parse_artifact_path(
         "entity/project/artifact:alias:with:colons/and/slashes"
     )
     assert (
-        entity == "entity"
+        org == ""
+        and entity == "entity"
         and project == "project"
         and path == "artifact:alias:with:colons/and/slashes"
     )
 
-    entity, project, path = api._parse_artifact_path(
+    org, entity, project, path = api._parse_artifact_path(
         "artifact:alias/with:colons:and/slashes"
     )
     assert path == "artifact:alias/with:colons:and/slashes"
 
-    entity, project, path = api._parse_artifact_path("entity/project/artifact")
-    assert entity == "entity" and project == "project" and path == "artifact"
+    org, entity, project, path = api._parse_artifact_path("entity/project/artifact")
+    assert (
+        org == "" and entity == "entity" and project == "project" and path == "artifact"
+    )
 
     # For registry projects, the first input is actually an org name or org entity
     # So entity is set to default as if no entity was provided
-    entity, project, path = api._parse_artifact_path(
+    org, entity, project, path = api._parse_artifact_path(
         "org-name/wandb-registry-model/test-collection:v0"
     )
     assert (
-        entity == user
+        org == "org-name"
+        and entity == user
+        and project == "wandb-registry-model"
+        and path == "test-collection:v0"
+    )
+
+    org, entity, project, path = api._parse_artifact_path(
+        "wandb-registry-model/test-collection:v0"
+    )
+    assert (
+        org == ""
+        and entity == user
         and project == "wandb-registry-model"
         and path == "test-collection:v0"
     )

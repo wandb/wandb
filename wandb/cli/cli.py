@@ -2330,7 +2330,7 @@ def put(
     if name is None:
         name = os.path.basename(path)
     public_api = PublicApi()
-    entity, project, artifact_name = public_api._parse_artifact_path(name)
+    org, entity, project, artifact_name = public_api._parse_artifact_path(name)
     if project is None:
         project = click.prompt("Enter the name of the project you want to use")
     # TODO: settings nightmare...
@@ -2338,7 +2338,8 @@ def put(
     api.set_setting("entity", entity)
     api.set_setting("project", project)
     artifact = wandb.Artifact(name=artifact_name, type=type, description=description)
-    artifact_path = f"{entity}/{project}/{artifact_name}:{alias[0]}"
+    entity_path = org if org else entity
+    artifact_path = f"{entity_path}/{project}/{artifact_name}:{alias[0]}"
     if os.path.isdir(path):
         wandb.termlog(f'Uploading directory {path} to: "{artifact_path}" ({type})')
         artifact.add_dir(path, skip_cache=skip_cache, policy=policy)
@@ -2380,7 +2381,7 @@ def put(
 @display_error
 def get(path, root, type):
     public_api = PublicApi()
-    entity, project, artifact_name = public_api._parse_artifact_path(path)
+    org, entity, project, artifact_name = public_api._parse_artifact_path(path)
     if project is None:
         project = click.prompt("Enter the name of the project you want to use")
 
@@ -2391,7 +2392,8 @@ def get(path, root, type):
             artifact_name = artifact_parts[0]
         else:
             version = "latest"
-        full_path = f"{entity}/{project}/{artifact_name}:{version}"
+        entity_path = org if org else entity
+        full_path = f"{entity_path}/{project}/{artifact_name}:{version}"
         wandb.termlog(
             "Downloading {type} artifact {full_path}".format(
                 type=type or "dataset", full_path=full_path
