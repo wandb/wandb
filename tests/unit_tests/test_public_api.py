@@ -4,6 +4,7 @@ from unittest import mock
 import pytest
 import wandb
 from wandb import Api
+from wandb.apis.public.files import File
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 
@@ -183,3 +184,58 @@ def test_artifact_download_logger():
             assert termlog.call_args == call
         else:
             termlog.assert_not_called()
+
+
+def test_path_uri_s3_url():
+    attrs = {
+        "directUrl": "https://my-bucket.s3.us-west-2.amazonaws.com/wandb-artifacts/my-artifact.txt"
+    }
+    file = File(mock.MagicMock(), attrs)
+
+    assert file.path_uri == "s3://my-bucket/wandb-artifacts/my-artifact.txt"
+
+
+def test_path_uri_non_s3_url():
+    attrs = {
+        "directUrl": "https://storage.googleapis.com/wandb-artifacts/my-artifact.txt"
+    }
+    file = File(mock.MagicMock(), attrs)
+
+    with mock.patch("wandb.termwarn") as mock_termwarn:
+        assert file.path_uri == ""
+        mock_termwarn.assert_called_once_with(
+            "path_uri is only available for artifacts stored in S3"
+        )
+
+
+def test_path_uri_invalid_url(mock_client):
+    attrs = {"directUrl": "not-a-valid-url"}
+    file = File(mock.MagicMock(), attrs)
+
+    with mock.patch("wandb.termwarn") as mock_termwarn:
+        assert file.path_uri == ""
+        mock_termwarn.assert_called_once_with(
+            "path_uri is only available for artifacts stored in S3"
+        )
+
+
+def test_path_uri_empty_url():
+    attrs = {"directUrl": ""}
+    file = File(mock.MagicMock(), attrs)
+
+    with mock.patch("wandb.termwarn") as mock_termwarn:
+        assert file.path_uri == ""
+        mock_termwarn.assert_called_once_with(
+            "path_uri is only available for artifacts stored in S3"
+        )
+
+
+def test_path_uri_missing_direct_url():
+    attrs = {}
+    file = File(mock.MagicMock(), attrs)
+
+    with mock.patch("wandb.termwarn") as mock_termwarn:
+        assert file.path_uri == ""
+        mock_termwarn.assert_called_once_with(
+            "path_uri is only available for artifacts stored in S3"
+        )
