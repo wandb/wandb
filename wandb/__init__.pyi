@@ -168,6 +168,7 @@ def setup(
             wandb.teardown()
         ```
     """
+    ...
 
 def teardown(exit_code: Optional[int] = None) -> None:
     """Waits for wandb to finish and frees resources.
@@ -180,6 +181,7 @@ def teardown(exit_code: Optional[int] = None) -> None:
     in an `atexit` hook, but this is not reliable in certain setups
     such as when using Python's `multiprocessing` module.
     """
+    ...
 
 def init(
     job_type: str | None = None,
@@ -419,6 +421,7 @@ def init(
     Returns:
         A `Run` object.
     """
+    ...
 
 def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
     """Mark a run as finished, and finish uploading all data.
@@ -430,6 +433,7 @@ def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
         exit_code: Set to something other than 0 to mark a run as failed
         quiet: Set to true to minimize log output
     """
+    ...
 
 def login(
     anonymous: Optional[Literal["must", "allow", "never"]] = None,
@@ -466,6 +470,7 @@ def login(
         AuthenticationError - if api_key fails verification with the server
         UsageError - if api_key cannot be configured and no tty
     """
+    ...
 
 def log(
     data: dict[str, Any],
@@ -699,6 +704,7 @@ def log(
         wandb.Error: if called before `wandb.init`
         ValueError: if invalid data is passed
     """
+    ...
 
 def save(
     glob_str: str | os.PathLike | None = None,
@@ -752,6 +758,7 @@ def save(
 
         For historical reasons, this may return a boolean in legacy code.
     """
+    ...
 
 def sweep(
     sweep: Union[dict, Callable],
@@ -788,6 +795,7 @@ def sweep(
     Returns:
       sweep_id: str. A unique identifier for the sweep.
     """
+    ...
 
 def controller(
     sweep_id_or_config: Optional[Union[str, Dict]] = None,
@@ -807,6 +815,7 @@ def controller(
         tuner.configure_stopping(...)
         ```
     """
+    ...
 
 def agent(
     sweep_id: str,
@@ -836,6 +845,7 @@ def agent(
             run is sent to a project labeled "Uncategorized".
         count: The number of sweep config trials to try.
     """
+    ...
 
 def define_metric(
     name: str,
@@ -872,6 +882,7 @@ def define_metric(
     Returns:
         An object that represents this call but can otherwise be discarded.
     """
+    ...
 
 def log_artifact(
     artifact_or_path: Artifact | StrPath,
@@ -904,6 +915,7 @@ def log_artifact(
     Returns:
         An `Artifact` object.
     """
+    ...
 
 def use_artifact(
     artifact_or_name: str | Artifact,
@@ -931,6 +943,7 @@ def use_artifact(
     Returns:
         An `Artifact` object.
     """
+    ...
 
 def log_model(
     path: StrPath,
@@ -976,6 +989,7 @@ def log_model(
     Returns:
         None
     """
+    ...
 
 def use_model(name: str) -> FilePathStr:
     """Download the files logged in a model artifact 'name'.
@@ -1016,6 +1030,7 @@ def use_model(name: str) -> FilePathStr:
     Returns:
         path: (str) path to downloaded model artifact file(s).
     """
+    ...
 
 def link_model(
     path: StrPath,
@@ -1086,6 +1101,7 @@ def link_model(
     Returns:
         None
     """
+    ...
 
 def plot_table(
     vega_spec_name: str,
@@ -1107,6 +1123,7 @@ def plot_table(
         split_table: a boolean that indicates whether the table should be in
             a separate section in the UI
     """
+    ...
 
 def watch(
     models: torch.nn.Module | Sequence[torch.nn.Module],
@@ -1141,6 +1158,7 @@ def watch(
             If `wandb.init` has not been called or if any of the models are not instances
             of `torch.nn.Module`.
     """
+    ...
 
 def unwatch(
     models: torch.nn.Module | Sequence[torch.nn.Module] | None = None,
@@ -1151,3 +1169,4 @@ def unwatch(
         models (torch.nn.Module | Sequence[torch.nn.Module]):
             Optional list of pytorch models that have had watch called on them
     """
+    ...
