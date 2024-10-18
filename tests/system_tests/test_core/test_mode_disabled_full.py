@@ -111,4 +111,5 @@ def test_disabled_no_activity(wandb_init, relay_server):
             run.mark_preempting()
             run.to_html()
             run.display()
+            run.log_artifact(wandb.Artifact("dummy", "dummy")).wait()
     assert relay.context.raw_data == []

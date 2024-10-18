@@ -565,7 +565,6 @@ class _WandbInit:
             "link_artifact",
             "link_model",
             "use_artifact",
-            "log_artifact",
             "log_code",
             "log_model",
             "use_model",
@@ -579,6 +578,12 @@ class _WandbInit:
             "_finish",
         ):
             setattr(drun, symbol, lambda *_, **__: None)  # type: ignore
+
+        class MockArtifact:
+            def __getattr__(self, _):
+                return lambda *args, **kwargs: None
+
+        drun.log_artifact = lambda *_, **__: MockArtifact()
         # attributes
         drun._backend = None
         drun._step = 0
