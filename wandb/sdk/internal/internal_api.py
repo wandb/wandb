@@ -3706,7 +3706,7 @@ class Api:
     def server_project_type_introspection(self) -> bool:
         if self.server_supports_enabling_artifact_usage_tracking is not None:
             return self.server_supports_enabling_artifact_usage_tracking
-        
+
         query_string = """
             query ProbeServerProjectInfo {
                 ProjectInfoType: __type(name:"Project") {
@@ -3714,7 +3714,7 @@ class Api:
                         name
                         args {
                             name
-                        }    
+                        }
                     }
                 }
             }
@@ -3723,8 +3723,17 @@ class Api:
         query = gql(query_string)
         res = self.gql(query)
         input_fields = res.get("ProjectInfoType", {}).get("fields", [{}])
-        artifact_args = next((field.get('args', []) for field in input_fields if field.get('name') == "artifact"), [])
-        self.server_supports_enabling_artifact_usage_tracking = any(arg.get('name') == 'enableTracking' for arg in artifact_args)
+        artifact_args = next(
+            (
+                field.get("args", [])
+                for field in input_fields
+                if field.get("name") == "artifact"
+            ),
+            [],
+        )
+        self.server_supports_enabling_artifact_usage_tracking = any(
+            arg.get("name") == "enableTracking" for arg in artifact_args
+        )
 
         return self.server_supports_enabling_artifact_usage_tracking
 

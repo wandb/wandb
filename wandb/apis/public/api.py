@@ -1142,7 +1142,9 @@ class Api:
         )
 
     @normalize_exceptions
-    def _artifact(self, name: str, type: Optional[str]=None, enable_tracking: bool=False):
+    def _artifact(
+        self, name: str, type: Optional[str] = None, enable_tracking: bool = False
+    ):
         wandb.termwarn(f"\nenable tracking is {enable_tracking}\n")
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
@@ -1184,7 +1186,6 @@ class Api:
             A `Artifact` object.
         """
         return self._artifact(name=name, type=type, enable_tracking=True)
-        
 
     @normalize_exceptions
     def job(self, name: Optional[str], path: Optional[str] = None) -> "public.Job":

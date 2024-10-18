@@ -5,7 +5,6 @@ from __future__ import annotations
 import atexit
 import concurrent.futures
 import contextlib
-from http import server
 import json
 import logging
 import multiprocessing.dummy
@@ -241,8 +240,14 @@ class Artifact:
         organization: str = "",
         enable_tracking: bool = False,
     ) -> Artifact:
-        server_supports_enabling_artifact_usage_tracking = InternalApi().server_project_type_introspection()
-        enable_tracking_arg = f", enableTracking: $enableTracking" if server_supports_enabling_artifact_usage_tracking else ""
+        server_supports_enabling_artifact_usage_tracking = (
+            InternalApi().server_project_type_introspection()
+        )
+        enable_tracking_arg = (
+            ", enableTracking: $enableTracking"
+            if server_supports_enabling_artifact_usage_tracking
+            else ""
+        )
         query = gql(
             """
             query ArtifactByName(
