@@ -16,7 +16,7 @@ def roc_curve(
 ):
     """Calculate and visualize receiver operating characteristic (ROC) scores.
 
-    Arguments:
+    Args:
         y_true (arr): true sparse labels
         y_probas (arr): Target scores, can either be probability estimates, confidence
                          values, or non-thresholded measure of decisions.

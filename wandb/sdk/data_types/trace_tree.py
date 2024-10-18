@@ -80,7 +80,7 @@ class Span:
 class WBTraceTree(Media):
     """Media object for trace tree data.
 
-    Arguments:
+    Args:
         root_span (Span): The root span of the trace tree.
         model_dict (dict, optional): A dictionary containing the model dump.
             NOTE: model_dict is a completely-user-defined dict. The UI will render

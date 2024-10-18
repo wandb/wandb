@@ -13,7 +13,7 @@ from .base_types.media import BatchableMedia
 class Audio(BatchableMedia):
     """Wandb class for audio clips.
 
-    Arguments:
+    Args:
         data_or_path: (string or numpy array) A path to an audio file
             or a numpy array of audio data.
         sample_rate: (int) Sample rate, required when passing in raw

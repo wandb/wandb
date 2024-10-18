@@ -18,7 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
 class ImageMask(Media):
     """Format image masks or overlays for logging to W&B.
 
-    Arguments:
+    Args:
         val: (dictionary)
             One of these two keys to represent the image:
                 mask_data : (2D numpy array) The mask containing an integer class label
@@ -117,7 +117,7 @@ class ImageMask(Media):
     def __init__(self, val: dict, key: str) -> None:
         """Initialize an ImageMask object.
 
-        Arguments:
+        Args:
             val: (dictionary) One of these two keys to represent the image:
                 mask_data : (2D numpy array) The mask containing an integer class label
                     for each pixel in the image
