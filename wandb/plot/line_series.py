@@ -14,7 +14,7 @@ def line_series(
 ):
     """Construct a line series plot.
 
-    Arguments:
+    Args:
         xs (array of arrays, or array): Array of arrays of x values
         ys (array of arrays): Array of y values
         keys (array): Array of labels for the line plots
