@@ -53,6 +53,7 @@ __all__ = (
     "teardown",
     "watch",
     "unwatch",
+    "plot",
 )
 
 import os
@@ -68,6 +69,7 @@ from typing import (
     Union,
 )
 
+import wandb.plot as plot
 from wandb.analytics import Sentry
 from wandb.apis import InternalApi, PublicApi
 from wandb.data_types import (
