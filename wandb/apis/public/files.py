@@ -5,7 +5,6 @@ import os
 from typing import Optional
 
 import requests
-from wandb.apis.public import utils
 from wandb_gql import gql
 from wandb_gql.client import RetryError
 
@@ -14,6 +13,7 @@ from wandb import util
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator
+from wandb.apis.public import utils
 from wandb.apis.public.api import Api
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.sdk.lib import retry
