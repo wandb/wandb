@@ -232,7 +232,6 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         except Exception as e:
             if DEBUG_MODE:
                 print(f"{cls}._maybe_init({obj_or_path}) failed: {e}")
-            pass
 
         for child_cls in cls.__subclasses__():
             maybe_instance = child_cls._maybe_init(obj_or_path, **kwargs)

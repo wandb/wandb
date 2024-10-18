@@ -48,9 +48,8 @@ from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SO
 from wandb.sdk.lib.run_moment import RunMoment
 from wandb.sdk.wandb_setup import _EarlyLogger
 
-from .lib import apikey
+from .lib import apikey, ipython
 from .lib.gitlib import GitRepo
-from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
 
 if sys.version_info >= (3, 8):
@@ -690,11 +689,11 @@ class Settings(SettingsData):
             _internal_check_process={"value": 8, "preprocessor": float},
             _internal_queue_timeout={"value": 2, "preprocessor": float},
             _ipython={
-                "hook": lambda _: _get_python_type() == "ipython",
+                "hook": lambda _: ipython.in_ipython(),
                 "auto_hook": True,
             },
             _jupyter={
-                "hook": lambda _: _get_python_type() == "jupyter",
+                "hook": lambda _: ipython.in_jupyter(),
                 "auto_hook": True,
             },
             _kaggle={"hook": lambda _: util._is_likely_kaggle(), "auto_hook": True},

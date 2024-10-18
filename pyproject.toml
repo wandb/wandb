@@ -169,7 +169,7 @@ extend-exclude = [
 target-version = "py37"
 
 [tool.ruff.lint]
-select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP"]
+select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP", "ISC"]
 ignore = [
     "B904",
     "E501",
@@ -180,9 +180,7 @@ ignore = [
     "D105",  # Allow missing docstrings in magic (dunder) methods, e.g. __str__().
     "D106",  # Allow missing docstrings in nested classes.
     "D107",  # Allow missing docstrings in __init__ methods.
-    "UP022",
     "UP032", # Allow using format instead of f-string.
-    "UP036",
 ]
 
 [tool.ruff.lint.mccabe]

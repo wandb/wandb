@@ -140,7 +140,7 @@ def test_kubernetes_agent_on_local_process_sweep():
 
         assert len(sweep.runs) == run_cap
         for run in sweep.runs:
-            assert run.config["param1"] in list(range(0, 8 + 1))
+            assert run.config["param1"] in list(range(8 + 1))
             assert run.state == "finished"
 
             summary = run.summary

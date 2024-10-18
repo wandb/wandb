@@ -191,7 +191,7 @@ class Table(Media):
     This class is the primary class used to generate the Table Visualizer
     in the UI: https://docs.wandb.ai/guides/data-vis/tables.
 
-    Arguments:
+    Args:
         columns: (List[str]) Names of the columns in the table.
             Defaults to ["Input", "Output", "Expected"].
         data: (List[List[any]]) 2D row-oriented array of values.
@@ -318,7 +318,7 @@ class Table(Media):
         This can be one of the normal python classes, an internal W&B type, or an
         example object, like an instance of wandb.Image or wandb.Classes.
 
-        Arguments:
+        Args:
             col_name: (str) - The name of the column to cast.
             dtype: (class, wandb.wandb_sdk.interface._dtypes.Type, any) - The target dtype.
             optional: (bool) - If the column should allow Nones.
@@ -704,7 +704,7 @@ class Table(Media):
         If the state has been updated since the last update, wraps the data
         appropriately in the Key classes.
 
-        Arguments:
+        Args:
             force_last: (bool) Wraps the last column of data even if there
                 are no key updates.
         """
@@ -748,7 +748,7 @@ class Table(Media):
     def _apply_key_updates(self, only_last=False):
         """Appropriately wraps the underlying data in special Key classes.
 
-        Arguments:
+        Args:
             only_last: only apply the updates to the last row (used for performance when
             the caller knows that the only new data is the last row and no updates were
             applied to the column types)
@@ -797,7 +797,7 @@ class Table(Media):
     def add_column(self, name, data, optional=False):
         """Adds a column of data to the table.
 
-        Arguments:
+        Args:
             name: (str) - the unique name of the column
             data: (list | np.array) - a column of homogeneous data
             optional: (bool) - if null-like values are permitted
@@ -838,7 +838,7 @@ class Table(Media):
     def get_column(self, name, convert_to=None):
         """Retrieves a column from the table and optionally converts it to a NumPy object.
 
-        Arguments:
+        Args:
             name: (str) - the name of the column
             convert_to: (str, optional)
                 - "numpy": will convert the underlying data to numpy object
@@ -1015,7 +1015,7 @@ class PartitionedTable(Media):
 class JoinedTable(Media):
     """Join two tables for visualization in the Artifact UI.
 
-    Arguments:
+    Args:
         table1 (str, wandb.Table, ArtifactManifestEntry):
             the path to a wandb.Table in an artifact, the table object, or ArtifactManifestEntry
         table2 (str, wandb.Table):

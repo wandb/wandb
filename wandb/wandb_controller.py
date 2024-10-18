@@ -88,8 +88,6 @@ def _id_generator(size=10, chars=string.ascii_lowercase + string.digits):
 class ControllerError(Exception):
     """Base class for sweep errors."""
 
-    pass
-
 
 class _WandbController:
     """Sweep controller class.
