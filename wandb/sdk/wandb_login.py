@@ -58,7 +58,7 @@ def login(
     verifying them with the W&B server. To verify credentials, pass
     `verify=True`.
 
-    Arguments:
+    Args:
         anonymous: (string, optional) Can be "must", "allow", or "never".
             If set to "must", always log a user in anonymously. If set to
             "allow", only create an anonymous user if the user

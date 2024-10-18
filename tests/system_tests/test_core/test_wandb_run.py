@@ -51,7 +51,7 @@ def test_log_code_include(wandb_init):
     with open("test.cc", "w") as f:
         f.write("Not that big")
 
-    art = run.log_code(include_fn=lambda p: p.endswith(".py") or p.endswith(".cc"))
+    art = run.log_code(include_fn=lambda p: p.endswith((".py", ".cc")))
     assert sorted(art.manifest.entries.keys()) == ["test.cc", "test.py"]
 
     run.finish()

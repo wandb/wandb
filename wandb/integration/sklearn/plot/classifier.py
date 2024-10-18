@@ -37,7 +37,7 @@ def classifier(
 
     Should only be called with a fitted classifier (otherwise an error is thrown).
 
-    Arguments:
+    Args:
         model: (classifier) Takes in a fitted classifier.
         X_train: (arr) Training set features.
         y_train: (arr) Training set labels.
@@ -117,7 +117,7 @@ def roc(
 ):
     """Log the receiver-operating characteristic curve.
 
-    Arguments:
+    Args:
         y_true: (arr) Test set labels.
         y_probas: (arr) Test set predicted probabilities.
         labels: (list) Named labels for target variable (y). Makes plots easier to
@@ -150,7 +150,7 @@ def confusion_matrix(
 
     Confusion matrices depict the pattern of misclassifications by a model.
 
-    Arguments:
+    Args:
         y_true: (arr) Test set labels.
         y_probas: (arr) Test set predicted probabilities.
         labels: (list) Named labels for target variable (y). Makes plots easier to
@@ -194,7 +194,7 @@ def precision_recall(
     Precision-recall curves depict the tradeoff between positive predictive value (precision)
     and true positive rate (recall) as the threshold of a classifier is shifted.
 
-    Arguments:
+    Args:
         y_true: (arr) Test set labels.
         y_probas: (arr) Test set predicted probabilities.
         labels: (list) Named labels for target variable (y). Makes plots easier to
@@ -226,7 +226,7 @@ def feature_importances(
     Should only be called with a fitted classifier (otherwise an error is thrown).
     Only works with classifiers that have a feature_importances_ attribute, like trees.
 
-    Arguments:
+    Args:
         model: (clf) Takes in a fitted classifier.
         feature_names: (list) Names for features. Makes plots easier to read by
                               replacing feature indexes with corresponding names.
@@ -254,7 +254,7 @@ def class_proportions(y_train=None, y_test=None, labels=None):
 
     Useful for detecting imbalanced classes.
 
-    Arguments:
+    Args:
         y_train: (arr) Training set labels.
         y_test: (arr) Test set labels.
         labels: (list) Named labels for target variable (y). Makes plots easier to
@@ -298,7 +298,7 @@ def calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):  # noqa:
 
     Please note this function fits variations of the model on the training set when called.
 
-    Arguments:
+    Args:
         clf: (clf) Takes in a fitted classifier.
         X: (arr) Training set features.
         y: (arr) Training set labels.

@@ -127,7 +127,7 @@ class Team(Attrs):
     def create(cls, api, team, admin_username=None):
         """Create a new team.
 
-        Arguments:
+        Args:
             api: (`Api`) The api instance to use
             team: (str) The name of the team
             admin_username: (str) optional username of the admin user of the team, defaults to the current user.
@@ -147,7 +147,7 @@ class Team(Attrs):
     def invite(self, username_or_email, admin=False):
         """Invite a user to a team.
 
-        Arguments:
+        Args:
             username_or_email: (str) The username or email address of the user you want to invite
             admin: (bool) Whether to make this user a team admin, defaults to False
 
@@ -168,7 +168,7 @@ class Team(Attrs):
     def create_service_account(self, description):
         """Create a service account for the team.
 
-        Arguments:
+        Args:
             description: (str) A description for this service account
 
         Returns:

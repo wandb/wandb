@@ -15,10 +15,10 @@ import wandb.util
 from wandb.sdk.lib import filesystem
 
 try:
+    from IPython import display
     from IPython.core.getipython import get_ipython
     from IPython.core.magic import Magics, line_cell_magic, magics_class
     from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
-    from IPython.display import display
 except ImportError:
     wandb.termwarn("ipython is not supported in python 2.7, upgrade to 3.x")
 
@@ -66,7 +66,7 @@ class IFrame:
 
     def maybe_display(self) -> bool:
         if not self.displayed and (self.path or wandb.run):
-            display(self)
+            display.display(self)
         return self.displayed
 
     def _repr_html_(self):
@@ -512,4 +512,3 @@ class Notebook:
                 write(nb, f, version=4)
         except (OSError, validator.NotebookValidationError) as e:
             logger.error("Unable to save ipython session history:\n%s", e)
-            pass
