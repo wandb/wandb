@@ -449,7 +449,7 @@ class Artifact:
     def name(self) -> str:
         """The artifact name and version in its secondary (portfolio) collection.
 
-        A string with the format {collection}:{alias}. Before the artifact is saved,
+        A string with the format `{collection}:{alias}`. Before the artifact is saved,
         contains only the name since the version is not yet known.
         """
         return self._name
@@ -500,7 +500,7 @@ class Artifact:
     def source_name(self) -> str:
         """The artifact name and version in its primary (sequence) collection.
 
-        A string with the format {collection}:{alias}. Before the artifact is saved,
+        A string with the format `{collection}:{alias}`. Before the artifact is saved,
         contains only the name since the version is not yet known.
         """
         return self._source_name
@@ -515,7 +515,7 @@ class Artifact:
     def source_version(self) -> str:
         """The artifact's version in its primary (sequence) collection.
 
-        A string with the format "v{number}".
+        A string with the format `v{number}`.
         """
         assert self._source_version is not None
         return self._source_version

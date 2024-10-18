@@ -1,100 +1,128 @@
-from typing import Optional, Sequence
+from __future__ import annotations
+
+from typing import Sequence
 
 from wandb import util
 from wandb.data_types import Table
-from wandb.plot.viz import custom_chart
-
-chart_limit = Table.MAX_ROWS
+from wandb.plot.viz import CustomChart
 
 
 def confusion_matrix(
-    probs: Optional[Sequence[Sequence]] = None,
-    y_true: Optional[Sequence] = None,
-    preds: Optional[Sequence] = None,
-    class_names: Optional[Sequence[str]] = None,
-    title: Optional[str] = None,
-    split_table: Optional[bool] = False,
-):
-    """Compute a multi-run confusion matrix.
+    probs: Sequence[Sequence] | None = None,
+    y_true: Sequence | None = None,
+    preds: Sequence | None = None,
+    class_names: Sequence[str] | None = None,
+    title: str | None = None,
+    split_table: bool | None = False,
+) -> CustomChart:
+    """Computes a multi-run confusion matrix.
 
     Args:
-        probs (2-d arr): Shape [n_examples, n_classes]
-        y_true (arr): Array of label indices.
-        preds (arr): Array of predicted label indices.
-        class_names (arr): Array of class names.
-        split_table (bool): If True, adds "Custom Chart Tables/" to the key of the table so that it's logged in a different section.
+        probs (Sequence[Sequence]): Array of probabilities, shape (N, K) where N is the number
+            of samples and K is the number of classes.
+        y_true (Sequence): Sequence of true label indices.
+        preds (Sequence): Sequence of predicted label indices.
+        class_names (Sequence[str]): Sequence of class names. If not provided, class names
+            will be defined as "Class_1", "Class_2", etc.
+        title (str): Title of the confusion matrix.
+        split_table (bool): Whether to split the table into a different section
+            in the UI. Default is False.
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
-        under 'auto visualizations'.
+        CustomChart: A confusion matrix chart. That can be logged to W&B with
+            `wandb.log({'confusion_matrix': confusion_matrix})`.
 
     Example:
         ```
-        vals = np.random.uniform(size=(10, 5))
-        probs = np.exp(vals)/np.sum(np.exp(vals), keepdims=True, axis=1)
+        import numpy as np
+        import wandb
+
+        # Generate random values and calculate probabilities
+        values = np.random.uniform(size=(10, 5))
+        probs = np.exp(values) / np.sum(np.exp(values), keepdims=True, axis=1)
+
+        # Generate random true labels and define class names
         y_true = np.random.randint(0, 5, size=(10))
         labels = ["Cat", "Dog", "Bird", "Fish", "Horse"]
-        wandb.log({'confusion_matrix': wandb.plot.confusion_matrix(probs, y_true=y_true, class_names=labels)})
+
+        # Log confusion matrix to wandb
+        with wandb.init(...) as run:
+            confusion_matrix = wandb.plot.confusion_matrix(
+                    probs=probs,
+                    y_true=y_true,
+                    class_names=labels,
+                    title="Confusion Matrix",
+                )
+            run.log({"confusion_matrix": confusion_matrix)})
         ```
     """
     np = util.get_module(
         "numpy",
-        required="confusion matrix requires the numpy library, install with `pip install numpy`",
-    )
-    # change warning
-    assert probs is None or len(probs.shape) == 2, (
-        "confusion_matrix has been updated to accept"
-        " probabilities as the default first argument. Use preds=..."
+        required=(
+            "numpy is required to use wandb.plot.confusion_matrix, "
+            "install with `pip install numpy`",
+        ),
     )
 
-    assert (probs is None or preds is None) and not (
-        probs is None and preds is None
-    ), "Must provide probabilities or predictions but not both to confusion matrix"
+    if probs is not None and len(probs.shape) != 2:
+        raise ValueError(
+            "confusion_matrix has been updated to accept"
+            " probabilities as the default first argument. Use preds=..."
+        )
+
+    if probs is not None and preds is not None:
+        raise ValueError(
+            "confusion_matrix accepts either probabilities or predictions as input,"
+            "not both"
+        )
 
     if probs is not None:
         preds = np.argmax(probs, axis=1).tolist()
 
-    assert len(preds) == len(
-        y_true
-    ), "Number of predictions and label indices must match"
+    if len(preds) != len(y_true):
+        raise ValueError("Number of predictions and label indices must match")
 
     if class_names is not None:
         n_classes = len(class_names)
-        class_inds = [i for i in range(n_classes)]
-        assert max(preds) <= len(
-            class_names
-        ), "Higher predicted index than number of classes"
-        assert max(y_true) <= len(
-            class_names
-        ), "Higher label class index than number of classes"
-    else:
-        class_inds = set(preds).union(set(y_true))
-        n_classes = len(class_inds)
-        class_names = [f"Class_{i}" for i in range(1, n_classes + 1)]
+        class_idx = list(range(n_classes))
+        if max(preds) > len(class_names):
+            raise ValueError(
+                "The maximal predicted index is greater than the number of classes"
+            )
 
-    # get mapping of inds to class index in case user has weird prediction indices
-    class_mapping = {}
-    for i, val in enumerate(sorted(list(class_inds))):
-        class_mapping[val] = i
+        if max(y_true) > len(class_names):
+            raise ValueError(
+                "The maximal label class index is greater than the number of classes"
+            )
+    else:
+        class_idx = set(preds).union(set(y_true))
+        n_classes = len(class_idx)
+        class_names = [f"Class_{i+1}" for i in range(n_classes)]
+
+    # Create a mapping from class name to index
+    class_mapping = {val: i for i, val in enumerate(sorted(list(class_idx)))}
+
     counts = np.zeros((n_classes, n_classes))
     for i in range(len(preds)):
         counts[class_mapping[y_true[i]], class_mapping[preds[i]]] += 1
 
-    data = []
-    for i in range(n_classes):
-        for j in range(n_classes):
-            data.append([class_names[i], class_names[j], counts[i, j]])
+    data = [
+        [class_names[i], class_names[j], counts[i, j]]
+        for i in range(n_classes)
+        for j in range(n_classes)
+    ]
 
-    fields = {
-        "Actual": "Actual",
-        "Predicted": "Predicted",
-        "nPredictions": "nPredictions",
-    }
-    title = title or ""
-    return custom_chart(
-        "wandb/confusion_matrix/v1",
-        Table(columns=["Actual", "Predicted", "nPredictions"], data=data),
-        fields,
-        {"title": title},
+    return CustomChart(
+        id="wandb/confusion_matrix/v1",
+        data=Table(
+            columns=["Actual", "Predicted", "nPredictions"],
+            data=data,
+        ),
+        fields={
+            "Actual": "Actual",
+            "Predicted": "Predicted",
+            "nPredictions": "nPredictions",
+        },
+        string_fields={"title": title or ""},
         split_table=split_table,
     )

@@ -11,9 +11,13 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Fixed
+
+- Add missing type hints of the `wandb.plot` module in the package stub (@kptkin in https://github.com/wandb/wandb/pull/8667)
+
 ## [0.18.5] - 2024-10-17
 
-## Fixed
+### Fixed
 
 - Import `Literal` from `typing_extensions` in Python 3.7; broken in 0.18.4 (@timoffex in https://github.com/wandb/wandb/pull/8656)
 
