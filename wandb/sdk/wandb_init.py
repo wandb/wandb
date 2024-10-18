@@ -920,7 +920,7 @@ def _attach(
 ) -> Run | None:
     """Attach to a run currently executing in another process/thread.
 
-    Arguments:
+    Args:
         attach_id: (str, optional) The id of the run or an attach identifier
             that maps to a run.
         run_id: (str, optional) The id of the run to attach to.
@@ -1064,7 +1064,7 @@ def init(
     For more on using `wandb.init()`, including detailed examples, check out our
     [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 
-    Arguments:
+    Args:
         project: (str, optional) The name of the project where you're sending
             the new run. If the project is not specified, we will try to infer
             the project name from git root or the current program file. If we

@@ -178,7 +178,7 @@ class Api:
         directory. If none can be found, we look in the current user's home
         directory.
 
-    Arguments:
+    Args:
         default_settings(dict, optional): If you aren't using a settings
         file, or you wish to override the section to use in the settings file
         Override the settings here.
@@ -435,7 +435,7 @@ class Api:
     def settings(self, key: Optional[str] = None, section: Optional[str] = None) -> Any:
         """The settings overridden from the wandb/settings file.
 
-        Arguments:
+        Args:
             key (str, optional): If provided only this setting is returned
             section (str, optional): If provided this section of the setting file is
             used, defaults to "default"
@@ -515,7 +515,7 @@ class Api:
     ) -> Tuple[str, str]:
         """Parse a slug into a project and run.
 
-        Arguments:
+        Args:
             slug (str): The slug to parse
             project (str, optional): The project to use, if not provided it will be
             inferred from the slug
@@ -954,7 +954,7 @@ class Api:
     def list_projects(self, entity: Optional[str] = None) -> List[Dict[str, str]]:
         """List projects in W&B scoped by entity.
 
-        Arguments:
+        Args:
             entity (str, optional): The entity to scope this project to.
 
         Returns:
@@ -986,7 +986,7 @@ class Api:
     def project(self, project: str, entity: Optional[str] = None) -> "_Response":
         """Retrieve project.
 
-        Arguments:
+        Args:
             project (str): The project to get details for
             entity (str, optional): The entity to scope this project to.
 
@@ -1021,7 +1021,7 @@ class Api:
     ) -> Dict[str, Any]:
         """Retrieve sweep.
 
-        Arguments:
+        Args:
             sweep (str): The sweep to get details for
             specs (str): history specs
             project (str, optional): The project to scope this sweep to.
@@ -1094,7 +1094,7 @@ class Api:
     ) -> List[Dict[str, str]]:
         """List runs in W&B scoped by project.
 
-        Arguments:
+        Args:
             project (str): The project to scope the runs to
             entity (str, optional): The entity to scope this project to.  Defaults to public models
 
@@ -1135,7 +1135,7 @@ class Api:
     ) -> Tuple[str, Dict[str, Any], Optional[str], Dict[str, Any]]:
         """Get the relevant configs for a run.
 
-        Arguments:
+        Args:
             project (str): The project to download, (can include bucket)
             run (str, optional): The run to download
             entity (str, optional): The entity to scope this project to.
@@ -1224,7 +1224,7 @@ class Api:
     ) -> Optional[Dict[str, Any]]:
         """Check if a run exists and get resume information.
 
-        Arguments:
+        Args:
             entity (str): The entity to scope this project to.
             project_name (str): The project to download, (can include bucket)
             name (str): The run to download
@@ -1329,7 +1329,7 @@ class Api:
     ) -> Dict[str, Any]:
         """Create a new project.
 
-        Arguments:
+        Args:
             project (str): The project to create
             description (str, optional): A description of this project
             entity (str, optional): The entity to scope this project to.
@@ -2157,7 +2157,7 @@ class Api:
     ) -> Tuple[dict, bool, Optional[List]]:
         """Update a run.
 
-        Arguments:
+        Args:
             id (str, optional): The existing run to update
             name (str, optional): The name of the run to create
             group (str, optional): Name of the group this run is a part of
@@ -2344,7 +2344,7 @@ class Api:
     ) -> dict:
         """Rewinds a run to a previous state.
 
-        Arguments:
+        Args:
             run_name (str): The name of the run to rewind
             metric_name (str): The name of the metric to rewind to
             metric_value (float): The value of the metric to rewind to
@@ -2531,7 +2531,7 @@ class Api:
     ) -> Tuple[str, List[str], Dict[str, Dict[str, Any]]]:
         """Generate temporary resumable upload urls.
 
-        Arguments:
+        Args:
             project (str): The project to download
             files (list or dict): The filenames to upload
             run (str, optional): The run to upload to
@@ -2668,7 +2668,7 @@ class Api:
     ) -> Dict[str, Dict[str, str]]:
         """Generate download urls.
 
-        Arguments:
+        Args:
             project (str): The project to download
             run (str): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
@@ -2727,7 +2727,7 @@ class Api:
     ) -> Optional[Dict[str, str]]:
         """Generate download urls.
 
-        Arguments:
+        Args:
             project (str): The project to download
             file_name (str): The name of the file to download
             run (str): The run to upload to
@@ -2780,7 +2780,7 @@ class Api:
     def download_file(self, url: str) -> Tuple[int, requests.Response]:
         """Initiate a streaming download.
 
-        Arguments:
+        Args:
             url (str): The url to download
 
         Returns:
@@ -2814,7 +2814,7 @@ class Api:
     ) -> Tuple[str, Optional[requests.Response]]:
         """Download a file from a run and write it to wandb/.
 
-        Arguments:
+        Args:
             metadata (obj): The metadata object for the file to download. Comes from Api.download_urls().
             out_dir (str, optional): The directory to write the file to. Defaults to wandb/
 
@@ -2878,7 +2878,7 @@ class Api:
     ) -> Optional[requests.Response]:
         """Upload a file chunk to S3 with failure resumption.
 
-        Arguments:
+        Args:
             url: The url to download
             upload_chunk: The path to the file you want to upload
             extra_headers: A dictionary of extra headers to send with the request
@@ -2931,7 +2931,7 @@ class Api:
     ) -> Optional[requests.Response]:
         """Upload a file to W&B with failure resumption.
 
-        Arguments:
+        Args:
             url: The url to download
             file: The path to the file you want to upload
             callback: A callback which is passed the number of
@@ -3003,7 +3003,7 @@ class Api:
     ) -> dict:
         """Register a new agent.
 
-        Arguments:
+        Args:
             host (str): hostname
             sweep_id (str): sweep id
             project_name: (str): model that contains sweep
@@ -3053,7 +3053,7 @@ class Api:
     ) -> List[Dict[str, Any]]:
         """Notify server about agent state, receive commands.
 
-        Arguments:
+        Args:
             agent_id (str): agent_id
             metrics (dict): system metrics
             run_states (dict): run_id: state mapping
@@ -3162,7 +3162,7 @@ class Api:
     ) -> Tuple[str, List[str]]:
         """Upsert a sweep object.
 
-        Arguments:
+        Args:
             config (dict): sweep config (will be converted to yaml)
             controller (str): controller to use
             launch_scheduler (str): launch scheduler to use
@@ -3343,7 +3343,7 @@ class Api:
     ) -> "List[requests.Response]":
         """Download files from W&B.
 
-        Arguments:
+        Args:
             project (str): The project to download
             run (str, optional): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
@@ -3378,7 +3378,7 @@ class Api:
     ) -> "List[Optional[requests.Response]]":
         """Uploads multiple files to W&B.
 
-        Arguments:
+        Args:
             files (list or dict): The filenames to upload, when dict the values are open files
             run (str, optional): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models

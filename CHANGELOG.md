@@ -35,6 +35,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Changed
 
 - Updated minimum version of `sentry-sdk` to 2.0.0 to address deprecation warnings. (@jacobromero in https://github.com/wandb/wandb/compare/WB-20890)
+- Updated api.artifact() such that it doesn't create usage events if not called by an external user. (@ibindlish in https://github.com/wandb/wandb/pull/8674)
 
 ## [0.18.3] - 2024-10-01
 
