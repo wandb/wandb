@@ -24,10 +24,10 @@ from wandb_gql.client import RetryError
 import wandb
 from wandb import env, util
 from wandb.apis import public
-from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import retry, runid
@@ -1188,7 +1188,7 @@ class Api:
             organization = ""
         # Fetches the org entity for a registry artifact.
         try:
-            entity = InternalApi()._resolve_org_entity_name(entity, organization)
+            org_entity = InternalApi()._resolve_org_entity_name(entity, organization)
         except ValueError as entity_error:
             if not organization or organization == entity:
                 wandb.termerror(str(entity_error))
@@ -1196,7 +1196,7 @@ class Api:
 
             # Try to resolve the organization using an org entity.
             try:
-                entity = InternalApi()._resolve_org_entity_name(
+                org_entity = InternalApi()._resolve_org_entity_name(
                     organization, organization
                 )
             except ValueError as org_error:
@@ -1207,6 +1207,7 @@ class Api:
                     f"Defaulted to use {organization!r} as an org entity to resolve organization. Failed with error: {org_error!r}."
                 )
                 raise
+        return org_entity
 
     @normalize_exceptions
     def job(self, name: Optional[str], path: Optional[str] = None) -> "public.Job":
