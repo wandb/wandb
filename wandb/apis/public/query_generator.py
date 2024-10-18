@@ -21,7 +21,7 @@ class QueryGenerator:
 
     @classmethod
     def format_order_key(cls, key: str):
-        if key.startswith("+") or key.startswith("-"):
+        if key.startswith(("+", "-")):
             direction = key[0]
             key = key[1:]
         else:

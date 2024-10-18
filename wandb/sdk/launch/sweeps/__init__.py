@@ -7,8 +7,6 @@ log = logging.getLogger(__name__)
 class SchedulerError(Exception):
     """Raised when a known error occurs with wandb sweep scheduler."""
 
-    pass
-
 
 def _import_sweep_scheduler() -> Any:
     from .scheduler_sweep import SweepScheduler
