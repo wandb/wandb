@@ -1474,6 +1474,7 @@ type __ArtifactFileURLsByManifestEntriesInput struct {
 	Entries         []ArtifactManifestEntryInput `json:"entries"`
 	StorageLayout   string                       `json:"storageLayout"`
 	ManifestVersion string                       `json:"manifestVersion"`
+	StorageRegion   *string                      `json:"storageRegion"`
 }
 
 // GetId returns __ArtifactFileURLsByManifestEntriesInput.Id, and is useful for accessing the field via an interface.
@@ -1491,6 +1492,9 @@ func (v *__ArtifactFileURLsByManifestEntriesInput) GetStorageLayout() string { r
 func (v *__ArtifactFileURLsByManifestEntriesInput) GetManifestVersion() string {
 	return v.ManifestVersion
 }
+
+// GetStorageRegion returns __ArtifactFileURLsByManifestEntriesInput.StorageRegion, and is useful for accessing the field via an interface.
+func (v *__ArtifactFileURLsByManifestEntriesInput) GetStorageRegion() *string { return v.StorageRegion }
 
 // __ArtifactFileURLsInput is used internally by genqlient
 type __ArtifactFileURLsInput struct {
@@ -1966,9 +1970,9 @@ func ArtifactFileURLs(
 
 // The query or mutation executed by ArtifactFileURLsByManifestEntries.
 const ArtifactFileURLsByManifestEntries_Operation = `
-query ArtifactFileURLsByManifestEntries ($id: ID!, $entries: [ArtifactManifestEntryInput!], $storageLayout: String!, $manifestVersion: String!) {
+query ArtifactFileURLsByManifestEntries ($id: ID!, $entries: [ArtifactManifestEntryInput!], $storageLayout: String!, $manifestVersion: String!, $storageRegion: String) {
 	artifact(id: $id) {
-		filesByManifestEntries(storageLayout: $storageLayout, manifestVersion: $manifestVersion, entries: $entries) {
+		filesByManifestEntries(storageLayout: $storageLayout, manifestVersion: $manifestVersion, entries: $entries, storageRegion: $storageRegion) {
 			pageInfo {
 				hasNextPage
 				endCursor
@@ -1991,6 +1995,7 @@ func ArtifactFileURLsByManifestEntries(
 	entries []ArtifactManifestEntryInput,
 	storageLayout string,
 	manifestVersion string,
+	storageRegion *string,
 ) (*ArtifactFileURLsByManifestEntriesResponse, error) {
 	req_ := &graphql.Request{
 		OpName: "ArtifactFileURLsByManifestEntries",
@@ -2000,6 +2005,7 @@ func ArtifactFileURLsByManifestEntries(
 			Entries:         entries,
 			StorageLayout:   storageLayout,
 			ManifestVersion: manifestVersion,
+			StorageRegion:   storageRegion,
 		},
 	}
 	var err_ error

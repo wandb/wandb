@@ -12,6 +12,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/nullify"
 )
 
 const BATCH_SIZE int = 5000
@@ -102,6 +103,7 @@ func (ad *ArtifactDownloader) getEntriesWithDownloadURLs(
 		entriesToFetch,
 		manifest.StoragePolicyConfig.StorageLayout,
 		strconv.Itoa(int(manifest.Version)),
+		nullify.NilIfZero(manifest.StoragePolicyConfig.StorageRegion),
 	)
 	if err != nil {
 		return nil, err
