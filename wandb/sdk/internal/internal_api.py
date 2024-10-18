@@ -20,7 +20,6 @@ from typing import (
     Dict,
     Iterable,
     List,
-    Literal,
     Mapping,
     MutableMapping,
     Optional,
@@ -29,6 +28,11 @@ from typing import (
     Tuple,
     Union,
 )
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 import click
 import requests
