@@ -504,7 +504,7 @@ class Run(Attrs):
         """Persist changes to the run object to the wandb backend."""
         mutation = gql(
             """
-        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!, $groupName: String) {{
+        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString, $groupName: String) {{
             upsertBucket(input: {{id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config, groupName: $groupName}}) {{
                 bucket {{
                     ...RunFragment
@@ -566,7 +566,7 @@ class Run(Attrs):
             config["_wandb"] = {"value": self.rawconfig["_wandb"], "desc": None}
         for k, v in self.config.items():
             config[k] = {"value": v, "desc": None}
-        return json.dumps(config)
+        return json.dumps(config) if config else None
 
     def _exec(self, query, **kwargs):
         """Execute a query against the cloud backend."""
