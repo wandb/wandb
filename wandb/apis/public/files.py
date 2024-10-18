@@ -134,6 +134,9 @@ class File(Attrs):
 
     @property
     def path_uri(self) -> str:
+        """
+        Returns the uri path to the file in the storage bucket.
+        """
         path_uri = ""
         try:
             path_uri = utils.parse_s3_url_to_s3_uri(self._attrs["directUrl"])
