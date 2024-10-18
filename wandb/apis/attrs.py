@@ -18,10 +18,14 @@ class Attrs:
         if html is None:
             wandb.termwarn("This object does not support `.display()`")
             return False
-        if ipython.in_jupyter():
-            ipython.display_html(html)
+
+        try:
+            from IPython import display
+
+            display.display(display.HTML(html))
             return True
-        else:
+
+        except ImportError:
             wandb.termwarn(".display() only works in jupyter environments")
             return False
 
