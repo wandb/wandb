@@ -53,6 +53,7 @@ __all__ = (
     "teardown",
     "watch",
     "unwatch",
+    "plot",
 )
 
 import os
@@ -68,6 +69,7 @@ from typing import (
     Union,
 )
 
+import wandb.plot as plot
 from wandb.analytics import Sentry
 from wandb.apis import InternalApi, PublicApi
 from wandb.data_types import (
@@ -372,11 +374,11 @@ def init(
             for saving hyperparameters to compare across runs. The ID cannot
             contain the following special characters: `/\#?%:`.
             See [our guide to resuming runs](https://docs.wandb.com/guides/runs/resuming).
-        fork_from: (str, optional) A string with the format {run_id}?_step={step} describing
+        fork_from: (str, optional) A string with the format `{run_id}?_step={step}` describing
             a moment in a previous run to fork a new run from. Creates a new run that picks up
             logging history from the specified run at the specified moment. The target run must
             be in the current project. Example: `fork_from="my-run-id?_step=1234"`.
-        resume_from: (str, optional) A string with the format {run_id}?_step={step} describing
+        resume_from: (str, optional) A string with the format `{run_id}?_step={step}` describing
             a moment in a previous run to resume a run from. This allows users to truncate
             the history logged to a run at an intermediate step and resume logging from that step.
             It uses run forking under the hood. The target run must be in the
