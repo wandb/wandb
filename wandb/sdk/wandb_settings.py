@@ -1382,7 +1382,7 @@ class Settings(SettingsData):
         # allow only explicitly defined arguments
         if unexpected_arguments:
             raise SettingsUnexpectedArgsError(
-                f"Got unexpected arguments: {unexpected_arguments}. "
+                f"Got unexpected Args: {unexpected_arguments}. "
             )
 
         # automatically inspect setting validators and runtime hooks and topologically sort them

@@ -23,7 +23,7 @@ def pr_curve(
     accurate results (high precision), and returning a majority of all positive results
     (high recall). PR curve is useful when the classes are very imbalanced.
 
-    Arguments:
+    Args:
         y_true (arr): true sparse labels y_probas (arr): Target scores, can either be
             probability estimates, confidence values, or non-thresholded measure of
             decisions. shape: (*y_true.shape, num_classes)

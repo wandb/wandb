@@ -45,7 +45,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         - Save only model weights, or save the whole model.
         - Save the model either in SavedModel format or in `.h5` format.
 
-    Arguments:
+    Args:
         filepath: (Union[str, os.PathLike]) path to save the model file. `filepath`
             can contain named formatting options, which will be filled by the value
             of `epoch` and keys in `logs` (passed in `on_epoch_end`). For example:
