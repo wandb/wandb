@@ -633,7 +633,7 @@ class Run:
 
         _datatypes_set_callback(self._datatypes_callback)
 
-        self._printer = printer.get_printer(self._settings._jupyter)
+        self._printer = printer.new_printer()
         self._wl = None
         self._reporter: Reporter | None = None
 
