@@ -382,6 +382,10 @@ class SettingsData:
     _stats_open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]]]
     _stats_disk_paths: Sequence[str]  # paths to monitor disk usage
     _stats_buffer_size: int  # number of consolidated samples to buffer before flushing, available in run obj
+    # prefix for system stats keys to use for grouping on the frontend
+    # useful, for example, when using run shared mode to distinguish metrics from
+    # different nodes in a distributed training job.
+    _stats_label: str
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
