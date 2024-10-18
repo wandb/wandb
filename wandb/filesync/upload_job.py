@@ -30,7 +30,7 @@ class UploadJob:
     ) -> None:
         """A file uploader.
 
-        Arguments:
+        Args:
             push_function: function(save_name, actual_path) which actually uploads
                 the file.
             save_name: string logical location of the file relative to the run
