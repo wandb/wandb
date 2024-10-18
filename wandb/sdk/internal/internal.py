@@ -55,7 +55,7 @@ def wandb_internal(
 
     Read from record queue and dispatch work to various threads.
 
-    Arguments:
+    Args:
         settings: settings object
         record_q: records to be handled
         result_q: for sending results back

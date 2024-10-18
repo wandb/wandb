@@ -15,7 +15,7 @@ def bar(
 ):
     """Construct a bar plot.
 
-    Arguments:
+    Args:
         table (wandb.Table): Table of data.
         label (string): Name of column to use as each bar's label.
         value (string): Name of column to use as each bar's value.

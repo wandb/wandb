@@ -33,7 +33,7 @@ if TYPE_CHECKING:  # pragma: no cover
 class Plotly(Media):
     """Wandb class for plotly plots.
 
-    Arguments:
+    Args:
         val: matplotlib or plotly figure
     """
 

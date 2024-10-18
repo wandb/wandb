@@ -199,7 +199,6 @@ class KanikoBuilder(AbstractBuilder):
 
     def login(self) -> None:
         """Login to the registry."""
-        pass
 
     async def _create_docker_ecr_config_map(
         self, job_name: str, corev1_client: client.CoreV1Api, repository: str

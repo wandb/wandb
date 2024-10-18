@@ -16,7 +16,7 @@ def line(
 ):
     """Construct a line plot.
 
-    Arguments:
+    Args:
         table (wandb.Table): Table of data.
         x (string): Name of column to as for x-axis values.
         y (string): Name of column to as for y-axis values.

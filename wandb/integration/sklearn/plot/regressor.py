@@ -21,7 +21,7 @@ def regressor(model, X_train, X_test, y_train, y_test, model_name="Regressor"): 
 
     Should only be called with a fitted regressor (otherwise an error is thrown).
 
-    Arguments:
+    Args:
         model: (regressor) Takes in a fitted regressor.
         X_train: (arr) Training set features.
         y_train: (arr) Training set labels.
@@ -62,7 +62,7 @@ def outlier_candidates(regressor=None, X=None, y=None):  # noqa: N803
 
     Please note this function fits the model on the training set when called.
 
-    Arguments:
+    Args:
         model: (regressor) Takes in a fitted regressor.
         X: (arr) Training set features.
         y: (arr) Training set labels.
@@ -96,7 +96,7 @@ def residuals(regressor=None, X=None, y=None):  # noqa: N803
 
     Please note this function fits variations of the model on the training set when called.
 
-    Arguments:
+    Args:
         regressor: (regressor) Takes in a fitted regressor.
         X: (arr) Training set features.
         y: (arr) Training set labels.
