@@ -4,17 +4,17 @@ import pathlib
 import shutil
 from contextlib import contextmanager
 from typing import Any, Dict, List
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import IPython
 import IPython.display
 import nbformat
 import pytest
 import wandb
-from wandb.sdk.lib import ipython
 import wandb.util
 from nbclient import NotebookClient
 from nbclient.client import CellExecutionError
+from wandb.sdk.lib import ipython
 
 # wandb.jupyter is lazy loaded, so we need to force it to load
 # before we can monkeypatch it
