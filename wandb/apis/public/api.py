@@ -741,8 +741,10 @@ class Api:
             return entity, project, path + full_alias
         elif len(parts) == 2:
             return entity, parts[0], parts[1] + full_alias
-        parts[-1] += full_alias
-        return parts
+        else:
+            entity_part, project, collection = parts
+            entity = entity if is_artifact_registry_project(project) else entity_part
+            return entity, project, collection + full_alias
 
     def projects(
         self, entity: Optional[str] = None, per_page: Optional[int] = 200
@@ -1131,6 +1133,10 @@ class Api:
             An iterable `Artifacts` object.
         """
         entity, project, collection_name = self._parse_artifact_path(name)
+        # If its an Registry artifact, the entity is an org instead
+        if is_artifact_registry_project(project):
+            entity = self._fetch_entity_for_registry_artifact(name, entity)
+
         return public.Artifacts(
             self.client,
             entity,
@@ -1160,25 +1166,47 @@ class Api:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
 
-        organization = ""
         # If its an Registry artifact, the entity is an org instead
         if is_artifact_registry_project(project):
-            # Update `organization` only if an organization name was provided,
-            # otherwise use the default that you already set above.
-            try:
-                organization, _, _ = name.split("/")
-            except ValueError:
-                organization = ""
-            # set entity to match the settings since in above code it was potentially set to an org
-            entity = self.settings["entity"] or self.default_entity
+            entity = self._fetch_entity_for_registry_artifact(name, entity)
+
         artifact = wandb.Artifact._from_name(
-            entity, project, artifact_name, self.client, organization
+            entity, project, artifact_name, self.client
         )
         if type is not None and artifact.type != type:
             raise ValueError(
                 f"type {type} specified but this artifact is of type {artifact.type}"
             )
         return artifact
+
+    def _fetch_entity_for_registry_artifact(self, full_path: str, entity: str):
+        # Update `organization` only if an organization name was provided,
+        # otherwise use the default that you already set above.
+        try:
+            organization, _, _ = full_path.split("/")
+        except ValueError:
+            organization = ""
+        # Fetches the org entity for a registry artifact.
+        try:
+            entity = InternalApi()._resolve_org_entity_name(entity, organization)
+        except ValueError as entity_error:
+            if not organization or organization == entity:
+                wandb.termerror(str(entity_error))
+                raise
+
+            # Try to resolve the organization using an org entity.
+            try:
+                entity = InternalApi()._resolve_org_entity_name(
+                    organization, organization
+                )
+            except ValueError as org_error:
+                wandb.termerror(
+                    f"Error resolving organization of entity: {entity!r}. Failed with error: {entity_error!r}."
+                )
+                wandb.termerror(
+                    f"Defaulted to use {organization!r} as an org entity to resolve organization. Failed with error: {org_error!r}."
+                )
+                raise
 
     @normalize_exceptions
     def job(self, name: Optional[str], path: Optional[str] = None) -> "public.Job":

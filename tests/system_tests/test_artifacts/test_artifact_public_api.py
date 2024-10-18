@@ -289,6 +289,17 @@ def test_parse_artifact_path(user, api):
     entity, project, path = api._parse_artifact_path("entity/project/artifact")
     assert entity == "entity" and project == "project" and path == "artifact"
 
+    # For registry projects, the first input is actually an org name or org entity
+    # So entity is set to default as if no entity was provided
+    entity, project, path = api._parse_artifact_path(
+        "org-name/wandb-registry-model/test-collection:v0"
+    )
+    assert (
+        entity == user
+        and project == "wandb-registry-model"
+        and path == "test-collection:v0"
+    )
+
 
 @pytest.mark.parametrize(
     (
