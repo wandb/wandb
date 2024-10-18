@@ -1215,8 +1215,19 @@ class Api:
             )
         return artifact
 
-    def _fetch_entity_for_registry_artifact(self, organization: str, entity: str):
-        # Fetches the org entity for a registry artifact.
+    def _fetch_entity_for_registry_artifact(
+        self, organization: str, entity: str
+    ) -> str:
+        """Returns the org entity of an entity and validates the organization passed in is in the same org as the entity.
+
+        Arguments:
+            organization: (str) Organization or org entity name, possibly an empty string.
+            entity: (str) Entity of the Registry, used to fetch the org entity as well as
+                validate the organization passed in belongs to the same org as the org entity.
+
+        Returns:
+            org_entity (str) The org entity of the entity.
+        """
         try:
             org_entity = InternalApi()._resolve_org_entity_name(entity, organization)
         except ValueError as entity_error:
