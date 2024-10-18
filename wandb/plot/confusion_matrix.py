@@ -1,30 +1,33 @@
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Sequence, TypeVar
 
 from wandb import util
 from wandb.data_types import Table
 from wandb.plot.viz import CustomChart
 
+T = TypeVar("T")
+
 
 def confusion_matrix(
-    probs: Sequence[Sequence] | None = None,
-    y_true: Sequence | None = None,
-    preds: Sequence | None = None,
+    probs: Sequence[Sequence[float]] | None = None,
+    y_true: Sequence[T] | None = None,
+    preds: Sequence[T] | None = None,
     class_names: Sequence[str] | None = None,
     title: str | None = None,
-    split_table: bool | None = False,
+    split_table: bool = False,
 ) -> CustomChart:
     """Computes a multi-run confusion matrix.
 
     Args:
-        probs (Sequence[Sequence]): Array of probabilities, shape (N, K) where N is the number
-            of samples and K is the number of classes.
-        y_true (Sequence): Sequence of true label indices.
-        preds (Sequence): Sequence of predicted label indices.
-        class_names (Sequence[str]): Sequence of class names. If not provided, class names
-            will be defined as "Class_1", "Class_2", etc.
-        title (str): Title of the confusion matrix.
+        probs (Sequence[Sequence[float]], optional): Array of probabilities,
+            shape (N, K) where N is the number of samples and K is the number of
+            classes.
+        y_true (Sequence[T], optional): Sequence of true labels.
+        preds (Sequence[T], optional): Sequence of predicted labels.
+        class_names (Sequence[str], optional): Sequence of class names. If not
+            provided, class names will be defined as "Class_1", "Class_2", etc.
+        title (str, optional): Title of the confusion matrix.
         split_table (bool): Whether to split the table into a different section
             in the UI. Default is False.
 
@@ -85,14 +88,14 @@ def confusion_matrix(
     if class_names is not None:
         n_classes = len(class_names)
         class_idx = list(range(n_classes))
-        if max(preds) > len(class_names):
+        if len(set(preds)) > len(class_names):
             raise ValueError(
-                "The maximal predicted index is greater than the number of classes"
+                "The number of unique predicted classes exceeds the number of class names."
             )
 
-        if max(y_true) > len(class_names):
+        if len(set(y_true)) > len(class_names):
             raise ValueError(
-                "The maximal label class index is greater than the number of classes"
+                "The number of unique true labels exceeds the number of class names."
             )
     else:
         class_idx = set(preds).union(set(y_true))
