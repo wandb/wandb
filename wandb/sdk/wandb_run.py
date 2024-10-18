@@ -1998,9 +1998,7 @@ class Run:
         if isinstance(glob_str, bytes):
             # Preserved for backward compatibility: allow bytes inputs.
             glob_str = glob_str.decode("utf-8")
-        if isinstance(glob_str, str) and (
-            glob_str.startswith("gs://") or glob_str.startswith("s3://")
-        ):
+        if isinstance(glob_str, str) and (glob_str.startswith(("gs://", "s3://"))):
             # Provide a better error message for a common misuse.
             wandb.termlog(f"{glob_str} is a cloud storage url, can't save file to W&B.")
             return []
