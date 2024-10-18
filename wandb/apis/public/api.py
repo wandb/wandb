@@ -965,11 +965,7 @@ class Api:
         Returns:
             A `Runs` object, which is an iterable collection of `Run` objects.
         """
-        org, entity, project = self._parse_project_path(path)
-
-        # If its an Registry artifact, the entity is an org instead
-        if is_artifact_registry_project(project):
-            entity = self._fetch_org_entity_for_registry(org, entity)
+        _, entity, project = self._parse_project_path(path)
 
         filters = filters or {}
         key = (path or "") + str(filters) + str(order)
