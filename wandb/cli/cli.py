@@ -1566,7 +1566,6 @@ def launch(
     "queues",
     default=None,
     multiple=True,
-    metavar="<queue(s)>",
     help="The name of a queue for the agent to watch. Multiple -q flags supported.",
 )
 @click.option(
