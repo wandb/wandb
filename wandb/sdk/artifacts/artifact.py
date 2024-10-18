@@ -89,7 +89,7 @@ class Artifact:
     begin with `add`. Once the artifact has all the desired files, you can call
     `wandb.log_artifact()` to log it.
 
-    Arguments:
+    Args:
         name: A human-readable name for the artifact. Use the name to identify
             a specific artifact in the W&B App UI or programmatically. You can
             interactively reference an artifact with the `use_artifact` Public API.
@@ -431,7 +431,7 @@ class Artifact:
     def name(self) -> str:
         """The artifact name and version in its secondary (portfolio) collection.
 
-        A string with the format {collection}:{alias}. Before the artifact is saved,
+        A string with the format `{collection}:{alias}`. Before the artifact is saved,
         contains only the name since the version is not yet known.
         """
         return self._name
@@ -482,7 +482,7 @@ class Artifact:
     def source_name(self) -> str:
         """The artifact name and version in its primary (sequence) collection.
 
-        A string with the format {collection}:{alias}. Before the artifact is saved,
+        A string with the format `{collection}:{alias}`. Before the artifact is saved,
         contains only the name since the version is not yet known.
         """
         return self._source_name
@@ -497,7 +497,7 @@ class Artifact:
     def source_version(self) -> str:
         """The artifact's version in its primary (sequence) collection.
 
-        A string with the format "v{number}".
+        A string with the format `v{number}`.
         """
         assert self._source_version is not None
         return self._source_version
@@ -529,7 +529,7 @@ class Artifact:
         standardized team model or dataset card. In the W&B UI the
         description is rendered as markdown.
 
-        Arguments:
+        Args:
             description: Free text that offers a description of the artifact.
         """
         self._description = description
@@ -551,7 +551,7 @@ class Artifact:
 
         Note: There is currently a limit of 100 total keys.
 
-        Arguments:
+        Args:
             metadata: Structured data associated with the artifact.
         """
         self._metadata = self._normalize_metadata(metadata)
@@ -586,7 +586,7 @@ class Artifact:
         the team default if the team administrator defines a default
         TTL and there is no custom policy set on an artifact.
 
-        Arguments:
+        Args:
             ttl: The duration as a positive Python `datetime.timedelta` Type
                 that represents how long the artifact will remain active from its creation.
 
@@ -784,7 +784,7 @@ class Artifact:
         If currently in a run, that run will log this artifact. If not currently in a
         run, a run of type "auto" is created to track this artifact.
 
-        Arguments:
+        Args:
             project: A project to use for the artifact in the case that a run is not
                 already in context.
             settings: A settings object to use when initializing an automatic run. Most
@@ -824,7 +824,7 @@ class Artifact:
     def wait(self, timeout: int | None = None) -> Artifact:
         """If needed, wait for this artifact to finish logging.
 
-        Arguments:
+        Args:
             timeout: The time, in seconds, to wait.
 
         Returns:
@@ -1146,7 +1146,7 @@ class Artifact:
     def __getitem__(self, name: str) -> WBValue | None:
         """Get the WBValue object located at the artifact relative `name`.
 
-        Arguments:
+        Args:
             name: The artifact relative name to get.
 
         Returns:
@@ -1160,7 +1160,7 @@ class Artifact:
     def __setitem__(self, name: str, item: WBValue) -> ArtifactManifestEntry:
         """Add `item` to the artifact at path `name`.
 
-        Arguments:
+        Args:
             name: The path within the artifact to add the object.
             item: The object to add.
 
@@ -1180,7 +1180,7 @@ class Artifact:
     ) -> Iterator[IO]:
         """Open a new temporary file and add it to the artifact.
 
-        Arguments:
+        Args:
             name: The name of the new file to add to the artifact.
             mode: The file access mode to use to open the new file.
             encoding: The encoding used to open the new file.
@@ -1223,7 +1223,7 @@ class Artifact:
     ) -> ArtifactManifestEntry:
         """Add a local file to the artifact.
 
-        Arguments:
+        Args:
             local_path: The path to the file being added.
             name: The path within the artifact to use for the file being added. Defaults
                 to the basename of the file.
@@ -1268,7 +1268,7 @@ class Artifact:
     ) -> None:
         """Add a local directory to the artifact.
 
-        Arguments:
+        Args:
             local_path: The path of the local directory.
             name: The subdirectory name within an artifact. The name you specify appears
                 in the W&B App UI nested by artifact's `type`.
@@ -1352,7 +1352,7 @@ class Artifact:
         For any other scheme, the digest is just a hash of the URI and the size is left
         blank.
 
-        Arguments:
+        Args:
             uri: The URI path of the reference to add. The URI path can be an object
                 returned from `Artifact.get_entry` to store a reference to another
                 artifact's entry.
@@ -1407,7 +1407,7 @@ class Artifact:
     def add(self, obj: WBValue, name: StrPath) -> ArtifactManifestEntry:
         """Add wandb.WBValue `obj` to the artifact.
 
-        Arguments:
+        Args:
             obj: The object to add. Currently support one of Bokeh, JoinedTable,
                 PartitionedTable, Table, Classes, ImageMask, BoundingBoxes2D, Audio,
                 Image, Video, Html, Object3D
@@ -1539,7 +1539,7 @@ class Artifact:
     def remove(self, item: StrPath | ArtifactManifestEntry) -> None:
         """Remove an item from the artifact.
 
-        Arguments:
+        Args:
             item: The item to remove. Can be a specific manifest entry or the name of an
                 artifact-relative path. If the item matches a directory all items in
                 that directory will be removed.
@@ -1577,7 +1577,7 @@ class Artifact:
     def get_entry(self, name: StrPath) -> ArtifactManifestEntry:
         """Get the entry with the given name.
 
-        Arguments:
+        Args:
             name: The artifact relative name to get
 
         Returns:
@@ -1598,7 +1598,7 @@ class Artifact:
     def get(self, name: str) -> WBValue | None:
         """Get the WBValue object located at the artifact relative `name`.
 
-        Arguments:
+        Args:
             name: The artifact relative name to retrieve.
 
         Returns:
@@ -1644,7 +1644,7 @@ class Artifact:
     def get_added_local_path_name(self, local_path: str) -> str | None:
         """Get the artifact relative name of a file added by a local filesystem path.
 
-        Arguments:
+        Args:
             local_path: The local path to resolve into an artifact relative name.
 
         Returns:
@@ -1665,7 +1665,7 @@ class Artifact:
         able to resolve a name, without tasking the user with appending .THING.json.
         This method returns an entry if it exists by a suffixed name.
 
-        Arguments:
+        Args:
             name: name used when adding
         """
         for wb_class in WBValue.type_mapping().values():
@@ -1691,7 +1691,7 @@ class Artifact:
         before you call `download` if you want the contents of `root` to exactly match
         the artifact.
 
-        Arguments:
+        Args:
             root: The directory W&B stores the artifact's files.
             allow_missing_references: If set to `True`, any invalid reference paths
                 will be ignored while downloading referenced files.
@@ -1937,7 +1937,7 @@ class Artifact:
         WARNING: This will delete all files in `root` that are not included in the
         artifact.
 
-        Arguments:
+        Args:
             root: The directory to replace with this artifact's files.
 
         Returns:
@@ -1967,7 +1967,7 @@ class Artifact:
         All files in the directory are checksummed and the checksums are then
         cross-referenced against the artifact's manifest. References are not verified.
 
-        Arguments:
+        Args:
             root: The directory to verify. If None artifact will be downloaded to
                 './artifacts/self.name/'
 
@@ -2004,7 +2004,7 @@ class Artifact:
     def file(self, root: str | None = None) -> StrPath:
         """Download a single file artifact to the directory you specify with `root`.
 
-        Arguments:
+        Args:
             root: The root directory to store the file. Defaults to
                 './artifacts/self.name/'.
 
@@ -2032,7 +2032,7 @@ class Artifact:
     ) -> ArtifactFiles:
         """Iterate over all files stored in this artifact.
 
-        Arguments:
+        Args:
             names: The filename paths relative to the root of the artifact you wish to
                 list.
             per_page: The number of files to return per request.
@@ -2075,7 +2075,7 @@ class Artifact:
         If called on a linked artifact (i.e. a member of a portfolio collection): only the link is deleted, and the
         source artifact is unaffected.
 
-        Arguments:
+        Args:
             delete_aliases: If set to `True`, deletes all aliases associated with the artifact.
                 Otherwise, this raises an exception if the artifact has existing
                 aliases.
@@ -2118,7 +2118,7 @@ class Artifact:
     def link(self, target_path: str, aliases: list[str] | None = None) -> None:
         """Link this artifact to a portfolio (a promoted collection of artifacts).
 
-        Arguments:
+        Args:
             target_path: The path to the portfolio inside a project.
                 The target path must adhere to one of the following
                 schemas `{portfolio}`, `{project}/{portfolio}` or

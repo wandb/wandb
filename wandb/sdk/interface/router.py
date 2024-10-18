@@ -25,8 +25,6 @@ logger = logging.getLogger("wandb")
 class MessageRouterClosedError(Exception):
     """Router has been closed."""
 
-    pass
-
 
 class MessageFutureObject(MessageFuture):
     def __init__(self) -> None:

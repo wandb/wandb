@@ -14,7 +14,7 @@ def histogram(
 ):
     """Construct a histogram plot.
 
-    Arguments:
+    Args:
         table (wandb.Table): Table of data.
         value (string): Name of column to use as data for bucketing.
         title (string): Plot title.
