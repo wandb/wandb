@@ -87,7 +87,8 @@ def is_docker_installed() -> bool:
     try:
         # Run the docker --version command
         result = subprocess.run(
-            ["docker", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            ["docker", "--version"],
+            capture_output=True,
         )
         if result.returncode == 0:
             return True
