@@ -49,7 +49,7 @@ class WBArtifactHandler(StorageHandler):
 
         Download the referenced artifact; create and return a new symlink to the caller.
 
-        Arguments:
+        Args:
             manifest_entry (ArtifactManifestEntry): The index entry to load
 
         Returns:
@@ -89,7 +89,7 @@ class WBArtifactHandler(StorageHandler):
 
         Recursively resolves the reference until the result is a concrete asset.
 
-        Arguments:
+        Args:
             artifact: The artifact doing the storing path (str): The path to store name
             (str): If specified, the logical name that should map to `path`
 

@@ -178,7 +178,7 @@ class Runs(Paginator):
     ):
         """Return sampled history metrics for all runs that fit the filters conditions.
 
-        Arguments:
+        Args:
             samples : (int, optional) The number of samples to return per run
             keys : (list[str], optional) Only return metrics for specific keys
             x_axis : (str, optional) Use this metric as the xAxis defaults to _step
@@ -609,7 +609,7 @@ class Run(Attrs):
     def files(self, names=None, per_page=50):
         """Return a file path for each file named.
 
-        Arguments:
+        Args:
             names (list): names of the requested files, if empty returns all files
             per_page (int): number of results per page.
 
@@ -622,7 +622,7 @@ class Run(Attrs):
     def file(self, name):
         """Return the path of a file with a given name in the artifact.
 
-        Arguments:
+        Args:
             name (str): name of requested file.
 
         Returns:
@@ -634,7 +634,7 @@ class Run(Attrs):
     def upload_file(self, path, root="."):
         """Upload a file.
 
-        Arguments:
+        Args:
             path (str): name of file to upload.
             root (str): the root path to save the file relative to.  i.e.
                 If you want to have the file saved in the run as "my_dir/file.txt"
@@ -662,7 +662,7 @@ class Run(Attrs):
 
         This is simpler and faster if you are ok with the history records being sampled.
 
-        Arguments:
+        Args:
             samples : (int, optional) The number of samples to return
             pandas : (bool, optional) Return a pandas dataframe
             keys : (list, optional) Only return metrics for specific keys
@@ -709,7 +709,7 @@ class Run(Attrs):
             losses = [row["Loss"] for row in history]
             ```
 
-        Arguments:
+        Args:
             keys ([str], optional): only fetch these keys, and only fetch rows that have all of keys defined.
             page_size (int, optional): size of pages to fetch from the api.
             min_step (int, optional): the minimum number of pages to scan at a time.
@@ -815,7 +815,7 @@ class Run(Attrs):
     def use_artifact(self, artifact, use_as=None):
         """Declare an artifact as an input to a run.
 
-        Arguments:
+        Args:
             artifact (`Artifact`): An artifact returned from
                 `wandb.Api().artifact(name)`
             use_as (string, optional): A string identifying
@@ -853,7 +853,7 @@ class Run(Attrs):
     ):
         """Declare an artifact as output of a run.
 
-        Arguments:
+        Args:
             artifact (`Artifact`): An artifact returned from
                 `wandb.Api().artifact(name)`.
             aliases (list, optional): Aliases to apply to this artifact.
