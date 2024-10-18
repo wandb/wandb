@@ -420,9 +420,7 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
     def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> wandb.sdk.wandb_run.Run:
         kwargs_settings = kwargs.pop("settings", dict())
         kwargs_settings = {
-            **{
-                "run_id": runid.generate_id(),
-            },
+            "run_id": runid.generate_id(),
             **kwargs_settings,
         }
         run = wandb.wandb_sdk.wandb_run.Run(
