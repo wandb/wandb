@@ -24,8 +24,6 @@ if TYPE_CHECKING:
 class _GCSIsADirectoryError(Exception):
     """Raised when we try to download a GCS folder."""
 
-    pass
-
 
 class GCSHandler(StorageHandler):
     _client: gcs_module.client.Client | None

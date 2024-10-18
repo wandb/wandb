@@ -114,11 +114,9 @@ def setup(
     settings: Optional[Settings] = None,
 ) -> Optional[_WandbSetup]:
     """<sdk/wandb_setup.py::setup>"""
-    ...
 
 def teardown(exit_code: Optional[int] = None) -> None:
     """<sdk/wandb_setup.py::teardown>"""
-    ...
 
 def init(
     job_type: str | None = None,
@@ -149,11 +147,9 @@ def init(
     settings: Settings | dict[str, Any] | None = None,
 ) -> Run:
     """<sdk/wandb_init.py::init>"""
-    ...
 
 def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
     """<sdk/wandb_run.py::finish>"""
-    ...
 
 def login(
     anonymous: Optional[Literal["must", "allow", "never"]] = None,
@@ -165,7 +161,6 @@ def login(
     verify: bool = False,
 ) -> bool:
     """<sdk/wandb_login.py::login>"""
-    ...
 
 def log(
     data: dict[str, Any],
@@ -174,7 +169,6 @@ def log(
     sync: bool | None = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::log>"""
-    ...
 
 def save(
     glob_str: str | os.PathLike | None = None,
@@ -182,7 +176,6 @@ def save(
     policy: PolicyName = "live",
 ) -> bool | list[str]:
     """<sdk/wandb_run.py::Run::save>"""
-    ...
 
 def sweep(
     sweep: Union[dict, Callable],
@@ -191,7 +184,6 @@ def sweep(
     prior_runs: Optional[List[str]] = None,
 ) -> str:
     """<sdk/wandb_sweep.py::sweep>"""
-    ...
 
 def controller(
     sweep_id_or_config: Optional[Union[str, Dict]] = None,
@@ -199,7 +191,6 @@ def controller(
     project: Optional[str] = None,
 ) -> _WandbController:
     """<sdk/wandb_sweep.py::controller>"""
-    ...
 
 def agent(
     sweep_id: str,
@@ -209,7 +200,6 @@ def agent(
     count: Optional[int] = None,
 ) -> None:
     """<wandb_agent.py::agent>"""
-    ...
 
 def define_metric(
     name: str,
@@ -221,7 +211,6 @@ def define_metric(
     overwrite: bool | None = None,
 ) -> wandb_metric.Metric:
     """<sdk/wandb_run.py::Run::define_metric>"""
-    ...
 
 def log_artifact(
     artifact_or_path: Artifact | StrPath,
@@ -231,7 +220,6 @@ def log_artifact(
     tags: list[str] | None = None,
 ) -> Artifact:
     """<sdk/wandb_run.py::Run::log_artifact>"""
-    ...
 
 def use_artifact(
     artifact_or_name: str | Artifact,
@@ -240,7 +228,6 @@ def use_artifact(
     use_as: str | None = None,
 ) -> Artifact:
     """<sdk/wandb_run.py::Run::use_artifact>"""
-    ...
 
 def log_model(
     path: StrPath,
@@ -248,11 +235,9 @@ def log_model(
     aliases: list[str] | None = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::log_model>"""
-    ...
 
 def use_model(name: str) -> FilePathStr:
     """<sdk/wandb_run.py::Run::use_model>"""
-    ...
 
 def link_model(
     path: StrPath,
@@ -261,7 +246,6 @@ def link_model(
     aliases: list[str] | None = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::link_model>"""
-    ...
 
 def plot_table(
     vega_spec_name: str,
@@ -271,7 +255,6 @@ def plot_table(
     split_table: bool | None = False,
 ) -> CustomChart:
     """<sdk/wandb_run.py::Run::plot_table>"""
-    ...
 
 def watch(
     models: torch.nn.Module | Sequence[torch.nn.Module],
@@ -282,10 +265,8 @@ def watch(
     log_graph: bool = False,
 ) -> None:
     """<sdk/wandb_run.py::Run::watch>"""
-    ...
 
 def unwatch(
     models: torch.nn.Module | Sequence[torch.nn.Module] | None = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::unwatch>"""
-    ...
