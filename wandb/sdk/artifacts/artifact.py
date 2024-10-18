@@ -253,8 +253,6 @@ class Artifact:
             """
             + cls._get_gql_artifact_fragment()
         )
-        # if is_artifact_registry_project(project):
-        #     entity = cls._fetch_entity_for_registry_artifact(entity, organization)
 
         response = client.execute(
             query,

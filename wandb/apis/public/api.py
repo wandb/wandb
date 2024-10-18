@@ -803,7 +803,7 @@ class Api:
             entity = self.settings["entity"] or self.default_entity
         # Fetch org entity for artifact registry projects
         if is_artifact_registry_project(name):
-            entity = self._fetch_entity_for_registry_artifact(org, entity)
+            entity = self._fetch_org_entity_for_registry(org, entity)
         return public.Project(self.client, entity, name, {})
 
     def reports(
@@ -969,7 +969,7 @@ class Api:
 
         # If its an Registry artifact, the entity is an org instead
         if is_artifact_registry_project(project):
-            entity = self._fetch_entity_for_registry_artifact(org, entity)
+            entity = self._fetch_org_entity_for_registry(org, entity)
 
         filters = filters or {}
         key = (path or "") + str(filters) + str(order)
@@ -1070,7 +1070,7 @@ class Api:
         org, entity, project = self._parse_project_path(project)
         # If its an Registry artifact, the entity is an org instead
         if is_artifact_registry_project(project):
-            entity = self._fetch_entity_for_registry_artifact(org, entity)
+            entity = self._fetch_org_entity_for_registry(org, entity)
         return public.ArtifactTypes(self.client, entity, project)
 
     @normalize_exceptions
@@ -1089,7 +1089,7 @@ class Api:
         org, entity, project = self._parse_project_path(project)
         # If its an Registry artifact, the entity is an org instead
         if is_artifact_registry_project(project):
-            entity = self._fetch_entity_for_registry_artifact(org, entity)
+            entity = self._fetch_org_entity_for_registry(org, entity)
         return public.ArtifactType(self.client, entity, project, type_name)
 
     @normalize_exceptions
@@ -1110,7 +1110,7 @@ class Api:
         organization, entity, project = self._parse_project_path(project_name)
         # If its an Registry artifact, the entity is an org instead
         if is_artifact_registry_project(project):
-            entity = self._fetch_entity_for_registry_artifact(organization, entity)
+            entity = self._fetch_org_entity_for_registry(organization, entity)
         return public.ArtifactCollections(
             self.client, entity, project, type_name, per_page=per_page
         )
@@ -1131,7 +1131,7 @@ class Api:
         org, entity, project, collection_name = self._parse_artifact_path(name)
         # If its an Registry artifact(under org entities), fetch org entity for user
         if is_artifact_registry_project(project):
-            entity = self._fetch_entity_for_registry_artifact(org, entity)
+            entity = self._fetch_org_entity_for_registry(org, entity)
         return public.ArtifactCollection(
             self.client, entity, project, collection_name, type_name
         )
@@ -1171,7 +1171,7 @@ class Api:
         org, entity, project, collection_name = self._parse_artifact_path(name)
         # If its an Registry artifact(under org entities), fetch org entity for user
         if is_artifact_registry_project(project):
-            entity = self._fetch_entity_for_registry_artifact(org, entity)
+            entity = self._fetch_org_entity_for_registry(org, entity)
 
         return public.Artifacts(
             self.client,
@@ -1204,7 +1204,7 @@ class Api:
 
         # If its an Registry artifact(under org entities), fetch org entity for user
         if is_artifact_registry_project(project):
-            entity = self._fetch_entity_for_registry_artifact(org, entity)
+            entity = self._fetch_org_entity_for_registry(org, entity)
 
         artifact = wandb.Artifact._from_name(
             entity, project, artifact_name, self.client
@@ -1215,9 +1215,7 @@ class Api:
             )
         return artifact
 
-    def _fetch_entity_for_registry_artifact(
-        self, organization: str, entity: str
-    ) -> str:
+    def _fetch_org_entity_for_registry(self, organization: str, entity: str) -> str:
         """Returns the org entity of an entity and validates the organization passed in is in the same org as the entity.
 
         Arguments:
