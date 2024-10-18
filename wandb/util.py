@@ -945,6 +945,7 @@ def no_retry_auth(e: Any) -> bool:
                 f"Failed to find resource. Please make sure you have the correct resource path. "
                 f"(Error {e.response.status_code}: {e.response.reason})"
             )
+    return False
 
 
 def check_retry_conflict(e: Any) -> Optional[bool]:
