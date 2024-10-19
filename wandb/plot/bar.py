@@ -15,7 +15,7 @@ def bar(
     title: str = "",
     split_table: bool = False,
 ):
-    """Constructs a bar plot from a wandb.Table of data.
+    """Constructs a bar chart from a wandb.Table of data.
 
     Args:
         table (wandb.Table): The W&B Table containing the data to visualize.
@@ -48,7 +48,7 @@ def bar(
                 table=table,
                 label="class",
                 value="acc",
-                title="MY Bar Plot",
+                title="My Bar Plot",
             )
             run.log({'bar_plot': bar_plot})
         ```
