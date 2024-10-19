@@ -38,6 +38,7 @@ type Emitter interface {
 	EmitTable(key pathtree.TreePath, table wbvalue.Table) error
 
 	// EmitImages uploads one or more images as files and records metadata
+	// in the run history.
 	EmitImages(key pathtree.TreePath, images []wbvalue.Image) error
 }
 
@@ -257,11 +258,10 @@ func (e *tfEmitter) EmitImages(
 	key pathtree.TreePath,
 	images []wbvalue.Image,
 ) error {
-	// We assume that all images have the same format, height, and width.
-	// This aligns with the legacy way of logging images in TensorBoard.
-	format := images[0].Format
-	height := images[0].Height
-	width := images[0].Width
+	format, height, width, err := e.verifyAndGetImagesMetadata(images)
+	if err != nil {
+		return err
+	}
 
 	imagePaths := []paths.RelativePath{}
 	for _, img := range images {
@@ -295,6 +295,30 @@ func (e *tfEmitter) EmitImages(
 			JSON:    historyJSON,
 		})
 	return nil
+}
+
+func (e *tfEmitter) verifyAndGetImagesMetadata(images []wbvalue.Image) (format string, height int, width int, err error) {
+	// Tensorboard encodes all images to png format.
+	// https://github.com/tensorflow/tensorboard/blob/b56c65521cbccf3097414cbd7e30e55902e08cab/tensorboard/plugins/image/summary.py#L85
+	format = images[0].Format
+	// Tensorboard gets the image dimensions from the first two values in the tensor.
+	//https://github.com/tensorflow/tensorboard/blob/b56c65521cbccf3097414cbd7e30e55902e08cab/tensorboard/plugins/image/summary.py#L93-L94
+	height = images[0].Height
+	width = images[0].Width
+
+	for _, img := range images {
+		if img.Format != format {
+			return "", -1, -1, fmt.Errorf("images have different formats, expected %s, but found %s", format, img.Format)
+		}
+		if img.Height != height {
+			return "", -1, -1, fmt.Errorf("images have different heights, expected %d, but found %d", height, img.Height)
+		}
+		if img.Width != width {
+			return "", -1, -1, fmt.Errorf("images have different widths, expected %d, but found %d", width, img.Width)
+		}
+	}
+
+	return format, height, width, nil
 }
 
 // Write data to a file at the given path.

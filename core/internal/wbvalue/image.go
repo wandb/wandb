@@ -66,6 +66,7 @@ func ImageFromData(
 }
 
 // HistoryImageValuesJSON is the metadata for multiple images to keep in the run history.
+//
 // The `filePaths` are the run file paths to where each image was saved.
 func HistoryImageValuesJSON(
 	filePaths []paths.RelativePath,
