@@ -40,7 +40,6 @@ REFERENCE_ATTRIBUTES = set(
         "notes",
         "offline",
         "path",
-        "plot_table",
         "project",
         "project_name",
         "restore",

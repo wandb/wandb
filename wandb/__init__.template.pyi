@@ -54,6 +54,7 @@ __all__ = (
     "watch",
     "unwatch",
     "plot",
+    "plot_table",
 )
 
 import os
@@ -98,6 +99,7 @@ from wandb.wandb_controller import _WandbController
 if TYPE_CHECKING:
     import torch  # type: ignore [import-not-found]
 
+    import wandb
     from wandb.plot import CustomChart
 
 __version__: str = "0.18.8.dev1"
@@ -266,12 +268,12 @@ def link_model(
 
 def plot_table(
     vega_spec_name: str,
-    data_table: Table,
+    data_table: wandb.Table,
     fields: dict[str, Any],
     string_fields: dict[str, Any] | None = None,
     split_table: bool = False,
 ) -> CustomChart:
-    """<sdk/wandb_run.py::Run::plot_table>"""
+    """<plot/custom_chart.py::plot_table>"""
     ...
 
 def watch(
