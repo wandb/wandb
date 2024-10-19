@@ -139,13 +139,15 @@ def line_series(
         xs = [xs] * len(ys)
 
     if len(xs) != len(ys):
-        raise ValueError("Number of x-lines and y-lines must match")
+        msg = f"Number of x-series ({len(xs)}) must match y-series ({len(ys)})."
+        raise ValueError(msg)
 
     if keys is None:
         keys = [f"line_{i}" for i in range(len(ys))]
 
     if len(keys) != len(ys):
-        raise ValueError("Number of keys and y-lines must match")
+        msg = f"Number of keys ({len(keys)}) must match y-series ({len(ys)})."
+        raise ValueError(msg)
 
     data = [
         [x, keys[i], y]
