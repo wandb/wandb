@@ -41,13 +41,13 @@ def bar(
             ['road', random.uniform(0, 1)],
             ['person', random.uniform(0, 1)],
         ]
-        
+
         # Create a table with the data
         table = wandb.Table(data=data, columns=["class", "accuracy"])
 
         # Initialize a W&B run and log the bar plot
         with wandb.init(project="bar_chart") as run:
-            
+
             # Create a bar plot from the table
             bar_plot = wandb.plot.bar(
                 table=table,
