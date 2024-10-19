@@ -38,7 +38,7 @@ from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError
 from wandb.integration.torch import wandb_torch
-from wandb.plot.viz import CustomChart, Visualize, custom_chart
+from wandb.plot.viz import CustomChart, Visualize
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
@@ -105,7 +105,6 @@ if TYPE_CHECKING:
     import wandb.apis.public
     import wandb.sdk.backend.backend
     import wandb.sdk.interface.interface_queue
-    from wandb.data_types import Table
     from wandb.proto.wandb_internal_pb2 import (
         GetSummaryResponse,
         InternalMessagesResponse,
@@ -2238,31 +2237,6 @@ class Run:
             sync_time=sync_time,
         )
 
-    @staticmethod
-    def plot_table(
-        vega_spec_name: str,
-        data_table: Table,
-        fields: dict[str, Any],
-        string_fields: dict[str, Any] | None = None,
-        split_table: bool | None = False,
-    ) -> CustomChart:
-        """Create a custom plot on a table.
-
-        Args:
-            vega_spec_name: the name of the spec for the plot
-            data_table: a wandb.Table object containing the data to
-                be used on the visualization
-            fields: a dict mapping from table keys to fields that the custom
-                visualization needs
-            string_fields: a dict that provides values for any string constants
-                the custom visualization needs
-            split_table: a boolean that indicates whether the table should be in
-                a separate section in the UI
-        """
-        return custom_chart(
-            vega_spec_name, data_table, fields, string_fields or {}, split_table
-        )
-
     def _add_panel(
         self, visualize_key: str, panel_type: str, panel_config: dict
     ) -> None:
@@ -2282,7 +2256,6 @@ class Run:
             use_artifact=self.use_artifact,
             log_artifact=self.log_artifact,
             define_metric=self.define_metric,
-            plot_table=self.plot_table,
             alert=self.alert,
             watch=self.watch,
             unwatch=self.unwatch,

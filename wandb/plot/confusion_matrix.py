@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Sequence, TypeVar
 
+import wandb
 from wandb import util
-from wandb.data_types import Table
-from wandb.plot.viz import CustomChart
+from wandb.plot.custom_chart import CustomChart
 
 T = TypeVar("T")
 
@@ -117,7 +117,7 @@ def confusion_matrix(
 
     return CustomChart(
         id="wandb/confusion_matrix/v1",
-        data=Table(
+        data=wandb.Table(
             columns=["Actual", "Predicted", "nPredictions"],
             data=data,
         ),

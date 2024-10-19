@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import wandb
 from wandb import util
-from wandb.plot.viz import CustomChart
+from wandb.plot.custom_chart import CustomChart
 from wandb.sdk.interface.interface import GlobStr
 from wandb.sdk.lib import filesystem
 

@@ -107,7 +107,6 @@ def test_disabled_no_activity(wandb_init, relay_server):
             run.log_code()
             run.save()
             run.restore()
-            run.plot_table("table")
             run.mark_preempting()
             run.to_html()
             run.display()

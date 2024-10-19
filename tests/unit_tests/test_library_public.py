@@ -221,7 +221,6 @@ SYMBOLS_RUN_RESUME = {
 # Look into these
 SYMBOLS_RUN_OTHER = {
     "path",
-    "plot_table",
     "get_project_url",
     "url",
     "get_url",
