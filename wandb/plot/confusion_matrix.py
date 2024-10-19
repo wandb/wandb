@@ -14,10 +14,10 @@ def confusion_matrix(
     y_true: Sequence[T] | None = None,
     preds: Sequence[T] | None = None,
     class_names: Sequence[str] | None = None,
-    title: str | None = None,
+    title: str = "",
     split_table: bool = False,
 ) -> CustomChart:
-    """Computes a multi-run confusion matrix.
+    """Constructs a confusion matrix from a sequence of probabilities or predictions.
 
     Args:
         probs (Sequence[Sequence[float]], optional): Array of probabilities,
@@ -54,9 +54,9 @@ def confusion_matrix(
                     probs=probs,
                     y_true=y_true,
                     class_names=labels,
-                    title="Confusion Matrix",
+                    title="My Confusion Matrix",
                 )
-            run.log({"confusion_matrix": confusion_matrix)})
+            run.log({"confusion_matrix": confusion_matrix})
         ```
     """
     np = util.get_module(
@@ -126,6 +126,6 @@ def confusion_matrix(
             "Predicted": "Predicted",
             "nPredictions": "nPredictions",
         },
-        string_fields={"title": title or ""},
+        string_fields={"title": title},
         split_table=split_table,
     )
