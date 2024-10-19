@@ -11,8 +11,8 @@ T = TypeVar("T")
 
 def confusion_matrix(
     probs: Sequence[Sequence[float]] | None = None,
-    preds: Sequence[T] | None = None,
     y_true: Sequence[T] | None = None,
+    preds: Sequence[T] | None = None,
     class_names: Sequence[str] | None = None,
     title: str = "",
     split_table: bool = False,
@@ -20,12 +20,12 @@ def confusion_matrix(
     """Constructs a confusion matrix from a sequence of probabilities or predictions.
 
     Args:
-        probs (Sequence[Sequence[float]]): Array of probabilities,
-            shape (N, K) where N is the number of samples and K is the number of
-            classes. If provided, `preds` should not be provided.
+        probs (Sequence[Sequence[float]]): A sequence of predicted probabilities for each
+            class. The sequence shape should be (N, K) where N is the number of samples
+            and K is the number of classes. If provided, `preds` should not be provided.
+        y_true (Sequence[T]): A sequence of true labels.
         preds (Sequence[T]): A sequence of predicted class labels. If provided,
             `probs` should not be provided.
-        y_true (Sequence[T]): Sequence of true labels.
         class_names (Sequence[str]): Sequence of class names. If not
             provided, class names will be defined as "Class_1", "Class_2", etc.
         title (str): Title of the confusion matrix chart.
@@ -97,8 +97,8 @@ def confusion_matrix(
         # Initialize W&B run and log confusion matrix
         with wandb.init(project="wildlife_classification") as run:
             confusion_matrix = wandb.plot.confusion_matrix(
-                y_true=wildlife_y_true,
                 preds=wildlife_preds,
+                y_true=wildlife_y_true,
                 class_names=wildlife_class_names,
                 title="Simulated Wildlife Classification Confusion Matrix"
             )
