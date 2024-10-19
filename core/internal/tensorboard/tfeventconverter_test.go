@@ -105,6 +105,30 @@ func tensorValueStrings(
 	}
 }
 
+func tensorValueImage(
+	tag string,
+	plugin string,
+	width int,
+	height int,
+	encodedImageData string,
+) *tbproto.Summary_Value {
+	return &tbproto.Summary_Value{
+		Tag: tag,
+		Value: &tbproto.Summary_Value_Image{
+			Image: &tbproto.Summary_Image{
+				Height:             int32(height),
+				Width:              int32(width),
+				EncodedImageString: []byte(encodedImageData),
+			},
+		},
+		Metadata: &tbproto.SummaryMetadata{
+			PluginData: &tbproto.SummaryMetadata_PluginData{
+				PluginName: plugin,
+			},
+		},
+	}
+}
+
 func tensorValueBytes(
 	tag string,
 	plugin string,
@@ -150,7 +174,7 @@ type mockEmitter struct {
 	EmitHistoryCalls   []mockEmitter_EmitHistory
 	EmitChartCalls     []mockEmitter_EmitChart
 	EmitTableCalls     []mockEmitter_EmitTable
-	EmitImageCalls     []mockEmitter_EmitImage
+	EmitImagesCalls    []mockEmitter_EmitImages
 }
 
 type mockEmitter_SetTFStep struct {
@@ -173,9 +197,9 @@ type mockEmitter_EmitTable struct {
 	Table wbvalue.Table
 }
 
-type mockEmitter_EmitImage struct {
-	Key   pathtree.TreePath
-	Image wbvalue.Image
+type mockEmitter_EmitImages struct {
+	Key    pathtree.TreePath
+	Images []wbvalue.Image
 }
 
 func (e *mockEmitter) SetTFStep(key pathtree.TreePath, step int64) {
@@ -204,9 +228,9 @@ func (e *mockEmitter) EmitTable(key pathtree.TreePath, table wbvalue.Table) erro
 	return nil
 }
 
-func (e *mockEmitter) EmitImage(key pathtree.TreePath, img wbvalue.Image) error {
-	e.EmitImageCalls = append(e.EmitImageCalls,
-		mockEmitter_EmitImage{key, img})
+func (e *mockEmitter) EmitImages(key pathtree.TreePath, images []wbvalue.Image) error {
+	e.EmitImagesCalls = append(e.EmitImagesCalls,
+		mockEmitter_EmitImages{key, images})
 	return nil
 }
 
@@ -383,6 +407,33 @@ func TestConvertHistogramRebin(t *testing.T) {
 	assert.EqualValues(t, 1000, sumOfWeights)
 }
 
+func TestConvertImageNoPluginName(t *testing.T) {
+	converter := tensorboard.TFEventConverter{Namespace: "train"}
+
+	emitter := &mockEmitter{}
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValueImage("my_img", "",
+				2, 4, testPNG2x4)),
+		observability.NewNoOpLogger(),
+	)
+
+	assert.Equal(t,
+		[]mockEmitter_EmitImages{
+			{
+				Key: pathtree.PathOf("train/my_img"),
+				Images: []wbvalue.Image{{
+					Width:       2,
+					Height:      4,
+					EncodedData: []byte(testPNG2x4),
+					Format:      "png",
+				}},
+			},
+		},
+		emitter.EmitImagesCalls)
+}
+
 func TestConvertImage(t *testing.T) {
 	converter := tensorboard.TFEventConverter{Namespace: "train"}
 
@@ -396,18 +447,50 @@ func TestConvertImage(t *testing.T) {
 	)
 
 	assert.Equal(t,
-		[]mockEmitter_EmitImage{
+		[]mockEmitter_EmitImages{
 			{
 				Key: pathtree.PathOf("train/my_img"),
-				Image: wbvalue.Image{
+				Images: []wbvalue.Image{{
 					Width:       2,
 					Height:      4,
 					EncodedData: []byte(testPNG2x4),
 					Format:      "png",
+				}},
+			},
+		},
+		emitter.EmitImagesCalls)
+}
+
+func TestConvertBatchImages(t *testing.T) {
+	image := wbvalue.Image{
+		Width:       2,
+		Height:      4,
+		EncodedData: []byte(testPNG2x4),
+		Format:      "png",
+	}
+
+	converter := tensorboard.TFEventConverter{Namespace: "train"}
+
+	emitter := &mockEmitter{}
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValueStrings("my_img", "images",
+				"2", "4", testPNG2x4, testPNG2x4)),
+		observability.NewNoOpLogger(),
+	)
+
+	assert.Equal(t,
+		[]mockEmitter_EmitImages{
+			{
+				Key: pathtree.PathOf("train/my_img"),
+				Images: []wbvalue.Image{
+					image,
+					image,
 				},
 			},
 		},
-		emitter.EmitImageCalls)
+		emitter.EmitImagesCalls)
 }
 
 func TestConvertGif(t *testing.T) {
@@ -423,18 +506,18 @@ func TestConvertGif(t *testing.T) {
 	)
 
 	assert.Equal(t,
-		[]mockEmitter_EmitImage{
+		[]mockEmitter_EmitImages{
 			{
 				Key: pathtree.PathOf("train/test_gif"),
-				Image: wbvalue.Image{
+				Images: []wbvalue.Image{{
 					Width:       1,
 					Height:      1,
 					EncodedData: []byte(testGif1x1),
 					Format:      "gif",
-				},
+				}},
 			},
 		},
-		emitter.EmitImageCalls)
+		emitter.EmitImagesCalls)
 }
 
 func TestConvertImage_NotPNG(t *testing.T) {
@@ -450,7 +533,7 @@ func TestConvertImage_NotPNG(t *testing.T) {
 		observability.NewCoreLogger(slog.New(slog.NewTextHandler(&logs, nil))),
 	)
 
-	assert.Empty(t, emitter.EmitImageCalls)
+	assert.Empty(t, emitter.EmitImagesCalls)
 	assert.Contains(t, logs.String(), "failed to parse image format")
 }
 
@@ -467,7 +550,7 @@ func TestConvertImage_BadDims(t *testing.T) {
 		observability.NewCoreLogger(slog.New(slog.NewTextHandler(&logs, nil))),
 	)
 
-	assert.Empty(t, emitter.EmitImageCalls)
+	assert.Empty(t, emitter.EmitImagesCalls)
 	assert.Contains(t, logs.String(), "couldn't parse image dimensions")
 	assert.Contains(t, logs.String(), "2a")
 	assert.Contains(t, logs.String(), "4x")
@@ -485,9 +568,9 @@ func TestConvertImage_UnknownTBFormat(t *testing.T) {
 		observability.NewCoreLogger(slog.New(slog.NewTextHandler(&logs, nil))),
 	)
 
-	assert.Empty(t, emitter.EmitImageCalls)
+	assert.Empty(t, emitter.EmitImagesCalls)
 	assert.Contains(t, logs.String(),
-		"expected images tensor string_val to have 3 values, but it has 1")
+		"expected images tensor string_val to have at least 3 values, but it has 1")
 }
 
 func TestConvertPRCurve(t *testing.T) {

@@ -1,6 +1,9 @@
 """Test that the TensorFlow summary API works with W&B.
 Used https://www.tensorflow.org/api_docs/python/tf/summary as reference."""
 
+import os
+
+import numpy as np
 import pytest
 import tensorboard.plugins.pr_curve.summary as pr_curve_plugins_summary
 import tensorboard.summary.v1 as tensorboard_summary_v1
@@ -99,6 +102,33 @@ def test_image(wandb_init, relay_server):
         assert summary["grayscale_image"]["width"] == 8
         assert summary["grayscale_image"]["height"] == 8
         assert summary["grayscale_image"]["format"] == "png"
+
+    wandb.tensorboard.unpatch()
+
+
+def test_batch_images(wandb_init, relay_server):
+    with relay_server() as relay:
+        with wandb_init(sync_tensorboard=True) as run:
+            with tf.summary.create_file_writer("test/logs").as_default():
+                # tensor shape: (number_of_images, image_height, image_width, channels)
+                img_tensor = np.random.rand(5, 15, 10, 3)
+                tf.summary.image("Training data", img_tensor, max_outputs=5, step=0)
+
+        run_ids = relay.context.get_run_ids()
+        assert len(run_ids) == 1
+        assert run.id == run_ids[0]
+
+        summary = relay.context.get_run_summary(run.id)
+
+        assert summary["global_step"] == 0
+
+        assert "Training data" in summary
+        assert summary["Training data"]["_type"] == "images/separated"
+        assert summary["Training data"]["height"] == 15
+        assert summary["Training data"]["width"] == 10
+        assert summary["Training data"]["count"] == 5
+        for file_name in summary["Training data"]["filenames"]:
+            assert os.path.exists(f"{run.dir}/{file_name}")
 
     wandb.tensorboard.unpatch()
 
