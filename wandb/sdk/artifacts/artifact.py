@@ -238,24 +238,41 @@ class Artifact:
         name: str,
         client: RetryingClient,
         organization: str = "",
+        enable_tracking: bool = False,
     ) -> Artifact:
+        server_supports_enabling_artifact_usage_tracking = (
+            InternalApi().server_project_type_introspection()
+        )
+        enable_tracking_arg = (
+            ", enableTracking: $enableTracking"
+            if server_supports_enabling_artifact_usage_tracking
+            else ""
+        )
+        enable_tracking_variable = (
+            "$enableTracking: Boolean"
+            if server_supports_enabling_artifact_usage_tracking
+            else ""
+        )
         query = gql(
             """
             query ArtifactByName(
                 $entityName: String!,
                 $projectName: String!,
-                $name: String!
-            ) {
-                project(name: $projectName, entityName: $entityName) {
-                    artifact(name: $name) {
+                $name: String!,
+                {enable_tracking_variable}
+            ) {{
+                project(name: $projectName, entityName: $entityName) {{
+                    artifact(name: $name{enable_tracking_arg}) {{
                         ...ArtifactFragment
-                    }
-                }
-            }
-            """
+                    }}
+                }}
+            }}
+            """.format(
+                enable_tracking_arg=enable_tracking_arg,
+                enable_tracking_variable=enable_tracking_variable,
+            )
             + cls._get_gql_artifact_fragment()
         )
-
         # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
         # we need to fetch the org entity to for the user behind the scenes.
         if is_artifact_registry_project(project):
@@ -286,6 +303,7 @@ class Artifact:
                 "entityName": entity,
                 "projectName": project,
                 "name": name,
+                "enableTracking": enable_tracking,
             },
         )
         project_attrs = response.get("project")
