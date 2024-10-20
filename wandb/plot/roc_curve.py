@@ -21,33 +21,27 @@ def roc_curve(
     """Constructs Receiver Operating Characteristic (ROC) curve chart.
 
     Args:
-        y_true (Sequence[numbers.Number]):
-            The true class labels (ground truth) for the target variable. Shape
-            should be (num_samples,).
-
-        y_probas (Sequence[Sequence[float]]):
-            The predicted probabilities or decision scores for each class. Shape
-            should be (num_samples, num_classes).
-
-        labels (list[str]):
-            Human-readable labels corresponding to the class indices in `y_true`.
-            For example, if `labels=['dog', 'cat']`, class 0 will be displayed as
-            'dog' and class 1 as 'cat' in the plot. If None, the raw class indices
-            from `y_true` will be used. Default is None.
-
-        classes_to_plot (list[numbers.Number]):
-            A subset of unique class labels to include in the ROC curve. If None,
-            all classes in `y_true` will be plotted. Default is None.
-
-        split_table (bool):
-            Whether to split the table into a separate section in the UI. If True,
-            the table will appear under "Custom Chart Tables/". Default is False.
+        y_true (Sequence[numbers.Number]): The true class labels (ground truth)
+            for the target variable. Shape should be (num_samples,).
+        y_probas (Sequence[Sequence[float]]): The predicted probabilities or
+            decision scores for each class. Shape should be (num_samples, num_classes).
+        labels (list[str]): Human-readable labels corresponding to the class
+            indices in `y_true`. For example, if `labels=['dog', 'cat']`,
+            class 0 will be displayed as 'dog' and class 1 as 'cat' in the plot.
+            If None, the raw class indices from `y_true` will be used.
+            Default is None.
+        classes_to_plot (list[numbers.Number]): A subset of unique class labels
+            to include in the ROC curve. If None, all classes in `y_true` will
+            be plotted. Default is None.
+        split_table (bool): Whether to split the table into a separate section
+            in the UI. Default is False.
 
     Returns:
-        A plot object, to be passed to wandb.log()
+        A CustomChart object with the ROC curve data. To log the chart to W&B,
+        use `wandb.log()`.
 
     Raises:
-        ImportError: If numpy, pandas, or scikit-learn are not found.
+        wandb.Error: If numpy, pandas, or scikit-learn are not found.
 
     Example:
         ```
