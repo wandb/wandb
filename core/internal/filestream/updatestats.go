@@ -16,7 +16,7 @@ type StatsUpdate struct {
 }
 
 func (u *StatsUpdate) Apply(ctx UpdateContext) error {
-	// todo: there is a lot of unnecessary overhead here,
+	// TODO: there is a lot of unnecessary overhead here,
 	//  we should prepare all the data in the system monitor
 	//  and then send it in one record
 	row := make(map[string]interface{})
@@ -42,6 +42,7 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 		}
 
 		row["system."+item.Key] = val
+		fmt.Println("system."+item.Key, val)
 	}
 
 	line, err := simplejsonext.Marshal(row)
