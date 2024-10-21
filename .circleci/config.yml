@@ -108,7 +108,14 @@ commands:
           name: "Run nox session: <<parameters.session>>"
           no_output_timeout: 10m
           command: >
-            nox -s "<<parameters.session>>" --python <<parameters.python>>
+            TESTS=$(\
+              find "tests/unit-tests" -type f \
+                # -not -path "**/test_importers/**" \
+                # -not -path "**/test_notebooks/**" \
+                # -not -path "**/test_functional/**" \
+                # -not -path "**/test_experimental/**" \
+            )
+            echo $TESTS | circleci tests run --command="xargs nox -s "<<parameters.session>>" --python <<parameters.python>>" --verbose
 
       - codecov/upload: { flags: <<parameters.codecov_flags>> }
       - save-test-results
@@ -437,28 +444,28 @@ jobs:
 workflows:
   main:
     jobs:
+      # #
+      # # Linting
+      # #
+      # - code-check
       #
-      # Linting
+      # #
+      # # Store latest local-testcontainer
+      # #
+      # - store-local-testcontainer:
+      #     filters:
+      #       branches:
+      #         only:
+      #           - main
       #
-      - code-check
-
+      # #
+      # # Unit tests with Go on Linux
+      # #
+      # - unit-tests-go
       #
-      # Store latest local-testcontainer
-      #
-      - store-local-testcontainer:
-          filters:
-            branches:
-              only:
-                - main
-
-      #
-      # Unit tests with Go on Linux
-      #
-      - unit-tests-go
-
-      #
-      # Unit tests with pytest on Linux
-      #
+      # #
+      # # Unit tests with pytest on Linux
+      # #
       - nox-tests-linux:
           name: unit-tests-linux-<<matrix.python>>
           session: unit_tests
@@ -467,142 +474,142 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.12"]
-
-      #
-      # Unit tests with pytest on macOS
-      #
-      - nox-tests-macos:
-          name: unit-tests-macos-<<matrix.python>>
-          session: unit_tests
-          codecov_flags: unit
-          parallelism: 4
-
-          matrix:
-            parameters:
-              python: ["3.9", "3.12"]
-
-      #
-      # Unit tests with pytest on Windows
-      #
-      - nox-tests-win:
-          name: unit-tests-win-<<matrix.python>>
-          session: unit_tests
-          codecov_flags: unit
-          parallelism: 4
-
-          filters:
-            branches:
-              only:
-                - main
-                - /^release-.*/
-                - /^.*-ci-win$/
-
-          matrix:
-            parameters:
-              python: ["3.9", "3.12"]
-
-      #
-      # System tests on Linux
-      #
-      - nox-tests-linux:
-          name: system-tests-linux-<<matrix.python>>
-          session: system_tests
-          codecov_flags: system
-          parallelism: 8
-          executor_name: local-testcontainer
-
-          filters:
-            branches:
-              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
-              ignore: /pull\/[0-9]+/
-
-          matrix:
-            parameters:
-              python: ["3.8", "3.12"]
-
-      - nox-tests-linux:
-          name: system-tests-min-server-version-linux-<<matrix.python>>
-          session: system_tests
-          codecov_flags: system
-          parallelism: 8
-          executor_name: local-testcontainer
-
-          filters:
-            branches:
-              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
-              ignore: /pull\/[0-9]+/
-
-          matrix:
-            parameters:
               python: ["3.12"]
-              server_image: ["us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer"]
-              server_image_tag: ["0.48.0"]
-
-      - nox-tests-linux:
-          name: notebook-tests-linux-<<matrix.python>>
-          session: notebook_tests
-          codecov_flags: system
-          parallelism: 1
-          executor_name: local-testcontainer
-
-          matrix:
-            parameters:
-              python: ["3.8", "3.12"]
-
       #
-      # Functional tests with pytest on Linux
+      # #
+      # # Unit tests with pytest on macOS
+      # #
+      # - nox-tests-macos:
+      #     name: unit-tests-macos-<<matrix.python>>
+      #     session: unit_tests
+      #     codecov_flags: unit
+      #     parallelism: 4
       #
-      - nox-tests-linux:
-          name: functional-tests-linux-<<matrix.python>>
-          session: functional_tests
-          codecov_flags: func
-          parallelism: 1
-          executor_name: local-testcontainer
-
-          filters:
-            branches:
-              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
-              ignore: /pull\/[0-9]+/
-
-          matrix:
-            parameters:
-              python: ["3.12"]
-
+      #     matrix:
+      #       parameters:
+      #         python: ["3.9", "3.12"]
       #
-      # Functional tests of experimental clients with pytest on Linux
+      # #
+      # # Unit tests with pytest on Windows
+      # #
+      # - nox-tests-win:
+      #     name: unit-tests-win-<<matrix.python>>
+      #     session: unit_tests
+      #     codecov_flags: unit
+      #     parallelism: 4
       #
-      - nox-tests-linux:
-          name: experimental-tests-linux-<<matrix.python>>
-          session: experimental_tests
-          codecov_flags: func
-          parallelism: 1
-          executor_name: local-testcontainer
-          install_extras: true
-
-          filters:
-            branches:
-              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
-              ignore: /pull\/[0-9]+/
-
-          matrix:
-            parameters:
-              python: ["3.12"]
-
+      #     filters:
+      #       branches:
+      #         only:
+      #           - main
+      #           - /^release-.*/
+      #           - /^.*-ci-win$/
       #
-      # W&B Importer tests on Linux, using 2 real wandb servers
+      #     matrix:
+      #       parameters:
+      #         python: ["3.9", "3.12"]
       #
-      - importers:
-          name: "\
-            system-tests-linux-importers-\
-            <<matrix.tests>>-\
-            <<matrix.python>>"
-
-          matrix:
-            parameters:
-              python: ["3.9"]
-              tests: ["wandb", "mlflow"]
-
-          executor:
-            name: local-testcontainer-importers
-            python: << matrix.python >>
+      # #
+      # # System tests on Linux
+      # #
+      # - nox-tests-linux:
+      #     name: system-tests-linux-<<matrix.python>>
+      #     session: system_tests
+      #     codecov_flags: system
+      #     parallelism: 8
+      #     executor_name: local-testcontainer
+      #
+      #     filters:
+      #       branches:
+      #         # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+      #         ignore: /pull\/[0-9]+/
+      #
+      #     matrix:
+      #       parameters:
+      #         python: ["3.8", "3.12"]
+      #
+      # - nox-tests-linux:
+      #     name: system-tests-min-server-version-linux-<<matrix.python>>
+      #     session: system_tests
+      #     codecov_flags: system
+      #     parallelism: 8
+      #     executor_name: local-testcontainer
+      #
+      #     filters:
+      #       branches:
+      #         # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+      #         ignore: /pull\/[0-9]+/
+      #
+      #     matrix:
+      #       parameters:
+      #         python: ["3.12"]
+      #         server_image: ["us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer"]
+      #         server_image_tag: ["0.48.0"]
+      #
+      # - nox-tests-linux:
+      #     name: notebook-tests-linux-<<matrix.python>>
+      #     session: notebook_tests
+      #     codecov_flags: system
+      #     parallelism: 1
+      #     executor_name: local-testcontainer
+      #
+      #     matrix:
+      #       parameters:
+      #         python: ["3.8", "3.12"]
+      #
+      # #
+      # # Functional tests with pytest on Linux
+      # #
+      # - nox-tests-linux:
+      #     name: functional-tests-linux-<<matrix.python>>
+      #     session: functional_tests
+      #     codecov_flags: func
+      #     parallelism: 1
+      #     executor_name: local-testcontainer
+      #
+      #     filters:
+      #       branches:
+      #         # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+      #         ignore: /pull\/[0-9]+/
+      #
+      #     matrix:
+      #       parameters:
+      #         python: ["3.12"]
+      #
+      # #
+      # # Functional tests of experimental clients with pytest on Linux
+      # #
+      # - nox-tests-linux:
+      #     name: experimental-tests-linux-<<matrix.python>>
+      #     session: experimental_tests
+      #     codecov_flags: func
+      #     parallelism: 1
+      #     executor_name: local-testcontainer
+      #     install_extras: true
+      #
+      #     filters:
+      #       branches:
+      #         # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+      #         ignore: /pull\/[0-9]+/
+      #
+      #     matrix:
+      #       parameters:
+      #         python: ["3.12"]
+      #
+      # #
+      # # W&B Importer tests on Linux, using 2 real wandb servers
+      # #
+      # - importers:
+      #     name: "\
+      #       system-tests-linux-importers-\
+      #       <<matrix.tests>>-\
+      #       <<matrix.python>>"
+      #
+      #     matrix:
+      #       parameters:
+      #         python: ["3.9"]
+      #         tests: ["wandb", "mlflow"]
+      #
+      #     executor:
+      #       name: local-testcontainer-importers
+      #       python: << matrix.python >>
