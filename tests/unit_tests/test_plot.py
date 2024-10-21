@@ -106,12 +106,12 @@ def test_conf_mat_missing_values_without_classes(mock_run):
 def test_line_series(xs, ys, mock_run):
     _ = mock_run(settings={"mode": "offline"})
     line_series_plt = line_series(xs, ys)
-    assert line_series_plt.table.data[0] == [xs[0], "key_0", ys[0][0]]
-    assert line_series_plt.table.data[1] == [xs[1], "key_0", ys[0][1]]
+    assert line_series_plt.table.data[0] == [xs[0], "line_0", ys[0][0]]
+    assert line_series_plt.table.data[1] == [xs[1], "line_0", ys[0][1]]
 
     if len(ys) == 2:
-        assert line_series_plt.table.data[2] == [xs[0], "key_1", ys[1][0]]
-        assert line_series_plt.table.data[3] == [xs[1], "key_1", ys[1][1]]
+        assert line_series_plt.table.data[2] == [xs[0], "line_1", ys[1][0]]
+        assert line_series_plt.table.data[3] == [xs[1], "line_1", ys[1][1]]
 
 
 @pytest.mark.parametrize(
@@ -120,8 +120,8 @@ def test_line_series(xs, ys, mock_run):
         [(1, [[3, 4]]), {}, TypeError],
         [([1], [3]), {}, TypeError],
         [([1], 3), {}, TypeError],
-        [([[1], [2]], [[3]]), {}, AssertionError],
-        [([1, 2], [[3, 4]]), {"keys": ["a", "b"]}, AssertionError],
+        [([[1], [2]], [[3]]), {}, ValueError],
+        [([1, 2], [[3, 4]]), {"keys": ["a", "b"]}, ValueError],
     ],
 )
 def test_line_series_bad_inputs(args, kwargs, error):

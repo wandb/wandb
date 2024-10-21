@@ -1,88 +1,172 @@
-import typing as t
-from collections.abc import Iterable
+from __future__ import annotations
+
+from typing import Any, Iterable
 
 import wandb
+from wandb.plot.viz import CustomChart
 
 
 def line_series(
-    xs: t.Union[t.Iterable, t.Iterable[t.Iterable]],
-    ys: t.Iterable[t.Iterable],
-    keys: t.Optional[t.Iterable] = None,
-    title: t.Optional[str] = None,
-    xname: t.Optional[str] = None,
-    split_table: t.Optional[bool] = False,
+    xs: Iterable[Iterable[Any]] | Iterable[Any],
+    ys: Iterable[Iterable[Any]],
+    keys: Iterable[str] | None = None,
+    title: str = "",
+    xname: str = "x",
+    split_table: bool = False,
 ):
-    """Construct a line series plot.
+    """Constructs a line series chart.
 
     Args:
-        xs (array of arrays, or array): Array of arrays of x values
-        ys (array of arrays): Array of y values
-        keys (array): Array of labels for the line plots
-        title (string): Plot title.
-        xname: Title of x-axis
-        split_table (bool): If True, adds "Custom Chart Tables/" to the key of the table so that it's logged in a different section.
+        xs (Iterable[Iterable] | Iterable): Sequence of x values. If a singular
+            array is provided, all y values are plotted against that x array. If
+            an array of arrays is provided, each y value is plotted against the
+            corresponding x array.
+        ys (Iterable[Iterable]): Sequence of y values, where each iterable represents
+            a separate line series.
+        keys (Iterable[str]): Sequence of keys for labeling each line series. If
+            not provided, keys will be automatically generated as "line_1",
+            "line_2", etc.
+        title (str): Title of the chart.
+        xname (str): Label for the x-axis.
+        split_table (bool): Whether to split the table into a different section
+            in the UI. Default is False.
 
     Returns:
-        A plot object, to be passed to wandb.log()
+        CustomChart: A line series chart. That can be logged to W&B with
+            `wandb.log({'line_series': line_series})`.
 
-    Example:
-        When logging a singular array for xs, all ys are plotted against that xs
-        <!--yeadoc-test:plot-line-series-single-->
-        ```python
+    Examples:
+        1. Logging a single x array where all y series are plotted against
+           the same x values:
+
+        ```
         import wandb
 
-        run = wandb.init()
-        xs = [i for i in range(10)]
-        ys = [[i for i in range(10)], [i**2 for i in range(10)]]
-        run.log(
-            {"line-series-plot1": wandb.plot.line_series(xs, ys, title="title", xname="step")}
-        )
-        run.finish()
-        ```
-        xs can also contain an array of arrays for having different steps for each metric
-        <!--yeadoc-test:plot-line-series-double-->
-        ```python
-        import wandb
+        # Initialize W&B run
+        with wandb.init(project="line_series_example") as run:
+            # x values shared across all y series
+            xs = list(range(10))
 
-        run = wandb.init()
-        xs = [[i for i in range(10)], [2 * i for i in range(10)]]
-        ys = [[i for i in range(10)], [i**2 for i in range(10)]]
-        run.log(
-            {"line-series-plot2": wandb.plot.line_series(xs, ys, title="title", xname="step")}
-        )
-        run.finish()
-        ```
-    """
-    if not isinstance(xs, Iterable):
-        raise TypeError(f"Expected xs to be an array instead got {type(xs)}")
+            # Multiple y series to plot
+            ys = [
+                [i for i in range(10)],       # y = x
+                [i**2 for i in range(10)],    # y = x^2
+                [i**3 for i in range(10)],     # y = x^3
+            ]
 
-    if not isinstance(ys, Iterable):
-        raise TypeError(f"Expected ys to be an array instead got {type(xs)}")
-
-    for y in ys:
-        if not isinstance(y, Iterable):
-            raise TypeError(
-                f"Expected ys to be an array of arrays instead got {type(y)}"
+            # Generate and log the line series chart
+            line_series_chart = wandb.plot.line_series(
+                xs,
+                ys,
+                title="title",
+                xname="step",
             )
+            run.log({"line-series-single-x": line_series_chart})
+        ```
 
+        In this example, a single `xs` series (shared x-values) is used for all
+        `ys` series. This results in each y-series being plotted against the
+        same x-values (0-9).
+
+        2. Logging multiple x arrays where each y series is plotted against
+           its corresponding x array:
+
+        ```python
+        import wandb
+
+        # Initialize W&B run
+        with wandb.init(project="line_series_example") as run:
+            # Separate x values for each y series
+            xs = [
+                [i for i in range(10)],  # x for first series
+                [2 * i for i in range(10)],  # x for second series (stretched)
+                [3 * i for i in range(10)],  # x for third series (stretched more)
+            ]
+
+            # Corresponding y series
+            ys = [
+                [i for i in range(10)],  # y = x
+                [i**2 for i in range(10)],  # y = x^2
+                [i**3 for i in range(10)],  # y = x^3
+            ]
+
+            # Generate and log the line series chart
+            line_series_chart = wandb.plot.line_series(
+                xs, ys, title="Multiple X Arrays Example", xname="Step"
+            )
+            run.log({"line-series-multiple-x": line_series_chart})
+        ```
+
+        In this example, each y series is plotted against its own unique x series.
+        This allows for more flexibility when the x values are not uniform across
+        the data series.
+
+        3. Customizing line labels using `keys`:
+
+        ```python
+        import wandb
+
+        # Initialize W&B run
+        with wandb.init(project="line_series_example") as run:
+            xs = list(range(10))  # Single x array
+            ys = [
+                [i for i in range(10)],  # y = x
+                [i**2 for i in range(10)],  # y = x^2
+                [i**3 for i in range(10)],  # y = x^3
+            ]
+
+            # Custom labels for each line
+            keys = ["Linear", "Quadratic", "Cubic"]
+
+            # Generate and log the line series chart
+            line_series_chart = wandb.plot.line_series(
+                xs,
+                ys,
+                keys=keys,  # Custom keys (line labels)
+                title="Custom Line Labels Example",
+                xname="Step",
+            )
+            run.log({"line-series-custom-keys": line_series_chart})
+        ```
+
+        This example shows how to provide custom labels for the lines using
+        the `keys` argument. The keys will appear in the legend as "Linear",
+        "Quadratic", and "Cubic".
+
+    """
+    # If xs is a single array, repeat it for each y in ys
     if not isinstance(xs[0], Iterable) or isinstance(xs[0], (str, bytes)):
-        xs = [xs for _ in range(len(ys))]
-    assert len(xs) == len(ys), "Number of x-lines and y-lines must match"
+        xs = [xs] * len(ys)
 
-    if keys is not None:
-        assert len(keys) == len(ys), "Number of keys and y-lines must match"
+    if len(xs) != len(ys):
+        msg = f"Number of x-series ({len(xs)}) must match y-series ({len(ys)})."
+        raise ValueError(msg)
+
+    if keys is None:
+        keys = [f"line_{i}" for i in range(len(ys))]
+
+    if len(keys) != len(ys):
+        msg = f"Number of keys ({len(keys)}) must match y-series ({len(ys)})."
+        raise ValueError(msg)
+
     data = [
-        [x, f"key_{i}" if keys is None else keys[i], y]
+        [x, keys[i], y]
         for i, (xx, yy) in enumerate(zip(xs, ys))
         for x, y in zip(xx, yy)
     ]
+    table = wandb.Table(
+        data=data,
+        columns=["step", "lineKey", "lineVal"],
+    )
 
-    table = wandb.Table(data=data, columns=["step", "lineKey", "lineVal"])
-
-    return wandb.plot_table(
-        "wandb/lineseries/v0",
-        table,
-        {"step": "step", "lineKey": "lineKey", "lineVal": "lineVal"},
-        {"title": title, "xname": xname or "x"},
+    return CustomChart(
+        id="wandb/lineseries/v0",
+        data=table,
+        fields={
+            "step": "step",
+            "lineKey": "lineKey",
+            "lineVal": "lineVal",
+        },
+        string_fields={"title": title, "xname": xname},
         split_table=split_table,
     )
