@@ -46,6 +46,8 @@ class SyncThread(threading.Thread):
         entity=None,
         run_id=None,
         job_type=None,
+        add_tag=None,
+        remove_tag=None,
         view=None,
         verbose=None,
         mark_synced=None,
@@ -63,6 +65,8 @@ class SyncThread(threading.Thread):
         self._entity = entity
         self._run_id = run_id
         self._job_type = job_type
+        self._add_tag = add_tag
+        self._remove_tag = remove_tag
         self._view = view
         self._verbose = verbose
         self._mark_synced = mark_synced
@@ -94,7 +98,20 @@ class SyncThread(threading.Thread):
                 pb.run.entity = self._entity
             if self._job_type:
                 pb.run.job_type = self._job_type
-            pb.control.req_resp = True
+            if self._add_tag:
+                pb.run.tags.extend(self._add_tag)
+            if self._remove_tag:
+                for tag in self._remove_tag:
+                    if tag not in pb.run.tags:
+                        wandb.termwarn(
+                            f"Warning: Tag '{tag}' does not exist and cannot be removed."
+                        )
+                    else:
+                        pb.run.tags[:] = [
+                            existing_tag
+                            for existing_tag in pb.run.tags
+                            if existing_tag != tag
+                        ]
         elif record_type in ("output", "output_raw") and self._skip_console:
             return pb, exit_pb, True
         elif record_type == "exit":
@@ -331,6 +348,8 @@ class SyncManager:
         entity=None,
         run_id=None,
         job_type=None,
+        add_tag=None,
+        remove_tag=None,
         mark_synced=None,
         app_url=None,
         view=None,
@@ -346,6 +365,8 @@ class SyncManager:
         self._entity = entity
         self._run_id = run_id
         self._job_type = job_type
+        self._add_tag = add_tag
+        self._remove_tag = remove_tag
         self._mark_synced = mark_synced
         self._app_url = app_url
         self._view = view
@@ -369,6 +390,8 @@ class SyncManager:
             entity=self._entity,
             run_id=self._run_id,
             job_type=self._job_type,
+            add_tag=self._add_tag,
+            remove_tag=self._remove_tag,
             view=self._view,
             verbose=self._verbose,
             mark_synced=self._mark_synced,
