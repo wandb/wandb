@@ -16,7 +16,15 @@ logger = logging.getLogger(__name__)
 
 
 def toggle_button(what="run"):
-    return f"<button onClick=\"this.nextSibling.style.display='block';this.style.display='none';\">Display W&B {what}</button>"
+    """Returns the HTML for a button used to reveal the element following it.
+
+    The element immediately after the button must have `display: none`.
+    """
+    return (
+        "<button onClick=\"this.nextSibling.style.display='block';this.style.display='none';\">"
+        f"Display W&B {what}"
+        "</button>"
+    )
 
 
 def _get_python_type() -> PythonType:
