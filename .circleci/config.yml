@@ -107,8 +107,10 @@ commands:
       - run:
           name: "Run nox session: <<parameters.session>>"
           no_output_timeout: 10m
-          command: >
-            nox -s "<<parameters.session>>" --python <<parameters.python>>
+          command: |
+            TESTS_FILES=$(nox -s "get_<<parameters.session>>" --python <<parameters.python>>)
+            echo "$TESTS_FILES" | circleci tests run --command "xargs nox -s "<<parameters.session>>" --python <<parameters.python>> -- " \
+            --split-by=timings
 
       - codecov/upload: { flags: <<parameters.codecov_flags>> }
       - save-test-results
