@@ -7,7 +7,7 @@ import re
 import shutil
 import time
 from contextlib import contextmanager
-from typing import Callable
+from typing import Any, Callable
 
 import nox
 
@@ -68,7 +68,7 @@ def site_packages_dir(session: nox.Session) -> pathlib.Path:
         )
 
 
-def get_circleci_splits(session: nox.Session) -> tuple[int, int] | None:
+def get_circleci_splits(session: nox.Session) -> tuple[int, int]:
     """Returns the test splitting arguments from our CircleCI config.
 
     When using test splitting, CircleCI sets the CIRCLE_NODE_TOTAL and
@@ -247,7 +247,7 @@ def functional_tests(session: nox.Session):
         # based on the number of detected CPUs in the system, and doesn't
         # take into account the number of available CPUs in the container,
         # which results in OOM errors.
-        opts={"n": 4},
+        opts={"n": "4"},
     )
 
 
@@ -355,7 +355,7 @@ def local_testcontainer_registry(session: nox.Session) -> None:
 
     import subprocess
 
-    def query_github(payload: dict[str, str]) -> dict[str, str]:
+    def query_github(payload: dict[str, Any]) -> dict[str, Any]:
         import json
 
         import requests
@@ -386,9 +386,8 @@ def local_testcontainer_registry(session: nox.Session) -> None:
             }
             }
             """
-            payload = {"query": query}
 
-            data = query_github(payload)
+            data = query_github({"query": query})
 
             return (
                 data["data"]["repository"]["latestRelease"]["tagName"],
@@ -407,11 +406,17 @@ def local_testcontainer_registry(session: nox.Session) -> None:
             }
             }
             """
-            # TODO: allow passing multiple tags?
-            variables = {"owner": "wandb", "repo": "core", "tag": tags[0]}
-            payload = {"query": query, "variables": variables}
 
-            data = query_github(payload)
+            data = query_github(
+                {
+                    "query": query,
+                    "variables": {
+                        "owner": "wandb",
+                        "repo": "core",
+                        "tag": tags[0],
+                    },
+                }
+            )
 
             return tags[0], data["data"]["repository"]["ref"]["target"]["oid"]
 
@@ -734,14 +739,17 @@ def bump_go_version(session: nox.Session) -> None:
     """Bump the Go version."""
     install_timed(session, "bump2version", "requests")
 
-    # Get the latest Go version
-    latest_version = session.run(
+    # Get the latest Go version.
+    get_go_version_output = session.run(
         "./tools/get_go_version.py",
         silent=True,
         external=True,
     )
-    latest_version = latest_version.strip()
 
+    # Guaranteed by silent=True above, but poorly documented in nox.
+    assert isinstance(get_go_version_output, str)
+
+    latest_version = get_go_version_output.strip()
     session.log(f"Latest Go version: {latest_version}")
 
     # Run bump2version with the fetched version
