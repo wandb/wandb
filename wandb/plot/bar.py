@@ -1,45 +1,62 @@
-from typing import TYPE_CHECKING, Optional
+from __future__ import annotations
 
-from .viz import custom_chart
+from typing import TYPE_CHECKING
+
+from wandb.plot.viz import CustomChart
 
 if TYPE_CHECKING:
     import wandb
 
 
 def bar(
-    table: "wandb.Table",
+    table: wandb.Table,
     label: str,
     value: str,
-    title: Optional[str] = None,
-    split_table: Optional[bool] = False,
+    title: str = "",
+    split_table: bool = False,
 ):
-    """Construct a bar plot.
+    """Constructs a bar chart from a wandb.Table of data.
 
     Args:
-        table (wandb.Table): Table of data.
-        label (string): Name of column to use as each bar's label.
-        value (string): Name of column to use as each bar's value.
-        title (string): Plot title.
-        split_table (bool): If True, adds "Custom Chart Tables/" to the key of the table so that it's logged in a different section.
+        table (wandb.Table): The W&B Table containing the data to visualize.
+        label (str): Title of the categorical axis (y-axis).
+        value (str): Title of the numerical axis (x-axis).
+        title (str): Title of the bar plot.
+        split_table (bool): Whether to split the table into a different section
+            in the UI. Default is False.
 
     Returns:
-        A plot object, to be passed to wandb.log()
+        CustomChart: A bar plot. That can be logged to W&B with
+            `wandb.log({'bar-plot1': bar_plot})`.
 
     Example:
         ```
+        import random
+        import wandb
+
+        # Create a table with random data
         table = wandb.Table(data=[
             ['car', random.random()],
             ['bus', random.random()],
             ['road', random.random()],
             ['person', random.random()],
-            ], columns=["class", "acc"])
-        wandb.log({'bar-plot1': wandb.plot.bar(table, "class", "acc")})
+        ], columns=["class", "acc"])
+
+        # Initialize a W&B run and log the bar plot
+        with wandb.init(...) as run:
+            bar_plot = wandb.plot.bar(
+                table=table,
+                label="class",
+                value="acc",
+                title="My Bar Plot",
+            )
+            run.log({'bar_plot': bar_plot})
         ```
     """
-    return custom_chart(
-        "wandb/bar/v0",
-        table,
-        {"label": label, "value": value},
-        {"title": title},
+    return CustomChart(
+        id="wandb/bar/v0",
+        data=table,
+        fields={"label": label, "value": value},
+        string_fields={"title": title},
         split_table=split_table,
     )
