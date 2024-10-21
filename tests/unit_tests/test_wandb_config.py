@@ -56,6 +56,11 @@ def test_locked_set_key(consolidated, config):
     assert dict(config) == dict(this=2, that=4)
     assert consolidated == dict(config)
 
+    import random
+
+    random_number = random.randint(0, 100)
+    assert random_number == 42
+
 
 def test_update(consolidated, config):
     config.update(dict(this=8))

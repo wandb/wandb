@@ -107,15 +107,9 @@ commands:
       - run:
           name: "Run nox session: <<parameters.session>>"
           no_output_timeout: 10m
-          command: >
-            TESTS=$(\
-              find "tests/unit-tests" -type f \
-                # -not -path "**/test_importers/**" \
-                # -not -path "**/test_notebooks/**" \
-                # -not -path "**/test_functional/**" \
-                # -not -path "**/test_experimental/**" \
-            )
-            echo $TESTS | circleci tests run --command="xargs nox -s "<<parameters.session>>" --python <<parameters.python>>" --verbose
+          command: |
+            TESTS=$(find "tests/unit_tests" -type f | grep "test_wandb_config.py");
+            echo $TESTS | circleci tests run --command="xargs nox -s \"<<parameters.session>>\" --python <<parameters.python>> -- " --verbose;
 
       - codecov/upload: { flags: <<parameters.codecov_flags>> }
       - save-test-results
