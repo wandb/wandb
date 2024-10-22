@@ -53,9 +53,6 @@ type Stream struct {
 	// handler is the handler for the stream
 	handler *Handler
 
-	// writer is the writer for the stream
-	writer *Writer
-
 	// sender is the sender for the stream
 	sender *Sender
 
@@ -227,14 +224,6 @@ func NewStream(
 		},
 	)
 
-	s.writer = NewWriter(
-		WriterParams{
-			Logger:   s.logger,
-			Settings: s.settings.Proto,
-			FwdChan:  make(chan runwork.Work, BufferSize),
-		},
-	)
-
 	var outputFile *paths.RelativePath
 	if opts.Settings.Proto.GetConsoleMultipart().GetValue() {
 		// This is guaranteed not to fail.
@@ -311,17 +300,10 @@ func (s *Stream) Start() {
 		s.wg.Done()
 	}()
 
-	// write the data to a transaction log
-	s.wg.Add(1)
-	go func() {
-		s.writer.Do(s.handler.fwdChan)
-		s.wg.Done()
-	}()
-
 	// send the data to the server
 	s.wg.Add(1)
 	go func() {
-		s.sender.Do(s.writer.fwdChan)
+		s.sender.Do(s.handler.fwdChan)
 		s.wg.Done()
 	}()
 
