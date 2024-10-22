@@ -131,7 +131,9 @@ func (rw *runWork) AddWorkOrCancel(
 	case <-rw.closed:
 		// Here, internalWork is closed or about to be closed,
 		// so we should drop the record.
-		rw.logger.CaptureError(errRecordAfterClose, "work", work)
+		rw.logger.Error(
+			"runworkd: AddWorkOrCancel", "error", errRecordAfterClose, "work", work,
+		)
 		return
 
 	default:

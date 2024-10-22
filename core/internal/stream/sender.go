@@ -1447,8 +1447,10 @@ func (s *Sender) sendRequestRunFinishWithoutExit(record *spb.Record, _ *spb.RunF
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
 func (s *Sender) sendExit(record *spb.Record) {
 	if s.exitRecord != nil {
-		s.logger.CaptureError(
-			errors.New("sender: received Exit record more than once, ignoring"))
+		s.logger.Error(
+			"sender: sendExit:", "error",
+			errors.New("sender: received Exit record more than once, ignoring"),
+		)
 		return
 	}
 
