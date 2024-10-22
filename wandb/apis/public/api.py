@@ -24,10 +24,10 @@ from wandb_gql.client import RetryError
 import wandb
 from wandb import env, util
 from wandb.apis import public
-from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import retry, runid
@@ -680,14 +680,22 @@ class Api:
         )
 
     def _parse_project_path(self, path):
-        """Return project and entity for project specified by path."""
+        """Return project, entity, and organization for project specified by path."""
         project = self.settings["project"] or "uncategorized"
         entity = self.settings["entity"] or self.default_entity
         if path is None:
-            return entity, project
+            return "", entity, project
         parts = path.split("/", 1)
         if len(parts) == 1:
-            return entity, path
+            return "", entity, path
+        if len(parts) == 2:
+            entity_part, project = parts
+            org, entity = (
+                (entity_part, entity)
+                if is_artifact_registry_project(project)
+                else ("", entity_part)
+            )
+            return org, entity, parts[1]
         return parts
 
     def _parse_path(self, path):
@@ -725,11 +733,11 @@ class Api:
         return entity, project, id
 
     def _parse_artifact_path(self, path):
-        """Return project, entity and artifact name for project specified by path."""
+        """Return organization, project, entity and artifact name for project specified by path."""
         project = self.settings["project"] or "uncategorized"
         entity = self.settings["entity"] or self.default_entity
         if path is None:
-            return entity, project
+            return "", entity, project
 
         path, colon, alias = path.partition(":")
         full_alias = colon + alias
@@ -738,11 +746,19 @@ class Api:
         if len(parts) > 3:
             raise ValueError("Invalid artifact path: {}".format(path))
         elif len(parts) == 1:
-            return entity, project, path + full_alias
+            return "", entity, project, path + full_alias
         elif len(parts) == 2:
-            return entity, parts[0], parts[1] + full_alias
-        parts[-1] += full_alias
-        return parts
+            return "", entity, parts[0], parts[1] + full_alias
+        else:
+            # If its a Registry project, the "entity" passed in is actually an org.
+            # So we don't want to override the entity with an org
+            parts_entity, project, collection = parts
+            org, entity = (
+                (parts_entity, entity)
+                if is_artifact_registry_project(project)
+                else ("", parts_entity)
+            )
+            return org, entity, project, collection + full_alias
 
     def projects(
         self, entity: Optional[str] = None, per_page: Optional[int] = 200
@@ -775,14 +791,19 @@ class Api:
 
         Args:
             name: (str) The project name.
-            entity: (str) Name of the entity requested.  If None, will fall back to the
+            entity: (str) Name of the entity or organization requested.  If None, will fall back to the
                 default entity passed to `Api`.  If no default entity, will raise a `ValueError`.
 
         Returns:
             A `Project` object.
         """
+        if is_artifact_registry_project(name):
+            org = entity or ""
         if entity is None:
             entity = self.settings["entity"] or self.default_entity
+        # Fetch org entity for artifact registry projects
+        if is_artifact_registry_project(name):
+            entity = self._fetch_org_entity_for_registry(org, entity)
         return public.Project(self.client, entity, name, {})
 
     def reports(
@@ -944,7 +965,8 @@ class Api:
         Returns:
             A `Runs` object, which is an iterable collection of `Run` objects.
         """
-        entity, project = self._parse_project_path(path)
+        _, entity, project = self._parse_project_path(path)
+
         filters = filters or {}
         key = (path or "") + str(filters) + str(order)
         if not self._runs.get(key):
@@ -1041,7 +1063,10 @@ class Api:
         Returns:
             An iterable `ArtifactTypes` object.
         """
-        entity, project = self._parse_project_path(project)
+        org, entity, project = self._parse_project_path(project)
+        # If its an Registry artifact, the entity is an org instead
+        if is_artifact_registry_project(project):
+            entity = self._fetch_org_entity_for_registry(org, entity)
         return public.ArtifactTypes(self.client, entity, project)
 
     @normalize_exceptions
@@ -1057,7 +1082,10 @@ class Api:
         Returns:
             An `ArtifactType` object.
         """
-        entity, project = self._parse_project_path(project)
+        org, entity, project = self._parse_project_path(project)
+        # If its an Registry artifact, the entity is an org instead
+        if is_artifact_registry_project(project):
+            entity = self._fetch_org_entity_for_registry(org, entity)
         return public.ArtifactType(self.client, entity, project, type_name)
 
     @normalize_exceptions
@@ -1075,7 +1103,10 @@ class Api:
         Returns:
             An iterable `ArtifactCollections` object.
         """
-        entity, project = self._parse_project_path(project_name)
+        organization, entity, project = self._parse_project_path(project_name)
+        # If its an Registry artifact, the entity is an org instead
+        if is_artifact_registry_project(project):
+            entity = self._fetch_org_entity_for_registry(organization, entity)
         return public.ArtifactCollections(
             self.client, entity, project, type_name, per_page=per_page
         )
@@ -1093,7 +1124,10 @@ class Api:
         Returns:
             An `ArtifactCollection` object.
         """
-        entity, project, collection_name = self._parse_artifact_path(name)
+        org, entity, project, collection_name = self._parse_artifact_path(name)
+        # If its an Registry artifact(under org entities), fetch org entity for user
+        if is_artifact_registry_project(project):
+            entity = self._fetch_org_entity_for_registry(org, entity)
         return public.ArtifactCollection(
             self.client, entity, project, collection_name, type_name
         )
@@ -1130,7 +1164,11 @@ class Api:
         Returns:
             An iterable `Artifacts` object.
         """
-        entity, project, collection_name = self._parse_artifact_path(name)
+        org, entity, project, collection_name = self._parse_artifact_path(name)
+        # If its an Registry artifact(under org entities), fetch org entity for user
+        if is_artifact_registry_project(project):
+            entity = self._fetch_org_entity_for_registry(org, entity)
+
         return public.Artifacts(
             self.client,
             entity,
@@ -1158,27 +1196,53 @@ class Api:
         """
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
-        entity, project, artifact_name = self._parse_artifact_path(name)
+        org, entity, project, artifact_name = self._parse_artifact_path(name)
 
-        organization = ""
-        # If its an Registry artifact, the entity is an org instead
+        # If its an Registry artifact(under org entities), fetch org entity for user
         if is_artifact_registry_project(project):
-            # Update `organization` only if an organization name was provided,
-            # otherwise use the default that you already set above.
-            try:
-                organization, _, _ = name.split("/")
-            except ValueError:
-                organization = ""
-            # set entity to match the settings since in above code it was potentially set to an org
-            entity = self.settings["entity"] or self.default_entity
+            entity = self._fetch_org_entity_for_registry(org, entity)
+
         artifact = wandb.Artifact._from_name(
-            entity, project, artifact_name, self.client, organization
+            entity, project, artifact_name, self.client
         )
         if type is not None and artifact.type != type:
             raise ValueError(
                 f"type {type} specified but this artifact is of type {artifact.type}"
             )
         return artifact
+
+    def _fetch_org_entity_for_registry(self, organization: str, entity: str) -> str:
+        """Returns the org entity of an entity and validates the organization passed in is in the same org as the entity.
+
+        Arguments:
+            organization: (str) Organization or org entity name, possibly an empty string.
+            entity: (str) Entity of the Registry, used to fetch the org entity as well as
+                validate the organization passed in belongs to the same org as the org entity.
+
+        Returns:
+            org_entity (str) The org entity of the entity.
+        """
+        try:
+            org_entity = InternalApi()._resolve_org_entity_name(entity, organization)
+        except ValueError as entity_error:
+            if not organization or organization == entity:
+                wandb.termerror(str(entity_error))
+                raise
+
+            # Try to resolve the organization using an org entity.
+            try:
+                org_entity = InternalApi()._resolve_org_entity_name(
+                    organization, organization
+                )
+            except ValueError as org_error:
+                wandb.termerror(
+                    f"Error resolving organization of entity: {entity!r}. Failed with error: {entity_error!r}."
+                )
+                wandb.termerror(
+                    f"Defaulted to use {organization!r} as an org entity to resolve organization. Failed with error: {org_error!r}."
+                )
+                raise
+        return org_entity
 
     @normalize_exceptions
     def job(self, name: Optional[str], path: Optional[str] = None) -> "public.Job":
