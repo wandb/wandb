@@ -1,4 +1,4 @@
-package stream
+package runstream
 
 // This file contains functions to construct the objects used by a Stream.
 

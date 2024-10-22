@@ -1,4 +1,4 @@
-package stream_test
+package runstream_test
 
 import (
 	"fmt"
@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runstream"
 	"github.com/wandb/wandb/core/internal/runwork"
-	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/version"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -17,10 +17,10 @@ func makeHandler(
 	inChan, fwdChan chan runwork.Work,
 	outChan chan *spb.Result,
 	commit string,
-) *stream.Handler {
-	h := stream.NewHandler(
+) *runstream.Handler {
+	h := runstream.NewHandler(
 		commit,
-		stream.HandlerParams{
+		runstream.HandlerParams{
 			Logger:          observability.NewNoOpLogger(),
 			Settings:        &spb.Settings{},
 			FwdChan:         fwdChan,
@@ -676,9 +676,9 @@ func TestHandlePartialHistory(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			inChan := make(chan runwork.Work, stream.BufferSize)
-			fwdChan := make(chan runwork.Work, stream.BufferSize)
-			outChan := make(chan *spb.Result, stream.BufferSize)
+			inChan := make(chan runwork.Work, runstream.BufferSize)
+			fwdChan := make(chan runwork.Work, runstream.BufferSize)
+			outChan := make(chan *spb.Result, runstream.BufferSize)
 
 			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
 
@@ -776,9 +776,9 @@ func TestHandleHistory(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			inChan := make(chan runwork.Work, stream.BufferSize)
-			fwdChan := make(chan runwork.Work, stream.BufferSize)
-			outChan := make(chan *spb.Result, stream.BufferSize)
+			inChan := make(chan runwork.Work, runstream.BufferSize)
+			fwdChan := make(chan runwork.Work, runstream.BufferSize)
+			outChan := make(chan *spb.Result, runstream.BufferSize)
 
 			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
 

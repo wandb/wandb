@@ -15,7 +15,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/stream"
+	"github.com/wandb/wandb/core/internal/runstream"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
@@ -28,7 +28,7 @@ const (
 )
 
 type ConnectionOptions struct {
-	StreamMux    *stream.StreamMux
+	StreamMux    *runstream.StreamMux
 	Conn         net.Conn
 	SentryClient *sentry_ext.Client
 	Commit       string
@@ -54,7 +54,7 @@ type Connection struct {
 
 	// A map that associates stream IDs with active streams (or runs). This helps
 	// track the streams associated with this connection.
-	streamMux *stream.StreamMux
+	streamMux *runstream.StreamMux
 
 	// id is the unique id for the connection
 	id string
@@ -72,7 +72,7 @@ type Connection struct {
 	// The stream associated with this connection. While each connection has one
 	// stream, a stream can have multiple active connections, typically for a
 	// multi-client session.
-	stream *stream.Stream
+	stream *runstream.Stream
 
 	// The current W&B Git commit hash, identifying the specific version of the binary.
 	commit string
@@ -321,14 +321,14 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 		sentryClient = nc.sentryClient
 	}
 
-	nc.stream = stream.NewStream(
-		stream.StreamOptions{
+	nc.stream = runstream.NewStream(
+		runstream.StreamOptions{
 			Commit:     nc.commit,
 			Settings:   settings,
 			Sentry:     sentryClient,
 			LoggerPath: nc.loggerPath,
 		})
-	nc.stream.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
+	nc.stream.AddResponders(runstream.ResponderEntry{Responder: nc, ID: nc.id})
 	nc.stream.Start()
 	slog.Info("handleInformInit: stream started", "streamId", streamId, "id", nc.id)
 
@@ -388,7 +388,7 @@ func (nc *Connection) handleInformAttach(msg *spb.ServerInformAttachRequest) {
 	if err != nil {
 		slog.Error("handleInformAttach: stream not found", "streamId", streamId, "id", nc.id)
 	} else {
-		nc.stream.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
+		nc.stream.AddResponders(runstream.ResponderEntry{Responder: nc, ID: nc.id})
 		// TODO: we should redo this attach logic, so that the stream handles
 		//       the attach logic
 		resp := &spb.ServerResponse{
@@ -424,8 +424,8 @@ func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 			BaseUrl: &wrapperspb.StringValue{Value: msg.BaseUrl},
 		},
 	}
-	backend := stream.NewBackend(observability.NewNoOpLogger(), s) // TODO: use a real logger
-	graphqlClient := stream.NewGraphQLClient(backend, s, &observability.Peeker{})
+	backend := runstream.NewBackend(observability.NewNoOpLogger(), s) // TODO: use a real logger
+	graphqlClient := runstream.NewGraphQLClient(backend, s, &observability.Peeker{})
 
 	data, err := gql.Viewer(context.Background(), graphqlClient)
 	if err != nil || data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {

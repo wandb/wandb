@@ -1,4 +1,4 @@
-package stream_test
+package runstream_test
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/stream"
+	"github.com/wandb/wandb/core/internal/runstream"
 	"github.com/wandb/wandb/core/internal/watchertest"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -38,7 +38,7 @@ const validLinkArtifactResponse = `{
 	"linkArtifact": { "versionIndex": 0 }
 }`
 
-func makeSender(client graphql.Client, resultChan chan *spb.Result) *stream.Sender {
+func makeSender(client graphql.Client, resultChan chan *spb.Result) *runstream.Sender {
 	runWork := runworktest.New()
 	logger := observability.NewNoOpLogger()
 	settings := wbsettings.From(&spb.Settings{
@@ -46,8 +46,8 @@ func makeSender(client graphql.Client, resultChan chan *spb.Result) *stream.Send
 		Console: &wrapperspb.StringValue{Value: "off"},
 		ApiKey:  &wrapperspb.StringValue{Value: "test-api-key"},
 	})
-	backend := stream.NewBackend(logger, settings)
-	fileStream := stream.NewFileStream(
+	backend := runstream.NewBackend(logger, settings)
+	fileStream := runstream.NewFileStream(
 		backend,
 		logger,
 		nil, // operations
@@ -55,12 +55,12 @@ func makeSender(client graphql.Client, resultChan chan *spb.Result) *stream.Send
 		settings,
 		nil, // peeker
 	)
-	fileTransferManager := stream.NewFileTransferManager(
+	fileTransferManager := runstream.NewFileTransferManager(
 		filetransfer.NewFileTransferStats(),
 		logger,
 		settings,
 	)
-	runfilesUploader := stream.NewRunfilesUploader(
+	runfilesUploader := runstream.NewRunfilesUploader(
 		runWork,
 		logger,
 		nil, // operations
@@ -70,9 +70,9 @@ func makeSender(client graphql.Client, resultChan chan *spb.Result) *stream.Send
 		watchertest.NewFakeWatcher(),
 		client,
 	)
-	sender := stream.NewSender(
+	sender := runstream.NewSender(
 		runWork,
-		stream.SenderParams{
+		runstream.SenderParams{
 			Logger:              logger,
 			Settings:            settings,
 			Backend:             backend,
