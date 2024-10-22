@@ -18,15 +18,15 @@ def bar(
     """Constructs a bar chart from a wandb.Table of data.
 
     Args:
-        table (wandb.Table): The W&B Table containing the data to visualize.
-        label (str): Title of the categorical axis (y-axis).
-        value (str): Title of the numerical axis (x-axis).
-        title (str): Title of the bar plot.
+        table (wandb.Table): A table containing the data for the bar chart.
+        label (str): The name of the column to use for the labels of each bar.
+        value (str): The name of the column to use for the values of each bar.
+        title (str): The title of the bar chart.
         split_table (bool): Whether to split the table into a different section
             in the UI. Default is False.
 
     Returns:
-        CustomChart: A bar plot. That can be logged to W&B with
+        CustomChart: A bar chart. That can be logged to W&B with
             `wandb.log({'bar-plot1': bar_plot})`.
 
     Example:
@@ -34,22 +34,29 @@ def bar(
         import random
         import wandb
 
-        # Create a table with random data
-        table = wandb.Table(data=[
-            ['car', random.random()],
-            ['bus', random.random()],
-            ['road', random.random()],
-            ['person', random.random()],
-        ], columns=["class", "acc"])
+        # Generate random data for the table
+        data = [
+            ['car', random.uniform(0, 1)],
+            ['bus', random.uniform(0, 1)],
+            ['road', random.uniform(0, 1)],
+            ['person', random.uniform(0, 1)],
+        ]
+
+        # Create a table with the data
+        table = wandb.Table(data=data, columns=["class", "accuracy"])
 
         # Initialize a W&B run and log the bar plot
-        with wandb.init(...) as run:
+        with wandb.init(project="bar_chart") as run:
+
+            # Create a bar plot from the table
             bar_plot = wandb.plot.bar(
                 table=table,
                 label="class",
-                value="acc",
-                title="My Bar Plot",
+                value="accuracy",
+                title="Object Classification Accuracy",
             )
+
+            # Log the bar chart to W&B
             run.log({'bar_plot': bar_plot})
         ```
     """
