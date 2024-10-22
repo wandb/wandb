@@ -290,7 +290,8 @@ def get_functional_tests(session: nox.Session) -> None:
 
     for path, _, files in os.walk("tests/system_tests/test_functional"):
         for name in files:
-            paths.append(os.path.join(path, name))
+            if not name.endswith(".pyc"):
+                paths.append(os.path.join(path, name))
 
     print(" ".join(paths))
 
