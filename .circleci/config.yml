@@ -108,7 +108,7 @@ commands:
           name: "Run nox session: <<parameters.session>>"
           no_output_timeout: 10m
           command: >
-            TESTS=$(find "tests/unit_tests" -type f);
+            TESTS=$(find "tests/unit_tests");
             echo $TESTS | circleci tests run --command "xargs nox -s "<<parameters.session>>" --python <<parameters.python>> -- " \
               --split-by=timings \
               --timings-type=name
