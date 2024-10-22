@@ -13,7 +13,7 @@ def histogram(
     value: str,
     title: str = "",
     split_table: bool = False,
-):
+) -> CustomChart:
     """Constructs a histogram chart from a W&B Table.
 
     Args:
