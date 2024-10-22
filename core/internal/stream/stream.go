@@ -227,6 +227,7 @@ func NewStream(
 		},
 	)
 
+	// if !s.settings.GetDis
 	s.writer = NewWriter(
 		WriterParams{
 			Logger:   s.logger,

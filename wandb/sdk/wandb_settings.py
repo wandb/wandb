@@ -402,6 +402,9 @@ class SettingsData:
     disable_git: bool
     disable_hints: bool
     disable_job_creation: bool
+    # Disables the persistent transaction log for this run.
+    # Warning: Run data not synced to the server for any reason will be lost.
+    disable_transaction_log: bool
     disabled: bool  # Alias for mode=dryrun, not supported yet
     docker: str
     email: str
