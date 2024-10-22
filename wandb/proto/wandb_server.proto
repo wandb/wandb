@@ -51,6 +51,15 @@ message ServerInformStartRequest {
   _RecordInfo _info = 200;
 }
 
+message ServerInformSyncRequest {
+  Settings settings = 1;
+  _RecordInfo _info = 200;
+}
+
+message ServerInformSyncResponse {
+  _RecordInfo _info = 200;
+}
+
 message ServerInformStartResponse {}
 
 message ServerInformFinishRequest {
@@ -96,6 +105,7 @@ message ServerRequest {
     ServerInformTeardownRequest inform_teardown = 7;
     ServerInformStartRequest inform_start = 8;
     ServerAuthenticateRequest authenticate = 9;
+    ServerInformSyncRequest inform_sync = 10;
   }
 }
 
@@ -109,5 +119,6 @@ message ServerResponse {
     ServerInformTeardownResponse inform_teardown_response = 7;
     ServerInformStartResponse inform_start_response = 8;
     ServerAuthenticateResponse authenticate_response = 9;
+    ServerInformSyncResponse inform_sync_response = 10;
   }
 }
