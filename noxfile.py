@@ -232,6 +232,21 @@ def system_tests(session: nox.Session) -> None:
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
+def get_notebook_tests(session: nox.Session) -> None:
+    """Prints all system test files that we want to run.
+
+    This is used by CircleCI to enable re-running only failed tests.
+    """
+    paths = []
+
+    for path, _, files in os.walk("tests/system_tests/test_notebooks"):
+        for name in files:
+            paths.append(os.path.join(path, name))
+
+    print(" ".join(paths))
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
 def notebook_tests(session: nox.Session) -> None:
     install_wandb(session)
     install_timed(
@@ -266,6 +281,21 @@ def notebook_tests(session: nox.Session) -> None:
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
+def get_functional_tests(session: nox.Session) -> None:
+    """Prints all system test files that we want to run.
+
+    This is used by CircleCI to enable re-running only failed tests.
+    """
+    paths = []
+
+    for path, _, files in os.walk("tests/system_tests/test_functional"):
+        for name in files:
+            paths.append(os.path.join(path, name))
+
+    print(" ".join(paths))
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
 def functional_tests(session: nox.Session):
     """Runs functional tests using pytest."""
     install_wandb(session)
@@ -284,6 +314,21 @@ def functional_tests(session: nox.Session):
         # which results in OOM errors.
         opts={"n": "4"},
     )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+def get_experimental_tests(session: nox.Session) -> None:
+    """Prints all system test files that we want to run.
+
+    This is used by CircleCI to enable re-running only failed tests.
+    """
+    paths = []
+
+    for path, _, files in os.walk("tests/system_tests/test_experimental"):
+        for name in files:
+            paths.append(os.path.join(path, name))
+
+    print(" ".join(paths))
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
