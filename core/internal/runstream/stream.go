@@ -20,6 +20,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
@@ -278,8 +279,11 @@ func NewStream(
 }
 
 // AddResponders adds the given responders to the stream's dispatcher.
-func (s *Stream) AddResponders(entries ...ResponderEntry) {
-	s.dispatcher.AddResponders(entries...)
+func (s *Stream) AddResponders(entries ...stream.Responder) {
+	// TODO: s.dispatcher.AddResponders(entries...)
+	for _, entry := range entries {
+		s.dispatcher.AddResponders(entry)
+	}
 }
 
 // UpdateSettings updates the stream's settings with the given settings.

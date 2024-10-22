@@ -13,9 +13,10 @@ import (
 
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runstream"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/runstream"
+	"github.com/wandb/wandb/core/internal/stream"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
@@ -28,7 +29,7 @@ const (
 )
 
 type ConnectionOptions struct {
-	StreamMux    *runstream.StreamMux
+	StreamMux    *stream.StreamMux
 	Conn         net.Conn
 	SentryClient *sentry_ext.Client
 	Commit       string
@@ -54,7 +55,7 @@ type Connection struct {
 
 	// A map that associates stream IDs with active streams (or runs). This helps
 	// track the streams associated with this connection.
-	streamMux *runstream.StreamMux
+	streamMux *stream.StreamMux
 
 	// id is the unique id for the connection
 	id string
@@ -328,7 +329,7 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 			Sentry:     sentryClient,
 			LoggerPath: nc.loggerPath,
 		})
-	nc.stream.AddResponders(runstream.ResponderEntry{Responder: nc, ID: nc.id})
+	nc.stream.AddResponders(nc)
 	nc.stream.Start()
 	slog.Info("handleInformInit: stream started", "streamId", streamId, "id", nc.id)
 
@@ -384,11 +385,12 @@ func (nc *Connection) handleInformAttach(msg *spb.ServerInformAttachRequest) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Debug("handle record received", "streamId", streamId, "id", nc.id)
 	var err error
-	nc.stream, err = nc.streamMux.GetStream(streamId)
+	stream, err := nc.streamMux.GetStream(streamId)
+	nc.stream = stream.(*runstream.Stream)
 	if err != nil {
 		slog.Error("handleInformAttach: stream not found", "streamId", streamId, "id", nc.id)
 	} else {
-		nc.stream.AddResponders(runstream.ResponderEntry{Responder: nc, ID: nc.id})
+		nc.stream.AddResponders(nc)
 		// TODO: we should redo this attach logic, so that the stream handles
 		//       the attach logic
 		resp := &spb.ServerResponse{
@@ -554,4 +556,8 @@ func (nc *Connection) Respond(resp *spb.ServerResponse) {
 	}
 
 	nc.outChan <- resp
+}
+
+func (nc *Connection) GetID() string {
+	return nc.id
 }

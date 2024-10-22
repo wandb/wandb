@@ -5,19 +5,11 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-type Responder interface {
-	Respond(response *spb.ServerResponse)
-}
-
-type ResponderEntry struct {
-	Responder Responder
-	ID        string
-}
-
-type Responders map[string]Responder
+type Responders map[string]stream.Responder
 
 type Dispatcher struct {
 	sync.RWMutex
@@ -34,18 +26,18 @@ func NewDispatcher(logger *observability.CoreLogger) *Dispatcher {
 }
 
 // AddResponders adds the given responders to the stream's dispatcher.
-func (d *Dispatcher) AddResponders(entries ...ResponderEntry) {
+func (d *Dispatcher) AddResponders(entries ...stream.Responder) {
 	d.Lock()
 	defer d.Unlock()
 
 	if d.responders == nil {
-		d.responders = make(map[string]Responder)
+		d.responders = make(map[string]stream.Responder)
 	}
 
 	for _, entry := range entries {
-		responderId := entry.ID
+		responderId := entry.GetID()
 		if _, ok := d.responders[responderId]; !ok {
-			d.responders[responderId] = entry.Responder
+			d.responders[responderId] = entry
 		} else {
 			d.logger.CaptureWarn("Responder already exists", "responder", responderId)
 		}
