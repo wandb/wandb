@@ -108,6 +108,7 @@ commands:
           name: "Run nox session: <<parameters.session>>"
           no_output_timeout: 10m
           command: >
+            TESTS=$(nox -s "get_<<parameters.session>>")
             circleci tests run --command "nox -s "<<parameters.session>>" --python <<parameters.python>> -- "
               --split-by=timings
               --timings-type=name
