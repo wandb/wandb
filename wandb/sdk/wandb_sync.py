@@ -28,7 +28,7 @@ def _sync(
     stream_id = generate_id()
 
     settings = wl.settings.to_proto()
-    # update sync_file setting to point to the passed path
+    # update sync_file setting to point at the passed path
     settings.sync_file.value = str(p.absolute())
     settings.sync_dir.value = str(p.parent.absolute())
     settings.files_dir.value = str(p.parent.absolute() / "files")
@@ -39,6 +39,10 @@ def _sync(
 
     service = wl.service
     assert service
+
+    service.inform_sync(settings=settings)
+
+    return None
 
     service.inform_init(settings=settings, run_id=stream_id)
 

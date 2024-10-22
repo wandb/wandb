@@ -143,6 +143,15 @@ class ServiceConnection:
         request._info.stream_id = run_id
         self._client.send(inform_init=request)
 
+    def inform_sync(
+        self,
+        settings: wandb_settings_pb2.Settings,
+    ) -> None:
+        """Sends a sync request to the service."""
+        request = spb.ServerInformSyncRequest()
+        request.settings.CopyFrom(settings)
+        self._client.send(inform_sync=request)
+
     def inform_finish(self, run_id: str) -> None:
         """Sends an finish request to the service."""
         request = spb.ServerInformFinishRequest()

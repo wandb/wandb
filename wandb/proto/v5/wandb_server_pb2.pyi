@@ -154,6 +154,37 @@ class ServerInformInitResponse(google.protobuf.message.Message):
 global___ServerInformInitResponse = ServerInformInitResponse
 
 @typing.final
+class ServerInformSyncRequest(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    SETTINGS_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
+    @property
+    def settings(self) -> wandb.proto.wandb_settings_pb2.Settings: ...
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+    def __init__(
+        self,
+        *,
+        settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
+        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing.Literal["_info", b"_info", "settings", b"settings"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["_info", b"_info", "settings", b"settings"]) -> None: ...
+
+global___ServerInformSyncRequest = ServerInformSyncRequest
+
+@typing.final
+class ServerInformSyncResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    def __init__(
+        self,
+    ) -> None: ...
+
+global___ServerInformSyncResponse = ServerInformSyncResponse
+
+@typing.final
 class ServerInformStartRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 

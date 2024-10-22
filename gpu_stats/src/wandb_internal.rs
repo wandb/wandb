@@ -156,8 +156,7 @@ pub struct Imports {
     pub joblib: bool,
     #[prost(bool, tag = "54")]
     pub dask: bool,
-    #[prost(bool, tag = "55")]
-    pub asyncio: bool,
+    /// bool asyncio = 55;
     #[prost(bool, tag = "56")]
     pub paddleocr: bool,
     #[prost(bool, tag = "57")]
