@@ -98,6 +98,7 @@ commands:
       python: { type: string }
       session: { type: string }
       codecov_flags: { type: string }
+      command: { type: string }
     steps:
       - run:
           name: Install Python dependencies
@@ -107,11 +108,7 @@ commands:
       - run:
           name: "Run nox session: <<parameters.session>>"
           no_output_timeout: 10m
-          command: |
-            TESTS_FILES=$(nox -s "get_<<parameters.session>>" --python <<parameters.python>>)
-            echo "$TESTS_FILES" | circleci tests run --command "xargs nox -s "<<parameters.session>>" --python <<parameters.python>> -- " \
-              --split-by=timings \
-              --verbose
+          command: <<parameters.command>>
 
       - codecov/upload: { flags: <<parameters.codecov_flags>> }
       - save-test-results
@@ -258,6 +255,13 @@ jobs:
         description: "Install extra dependencies"
         default: false
         type: boolean
+      command:
+        type: string
+        default: |
+          TESTS_FILES=$(nox -s "get_<<parameters.session>>" --python <<parameters.python>>)
+          echo "$TESTS_FILES" | circleci tests run --command "xargs nox -s "<<parameters.session>>" --python <<parameters.python>> -- " \
+          --split-by=timings \
+          --verbose
 
     parallelism: <<parameters.parallelism>>
     executor:
@@ -279,6 +283,7 @@ jobs:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
+          command: <<parameters.command>>
 
   nox-tests-macos:
     parameters:
@@ -562,6 +567,7 @@ workflows:
           codecov_flags: func
           parallelism: 1
           executor_name: local-testcontainer
+          command: nox -s functional_tests --python <<matrix.python>>
 
           filters:
             branches:
