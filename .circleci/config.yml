@@ -508,22 +508,22 @@ workflows:
       # #
       # # System tests on Linux
       # #
-      # - nox-tests-linux:
-      #     name: system-tests-linux-<<matrix.python>>
-      #     session: system_tests
-      #     codecov_flags: system
-      #     parallelism: 8
-      #     executor_name: local-testcontainer
-      #
-      #     filters:
-      #       branches:
-      #         # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
-      #         ignore: /pull\/[0-9]+/
-      #
-      #     matrix:
-      #       parameters:
-      #         python: ["3.8", "3.12"]
-      #
+      - nox-tests-linux:
+          name: system-tests-linux-<<matrix.python>>
+          session: system_tests
+          codecov_flags: system
+          parallelism: 8
+          executor_name: local-testcontainer
+
+          filters:
+            branches:
+              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+              ignore: /pull\/[0-9]+/
+
+          matrix:
+            parameters:
+              python: ["3.8", "3.12"]
+
       # - nox-tests-linux:
       #     name: system-tests-min-server-version-linux-<<matrix.python>>
       #     session: system_tests

@@ -160,7 +160,7 @@ def get_unit_tests(session: nox.Session) -> None:
 
     for path, _, files in os.walk("tests/unit_tests"):
         for name in files:
-            if name.endswith(".py"):
+            if not name.endswith(".pyc"):
                 paths.append(os.path.join(path, name))
 
     print(" ".join(paths))
