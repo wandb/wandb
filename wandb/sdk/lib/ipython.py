@@ -15,16 +15,16 @@ PythonType = Literal["python", "ipython", "jupyter"]
 logger = logging.getLogger(__name__)
 
 
-TABLE_STYLES = """<style>
-    table.wandb td:nth-child(1) { padding: 0 10px; text-align: left ; width: auto;} td:nth-child(2) {text-align: left ; width: 100%}
-    .wandb-row { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: flex-start; width: 100% }
-    .wandb-col { display: flex; flex-direction: column; flex-basis: 100%; flex: 1; padding: 10px; }
-    </style>
-"""
-
-
 def toggle_button(what="run"):
-    return f"<button onClick=\"this.nextSibling.style.display='block';this.style.display='none';\">Display W&B {what}</button>"
+    """Returns the HTML for a button used to reveal the element following it.
+
+    The element immediately after the button must have `display: none`.
+    """
+    return (
+        "<button onClick=\"this.nextSibling.style.display='block';this.style.display='none';\">"
+        f"Display W&B {what}"
+        "</button>"
+    )
 
 
 def _get_python_type() -> PythonType:

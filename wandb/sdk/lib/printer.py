@@ -63,6 +63,40 @@ to form a subtle clockwise spinning animation.
 _PROGRESS_SYMBOL_COLOR = 0xB2
 """Color from the 256-color palette for the progress symbol."""
 
+_JUPYTER_TABLE_STYLES = """
+    <style>
+        table.wandb td:nth-child(1) {
+            padding: 0 10px;
+            text-align: left;
+            width: auto;
+        }
+
+        table.wandb td:nth-child(2) {
+            text-align: left;
+            width: 100%;
+        }
+    </style>
+"""
+
+_JUPYTER_PANEL_STYLES = """
+    <style>
+        .wandb-row {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            width: 100%;
+        }
+        .wandb-col {
+            display: flex;
+            flex-direction: column;
+            flex-basis: 100%;
+            flex: 1;
+            padding: 10px;
+        }
+    </style>
+"""
+
 
 def new_printer() -> Printer:
     """Returns a new printer based on the environment we're in."""
@@ -493,9 +527,9 @@ class _PrinterJupyter(Printer):
         grid = f'<table class="wandb">{grid}</table>'
         if title:
             return f"<h3>{title}</h3><br/>{grid}<br/>"
-        return f"{grid}<br/>"
+        return f"{_JUPYTER_TABLE_STYLES}{grid}<br/>"
 
     @override
     def panel(self, columns: list[str]) -> str:
         row = "".join([f'<div class="wandb-col">{col}</div>' for col in columns])
-        return f'{ipython.TABLE_STYLES}<div class="wandb-row">{row}</div>'
+        return f'{_JUPYTER_PANEL_STYLES}<div class="wandb-row">{row}</div>'
