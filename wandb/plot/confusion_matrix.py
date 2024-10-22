@@ -33,8 +33,14 @@ def confusion_matrix(
             in the UI. Default is False.
 
     Returns:
-        CustomChart: A confusion matrix chart. That can be logged to W&B with
-            `wandb.log()`.
+        A confusion matrix chart. That can be logged to W&B with `wandb.log()`.
+
+    Raises:
+        ValueError: If both `probs` and `preds` are provided or if the number of
+            predictions and true labels are not equal. If the number of unique
+            predicted classes exceeds the number of class names or if the number of
+            unique true labels exceeds the number of class names.
+        wandb.Error: If numpy is not installed.
 
     Examples:
         1. Logging a confusion matrix with random probabilities for wildlife
