@@ -151,13 +151,6 @@ def run_pytest(
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
-def get_unit_tests(session: nox.Session) -> None:
-    """Gets all unit tests that will be ran."""
-    paths = session.posargs or ["tests/unit_tests"]
-    print(" ".join(paths))
-
-
-@nox.session(python=_SUPPORTED_PYTHONS)
 def unit_tests(session: nox.Session) -> None:
     """Runs Python unit tests.
 
