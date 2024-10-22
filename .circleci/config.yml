@@ -465,7 +465,7 @@ workflows:
           name: unit-tests-linux-<<matrix.python>>
           session: unit_tests
           codecov_flags: unit
-          parallelism: 1
+          parallelism: 4
 
           matrix:
             parameters:
