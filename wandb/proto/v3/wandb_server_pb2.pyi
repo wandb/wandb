@@ -172,9 +172,16 @@ global___ServerInformSyncRequest = ServerInformSyncRequest
 class ServerInformSyncResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    _INFO_FIELD_NUMBER: builtins.int
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
+        *,
+        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> None: ...
 
 global___ServerInformSyncResponse = ServerInformSyncResponse
 

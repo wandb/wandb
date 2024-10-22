@@ -4,6 +4,7 @@ import atexit
 import os
 from typing import Callable
 
+from junk import p
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_settings_pb2
@@ -150,7 +151,11 @@ class ServiceConnection:
         """Sends a sync request to the service."""
         request = spb.ServerInformSyncRequest()
         request.settings.CopyFrom(settings)
-        self._client.send(inform_sync=request)
+        request._info.stream_id = settings.run_id.value
+
+        response = self._client.send_and_recv(inform_sync=request)
+        print(response)
+        assert response.inform_sync_response
 
     def inform_finish(self, run_id: str) -> None:
         """Sends an finish request to the service."""

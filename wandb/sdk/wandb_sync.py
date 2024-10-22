@@ -21,11 +21,8 @@ def _sync(
     skip_console: Optional[bool] = None,
 ) -> "wandb_internal_pb2.SyncResponse":
     p = pathlib.Path(path)
-
     wl = wandb_setup.setup()
     assert wl is not None
-
-    stream_id = generate_id()
 
     settings = wl.settings.to_proto()
     # update sync_file setting to point at the passed path
@@ -33,53 +30,55 @@ def _sync(
     settings.sync_dir.value = str(p.parent.absolute())
     settings.files_dir.value = str(p.parent.absolute() / "files")
     settings._sync.value = True
-    settings.run_id.value = stream_id  # TODO: remove this
+    settings.run_id.value = str(run_id or generate_id())
     if append:
         settings.resume.value = "allow"
 
     service = wl.service
     assert service
 
-    service.inform_sync(settings=settings)
+    print("inform_sync")
 
-    return None
+    response = service.inform_sync(settings=settings)
 
-    service.inform_init(settings=settings, run_id=stream_id)
+    print(response)
 
-    mailbox = Mailbox()
-    backend = Backend(
-        settings=wl.settings,
-        service=service,
-        mailbox=mailbox,
-    )
-    backend.ensure_launched()
+    # service.inform_init(settings=settings, run_id=stream_id)
 
-    assert backend.interface
-    backend.interface._stream_id = stream_id  # type: ignore
+    # mailbox = Mailbox()
+    # backend = Backend(
+    #     settings=wl.settings,
+    #     service=service,
+    #     mailbox=mailbox,
+    # )
+    # backend.ensure_launched()
 
-    mailbox.enable_keepalive()
+    # assert backend.interface
+    # backend.interface._stream_id = stream_id  # type: ignore
 
-    # TODO: let's add extra sync messages here so we get the url in the beginning
-    handle = backend.interface.deliver_sync(
-        start_offset=0,
-        final_offset=-1,
-        entity=entity,
-        project=project,
-        run_id=run_id,
-        skip_output_raw=skip_console,
-    )
-    result = handle.wait(timeout=-1)
-    assert result and result.response
-    response = result.response.sync_response
-    if response.url:
-        termlog(f"Synced {p} to {response.url}")
-        # create a .synced file in the directory if mark_synced is true
-        if mark_synced:
-            with open(f"{p}.synced", "w"):
-                pass
-    else:
-        termerror(f"Failed to sync {p}")
-    if response.error and response.error.message:
-        termerror(response.error.message)
+    # mailbox.enable_keepalive()
 
-    return response
+    # # TODO: let's add extra sync messages here so we get the url in the beginning
+    # handle = backend.interface.deliver_sync(
+    #     start_offset=0,
+    #     final_offset=-1,
+    #     entity=entity,
+    #     project=project,
+    #     run_id=run_id,
+    #     skip_output_raw=skip_console,
+    # )
+    # result = handle.wait(timeout=-1)
+    # assert result and result.response
+    # response = result.response.sync_response
+    # if response.url:
+    #     termlog(f"Synced {p} to {response.url}")
+    #     # create a .synced file in the directory if mark_synced is true
+    #     if mark_synced:
+    #         with open(f"{p}.synced", "w"):
+    #             pass
+    # else:
+    #     termerror(f"Failed to sync {p}")
+    # if response.error and response.error.message:
+    #     termerror(response.error.message)
+
+    # return response

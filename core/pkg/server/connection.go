@@ -348,6 +348,16 @@ func (nc *Connection) handleInformSync(msg *spb.ServerInformSyncRequest) {
 	// Start the sync service and the sender?
 
 	fmt.Println(settings)
+
+	nc.Respond(
+		&spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_InformSyncResponse{
+				InformSyncResponse: &spb.ServerInformSyncResponse{
+					XInfo: msg.XInfo,
+				},
+			},
+		},
+	)
 }
 
 // handleInformStart handles the start message from the client.

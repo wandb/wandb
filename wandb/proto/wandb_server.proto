@@ -51,7 +51,9 @@ message ServerInformSyncRequest {
   _RecordInfo _info = 200;
 }
 
-message ServerInformSyncResponse {}
+message ServerInformSyncResponse {
+  _RecordInfo _info = 200;
+}
 
 message ServerInformStartRequest {
   Settings settings = 1;
