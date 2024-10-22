@@ -110,8 +110,8 @@ def run_pytest(
         "OPENAI_API_KEY": session.env.get("OPENAI_API_KEY"),
     }
 
-    pytest_opts.append("-o")
-    pytest_opts.append("junit_family=legacy")
+    # pytest_opts.append("-o")
+    # pytest_opts.append("junit_family=legacy")
 
     # Print 20 slowest tests.
     pytest_opts.append(f"--durations={opts.get('durations', 20)}")
