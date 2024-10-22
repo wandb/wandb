@@ -172,6 +172,7 @@ class SockClient:
         inform_attach: Optional[spb.ServerInformAttachRequest] = None,
         inform_finish: Optional[spb.ServerInformFinishRequest] = None,
         inform_teardown: Optional[spb.ServerInformTeardownRequest] = None,
+        inform_sync: Optional[spb.ServerInformSyncRequest] = None,
     ) -> spb.ServerResponse:
         self.send(
             inform_init=inform_init,
@@ -179,6 +180,7 @@ class SockClient:
             inform_attach=inform_attach,
             inform_finish=inform_finish,
             inform_teardown=inform_teardown,
+            inform_sync=inform_sync,
         )
         # TODO: this solution is fragile, but for checking attach
         # it should be relatively stable.
@@ -198,10 +200,13 @@ class SockClient:
         inform_attach: Optional[spb.ServerInformAttachRequest] = None,
         inform_finish: Optional[spb.ServerInformFinishRequest] = None,
         inform_teardown: Optional[spb.ServerInformTeardownRequest] = None,
+        inform_sync: Optional[spb.ServerInformSyncRequest] = None,
     ) -> None:
         server_req = spb.ServerRequest()
         if inform_init:
             server_req.inform_init.CopyFrom(inform_init)
+        elif inform_sync:
+            server_req.inform_sync.CopyFrom(inform_sync)
         elif inform_start:
             server_req.inform_start.CopyFrom(inform_start)
         elif inform_attach:

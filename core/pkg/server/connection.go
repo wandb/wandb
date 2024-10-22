@@ -273,6 +273,8 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleInformInit(x.InformInit)
 		case *spb.ServerRequest_InformStart:
 			nc.handleInformStart(x.InformStart)
+		case *spb.ServerRequest_InformSync:
+			nc.handleInformSync(x.InformSync)
 		case *spb.ServerRequest_InformAttach:
 			nc.handleInformAttach(x.InformAttach)
 		case *spb.ServerRequest_RecordPublish:
@@ -338,6 +340,15 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 		// TODO: should we Close the stream?
 		return
 	}
+}
+
+// handleInformSync handles the sync message from the client.
+func (nc *Connection) handleInformSync(msg *spb.ServerInformSyncRequest) {
+	settings := settings.From(msg.GetSettings())
+
+	fmt.Println(settings)
+
+	// TODO: this should resond once sync has finished.
 }
 
 // handleInformStart handles the start message from the client.

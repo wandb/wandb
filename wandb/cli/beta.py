@@ -17,8 +17,7 @@ from wandb.util import get_core_path
 
 @click.group()
 def beta():
-    """Beta versions of wandb CLI commands. Requires wandb-core."""
-    # this is the future that requires wandb-core!
+    """Beta versions of wandb CLI commands."""
     import wandb.env
 
     wandb._sentry.configure_scope(process_context="wandb_beta")
@@ -81,7 +80,7 @@ def beta():
 )
 def sync_beta(  # noqa: C901
     ctx,
-    wandb_dir=None,
+    wandb_dir: str,
     run_id: str | None = None,
     project: str | None = None,
     entity: str | None = None,

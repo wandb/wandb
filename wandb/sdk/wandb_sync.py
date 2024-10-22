@@ -40,42 +40,48 @@ def _sync(
     service = wl.service
     assert service
 
-    service.inform_init(settings=settings, run_id=stream_id)
+    service.inform_sync(settings=settings)
 
-    mailbox = Mailbox()
-    backend = Backend(
-        settings=wl.settings,
-        service=service,
-        mailbox=mailbox,
-    )
-    backend.ensure_launched()
+    import time
 
-    assert backend.interface
-    backend.interface._stream_id = stream_id  # type: ignore
+    time.sleep(3)
 
-    mailbox.enable_keepalive()
+    # service.inform_init(settings=settings, run_id=stream_id)
 
-    # TODO: let's add extra sync messages here so we get the url in the beginning
-    handle = backend.interface.deliver_sync(
-        start_offset=0,
-        final_offset=-1,
-        entity=entity,
-        project=project,
-        run_id=run_id,
-        skip_output_raw=skip_console,
-    )
-    result = handle.wait(timeout=-1)
-    assert result and result.response
-    response = result.response.sync_response
-    if response.url:
-        termlog(f"Synced {p} to {response.url}")
-        # create a .synced file in the directory if mark_synced is true
-        if mark_synced:
-            with open(f"{p}.synced", "w"):
-                pass
-    else:
-        termerror(f"Failed to sync {p}")
-    if response.error and response.error.message:
-        termerror(response.error.message)
+    # mailbox = Mailbox()
+    # backend = Backend(
+    #     settings=wl.settings,
+    #     service=service,
+    #     mailbox=mailbox,
+    # )
+    # backend.ensure_launched()
 
-    return response
+    # assert backend.interface
+    # backend.interface._stream_id = stream_id  # type: ignore
+
+    # mailbox.enable_keepalive()
+
+    # # TODO: let's add extra sync messages here so we get the url in the beginning
+    # handle = backend.interface.deliver_sync(
+    #     start_offset=0,
+    #     final_offset=-1,
+    #     entity=entity,
+    #     project=project,
+    #     run_id=run_id,
+    #     skip_output_raw=skip_console,
+    # )
+    # result = handle.wait(timeout=-1)
+    # assert result and result.response
+    # response = result.response.sync_response
+    # if response.url:
+    #     termlog(f"Synced {p} to {response.url}")
+    #     # create a .synced file in the directory if mark_synced is true
+    #     if mark_synced:
+    #         with open(f"{p}.synced", "w"):
+    #             pass
+    # else:
+    #     termerror(f"Failed to sync {p}")
+    # if response.error and response.error.message:
+    #     termerror(response.error.message)
+
+    # return response
