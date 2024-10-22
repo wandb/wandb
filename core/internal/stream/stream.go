@@ -227,14 +227,16 @@ func NewStream(
 		},
 	)
 
-	// if !s.settings.GetDis
-	s.writer = NewWriter(
-		WriterParams{
-			Logger:   s.logger,
-			Settings: s.settings.Proto,
-			FwdChan:  make(chan runwork.Work, BufferSize),
-		},
-	)
+	// If the transaction log is disabled, we don't need to create a writer.
+	if !s.settings.Proto.GetDisableTransactionLog().GetValue() {
+		s.writer = NewWriter(
+			WriterParams{
+				Logger:   s.logger,
+				Settings: s.settings.Proto,
+				FwdChan:  make(chan runwork.Work, BufferSize),
+			},
+		)
+	}
 
 	var outputFile *paths.RelativePath
 	if opts.Settings.Proto.GetConsoleMultipart().GetValue() {
@@ -312,17 +314,24 @@ func (s *Stream) Start() {
 		s.wg.Done()
 	}()
 
-	// write the data to a transaction log
-	s.wg.Add(1)
-	go func() {
-		s.writer.Do(s.handler.fwdChan)
-		s.wg.Done()
-	}()
+	// write the data to a transaction log, unless it is disabled
+	if s.writer != nil {
+		s.wg.Add(1)
+		go func() {
+			s.writer.Do(s.handler.fwdChan)
+			s.wg.Done()
+		}()
+	}
 
 	// send the data to the server
 	s.wg.Add(1)
 	go func() {
-		s.sender.Do(s.writer.fwdChan)
+		if s.writer != nil {
+			s.sender.Do(s.writer.fwdChan)
+		} else {
+			// If the transaction log is disabled, we don't need to write to it.
+			s.sender.Do(s.handler.fwdChan)
+		}
 		s.wg.Done()
 	}()
 
