@@ -151,6 +151,22 @@ def run_pytest(
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
+def get_unit_tests(session: nox.Session) -> None:
+    """Prints all system test files that we want to run.
+
+    This is used by CircleCI to enable re-running only failed tests.
+    """
+    paths = []
+
+    for path, _, files in os.walk("tests/unit_tests"):
+        for name in files:
+            if name.endswith(".py"):
+                paths.append(os.path.join(path, name))
+
+    print(" ".join(paths))
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
 def unit_tests(session: nox.Session) -> None:
     """Runs Python unit tests.
 
@@ -172,6 +188,29 @@ def unit_tests(session: nox.Session) -> None:
         session,
         paths=session.posargs or ["tests/unit_tests"],
     )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+def get_system_tests(session: nox.Session) -> None:
+    """Prints all system test files that we want to run.
+
+    This is used by CircleCI to enable re-running only failed tests.
+    """
+    ignore_paths = (
+        "tests/system_tests/test_importers",
+        "tests/system_tests/test_notebooks",
+        "tests/system_tests/test_functional",
+        "tests/system_tests/test_experimental",
+    )
+    paths = []
+
+    for path, _, files in os.walk("tests/system_tests"):
+        for name in files:
+            if not any(path.startswith(ignore_path) for ignore_path in ignore_paths):
+                if name.endswith(".py"):
+                    paths.append(os.path.join(path, name))
+
+    print(" ".join(paths))
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
