@@ -271,8 +271,8 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleAuthenticate(x.Authenticate)
 		case *spb.ServerRequest_InformInit:
 			nc.handleInformInit(x.InformInit)
-		// case *spb.ServerRequest_InformSync:
-		// 	nc.handleInformSync(x.InformSync)
+		case *spb.ServerRequest_InformSync:
+			nc.handleInformSync(x.InformSync)
 		case *spb.ServerRequest_InformStart:
 			nc.handleInformStart(x.InformStart)
 		case *spb.ServerRequest_InformAttach:
