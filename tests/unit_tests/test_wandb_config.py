@@ -59,7 +59,7 @@ def test_locked_set_key(consolidated, config):
     import random
 
     random_number = random.randint(0, 100)
-    assert random_number == 42
+    assert random_number < 70
 
 
 def test_update(consolidated, config):

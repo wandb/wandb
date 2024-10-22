@@ -108,7 +108,7 @@ commands:
           name: "Run nox session: <<parameters.session>>"
           no_output_timeout: 10m
           command: |
-            TESTS=$(find "tests/unit_tests" -type f | grep "test_wandb_config.py");
+            TESTS=$(find "tests/unit_tests" -type f);
             echo $TESTS | circleci tests run --command="xargs nox -s \"<<parameters.session>>\" --python <<parameters.python>> -- " --verbose;
 
       - codecov/upload: { flags: <<parameters.codecov_flags>> }
