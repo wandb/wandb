@@ -1,10 +1,7 @@
 import pathlib
 from typing import TYPE_CHECKING, Optional
 
-from ..errors.term import termerror, termlog
 from . import wandb_setup
-from .backend.backend import Backend
-from .lib.mailbox import Mailbox
 from .lib.runid import generate_id
 
 if TYPE_CHECKING:
