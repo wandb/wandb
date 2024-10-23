@@ -221,8 +221,6 @@ func NewSender(
 		}),
 	}
 
-	fmt.Printf("%v\n", s.runfilesUploader)
-
 	backendOrNil := params.Backend
 	if !s.settings.IsOffline() && backendOrNil != nil && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings.Proto, s.logger, false)
