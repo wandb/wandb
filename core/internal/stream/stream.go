@@ -366,15 +366,13 @@ func (s *Stream) Close() {
 // FinishAndClose emits an exit record, waits for all run messages
 // to be fully processed, and prints the run footer to the terminal.
 func (s *Stream) FinishAndClose(exitCode int32) {
-	if !s.settings.IsSync() {
-		s.HandleRecord(&spb.Record{
-			RecordType: &spb.Record_Exit{
-				Exit: &spb.RunExitRecord{
-					ExitCode: exitCode,
-				}},
-			Control: &spb.Control{AlwaysSend: true},
-		})
-	}
+	s.HandleRecord(&spb.Record{
+		RecordType: &spb.Record_Exit{
+			Exit: &spb.RunExitRecord{
+				ExitCode: exitCode,
+			}},
+		Control: &spb.Control{AlwaysSend: true},
+	})
 
 	s.Close()
 

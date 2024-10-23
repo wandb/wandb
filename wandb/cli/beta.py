@@ -184,5 +184,5 @@ def sync_beta(  # noqa: C901
     #     # Wait for tasks to complete
     #     for _ in concurrent.futures.as_completed(futures):
     #         pass
-    print("Synced all runs.")
     wandb.sdk.wandb_setup.teardown()
+    print("Synced all runs.")

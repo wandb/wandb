@@ -135,23 +135,25 @@ class ServiceConnection:
     def inform_init(
         self,
         settings: wandb_settings_pb2.Settings,
-        run_id: str,
+        stream_id: str,
     ) -> None:
         """Sends an init request to the service."""
         request = spb.ServerInformInitRequest()
         request.settings.CopyFrom(settings)
-        request._info.stream_id = run_id
+        request._info.stream_id = stream_id
         self._client.send(inform_init=request)
 
     def inform_sync(
         self,
         settings: wandb_settings_pb2.Settings,
         sync_request: pb.SyncRequest,
+        stream_id: str,
     ) -> None:
         """Sends a sync request to the service."""
         request = spb.ServerInformSyncRequest()
         request.settings.CopyFrom(settings)
         request.sync_request.CopyFrom(sync_request)
+        request._info.stream_id = stream_id
         # TODO: make this bidirectional, i.e. inform -> deliver
         self._client.send(inform_sync=request)
 

@@ -314,6 +314,15 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("handleInformInit: received", "streamId", streamId, "id", nc.id)
 
+	err := nc.startStream(settings, streamId)
+	if err != nil {
+		slog.Error("handleInformInit: error adding stream", "err", err, "streamId", streamId, "id", nc.id)
+		return
+	}
+	slog.Info("handleInformInit: stream started", "streamId", streamId, "id", nc.id)
+}
+
+func (nc *Connection) startStream(settings *settings.Settings, streamId string) error {
 	// if we are in offline mode, we don't want to send any data to sentry
 	var sentryClient *sentry_ext.Client
 	if settings.IsOffline() {
@@ -331,16 +340,16 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 		})
 	nc.stream.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
 	nc.stream.Start()
-	slog.Info("handleInformInit: stream started", "streamId", streamId, "id", nc.id)
+
+	if err := nc.streamMux.AddStream(streamId, nc.stream); err != nil {
+		// TODO: should we Close the stream?
+		return err
+	}
 
 	// TODO: remove this once we have a better observability setup
 	sentryClient.CaptureMessage("wandb-core", nil)
 
-	if err := nc.streamMux.AddStream(streamId, nc.stream); err != nil {
-		slog.Error("handleInformInit: error adding stream", "err", err, "streamId", streamId, "id", nc.id)
-		// TODO: should we Close the stream?
-		return
-	}
+	return nil
 }
 
 // handleInformSync handles the sync message from the client.
@@ -349,7 +358,16 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 // or failed.
 func (nc *Connection) handleInformSync(msg *spb.ServerInformSyncRequest) {
 	settings := settings.From(msg.GetSettings())
+	streamId := msg.GetXInfo().GetStreamId()
 	overwrite := msg.GetSyncRequest().GetOverwrite()
+
+	// Start a new stream
+	err := nc.startStream(settings, streamId)
+	if err != nil {
+		slog.Error("handleInformSync: error adding stream", "err", err, "streamId", streamId, "id", nc.id)
+		return
+	}
+	slog.Info("handleInformSync: stream started", "streamId", streamId, "id", nc.id)
 
 	transactionLogPath := settings.GetTransactionLogPath()
 	reader, err := stream.NewReader(transactionLogPath)
@@ -385,6 +403,7 @@ func (nc *Connection) handleInformSync(msg *spb.ServerInformSyncRequest) {
 			}
 
 			nc.stream.HandleRecord(record)
+
 			// We need to start the file stream after processing the Run record.
 			// In sync mode, a RunStart request is forwarded by the handler to
 			// the sender, which starts the file stream.
@@ -392,18 +411,21 @@ func (nc *Connection) handleInformSync(msg *spb.ServerInformSyncRequest) {
 				RecordType: &spb.Record_Request{
 					Request: &spb.Request{
 						RequestType: &spb.Request_RunStart{
-							RunStart: &spb.RunStartRequest{},
+							RunStart: &spb.RunStartRequest{
+								Run: record.GetRun(),
+							},
 						},
 					},
 				},
 			}
 			nc.stream.HandleRecord(record)
+		case *spb.Record_Exit:
+			// No need to forward the exit record as we will call teardown
+			// on the client side.
 		default:
 			nc.stream.HandleRecord(record)
 		}
 	}
-
-	// TODO: this should respond once sync has finished.
 }
 
 // handleInformStart handles the start message from the client.

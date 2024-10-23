@@ -42,6 +42,11 @@ func PrintFooterOnline(run *spb.RunRecord, settings *spb.Settings) {
 		format(url, colorBlue),
 	)
 
+	// TODO: actually make logs work
+	if settings.GetXSync().GetValue() {
+		return
+	}
+
 	currentDir, err := os.Getwd()
 	if err != nil {
 		return

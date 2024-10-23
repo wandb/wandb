@@ -1762,7 +1762,7 @@ class Artifact:
             service = wl.service
             assert service
 
-            service.inform_init(settings=settings, run_id=stream_id)
+            service.inform_init(settings=settings, stream_id=stream_id)
 
             mailbox = Mailbox()
             backend = Backend(

@@ -52,9 +52,6 @@ def _sync(
     if skip_console:
         settings.console.value = "off"
 
-    # start a stream
-    service.inform_init(settings=settings, run_id=stream_id)
-
     # overwriting is reqested?
     overwrite = pb.SyncOverwrite()
     if run_id:
@@ -67,48 +64,8 @@ def _sync(
     sync_request = pb.SyncRequest(overwrite=overwrite)
 
     # sync the run from the transaction log
-    service.inform_sync(settings=settings, sync_request=sync_request)
-
-    import time
-
-    time.sleep(10)
-
-    # service.inform_init(settings=settings, run_id=stream_id)
-
-    # mailbox = Mailbox()
-    # backend = Backend(
-    #     settings=wl.settings,
-    #     service=service,
-    #     mailbox=mailbox,
-    # )
-    # backend.ensure_launched()
-
-    # assert backend.interface
-    # backend.interface._stream_id = stream_id  # type: ignore
-
-    # mailbox.enable_keepalive()
-
-    # # TODO: let's add extra sync messages here so we get the url in the beginning
-    # handle = backend.interface.deliver_sync(
-    #     start_offset=0,
-    #     final_offset=-1,
-    #     entity=entity,
-    #     project=project,
-    #     run_id=run_id,
-    #     skip_output_raw=skip_console,
-    # )
-    # result = handle.wait(timeout=-1)
-    # assert result and result.response
-    # response = result.response.sync_response
-    # if response.url:
-    #     termlog(f"Synced {p} to {response.url}")
-    #     # create a .synced file in the directory if mark_synced is true
-    #     if mark_synced:
-    #         with open(f"{p}.synced", "w"):
-    #             pass
-    # else:
-    #     termerror(f"Failed to sync {p}")
-    # if response.error and response.error.message:
-    #     termerror(response.error.message)
-
-    # return response
+    service.inform_sync(
+        settings=settings,
+        sync_request=sync_request,
+        stream_id=stream_id,
+    )

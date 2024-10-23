@@ -673,7 +673,7 @@ class _WandbInit:
             logger.info("sending inform_init request")
             service.inform_init(
                 settings=self.settings.to_proto(),
-                run_id=self.settings.run_id,
+                stream_id=self.settings.run_id,
             )
 
         mailbox = Mailbox()
