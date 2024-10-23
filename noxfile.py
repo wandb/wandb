@@ -7,7 +7,7 @@ import re
 import shutil
 import time
 from contextlib import contextmanager
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 import nox
 
@@ -147,6 +147,19 @@ def run_pytest(
     )
 
 
+def get_test_files(root: str, ignore_paths: Sequence[str]) -> list[str]:
+    """Returns all test files in the given directory."""
+    paths = []
+
+    for path, _, files in os.walk(root):
+        for name in files:
+            if not any(path.startswith(ignore_path) for ignore_path in ignore_paths):
+                if name.startswith("test_") and name.endswith(".py"):
+                    paths.append(os.path.join(path, name))
+
+    return paths
+
+
 @nox.session(python=_SUPPORTED_PYTHONS)
 def get_unit_tests(session: nox.Session) -> None:
     """Prints all unit test files that we want to run.
@@ -154,13 +167,7 @@ def get_unit_tests(session: nox.Session) -> None:
     This is used by CircleCI to enable re-running only failed tests.
     https://circleci.com/docs/rerun-failed-tests/
     """
-    paths = []
-
-    for path, _, files in os.walk("tests/unit_tests"):
-        for name in files:
-            if name.startswith("test_") and name.endswith(".py"):
-                paths.append(os.path.join(path, name))
-
+    paths = get_test_files("tests/unit_tests", [])
     print(" ".join(paths))
 
 
@@ -201,14 +208,7 @@ def get_system_tests(session: nox.Session) -> None:
         "tests/system_tests/test_functional",
         "tests/system_tests/test_experimental",
     )
-    paths = []
-
-    for path, _, files in os.walk("tests/system_tests"):
-        for name in files:
-            if not any(path.startswith(ignore_path) for ignore_path in ignore_paths):
-                if name.startswith("test_") and name.endswith(".py"):
-                    paths.append(os.path.join(path, name))
-
+    paths = get_test_files("tests/system_tests", ignore_paths)
     print(" ".join(paths))
 
 
@@ -244,13 +244,7 @@ def get_notebook_tests(session: nox.Session) -> None:
     This is used by CircleCI to enable re-running only failed tests.
     https://circleci.com/docs/rerun-failed-tests/
     """
-    paths = []
-
-    for path, _, files in os.walk("tests/system_tests/test_notebooks"):
-        for name in files:
-            if name.startswith("test_") and name.endswith(".py"):
-                paths.append(os.path.join(path, name))
-
+    paths = get_test_files("tests/system_tests/test_notebooks", [])
     print(" ".join(paths))
 
 
@@ -295,13 +289,7 @@ def get_functional_tests(session: nox.Session) -> None:
     This is used by CircleCI to enable re-running only failed tests.
     https://circleci.com/docs/rerun-failed-tests/
     """
-    paths = []
-
-    for path, _, files in os.walk("tests/system_tests/test_functional"):
-        for name in files:
-            if name.startswith("test_") and name.endswith(".py"):
-                paths.append(os.path.join(path, name))
-
+    paths = get_test_files("tests/system_tests/test_functional", [])
     print(" ".join(paths))
 
 
@@ -333,13 +321,7 @@ def get_experimental_tests(session: nox.Session) -> None:
     This is used by CircleCI to enable re-running only failed tests.
     https://circleci.com/docs/rerun-failed-tests/
     """
-    paths = []
-
-    for path, _, files in os.walk("tests/system_tests/test_experimental"):
-        for name in files:
-            if name.startswith("test_") and name.endswith(".py"):
-                paths.append(os.path.join(path, name))
-
+    paths = get_test_files("tests/system_tests/test_experimental", [])
     print(" ".join(paths))
 
 
