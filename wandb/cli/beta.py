@@ -92,9 +92,6 @@ def sync_beta(  # noqa: C901
     mark_synced: bool = True,
     dry_run: bool = False,
 ) -> None:
-    import concurrent.futures
-    from multiprocessing import cpu_count
-
     paths = set()
 
     # TODO: test file discovery logic
