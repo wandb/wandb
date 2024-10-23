@@ -167,8 +167,8 @@ def get_unit_tests(session: nox.Session) -> None:
     This is used by CircleCI to enable re-running only failed tests.
     https://circleci.com/docs/rerun-failed-tests/
     """
-    paths = get_test_files("tests/unit_tests", [])
-    print(" ".join(paths))
+    file_paths = get_test_files("tests/unit_tests", [])
+    print(" ".join(file_paths))
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
@@ -208,8 +208,8 @@ def get_system_tests(session: nox.Session) -> None:
         "tests/system_tests/test_functional",
         "tests/system_tests/test_experimental",
     )
-    paths = get_test_files("tests/system_tests", ignore_paths)
-    print(" ".join(paths))
+    file_paths = get_test_files("tests/system_tests", ignore_paths)
+    print(" ".join(file_paths))
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
@@ -244,8 +244,8 @@ def get_notebook_tests(session: nox.Session) -> None:
     This is used by CircleCI to enable re-running only failed tests.
     https://circleci.com/docs/rerun-failed-tests/
     """
-    paths = get_test_files("tests/system_tests/test_notebooks", [])
-    print(" ".join(paths))
+    file_paths = get_test_files("tests/system_tests/test_notebooks", [])
+    print(" ".join(file_paths))
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
@@ -289,8 +289,8 @@ def get_functional_tests(session: nox.Session) -> None:
     This is used by CircleCI to enable re-running only failed tests.
     https://circleci.com/docs/rerun-failed-tests/
     """
-    paths = get_test_files("tests/system_tests/test_functional", [])
-    print(" ".join(paths))
+    file_paths = get_test_files("tests/system_tests/test_functional", [])
+    print(" ".join(file_paths))
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
@@ -321,8 +321,8 @@ def get_experimental_tests(session: nox.Session) -> None:
     This is used by CircleCI to enable re-running only failed tests.
     https://circleci.com/docs/rerun-failed-tests/
     """
-    paths = get_test_files("tests/system_tests/test_experimental", [])
-    print(" ".join(paths))
+    file_paths = get_test_files("tests/system_tests/test_experimental", [])
+    print(" ".join(file_paths))
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
