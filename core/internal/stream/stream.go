@@ -379,7 +379,7 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 	if s.settings.IsOffline() {
 		PrintFooterOffline(s.settings.Proto)
 	} else {
-		run := s.handler.GetRun()
+		run := s.sender.GetRun()
 		PrintFooterOnline(run, s.settings.Proto)
 	}
 }

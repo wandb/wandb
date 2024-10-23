@@ -1771,3 +1771,12 @@ func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {
 	}
 	s.jobBuilder.HandleJobInputRequest(request)
 }
+
+func (s *Sender) GetRun() *spb.RunRecord {
+	return &spb.RunRecord{
+		RunId:       s.startState.RunID,
+		Project:     s.startState.Project,
+		Entity:      s.startState.Entity,
+		DisplayName: s.startState.DisplayName,
+	}
+}
