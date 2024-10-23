@@ -143,10 +143,15 @@ class ServiceConnection:
         request._info.stream_id = run_id
         self._client.send(inform_init=request)
 
-    def inform_sync(self, settings: wandb_settings_pb2.Settings) -> None:
+    def inform_sync(
+        self,
+        settings: wandb_settings_pb2.Settings,
+        sync_request: pb.SyncRequest,
+    ) -> None:
         """Sends a sync request to the service."""
         request = spb.ServerInformSyncRequest()
         request.settings.CopyFrom(settings)
+        request.sync_request.CopyFrom(sync_request)
         # TODO: make this bidirectional, i.e. inform -> deliver
         self._client.send(inform_sync=request)
 

@@ -476,8 +476,9 @@ type ServerInformSyncRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Settings *Settings    `protobuf:"bytes,1,opt,name=settings,proto3" json:"settings,omitempty"`
-	XInfo    *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
+	Settings    *Settings    `protobuf:"bytes,1,opt,name=settings,proto3" json:"settings,omitempty"`
+	SyncRequest *SyncRequest `protobuf:"bytes,2,opt,name=sync_request,json=syncRequest,proto3" json:"sync_request,omitempty"`
+	XInfo       *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 }
 
 func (x *ServerInformSyncRequest) Reset() {
@@ -515,6 +516,13 @@ func (*ServerInformSyncRequest) Descriptor() ([]byte, []int) {
 func (x *ServerInformSyncRequest) GetSettings() *Settings {
 	if x != nil {
 		return x.Settings
+	}
+	return nil
+}
+
+func (x *ServerInformSyncRequest) GetSyncRequest() *SyncRequest {
+	if x != nil {
+		return x.SyncRequest
 	}
 	return nil
 }
@@ -1409,12 +1417,16 @@ var file_wandb_proto_wandb_server_proto_rawDesc = []byte{
 	0x31, 0x0a, 0x05, 0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18, 0xc8, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32,
 	0x1b, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c,
 	0x2e, 0x5f, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x04, 0x49, 0x6e,
-	0x66, 0x6f, 0x22, 0x82, 0x01, 0x0a, 0x17, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x49, 0x6e, 0x66,
+	0x66, 0x6f, 0x22, 0xc2, 0x01, 0x0a, 0x17, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x49, 0x6e, 0x66,
 	0x6f, 0x72, 0x6d, 0x53, 0x79, 0x6e, 0x63, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x34,
 	0x0a, 0x08, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b,
 	0x32, 0x18, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61,
 	0x6c, 0x2e, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x52, 0x08, 0x73, 0x65, 0x74, 0x74,
-	0x69, 0x6e, 0x67, 0x73, 0x12, 0x31, 0x0a, 0x05, 0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18, 0xc8, 0x01,
+	0x69, 0x6e, 0x67, 0x73, 0x12, 0x3e, 0x0a, 0x0c, 0x73, 0x79, 0x6e, 0x63, 0x5f, 0x72, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x77, 0x61, 0x6e,
+	0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x53, 0x79, 0x6e, 0x63,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x52, 0x0b, 0x73, 0x79, 0x6e, 0x63, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x12, 0x31, 0x0a, 0x05, 0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18, 0xc8, 0x01,
 	0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74,
 	0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x5f, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x49, 0x6e, 0x66,
 	0x6f, 0x52, 0x04, 0x49, 0x6e, 0x66, 0x6f, 0x22, 0x4d, 0x0a, 0x18, 0x53, 0x65, 0x72, 0x76, 0x65,
@@ -1611,8 +1623,9 @@ var file_wandb_proto_wandb_server_proto_goTypes = []interface{}{
 	(*ServerResponse)(nil),               // 21: wandb_internal.ServerResponse
 	(*XRecordInfo)(nil),                  // 22: wandb_internal._RecordInfo
 	(*Settings)(nil),                     // 23: wandb_internal.Settings
-	(*Record)(nil),                       // 24: wandb_internal.Record
-	(*Result)(nil),                       // 25: wandb_internal.Result
+	(*SyncRequest)(nil),                  // 24: wandb_internal.SyncRequest
+	(*Record)(nil),                       // 25: wandb_internal.Record
+	(*Result)(nil),                       // 26: wandb_internal.Result
 }
 var file_wandb_proto_wandb_server_proto_depIdxs = []int32{
 	22, // 0: wandb_internal.ServerAuthenticateRequest._info:type_name -> wandb_internal._RecordInfo
@@ -1624,38 +1637,39 @@ var file_wandb_proto_wandb_server_proto_depIdxs = []int32{
 	23, // 6: wandb_internal.ServerInformStartRequest.settings:type_name -> wandb_internal.Settings
 	22, // 7: wandb_internal.ServerInformStartRequest._info:type_name -> wandb_internal._RecordInfo
 	23, // 8: wandb_internal.ServerInformSyncRequest.settings:type_name -> wandb_internal.Settings
-	22, // 9: wandb_internal.ServerInformSyncRequest._info:type_name -> wandb_internal._RecordInfo
-	22, // 10: wandb_internal.ServerInformSyncResponse._info:type_name -> wandb_internal._RecordInfo
-	22, // 11: wandb_internal.ServerInformFinishRequest._info:type_name -> wandb_internal._RecordInfo
-	22, // 12: wandb_internal.ServerInformAttachRequest._info:type_name -> wandb_internal._RecordInfo
-	23, // 13: wandb_internal.ServerInformAttachResponse.settings:type_name -> wandb_internal.Settings
-	22, // 14: wandb_internal.ServerInformAttachResponse._info:type_name -> wandb_internal._RecordInfo
-	22, // 15: wandb_internal.ServerInformDetachRequest._info:type_name -> wandb_internal._RecordInfo
-	22, // 16: wandb_internal.ServerInformTeardownRequest._info:type_name -> wandb_internal._RecordInfo
-	24, // 17: wandb_internal.ServerRequest.record_publish:type_name -> wandb_internal.Record
-	24, // 18: wandb_internal.ServerRequest.record_communicate:type_name -> wandb_internal.Record
-	6,  // 19: wandb_internal.ServerRequest.inform_init:type_name -> wandb_internal.ServerInformInitRequest
-	12, // 20: wandb_internal.ServerRequest.inform_finish:type_name -> wandb_internal.ServerInformFinishRequest
-	14, // 21: wandb_internal.ServerRequest.inform_attach:type_name -> wandb_internal.ServerInformAttachRequest
-	16, // 22: wandb_internal.ServerRequest.inform_detach:type_name -> wandb_internal.ServerInformDetachRequest
-	18, // 23: wandb_internal.ServerRequest.inform_teardown:type_name -> wandb_internal.ServerInformTeardownRequest
-	8,  // 24: wandb_internal.ServerRequest.inform_start:type_name -> wandb_internal.ServerInformStartRequest
-	0,  // 25: wandb_internal.ServerRequest.authenticate:type_name -> wandb_internal.ServerAuthenticateRequest
-	9,  // 26: wandb_internal.ServerRequest.inform_sync:type_name -> wandb_internal.ServerInformSyncRequest
-	25, // 27: wandb_internal.ServerResponse.result_communicate:type_name -> wandb_internal.Result
-	7,  // 28: wandb_internal.ServerResponse.inform_init_response:type_name -> wandb_internal.ServerInformInitResponse
-	13, // 29: wandb_internal.ServerResponse.inform_finish_response:type_name -> wandb_internal.ServerInformFinishResponse
-	15, // 30: wandb_internal.ServerResponse.inform_attach_response:type_name -> wandb_internal.ServerInformAttachResponse
-	17, // 31: wandb_internal.ServerResponse.inform_detach_response:type_name -> wandb_internal.ServerInformDetachResponse
-	19, // 32: wandb_internal.ServerResponse.inform_teardown_response:type_name -> wandb_internal.ServerInformTeardownResponse
-	11, // 33: wandb_internal.ServerResponse.inform_start_response:type_name -> wandb_internal.ServerInformStartResponse
-	1,  // 34: wandb_internal.ServerResponse.authenticate_response:type_name -> wandb_internal.ServerAuthenticateResponse
-	10, // 35: wandb_internal.ServerResponse.inform_sync_response:type_name -> wandb_internal.ServerInformSyncResponse
-	36, // [36:36] is the sub-list for method output_type
-	36, // [36:36] is the sub-list for method input_type
-	36, // [36:36] is the sub-list for extension type_name
-	36, // [36:36] is the sub-list for extension extendee
-	0,  // [0:36] is the sub-list for field type_name
+	24, // 9: wandb_internal.ServerInformSyncRequest.sync_request:type_name -> wandb_internal.SyncRequest
+	22, // 10: wandb_internal.ServerInformSyncRequest._info:type_name -> wandb_internal._RecordInfo
+	22, // 11: wandb_internal.ServerInformSyncResponse._info:type_name -> wandb_internal._RecordInfo
+	22, // 12: wandb_internal.ServerInformFinishRequest._info:type_name -> wandb_internal._RecordInfo
+	22, // 13: wandb_internal.ServerInformAttachRequest._info:type_name -> wandb_internal._RecordInfo
+	23, // 14: wandb_internal.ServerInformAttachResponse.settings:type_name -> wandb_internal.Settings
+	22, // 15: wandb_internal.ServerInformAttachResponse._info:type_name -> wandb_internal._RecordInfo
+	22, // 16: wandb_internal.ServerInformDetachRequest._info:type_name -> wandb_internal._RecordInfo
+	22, // 17: wandb_internal.ServerInformTeardownRequest._info:type_name -> wandb_internal._RecordInfo
+	25, // 18: wandb_internal.ServerRequest.record_publish:type_name -> wandb_internal.Record
+	25, // 19: wandb_internal.ServerRequest.record_communicate:type_name -> wandb_internal.Record
+	6,  // 20: wandb_internal.ServerRequest.inform_init:type_name -> wandb_internal.ServerInformInitRequest
+	12, // 21: wandb_internal.ServerRequest.inform_finish:type_name -> wandb_internal.ServerInformFinishRequest
+	14, // 22: wandb_internal.ServerRequest.inform_attach:type_name -> wandb_internal.ServerInformAttachRequest
+	16, // 23: wandb_internal.ServerRequest.inform_detach:type_name -> wandb_internal.ServerInformDetachRequest
+	18, // 24: wandb_internal.ServerRequest.inform_teardown:type_name -> wandb_internal.ServerInformTeardownRequest
+	8,  // 25: wandb_internal.ServerRequest.inform_start:type_name -> wandb_internal.ServerInformStartRequest
+	0,  // 26: wandb_internal.ServerRequest.authenticate:type_name -> wandb_internal.ServerAuthenticateRequest
+	9,  // 27: wandb_internal.ServerRequest.inform_sync:type_name -> wandb_internal.ServerInformSyncRequest
+	26, // 28: wandb_internal.ServerResponse.result_communicate:type_name -> wandb_internal.Result
+	7,  // 29: wandb_internal.ServerResponse.inform_init_response:type_name -> wandb_internal.ServerInformInitResponse
+	13, // 30: wandb_internal.ServerResponse.inform_finish_response:type_name -> wandb_internal.ServerInformFinishResponse
+	15, // 31: wandb_internal.ServerResponse.inform_attach_response:type_name -> wandb_internal.ServerInformAttachResponse
+	17, // 32: wandb_internal.ServerResponse.inform_detach_response:type_name -> wandb_internal.ServerInformDetachResponse
+	19, // 33: wandb_internal.ServerResponse.inform_teardown_response:type_name -> wandb_internal.ServerInformTeardownResponse
+	11, // 34: wandb_internal.ServerResponse.inform_start_response:type_name -> wandb_internal.ServerInformStartResponse
+	1,  // 35: wandb_internal.ServerResponse.authenticate_response:type_name -> wandb_internal.ServerAuthenticateResponse
+	10, // 36: wandb_internal.ServerResponse.inform_sync_response:type_name -> wandb_internal.ServerInformSyncResponse
+	37, // [37:37] is the sub-list for method output_type
+	37, // [37:37] is the sub-list for method input_type
+	37, // [37:37] is the sub-list for extension type_name
+	37, // [37:37] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_server_proto_init() }

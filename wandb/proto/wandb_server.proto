@@ -53,6 +53,7 @@ message ServerInformStartRequest {
 
 message ServerInformSyncRequest {
   Settings settings = 1;
+  SyncRequest sync_request = 2;
   _RecordInfo _info = 200;
 }
 

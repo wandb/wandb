@@ -152,28 +152,40 @@ def sync_beta(  # noqa: C901
 
     wandb.sdk.wandb_setup.setup()
 
-    # TODO: make it thread-safe in the Rust code
-    with concurrent.futures.ProcessPoolExecutor(
-        max_workers=min(len(paths), cpu_count())
-    ) as executor:
-        futures = []
-        for path in paths:
-            # we already know there is only one wandb file in the directory
-            wandb_file = [p for p in path.glob("*.wandb") if p.is_file()][0]
-            future = executor.submit(
-                wandb._sync,
-                wandb_file,
-                run_id=run_id,
-                project=project,
-                entity=entity,
-                skip_console=skip_console,
-                append=append,
-                mark_synced=mark_synced,
-            )
-            futures.append(future)
+    for path in paths:
+        wandb_file = [p for p in path.glob("*.wandb") if p.is_file()][0]
+        wandb._sync(
+            wandb_file,
+            run_id=run_id,
+            project=project,
+            entity=entity,
+            skip_console=skip_console,
+            append=append,
+            mark_synced=mark_synced,
+        )
 
-        # Wait for tasks to complete
-        for _ in concurrent.futures.as_completed(futures):
-            pass
+    # TODO: make it thread-safe in the Rust code
+    # with concurrent.futures.ProcessPoolExecutor(
+    #     max_workers=min(len(paths), cpu_count())
+    # ) as executor:
+    #     futures = []
+    #     for path in paths:
+    #         # we already know there is only one wandb file in the directory
+    #         wandb_file = [p for p in path.glob("*.wandb") if p.is_file()][0]
+    #         future = executor.submit(
+    #             wandb._sync,
+    #             wandb_file,
+    #             run_id=run_id,
+    #             project=project,
+    #             entity=entity,
+    #             skip_console=skip_console,
+    #             append=append,
+    #             mark_synced=mark_synced,
+    #         )
+    #         futures.append(future)
+
+    #     # Wait for tasks to complete
+    #     for _ in concurrent.futures.as_completed(futures):
+    #         pass
     print("Synced all runs.")
     wandb.sdk.wandb_setup.teardown()

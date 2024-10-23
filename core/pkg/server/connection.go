@@ -349,6 +349,7 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 // or failed.
 func (nc *Connection) handleInformSync(msg *spb.ServerInformSyncRequest) {
 	settings := settings.From(msg.GetSettings())
+	overwrite := msg.GetSyncRequest().GetOverwrite()
 
 	fmt.Println("Syncing transaction log", settings.GetTransactionLogPath())
 
@@ -360,6 +361,7 @@ func (nc *Connection) handleInformSync(msg *spb.ServerInformSyncRequest) {
 		return
 	}
 
+	// TODO: make this a goroutine
 	for {
 		record, err := reader.Next()
 
@@ -376,8 +378,19 @@ func (nc *Connection) handleInformSync(msg *spb.ServerInformSyncRequest) {
 
 		switch record.RecordType.(type) {
 		case *spb.Record_Run:
-			// We need to start the file stream after processing the Run record.
+			// If requested, overwrite entity, project, run id.
+			if overwrite.GetEntity() != "" {
+				record.GetRun().Entity = overwrite.GetEntity()
+			}
+			if overwrite.GetProject() != "" {
+				record.GetRun().Project = overwrite.GetProject()
+			}
+			if overwrite.GetRunId() != "" {
+				record.GetRun().RunId = overwrite.GetRunId()
+			}
+
 			nc.stream.HandleRecord(record)
+			// We need to start the file stream after processing the Run record.
 			// In sync mode, a RunStart request is forwarded by the handler to
 			// the sender, which starts the file stream.
 			record = &spb.Record{
