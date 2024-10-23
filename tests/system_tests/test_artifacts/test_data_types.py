@@ -1,4 +1,6 @@
 import json
+import os
+from pathlib import Path
 
 import matplotlib
 import numpy as np
@@ -65,6 +67,71 @@ def test_log_dataframe(user, test_settings):
 
     run = wandb.Api().run(f"uncategorized/{run.id}")
     assert len(run.logged_artifacts()) == 1
+
+
+def test_log_media_saves_to_run_directory(
+    user,
+    test_settings,
+    audio_media,
+    video_media,
+    image_media,
+    table_media,
+    graph_media,
+    bokeh_media,
+    html_media,
+    molecule_media,
+    object3d_media,
+    plotly_media,
+):
+    run = wandb.init(settings=test_settings())
+
+    media = {
+        "/table/test_table": table_media,
+        "/image/test_image": image_media,
+        "/video/test_video": video_media,
+        "/audio/test_audio": audio_media,
+        "/graph/test_graph": graph_media,
+        "/bokeh/test_bokeh": bokeh_media,
+        "/html/test_html": html_media,
+        "/molecule/test_molecule": molecule_media,
+        "/object/test_object3d": object3d_media,
+        "/plotly/test_plotly": plotly_media,
+    }
+
+    run.log(media)
+    run.finish()
+
+    # Assert all media objects are saved under the run directory
+    for media_object in media.values():
+        assert os.path.exists(media_object._path)
+        assert media_object._path.startswith(run.dir)
+
+
+def test_log_media_with_path_traversal(user, test_settings, image_media):
+    run = wandb.init(settings=test_settings())
+    run.log({"../../../image": image_media})
+    run.finish()
+
+    print(image_media._path)
+    print(run.dir)
+
+    # Resolve to path to verify no path traversals
+    resolved_path = str(Path(image_media._path).resolve())
+    assert resolved_path.startswith(run.dir)
+    assert os.path.exists(resolved_path)
+
+
+def test_log_media_prefixed_with_multiple_slashes(user, test_settings, image_media):
+    run = wandb.init(settings=test_settings())
+    run.log({"////image": image_media})
+    run.finish()
+
+    print(image_media._path)
+    print(run.dir)
+
+    resolved_path = str(Path(image_media._path).resolve())
+    assert resolved_path.startswith(run.dir)
+    assert os.path.exists(resolved_path)
 
 
 @pytest.mark.parametrize("max_cli_version", ["0.10.33", "0.11.0"])
