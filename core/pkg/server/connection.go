@@ -351,8 +351,6 @@ func (nc *Connection) handleInformSync(msg *spb.ServerInformSyncRequest) {
 	settings := settings.From(msg.GetSettings())
 	overwrite := msg.GetSyncRequest().GetOverwrite()
 
-	fmt.Println("Syncing transaction log", settings.GetTransactionLogPath())
-
 	transactionLogPath := settings.GetTransactionLogPath()
 	reader, err := stream.NewReader(transactionLogPath)
 	if err != nil {
@@ -364,9 +362,6 @@ func (nc *Connection) handleInformSync(msg *spb.ServerInformSyncRequest) {
 	// TODO: make this a goroutine
 	for {
 		record, err := reader.Next()
-
-		// fmt.Println(record, err)
-
 		if err == io.EOF {
 			// reached the end of the file
 			break

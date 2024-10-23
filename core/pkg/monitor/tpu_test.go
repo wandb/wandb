@@ -102,7 +102,6 @@ func TestTPUSample(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Sample() error = %v", err)
 	}
-	fmt.Println(data)
 
 	expectedMemoryUsageKey := "tpu.0.memoryUsage"
 	expectedDutyCycleKey := "tpu.0.dutyCycle"

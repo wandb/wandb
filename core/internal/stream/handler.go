@@ -487,7 +487,6 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 	// when syncing a run from a transaction log, we only need to forward the record
 	// to the sender, which will start the filestream.
 	if h.settings.GetXSync().GetValue() {
-		fmt.Println("syncing run")
 		h.fwdRecord(record)
 		return
 	}

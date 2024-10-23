@@ -286,10 +286,8 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 	for i, path := range runPaths {
 		runSlashPaths[i] = filepath.ToSlash(string(path))
 	}
-	fmt.Println("runfiles: uploading files", "files", runSlashPaths)
 
 	go func() {
-		fmt.Println(u.settings.GetEntity(), u.settings.GetProject(), u.settings.GetRunID())
 		createRunFilesResponse, err := gql.CreateRunFiles(
 			u.extraWork.BeforeEndCtx(),
 			u.graphQL,
@@ -338,7 +336,6 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 				continue
 			}
 			runPath := *maybeRunPath
-			fmt.Println("Scheduling upload task", "path", runPath, "url", *f.UploadUrl)
 			u.scheduleUploadTask(
 				runPath,
 				*f.UploadUrl,
