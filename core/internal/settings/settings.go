@@ -313,3 +313,8 @@ func (s *Settings) UpdateProject(project string) {
 func (s *Settings) UpdateDisplayName(displayName string) {
 	s.Proto.RunName = &wrapperspb.StringValue{Value: displayName}
 }
+
+// Updates the run's id.
+func (s *Settings) UpdateRunID(runID string) {
+	s.Proto.RunId = &wrapperspb.StringValue{Value: runID}
+}

@@ -102,11 +102,6 @@ func (u *uploader) Process(record *spb.FilesRecord) {
 	}
 	defer u.stateMu.Unlock()
 
-	// Ignore file records in sync mode---we just upload everything at the end.
-	if u.settings.IsSync() {
-		return
-	}
-
 	nowFiles := make([]paths.RelativePath, 0)
 
 	for _, file := range record.GetFiles() {
@@ -123,6 +118,12 @@ func (u *uploader) Process(record *spb.FilesRecord) {
 
 		u.knownFile(runPath).
 			SetCategory(filetransfer.RunFileKindFromProto(file.GetType()))
+
+		// When in sync mode, upload all files at the end.
+		if u.settings.IsSync() {
+			u.uploadAtEnd[runPath] = struct{}{}
+			continue
+		}
 
 		switch file.GetPolicy() {
 		case spb.FilesItem_NOW:
@@ -275,7 +276,6 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 	if u.settings.IsOffline() {
 		return
 	}
-
 	u.logger.Debug("runfiles: uploading files", "files", runPaths)
 
 	runPaths = u.filterNonExistingAndWarn(runPaths)
@@ -286,8 +286,10 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 	for i, path := range runPaths {
 		runSlashPaths[i] = filepath.ToSlash(string(path))
 	}
+	fmt.Println("runfiles: uploading files", "files", runSlashPaths)
 
 	go func() {
+		fmt.Println(u.settings.GetEntity(), u.settings.GetProject(), u.settings.GetRunID())
 		createRunFilesResponse, err := gql.CreateRunFiles(
 			u.extraWork.BeforeEndCtx(),
 			u.graphQL,
@@ -336,7 +338,7 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 				continue
 			}
 			runPath := *maybeRunPath
-
+			fmt.Println("Scheduling upload task", "path", runPath, "url", *f.UploadUrl)
 			u.scheduleUploadTask(
 				runPath,
 				*f.UploadUrl,

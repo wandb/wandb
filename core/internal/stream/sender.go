@@ -221,6 +221,8 @@ func NewSender(
 		}),
 	}
 
+	fmt.Printf("%v\n", s.runfilesUploader)
+
 	backendOrNil := params.Backend
 	if !s.settings.IsOffline() && backendOrNil != nil && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings.Proto, s.logger, false)
@@ -487,6 +489,13 @@ func (s *Sender) updateSettings() {
 	}
 	if s.startState.DisplayName != "" {
 		s.settings.UpdateDisplayName(s.startState.DisplayName)
+	}
+
+	// In sync mode, we need to ensure the run ID in the settings
+	// is the same as the run ID of the run record, which either comes
+	// from the transaction log or is overwritten by the user.
+	if s.startState.RunID != "" {
+		s.settings.UpdateRunID(s.startState.RunID)
 	}
 }
 
@@ -961,7 +970,6 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 	s.updateConfigPrivate()
 
 	if !s.startState.Initialized {
-
 		// update the run state with the initial run record
 		s.startState.Merge(&runbranch.RunParams{
 			RunID:       runClone.GetRunId(),

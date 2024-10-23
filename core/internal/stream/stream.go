@@ -329,7 +329,7 @@ func (s *Stream) Start() {
 		if s.writer != nil {
 			s.sender.Do(s.writer.fwdChan)
 		} else {
-			// If the transaction log is disabled, we don't need to write to it.
+			// Connect sender directly to handler if the transaction log is disabled.
 			s.sender.Do(s.handler.fwdChan)
 		}
 		s.wg.Done()
