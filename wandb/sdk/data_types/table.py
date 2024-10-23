@@ -4,6 +4,7 @@ import codecs
 import datetime
 import logging
 import os
+from typing import Callable
 
 import wandb
 from wandb import util
@@ -907,6 +908,183 @@ class Table(Media):
                 new_columns[key].append(new_row_dict[key])
         for new_col_name in new_columns:
             self.add_column(new_col_name, new_columns[new_col_name])
+
+
+class TraceTable(Table):
+    def __init__(self, project_name: str, table_name: str, *args, **kwargs):
+        import weave
+
+        weave.init(project_name)
+
+        if "columns" not in kwargs or not kwargs["columns"]:
+            kwargs["columns"] = []
+
+        if (
+            "trace_input" in kwargs["columns"]
+            or "trace_output" in kwargs["columns"]
+            or "table_name" in kwargs["columns"]
+        ):
+            raise ValueError(
+                "trace_input, trace_output and table_name are reserved column names!"
+            )
+
+        kwargs["columns"].append("trace_input")
+        kwargs["columns"].append("trace_output")
+        kwargs["columns"].append("table_name")
+
+        super().__init__(*args, **kwargs)
+
+        self.table_name = table_name
+        self.current_trace = None
+
+    def add_trace(self, func: Callable, *args, **kwargs) -> None:
+        import weave
+
+        decorated_func = weave.op(func)
+        output = decorated_func(*args, **kwargs)
+        inputs = {"args": args}
+        inputs.update(kwargs)
+        self.add_data(inputs, output, self.table_name)
+
+    def start_trace(self, func: Callable, *args, **kwargs) -> None:
+        import weave
+
+        decorated_func = weave.op(func)
+        output = decorated_func(*args, **kwargs)
+        inputs = {"args": args}
+        inputs.update(kwargs)
+        self.current_trace = [inputs, output, self.table_name]
+        return output
+
+    def supplement_trace(self, *data):
+        self.current_trace = [*data] + self.current_trace
+
+    def complete_trace(self):
+        self.add_data(*self.current_trace)
+        self.current_trace = None
+
+
+class ComputeTable(Table):
+    class PartialTable:
+        def __init__(self):
+            self.project_name = None
+            self.table_name = None
+            self.inputs = []
+            self.column_names = []
+            self.column_derivations = {}
+            self.column_derivations_inputs = {}
+
+        def add_project_name(
+            self,
+            project_name: str,
+        ):
+            self.project_name = project_name
+            return self
+
+        def add_table_name(
+            self,
+            table_name: str,
+        ):
+            self.table_name = table_name
+            return self
+
+        def add_inputs(
+            self,
+            input_names: list[str],
+        ):
+            self.inputs = self.inputs + input_names
+            self.column_names = self.column_names + input_names
+            return self
+
+        def add_derived_column(
+            self,
+            column_name: str,
+            func: Callable,
+            func_inputs: list[str],
+            record_trace: bool = False,
+        ):
+            import weave
+
+            self.column_names.append(column_name)
+
+            if record_trace:
+                self.column_derivations[column_name] = weave.op(func)
+            else:
+                self.column_derivations[column_name] = func
+
+            self.column_derivations_inputs[column_name] = func_inputs
+
+            return self
+
+        def finalize_table(self):
+            return ComputeTable(
+                project_name=self.project_name,
+                table_name=self.table_name,
+                inputs=self.inputs,
+                columns=self.column_names,
+                column_derivations=self.column_derivations,
+                column_derivations_inputs=self.column_derivations_inputs,
+            )
+
+    def __init__(
+        self,
+        project_name: str,
+        table_name: str,
+        inputs: list[str],
+        columns: list[str],
+        column_derivations: dict[str, Callable],
+        column_derivations_inputs: dict[str, list],
+    ):
+        import weave
+
+        weave.init(project_name)
+
+        columns.append("table_name")
+
+        super().__init__(columns=columns, allow_mixed_types=True)
+
+        self.project_name = project_name
+        self.table_name = table_name
+        self.inputs = inputs
+        self.column_derivations = column_derivations
+        self.column_derivations_inputs = column_derivations_inputs
+
+    @classmethod
+    def initialize(
+        cls,
+        project_name: str,
+        table_name: str,
+    ):
+        table = ComputeTable.PartialTable()
+        table = table.add_project_name(project_name)
+        table = table.add_table_name(table_name)
+        return table
+
+    def add_row(
+        self,
+        inputs: dict[str, any],
+    ):
+        if not set(self.inputs).issubset(inputs):
+            raise Exception(
+                f"Input not provided for the following columns: {set(self.inputs).difference(inputs)}"
+            )
+
+        data = []
+        for column_name in self.columns[:-1]:  # the last column is the table name
+            if column_name in self.inputs:
+                data.append(inputs[column_name])
+                continue
+
+            column_inputs = {
+                input_name: inputs[input_name]
+                for input_name in self.column_derivations_inputs[column_name]
+            }
+            output = self.column_derivations[column_name](**column_inputs)
+            inputs[column_name] = output
+            data.append(output)
+
+        data.append(self.table_name)
+        self.add_data(*data)
 
 
 class _PartitionTablePartEntry:

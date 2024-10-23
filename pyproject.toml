@@ -31,6 +31,7 @@ dependencies = [
     # typing_extensions 4.4.0 adds 'override'.
     # Python 3.12 adds 'override' to the typing module.
     "typing_extensions>=4.4,<5; python_version < '3.12'",
+    "weave",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",

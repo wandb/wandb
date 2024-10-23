@@ -28,7 +28,13 @@ from .sdk.data_types.molecule import Molecule
 from .sdk.data_types.object_3d import Object3D, box3d
 from .sdk.data_types.plotly import Plotly
 from .sdk.data_types.saved_model import _SavedModel
-from .sdk.data_types.table import JoinedTable, PartitionedTable, Table
+from .sdk.data_types.table import (
+    ComputeTable,
+    JoinedTable,
+    PartitionedTable,
+    Table,
+    TraceTable,
+)
 from .sdk.data_types.trace_tree import WBTraceTree
 from .sdk.data_types.video import Video
 
@@ -42,6 +48,8 @@ __all__ = [
     "Table",
     "JoinedTable",
     "PartitionedTable",
+    "TraceTable",
+    "ComputeTable",
     "Bokeh",
     "Node",
     "Graph",
