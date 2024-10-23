@@ -404,6 +404,7 @@ class SettingsData:
     disable_job_creation: bool
     # Disables the persistent transaction log for this run.
     # Warning: Run data not synced to the server for any reason will be lost.
+    # TODO: ensure it cannot be used in offline mode.
     disable_transaction_log: bool
     disabled: bool  # Alias for mode=dryrun, not supported yet
     docker: str

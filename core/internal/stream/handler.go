@@ -169,8 +169,6 @@ func NewHandler(
 }
 
 // Do processes all work on the input channel.
-//
-//gocyclo:ignore
 func (h *Handler) Do(allWork <-chan runwork.Work) {
 	defer h.logger.Reraise()
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
@@ -486,6 +484,14 @@ func (h *Handler) handleHeader(record *spb.Record) {
 }
 
 func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStartRequest) {
+	// when syncing a run from a transaction log, we only need to forward the record
+	// to the sender, which will start the filestream.
+	if h.settings.GetXSync().GetValue() {
+		fmt.Println("syncing run")
+		h.fwdRecord(record)
+		return
+	}
+
 	var ok bool
 	run := request.Run
 

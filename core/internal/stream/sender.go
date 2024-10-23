@@ -500,6 +500,7 @@ func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
 	s.updateSettings()
 
 	if s.fileStream != nil {
+		fmt.Println("sender: sendRequestRunStart: starting file stream")
 		s.fileStream.Start(
 			s.startState.Entity,
 			s.startState.Project,

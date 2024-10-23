@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"sync"
@@ -343,12 +344,57 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 }
 
 // handleInformSync handles the sync message from the client.
+//
+// TODO: this should be "handleDeliverSync" and return a response once sync has finished
+// or failed.
 func (nc *Connection) handleInformSync(msg *spb.ServerInformSyncRequest) {
 	settings := settings.From(msg.GetSettings())
 
-	fmt.Println(settings)
+	// fmt.Println(settings)
+	fmt.Println("Syncing transaction log", settings.GetTransactionLogPath())
 
-	// TODO: this should resond once sync has finished.
+	transactionLogPath := settings.GetTransactionLogPath()
+	reader, err := stream.NewReader(transactionLogPath)
+	if err != nil {
+		slog.Error("handleInformSync: error creating reader", "err", err, "id", nc.id)
+		// TODO: respond with an error
+		return
+	}
+
+	for {
+		record, err := reader.Next()
+		fmt.Println(record, err)
+		if err == io.EOF {
+			// reached the end of the file
+			break
+		}
+		if err != nil {
+			slog.Error("handleInformSync: error reading record", "err", err, "id", nc.id)
+			break
+		}
+
+		switch record.RecordType.(type) {
+		case *spb.Record_Run:
+			// We need to start the file stream after processing the Run record.
+			nc.stream.HandleRecord(record)
+			// In sync mode, a RunStart request is forwarded by the handler to
+			// the sender, which starts the file stream.
+			record = &spb.Record{
+				RecordType: &spb.Record_Request{
+					Request: &spb.Request{
+						RequestType: &spb.Request_RunStart{
+							RunStart: &spb.RunStartRequest{},
+						},
+					},
+				},
+			}
+			nc.stream.HandleRecord(record)
+		default:
+			nc.stream.HandleRecord(record)
+		}
+	}
+
+	// TODO: this should respond once sync has finished.
 }
 
 // handleInformStart handles the start message from the client.

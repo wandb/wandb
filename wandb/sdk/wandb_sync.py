@@ -29,14 +29,21 @@ def _sync(
     settings.sync_file.value = str(p.absolute())
     settings.sync_dir.value = str(p.parent.absolute())
     settings.files_dir.value = str(p.parent.absolute() / "files")
+    # indicate that we are in sync mode
     settings._sync.value = True
     settings.run_id.value = stream_id  # TODO: remove this
     if append:
         settings.resume.value = "allow"
+    # we don't want to start the writer when syncing a run
+    settings.disable_transaction_log.value = True
+    settings._file_stream_transmit_interval.value = 1
 
     service = wl.service
     assert service
 
+    # start a stream
+    service.inform_init(settings=settings, run_id=stream_id)
+    # sync the file
     service.inform_sync(settings=settings)
 
     import time
