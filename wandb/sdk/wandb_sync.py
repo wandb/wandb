@@ -48,7 +48,7 @@ def _sync(
 
     import time
 
-    time.sleep(3)
+    time.sleep(10)
 
     # service.inform_init(settings=settings, run_id=stream_id)
 

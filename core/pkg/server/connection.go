@@ -350,7 +350,6 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 func (nc *Connection) handleInformSync(msg *spb.ServerInformSyncRequest) {
 	settings := settings.From(msg.GetSettings())
 
-	// fmt.Println(settings)
 	fmt.Println("Syncing transaction log", settings.GetTransactionLogPath())
 
 	transactionLogPath := settings.GetTransactionLogPath()
@@ -363,7 +362,9 @@ func (nc *Connection) handleInformSync(msg *spb.ServerInformSyncRequest) {
 
 	for {
 		record, err := reader.Next()
-		fmt.Println(record, err)
+
+		// fmt.Println(record, err)
+
 		if err == io.EOF {
 			// reached the end of the file
 			break
