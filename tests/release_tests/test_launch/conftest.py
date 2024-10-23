@@ -3,6 +3,7 @@ from netrc import netrc
 
 import boto3
 import botocore
+import pytest
 from utils import run_cmd
 
 
@@ -25,7 +26,8 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize("agent_image", [agent_image])
 
 
-def pytest_configure(config):
+@pytest.fixture(scope="session", autouse=True)
+def ensure_credentials(pytestconfig):
     """Fixture to confirm the session has the correct credentials."""
     client_config = botocore.config.Config(region_name="us-east-2")
     sts = boto3.client("sts", config=client_config)
@@ -35,18 +37,18 @@ def pytest_configure(config):
         raise Exception("Not logged into LaunchSandbox AWS account")
 
     default_image = "wandb-launch-agent:release-testing"
-    agent_image = config.option.agent_image
+    agent_image = pytestconfig.option.agent_image
     if not agent_image:
         run_cmd(f"python tools/build_launch_agent.py --tag {default_image}")
 
     default_base_url = "api.wandb.ai"
-    if not config.option.base_url:
-        config.option.base_url = default_base_url
+    if not pytestconfig.option.base_url:
+        pytestconfig.option.base_url = default_base_url
 
-    if not config.option.api_key:
+    if not pytestconfig.option.api_key:
         n = netrc()
         # returns tuple in format (login, account, key)
-        config.option.api_key = n.authenticators(config.option.base_url)[2]
+        pytestconfig.option.api_key = n.authenticators(pytestconfig.option.base_url)[2]
 
     creds_path = os.path.expanduser("~/.aws")
     run_cmd(
