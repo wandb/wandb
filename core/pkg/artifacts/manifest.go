@@ -25,6 +25,7 @@ type Manifest struct {
 
 type StoragePolicyConfig struct {
 	StorageLayout string `json:"storageLayout"`
+	StorageRegion string `json:"storageRegion"`
 }
 
 type ManifestEntry struct {
