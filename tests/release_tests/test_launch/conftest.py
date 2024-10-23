@@ -13,19 +13,6 @@ def pytest_addoption(parser):
     parser.addoption("--agent-image", action="store", default=None)
 
 
-def pytest_generate_tests(metafunc):
-    """Fixture to make options available in tests."""
-    api_key = metafunc.config.option.api_key
-    if "api_key" in metafunc.fixturenames:
-        metafunc.parametrize("api_key", [api_key])
-    base_url = metafunc.config.option.base_url
-    if "base_url" in metafunc.fixturenames:
-        metafunc.parametrize("base_url", [base_url])
-    agent_image = metafunc.config.option.agent_image
-    if "agent_image" in metafunc.fixturenames:
-        metafunc.parametrize("agent_image", [agent_image])
-
-
 @pytest.fixture(scope="session", autouse=True)
 def ensure_credentials(pytestconfig):
     """Fixture to confirm the session has the correct credentials."""
@@ -41,15 +28,6 @@ def ensure_credentials(pytestconfig):
     if not agent_image:
         run_cmd(f"python tools/build_launch_agent.py --tag {default_image}")
 
-    default_base_url = "api.wandb.ai"
-    if not pytestconfig.option.base_url:
-        pytestconfig.option.base_url = default_base_url
-
-    if not pytestconfig.option.api_key:
-        n = netrc()
-        # returns tuple in format (login, account, key)
-        pytestconfig.option.api_key = n.authenticators(pytestconfig.option.base_url)[2]
-
     creds_path = os.path.expanduser("~/.aws")
     run_cmd(
         "kubectl delete secret generic aws-secret --ignore-not-found -n wandb-release-testing"
@@ -57,3 +35,26 @@ def ensure_credentials(pytestconfig):
     run_cmd(
         f"kubectl create secret generic aws-secret --from-file={creds_path} -n wandb-release-testing"
     )
+
+
+@pytest.fixture(scope="session")
+def api_key(pytestconfig) -> str:
+    api_key = pytestconfig.option.api_key
+
+    if not api_key:
+        n = netrc()
+        netrc_tuple = n.authenticators(pytestconfig.option.base_url)
+        assert netrc_tuple  # (login, account, key)
+        api_key = netrc_tuple[2]
+
+    return api_key
+
+
+@pytest.fixture()
+def base_url(pytestconfig) -> str:
+    return pytestconfig.option.base_url or "api.wandb.ai"
+
+
+@pytest.fixture()
+def agent_image(pytestconfig) -> str:
+    return pytestconfig.option.agent_image
