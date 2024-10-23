@@ -136,12 +136,13 @@ def dynamic_text() -> Iterator[DynamicBlock | None]:
     with _dynamic_text_lock:
         _dynamic_blocks.append(block)
 
-    yield block
-
-    with _dynamic_text_lock:
-        block._lines_to_print = []
-        _l_rerender_dynamic_blocks()
-        _dynamic_blocks.remove(block)
+    try:
+        yield block
+    finally:
+        with _dynamic_text_lock:
+            block._lines_to_print = []
+            _l_rerender_dynamic_blocks()
+            _dynamic_blocks.remove(block)
 
 
 def _sys_stderr_isatty() -> bool:
