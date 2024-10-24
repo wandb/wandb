@@ -136,6 +136,10 @@ class AzureHandler(StorageHandler):
             name_starts_with=f"{blob_name}/"
         ):
             if len(entries) >= max_objects:
+                wandb.termwarn(
+                    f"Found more than {max_objects} objects under path, limiting upload "
+                    f"to {max_objects} objects. Increase max_objects to upload more"
+                )
                 break
             if not self._is_directory_stub(blob_properties):
                 suffix = PurePosixPath(blob_properties.name).relative_to(blob_name)
