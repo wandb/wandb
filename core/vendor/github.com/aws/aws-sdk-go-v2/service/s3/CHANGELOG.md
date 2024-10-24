@@ -1,6 +1,10 @@
+# v1.66.0 (2024-10-16)
+
+* **Feature**: Add support for the new optional bucket-region and prefix query parameters in the ListBuckets API. For ListBuckets requests that express pagination, Amazon S3 will now return both the bucket names and associated AWS regions in the response.
+
 # v1.65.3 (2024-10-11)
 
-* **Bug Fix**:  S3 ReplicationRuleFilter and LifecycleRuleFilter shapes are being changed from union to structure types
+* **Bug Fix**: **BREAKING CHANGE**: S3 ReplicationRuleFilter and LifecycleRuleFilter shapes are being changed from union to structure types
 
 # v1.65.2 (2024-10-08)
 
@@ -8,7 +12,7 @@
 
 # v1.65.1 (2024-10-07)
 
-* **Bug Fix**: Allow serialization of headers with empty string for prefix headers
+* **Bug Fix**: **CHANGE IN BEHAVIOR**: Allow serialization of headers with empty string for prefix headers. We are deploying this fix because the behavior is actively preventing users from transmitting keys with empty values to the service. If you were setting metadata keys with empty values before this change, they will now actually be sent to the service.
 * **Dependency Update**: Updated to the latest SDK module versions
 
 # v1.65.0 (2024-10-04)
