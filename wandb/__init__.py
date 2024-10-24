@@ -64,7 +64,7 @@ from wandb.data_types import Plotly
 # from wandb.data_types import Bokeh # keeping out of top level for now since Bokeh plots have poor UI
 from wandb.data_types import Video
 from wandb.data_types import Audio
-from wandb.data_types import Table, TraceTable, ComputeTable
+from wandb.data_types import Table, WeaveTable, ComputeTable
 from wandb.data_types import Html
 from wandb.data_types import box3d
 from wandb.data_types import Object3D
@@ -237,7 +237,7 @@ __all__ = (
     "Video",
     "Audio",
     "Table",
-    "TraceTable",
+    "WeaveTable",
     "ComputeTable",
     "Html",
     "box3d",

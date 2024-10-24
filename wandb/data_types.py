@@ -33,7 +33,7 @@ from .sdk.data_types.table import (
     JoinedTable,
     PartitionedTable,
     Table,
-    TraceTable,
+    WeaveTable,
 )
 from .sdk.data_types.trace_tree import WBTraceTree
 from .sdk.data_types.video import Video
@@ -48,7 +48,7 @@ __all__ = [
     "Table",
     "JoinedTable",
     "PartitionedTable",
-    "TraceTable",
+    "WeaveTable",
     "ComputeTable",
     "Bokeh",
     "Node",

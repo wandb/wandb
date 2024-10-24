@@ -910,58 +910,65 @@ class Table(Media):
             self.add_column(new_col_name, new_columns[new_col_name])
 
 
-class TraceTable(Table):
+class WeaveTable(Table):
     def __init__(self, project_name: str, table_name: str, *args, **kwargs):
         import weave
 
-        weave.init(project_name)
+        self.weave_client = weave.init(project_name)
 
-        if "columns" not in kwargs or not kwargs["columns"]:
-            kwargs["columns"] = []
+        # if "columns" not in kwargs or not kwargs["columns"]:
+        #     kwargs["columns"] = []
 
-        if (
-            "trace_input" in kwargs["columns"]
-            or "trace_output" in kwargs["columns"]
-            or "table_name" in kwargs["columns"]
-        ):
+        # if (
+        #     "trace_input" in kwargs["columns"]
+        #     or "trace_output" in kwargs["columns"]
+        #     or "table_name" in kwargs["columns"]
+        # ):
+        #     raise ValueError(
+        #         "trace_input, trace_output and table_name are reserved column names!"
+        #     )
+
+        # kwargs["columns"].append("trace_input")
+        # kwargs["columns"].append("trace_output")
+        # kwargs["columns"].append("table_name")
+
+        super().__init__(*args, **kwargs, allow_mixed_types=True)
+
+        self.project_name = project_name
+        self.table_name = table_name
+        # self.current_trace = None
+
+    def add_trace(self, *data) -> None:
+        # copied from Table::add_data
+        if len(data) != len(self.columns):
             raise ValueError(
-                "trace_input, trace_output and table_name are reserved column names!"
+                "This table expects {} columns: {}, found {}".format(
+                    len(self.columns), self.columns, len(data)
+                )
             )
 
-        kwargs["columns"].append("trace_input")
-        kwargs["columns"].append("trace_output")
-        kwargs["columns"].append("table_name")
+        inputs = {key: val for (key, val) in zip(self.columns, data)}
+        call = self.weave_client.create_call(op="add_trace", inputs=inputs)
+        self.weave_client.finish_call(call)
 
-        super().__init__(*args, **kwargs)
+        self.add_data(*data)
 
-        self.table_name = table_name
-        self.current_trace = None
+    # def start_trace(self, func: Callable, *args, **kwargs) -> None:
+    #     import weave
 
-    def add_trace(self, func: Callable, *args, **kwargs) -> None:
-        import weave
+    #     decorated_func = weave.op(func)
+    #     output = decorated_func(*args, **kwargs)
+    #     inputs = {"args": args}
+    #     inputs.update(kwargs)
+    #     self.current_trace = [inputs, output, self.table_name]
+    #     return output
 
-        decorated_func = weave.op(func)
-        output = decorated_func(*args, **kwargs)
-        inputs = {"args": args}
-        inputs.update(kwargs)
-        self.add_data(inputs, output, self.table_name)
+    # def supplement_trace(self, *data):
+    #     self.current_trace = [*data] + self.current_trace
 
-    def start_trace(self, func: Callable, *args, **kwargs) -> None:
-        import weave
-
-        decorated_func = weave.op(func)
-        output = decorated_func(*args, **kwargs)
-        inputs = {"args": args}
-        inputs.update(kwargs)
-        self.current_trace = [inputs, output, self.table_name]
-        return output
-
-    def supplement_trace(self, *data):
-        self.current_trace = [*data] + self.current_trace
-
-    def complete_trace(self):
-        self.add_data(*self.current_trace)
-        self.current_trace = None
+    # def complete_trace(self):
+    #     self.add_data(*self.current_trace)
+    #     self.current_trace = None
 
 
 class ComputeTable(Table):
