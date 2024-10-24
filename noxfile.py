@@ -841,27 +841,6 @@ def bump_go_version(session: nox.Session) -> None:
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
-def launch_release_tests(session: nox.Session) -> None:
-    """Run launch-release tests.
-
-    See tests/release_tests/test_launch/README.md for more info.
-    """
-    install_wandb(session)
-    install_timed(
-        session,
-        "pytest",
-        "wandb[launch]",
-    )
-
-    session.run("wandb", "login")
-
-    run_pytest(
-        session,
-        paths=session.posargs or ["tests/release_tests/test_launch/"],
-    )
-
-
-@nox.session(python=_SUPPORTED_PYTHONS)
 @nox.parametrize("importer", ["wandb", "mlflow"])
 def importer_tests(session: nox.Session, importer: str):
     """Run importer tests for wandb->wandb and mlflow->wandb."""
