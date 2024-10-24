@@ -628,6 +628,9 @@ class InterfaceBase:
     ) -> None:
         run = run or self._run
 
+        from wandb.plot.viz import _visualization_hack
+
+        data = _visualization_hack(run, data)
         data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
         data.pop("_step", None)
 

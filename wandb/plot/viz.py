@@ -121,3 +121,38 @@ def visualize(id: str, value: Table) -> Visualize:
             f"Expected `value` to be `wandb.Table` type, instead got {type(value).__name__}"
         )
     return Visualize(id=id, data=value)
+
+
+def _visualization_hack(run, row: dict[str, Any]) -> dict[str, Any]:
+    chart_keys = set()
+    split_table_set = set()
+    for k in row:
+        if isinstance(row[k], Visualize):
+            key = row[k].get_config_key(k)
+            value = row[k].get_config_value(k)
+            row[k] = row[k]._data
+            run._config_callback(val=value, key=key)
+        elif isinstance(row[k], CustomChart):
+            chart_keys.add(k)
+            key = row[k].get_config_key(k)
+            if row[k]._split_table:
+                value = row[k].get_config_value(
+                    "Vega2", row[k].user_query(f"Custom Chart Tables/{k}_table")
+                )
+                split_table_set.add(k)
+            else:
+                value = row[k].get_config_value(
+                    "Vega2", row[k].user_query(f"{k}_table")
+                )
+            row[k] = row[k]._data
+            run._config_callback(val=value, key=key)
+
+    for k in chart_keys:
+        # remove the chart key from the row
+        # TODO: is this really the right move? what if the user logs
+        #     a non-custom chart to this key?
+        if k in split_table_set:
+            row[f"Custom Chart Tables/{k}_table"] = row.pop(k)
+        else:
+            row[f"{k}_table"] = row.pop(k)
+    return row
