@@ -168,6 +168,7 @@ def _create_job(
         return None, "", []
 
     job_builder = _configure_job_builder_for_partial(tempdir.name, job_source=job_type)
+    job_builder._settings.update(job_name=name)
     if job_type == "code":
         assert entrypoint is not None
         job_name = _make_code_artifact(
