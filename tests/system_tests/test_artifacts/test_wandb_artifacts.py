@@ -974,6 +974,7 @@ def test_add_azure_reference_directory(mock_azure_handler):
     assert entries[1].size == 42
     assert entries[1].extra == {"etag": "my-dir/b version None"}
 
+
 def test_add_azure_reference_max_objects(mock_azure_handler):
     artifact = wandb.Artifact("my_artifact", type="my_type")
     entries = artifact.add_reference(
