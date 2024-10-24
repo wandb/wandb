@@ -149,12 +149,6 @@ class AzureHandler(StorageHandler):
                     )
                 )
 
-        if len(entries) > max_objects:
-            raise ValueError(
-                f"Exceeded {max_objects} objects tracked, pass max_objects to "
-                f"add_reference"
-            )
-
         return entries
 
     def _get_module(self, name: str) -> ModuleType:
