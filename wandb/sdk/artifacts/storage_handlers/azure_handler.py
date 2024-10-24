@@ -136,10 +136,7 @@ class AzureHandler(StorageHandler):
             name_starts_with=f"{blob_name}/"
         ):
             if len(entries) >= max_objects:
-                raise ValueError(
-                    f"Exceeded {max_objects} objects tracked, pass max_objects to "
-                    f"add_reference"
-                )
+                break
             if not self._is_directory_stub(blob_properties):
                 suffix = PurePosixPath(blob_properties.name).relative_to(blob_name)
                 entries.append(
@@ -151,6 +148,13 @@ class AzureHandler(StorageHandler):
                         ),
                     )
                 )
+
+        if len(entries) > max_objects:
+            raise ValueError(
+                f"Exceeded {max_objects} objects tracked, pass max_objects to "
+                f"add_reference"
+            )
+
         return entries
 
     def _get_module(self, name: str) -> ModuleType:
