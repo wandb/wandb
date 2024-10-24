@@ -14,6 +14,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Fixed
 
 - Add missing type hints of the `wandb.plot` module in the package stub (@kptkin in https://github.com/wandb/wandb/pull/8667)
+- Fix limiting azure reference artifact uploads to `max_objects` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8703)
 
 ## [0.18.5] - 2024-10-17
 
@@ -82,7 +83,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Allow all users to read cache files when core is enabled (@moredatarequired in https://github.com/wandb/wandb/pull/8362)
 - Infinite scalars logged in TensorBoard are uploaded successfully rather than skipped (@timoffex in https://github.com/wandb/wandb/pull/8380)
-- Properly respect `WANDB_ERROR_REPORTING=false`.  This fixes a regression introduced in 0.18.0 (@kptkin in https://github.com/wandb/wandb/pull/8379)
+- Properly respect `WANDB_ERROR_REPORTING=false`. This fixes a regression introduced in 0.18.0 (@kptkin in https://github.com/wandb/wandb/pull/8379)
 
 ### Changed
 
@@ -102,8 +103,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Changed
 
 - The new "core" backend, previously activated using wandb.require("core"), is now used by default. To revert to the legacy behavior,
-add `wandb.require("legacy-service")` at the beginning of your script. Note: In the upcoming minor release, the option
-to disable this new behavior will be removed (@kptkin in https://github.com/wandb/wandb/pull/7777)
+  add `wandb.require("legacy-service")` at the beginning of your script. Note: In the upcoming minor release, the option
+  to disable this new behavior will be removed (@kptkin in https://github.com/wandb/wandb/pull/7777)
 
 ## [0.17.9] - 2024-09-05
 
