@@ -98,6 +98,8 @@ commands:
       python: { type: string }
       session: { type: string }
       codecov_flags: { type: string }
+      search_path: { type: string }
+      ignore_paths: { type: string }
     steps:
       - run:
           name: Install Python dependencies
@@ -108,7 +110,7 @@ commands:
           name: "Run nox session: <<parameters.session>>"
           no_output_timeout: 10m
           command: |
-            TESTS_FILES=$(nox -s "get_<<parameters.session>>" --python <<parameters.python>>)
+            TESTS_FILES=$(nox -s "get_test_files" --python <<parameters.python>> -- <<parameters.search_path>> <<parameters.ignore_paths>>)
             echo "$TESTS_FILES" | \
             circleci tests run \
               --split-by=timings \
@@ -250,6 +252,8 @@ jobs:
       codecov_flags: { type: string }
       python: { type: string }
       session: { type: string }
+      search_path: { type: string }
+      ignore_paths: { type: string }
       server_image:
         default: << pipeline.parameters.server_image >>
         type: string
@@ -281,6 +285,8 @@ jobs:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
+          search_path: <<parameters.search_path>>
+          ignore_paths: <<parameters.ignore_paths>>
 
   nox-tests-macos:
     parameters:
@@ -288,6 +294,8 @@ jobs:
       codecov_flags: { type: string }
       python: { type: string }
       session: { type: string }
+      search_path: { type: string }
+      ignore_paths: { type: string }
 
     parallelism: <<parameters.parallelism>>
     executor: macos
@@ -303,6 +311,8 @@ jobs:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
+          search_path: <<parameters.search_path>>
+          ignore_paths: <<parameters.ignore_paths>>
 
   nox-tests-win:
     parameters:
@@ -310,6 +320,8 @@ jobs:
       codecov_flags: { type: string }
       python: { type: string }
       session: { type: string }
+      search_path: { type: string }
+      ignore_paths: { type: string }
 
     parallelism: <<parameters.parallelism>>
     executor:
@@ -343,6 +355,8 @@ jobs:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
+          search_path: <<parameters.search_path>>
+          ignore_paths: <<parameters.ignore_paths>>
 
   code-check:
     docker:
@@ -469,6 +483,8 @@ workflows:
           session: unit_tests
           codecov_flags: unit
           parallelism: 4
+          search_path: "tests/unit_tests"
+          ignore_paths: ""
 
           matrix:
             parameters:
@@ -481,6 +497,8 @@ workflows:
           name: unit-tests-macos-<<matrix.python>>
           session: unit_tests
           codecov_flags: unit
+          search_path: "tests/unit_tests"
+          ignore_paths: ""
           parallelism: 4
 
           matrix:
@@ -494,6 +512,8 @@ workflows:
           name: unit-tests-win-<<matrix.python>>
           session: unit_tests
           codecov_flags: unit
+          search_path: "tests/unit_tests"
+          ignore_paths: ""
           parallelism: 4
 
           filters:
@@ -514,6 +534,12 @@ workflows:
           name: system-tests-linux-<<matrix.python>>
           session: system_tests
           codecov_flags: system
+          search_path: tests/system_tests
+          ignore_paths: >
+            tests/system_tests/test_importers
+            tests/system_tests/test_notebooks
+            tests/system_tests/test_functional
+            tests/system_tests/test_experimental
           parallelism: 8
           executor_name: local-testcontainer
 
@@ -530,6 +556,12 @@ workflows:
           name: system-tests-min-server-version-linux-<<matrix.python>>
           session: system_tests
           codecov_flags: system
+          search_path: tests/system_tests
+          ignore_paths: >
+            tests/system_tests/test_importers
+            tests/system_tests/test_notebooks
+            tests/system_tests/test_functional
+            tests/system_tests/test_experimental
           parallelism: 8
           executor_name: local-testcontainer
 
@@ -548,6 +580,8 @@ workflows:
           name: notebook-tests-linux-<<matrix.python>>
           session: notebook_tests
           codecov_flags: system
+          search_path: tests/system_tests/test_notebooks
+          ignore_paths: ""
           parallelism: 1
           executor_name: local-testcontainer
 
@@ -562,6 +596,8 @@ workflows:
           name: functional-tests-linux-<<matrix.python>>
           session: functional_tests
           codecov_flags: func
+          search_path: tests/system_tests/test_functional
+          ignore_paths: ""
           parallelism: 1
           executor_name: local-testcontainer
 
@@ -581,6 +617,8 @@ workflows:
           name: experimental-tests-linux-<<matrix.python>>
           session: experimental_tests
           codecov_flags: func
+          search_path: tests/system_tests/test_experimental
+          ignore_paths: ""
           parallelism: 1
           executor_name: local-testcontainer
           install_extras: true
