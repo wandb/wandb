@@ -117,19 +117,23 @@ func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organizat
 		response.GetEntity() == nil ||
 		response.GetEntity().GetOrganization() == nil ||
 		response.GetEntity().GetOrganization().GetOrgEntity() == nil {
-		return "", fmt.Errorf("Unable to find organization for artifact under entity: %s. "+
-			"Please make sure the right org in the path is provided "+
-			"or a team entity, not a personal entity, is used when using the shorthand path without an org.",
-			portfolioEntity)
+		return "", fmt.Errorf("Unable to resolve an organization associated with the entity: %s "+
+			"that is initialized in the API or Run settings. This could be because %s is a personal entity or "+
+			"the team entity doesn't exist. "+
+			"Please re-initialize the API or Run with a team entity using "+
+			"wandb.Api(overrides={'entity': '<my_team_entity>'}) "+
+			"or wandb.init(entity='<my_team_entity>')",
+			portfolioEntity, portfolioEntity)
 	}
 
 	// Validate organization inputted by user
 	orgEntityName := response.Entity.Organization.OrgEntity.Name
-	inputMatchesOrgName := organization == response.Entity.Organization.Name
+	orgDisplayName := response.Entity.Organization.Name
+	inputMatchesOrgName := organization == orgDisplayName
 	inputMatchesOrgEntityName := organization == orgEntityName
 	if organization != "" && !inputMatchesOrgName && !inputMatchesOrgEntityName {
 		return "", fmt.Errorf("Artifact belongs to the organization %s and cannot be linked/fetched with %s. "+
-			"Please update the target path with the correct organization name.", orgEntityName, organization)
+			"Please update the target path with the correct organization name.", orgDisplayName, organization)
 	}
 	return orgEntityName, nil
 }

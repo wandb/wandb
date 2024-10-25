@@ -109,7 +109,6 @@ def test_executable_outside_cwd(meta, test_settings):
 @pytest.fixture
 def mocked_ipython(mocker):
     mocker.patch("wandb.sdk.lib.ipython._get_python_type", lambda: "jupyter")
-    mocker.patch("wandb.sdk.wandb_settings._get_python_type", lambda: "jupyter")
     html_mock = mocker.MagicMock()
     mocker.patch("wandb.sdk.lib.ipython.display_html", html_mock)
     ipython = unittest.mock.MagicMock()

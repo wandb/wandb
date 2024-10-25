@@ -8,9 +8,10 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.18.4.dev1"
+from __future__ import annotations
 
-from typing import Optional
+__version__ = "0.18.6.dev1"
+
 
 from wandb.errors import Error
 
@@ -28,8 +29,6 @@ setup = wandb_sdk.setup
 _attach = wandb_sdk._attach
 _sync = wandb_sdk._sync
 _teardown = wandb_sdk.teardown
-watch = wandb_sdk.watch
-unwatch = wandb_sdk.unwatch
 finish = wandb_sdk.finish
 join = finish
 login = wandb_sdk.login
@@ -112,10 +111,12 @@ def _assert_is_user_process():
 # globals
 Api = PublicApi
 api = InternalApi()
-run: Optional["wandb_sdk.wandb_run.Run"] = None
+run: wandb_sdk.wandb_run.Run | None = None
 config = _preinit.PreInitObject("wandb.config", wandb_sdk.wandb_config.Config)
 summary = _preinit.PreInitObject("wandb.summary", wandb_sdk.wandb_summary.Summary)
 log = _preinit.PreInitCallable("wandb.log", wandb_sdk.wandb_run.Run.log)  # type: ignore
+watch = _preinit.PreInitCallable("wandb.watch", wandb_sdk.wandb_run.Run.watch)  # type: ignore
+unwatch = _preinit.PreInitCallable("wandb.unwatch", wandb_sdk.wandb_run.Run.unwatch)  # type: ignore
 save = _preinit.PreInitCallable("wandb.save", wandb_sdk.wandb_run.Run.save)  # type: ignore
 restore = wandb_sdk.wandb_run.restore
 use_artifact = _preinit.PreInitCallable(
@@ -200,9 +201,16 @@ if "dev" in __version__:
     import wandb.env
     import os
 
-    # disable error reporting in dev versions for the python client
+    # Disable error reporting in dev versions.
     os.environ[wandb.env.ERROR_REPORTING] = os.environ.get(
-        wandb.env.ERROR_REPORTING, "false"
+        wandb.env.ERROR_REPORTING,
+        "false",
+    )
+
+    # Enable new features in dev versions.
+    os.environ["WANDB__SHOW_OPERATION_STATS"] = os.environ.get(
+        "WANDB__SHOW_OPERATION_STATS",
+        "true",
     )
 
 _sentry = _Sentry()
@@ -242,4 +250,5 @@ __all__ = (
     "link_model",
     "define_metric",
     "watch",
+    "unwatch",
 )

@@ -8,6 +8,8 @@ For more on using `wandb.init()`, including code snippets, check out our
 [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 """
 
+from __future__ import annotations
+
 import copy
 import json
 import logging
@@ -16,7 +18,7 @@ import platform
 import sys
 import tempfile
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Sequence
 
 import wandb
 import wandb.env
@@ -31,10 +33,17 @@ from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import SummaryDisabled, filesystem, ipython, module, reporting, telemetry
+from .lib import (
+    SummaryDisabled,
+    filesystem,
+    ipython,
+    module,
+    printer,
+    reporting,
+    telemetry,
+)
 from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxProgress
-from .lib.printer import Printer, get_printer
 from .lib.wburls import wburls
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
@@ -43,7 +52,7 @@ from .wandb_settings import Settings, Source
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2 as pb
 
-logger: Optional[logging.Logger] = None  # logger configured during wandb.init()
+logger: logging.Logger | None = None  # logger configured during wandb.init()
 
 
 def _set_logger(log_object: logging.Logger) -> None:
@@ -52,7 +61,7 @@ def _set_logger(log_object: logging.Logger) -> None:
     logger = log_object
 
 
-def _huggingface_version() -> Optional[str]:
+def _huggingface_version() -> str | None:
     if "transformers" in sys.modules:
         trans = wandb.util.get_module("transformers")
         if hasattr(trans, "__version__"):
@@ -74,8 +83,8 @@ def _maybe_mp_process(backend: Backend) -> bool:
     return False
 
 
-def _handle_launch_config(settings: "Settings") -> Dict[str, Any]:
-    launch_run_config: Dict[str, Any] = {}
+def _handle_launch_config(settings: Settings) -> dict[str, Any]:
+    launch_run_config: dict[str, Any] = {}
     if not settings.launch:
         return launch_run_config
     if os.environ.get("WANDB_CONFIG") is not None:
@@ -112,27 +121,22 @@ class _WandbInit:
 
     def __init__(self) -> None:
         self.kwargs = None
-        self.settings: Optional[Settings] = None
-        self.sweep_config: Dict[str, Any] = {}
-        self.launch_config: Dict[str, Any] = {}
-        self.config: Dict[str, Any] = {}
-        self.run: Optional[Run] = None
-        self.backend: Optional[Backend] = None
+        self.setting: Settings | None = None
+        self.sweep_config: dict[str, Any] = {}
+        self.launch_config: dict[str, Any] = {}
+        self.config: dict[str, Any] = {}
+        self.run: Run | None = None
+        self.backend: Backend | None = None
 
-        self._teardown_hooks: List[TeardownHook] = []
-        self._wl: Optional[wandb_setup._WandbSetup] = None
-        self._reporter: Optional[wandb.sdk.lib.reporting.Reporter] = None
-        self.notebook: Optional[wandb.jupyter.Notebook] = None  # type: ignore
-        self.printer: Optional[Printer] = None
+        self._teardown_hooks: list[TeardownHook] = []
+        self._wl: wandb_setup._WandbSetup | None = None
+        self._reporter: wandb.sdk.lib.reporting.Reporter | None = None
+        self.notebook: wandb.jupyter.Notebook | None = None  # type: ignore
+        self.printer = printer.new_printer()
 
         self._init_telemetry_obj = telemetry.TelemetryRecord()
 
-        self.deprecated_features_used: Dict[str, str] = dict()
-
-    def _setup_printer(self, settings: Settings) -> None:
-        if self.printer:
-            return
-        self.printer = get_printer(settings._jupyter)
+        self.deprecated_features_used: dict[str, str] = dict()
 
     def setup(self, kwargs: Any) -> None:  # noqa: C901
         """Complete setup for `wandb.init()`.
@@ -146,8 +150,6 @@ class _WandbInit:
         # in between, they will be ignored, which we need to inform the user about.
         singleton = wandb_setup._WandbSetup._instance
         if singleton is not None:
-            self._setup_printer(settings=singleton._settings)
-            assert self.printer
             exclude_env_vars = {"WANDB_SERVICE", "WANDB_KUBEFLOW_URL"}
             # check if environment variables have changed
             singleton_env = {
@@ -200,10 +202,9 @@ class _WandbInit:
         if settings_param is not None and isinstance(settings_param, (Settings, dict)):
             settings.update(settings_param, source=Source.INIT)
 
-        self._setup_printer(settings)
         self._reporter = reporting.setup_reporter(settings=settings)
 
-        sagemaker_config: Dict = (
+        sagemaker_config: dict = (
             dict() if settings.sagemaker_disable else sagemaker.parse_sm_config()
         )
         if sagemaker_config:
@@ -254,7 +255,7 @@ class _WandbInit:
         self.sweep_config = dict()
         sweep_config = self._wl._sweep_config or dict()
         self.config = dict()
-        self.init_artifact_config: Dict[str, Any] = dict()
+        self.init_artifact_config: dict[str, Any] = dict()
         for config_data in (
             sagemaker_config,
             self._wl._config,
@@ -368,7 +369,7 @@ class _WandbInit:
             else:
                 config_target.setdefault(k, v)
 
-    def _enable_logging(self, log_fname: str, run_id: Optional[str] = None) -> None:
+    def _enable_logging(self, log_fname: str, run_id: str | None = None) -> None:
         """Enable logging to the global debug log.
 
         This adds a run_id to the log, in case of multiple processes on the same machine.
@@ -602,11 +603,12 @@ class _WandbInit:
             define_metric=drun.define_metric,
             plot_table=drun.plot_table,
             alert=drun.alert,
+            watch=drun.watch,
+            unwatch=drun.unwatch,
         )
         return drun
 
     def _on_progress_init(self, handle: MailboxProgress) -> None:
-        assert self.printer
         line = "Waiting for wandb.init()...\r"
         percent_done = handle.percent_done
         self.printer.progress_update(line, percent_done=percent_done)
@@ -719,7 +721,7 @@ class _WandbInit:
                 setattr(tel.imports_init, module_name, True)
 
             # probe the active start method
-            active_start_method: Optional[str] = None
+            active_start_method: str | None = None
             if self.settings.start_method == "thread":
                 active_start_method = self.settings.start_method
             else:
@@ -794,7 +796,7 @@ class _WandbInit:
         if not self.settings.disable_git:
             run._populate_git_info()
 
-        run_result: Optional[pb.RunUpdateResult] = None
+        run_result: pb.RunUpdateResult | None = None
 
         if self.settings._offline:
             with telemetry.context(run=run) as tel:
@@ -805,7 +807,7 @@ class _WandbInit:
                     "`resume` will be ignored since W&B syncing is set to `offline`. "
                     f"Starting a new run with run id {run.id}."
                 )
-        error: Optional[wandb.errors.Error] = None
+        error: wandb.Error | None = None
 
         timeout = self.settings.init_timeout
 
@@ -909,14 +911,14 @@ class _WandbInit:
 
 
 def _attach(
-    attach_id: Optional[str] = None,
-    run_id: Optional[str] = None,
+    attach_id: str | None = None,
+    run_id: str | None = None,
     *,
-    run: Optional["Run"] = None,
-) -> Optional[Run]:
+    run: Run | None = None,
+) -> Run | None:
     """Attach to a run currently executing in another process/thread.
 
-    Arguments:
+    Args:
         attach_id: (str, optional) The id of the run or an attach identifier
             that maps to a run.
         run_id: (str, optional) The id of the run to attach to.
@@ -995,32 +997,32 @@ def _attach(
 
 
 def init(
-    job_type: Optional[str] = None,
-    dir: Optional[StrPath] = None,
-    config: Union[Dict, str, None] = None,
-    project: Optional[str] = None,
-    entity: Optional[str] = None,
-    reinit: Optional[bool] = None,
-    tags: Optional[Sequence] = None,
-    group: Optional[str] = None,
-    name: Optional[str] = None,
-    notes: Optional[str] = None,
-    magic: Optional[Union[dict, str, bool]] = None,
-    config_exclude_keys: Optional[List[str]] = None,
-    config_include_keys: Optional[List[str]] = None,
-    anonymous: Optional[str] = None,
-    mode: Optional[str] = None,
-    allow_val_change: Optional[bool] = None,
-    resume: Optional[Union[bool, str]] = None,
-    force: Optional[bool] = None,
-    tensorboard: Optional[bool] = None,  # alias for sync_tensorboard
-    sync_tensorboard: Optional[bool] = None,
-    monitor_gym: Optional[bool] = None,
-    save_code: Optional[bool] = None,
-    id: Optional[str] = None,
-    fork_from: Optional[str] = None,
-    resume_from: Optional[str] = None,
-    settings: Union[Settings, Dict[str, Any], None] = None,
+    job_type: str | None = None,
+    dir: StrPath | None = None,
+    config: dict | str | None = None,
+    project: str | None = None,
+    entity: str | None = None,
+    reinit: bool | None = None,
+    tags: Sequence | None = None,
+    group: str | None = None,
+    name: str | None = None,
+    notes: str | None = None,
+    magic: dict | str | bool | None = None,
+    config_exclude_keys: list[str] | None = None,
+    config_include_keys: list[str] | None = None,
+    anonymous: str | None = None,
+    mode: str | None = None,
+    allow_val_change: bool | None = None,
+    resume: bool | str | None = None,
+    force: bool | None = None,
+    tensorboard: bool | None = None,  # alias for sync_tensorboard
+    sync_tensorboard: bool | None = None,
+    monitor_gym: bool | None = None,
+    save_code: bool | None = None,
+    id: str | None = None,
+    fork_from: str | None = None,
+    resume_from: str | None = None,
+    settings: Settings | dict[str, Any] | None = None,
 ) -> Run:
     r"""Start a new run to track and log to W&B.
 
@@ -1060,7 +1062,7 @@ def init(
     For more on using `wandb.init()`, including detailed examples, check out our
     [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 
-    Arguments:
+    Args:
         project: (str, optional) The name of the project where you're sending
             the new run. If the project is not specified, we will try to infer
             the project name from git root or the current program file. If we
@@ -1183,11 +1185,11 @@ def init(
             for saving hyperparameters to compare across runs. The ID cannot
             contain the following special characters: `/\#?%:`.
             See [our guide to resuming runs](https://docs.wandb.com/guides/runs/resuming).
-        fork_from: (str, optional) A string with the format {run_id}?_step={step} describing
+        fork_from: (str, optional) A string with the format `{run_id}?_step={step}` describing
             a moment in a previous run to fork a new run from. Creates a new run that picks up
             logging history from the specified run at the specified moment. The target run must
             be in the current project. Example: `fork_from="my-run-id?_step=1234"`.
-        resume_from: (str, optional) A string with the format {run_id}?_step={step} describing
+        resume_from: (str, optional) A string with the format `{run_id}?_step={step}` describing
             a moment in a previous run to resume a run from. This allows users to truncate
             the history logged to a run at an intermediate step and resume logging from that step.
             It uses run forking under the hood. The target run must be in the

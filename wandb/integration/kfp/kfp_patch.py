@@ -163,7 +163,7 @@ def _get_function_source_definition(func: Callable) -> str:
 
     # For wandb, allow decorators (so we can use the @wandb_log decorator)
     func_code_lines = itertools.dropwhile(
-        lambda x: not (x.startswith("def") or x.startswith("@wandb_log")),
+        lambda x: not (x.startswith(("def", "@wandb_log"))),
         func_code_lines,
     )
 

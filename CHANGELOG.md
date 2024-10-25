@@ -11,13 +11,31 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Fixed
+
+- Add missing type hints of the `wandb.plot` module in the package stub (@kptkin in https://github.com/wandb/wandb/pull/8667)
+- Fix limiting azure reference artifact uploads to `max_objects` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8703)
+- Fix downloading azure reference artifacts with `skip_cache=True` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8706)
+
+## [0.18.5] - 2024-10-17
+
+### Fixed
+
+- Import `Literal` from `typing_extensions` in Python 3.7; broken in 0.18.4 (@timoffex in https://github.com/wandb/wandb/pull/8656)
+
+## [0.18.4] - 2024-10-17
+
 ### Added
 
 - Track detailed metrics for Apple ARM systems including GPU, eCPU, and pCPU utilization, power consumption, and temperature, and memory/swap utilization (@dmitryduev in https://github.com/wandb/wandb/pull/8550)
 - Allow users to link Registry artifacts without inputting the organization entity name (@estellazx in https://github.com/wandb/wandb/pull/8482)
+- Added a warning message indicating that the `fps` argument will be ignored when creating a wandb.Video object from a file path string or a bytes object. (@jacobromero in https://github.com/wandb/wandb/pull/8585)
+- Update docstrings for `logged_artifacts` and `used_artifacts` methods in `Run` class (@trane293 in https://github.com/wandb/wandb/pull/8624)
+- The `_show_operation_stats` setting enables a preview of a better `run.finish()` UX (@timoffex in https://github.com/wandb/wandb/pull/8644)
 
 ### Fixed
 
+- Log power on AMD MI300X series GPUs (@dmitryduev in https://github.com/wandb/wandb/pull/8630)
 - Fixed typing issue of `wandb.Api` (@bdvllrs in https://github.com/wandb/wandb/pull/8548)
 
 ### Changed
