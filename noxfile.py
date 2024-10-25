@@ -129,12 +129,15 @@ def run_pytest(
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
-def get_unit_tests(session: nox.Session) -> None:
+def get_test_files(session: nox.Session) -> None:
     """Prints all unit test files that we want to run.
 
     This is used by CircleCI to enable re-running only failed tests.
     https://circleci.com/docs/rerun-failed-tests/
     """
+    search_dir = session.posargs[0]
+    ignore_paths = session.posargs[1:]
+
     install_timed(
         session,
         "-r",
@@ -142,8 +145,9 @@ def get_unit_tests(session: nox.Session) -> None:
     )
     session.run(
         "python",
-        "tests/scripts/get_test_files.py",
-        "tests/unit_tests/",
+        "tools/tests/get_test_files.py",
+        search_dir,
+        *ignore_paths,
     )
 
 
@@ -172,29 +176,6 @@ def unit_tests(session: nox.Session) -> None:
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
-def get_system_tests(session: nox.Session) -> None:
-    """Prints all system test files that we want to run.
-
-    This is used by CircleCI to enable re-running only failed tests.
-    https://circleci.com/docs/rerun-failed-tests/
-    """
-    ignore_paths = (
-        "tests/system_tests/test_importers",
-        "tests/system_tests/test_notebooks",
-        "tests/system_tests/test_functional",
-        "tests/system_tests/test_experimental",
-    )
-    install_timed(
-        session,
-        "-r",
-        "requirements_dev.txt",
-    )
-    session.run(
-        "python", "tests/scripts/get_test_files.py", "tests/system_tests", *ignore_paths
-    )
-
-
-@nox.session(python=_SUPPORTED_PYTHONS)
 def system_tests(session: nox.Session) -> None:
     install_wandb(session)
     install_timed(
@@ -216,25 +197,6 @@ def system_tests(session: nox.Session) -> None:
                 "--ignore=tests/system_tests/test_experimental",
             ]
         ),
-    )
-
-
-@nox.session(python=_SUPPORTED_PYTHONS)
-def get_notebook_tests(session: nox.Session) -> None:
-    """Prints all notebook test files that we want to run.
-
-    This is used by CircleCI to enable re-running only failed tests.
-    https://circleci.com/docs/rerun-failed-tests/
-    """
-    install_timed(
-        session,
-        "-r",
-        "requirements_dev.txt",
-    )
-    session.run(
-        "python",
-        "tests/scripts/get_test_files.py",
-        "tests/system_tests/test_notebooks",
     )
 
 
@@ -273,25 +235,6 @@ def notebook_tests(session: nox.Session) -> None:
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
-def get_functional_tests(session: nox.Session) -> None:
-    """Prints all functional test files that we want to run.
-
-    This is used by CircleCI to enable re-running only failed tests.
-    https://circleci.com/docs/rerun-failed-tests/
-    """
-    install_timed(
-        session,
-        "-r",
-        "requirements_dev.txt",
-    )
-    session.run(
-        "python",
-        "tests/scripts/get_test_files.py",
-        "tests/system_tests/test_functional",
-    )
-
-
-@nox.session(python=_SUPPORTED_PYTHONS)
 def functional_tests(session: nox.Session):
     """Runs functional tests using pytest."""
     install_wandb(session)
@@ -309,25 +252,6 @@ def functional_tests(session: nox.Session):
         # take into account the number of available CPUs in the container,
         # which results in OOM errors.
         opts={"n": "4"},
-    )
-
-
-@nox.session(python=_SUPPORTED_PYTHONS)
-def get_experimental_tests(session: nox.Session) -> None:
-    """Prints all experimental test files that we want to run.
-
-    This is used by CircleCI to enable re-running only failed tests.
-    https://circleci.com/docs/rerun-failed-tests/
-    """
-    install_timed(
-        session,
-        "-r",
-        "requirements_dev.txt",
-    )
-    session.run(
-        "python",
-        "tests/scripts/get_test_files.py",
-        "tests/system_tests/test_experimental",
     )
 
 

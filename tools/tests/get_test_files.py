@@ -1,5 +1,4 @@
-"""
-This script collects and returns test file paths for a given root directory.
+"""This script collects and returns test file paths for a given root directory.
 
 It uses pytest to discover test files, ignoring specified paths. The script
 takes a root directory and optional ignore paths as command-line arguments.
