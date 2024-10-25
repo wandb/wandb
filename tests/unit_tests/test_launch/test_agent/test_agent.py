@@ -1,9 +1,15 @@
 import asyncio
+import os
 import platform
+import tempfile
 import threading
-from unittest.mock import MagicMock
+from unittest import mock
+from unittest.mock import MagicMock, patch
 
 import pytest
+
+import wandb.wandb_agent
+from tests.system_tests.test_sweep.test_wandb_sweep import SWEEP_CONFIG_RANDOM
 from wandb.errors import CommError
 from wandb.sdk.launch.agent.agent import (
     InternalAgentLogger,
@@ -12,6 +18,7 @@ from wandb.sdk.launch.agent.agent import (
 )
 from wandb.sdk.launch.errors import LaunchDockerError, LaunchError
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX
+from wandb.wandb_agent import Agent
 
 
 class AsyncMock(MagicMock):
@@ -499,8 +506,8 @@ async def test_thread_finish_no_run(mocker, clean_agent):
     assert mocker.api.fail_run_queue_item.called
     assert mocker.api.fail_run_queue_item.call_args[0][0] == "run_queue_item_id"
     assert (
-        mocker.api.fail_run_queue_item.call_args[0][1]
-        == "The submitted job exited successfully but failed to call wandb.init"
+            mocker.api.fail_run_queue_item.call_args[0][1]
+            == "The submitted job exited successfully but failed to call wandb.init"
     )
 
 
@@ -528,8 +535,8 @@ async def test_thread_failed_no_run(mocker, clean_agent):
     assert mocker.api.fail_run_queue_item.called
     assert mocker.api.fail_run_queue_item.call_args[0][0] == "run_queue_item_id"
     assert (
-        mocker.api.fail_run_queue_item.call_args[0][1]
-        == "The submitted run was not successfully started"
+            mocker.api.fail_run_queue_item.call_args[0][1]
+            == "The submitted run was not successfully started"
     )
 
 
@@ -764,3 +771,12 @@ def test_agent_inf_jobs(mocker):
     )
     agent = LaunchAgent(MagicMock(), config)
     assert agent._max_jobs == float("inf")
+
+
+def test_agent_saves_args_json_file_to_customized_wandb_dir_path():
+    with tempfile.TemporaryDirectory() as tmp_dir_name:
+        with mock.patch.dict(os.environ, {'WANDB_SWEEP_ID': '1234', 'WANDB_DIR': tmp_dir_name}):
+
+            dummy_agent = Agent(api=MagicMock(), queue=MagicMock(), function=lambda: None)
+            dummy_agent._sweep_command = ["${args_json_file}"]
+            dummy_agent._command_run(command={'run_id': 'fake-run-id', 'args': {'param1': {'value': 1}}})
