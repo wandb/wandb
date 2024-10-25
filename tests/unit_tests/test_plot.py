@@ -32,7 +32,7 @@ def test_roc(dummy_classifier, mock_run):
     _ = mock_run(settings={"mode": "offline"})
     *_, y_test, _, y_probas = dummy_classifier
     custom_chart_no_title = roc_curve(y_test, y_probas)
-    assert custom_chart_no_title.string_fields["title"] == "ROC"
+    assert custom_chart_no_title.string_fields["title"] == "ROC Curve"
     first_row = custom_chart_no_title.table.data[0]
     assert first_row == [0, 0.0, 0.0], first_row
     custom_chart_with_title = roc_curve(y_test, y_probas, title="New title")
