@@ -65,7 +65,7 @@ def _server_accepts_artifact_path() -> bool:
 class Image(BatchableMedia):
     """Format images for logging to W&B.
 
-    Arguments:
+    Args:
         data_or_path: (numpy array, string, io) Accepts numpy array of
             image data, or a PIL image. The class attempts to infer
             the data format and converts it.

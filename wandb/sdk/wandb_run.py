@@ -633,7 +633,7 @@ class Run:
 
         _datatypes_set_callback(self._datatypes_callback)
 
-        self._printer = printer.get_printer(self._settings._jupyter)
+        self._printer = printer.new_printer()
         self._wl = None
         self._reporter: Reporter | None = None
 
@@ -1158,7 +1158,7 @@ class Run:
 
         By default, it walks the current directory and logs all files that end with `.py`.
 
-        Arguments:
+        Args:
             root: The relative (to `os.getcwd()`) or absolute path to recursively find code from.
             name: (str, optional) The name of our code artifact. By default, we'll name
                 the artifact `source-$PROJECT_ID-$ENTRYPOINT_RELPATH`. There may be scenarios where you want
@@ -1770,7 +1770,7 @@ class Run:
         run.log({"accuracy": 0.9}, step=current_step)
         ```
 
-        Arguments:
+        Args:
             data: A `dict` with `str` keys and values that are serializable
                 Python objects including: `int`, `float` and `string`;
                 any of the `wandb.data_types`; lists, tuples and NumPy arrays
@@ -1971,7 +1971,7 @@ class Run:
         Note: when given an absolute path or glob and no `base_path`, one
         directory level is preserved as in the example above.
 
-        Arguments:
+        Args:
             glob_str: A relative or absolute path or Unix glob.
             base_path: A path to use to infer a directory structure; see examples.
             policy: One of `live`, `now`, or `end`.
@@ -1998,9 +1998,7 @@ class Run:
         if isinstance(glob_str, bytes):
             # Preserved for backward compatibility: allow bytes inputs.
             glob_str = glob_str.decode("utf-8")
-        if isinstance(glob_str, str) and (
-            glob_str.startswith("gs://") or glob_str.startswith("s3://")
-        ):
+        if isinstance(glob_str, str) and (glob_str.startswith(("gs://", "s3://"))):
             # Provide a better error message for a common misuse.
             wandb.termlog(f"{glob_str} is a cloud storage url, can't save file to W&B.")
             return []
@@ -2144,7 +2142,7 @@ class Run:
         This is used when creating multiple runs in the same process. We automatically
         call this method when your script exits or if you use the run context manager.
 
-        Arguments:
+        Args:
             exit_code: Set to something other than 0 to mark a run as failed
             quiet: Set to true to minimize log output
         """
@@ -2250,7 +2248,7 @@ class Run:
     ) -> CustomChart:
         """Create a custom plot on a table.
 
-        Arguments:
+        Args:
             vega_spec_name: the name of the spec for the plot
             data_table: a wandb.Table object containing the data to
                 be used on the visualization
@@ -2751,7 +2749,7 @@ class Run:
     ) -> wandb_metric.Metric:
         """Customize metrics logged with `wandb.log()`.
 
-        Arguments:
+        Args:
             name: The name of the metric to customize.
             step_metric: The name of another metric to serve as the X-axis
                 for this metric in automatically generated charts.
@@ -2977,10 +2975,10 @@ class Run:
 
         The linked artifact will be visible in the UI for the specified portfolio.
 
-        Arguments:
+        Args:
             artifact: the (public or local) artifact which will be linked
-            target_path: `str` - takes the following forms: {portfolio}, {project}/{portfolio},
-                or {entity}/{project}/{portfolio}
+            target_path: `str` - takes the following forms: `{portfolio}`, `{project}/{portfolio}`,
+                or `{entity}/{project}/{portfolio}`
             aliases: `List[str]` - optional alias(es) that will only be applied on this linked artifact
                                    inside the portfolio.
             The alias "latest" will always be applied to the latest version of an artifact that is linked.
@@ -3046,7 +3044,7 @@ class Run:
 
         Call `download` or `file` on the returned object to get the contents locally.
 
-        Arguments:
+        Args:
             artifact_or_name: (str or Artifact) An artifact name.
                 May be prefixed with project/ or entity/project/.
                 If no entity is specified in the name, the Run or API setting's entity is used.
@@ -3155,7 +3153,7 @@ class Run:
     ) -> Artifact:
         """Declare an artifact as an output of a run.
 
-        Arguments:
+        Args:
             artifact_or_path: (str or Artifact) A path to the contents of this artifact,
                 can be in the following forms:
                     - `/local/directory`
@@ -3200,7 +3198,7 @@ class Run:
         Note that you must call run.finish_artifact() to finalize the artifact.
         This is useful when distributed jobs need to all contribute to the same artifact.
 
-        Arguments:
+        Args:
             artifact_or_path: (str or Artifact) A path to the contents of this artifact,
                 can be in the following forms:
                     - `/local/directory`
@@ -3253,7 +3251,7 @@ class Run:
 
         Subsequent "upserts" with the same distributed ID will result in a new version.
 
-        Arguments:
+        Args:
             artifact_or_path: (str or Artifact) A path to the contents of this artifact,
                 can be in the following forms:
                     - `/local/directory`
@@ -3442,7 +3440,7 @@ class Run:
     ) -> None:
         """Logs a model artifact containing the contents inside the 'path' to a run and marks it as an output to this run.
 
-        Arguments:
+        Args:
             path: (str) A path to the contents of this model,
                 can be in the following forms:
                     - `/local/directory`
@@ -3488,7 +3486,7 @@ class Run:
     def use_model(self, name: str) -> FilePathStr:
         """Download the files logged in a model artifact 'name'.
 
-        Arguments:
+        Args:
             name: (str) A model artifact name. 'name' must match the name of an existing logged
                 model artifact.
                 May be prefixed with entity/project/. Valid names
@@ -3558,7 +3556,7 @@ class Run:
             - Link version of model artifact 'name' to registered model, 'registered_model_name'.
             - Attach aliases from 'aliases' list to the newly linked model artifact version.
 
-        Arguments:
+        Args:
             path: (str) A path to the contents of this model,
                 can be in the following forms:
                     - `/local/directory`
@@ -3641,7 +3639,7 @@ class Run:
     ) -> None:
         """Launch an alert with the given title and text.
 
-        Arguments:
+        Args:
             title: (str) The title of the alert, must be less than 64 characters long.
             text: (str) The text body of the alert.
             level: (str or AlertLevel, optional) The alert level to use, either: `INFO`, `WARN`, or `ERROR`.
@@ -4103,7 +4101,7 @@ def restore(
     File is placed into the current directory or run directory.
     By default, will only download the file if it doesn't already exist.
 
-    Arguments:
+    Args:
         name: the name of the file
         run_path: optional path to a run to pull files from, i.e. `username/project_name/run_id`
             if wandb.init has not been called, this is required.
@@ -4161,7 +4159,7 @@ def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
     This is used when creating multiple runs in the same process.
     We automatically call this method when your script exits.
 
-    Arguments:
+    Args:
         exit_code: Set to something other than 0 to mark a run as failed
         quiet: Set to true to minimize log output
     """

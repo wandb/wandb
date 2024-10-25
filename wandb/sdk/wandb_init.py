@@ -33,10 +33,17 @@ from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import SummaryDisabled, filesystem, ipython, module, reporting, telemetry
+from .lib import (
+    SummaryDisabled,
+    filesystem,
+    ipython,
+    module,
+    printer,
+    reporting,
+    telemetry,
+)
 from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxProgress
-from .lib.printer import Printer, get_printer
 from .lib.wburls import wburls
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
@@ -125,16 +132,11 @@ class _WandbInit:
         self._wl: wandb_setup._WandbSetup | None = None
         self._reporter: wandb.sdk.lib.reporting.Reporter | None = None
         self.notebook: wandb.jupyter.Notebook | None = None  # type: ignore
-        self.printer: Printer | None = None
+        self.printer = printer.new_printer()
 
         self._init_telemetry_obj = telemetry.TelemetryRecord()
 
         self.deprecated_features_used: dict[str, str] = dict()
-
-    def _setup_printer(self, settings: Settings) -> None:
-        if self.printer:
-            return
-        self.printer = get_printer(settings._jupyter)
 
     def setup(self, kwargs: Any) -> None:  # noqa: C901
         """Complete setup for `wandb.init()`.
@@ -148,8 +150,6 @@ class _WandbInit:
         # in between, they will be ignored, which we need to inform the user about.
         singleton = wandb_setup._WandbSetup._instance
         if singleton is not None:
-            self._setup_printer(settings=singleton._settings)
-            assert self.printer
             exclude_env_vars = {"WANDB_SERVICE", "WANDB_KUBEFLOW_URL"}
             # check if environment variables have changed
             singleton_env = {
@@ -202,7 +202,6 @@ class _WandbInit:
         if settings_param is not None and isinstance(settings_param, (Settings, dict)):
             settings.update(settings_param, source=Source.INIT)
 
-        self._setup_printer(settings)
         self._reporter = reporting.setup_reporter(settings=settings)
 
         sagemaker_config: dict = (
@@ -610,7 +609,6 @@ class _WandbInit:
         return drun
 
     def _on_progress_init(self, handle: MailboxProgress) -> None:
-        assert self.printer
         line = "Waiting for wandb.init()...\r"
         percent_done = handle.percent_done
         self.printer.progress_update(line, percent_done=percent_done)
@@ -920,7 +918,7 @@ def _attach(
 ) -> Run | None:
     """Attach to a run currently executing in another process/thread.
 
-    Arguments:
+    Args:
         attach_id: (str, optional) The id of the run or an attach identifier
             that maps to a run.
         run_id: (str, optional) The id of the run to attach to.
@@ -1064,7 +1062,7 @@ def init(
     For more on using `wandb.init()`, including detailed examples, check out our
     [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 
-    Arguments:
+    Args:
         project: (str, optional) The name of the project where you're sending
             the new run. If the project is not specified, we will try to infer
             the project name from git root or the current program file. If we
@@ -1187,11 +1185,11 @@ def init(
             for saving hyperparameters to compare across runs. The ID cannot
             contain the following special characters: `/\#?%:`.
             See [our guide to resuming runs](https://docs.wandb.com/guides/runs/resuming).
-        fork_from: (str, optional) A string with the format {run_id}?_step={step} describing
+        fork_from: (str, optional) A string with the format `{run_id}?_step={step}` describing
             a moment in a previous run to fork a new run from. Creates a new run that picks up
             logging history from the specified run at the specified moment. The target run must
             be in the current project. Example: `fork_from="my-run-id?_step=1234"`.
-        resume_from: (str, optional) A string with the format {run_id}?_step={step} describing
+        resume_from: (str, optional) A string with the format `{run_id}?_step={step}` describing
             a moment in a previous run to resume a run from. This allows users to truncate
             the history logged to a run at an intermediate step and resume logging from that step.
             It uses run forking under the hood. The target run must be in the

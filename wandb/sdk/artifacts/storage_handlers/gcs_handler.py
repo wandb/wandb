@@ -24,8 +24,6 @@ if TYPE_CHECKING:
 class _GCSIsADirectoryError(Exception):
     """Raised when we try to download a GCS folder."""
 
-    pass
-
 
 class GCSHandler(StorageHandler):
     _client: gcs_module.client.Client | None
@@ -169,7 +167,7 @@ class GCSHandler(StorageHandler):
     ) -> ArtifactManifestEntry:
         """Create an ArtifactManifestEntry from a GCS object.
 
-        Arguments:
+        Args:
             obj: The GCS object
             path: The GCS-style path (e.g.: "gs://bucket/file.txt")
             name: The user assigned name, or None if not specified

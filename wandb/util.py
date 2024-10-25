@@ -989,7 +989,7 @@ def make_check_retry_fn(
 ) -> CheckRetryFnType:
     """Return a check_retry_fn which can be used by lib.Retry().
 
-    Arguments:
+    Args:
         fallback_fn: Use this function if check_fn didn't decide if a retry should happen.
         check_fn: Function which returns bool if retry should happen or None if unsure.
         check_timedelta: Optional retry timeout if we check_fn matches the exception
@@ -1011,7 +1011,7 @@ def make_check_retry_fn(
 def find_runner(program: str) -> Union[None, list, List[str]]:
     """Return a command that will run program.
 
-    Arguments:
+    Args:
         program: The string name of the program to try to run.
 
     Returns:
@@ -1316,7 +1316,7 @@ def prompt_choices(
 def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
     """Infer the type of data based on the shape of the tensors.
 
-    Arguments:
+    Args:
         shape (Sequence[int]): The shape of the data
         risky(bool): some guesses are more likely to be wrong.
     """
