@@ -1,3 +1,22 @@
+"""
+This script collects and returns test file paths for a given root directory.
+
+It uses pytest to discover test files, ignoring specified paths. The script
+takes a root directory and optional ignore paths as command-line arguments.
+
+The collected test file paths are printed to stdout, which can be useful
+for integration with CI/CD pipelines or other automated testing processes.
+
+Example usage:
+    python get_test_files.py \
+        /path/to/search \
+        /path/to/search/ignore1 ...
+
+This will collect all test files in '/path/to/search',
+ignoring '/path/to/ignore1' and '/path/to/search/ignore1', and print
+the paths of the collected test files to stdout.
+"""
+
 import contextlib
 import os
 import sys
