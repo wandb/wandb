@@ -68,25 +68,6 @@ def site_packages_dir(session: nox.Session) -> pathlib.Path:
         )
 
 
-def get_circleci_splits(session: nox.Session) -> tuple[int, int]:
-    """Returns the test splitting arguments from our CircleCI config.
-
-    When using test splitting, CircleCI sets the CIRCLE_NODE_TOTAL and
-    CIRCLE_NODE_INDEX environment variables to indicate which group of
-    tests we should run.
-
-    This returns (index, total), with 0 <= index < total, if the variables
-    are set. Otherwise, returns (0, 0).
-    """
-    circle_node_total = session.env.get("CIRCLE_NODE_TOTAL")
-    circle_node_index = session.env.get("CIRCLE_NODE_INDEX")
-
-    if circle_node_total and circle_node_index:
-        return (int(circle_node_index), int(circle_node_total))
-
-    return (0, 0)
-
-
 def run_pytest(
     session: nox.Session,
     paths: list[str],
@@ -110,6 +91,12 @@ def run_pytest(
         "OPENAI_API_KEY": session.env.get("OPENAI_API_KEY"),
     }
 
+    # Use legacy JUnit XML format for compatibility with CircleCI.
+    # newer version are missing the `file` attribute, and prevents CircleCI
+    # from parsing the test results.
+    pytest_opts.append("-o")
+    pytest_opts.append("junit_family=legacy")
+
     # Print 20 slowest tests.
     pytest_opts.append(f"--durations={opts.get('durations', 20)}")
 
@@ -123,12 +110,6 @@ def run_pytest(
 
     # (pytest-xdist) Run tests in parallel.
     pytest_opts.append(f"-n={opts.get('n', 'auto')}")
-
-    # (pytest-split) Run a subset of tests only (for external parallelism).
-    (circle_node_index, circle_node_total) = get_circleci_splits(session)
-    if circle_node_total > 0:
-        pytest_opts.append(f"--splits={circle_node_total}")
-        pytest_opts.append(f"--group={int(circle_node_index) + 1}")
 
     # (pytest-cov) Enable Python code coverage collection.
     # We set "--cov-report=" to suppress terminal output.
