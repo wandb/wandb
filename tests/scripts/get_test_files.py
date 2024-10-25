@@ -23,8 +23,7 @@ def collect_test_files():
 
         def pytest_collection_finish(self, session):
             for test in session.items:
-                if type(test.parent) is pytest.Module:
-                    self.paths.add(str(test.parent.nodeid))
+                self.paths.add(str(test.parent.nodeid))
 
     collector_plugin = TestCollector()
 
