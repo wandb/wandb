@@ -46,8 +46,6 @@ func (cl CollectLoop) Start(
 
 // waitForRateLimit merges requests until the rate limit allows us
 // to transmit data.
-// waitForRateLimit merges requests until the rate limit allows us
-// to transmit data.
 func (cl CollectLoop) waitForRateLimit(
 	buffer *FileStreamRequest,
 	requests <-chan *FileStreamRequest,
