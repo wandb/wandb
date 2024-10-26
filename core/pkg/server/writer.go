@@ -86,6 +86,9 @@ func (w *Writer) startStore() {
 	w.wg.Add(1)
 	go func() {
 		for record := range w.storeChan {
+			if os.Getenv("WANDB__REQUIRE_DISABLE_SYNCFILE") == "true" {
+				continue
+			}
 			if err = w.store.Write(record); err != nil {
 				w.logger.CaptureError(
 					fmt.Errorf(

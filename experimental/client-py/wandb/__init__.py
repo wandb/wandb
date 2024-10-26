@@ -117,6 +117,7 @@ class Run:
         self._run_nexus_id = None
         self._step = 0
         self._require_datavalue = False
+        self._require_disable_log = False
 
     def __enter__(self):
         return self
@@ -129,6 +130,9 @@ class Run:
         return self._session._api
 
     def log(self, data):
+        if self._require_disable_log:
+            return
+
         if self._require_datavalue:
             self._log_datavalue(data)
             return
@@ -296,6 +300,9 @@ class Run:
         if require_datavalue.lower() in {"true", "1"}:
             self._require_datavalue = True
             settings._require_datavalue.value = True
+        require_datavalue = os.environ.get("WANDB__REQUIRE_DISABLE_LOG", "false")
+        if require_datavalue.lower() in {"true", "1"}:
+            self._require_disable_log = True
 
         os.makedirs(sync_dir)
         os.makedirs(log_dir)

@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	BufferSize                         = 32
+	BufferSize                         = 256
 	IntervalCheckParentPidMilliseconds = 100
 )
 
