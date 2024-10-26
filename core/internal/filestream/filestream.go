@@ -141,7 +141,7 @@ func NewFileStream(params FileStreamParams) FileStream {
 
 	fs.transmitRateLimit = params.TransmitRateLimit
 	if fs.transmitRateLimit == nil {
-		fs.transmitRateLimit = rate.NewLimiter(rate.Every(defaultTransmitInterval), 1)
+		fs.transmitRateLimit = rate.NewLimiter(rate.Every(defaultTransmitInterval), 5)
 	}
 
 	return fs

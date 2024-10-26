@@ -46,6 +46,8 @@ func (cl CollectLoop) Start(
 
 // waitForRateLimit merges requests until the rate limit allows us
 // to transmit data.
+// waitForRateLimit merges requests until the rate limit allows us
+// to transmit data.
 func (cl CollectLoop) waitForRateLimit(
 	buffer *FileStreamRequest,
 	requests <-chan *FileStreamRequest,
@@ -61,15 +63,20 @@ func (cl CollectLoop) waitForRateLimit(
 		return
 	}
 
+	// If there's no delay needed, return immediately
+	if reservation.Delay() == 0 {
+		return
+	}
+
+	timer := time.NewTimer(reservation.Delay())
+	defer timer.Stop()
+
 	for {
-		timer := time.NewTimer(reservation.Delay())
 		select {
 		case <-timer.C:
 			return
 
 		case request, ok := <-requests:
-			_ = timer.Stop()
-
 			if !ok {
 				return
 			}

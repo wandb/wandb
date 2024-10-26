@@ -1,6 +1,9 @@
 package filestream
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/wandb/wandb/core/internal/waiting"
 )
 
@@ -45,6 +48,7 @@ func (tr TransmitLoop) Start(
 			}
 
 			tr.HeartbeatStopwatch.Reset()
+			fmt.Println("Sending request", time.Now())
 			err := tr.Send(x, feedback)
 
 			if err != nil {

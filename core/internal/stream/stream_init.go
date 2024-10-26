@@ -187,7 +187,7 @@ func NewFileStream(
 	}
 
 	if txInterval := settings.GetFileStreamTransmitInterval(); txInterval > 0 {
-		params.TransmitRateLimit = rate.NewLimiter(rate.Every(txInterval), 1)
+		params.TransmitRateLimit = rate.NewLimiter(rate.Every(txInterval), 5)
 	}
 
 	return filestream.NewFileStream(params)
