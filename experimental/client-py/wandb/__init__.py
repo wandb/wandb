@@ -282,6 +282,8 @@ class Run:
         settings.sync_file.value = str(sync_dir / ("run-" + run_id + ".wandb"))
         settings.log_internal.value = str(log_dir / "debug-internal.log")
         settings.files_dir.value = str(files_dir)
+        if os.environ.get("WANDB_MODE") == "offline":
+            settings._offline.value = True
 
         settings._file_stream_retry_max.value = 1445
         settings._file_stream_retry_wait_min_seconds.value = 2
