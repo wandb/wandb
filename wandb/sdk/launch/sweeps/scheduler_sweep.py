@@ -82,7 +82,6 @@ class SweepScheduler(Scheduler):
 
     def _poll(self) -> None:
         _logger.debug(f"_poll. _runs: {self._runs}")
-        pass
 
     def _load_state(self) -> None:
         pass

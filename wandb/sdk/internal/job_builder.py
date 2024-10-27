@@ -380,7 +380,7 @@ class JobBuilder:
     ]:
         """Construct a job source dict and name from the current run.
 
-        Arguments:
+        Args:
             source_type (str): The type of source to build the job from. One of
                 "repo", "artifact", or "image".
         """
@@ -427,7 +427,7 @@ class JobBuilder:
     ) -> Optional[Artifact]:
         """Build a job artifact from the current run.
 
-        Arguments:
+        Args:
             api (Api): The API object to use to create the job artifact.
             build_context (Optional[str]): Path within the job source code to
                 the image build context. Saved as part of the job for future

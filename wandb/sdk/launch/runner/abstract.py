@@ -82,7 +82,6 @@ class AbstractRun(ABC):
     @abstractmethod
     async def get_logs(self) -> Optional[str]:
         """Return the logs associated with the run."""
-        pass
 
     def _run_cmd(
         self, cmd: List[str], output_only: Optional[bool] = False
@@ -111,12 +110,10 @@ class AbstractRun(ABC):
 
         Note that in some cases, we may wait until the remote job completes rather than until the W&B run completes.
         """
-        pass
 
     @abstractmethod
     async def get_status(self) -> Status:
         """Get status of the run."""
-        pass
 
     @abstractmethod
     async def cancel(self) -> None:
@@ -125,7 +122,6 @@ class AbstractRun(ABC):
         Cancels the run and waits for it to terminate. The W&B run status may not be
         set correctly upon run cancellation.
         """
-        pass
 
     @property
     @abstractmethod
@@ -192,4 +188,3 @@ class AbstractRunner(ABC):
             the project asynchronously, i.e. it should trigger project execution and then
             immediately return a `SubmittedRun` to track execution status.
         """
-        pass
