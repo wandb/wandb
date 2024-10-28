@@ -3723,7 +3723,7 @@ class Api:
         query = gql(query_string)
         res = self.gql(query)
         input_fields = res.get("ProjectInfoType", {}).get("fields", [{}])
-        artifact_args = next(
+        artifact_args: List[Dict[str, str]] = next(
             (
                 field.get("args", [])
                 for field in input_fields
