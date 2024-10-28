@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from wandb.plot.viz import CustomChart
+from wandb.plot.custom_chart import CustomChart
 
 if TYPE_CHECKING:
     import wandb
