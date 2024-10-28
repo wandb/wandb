@@ -19,6 +19,7 @@ from wandb import util, wandb_lib, wandb_sdk
 from wandb.agents.pyagent import pyagent
 from wandb.apis import InternalApi
 from wandb.sdk.launch.sweeps import utils as sweep_utils
+from wandb.sdk.lib import ipython
 
 logger = logging.getLogger(__name__)
 
@@ -568,11 +569,10 @@ def agent(
         wandb_sdk.wandb_login._login(_silent=True)
         if function:
             return pyagent(sweep_id, function, entity, project, count)
-        in_jupyter = wandb.wandb_sdk.lib.ipython._get_python_type() != "python"
         return run_agent(
             sweep_id,
             function=function,
-            in_jupyter=in_jupyter,
+            in_jupyter=ipython.in_jupyter(),
             entity=entity,
             project=project,
             count=count,

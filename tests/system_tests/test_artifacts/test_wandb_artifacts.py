@@ -975,6 +975,32 @@ def test_add_azure_reference_directory(mock_azure_handler):
     assert entries[1].extra == {"etag": "my-dir/b version None"}
 
 
+def test_add_azure_reference_max_objects(mock_azure_handler):
+    artifact = wandb.Artifact("my_artifact", type="my_type")
+    entries = artifact.add_reference(
+        "https://myaccount.blob.core.windows.net/my-container/my-dir",
+        max_objects=1,
+    )
+    assert len(entries) == 1
+    assert entries[0].path == "a" or entries[0].path == "b"
+    if entries[0].path == "a":
+        assert (
+            entries[0].ref
+            == "https://myaccount.blob.core.windows.net/my-container/my-dir/a"
+        )
+        assert entries[0].digest == "my-dir/a version None"
+        assert entries[0].size == 42
+        assert entries[0].extra == {"etag": "my-dir/a version None"}
+    else:
+        assert (
+            entries[1].ref
+            == "https://myaccount.blob.core.windows.net/my-container/my-dir/b"
+        )
+        assert entries[1].digest == "my-dir/b version None"
+        assert entries[1].size == 42
+        assert entries[1].extra == {"etag": "my-dir/b version None"}
+
+
 def test_add_http_reference_path():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     mock_http(

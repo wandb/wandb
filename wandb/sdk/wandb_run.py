@@ -633,7 +633,7 @@ class Run:
 
         _datatypes_set_callback(self._datatypes_callback)
 
-        self._printer = printer.get_printer(self._settings._jupyter)
+        self._printer = printer.new_printer()
         self._wl = None
         self._reporter: Reporter | None = None
 
@@ -2977,8 +2977,8 @@ class Run:
 
         Args:
             artifact: the (public or local) artifact which will be linked
-            target_path: `str` - takes the following forms: {portfolio}, {project}/{portfolio},
-                or {entity}/{project}/{portfolio}
+            target_path: `str` - takes the following forms: `{portfolio}`, `{project}/{portfolio}`,
+                or `{entity}/{project}/{portfolio}`
             aliases: `List[str]` - optional alias(es) that will only be applied on this linked artifact
                                    inside the portfolio.
             The alias "latest" will always be applied to the latest version of an artifact that is linked.
