@@ -313,7 +313,8 @@ class JobBuilder:
             "build_context": metadata.get("build_context"),
             "dockerfile": metadata.get("dockerfile"),
         }
-        name = self._make_job_name(self._logged_code_artifact["name"])
+        artifact_basename, *_ = self._logged_code_artifact["name"].split(":")
+        name = self._make_job_name(artifact_basename)
 
         return source, name
 
