@@ -248,7 +248,7 @@ class Artifact:
         if server_supports_enabling_artifact_usage_tracking:
             query_vars = [*query_vars, "$enableTracking: Boolean"]
             query_args = [*query_args, "enableTracking: $enableTracking"]
-        
+
         vars_str = ", ".join(query_vars)
         args_str = ", ".join(query_args)
 
