@@ -112,9 +112,6 @@ def test_log_media_with_path_traversal(user, test_settings, image_media):
     run.log({"../../../image": image_media})
     run.finish()
 
-    print(image_media._path)
-    print(run.dir)
-
     # Resolve to path to verify no path traversals
     resolved_path = str(Path(image_media._path).resolve())
     assert resolved_path.startswith(run.dir)
@@ -125,9 +122,6 @@ def test_log_media_prefixed_with_multiple_slashes(user, test_settings, image_med
     run = wandb.init(settings=test_settings())
     run.log({"////image": image_media})
     run.finish()
-
-    print(image_media._path)
-    print(run.dir)
 
     resolved_path = str(Path(image_media._path).resolve())
     assert resolved_path.startswith(run.dir)
