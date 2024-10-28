@@ -24,8 +24,7 @@ from wandb import termwarn, util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
 
-from .lib import apikey, credentials
-from .lib.ipython import _get_python_type
+from .lib import apikey, credentials, ipython
 from .lib.run_moment import RunMoment
 
 
@@ -173,6 +172,7 @@ class Settings(BaseModel, validate_assignment=True):
     x_save_requirements: bool = False
     x_service_transport: str | None = None
     x_service_wait: float = Field(default=30.0, internal=True)
+    x_show_operation_stats: bool = False
     x_start_time: float = time.time()
     # PID of the process that started the wandb-core process to collect system stats for.
     x_stats_pid: int = os.getpid()
@@ -245,7 +245,7 @@ class Settings(BaseModel, validate_assignment=True):
         if value != "auto":
             return value
         if (
-            _get_python_type() == "jupyter"
+            ipython.in_jupyter()
             or (info.data.get("start_method") == "thread")
             or not info.data.get("disable_service")
             or platform.system() == "Windows"
@@ -306,7 +306,7 @@ class Settings(BaseModel, validate_assignment=True):
         if program is not None and program != "<python with no main file>":
             return program
 
-        if not _get_python_type() == "jupyter":
+        if not ipython.in_jupyter():
             return program
 
         notebook_name = info.data.get("notebook_name")
@@ -455,12 +455,12 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field
     @property
     def _ipython(self) -> bool:
-        return _get_python_type() == "ipython"
+        return ipython.in_ipython()
 
     @computed_field
     @property
     def _jupyter(self) -> bool:
-        return _get_python_type() == "jupyter"
+        return ipython.in_jupyter()
 
     @computed_field
     @property
