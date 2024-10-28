@@ -243,35 +243,26 @@ class Artifact:
         server_supports_enabling_artifact_usage_tracking = (
             InternalApi().server_project_type_introspection()
         )
-        enable_tracking_arg = (
-            ", enableTracking: $enableTracking"
-            if server_supports_enabling_artifact_usage_tracking
-            else ""
-        )
-        enable_tracking_variable = (
-            "$enableTracking: Boolean"
-            if server_supports_enabling_artifact_usage_tracking
-            else ""
-        )
+        query_vars = ["$entityName: String!", "$projectName: String!", "$name: String!"]
+        query_args = ["name: $name"]
+        if server_supports_enabling_artifact_usage_tracking:
+            query_vars = [*query_vars, "$enableTracking: Boolean"]
+            query_args = [*query_args, "enableTracking: $enableTracking"]
+        
+        vars_str = ", ".join(query_vars)
+        args_str = ", ".join(query_args)
+
         query = gql(
-            """
-            query ArtifactByName(
-                $entityName: String!,
-                $projectName: String!,
-                $name: String!,
-                {enable_tracking_variable}
-            ) {{
+            f"""
+            query ArtifactByName({vars_str}) {{
                 project(name: $projectName, entityName: $entityName) {{
-                    artifact(name: $name{enable_tracking_arg}) {{
+                    artifact({args_str}) {{
                         ...ArtifactFragment
                     }}
                 }}
             }}
-            """.format(
-                enable_tracking_arg=enable_tracking_arg,
-                enable_tracking_variable=enable_tracking_variable,
-            )
-            + cls._get_gql_artifact_fragment()
+            {cls._get_gql_artifact_fragment()}
+            """
         )
         # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
         # we need to fetch the org entity to for the user behind the scenes.
