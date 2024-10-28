@@ -10,6 +10,7 @@ import shutil
 from dataclasses import dataclass, field
 from datetime import datetime as dt
 from pathlib import Path
+from token import OP
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 from unittest.mock import patch
 
@@ -17,7 +18,7 @@ import filelock
 import polars as pl
 import requests
 import urllib3
-import wandb_workspaces.reports.v1 as wr
+import wandb_workspaces.reports.v2 as wr
 import yaml
 from wandb_gql import gql
 from wandb_workspaces.reports.v1 import Report
@@ -151,7 +152,7 @@ class WandbRun:
         if self._parquet_history_paths:
             rows = self._get_rows_from_parquet_history_paths()
         else:
-            logger.warn(
+            logger.warning(
                 "No parquet files detected; using scan history (this may not be reliable)"
             )
             rows = self.run.scan_history()
@@ -455,13 +456,13 @@ class WandbImporter:
         try:
             dst_collection = self.dst_api.artifact_collection(art_type, art_name)
         except (wandb.CommError, ValueError):
-            logger.warn(f"Collection doesn't exist {art_type=}, {art_name=}")
+            logger.warning(f"Collection doesn't exist {art_type=}, {art_name=}")
             return
 
         try:
             dst_collection.delete()
         except (wandb.CommError, ValueError) as e:
-            logger.warn(f"Collection can't be deleted, {art_type=}, {art_name=}, {e=}")
+            logger.warning(f"Collection can't be deleted, {art_type=}, {art_name=}, {e=}")
             return
 
     def _import_artifact_sequence(
@@ -477,7 +478,7 @@ class WandbImporter:
         if not seq.artifacts:
             # The artifact sequence has no versions.  This usually means all artifacts versions were deleted intentionally,
             # but it can also happen if the sequence represents run history and that run was deleted.
-            logger.warn(f"Artifact {seq=} has no artifacts, skipping.")
+            logger.warning(f"Artifact {seq=} has no artifacts, skipping.")
             return
 
         if namespace is None:
@@ -519,7 +520,7 @@ class WandbImporter:
 
                 # Could be logged by None (rare) or ValueError
                 if wandb_run is None:
-                    logger.warn(
+                    logger.warning(
                         f"Run for {art.name=} does not exist (deleted?), using {run_or_dummy=}"
                     )
                     wandb_run = run_or_dummy
@@ -548,7 +549,7 @@ class WandbImporter:
             retry_arts_func = internal.exp_retry(self._dst_api.artifacts)
             dst_arts = list(retry_arts_func(seq.type_, seq.name))
         except wandb.CommError:
-            logger.warn(f"{seq=} does not exist in dst.  Has it already been deleted?")
+            logger.warning(f"{seq=} does not exist in dst.  Has it already been deleted?")
             return
         except TypeError as e:
             logger.error(f"Problem getting dst versions (try again later) {e=}")
@@ -564,7 +565,7 @@ class WandbImporter:
                 art.delete(delete_aliases=True)
             except wandb.CommError as e:
                 if "cannot delete system managed artifact" in str(e):
-                    logger.warn("Cannot delete system managed artifact")
+                    logger.warning("Cannot delete system managed artifact")
                 else:
                     raise e
 
@@ -711,7 +712,7 @@ class WandbImporter:
                 run.delete(delete_artifacts=False)
 
     def _import_report(
-        self, report: Report, *, namespace: Optional[Namespace] = None
+        self, report: wr.Report, *, namespace: Optional[Namespace] = None
     ) -> None:
         """Import one wandb.Report.
 
@@ -734,7 +735,7 @@ class WandbImporter:
             api.create_project(project, entity)
         except requests.exceptions.HTTPError as e:
             if e.response.status_code != 409:
-                logger.warn(f"Issue upserting {entity=}/{project=}, {e=}")
+                logger.warning(f"Issue upserting {entity=}/{project=}, {e=}")
 
         logger.info(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
         api.client.execute(
@@ -800,7 +801,8 @@ class WandbImporter:
         history: bool = True,
         summary: bool = True,
         terminal_output: bool = True,
-        force_retry: bool = False
+        force_retry: bool = False,
+        start_date: Optional[str] = None
     ):
         logger.info("START: Import runs")
 
@@ -809,7 +811,7 @@ class WandbImporter:
         _clear_fname(RUN_ERRORS_FNAME)
 
         logger.info("Collecting runs")
-        runs = list(self._collect_runs(namespaces=namespaces, limit=limit))
+        runs = list(self._collect_runs(namespaces=namespaces, limit=limit, start_date=start_date))
 
         logger.info(f"Validating runs, {len(runs)=}")
         self._validate_runs(
@@ -954,6 +956,7 @@ class WandbImporter:
         max_workers: int = None,
         force_retry_runs: bool = False,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
+        start_date: Optional[str] = None,
     ):
         logger.info(f"START: Importing all, {runs=}, {artifacts=}, {reports=}")
         if runs:
@@ -964,7 +967,8 @@ class WandbImporter:
                 max_workers=max_workers,
                 parallel=parallel,
                 terminal_output=False,
-                force_retry=force_retry_runs
+                force_retry=force_retry_runs,
+                start_date=start_date
             )
 
         if reports:
@@ -1480,7 +1484,10 @@ class _DummyRun:
 
 def _read_ndjson(fname: str) -> Optional[pl.DataFrame]:
     try:
-        df = pl.read_ndjson(fname)
+        if os.stat(fname).st_size == 0:
+            return None
+        else:
+            df = pl.read_ndjson(fname)
     except FileNotFoundError:
         return None
     except RuntimeError as e:
@@ -1500,7 +1507,7 @@ def _get_run_or_dummy_from_art(art: Artifact, api=None):
     try:
         run = art.logged_by()
     except ValueError as e:
-        logger.warn(
+        logger.warning(
             f"Can't log artifact because run does't exist, {art=}, {run=}, {e=}"
         )
 
