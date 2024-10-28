@@ -32,7 +32,7 @@ def _wb_filename(
 
     # Avoid directory traversal by replacing dots with underscores.
     keys = key.split(os.sep)
-    keys = [k.replace(".", "_") if k == "." or k == ".." else k for k in keys]
+    keys = [k.replace(".", "_") if k in (os.curdir, os.pardir) else k for k in keys]
     key = os.sep.join(keys)
 
     return f"{str(key)}_{str(step)}_{str(id)}{extension}"
