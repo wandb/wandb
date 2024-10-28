@@ -179,6 +179,11 @@ type AnalyticsS3BucketDestination struct {
 // In terms of implementation, a Bucket is a resource.
 type Bucket struct {
 
+	// BucketRegion indicates the Amazon Web Services region where the bucket is
+	// located. If the request contains at least one valid parameter, it is included in
+	// the response.
+	BucketRegion *string
+
 	// Date the bucket was created. This date can change when making changes to your
 	// bucket, such as editing its bucket policy.
 	CreationDate *time.Time
@@ -3085,7 +3090,7 @@ type PublicAccessBlockConfiguration struct {
 
 	// Specifies whether Amazon S3 should restrict public bucket policies for this
 	// bucket. Setting this element to TRUE restricts access to this bucket to only
-	// Amazon Web Servicesservice principals and authorized users within this account
+	// Amazon Web Services service principals and authorized users within this account
 	// if the bucket has a public policy.
 	//
 	// Enabling this setting doesn't affect previously stored bucket policies, except
@@ -3448,23 +3453,13 @@ type RestoreRequest struct {
 	// Describes the location where the restore job's output is stored.
 	OutputLocation *OutputLocation
 
-	// Amazon S3 Select is no longer available to new customers. Existing customers of
-	// Amazon S3 Select can continue to use the feature as usual. [Learn more]
-	//
 	// Describes the parameters for Select job types.
-	//
-	// [Learn more]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
 	SelectParameters *SelectParameters
 
 	// Retrieval tier at which the restore will be processed.
 	Tier Tier
 
-	// Amazon S3 Select is no longer available to new customers. Existing customers of
-	// Amazon S3 Select can continue to use the feature as usual. [Learn more]
-	//
 	// Type of restore request.
-	//
-	// [Learn more]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
 	Type RestoreRequestType
 
 	noSmithyDocumentSerde
@@ -3651,25 +3646,10 @@ type SelectObjectContentEventStreamMemberStats struct {
 
 func (*SelectObjectContentEventStreamMemberStats) isSelectObjectContentEventStream() {}
 
-// Amazon S3 Select is no longer available to new customers. Existing customers of
-// Amazon S3 Select can continue to use the feature as usual. [Learn more]
-//
 // Describes the parameters for Select job types.
-//
-// Learn [How to optimize querying your data in Amazon S3] using [Amazon Athena], [S3 Object Lambda], or client-side filtering.
-//
-// [Learn more]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
-// [How to optimize querying your data in Amazon S3]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
-// [Amazon Athena]: https://docs.aws.amazon.com/athena/latest/ug/what-is.html
-// [S3 Object Lambda]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/transforming-objects.html
 type SelectParameters struct {
 
-	// Amazon S3 Select is no longer available to new customers. Existing customers of
-	// Amazon S3 Select can continue to use the feature as usual. [Learn more]
-	//
 	// The expression that is used to query the object.
-	//
-	// [Learn more]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
 	//
 	// This member is required.
 	Expression *string
@@ -3703,7 +3683,8 @@ type SelectParameters struct {
 //     key for SSE-KMS.
 //
 //   - Directory buckets - Your SSE-KMS configuration can only support 1 [customer managed key]per
-//     directory bucket for the lifetime of the bucket. [Amazon Web Services managed key]( aws/s3 ) isn't supported.
+//     directory bucket for the lifetime of the bucket. The [Amazon Web Services managed key]( aws/s3 ) isn't
+//     supported.
 //
 //   - Directory buckets - For directory buckets, there are only two supported
 //     options for server-side encryption: SSE-S3 and SSE-KMS.
