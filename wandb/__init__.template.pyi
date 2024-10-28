@@ -53,6 +53,7 @@ __all__ = (
     "teardown",
     "watch",
     "unwatch",
+    "plot",
 )
 
 import os
@@ -68,6 +69,7 @@ from typing import (
     Union,
 )
 
+import wandb.plot as plot
 from wandb.analytics import Sentry
 from wandb.apis import InternalApi, PublicApi
 from wandb.data_types import (
@@ -98,7 +100,7 @@ if TYPE_CHECKING:
 
     from wandb.plot.viz import CustomChart
 
-__version__: str = "0.18.4.dev1"
+__version__: str = "0.18.6.dev1"
 
 run: Run | None
 config: wandb_config.Config

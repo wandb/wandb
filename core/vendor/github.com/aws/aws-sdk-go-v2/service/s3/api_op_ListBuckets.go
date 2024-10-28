@@ -38,6 +38,20 @@ func (c *Client) ListBuckets(ctx context.Context, params *ListBucketsInput, optF
 
 type ListBucketsInput struct {
 
+	// Limits the response to buckets that are located in the specified Amazon Web
+	// Services Region. The Amazon Web Services Region must be expressed according to
+	// the Amazon Web Services Region code, such as us-west-2 for the US West (Oregon)
+	// Region. For a list of the valid values for all of the Amazon Web Services
+	// Regions, see [Regions and Endpoints].
+	//
+	// Requests made to a Regional endpoint that is different from the bucket-region
+	// parameter are not supported. For example, if you want to limit the response to
+	// your buckets in Region us-west-2 , the request must be made to an endpoint in
+	// Region us-west-2 .
+	//
+	// [Regions and Endpoints]: https://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region
+	BucketRegion *string
+
 	// ContinuationToken indicates to Amazon S3 that the list is being continued on
 	// this bucket with a token. ContinuationToken is obfuscated and is not a real
 	// key. You can use this ContinuationToken for pagination of the list results.
@@ -51,6 +65,10 @@ type ListBucketsInput struct {
 	// than the count of buckets that are owned by an Amazon Web Services account,
 	// return all the buckets in response.
 	MaxBuckets *int32
+
+	// Limits the response to bucket names that begin with the specified bucket name
+	// prefix.
+	Prefix *string
 
 	noSmithyDocumentSerde
 }
@@ -68,6 +86,11 @@ type ListBucketsOutput struct {
 
 	// The owner of the buckets listed.
 	Owner *types.Owner
+
+	// If Prefix was sent with the request, it is included in the response.
+	//
+	// All bucket names in the response begin with the specified bucket name prefix.
+	Prefix *string
 
 	// Metadata pertaining to the operation's result.
 	ResultMetadata middleware.Metadata

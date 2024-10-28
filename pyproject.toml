@@ -179,9 +179,7 @@ ignore = [
     "D105",  # Allow missing docstrings in magic (dunder) methods, e.g. __str__().
     "D106",  # Allow missing docstrings in nested classes.
     "D107",  # Allow missing docstrings in __init__ methods.
-    "UP022",
     "UP032", # Allow using format instead of f-string.
-    "UP036",
 ]
 
 [tool.ruff.lint.mccabe]

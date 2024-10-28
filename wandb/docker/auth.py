@@ -151,7 +151,7 @@ class AuthConfig(dict):
     ) -> Dict[str, Dict[str, Any]]:
         """Parse authentication entries.
 
-        Arguments:
+        Args:
           entries:        Dict of authentication entries.
           raise_on_error: If set to true, an invalid format will raise
                           InvalidConfigFileError
@@ -386,7 +386,7 @@ def parse_auth(
 ) -> Dict[str, Dict[str, Any]]:
     """Parse authentication entries.
 
-    Arguments:
+    Args:
       entries:        Dict of authentication entries.
       raise_on_error: If set to true, an invalid format will raise
                       InvalidConfigFileError
@@ -430,7 +430,6 @@ def _load_legacy_config(
         }
     except Exception as e:
         log.debug(e)
-        pass
 
     log.debug("All parsing attempts failed - returning empty config")
     return {}

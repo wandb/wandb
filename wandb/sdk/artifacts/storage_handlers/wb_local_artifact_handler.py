@@ -46,7 +46,7 @@ class WBLocalArtifactHandler(StorageHandler):
     ) -> Sequence[ArtifactManifestEntry]:
         """Store the file or directory at the given path within the specified artifact.
 
-        Arguments:
+        Args:
             artifact: The artifact doing the storing
             path (str): The path to store
             name (str): If specified, the logical name that should map to `path`
