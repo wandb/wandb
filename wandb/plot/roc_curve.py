@@ -1,40 +1,80 @@
-from typing import Optional
+from __future__ import annotations
+
+import numbers
+from typing import Sequence
 
 import wandb
 from wandb import util
+from wandb.plot.viz import CustomChart
 
 from .utils import test_missing, test_types
 
 
 def roc_curve(
-    y_true=None,
-    y_probas=None,
-    labels=None,
-    classes_to_plot=None,
-    title=None,
-    split_table: Optional[bool] = False,
+    y_true: Sequence[numbers.Number],
+    y_probas: Sequence[Sequence[float]] | None = None,
+    labels: list[str] | None = None,
+    classes_to_plot: list[numbers.Number] | None = None,
+    title: str = "ROC Curve",
+    split_table: bool = False,
 ):
-    """Calculate and visualize receiver operating characteristic (ROC) scores.
+    """Constructs Receiver Operating Characteristic (ROC) curve chart.
 
     Args:
-        y_true (arr): true sparse labels
-        y_probas (arr): Target scores, can either be probability estimates, confidence
-                         values, or non-thresholded measure of decisions.
-                         shape: (*y_true.shape, num_classes)
-        labels (list): Named labels for target variable (y). Makes plots easier to
-                        read by replacing target values with corresponding index.
-                        For example labels = ['dog', 'cat', 'owl'] all 0s are
-                        replaced by 'dog', 1s by 'cat'.
-        classes_to_plot (list): unique values of y_true to include in the plot
-        split_table (bool): If True, adds "Custom Chart Tables/" to the key of the table so that it's logged in a different section.
+        y_true (Sequence[numbers.Number]): The true class labels (ground truth)
+            for the target variable. Shape should be (num_samples,).
+        y_probas (Sequence[Sequence[float]]): The predicted probabilities or
+            decision scores for each class. Shape should be (num_samples, num_classes).
+        labels (list[str]): Human-readable labels corresponding to the class
+            indices in `y_true`. For example, if `labels=['dog', 'cat']`,
+            class 0 will be displayed as 'dog' and class 1 as 'cat' in the plot.
+            If None, the raw class indices from `y_true` will be used.
+            Default is None.
+        classes_to_plot (list[numbers.Number]): A subset of unique class labels
+            to include in the ROC curve. If None, all classes in `y_true` will
+            be plotted. Default is None.
+        split_table (bool): Whether to split the table into a separate section
+            in the UI. Default is False.
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
-            under 'auto visualizations'.
+        A CustomChart object with the ROC curve data. To log the chart to W&B,
+        use `wandb.log()`.
+
+    Raises:
+        wandb.Error: If numpy, pandas, or scikit-learn are not found.
 
     Example:
         ```
-        wandb.log({'roc-curve': wandb.plot.roc_curve(y_true, y_probas, labels)})
+        import numpy as np
+        import wandb
+
+        # Simulate a medical diagnosis classification problem with three diseases
+        n_samples = 200
+        n_classes = 3
+
+        # True labels: assign "Diabetes", "Hypertension", or "Heart Disease" to
+        # each sample
+        disease_labels = ["Diabetes", "Hypertension", "Heart Disease"]
+        # 0: Diabetes, 1: Hypertension, 2: Heart Disease
+        y_true = np.random.choice([0, 1, 2], size=n_samples)
+
+        # Predicted probabilities: simulate predictions, ensuring they sum to 1
+        # for each sample
+        y_probas = np.random.dirichlet(np.ones(n_classes), size=n_samples)
+
+        # Specify classes to plot (plotting all three diseases)
+        classes_to_plot = [0, 1, 2]
+
+        # Initialize a W&B run and log a ROC curve plot for disease classification
+        with wandb.init(project="medical_diagnosis") as run:
+            roc_plot = wandb.plot.roc_curve(
+                y_true=y_true,
+                y_probas=y_probas,
+                labels=disease_labels,
+                classes_to_plot=classes_to_plot,
+                title="ROC Curve for Disease Classification",
+            )
+            run.log({"roc-curve": roc_plot})
         ```
     """
     np = util.get_module(
@@ -66,8 +106,8 @@ def roc_curve(
     if classes_to_plot is None:
         classes_to_plot = classes
 
-    fpr = dict()
-    tpr = dict()
+    fpr = {}
+    tpr = {}
     indices_to_plot = np.where(np.isin(classes, classes_to_plot))[0]
     for i in indices_to_plot:
         if labels is not None and (
@@ -87,12 +127,11 @@ def roc_curve(
             "fpr": np.hstack(list(fpr.values())),
             "tpr": np.hstack(list(tpr.values())),
         }
-    )
-    df = df.round(3)
+    ).round(3)
 
     if len(df) > wandb.Table.MAX_ROWS:
         wandb.termwarn(
-            "wandb uses only %d data points to create the plots." % wandb.Table.MAX_ROWS
+            f"wandb uses only {wandb.Table.MAX_ROWS} data points to create the plots."
         )
         # different sampling could be applied, possibly to ensure endpoints are kept
         df = sklearn_utils.resample(
@@ -103,13 +142,15 @@ def roc_curve(
             stratify=df["class"],
         ).sort_values(["fpr", "tpr", "class"])
 
-    table = wandb.Table(dataframe=df)
-    title = title or "ROC"
-    return wandb.plot_table(
-        "wandb/area-under-curve/v0",
-        table,
-        {"x": "fpr", "y": "tpr", "class": "class"},
-        {
+    return CustomChart(
+        id="wandb/area-under-curve/v0",
+        data=wandb.Table(dataframe=df),
+        fields={
+            "x": "fpr",
+            "y": "tpr",
+            "class": "class",
+        },
+        string_fields={
             "title": title,
             "x-axis-title": "False positive rate",
             "y-axis-title": "True positive rate",
