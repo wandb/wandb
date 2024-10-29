@@ -98,14 +98,11 @@ commands:
       python: { type: string }
       session: { type: string }
       codecov_flags: { type: string }
-      prepare: { type: steps, default: [] }
     steps:
       - run:
           name: Install Python dependencies
           command: python -m pip install -U nox pip uv
           no_output_timeout: 5m
-
-      - steps: <<parameters.prepare>>
 
       - run:
           name: "Run nox session: <<parameters.session>>"
@@ -286,6 +283,13 @@ jobs:
       - install_rust
       - install_extras:
           enabled: <<parameters.install_extras>>
+
+      - when:
+          condition:
+            equal: ["local-testcontainer", <<parameters.executor_name>>]
+          steps:
+            - connect-to-local-testcontainer
+
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
@@ -525,7 +529,6 @@ workflows:
           codecov_flags: system
           parallelism: 8
           executor_name: local-testcontainer
-          prepare: [connect-to-local-testcontainer]
 
           filters:
             branches:
@@ -542,7 +545,6 @@ workflows:
           codecov_flags: system
           parallelism: 8
           executor_name: local-testcontainer
-          prepare: [connect-to-local-testcontainer]
 
           filters:
             branches:
@@ -561,7 +563,6 @@ workflows:
           codecov_flags: system
           parallelism: 1
           executor_name: local-testcontainer
-          prepare: [connect-to-local-testcontainer]
 
           matrix:
             parameters:
@@ -576,7 +577,6 @@ workflows:
           codecov_flags: func
           parallelism: 1
           executor_name: local-testcontainer
-          prepare: [connect-to-local-testcontainer]
 
           filters:
             branches:
@@ -596,7 +596,6 @@ workflows:
           codecov_flags: func
           parallelism: 1
           executor_name: local-testcontainer
-          prepare: [connect-to-local-testcontainer]
           install_extras: true
 
           filters:
