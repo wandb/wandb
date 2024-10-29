@@ -47,7 +47,7 @@ from .lib.mailbox import Mailbox, MailboxProgress
 from .lib.wburls import wburls
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
-from .wandb_settings import Settings, Source
+from .wandb_settings import Settings
 
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2 as pb

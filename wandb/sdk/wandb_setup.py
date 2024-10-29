@@ -11,6 +11,8 @@ run_id can be resolved.
 
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import sys
@@ -87,19 +89,19 @@ class _WandbSetup__WandbSetup:  # noqa: N801
     def __init__(
         self,
         pid: int,
-        settings: Optional[Settings] = None,
-        environ: Optional[Dict[str, Any]] = None,
+        settings: dict | None = None,
+        environ: dict | None = None,
     ) -> None:
-        self._connection: Optional[service_connection.ServiceConnection] = None
+        self._connection: service_connection.ServiceConnection | None = None
 
         self._environ = environ or dict(os.environ)
-        self._sweep_config: Optional[Dict[str, Any]] = None
-        self._config: Optional[Dict[str, Any]] = None
-        self._server: Optional[server.Server] = None
+        self._sweep_config: dict | None = None
+        self._config: dict | None = None
+        self._server: server.Server | None = None
         self._pid = pid
 
         # keep track of multiple runs, so we can unwind with join()s
-        self._global_run_stack: List[wandb_run.Run] = []
+        self._global_run_stack: list[wandb_run.Run] = []
 
         # TODO(jhr): defer strict checks until settings are fully initialized
         #            and logging is ready
@@ -114,29 +116,40 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         self._check()
         self._setup()
 
-        tracelog_mode = self._settings._tracelog
-        if tracelog_mode:
-            tracelog.enable(tracelog_mode)
-
     def _settings_setup(
         self,
-        settings: Optional[Settings] = None,
-        early_logger: Optional[_EarlyLogger] = None,
-    ) -> "wandb_settings.Settings":
+        settings: dict | None = None,
+        early_logger: _EarlyLogger | None = None,
+    ) -> wandb_settings.Settings:
         s = wandb_settings.Settings()
-        s._apply_base(pid=self._pid, _logger=early_logger)
-        s._apply_config_files(_logger=early_logger)
-        s._apply_env_vars(self._environ, _logger=early_logger)
 
-        if isinstance(settings, wandb_settings.Settings):
-            s._apply_settings(settings, _logger=early_logger)
-        elif isinstance(settings, dict):
-            # if passed settings arg is a mapping, update the settings with it
-            s._apply_setup(settings, _logger=early_logger)
+        # the pid of the process to monitor for system stats
+        pid = os.getpid()
+        if early_logger:
+            early_logger.info(f"Current SDK version is {wandb.__version__}")
+            early_logger.info(f"Configure stats pid to {pid}")
+        s.x_stats_pid = pid
 
-        s._infer_settings_from_environment()
-        if not s._cli_only_mode:
-            s._infer_run_settings_from_environment(_logger=early_logger)
+        # load settings from the system config
+        if s.settings_system and early_logger:
+            early_logger.info(f"Loading settings from {s.settings_system}")
+        s.from_system_config_file()
+
+        # load settings from the workspace config
+        if s.settings_workspace and early_logger:
+            early_logger.info(f"Loading settings from {s.settings_workspace}")
+        s.from_workspace_config_file()
+
+        # load settings from the environment variables
+        if early_logger:
+            early_logger.info("Loading settings from environment variables")
+        s.from_env_vars(self._environ)
+
+        # load settings from the setup settings
+        s.from_settings(settings)
+
+        # infer settings from the system environment
+        s.from_system_environment()
 
         return s
 
@@ -248,7 +261,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             print("frozen, could be trouble")
 
     def _setup(self) -> None:
-        if not self._settings._noop and not self._settings._disable_service:
+        if not self._settings._noop and not self._settings.x_disable_service:
             from wandb.sdk.lib import service_connection
 
             self._connection = service_connection.connect_to_service(self._settings)

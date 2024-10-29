@@ -134,20 +134,13 @@ class _WandbLogin:
         """Updates login-related settings on the global setup object."""
         self._relogin = relogin
 
-        # built up login settings
-        login_settings: Settings = wandb.Settings()
-        logger = wandb.setup()._get_logger()
-
-        login_settings._apply_login(
-            {
-                "anonymous": anonymous,
-                "key": key,
-                "host": host,
-                "force": force,
-                "timeout": timeout,
-            },
-            _logger=logger,
-        )
+        login_settings = {
+            "anonymous": anonymous,
+            "api_key": key,
+            "base_url": host,
+            "force": force,
+            "login_timeout": timeout,
+        }
 
         # make sure they are applied globally
         self._wl = wandb.setup(settings=login_settings)

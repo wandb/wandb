@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import configparser
 import datetime
+import getpass
 import logging
 import multiprocessing
 import os
 import platform
+import shutil
+import socket
 import sys
 import tempfile
 import time
-from typing import Literal, Sequence
+from typing import Any, Literal, Mapping, Sequence
 from urllib.parse import quote, unquote, urlencode
 
 from pydantic import (
@@ -20,11 +24,13 @@ from pydantic import (
     model_validator,
 )
 
+import wandb
 from wandb import termwarn, util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
 
 from .lib import apikey, credentials, ipython
+from .lib.gitlib import GitRepo
 from .lib.run_moment import RunMoment
 
 
@@ -131,6 +137,8 @@ class Settings(BaseModel, validate_assignment=True):
     x_disable_viewer: bool = False
     # Disable automatic machine info collection
     x_disable_machine_info: bool = False
+    # Python executable
+    x_executable: str | None = None
     x_extra_http_headers: dict[str, str] | None = None
     # max size for filestream requests in core
     x_file_stream_max_bytes: int | None = None
@@ -195,7 +203,6 @@ class Settings(BaseModel, validate_assignment=True):
     # can be accessed via wandb._system_metrics
     x_stats_buffer_size: int = 0
     x_sync: bool = False
-    x_tracelog: str | None = None
 
     # Model validator to catch legacy settings.
     @model_validator(mode="before")
@@ -428,24 +435,8 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field
     @property
-    def _code_path_local(self) -> str:
-        if not self.program:
-            return None
-
-        root = os.getcwd()
-        if not root:
-            return None
-
-        full_path_to_program = os.path.join(
-            root, os.path.relpath(os.getcwd(), root), self.program
-        )
-        if os.path.exists(full_path_to_program):
-            relative_path = os.path.relpath(full_path_to_program, start=root)
-            if "../" in relative_path:
-                return None
-            return relative_path
-
-        return None
+    def _code_path_local(self) -> str | None:
+        return self._get_program_relpath()
 
     @computed_field
     @property
@@ -523,7 +514,7 @@ class Settings(BaseModel, validate_assignment=True):
     def colab_url(self) -> AnyHttpUrl | None:
         if not self._colab:
             return None
-        if self._jupyter_path and self._jupyter_path.startswith("fileId="):
+        if self.x_jupyter_path and self.x_jupyter_path.startswith("fileId="):
             unescaped = unquote(self._jupyter_path)
             return "https://colab.research.google.com/notebook#" + unescaped
         return None
@@ -666,9 +657,167 @@ class Settings(BaseModel, validate_assignment=True):
         return os.path.expanduser(path)
 
     # TODO: Methods to collect settings from different sources.
-    def from_env(self): ...
+    def from_system_config_file(self):
+        if not self.settings_system or not os.path.exists(self.settings_system):
+            return
+        for key, value in self._load_config_file(self.settings_system).items():
+            if value is not None:
+                setattr(self, key, value)
+
+    def from_workspace_config_file(self):
+        if not self.settings_workspace or not os.path.exists(self.settings_workspace):
+            return
+        for key, value in self._load_config_file(self.settings_workspace).items():
+            if value is not None:
+                setattr(self, key, value)
+
+    def from_env_vars(self, environ: dict[str, Any]):
+        env_prefix: str = "WANDB_"
+        special_env_var_names = {
+            "WANDB_DISABLE_SERVICE": "x_disable_service",
+            "WANDB_SERVICE_TRANSPORT": "x_service_transport",
+            "WANDB_DIR": "root_dir",
+            "WANDB_NAME": "run_name",
+            "WANDB_NOTES": "run_notes",
+            "WANDB_TAGS": "run_tags",
+            "WANDB_JOB_TYPE": "run_job_type",
+            "WANDB_HTTP_TIMEOUT": "x_graphql_timeout_seconds",
+            "WANDB_FILE_PUSHER_TIMEOUT": "x_file_transfer_timeout_seconds",
+            "WANDB_USER_EMAIL": "email",
+        }
+        env = dict()
+        for setting, value in environ.items():
+            if not setting.startswith(env_prefix):
+                continue
+
+            if setting in special_env_var_names:
+                key = special_env_var_names[setting]
+            else:
+                # otherwise, strip the prefix and convert to lowercase
+                key = setting[len(env_prefix) :].lower()
+
+            if key in self.__dict__:
+                if key in ("ignore_globs", "run_tags"):
+                    value = value.split(",")
+                env[key] = value
+
+        for key, value in env.items():
+            if value is not None:
+                setattr(self, key, value)
+
+    def from_settings(self, settings: Mapping[str, Any]):
+        print(settings)
+        for key, value in dict(settings).items():
+            if value is not None:
+                setattr(self, key, value)
+
+    def from_system_environment(self):
+        # For code saving, only allow env var override if value from server is true, or
+        # if no preference was specified.
+        if (self.save_code is True or self.save_code is None) and (
+            os.getenv(wandb.env.SAVE_CODE) is not None
+            or os.getenv(wandb.env.DISABLE_CODE) is not None
+        ):
+            self.save_code = wandb.env.should_save_code()
+
+        self.disable_git = wandb.env.disable_git()
+
+        # Attempt to get notebook information if not already set by the user
+        if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
+            meta = wandb.jupyter.notebook_metadata(self.silent)  # type: ignore
+            self._jupyter_path = meta.get("path")
+            self._jupyter_name = meta.get("name")
+            self._jupyter_root = meta.get("root")
+        elif (
+            self._jupyter
+            and self.notebook_name is not None
+            and os.path.exists(self.notebook_name)
+        ):
+            self._jupyter_path = self.notebook_name
+            self._jupyter_name = self.notebook_name
+            self._jupyter_root = os.getcwd()
+        elif self._jupyter:
+            wandb.termwarn(
+                "WANDB_NOTEBOOK_NAME should be a path to a notebook file, "
+                f"couldn't find {self.notebook_name}.",
+            )
+
+        # host and username are populated by apply_env_vars if corresponding env
+        # vars exist -- but if they don't, we'll fill them in here
+        if self.host is None:
+            self.host = socket.gethostname()  # type: ignore
+
+        if self.username is None:
+            try:  # type: ignore
+                self.username = getpass.getuser()
+            except KeyError:
+                # getuser() could raise KeyError in restricted environments like
+                # chroot jails or docker containers. Return user id in these cases.
+                self.username = str(os.getuid())
+
+        _executable = (
+            self.x_executable
+            or os.environ.get(wandb.env._EXECUTABLE)
+            or sys.executable
+            or shutil.which("python3")
+            or "python3"
+        )
+        self.x_executable = _executable
+
+        self.docker = wandb.env.get_docker(wandb.util.image_id_from_k8s())
+
+        if not self.x_cli_only_mode:
+            return
+
+        # proceed if not in CLI mode
+
+        if self.program is not None:
+            repo = GitRepo()
+            root = repo.root or os.getcwd()
+
+            self.program_relpath = self.program_relpath or self._get_program_relpath(
+                repo.root
+            )
+            program_abspath = os.path.abspath(
+                os.path.join(root, os.path.relpath(os.getcwd(), root), self.program)
+            )
+            if os.path.exists(program_abspath):
+                self.program_abspath = program_abspath
+        else:
+            self.program = "<python with no main file>"
 
     # Helper methods.
+    def _get_program_relpath(self, root: str | None = None) -> str | None:
+        if not self.program:
+            return None
+
+        root = root or os.getcwd()
+        if not root:
+            return None
+
+        full_path_to_program = os.path.join(
+            root, os.path.relpath(os.getcwd(), root), self.program
+        )
+        if os.path.exists(full_path_to_program):
+            relative_path = os.path.relpath(full_path_to_program, start=root)
+            if "../" in relative_path:
+                return None
+            return relative_path
+
+        return None
+
+    @staticmethod
+    def _load_config_file(file_name: str, section: str = "default") -> dict:
+        parser = configparser.ConfigParser()
+        parser.add_section(section)
+        parser.read(file_name)
+        config: dict[str, Any] = dict()
+        for k in parser[section]:
+            config[k] = parser[section][k]
+            if k == "ignore_globs":
+                config[k] = config[k].split(",")
+        return config
+
     @staticmethod
     def _path_convert(*args: str) -> str:
         """Join path and apply os.path.expanduser to it."""
