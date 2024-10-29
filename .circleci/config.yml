@@ -121,7 +121,7 @@ commands:
           command: python -m pip install -U pip uv
       - run:
           name: Install tool dependencies
-          command: uv pip install -r requirements_dev.txt
+          command: uv pip install --system -r requirements_dev.txt
       - run:
           name: Connect to local-testcontainer
           command: |
