@@ -1,12 +1,3 @@
-# Wandb Rust Client (Experimental)
-
-This is an experimental Rust client for [Weights & Biases](https://wandb.ai/), the AI developer platform.
-
-## Example
-
-Below is an example demonstrating how to use the client:
-
-```rust
 use std::collections::HashMap;
 use wandb;
 
@@ -21,4 +12,3 @@ fn main() {
     run.log(data);
     run.finish();
 }
-```
