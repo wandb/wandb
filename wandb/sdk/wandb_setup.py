@@ -23,7 +23,7 @@ import wandb
 from wandb.sdk.lib import import_hooks
 
 from . import wandb_settings
-from .lib import config_util, server, tracelog
+from .lib import config_util, server
 
 Settings = Union["wandb.sdk.wandb_settings.Settings", Dict[str, Any]]
 
@@ -189,7 +189,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         return logger
 
     @property
-    def settings(self) -> "wandb_settings.Settings":
+    def settings(self) -> wandb_settings.Settings:
         return self._settings
 
     def _get_entity(self) -> Optional[str]:
@@ -299,7 +299,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             sys.exit(internal_exit_code)
 
     @property
-    def service(self) -> "Optional[service_connection.ServiceConnection]":
+    def service(self) -> Optional[service_connection.ServiceConnection]:
         """Returns a connection to the service process, if it exists."""
         return self._connection
 
@@ -311,7 +311,7 @@ class _WandbSetup:
     (Forked processes will get a new copy of the object)
     """
 
-    _instance: Optional["_WandbSetup__WandbSetup"] = None
+    _instance: Optional[_WandbSetup__WandbSetup] = None
 
     def __init__(self, settings: Optional[Settings] = None) -> None:
         pid = os.getpid()
@@ -321,7 +321,7 @@ class _WandbSetup:
         _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid)
 
     @property
-    def service(self) -> "Optional[service_connection.ServiceConnection]":
+    def service(self) -> Optional[service_connection.ServiceConnection]:
         """Returns a connection to the service process, if it exists."""
         if not self._instance:
             return None
@@ -334,7 +334,7 @@ class _WandbSetup:
 def _setup(
     settings: Optional[Settings] = None,
     _reset: bool = False,
-) -> Optional["_WandbSetup"]:
+) -> Optional[_WandbSetup]:
     """Set up library context."""
     if _reset:
         teardown()
@@ -344,7 +344,7 @@ def _setup(
     return wl
 
 
-def setup(settings: Optional[Settings] = None) -> Optional["_WandbSetup"]:
+def setup(settings: Optional[Settings] = None) -> Optional[_WandbSetup]:
     """Prepares W&B for use in the current process and its children.
 
     You can usually ignore this as it is implicitly called by `wandb.init()`.
