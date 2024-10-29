@@ -25,11 +25,8 @@ def parse_s3_url_to_s3_uri(url) -> str:
         raise ValueError("Invalid S3 URL")
 
     # Extract bucket name and key
-    bucket_name = match.group(1)
-    key = match.group(3)
-
-    # Remove query parameters from the key
-    key = key.split("?")[0]
+    bucket_name, *_ = parsed_url.netloc.split(".")
+    key = parsed_url.path.lstrip("/")
 
     # Construct the S3 URI
     s3_uri = f"s3://{bucket_name}/{key}"
