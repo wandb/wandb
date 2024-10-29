@@ -1380,7 +1380,7 @@ class Api:
     def _parse_org_from_registry_path(
         self, entity: str, project: str, path: str
     ) -> str:
-        """TODO: add docstring"""
+        # TODO: add docstring
         if not is_artifact_registry_project(project):
             return ""
         if path.startswith(f"{entity}/{project}/") or path == f"{entity}/{project}":

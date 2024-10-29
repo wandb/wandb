@@ -26,12 +26,12 @@ from dockerpycreds.utils import find_executable
 import wandb
 import wandb.env
 import wandb.errors
-from wandb.sdk.artifacts._validators import is_artifact_registry_project
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
 from wandb.integration.magic import magic_install
+from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch._launch_add import _launch_add
