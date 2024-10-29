@@ -3529,7 +3529,7 @@ class Api:
         link_artifact: Dict[str, Any] = response["linkArtifact"]
         return link_artifact
 
-    def _resolve_org_entity_name(self, entity: str, organization: str = "") -> str:
+    def _resolve_org_entity_name(self, entity: str, org: str = "") -> str:
         # resolveOrgEntityName fetches the portfolio's org entity's name.
         #
         # The organization parameter may be empty, an org's display name, or an org entity name.
@@ -3540,7 +3540,7 @@ class Api:
         # either the org's display or entity name.
         org_fields = self.server_organization_type_introspection()
         can_fetch_org_entity = "orgEntity" in org_fields
-        if not organization and not can_fetch_org_entity:
+        if not org and not can_fetch_org_entity:
             raise ValueError(
                 "Fetching Registry projects and artifacts without inputting an organization "
                 "is unavailable for your server version. "
@@ -3549,14 +3549,30 @@ class Api:
         if not can_fetch_org_entity:
             # Server doesn't support fetching org entity to validate,
             # assume org entity is correctly inputted
-            return organization
+            return org
+        org_entity, org_name, is_personal_entity = self.fetch_org_entity_from_entity(
+            entity
+        )
+        if is_personal_entity and org:
+            wandb.termwarn(
+                "TODO: make this warning better. Using personal entity and assuming the organization is an org entity"
+            )
+            return org
+        elif is_personal_entity:
+            raise ValueError(
+                f"Unable to resolve an organization associated with the entity: {entity!r} "
+                "that is initialized in the API or Run settings. This could be because "
+                f"{entity!r} is a personal entity or the team entity doesn't exist. "
+                "Please re-initialize the API or Run with a team entity using "
+                "wandb.Api(overrides={'entity': '<my_team_entity>'}) "
+                "or wandb.init(entity='<my_team_entity>') "
+            )
 
-        org_entity, org_name = self.fetch_org_entity_from_entity(entity)
-        if organization:
-            if organization != org_name and organization != org_entity:
+        if org:
+            if org != org_name and org != org_entity:
                 raise ValueError(
                     f"Artifact or project belongs to the organization {org_name!r} "
-                    f"and cannot be linked/fetched with {organization!r}. "
+                    f"and cannot be linked/fetched with {org!r}. "
                     "Please update the target path with the correct organization name."
                 )
             wandb.termwarn(
@@ -3565,7 +3581,7 @@ class Api:
             )
         return org_entity
 
-    def fetch_org_entity_from_entity(self, entity: str) -> Tuple[str, str]:
+    def fetch_org_entity_from_entity(self, entity: str) -> Tuple[str, str, bool]:
         query = gql(
             """
             query FetchOrgEntityFromEntity(
@@ -3589,13 +3605,15 @@ class Api:
                 "entityName": entity,
             },
         )
+        is_personal_entity = not response["entity"].get("isTeam", False)
+        if is_personal_entity:
+            return "", "", is_personal_entity
         try:
-            is_team = response["entity"].get("isTeam", False)
             org = response["entity"]["organization"]
             org_name = org["name"] or ""
             org_entity_name = org["orgEntity"]["name"] or ""
         except (LookupError, TypeError) as e:
-            if is_team:
+            if not is_personal_entity:
                 # This path should pretty much never be reached as all team entities have an organization.
                 raise ValueError(
                     f"Unable to find an organization under entity {entity!r}. "
@@ -3610,7 +3628,7 @@ class Api:
                     "or wandb.init(entity='<my_team_entity>') "
                 ) from e
         else:
-            return org_entity_name, org_name
+            return org_entity_name, org_name, is_personal_entity
 
     def use_artifact(
         self,

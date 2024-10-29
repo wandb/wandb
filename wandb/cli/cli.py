@@ -26,6 +26,7 @@ from dockerpycreds.utils import find_executable
 import wandb
 import wandb.env
 import wandb.errors
+from wandb.sdk.artifacts._validators import is_artifact_registry_project
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
@@ -2329,7 +2330,10 @@ def put(
     if name is None:
         name = os.path.basename(path)
     public_api = PublicApi()
-    org, entity, project, artifact_name = public_api._parse_artifact_path(name)
+    entity, project, artifact_name = public_api._parse_artifact_path(name)
+    org = ""
+    if is_artifact_registry_project(project):
+        org = public_api._parse_org_from_registry_path(entity, name)
     if project is None:
         project = click.prompt("Enter the name of the project you want to use")
     # TODO: settings nightmare...
@@ -2380,7 +2384,10 @@ def put(
 @display_error
 def get(path, root, type):
     public_api = PublicApi()
-    org, entity, project, artifact_name = public_api._parse_artifact_path(path)
+    entity, project, artifact_name = public_api._parse_artifact_path(path)
+    org = ""
+    if is_artifact_registry_project(project):
+        org = public_api._parse_org_from_registry_path(entity, path)
     if project is None:
         project = click.prompt("Enter the name of the project you want to use")
 

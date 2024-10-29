@@ -680,22 +680,14 @@ class Api:
         )
 
     def _parse_project_path(self, path):
-        """Return project, entity, and organization for project specified by path."""
+        """Return project and entity for project specified by path."""
         project = self.settings["project"] or "uncategorized"
         entity = self.settings["entity"] or self.default_entity
         if path is None:
-            return "", entity, project
+            return entity, project
         parts = path.split("/", 1)
         if len(parts) == 1:
-            return "", entity, path
-        if len(parts) == 2:
-            entity_part, project = parts
-            org, entity = (
-                (entity_part, entity)
-                if is_artifact_registry_project(project)
-                else ("", entity_part)
-            )
-            return org, entity, parts[1]
+            return entity, path
         return parts
 
     def _parse_path(self, path):
@@ -733,11 +725,11 @@ class Api:
         return entity, project, id
 
     def _parse_artifact_path(self, path):
-        """Return organization, project, entity and artifact name for project specified by path."""
+        """Return project, entity and artifact name for project specified by path."""
         project = self.settings["project"] or "uncategorized"
         entity = self.settings["entity"] or self.default_entity
         if path is None:
-            return "", entity, project
+            return entity, project
 
         path, colon, alias = path.partition(":")
         full_alias = colon + alias
@@ -746,19 +738,11 @@ class Api:
         if len(parts) > 3:
             raise ValueError("Invalid artifact path: {}".format(path))
         elif len(parts) == 1:
-            return "", entity, project, path + full_alias
+            return entity, project, path + full_alias
         elif len(parts) == 2:
-            return "", entity, parts[0], parts[1] + full_alias
-        else:
-            # If its a Registry project, the "entity" passed in is actually an org.
-            # So we don't want to override the entity with an org
-            parts_entity, project, collection = parts
-            org, entity = (
-                (parts_entity, entity)
-                if is_artifact_registry_project(project)
-                else ("", parts_entity)
-            )
-            return org, entity, project, collection + full_alias
+            return entity, parts[0], parts[1] + full_alias
+        parts[-1] += full_alias
+        return parts
 
     def projects(
         self, entity: Optional[str] = None, per_page: Optional[int] = 200
@@ -803,7 +787,7 @@ class Api:
             entity = self.settings["entity"] or self.default_entity
         # Fetch org entity for artifact registry projects
         if is_artifact_registry_project(name):
-            entity = self._fetch_org_entity_for_registry(org, entity)
+            entity = self._resolve_org_entity_name(org, entity)
         return public.Project(self.client, entity, name, {})
 
     def reports(
@@ -965,7 +949,7 @@ class Api:
         Returns:
             A `Runs` object, which is an iterable collection of `Run` objects.
         """
-        _, entity, project = self._parse_project_path(path)
+        entity, project = self._parse_project_path(path)
 
         filters = filters or {}
         key = (path or "") + str(filters) + str(order)
@@ -1063,10 +1047,13 @@ class Api:
         Returns:
             An iterable `ArtifactTypes` object.
         """
-        org, entity, project = self._parse_project_path(project)
+        project_path = project
+        entity, project = self._parse_project_path(project_path)
         # If its an Registry artifact, the entity is an org instead
         if is_artifact_registry_project(project):
-            entity = self._fetch_org_entity_for_registry(org, entity)
+            org = self._parse_org_from_registry_path(entity, project, project_path)
+            print(f"org: {org}")
+            entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
         return public.ArtifactTypes(self.client, entity, project)
 
     @normalize_exceptions
@@ -1082,10 +1069,14 @@ class Api:
         Returns:
             An `ArtifactType` object.
         """
-        org, entity, project = self._parse_project_path(project)
+        project_path = project
+        entity, project = self._parse_project_path(project_path)
+        print(f"parsed entity: {entity}, project: {project}")
         # If its an Registry artifact, the entity is an org instead
         if is_artifact_registry_project(project):
-            entity = self._fetch_org_entity_for_registry(org, entity)
+            org = self._parse_org_from_registry_path(entity, project, project_path)
+            print(f"org: {org}")
+            entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
         return public.ArtifactType(self.client, entity, project, type_name)
 
     @normalize_exceptions
@@ -1103,10 +1094,11 @@ class Api:
         Returns:
             An iterable `ArtifactCollections` object.
         """
-        organization, entity, project = self._parse_project_path(project_name)
+        entity, project = self._parse_project_path(project_name)
         # If its an Registry artifact, the entity is an org instead
         if is_artifact_registry_project(project):
-            entity = self._fetch_org_entity_for_registry(organization, entity)
+            org = self._parse_org_from_registry_path(entity, project, project_name)
+            entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
         return public.ArtifactCollections(
             self.client, entity, project, type_name, per_page=per_page
         )
@@ -1124,10 +1116,11 @@ class Api:
         Returns:
             An `ArtifactCollection` object.
         """
-        org, entity, project, collection_name = self._parse_artifact_path(name)
+        entity, project, collection_name = self._parse_artifact_path(name)
         # If its an Registry artifact(under org entities), fetch org entity for user
         if is_artifact_registry_project(project):
-            entity = self._fetch_org_entity_for_registry(org, entity)
+            org = self._parse_org_from_registry_path(entity, project, name)
+            entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
         return public.ArtifactCollection(
             self.client, entity, project, collection_name, type_name
         )
@@ -1164,10 +1157,11 @@ class Api:
         Returns:
             An iterable `Artifacts` object.
         """
-        org, entity, project, collection_name = self._parse_artifact_path(name)
+        entity, project, collection_name = self._parse_artifact_path(name)
         # If its an Registry artifact(under org entities), fetch org entity for user
         if is_artifact_registry_project(project):
-            entity = self._fetch_org_entity_for_registry(org, entity)
+            org = self._parse_org_from_registry_path(entity, project, name)
+            entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
 
         return public.Artifacts(
             self.client,
@@ -1196,11 +1190,12 @@ class Api:
         """
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
-        org, entity, project, artifact_name = self._parse_artifact_path(name)
+        entity, project, artifact_name = self._parse_artifact_path(name)
 
         # If its an Registry artifact(under org entities), fetch org entity for user
         if is_artifact_registry_project(project):
-            entity = self._fetch_org_entity_for_registry(org, entity)
+            org = self._parse_org_from_registry_path(entity, project, name)
+            entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
 
         artifact = wandb.Artifact._from_name(
             entity, project, artifact_name, self.client
@@ -1211,38 +1206,38 @@ class Api:
             )
         return artifact
 
-    def _fetch_org_entity_for_registry(self, organization: str, entity: str) -> str:
-        """Returns the org entity of an entity and validates the organization passed in is in the same org as the entity.
+    # def _fetch_org_entity_for_registry(self, organization: str, entity: str) -> str:
+    #     """Returns the org entity of an entity and validates the organization passed in is in the same org as the entity.
 
-        Arguments:
-            organization: (str) Organization or org entity name, possibly an empty string.
-            entity: (str) Entity of the Registry, used to fetch the org entity as well as
-                validate the organization passed in belongs to the same org as the org entity.
+    #     Arguments:
+    #         organization: (str) Organization or org entity name, possibly an empty string.
+    #         entity: (str) Entity of the Registry, used to fetch the org entity as well as
+    #             validate the organization passed in belongs to the same org as the org entity.
 
-        Returns:
-            org_entity (str) The org entity of the entity.
-        """
-        try:
-            org_entity = InternalApi()._resolve_org_entity_name(entity, organization)
-        except ValueError as entity_error:
-            if not organization or organization == entity:
-                wandb.termerror(str(entity_error))
-                raise
+    #     Returns:
+    #         org_entity (str) The org entity of the entity.
+    #     """
+    #     try:
+    #         org_entity = InternalApi()._resolve_org_entity_name(entity, organization)
+    #     except ValueError as entity_error:
+    #         if not organization or organization == entity:
+    #             wandb.termerror(str(entity_error))
+    #             raise
 
-            # Try to resolve the organization using an org entity.
-            try:
-                org_entity = InternalApi()._resolve_org_entity_name(
-                    organization, organization
-                )
-            except ValueError as org_error:
-                wandb.termerror(
-                    f"Error resolving organization of entity: {entity!r}. Failed with error: {entity_error!r}."
-                )
-                wandb.termerror(
-                    f"Defaulted to use {organization!r} as an org entity to resolve organization. Failed with error: {org_error!r}."
-                )
-                raise
-        return org_entity
+    #         # Try to resolve the organization using an org entity.
+    #         try:
+    #             org_entity = InternalApi()._resolve_org_entity_name(
+    #                 organization, organization
+    #             )
+    #         except ValueError as org_error:
+    #             wandb.termerror(
+    #                 f"Error resolving organization of entity: {entity!r}. Failed with error: {entity_error!r}."
+    #             )
+    #             wandb.termerror(
+    #                 f"Defaulted to use {organization!r} as an org entity to resolve organization. Failed with error: {org_error!r}."
+    #             )
+    #             raise
+    #     return org_entity
 
     @normalize_exceptions
     def job(self, name: Optional[str], path: Optional[str] = None) -> "public.Job":
@@ -1381,3 +1376,13 @@ class Api:
             return True
         except wandb.errors.CommError:
             return False
+
+    def _parse_org_from_registry_path(
+        self, entity: str, project: str, path: str
+    ) -> str:
+        """TODO: add docstring"""
+        if not is_artifact_registry_project(project):
+            return ""
+        if path.startswith(f"{entity}/{project}/") or path == f"{entity}/{project}":
+            return entity
+        return ""
