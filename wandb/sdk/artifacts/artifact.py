@@ -242,8 +242,8 @@ class Artifact:
         query_vars = ["$entityName: String!", "$projectName: String!", "$name: String!"]
         query_args = ["name: $name"]
         if server_supports_enabling_artifact_usage_tracking:
-            query_vars = [*query_vars, "$enableTracking: Boolean"]
-            query_args = [*query_args, "enableTracking: $enableTracking"]
+            query_vars.append("$enableTracking: Boolean")
+            query_args.append("enableTracking: $enableTracking")
 
         vars_str = ", ".join(query_vars)
         args_str = ", ".join(query_args)

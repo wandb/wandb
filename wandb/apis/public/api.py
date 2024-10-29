@@ -1170,10 +1170,10 @@ class Api:
         return artifact
 
     @normalize_exceptions
-    def artifact(self, name, type=None):
+    def artifact(self, name: str, type: Optional[str] = None):
         """Return a single artifact by parsing path in the form `project/name` or `entity/project/name`.
 
-        Arguments:
+        Args:
             name: (str) An artifact name. May be prefixed with project/ or entity/project/.
                     If no entity is specified in the name, the Run or API setting's entity is used.
                 Valid names can be in the following forms:
@@ -1182,7 +1182,11 @@ class Api:
             type: (str, optional) The type of artifact to fetch.
 
         Returns:
-            A `Artifact` object.
+            An `Artifact` object.
+
+        Raises:
+            ValueError: If the artifact name is not specified.
+            ValueError: If the artifact type is specified but does not match the type of the fetched artifact.
         """
         return self._artifact(name=name, type=type, enable_tracking=True)
 
