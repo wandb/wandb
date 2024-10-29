@@ -1187,6 +1187,9 @@ class Api:
         Raises:
             ValueError: If the artifact name is not specified.
             ValueError: If the artifact type is specified but does not match the type of the fetched artifact.
+
+        Note:
+        This method is intended for external use only. Do not call `api.artifact()` within the wandb repository code.
         """
         return self._artifact(name=name, type=type, enable_tracking=True)
 
