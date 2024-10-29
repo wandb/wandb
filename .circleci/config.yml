@@ -117,6 +117,12 @@ commands:
     description: Make tests use a running local-testcontainer.
     steps:
       - run:
+          name: Upgrade pip and uv
+          command: python -m pip install -U pip uv
+      - run:
+          name: Install tool dependencies
+          command: uv pip install -r requirements_dev.txt
+      - run:
           name: Connect to local-testcontainer
           command: |
             python tools/local_wandb_server.py start ci \
