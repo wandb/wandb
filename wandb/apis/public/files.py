@@ -142,7 +142,7 @@ class File(Attrs):
             path_uri = utils.parse_s3_url_to_s3_uri(self._attrs["directUrl"])
         except ValueError:
             wandb.termwarn("path_uri is only available for files stored in S3")
-        except KeyError:
+        except LookupError:
             wandb.termwarn("Unable to find direct_url of file")
         return path_uri
 
