@@ -117,7 +117,7 @@ class File(Attrs):
         mimetype (string): mimetype of file
         updated_at (string): timestamp of last update
         size (int): size of file in bytes
-        path_uri (str): path to file in the bucket, currently only available for artifacts stored in S3
+        path_uri (str): path to file in the bucket, currently only available for files stored in S3
     """
 
     def __init__(self, client, attrs):
