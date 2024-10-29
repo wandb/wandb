@@ -3557,6 +3557,14 @@ class Api:
             wandb.termwarn(
                 "TODO: make this warning better. Using personal entity and assuming the organization is an org entity"
             )
+            try:
+                org_entity, org_name, is_personal_entity = (
+                    self.fetch_org_entity_from_entity(org)
+                )
+            except ValueError:
+                wandb.termerror(
+                    f"Unable to resolve an organization associated with the entity: {org!r} "
+                )
             return org
         elif is_personal_entity:
             raise ValueError(
