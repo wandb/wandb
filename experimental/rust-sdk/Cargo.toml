@@ -1,0 +1,13 @@
+[package]
+name = "wandb"
+version = "0.18.7-alpha.1"
+edition = "2021"
+description = "Weights & Biases Rust SDK"
+license = "MIT"
+repository = "https://github.com/wandb/wandb"
+authors = ["Dima Duev <dima@wandb.com>", "Katia Patkin <katia@wandb.com>"]
+readme = "README.md"
+
+
+[lib]
+path = "src/lib.rs"
