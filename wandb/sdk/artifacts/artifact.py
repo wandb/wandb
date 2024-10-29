@@ -283,15 +283,17 @@ class Artifact:
                         f"Defaulted to use {organization!r} as an org entity to resolve organization. Failed with error: {org_error!r}."
                     )
                     raise
+        query_variable_values = {
+            "entityName": entity,
+            "projectName": project,
+            "name": name,
+        }
+        if server_supports_enabling_artifact_usage_tracking:
+            query_variable_values["enableTracking"] = enable_tracking
 
         response = client.execute(
             query,
-            variable_values={
-                "entityName": entity,
-                "projectName": project,
-                "name": name,
-                "enableTracking": enable_tracking,
-            },
+            variable_values=query_variable_values,
         )
         project_attrs = response.get("project")
         if not project_attrs:
