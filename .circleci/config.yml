@@ -127,8 +127,8 @@ commands:
           command: |
             python tools/local_wandb_server.py start ci \
               --hostname localhost \
-              --base_port 8080 \
-              --fixture_port 9015
+              --base-port 8080 \
+              --fixture-port 9015
 
   install_go:
     description: "Install Go with the specified version and system"
