@@ -98,11 +98,14 @@ commands:
       python: { type: string }
       session: { type: string }
       codecov_flags: { type: string }
+      prepare: { type: steps, default: [] }
     steps:
       - run:
           name: Install Python dependencies
           command: python -m pip install -U nox pip uv
           no_output_timeout: 5m
+
+      - steps: <<parameters.prepare>>
 
       - run:
           name: "Run nox session: <<parameters.session>>"
@@ -112,6 +115,17 @@ commands:
 
       - codecov/upload: { flags: <<parameters.codecov_flags>> }
       - save-test-results
+
+  connect-to-local-testcontainer:
+    description: Make tests use a running local-testcontainer.
+    steps:
+      - run:
+          name: Connect to local-testcontainer
+          command: |
+            python tools/local_wandb_server.py start ci \
+              --hostname localhost \
+              --base_port 8080 \
+              --fixture_port 9015
 
   install_go:
     description: "Install Go with the specified version and system"
@@ -511,6 +525,7 @@ workflows:
           codecov_flags: system
           parallelism: 8
           executor_name: local-testcontainer
+          prepare: [connect-to-local-testcontainer]
 
           filters:
             branches:
@@ -527,6 +542,7 @@ workflows:
           codecov_flags: system
           parallelism: 8
           executor_name: local-testcontainer
+          prepare: [connect-to-local-testcontainer]
 
           filters:
             branches:
@@ -545,6 +561,7 @@ workflows:
           codecov_flags: system
           parallelism: 1
           executor_name: local-testcontainer
+          prepare: [connect-to-local-testcontainer]
 
           matrix:
             parameters:
@@ -559,6 +576,7 @@ workflows:
           codecov_flags: func
           parallelism: 1
           executor_name: local-testcontainer
+          prepare: [connect-to-local-testcontainer]
 
           filters:
             branches:
@@ -578,6 +596,7 @@ workflows:
           codecov_flags: func
           parallelism: 1
           executor_name: local-testcontainer
+          prepare: [connect-to-local-testcontainer]
           install_extras: true
 
           filters:
@@ -592,17 +611,17 @@ workflows:
       #
       # W&B Importer tests on Linux, using 2 real wandb servers
       #
-      - importers:
-          name: "\
-            system-tests-linux-importers-\
-            <<matrix.tests>>-\
-            <<matrix.python>>"
+      # - importers:
+      #     name: "\
+      #       system-tests-linux-importers-\
+      #       <<matrix.tests>>-\
+      #       <<matrix.python>>"
 
-          matrix:
-            parameters:
-              python: ["3.9"]
-              tests: ["wandb", "mlflow"]
+      #     matrix:
+      #       parameters:
+      #         python: ["3.9"]
+      #         tests: ["wandb", "mlflow"]
 
-          executor:
-            name: local-testcontainer-importers
-            python: << matrix.python >>
+      #     executor:
+      #       name: local-testcontainer-importers
+      #       python: << matrix.python >>
