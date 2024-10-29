@@ -283,7 +283,7 @@ class Artifact:
                         f"Defaulted to use {organization!r} as an org entity to resolve organization. Failed with error: {org_error!r}."
                     )
                     raise
-        query_variable_values = {
+        query_variable_values: dict[str, Any] = {
             "entityName": entity,
             "projectName": project,
             "name": name,
