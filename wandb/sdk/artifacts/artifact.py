@@ -1446,7 +1446,7 @@ class Artifact:
         val = obj.to_json(self)
         name = obj.with_suffix(name)
         entry = self.manifest.get_entry_by_path(name)
-        if (overwrite is False) and (entry is not None):
+        if (not overwrite) and (entry is not None):
             return entry
 
         if is_tmp_name:
