@@ -1,48 +1,87 @@
-from typing import Optional
+from __future__ import annotations
+
+import numbers
+from typing import Iterable, TypeVar
 
 import wandb
 from wandb import util
+from wandb.plot.viz import CustomChart
 
 from .utils import test_missing, test_types
 
+T = TypeVar("T")
+
 
 def pr_curve(
-    y_true=None,
-    y_probas=None,
-    labels=None,
-    classes_to_plot=None,
-    interp_size=21,
-    title=None,
-    split_table: Optional[bool] = False,
-):
-    """Compute the tradeoff between precision and recall for different thresholds.
+    y_true: Iterable[T] | None = None,
+    y_probas: Iterable[numbers.Number] | None = None,
+    labels: list[str] | None = None,
+    classes_to_plot: list[T] | None = None,
+    interp_size: int = 21,
+    title: str = "Precision-Recall Curve",
+    split_table: bool = False,
+) -> CustomChart:
+    """Constructs a Precision-Recall (PR) curve.
 
-    A high area under the curve represents both high recall and high precision, where
-    high precision relates to a low false positive rate, and high recall relates to a
-    low false negative rate. High scores for both show that the classifier is returning
-    accurate results (high precision), and returning a majority of all positive results
-    (high recall). PR curve is useful when the classes are very imbalanced.
+    The Precision-Recall curve is particularly useful for evaluating classifiers
+    on imbalanced datasets. A high area under the PR curve signifies both high
+    precision (a low false positive rate) and high recall (a low false negative
+    rate). The curve provides insights into the balance between false positives
+    and false negatives at various threshold levels, aiding in the assessment of
+    a model's performance.
 
     Args:
-        y_true (arr): true sparse labels y_probas (arr): Target scores, can either be
-            probability estimates, confidence values, or non-thresholded measure of
-            decisions. shape: (*y_true.shape, num_classes)
-        labels (list): Named labels for target variable (y). Makes plots easier to read
-            by replacing target values with corresponding index. For example labels =
-            ['dog', 'cat', 'owl'] all 0s are replaced by 'dog', 1s by 'cat'.
-        classes_to_plot (list): unique values of y_true to include in the plot
-        interp_size (int): the recall values will be fixed to `interp_size` points
-            uniform on [0, 1] and the precision will be interpolated for these recall
-            values.
-        split_table (bool): If True, adds "Custom Chart Tables/" to the key of the table so that it's logged in a different section.
+        y_true (Iterable): True binary labels. The shape should be (`num_samples`,).
+        y_probas (Iterable): Predicted scores or probabilities for each class.
+            These can be probability estimates, confidence scores, or non-thresholded
+            decision values. The shape should be (`num_samples`, `num_classes`).
+        labels (list[str] | None): Optional list of class names to replace
+            numeric values in `y_true` for easier plot interpretation.
+            For example, `labels = ['dog', 'cat', 'owl']` will replace 0 with
+            'dog', 1 with 'cat', and 2 with 'owl' in the plot. If not provided,
+            numeric values from `y_true` will be used.
+        classes_to_plot (list | None): Optional list of unique class values from
+            y_true to be included in the plot. If not specified, all unique
+            classes in y_true will be plotted.
+        interp_size (int): Number of points to interpolate recall values. The
+            recall values will be fixed to `interp_size` uniformly distributed
+            points in the range [0, 1], and the precision will be interpolated
+            accordingly.
+        title (str): Title of the plot. Defaults to "Precision-Recall Curve".
+        split_table (bool): Whether to split the table into a separate section
+            in the UI. Default is False.
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab under
-        'auto visualizations'.
+        CustomChart: A plot object that can be logged to W&B with `wandb.log()`.
+
+    Raises:
+        wandb.Error: If numpy, pandas, or scikit-learn is not installed.
+
 
     Example:
         ```
-        wandb.log({"pr-curve": wandb.plot.pr_curve(y_true, y_probas, labels)})
+        import wandb
+
+        # Example for spam detection (binary classification)
+        y_true = [0, 1, 1, 0, 1]  # 0 = not spam, 1 = spam
+        y_probas = [
+            [0.9, 0.1],  # Predicted probabilities for the first sample (not spam)
+            [0.2, 0.8],  # Second sample (spam), and so on
+            [0.1, 0.9],
+            [0.8, 0.2],
+            [0.3, 0.7]
+        ]
+
+        labels = ['not spam', 'spam']  # Optional class names for readability
+
+        with wandb.init(project="spam-detection") as run:
+            pr_curve = wandb.plot.pr_curve(
+                y_true=y_true,
+                y_probas=y_probas,
+                labels=labels,
+                title="Precision-Recall Curve for Spam Detection",
+            )
+            run.log({"pr-curve": pr_curve})
         ```
     """
     np = util.get_module(
@@ -80,7 +119,7 @@ def pr_curve(
     if classes_to_plot is None:
         classes_to_plot = classes
 
-    precision = dict()
+    precision = {}
     interp_recall = np.linspace(0, 1, interp_size)[::-1]
     indices_to_plot = np.where(np.isin(classes, classes_to_plot))[0]
     for i in indices_to_plot:
@@ -109,12 +148,11 @@ def pr_curve(
             "precision": np.hstack(list(precision.values())),
             "recall": np.tile(interp_recall, len(precision)),
         }
-    )
-    df = df.round(3)
+    ).round(3)
 
     if len(df) > wandb.Table.MAX_ROWS:
         wandb.termwarn(
-            "wandb uses only %d data points to create the plots." % wandb.Table.MAX_ROWS
+            f"Table has a limit of {wandb.Table.MAX_ROWS} rows. Resampling to fit."
         )
         # different sampling could be applied, possibly to ensure endpoints are kept
         df = sklearn_utils.resample(
@@ -125,12 +163,14 @@ def pr_curve(
             stratify=df["class"],
         ).sort_values(["precision", "recall", "class"])
 
-    table = wandb.Table(dataframe=df)
-    title = title or "Precision v. Recall"
-    return wandb.plot_table(
-        "wandb/area-under-curve/v0",
-        table,
-        {"x": "recall", "y": "precision", "class": "class"},
-        {"title": title},
+    return CustomChart(
+        id="wandb/area-under-curve/v0",
+        data=wandb.Table(dataframe=df),
+        fields={
+            "x": "recall",
+            "y": "precision",
+            "class": "class",
+        },
+        string_fields={"title": title},
         split_table=split_table,
     )

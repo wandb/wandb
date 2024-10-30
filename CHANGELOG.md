@@ -16,7 +16,11 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Add missing type hints of the `wandb.plot` module in the package stub (@kptkin in https://github.com/wandb/wandb/pull/8667)
 - Fix limiting azure reference artifact uploads to `max_objects` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8703)
 - Fix downloading azure reference artifacts with `skip_cache=True` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8706)
+- Fix multipart uploads for files with no content type defined in headers (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8716)
 - Fixed tensorboard failing to sync when logging batches of images. (@jacobromero in https://github.com/wandb/wandb/pull/8641)
+
+### Changed
+- Added internal method, api._artifact(), to fetch artifacts so that usage events are not created if not called by an external user. (@ibindlish in https://github.com/wandb/wandb/pull/8674)
 
 ## [0.18.5] - 2024-10-17
 
@@ -38,6 +42,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Log power on AMD MI300X series GPUs (@dmitryduev in https://github.com/wandb/wandb/pull/8630)
 - Fixed typing issue of `wandb.Api` (@bdvllrs in https://github.com/wandb/wandb/pull/8548)
+- Ensure artifact objects are fully updated on `Artifact.save()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8575)
 
 ### Changed
 

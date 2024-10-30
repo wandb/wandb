@@ -1,16 +1,11 @@
-use pyo3::prelude::*;
-
 use crate::wandb_internal::Settings as SettingsProto;
 
-#[pyclass]
 #[derive(Clone, Debug)]
 pub struct Settings {
     pub proto: SettingsProto,
 }
 
-#[pymethods]
 impl Settings {
-    #[new]
     pub fn new(
         base_url: Option<String>,
         log_dir: Option<String>,
@@ -42,52 +37,42 @@ impl Settings {
     }
 
     // TODO: auto-generate all getters and setters? tried a bunch of stuff, but no luck so far
-    #[getter]
     pub fn base_url(&self) -> String {
         self.proto.base_url.clone().unwrap()
     }
 
-    #[getter]
     pub fn run_name(&self) -> String {
         self.proto.run_name.clone().unwrap()
     }
 
-    #[getter]
     pub fn run_url(&self) -> String {
         self.proto.run_url.clone().unwrap()
     }
 
-    #[getter]
     pub fn sync_file(&self) -> String {
         self.proto.sync_file.clone().unwrap()
     }
 
-    #[getter]
     pub fn sync_dir(&self) -> String {
         self.proto.sync_dir.clone().unwrap()
     }
 
-    #[getter]
     pub fn files_dir(&self) -> String {
         self.proto.files_dir.clone().unwrap()
     }
 
-    #[getter]
     pub fn offline(&self) -> bool {
         self.proto.offline.clone().unwrap()
     }
 
-    #[getter]
     pub fn log_dir(&self) -> String {
         self.proto.log_dir.clone().unwrap()
     }
 
-    #[getter]
     pub fn project(&self) -> String {
         self.proto.project.clone().unwrap()
     }
 
-    #[setter]
     pub fn set_project(&mut self, project: String) {
         self.proto.project = Some(project);
     }
