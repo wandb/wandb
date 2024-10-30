@@ -3551,7 +3551,7 @@ class Api:
             # assume org entity is correctly inputted
             return organization
 
-        org_entity, org_name = self.fetch_org_entity_from_entity(entity)
+        org_entity, org_name = self._fetch_org_entity_from_entity(entity)
         if organization:
             if organization != org_name and organization != org_entity:
                 raise ValueError(
@@ -3565,18 +3565,34 @@ class Api:
             )
         return org_entity
 
-    def fetch_org_entity_from_entity(self, entity: str) -> Tuple[str, str]:
+    def _fetch_org_entity_from_entity(self, entity: str) -> Tuple[str, str]:
+        """Fetch the organization entity name and display name from an entity name.
+
+        Args:
+            entity (str): Entity can be a personal entity or a team entity but will fail if the personal
+                entity is in multiple or no organizations.
+
+        Returns:
+            tuple[str, str]: The organization entity name and display name.
+        """
         query = gql(
             """
             query FetchOrgEntityFromEntity(
                 $entityName: String!,
             ) {
                 entity(name: $entityName) {
-                    isTeam
                     organization {
                         name
                         orgEntity {
                             name
+                        }
+                    }
+                    user {
+                        organizations {
+                            name
+                            orgEntity {
+                                name
+                            }
                         }
                     }
                 }
@@ -3589,28 +3605,38 @@ class Api:
                 "entityName": entity,
             },
         )
-        try:
-            is_team = response["entity"].get("isTeam", False)
-            org = response["entity"]["organization"]
-            org_name = org["name"] or ""
-            org_entity_name = org["orgEntity"]["name"] or ""
-        except (LookupError, TypeError) as e:
-            if is_team:
-                # This path should pretty much never be reached as all team entities have an organization.
-                raise ValueError(
-                    f"Unable to find an organization under entity {entity!r}. "
-                ) from e
+        org_name = ""
+        org_entity_name = ""
+        if response is None:
+            raise ValueError(
+                f"Unable to find an entity with name: {entity!r}, response failed: {response}"
+            )
+        entity_resp = response["entity"]["organization"]
+        user_resp = response["entity"]["user"]
+        if entity_resp:
+            org_name = entity_resp.get("name", "")
+            if entity_resp.get("orgEntity") is not None:
+                org_entity_name = entity_resp["orgEntity"].get("name", "")
+        elif user_resp:
+            orgs = user_resp.get("organizations", [])
+            if len(orgs) == 1:
+                org = orgs[0]
+                org_name = org.get("name", "")
+                if org.get("orgEntity") is not None:
+                    org_entity_name = org["orgEntity"].get("name", "")
+                return org_entity_name, org_name
             else:
+                # This means the user is in multiple organizations so we don't know which one to use
                 raise ValueError(
-                    f"Unable to resolve an organization associated with the entity: {entity!r} "
-                    "that is initialized in the API or Run settings. This could be because "
-                    f"{entity!r} is a personal entity or the team entity doesn't exist. "
-                    "Please re-initialize the API or Run with a team entity using "
-                    "wandb.Api(overrides={'entity': '<my_team_entity>'}) "
-                    "or wandb.init(entity='<my_team_entity>') "
-                ) from e
+                    f"Unable to resolve an organization associated with the entity: {entity!r}. "
+                    "This could be because its an personal entity with multiple or no organizations. "
+                    "Please specify the organization of the Registry path or use a team entity."
+                )
         else:
-            return org_entity_name, org_name
+            raise ValueError(f"Unable to find an organization under entity {entity!r}.")
+        if org_entity_name == "" or org_name == "":
+            raise ValueError(f"Unable to find an organization under entity {entity!r}.")
+        return org_entity_name, org_name
 
     def use_artifact(
         self,
