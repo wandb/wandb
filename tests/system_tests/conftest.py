@@ -587,10 +587,10 @@ def user(user_factory, fixture_fn, use_local_wandb_backend):
 
 @pytest.fixture(scope="session")
 def wandb_backend_proxy_server(
-    base_url,
+    local_wandb_backend: LocalWandbBackendAddress,
 ) -> Generator[WandbBackendProxy, None, None]:
     """Session fixture that starts up a proxy server for the W&B backend."""
-    base_url_parsed = urllib.parse.urlparse(base_url)
+    base_url_parsed = urllib.parse.urlparse(local_wandb_backend.base_url)
 
     with spy_proxy(
         proxy_port=8000,
@@ -722,10 +722,12 @@ def wandb_init(user, test_settings, request):
 
 
 @pytest.fixture(scope="function")
-def server_context(base_url):
+def server_context(local_wandb_backend: LocalWandbBackendAddress):
     class ServerContext:
         def __init__(self) -> None:
-            self.api = wandb.Api(overrides={"base_url": base_url})
+            self.api = wandb.Api(
+                overrides={"base_url": local_wandb_backend.base_url},
+            )
 
         def get_run(self, run: "wandb.sdk.wandb_run.Run") -> "wandb.apis.public.Run":
             return self.api.run(run.path)
@@ -735,7 +737,7 @@ def server_context(base_url):
 
 # Injected responses
 @pytest.fixture(scope="function")
-def inject_file_stream_response(base_url, user):
+def inject_file_stream_response(local_wandb_backend, user):
     def helper(
         run,
         body: Union[str, Exception] = "{}",
@@ -749,7 +751,7 @@ def inject_file_stream_response(base_url, user):
             method="POST",
             url=(
                 urllib.parse.urljoin(
-                    base_url,
+                    local_wandb_backend.base_url,
                     f"/files/{user}/{run.project or 'uncategorized'}/{run.id}/file_stream",
                 )
             ),
@@ -762,7 +764,7 @@ def inject_file_stream_response(base_url, user):
 
 
 @pytest.fixture(scope="function")
-def inject_file_stream_connection_reset(base_url, user):
+def inject_file_stream_connection_reset(local_wandb_backend, user):
     def helper(
         run,
         body: Union[str, Exception] = "{}",
@@ -773,7 +775,7 @@ def inject_file_stream_connection_reset(base_url, user):
             method="POST",
             url=(
                 urllib.parse.urljoin(
-                    base_url,
+                    local_wandb_backend.base_url,
                     f"/files/{user}/{run.project or 'uncategorized'}/{run.id}/file_stream",
                 )
             ),
@@ -786,7 +788,7 @@ def inject_file_stream_connection_reset(base_url, user):
 
 
 @pytest.fixture(scope="function")
-def inject_graphql_response(base_url, user):
+def inject_graphql_response(local_wandb_backend, user):
     def helper(
         body: Union[str, Exception] = "{}",
         status: int = 200,
@@ -804,7 +806,7 @@ def inject_graphql_response(base_url, user):
         return InjectedResponse(
             # request
             method="POST",
-            url=urllib.parse.urljoin(base_url, "/graphql"),
+            url=urllib.parse.urljoin(local_wandb_backend.base_url, "/graphql"),
             custom_match_fn=match if query_match_fn else None,
             application_pattern=TokenizedCircularPattern(application_pattern),
             # response
