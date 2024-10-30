@@ -611,14 +611,14 @@ workflows:
       #
       - nox-tests-linux:
           name: system-tests-linux-importers-wandb
-          session: importer_tests(importer='wandb')
+          session: importer_tests-3.9(importer='wandb')
           codecov_flags: system
           parallelism: 1
           executor_name: local-testcontainer-importers
           python: "3.9"
       - nox-tests-linux:
           name: system-tests-linux-importers-mlflow
-          session: importer_tests(importer='mlflow')
+          session: importer_tests-3.9(importer='mlflow')
           codecov_flags: system
           parallelism: 1
           executor_name: local-testcontainer-importers
