@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"maps"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"time"
 
@@ -146,6 +147,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 	maps.Copy(manifestEntriesCopy, manifestEntries)
 
 	for numDone < len(manifestEntries) {
+		var cursor *string
 		hasNextPage := true
 		for hasNextPage {
 			// Prepare a batch
@@ -153,41 +155,86 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 			manifestEntriesBatch = manifestEntriesBatch[:0]
 			curBatchSize := 0
 			var entriesToFetch []gql.ArtifactManifestEntryInput
-			for filePath, entry := range manifestEntriesCopy {
-				if _, ok := nameToScheduledTime[filePath]; ok {
-					continue
-				}
-				if entry.Ref != nil {
-					// Reference artifacts will temporarily be handled by the python user process
-					// entry.LocalPath = &filePath
-					// nameToScheduledTime[*entry.LocalPath] = now
-					// manifestEntriesBatch = append(manifestEntriesBatch, entry)
-					numDone++
-					delete(manifestEntriesCopy, filePath)
-					continue
-				} else {
-					entryInput := gql.ArtifactManifestEntryInput{
-						Name:            filePath,
-						Digest:          entry.Digest,
-						BirthArtifactID: entry.BirthArtifactID,
-						Size:            &entry.Size,
-					}
-					entriesToFetch = append(entriesToFetch, entryInput)
-					nameToScheduledTime[*entry.LocalPath] = now
-				}
-				curBatchSize += 1
-				if curBatchSize >= batchSize {
-					break
-				}
+
+			artifactFieldNames, err := GetGraphQLFields(ad.Ctx, ad.GraphqlClient, "Artifact")
+			if err != nil {
+				return err
 			}
-			if len(entriesToFetch) > 0 {
-				entries, err := ad.getEntriesWithDownloadURLs(artifactID, entriesToFetch, manifest, manifestEntriesCopy)
+			canFetchFilesByManifestEntry := slices.Contains(artifactFieldNames, "filesByManifestEntries")
+			if canFetchFilesByManifestEntry {
+				for filePath, entry := range manifestEntriesCopy {
+					if _, ok := nameToScheduledTime[filePath]; ok {
+						continue
+					}
+					if entry.Ref != nil {
+						// Reference artifacts will temporarily be handled by the python user process
+						// entry.LocalPath = &filePath
+						// nameToScheduledTime[*entry.LocalPath] = now
+						// manifestEntriesBatch = append(manifestEntriesBatch, entry)
+						numDone++
+						delete(manifestEntriesCopy, filePath)
+						continue
+					} else {
+						entryInput := gql.ArtifactManifestEntryInput{
+							Name:            filePath,
+							Digest:          entry.Digest,
+							BirthArtifactID: entry.BirthArtifactID,
+							Size:            &entry.Size,
+						}
+						entriesToFetch = append(entriesToFetch, entryInput)
+						nameToScheduledTime[*entry.LocalPath] = now
+					}
+					curBatchSize += 1
+					if curBatchSize >= batchSize {
+						break
+					}
+				}
+				if len(entriesToFetch) > 0 {
+					entries, err := ad.getEntriesWithDownloadURLs(artifactID, entriesToFetch, manifest, manifestEntriesCopy)
+					if err != nil {
+						return err
+					}
+					manifestEntriesBatch = append(manifestEntriesBatch, entries...)
+				}
+				hasNextPage = len(manifestEntriesCopy) > 0
+			} else {
+				response, err := gql.ArtifactFileURLs(
+					ad.Ctx,
+					ad.GraphqlClient,
+					artifactID,
+					cursor,
+					&batchSize,
+				)
 				if err != nil {
 					return err
 				}
-				manifestEntriesBatch = append(manifestEntriesBatch, entries...)
+				hasNextPage = response.Artifact.Files.PageInfo.HasNextPage
+				cursor = response.Artifact.Files.PageInfo.EndCursor
+				for _, edge := range response.GetArtifact().GetFiles().Edges {
+					filePath := edge.GetNode().Name
+					entry, err := manifest.GetManifestEntryFromArtifactFilePath(filePath)
+					if err != nil {
+						return err
+					}
+
+					if _, ok := nameToScheduledTime[filePath]; ok {
+						continue
+					}
+					// Reference artifacts will temporarily be handled by the python user process
+					if entry.Ref != nil {
+						numDone++
+						continue;
+					}
+					node := edge.GetNode()
+					if node == nil {
+						return fmt.Errorf("error reading entry from fetched file urls")
+					}
+					entry.DownloadURL = &node.DirectUrl
+					entry.LocalPath = &filePath
+					nameToScheduledTime[*entry.LocalPath] = now
+					manifestEntriesBatch = append(manifestEntriesBatch, entry)
+				}
 			}
-			hasNextPage = len(manifestEntriesCopy) > 0
 
 			// Schedule downloads
 			if len(manifestEntriesBatch) > 0 {
