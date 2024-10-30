@@ -118,7 +118,7 @@ func newClient(
 	baseURL, err := url.Parse(settings.GetBaseURL())
 	require.NoError(t, err)
 
-	credentialProvider, err := api.NewCredentialProvider(settings)
+	credentialProvider, err := api.NewCredentialProvider(settings, observability.NewNoOpLogger().Logger)
 	require.NoError(t, err)
 
 	backend := api.New(api.BackendOptions{
@@ -143,7 +143,7 @@ func TestNewClientWithProxy(t *testing.T) {
 	settings := wbsettings.From(&spb.Settings{
 		ApiKey: &wrapperspb.StringValue{Value: "test_api_key"},
 	})
-	credentialProvider, err := api.NewCredentialProvider(settings)
+	credentialProvider, err := api.NewCredentialProvider(settings, observability.NewNoOpLogger().Logger)
 	require.NoError(t, err)
 
 	backend := api.New(api.BackendOptions{

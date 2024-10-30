@@ -41,7 +41,7 @@ func NewBackend(
 			fmt.Errorf("stream_init: failed to parse base URL: %v", err))
 	}
 
-	credentialProvider, err := api.NewCredentialProvider(settings)
+	credentialProvider, err := api.NewCredentialProvider(settings, logger.Logger)
 	if err != nil {
 		logger.CaptureFatalAndPanic(
 			fmt.Errorf("stream_init: failed to fetch credentials: %v", err))
