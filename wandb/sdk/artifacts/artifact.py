@@ -234,24 +234,32 @@ class Artifact:
         name: str,
         client: RetryingClient,
         organization: str = "",
+        enable_tracking: bool = False,
     ) -> Artifact:
-        query = gql(
-            """
-            query ArtifactByName(
-                $entityName: String!,
-                $projectName: String!,
-                $name: String!
-            ) {
-                project(name: $projectName, entityName: $entityName) {
-                    artifact(name: $name) {
-                        ...ArtifactFragment
-                    }
-                }
-            }
-            """
-            + _gql_artifact_fragment()
+        server_supports_enabling_artifact_usage_tracking = (
+            InternalApi().server_project_type_introspection()
         )
+        query_vars = ["$entityName: String!", "$projectName: String!", "$name: String!"]
+        query_args = ["name: $name"]
+        if server_supports_enabling_artifact_usage_tracking:
+            query_vars.append("$enableTracking: Boolean")
+            query_args.append("enableTracking: $enableTracking")
 
+        vars_str = ", ".join(query_vars)
+        args_str = ", ".join(query_args)
+
+        query = gql(
+            f"""
+            query ArtifactByName({vars_str}) {{
+                project(name: $projectName, entityName: $entityName) {{
+                    artifact({args_str}) {{
+                        ...ArtifactFragment
+                    }}
+                }}
+            }}
+            {_gql_artifact_fragment()}
+            """
+        )
         # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
         # we need to fetch the org entity to for the user behind the scenes.
         if is_artifact_registry_project(project):
@@ -275,14 +283,17 @@ class Artifact:
                         f"Defaulted to use {organization!r} as an org entity to resolve organization. Failed with error: {org_error!r}."
                     )
                     raise
+        query_variable_values: dict[str, Any] = {
+            "entityName": entity,
+            "projectName": project,
+            "name": name,
+        }
+        if server_supports_enabling_artifact_usage_tracking:
+            query_variable_values["enableTracking"] = enable_tracking
 
         response = client.execute(
             query,
-            variable_values={
-                "entityName": entity,
-                "projectName": project,
-                "name": name,
-            },
+            variable_values=query_variable_values,
         )
         project_attrs = response.get("project")
         if not project_attrs:
