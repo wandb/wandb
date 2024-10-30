@@ -27,35 +27,6 @@ SYS_PLATFORM = platform.system()
 def _wb_filename(
     key: Union[str, int], step: Union[str, int], id: Union[str, int], extension: str
 ) -> str:
-    """Generates a safe filename/path for storing media files, using the provided key, step, and id.
-
-    The filename is made safe by:
-    1. Removing any leading slashes to prevent writing to absolute paths
-    2. Replacing '.' and '..' with underscores to prevent directory traversal attacks
-
-    If the key contains slashes (e.g. 'images/cats/fluffy.jpg'), subdirectories will be created:
-        media/
-          images/
-            cats/
-              fluffy.jpg_step_id.ext
-
-    Args:
-        key: Name/path for the media file
-        step: Training step number
-        id: Unique identifier
-        extension: File extension (e.g. '.jpg', '.mp3')
-
-    Returns:
-        A sanitized filename string in the format: key_step_id.extension
-    """
-    # Avoid writing to absolute paths by striping any leading slashes.
-    key = str(key).lstrip(os.sep)
-
-    # Avoid directory traversal by replacing dots with underscores.
-    keys = key.split(os.sep)
-    keys = [k.replace(".", "_") if k in (os.curdir, os.pardir) else k for k in keys]
-    key = os.sep.join(keys)
-
     return f"{str(key)}_{str(step)}_{str(id)}{extension}"
 
 
