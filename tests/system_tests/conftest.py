@@ -436,18 +436,36 @@ def local_wandb_backend(worker_id: str) -> Iterable[LocalWandbBackendAddress]:
 
     This does not patch WANDB_BASE_URL! Use `use_local_wandb_backend` instead.
     """
+    yield from _local_wandb_backend(
+        worker_id=worker_id,
+        name="wandb-local-testcontainer",
+    )
+
+
+@pytest.fixture(scope="session")
+def local_wandb_backend_importers(
+    worker_id: str,
+) -> Iterable[LocalWandbBackendAddress]:
+    """Fixture that starts up or connects to a second local-testcontainer.
+
+    This is used by importer tests, to move data between two backends.
+    """
+    yield from _local_wandb_backend(
+        worker_id=worker_id,
+        name="wandb-local-testcontainer-importers",
+    )
+
+
+def _local_wandb_backend(
+    worker_id: str,
+    name: str,
+) -> Iterable[LocalWandbBackendAddress]:
     repo_root = pathlib.Path(__file__).parent.parent.parent
     tool_file = repo_root / "tools" / "local_wandb_server.py"
     session_id = f"pytest:{worker_id}"
 
     output_str = subprocess.check_output(
-        [
-            "python",
-            tool_file,
-            "start",
-            session_id,
-            "--name=wandb-local-testcontainer",
-        ]
+        ["python", tool_file, "start", session_id, f"--name={name}"]
     )
 
     try:
@@ -459,7 +477,15 @@ def local_wandb_backend(worker_id: str) -> Iterable[LocalWandbBackendAddress]:
         )
         yield address
     finally:
-        subprocess.check_call(["python", tool_file, "release", session_id])
+        subprocess.check_call(
+            [
+                "python",
+                tool_file,
+                "release",
+                session_id,
+                f"--name={name}",
+            ]
+        )
 
 
 @pytest.fixture(scope="function")

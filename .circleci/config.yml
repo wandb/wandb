@@ -113,8 +113,9 @@ commands:
       - codecov/upload: { flags: <<parameters.codecov_flags>> }
       - save-test-results
 
-  connect-to-local-testcontainer:
-    description: Make tests use a running local-testcontainer.
+  local-wandb-server-deps:
+    description: |
+      Installs dependencies for the connect-to-local-testcontainer commands.
     steps:
       - run:
           name: Upgrade pip and uv
@@ -122,11 +123,27 @@ commands:
       - run:
           name: Install tool dependencies
           command: uv pip install --system -r requirements_dev.txt
+
+  connect-to-local-testcontainer:
+    description: Make tests use a running local-testcontainer.
+    steps:
       - run:
           name: Connect to local-testcontainer
           command: |
             python tools/local_wandb_server.py start ci \
               --hostname localhost \
+              --base-port 8080 \
+              --fixture-port 9015
+
+  connect-to-local-testcontainer-importers:
+    description: Make importer tests use a running local-testcontainer.
+    steps:
+      - run:
+          name: Connect to local-testcontainer-importers
+          command: |
+            python tools/local_wandb_server.py start ci \
+              --name wandb-local-testcontainer-importers \
+              --hostname localhost-wandb-2 \
               --base-port 8080 \
               --fixture-port 9015
 
@@ -294,7 +311,15 @@ jobs:
           condition:
             equal: ["local-testcontainer", <<parameters.executor_name>>]
           steps:
+            - local-wandb-server-deps
             - connect-to-local-testcontainer
+      - when:
+          condition:
+            equal: ["local-testcontainer-importers", <<parameters.executor_name>>]
+          steps:
+            - local-wandb-server-deps
+            - connect-to-local-testcontainer
+            - connect-to-local-testcontainer-importers
 
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
@@ -385,40 +410,6 @@ jobs:
       - run:
           name: Run mypy and report results
           command: nox -vs mypy-report
-      - save-test-results
-
-  importers:
-    parameters:
-      executor: { type: executor }
-      python: { type: string }
-      tests:
-        type: enum
-        enum: [wandb, mlflow]
-      xdist:
-        type: integer
-        default: 3
-    executor: << parameters.executor >>
-    steps:
-      - checkout
-      - run:
-          name: Install system deps
-          command: |
-            apt-get update
-            apt-get install -y libsndfile1 ffmpeg
-      - install_go
-      - install_rust
-      - run:
-          name: Install Python dependencies
-          command: python -m pip install -U nox pip uv
-          no_output_timeout: 5m
-      - run:
-          name: Run tests
-          no_output_timeout: 10m
-          command: |
-            nox -s "importer_tests-<< parameters.python >>(importer='<< parameters.tests >>')" \
-              -- $(if [ "<< parameters.tests >>" = "wandb" ]; then echo "--wandb-second-server=true"; fi) \
-              tests/system_tests/test_importers/test_<< parameters.tests >>
-      - codecov/upload: { flags: system }
       - save-test-results
 
   unit-tests-go:
@@ -616,17 +607,17 @@ workflows:
       #
       # W&B Importer tests on Linux, using 2 real wandb servers
       #
-      # - importers:
-      #     name: "\
-      #       system-tests-linux-importers-\
-      #       <<matrix.tests>>-\
-      #       <<matrix.python>>"
+      - nox-tests-linux:
+          name: "\
+            system-tests-linux-importers-\
+            <<matrix.tests>>-\
+            <<matrix.python>>"
+          session: importer_tests(importer='<<matrix.tests>>')
+          codecov_flags: system
+          parallelism: 1
+          executor_name: local-testcontainer-importers
 
-      #     matrix:
-      #       parameters:
-      #         python: ["3.9"]
-      #         tests: ["wandb", "mlflow"]
-
-      #     executor:
-      #       name: local-testcontainer-importers
-      #       python: << matrix.python >>
+          matrix:
+            parameters:
+              python: ["3.9"]
+              tests: ["wandb", "mlflow"]

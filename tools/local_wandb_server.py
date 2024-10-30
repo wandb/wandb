@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import json
 import pathlib
 import pprint
+import re
 import subprocess
 import sys
 import time
@@ -178,16 +180,12 @@ def _start_new_server(info: _InfoFile, name: str) -> _ServerInfo:
     server = _ServerInfo(
         managed=True,
         hostname="localhost",
-        base_port=8080,
-        fixture_port=9015,
+        base_port=0,
+        fixture_port=0,
         ids=[],
     )
 
-    _start_container(
-        name=name,
-        base_port=server.base_port,
-        fixture_port=server.fixture_port,
-    )
+    _start_container(name=name).apply_ports(server)
 
     if not _check_health(
         f"http://localhost:{server.base_port}/healthz",
@@ -335,18 +333,27 @@ def _check_health(health_url: str, timeout: int = 1) -> bool:
         time.sleep(1)
 
 
+@dataclasses.dataclass(frozen=True)
+class _WandbContainerPorts:
+    base_port: int
+    fixture_port: int
+
+    def apply_ports(self, server: _ServerInfo) -> None:
+        server.base_port = self.base_port
+        server.fixture_port = self.fixture_port
+
+
 def _start_container(
     *,
     name: str,
-    base_port: int,
-    fixture_port: int,
     clean_up: bool = True,
-) -> None:
+) -> _WandbContainerPorts:
     """Start the local-testcontainer.
 
     This issues the `docker run` command and returns immediately.
 
     Args:
+        name: The container name to use.
         clean_up: Whether to remove the container and its volumes on exit.
             Passes the --rm option to docker run.
     """
@@ -356,8 +363,8 @@ def _start_container(
         *["--name", name],
         *["--volume", f"{name}-vol:/vol"],
         # Expose ports to the host.
-        *["--publish", f"{base_port}:{base_port}"],
-        *["--publish", f"{fixture_port}:{fixture_port}"],
+        *["--publish", "8080"],  # base port
+        *["--publish", "9015"],  # fixture port
     ]
 
     if clean_up:
@@ -372,6 +379,34 @@ def _start_container(
     subprocess.check_call(
         ["docker", "run", *docker_flags, image],
         stdout=sys.stderr,
+    )
+
+    ports_str = subprocess.check_output(["docker", "port", name]).decode()
+
+    port_line_re = re.compile(r"(\d+)(\/\w+)? -> [^:]*:(\d+)")
+    base_port = 0
+    fixture_port = 0
+    for line in ports_str.splitlines():
+        match = port_line_re.fullmatch(line)
+        if not match:
+            continue
+
+        internal_port = match.group(1)
+        external_port = match.group(3)
+
+        if internal_port == "8080":
+            base_port = int(external_port)
+        elif internal_port == "9015":
+            fixture_port = int(external_port)
+
+    if not base_port:
+        raise AssertionError(f"Couldn't determine W&B base port: {ports_str}")
+    if not fixture_port:
+        raise AssertionError(f"Couldn't determine W&B fixture port: {ports_str}")
+
+    return _WandbContainerPorts(
+        base_port=base_port,
+        fixture_port=fixture_port,
     )
 
 
