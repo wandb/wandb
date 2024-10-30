@@ -43,7 +43,7 @@ def test_pr(dummy_classifier, mock_run):
     _ = mock_run(settings={"mode": "offline"})
     *_, y_test, _, y_probas = dummy_classifier
     custom_chart_no_title = pr_curve(y_test, y_probas)
-    assert custom_chart_no_title.string_fields["title"] == "Precision v. Recall"
+    assert custom_chart_no_title.string_fields["title"] == "Precision-Recall Curve"
     first_row = custom_chart_no_title.table.data[0]
     assert first_row == [0, 1.0, 1.0], first_row
     custom_chart_with_title = pr_curve(y_test, y_probas, title="New title")
