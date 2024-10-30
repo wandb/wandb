@@ -1,8 +1,7 @@
 from unittest import mock
 
-from pytest import fixture
-
 import wandb
+from pytest import fixture
 from wandb.apis.public.files import File
 
 
