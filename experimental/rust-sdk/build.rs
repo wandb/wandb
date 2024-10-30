@@ -1,6 +1,9 @@
+use std::env;
 use std::fs;
 use std::io::Result;
 use std::path::Path;
+use std::path::PathBuf;
+use std::process::Command;
 use tempfile::tempdir;
 
 fn main() -> Result<()> {
@@ -33,19 +36,46 @@ fn main() -> Result<()> {
     config.out_dir("src");
     config.compile_protos(&temp_paths, &includes).unwrap();
 
-    // TODO: build wandb-core here and
-    //  - either place it under wandbrs/ and use the env var to point to it like we do now
-    //  - or embed as in https://zameermanji.com/blog/2021/6/17/embedding-a-rust-binary-in-another-rust-binary
+    // Build wandb-core Go binary
+    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let go_src_dir = manifest_dir.join("../../core");
+    let binary_dir = manifest_dir.join("bin");
 
-    let bin_paths = ["../../wandb/bin/wandb-core", "../../wandb/bin/gpu_stats"];
-    for bin_path in &bin_paths {
-        let bin_name = Path::new(bin_path).file_name().unwrap();
-        let dest_path = Path::new("bin").join(bin_name);
-        // try copying the binary to the wandbrs directory. if doesn't exist, just continue
-        if let Err(e) = fs::copy(bin_path, dest_path) {
-            eprintln!("Error copying binary: {}", e);
-        }
+    let binary_name = if cfg!(windows) {
+        "wandb-core.exe"
+    } else {
+        "wandb-core"
+    };
+
+    let wandb_core_path = binary_dir.join(binary_name);
+
+    // if bin directory doesn't exist, create it
+    if !binary_dir.exists() {
+        fs::create_dir(&binary_dir).expect("Failed to create bin directory");
     }
+
+    let status = Command::new("go")
+        .current_dir(&go_src_dir)
+        .args([
+            "build",
+            "-ldflags=-s -w",
+            "-mod=vendor",
+            "-o",
+            wandb_core_path.to_str().unwrap(),
+            "cmd/wandb-core/main.go",
+        ])
+        .status()
+        .expect("Failed to execute go build command");
+
+    if !status.success() {
+        panic!("Failed to build Go binary");
+    }
+
+    // Make the binary path available to the Rust code
+    println!(
+        "cargo:rustc-env=_WANDB_CORE_PATH={}",
+        wandb_core_path.display()
+    );
 
     Ok(())
 }
