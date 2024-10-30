@@ -333,7 +333,7 @@ func (e *tfEmitter) verifyAndGetImagesMetadata(
 		}
 	}
 
-	return format, height, width, nil
+	return format, width, height, nil
 }
 
 // Write data to a file at the given path.
