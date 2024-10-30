@@ -45,7 +45,7 @@ class Job:
 
     def __init__(self, api: "Api", name, path: Optional[str] = None) -> None:
         try:
-            self._job_artifact = api.artifact(name, type="job")
+            self._job_artifact = api._artifact(name, type="job")
         except CommError:
             raise CommError(f"Job artifact {name} not found")
         if path:
@@ -94,7 +94,7 @@ class Job:
         if is_id:
             code_artifact = wandb.Artifact._from_id(artifact_string, self._api._client)
         else:
-            code_artifact = self._api.artifact(name=artifact_string, type="code")
+            code_artifact = self._api._artifact(name=artifact_string, type="code")
         if code_artifact is None:
             raise LaunchError("No code artifact found")
         if code_artifact.state == ArtifactState.DELETED:

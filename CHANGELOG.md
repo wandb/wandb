@@ -19,6 +19,9 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Fix multipart uploads for files with no content type defined in headers (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8716)
 - Fixed calling `wandb.log()` with file system reserved characters (`/`, `.`, `..`) could write outside of the run directory. (@jacobromero in https://github.com/wandb/wandb/pull/8578)
 
+### Changed
+- Added internal method, api._artifact(), to fetch artifacts so that usage events are not created if not called by an external user. (@ibindlish in https://github.com/wandb/wandb/pull/8674)
+
 ## [0.18.5] - 2024-10-17
 
 ### Fixed

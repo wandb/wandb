@@ -1142,20 +1142,9 @@ class Api:
         )
 
     @normalize_exceptions
-    def artifact(self, name, type=None):
-        """Return a single artifact by parsing path in the form `project/name` or `entity/project/name`.
-
-        Args:
-            name: (str) An artifact name. May be prefixed with project/ or entity/project/.
-                    If no entity is specified in the name, the Run or API setting's entity is used.
-                Valid names can be in the following forms:
-                    name:version
-                    name:alias
-            type: (str, optional) The type of artifact to fetch.
-
-        Returns:
-            A `Artifact` object.
-        """
+    def _artifact(
+        self, name: str, type: Optional[str] = None, enable_tracking: bool = False
+    ):
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
@@ -1172,13 +1161,37 @@ class Api:
             # set entity to match the settings since in above code it was potentially set to an org
             entity = self.settings["entity"] or self.default_entity
         artifact = wandb.Artifact._from_name(
-            entity, project, artifact_name, self.client, organization
+            entity, project, artifact_name, self.client, organization, enable_tracking
         )
         if type is not None and artifact.type != type:
             raise ValueError(
                 f"type {type} specified but this artifact is of type {artifact.type}"
             )
         return artifact
+
+    @normalize_exceptions
+    def artifact(self, name: str, type: Optional[str] = None):
+        """Return a single artifact by parsing path in the form `project/name` or `entity/project/name`.
+
+        Args:
+            name: (str) An artifact name. May be prefixed with project/ or entity/project/.
+                    If no entity is specified in the name, the Run or API setting's entity is used.
+                Valid names can be in the following forms:
+                    name:version
+                    name:alias
+            type: (str, optional) The type of artifact to fetch.
+
+        Returns:
+            An `Artifact` object.
+
+        Raises:
+            ValueError: If the artifact name is not specified.
+            ValueError: If the artifact type is specified but does not match the type of the fetched artifact.
+
+        Note:
+        This method is intended for external use only. Do not call `api.artifact()` within the wandb repository code.
+        """
+        return self._artifact(name=name, type=type, enable_tracking=True)
 
     @normalize_exceptions
     def job(self, name: Optional[str], path: Optional[str] = None) -> "public.Job":
@@ -1294,7 +1307,7 @@ class Api:
             True if the artifact version exists, False otherwise.
         """
         try:
-            self.artifact(name, type)
+            self._artifact(name, type)
             return True
         except wandb.errors.CommError:
             return False

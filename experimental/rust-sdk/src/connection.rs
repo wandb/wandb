@@ -18,19 +18,7 @@ struct Header {
     data_length: u32,
 }
 
-// struct Handle {
-//     id: String,
-//     sender: Sender<wandb_internal::Result>,
-//     receiver: Receiver<wandb_internal::Result>,
-// }
-
-// impl Handle {
-//     fn wait(&self, wait_fn: fn(wandb_internal::Result)) {
-//         let result = self.receiver.recv().unwrap();
-//         wait_fn(result);
-//     }
-// }
-
+#[derive(Debug)]
 pub struct Interface {
     pub conn: Connection,
     // hashmap string -> channel
@@ -51,6 +39,7 @@ impl Interface {
     }
 }
 
+#[derive(Debug)]
 pub struct Connection {
     pub stream: TcpStream,
 }
@@ -208,7 +197,7 @@ impl Connection {
                 Some(_) => {
                     tracing::warn!("Received message with unknown type");
                 }
-                None => {
+                _ => {
                     tracing::warn!("Received message without type")
                 }
             }
