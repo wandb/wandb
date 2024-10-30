@@ -3539,6 +3539,10 @@ class Api:
         # the organization parameter, or an error if it is empty. Otherwise, this returns the
         # fetched value after validating that the given organization, if not empty, matches
         # either the org's display or entity name.
+
+        if not entity:
+            raise ValueError("Entity name is required to resolve org entity name.")
+
         org_fields = self.server_organization_type_introspection()
         can_shorthand_org_entity = "orgEntity" in org_fields
         if not organization and not can_shorthand_org_entity:
@@ -3554,7 +3558,9 @@ class Api:
 
         orgs_from_entity = self._fetch_orgs_and_org_entities_from_entity(entity)
         if organization:
-            return self._match_org_with_fetched_orgs(organization, orgs_from_entity)
+            return self._match_org_with_fetched_org_entities(
+                organization, orgs_from_entity
+            )
 
         # If no input organization provided, error if entity belongs to multiple orgs because we
         # cannot determine which one to use.
@@ -3566,7 +3572,7 @@ class Api:
             )
         return orgs_from_entity[0][0]
 
-    def _match_org_with_fetched_orgs(
+    def _match_org_with_fetched_org_entities(
         self, organization: str, orgs: List[Tuple[str, str]]
     ) -> str:
         """Make sure the organization provided in the path matches with the org entity or org name of the input entity."""

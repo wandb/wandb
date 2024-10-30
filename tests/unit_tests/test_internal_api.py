@@ -99,6 +99,218 @@ def test_internal_api_with_no_write_global_config_dir(tmp_path):
         os.chmod(tmp_path, 0o777)  # Allow the test runner to clean up.
 
 
+def test_fetch_orgs_and_org_entities_from_entity(mock_server):
+    """Test fetching organization entities from an entity."""
+    api = wandb.Api()
+
+    # Test team/org entity case
+    mock_server.gql.return_value = {
+        "entity": {
+            "organization": {
+                "name": "test-org",
+                "orgEntity": {"name": "test-org-entity"},
+            },
+            "user": None,
+        }
+    }
+    result = api._fetch_orgs_and_org_entities_from_entity("team-entity")
+    assert result == [("test-org-entity", "test-org")]
+
+    # Test personal entity with single org
+    mock_server.gql.return_value = {
+        "entity": {
+            "organization": None,
+            "user": {
+                "organizations": [
+                    {
+                        "name": "personal-org",
+                        "orgEntity": {"name": "personal-org-entity"},
+                    }
+                ]
+            },
+        }
+    }
+    result = api._fetch_orgs_and_org_entities_from_entity("personal-entity")
+    assert result == [("personal-org-entity", "personal-org")]
+
+    # Test personal entity with multiple orgs
+    mock_server.gql.return_value = {
+        "entity": {
+            "organization": None,
+            "user": {
+                "organizations": [
+                    {
+                        "name": "org1",
+                        "orgEntity": {"name": "org1-entity"},
+                    },
+                    {
+                        "name": "org2",
+                        "orgEntity": {"name": "org2-entity"},
+                    },
+                ]
+            },
+        }
+    }
+    result = api._fetch_orgs_and_org_entities_from_entity("personal-entity")
+    assert result == [("org1-entity", "org1"), ("org2-entity", "org2")]
+
+    # Test entity not found (This I haven't seen in the wild but adding a test for it)
+    mock_server.gql.return_value = None
+    with pytest.raises(ValueError, match="Unable to find an entity with name"):
+        api._fetch_orgs_and_org_entities_from_entity("non-existent-entity")
+
+    # Test personal entity with no orgs
+    mock_server.gql.return_value = {
+        "entity": {
+            "organization": None,
+            "user": {"organizations": []},
+        }
+    }
+    with pytest.raises(
+        ValueError,
+        match="Unable to resolve an organization associated with personal entity",
+    ):
+        api._fetch_orgs_and_org_entities_from_entity("personal-entity")
+
+    # No entity found
+    mock_server.gql.return_value = {
+        "entity": {
+            "organization": None,
+            "user": None,
+        }
+    }
+    with pytest.raises(
+        ValueError,
+        match="Unable to resolve an organization associated with personal entity",
+    ):
+        api._fetch_orgs_and_org_entities_from_entity("potato-entity")
+
+    # Test invalid response structure
+    mock_server.gql.return_value = {
+        "entity": {
+            "organization": {
+                "name": "hello",
+                "orgEntity": None,
+            },
+            "user": None,
+        }
+    }
+    with pytest.raises(ValueError, match="Unable to find an organization under entity"):
+        api._fetch_orgs_and_org_entities_from_entity("invalid-entity")
+
+
+def test_match_org_with_fetched_org_entities():
+    api = internal.InternalApi()
+
+    # Test successful matches should return the correct org_entity_name
+    assert (
+        api._match_org_with_fetched_org_entities(
+            "org-display", [("org-entity", "org-display")]
+        )
+        == "org-entity"
+    )
+
+    assert (
+        api._match_org_with_fetched_org_entities(
+            "org-entity", [("org-entity", "org-display")]
+        )
+        == "org-entity"
+    )
+
+    assert (
+        api._match_org_with_fetched_org_entities(
+            "org-display-2",
+            [("org-entity", "org-display"), ("org-entity-2", "org-display-2")],
+        )
+        == "org-entity-2"
+    )
+
+    # Test error when org doesn't match (single org case)
+    with pytest.raises(
+        ValueError, match="Expecting the organization name or entity name to match"
+    ):
+        api._match_org_with_fetched_org_entities(
+            "wrong-org", [("org-entity", "org-display")]
+        )
+
+    # Test error when org doesn't match (multiple orgs case)
+    with pytest.raises(
+        ValueError, match="Personal entity belongs to multiple organizations"
+    ):
+        api._match_org_with_fetched_org_entities(
+            "wrong-org",
+            [("org1-entity", "org1-display"), ("org2-entity", "org2-display")],
+        )
+
+
+def test_resolve_org_entity_name_with_single_org():
+    api = internal.InternalApi()
+
+    # Mock server introspection and GQL responses
+    api.server_organization_type_introspection = Mock(return_value=["orgEntity"])
+    api._fetch_orgs_and_org_entities_from_entity = Mock(
+        return_value=[("org-entity", "org-display")]
+    )
+
+    assert api._resolve_org_entity_name("entity", "org-display") == "org-entity"
+    assert api._resolve_org_entity_name("entity", "org-entity") == "org-entity"
+    assert api._resolve_org_entity_name("entity") == "org-entity"
+
+    # Error when org doesn't match
+    with pytest.raises(
+        ValueError, match="Expecting the organization name or entity name to match"
+    ):
+        api._resolve_org_entity_name("entity", "potato-org")
+
+    # Error when entity is None or empty string
+    with pytest.raises(
+        ValueError, match="Entity name is required to resolve org entity name."
+    ):
+        api._resolve_org_entity_name(None)
+    with pytest.raises(
+        ValueError, match="Entity name is required to resolve org entity name."
+    ):
+        api._resolve_org_entity_name("")
+
+
+def test_resolve_org_entity_name_with_multiple_orgs():
+    api = internal.InternalApi()
+    api.server_organization_type_introspection = Mock(return_value=["orgEntity"])
+    api._fetch_orgs_and_org_entities_from_entity = Mock(
+        return_value=[
+            ("org1-entity", "org1-display"),
+            ("org2-entity", "org2-display"),
+            ("org3-entity", "org3-display"),
+        ]
+    )
+    # Error for personal entity with multiple orgs and no org specified because
+    # we don't know which org to use
+    with pytest.raises(ValueError, match="belongs to multiple organizations"):
+        api._resolve_org_entity_name("entity")
+
+    # Should work with organization specified
+    assert api._resolve_org_entity_name("entity", "org1-display") == "org1-entity"
+    assert api._resolve_org_entity_name("entity", "org2-entity") == "org2-entity"
+
+    # Error when org doesn't match the list of personal orgs the entity belongs to
+    with pytest.raises(
+        ValueError, match="Personal entity belongs to multiple organizations"
+    ):
+        api._resolve_org_entity_name("entity", "potato-org")
+
+
+def test_resolve_org_entity_name_with_old_server():
+    api = internal.InternalApi()
+    api.server_organization_type_introspection = Mock(return_value=[])
+
+    # Should error without organization
+    with pytest.raises(ValueError, match="unavailable for your server version"):
+        api._resolve_org_entity_name("entity")
+
+    # Should return organization as-is when specified
+    assert api._resolve_org_entity_name("entity", "org-name-input") == "org-name-input"
+
+
 MockResponseOrException = Union[Exception, Tuple[int, Mapping[int, int], str]]
 
 
