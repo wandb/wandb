@@ -1,7 +1,9 @@
+import filecmp
 import os
 import shutil
 import unittest.mock
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Mapping, Optional
@@ -13,7 +15,7 @@ import responses
 import wandb
 import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
-from wandb import util
+from wandb import Artifact, util
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
@@ -283,6 +285,11 @@ def mock_http(artifact, path=False, headers=None):
     return mock
 
 
+@pytest.fixture
+def artifact() -> Artifact:
+    return Artifact(type="dataset", name="data-artifact")
+
+
 def test_unsized_manifest_entry_real_file():
     f = Path("some/file.txt")
     f.parent.mkdir(parents=True, exist_ok=True)
@@ -297,10 +304,8 @@ def test_unsized_manifest_entry():
     assert "No such file" in str(e.value)
 
 
-def test_add_one_file():
-    with open("file1.txt", "w") as f:
-        f.write("hello")
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_one_file(artifact):
+    Path("file1.txt").write_text("hello")
     artifact.add_file("file1.txt")
 
     assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
@@ -311,10 +316,8 @@ def test_add_one_file():
     }
 
 
-def test_add_named_file():
-    with open("file1.txt", "w") as f:
-        f.write("hello")
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_named_file(artifact):
+    Path("file1.txt").write_text("hello")
     artifact.add_file("file1.txt", name="great-file.txt")
 
     assert artifact.digest == "585b9ada17797e37c9cbab391e69b8c5"
@@ -325,8 +328,7 @@ def test_add_named_file():
     }
 
 
-def test_add_new_file():
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_new_file(artifact):
     with artifact.new_file("file1.txt") as f:
         f.write("hello")
 
@@ -338,27 +340,37 @@ def test_add_new_file():
     }
 
 
-def test_add_after_finalize():
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_after_finalize(artifact):
     artifact.finalize()
     with pytest.raises(ArtifactFinalizedError) as e:
         artifact.add_file("file1.txt")
     assert "Can't modify finalized artifact" in str(e.value)
 
 
-def test_add_new_file_encode_error(capsys):
+def test_add_new_file_encode_error(capsys, artifact):
     with pytest.raises(UnicodeEncodeError):
-        artifact = wandb.Artifact(type="dataset", name="my-arty")
         with artifact.new_file("wave.txt", mode="w", encoding="ascii") as f:
             f.write("∂²u/∂t²=c²·∂²u/∂x²")
     assert "ERROR Failed to open the provided file" in capsys.readouterr().err
 
 
-def test_add_dir():
-    with open("file1.txt", "w") as f:
-        f.write("hello")
+@pytest.mark.parametrize("overwrite", [True, False])
+def test_add_file_again_after_edit(overwrite, artifact):
+    filepath = Path("file1.txt")
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    filepath.write_text("hello")
+    artifact.add_file(str(filepath), overwrite=overwrite)
+
+    # If we explicitly pass overwrite=True, allow rewriting an existing file
+    filepath.write_text("Potato")
+    expectation = nullcontext() if overwrite else pytest.raises(ValueError)
+    with expectation:
+        artifact.add_file(str(filepath), overwrite=overwrite)
+
+
+def test_add_dir(artifact):
+    Path("file1.txt").write_text("hello")
+
     artifact.add_dir(".")
 
     assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
@@ -369,10 +381,8 @@ def test_add_dir():
     }
 
 
-def test_add_named_dir():
-    with open("file1.txt", "w") as f:
-        f.write("hello")
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_named_dir(artifact):
+    Path("file1.txt").write_text("hello")
     artifact.add_dir(".", name="subdir")
 
     assert artifact.digest == "a757208d042e8627b2970d72a71bed5b"
@@ -384,8 +394,7 @@ def test_add_named_dir():
     }
 
 
-def test_multi_add():
-    artifact = wandb.Artifact(type="dataset", name="poly-art")
+def test_multi_add(artifact):
     size = 2**27  # 128MB, large enough that it takes >1ms to add.
     filename = "data.bin"
     with open(filename, "wb") as f:
@@ -402,12 +411,11 @@ def test_multi_add():
     assert manifest["contents"][filename]["size"] == size
 
 
-def test_add_reference_local_file(tmp_path):
+def test_add_reference_local_file(tmp_path, artifact):
     file = tmp_path / "file1.txt"
     file.write_text("hello")
     uri = file.as_uri()
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
     e = artifact.add_reference(uri)[0]
     assert e.ref_target() == uri
 
@@ -420,13 +428,12 @@ def test_add_reference_local_file(tmp_path):
     }
 
 
-def test_add_reference_local_file_no_checksum(tmp_path):
+def test_add_reference_local_file_no_checksum(tmp_path, artifact):
     file = tmp_path / "file1.txt"
     file.write_text("hello")
     uri = file.as_uri()
 
     size = os.path.getsize(file)
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_reference(uri, checksum=False)
 
     assert artifact.digest == "415f3bca4b095cbbbbc47e0d44079e05"
@@ -438,18 +445,14 @@ def test_add_reference_local_file_no_checksum(tmp_path):
     }
 
 
-def test_add_reference_local_dir():
-    with open("file1.txt", "w") as f:
-        f.write("hello")
+def test_add_reference_local_dir(artifact):
+    Path("file1.txt").write_text("hello")
     os.mkdir("nest")
-    with open("nest/file2.txt", "w") as f:
-        f.write("my")
+    Path("nest/file2.txt").write_text("my")
     os.mkdir("nest/nest")
-    with open("nest/nest/file3.txt", "w") as f:
-        f.write("dude")
+    Path("nest/nest/file3.txt").write_text("dude")
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
-    artifact.add_reference("file://" + os.getcwd())
+    artifact.add_reference(f"file://{os.getcwd()}")
 
     assert artifact.digest == "72414374bfd4b0f60a116e7267845f71"
     manifest = artifact.manifest.to_manifest_json()
@@ -470,88 +473,79 @@ def test_add_reference_local_dir():
     }
 
 
-def test_add_reference_local_dir_no_checksum():
-    path_1 = os.path.join("file1.txt")
-    with open(path_1, "w") as f:
-        f.write("hello")
-    size_1 = os.path.getsize(path_1)
+def test_add_reference_local_dir_no_checksum(artifact):
+    path_1 = Path("file1.txt")
+    path_1.parent.mkdir(parents=True, exist_ok=True)
+    path_1.write_text("hello")
+    size_1 = path_1.stat().st_size
 
-    path_2 = os.path.join("nest", "file2.txt")
-    os.mkdir("nest")
-    with open(path_2, "w") as f:
-        f.write("my")
-    size_2 = os.path.getsize(path_2)
+    path_2 = Path("nest/file2.txt")
+    path_2.parent.mkdir(parents=True, exist_ok=True)
+    path_2.write_text("my")
+    size_2 = path_2.stat().st_size
 
-    path_3 = os.path.join("nest", "nest", "file3.txt")
-    os.mkdir("nest/nest")
-    with open(path_3, "w") as f:
-        f.write("dude")
-    size_3 = os.path.getsize(path_3)
+    path_3 = Path("nest", "nest", "file3.txt")
+    path_3.parent.mkdir(parents=True, exist_ok=True)
+    path_3.write_text("dude")
+    size_3 = path_3.stat().st_size
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
-    artifact.add_reference("file://" + os.getcwd(), checksum=False)
+    here = Path.cwd()
+    artifact.add_reference(f"file://{here!s}", checksum=False)
 
     assert artifact.digest == "3d0e6471486eec5070cf9351bacaa103"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file1.txt"] == {
         "digest": md5_string(str(size_1)),
-        "ref": "file://" + os.path.join(os.getcwd(), "file1.txt"),
+        "ref": f"file://{here!s}/file1.txt",
         "size": size_1,
     }
     assert manifest["contents"]["nest/file2.txt"] == {
         "digest": md5_string(str(size_2)),
-        "ref": "file://" + os.path.join(os.getcwd(), "nest", "file2.txt"),
+        "ref": f"file://{here!s}/nest/file2.txt",
         "size": size_2,
     }
     assert manifest["contents"]["nest/nest/file3.txt"] == {
         "digest": md5_string(str(size_3)),
-        "ref": "file://" + os.path.join(os.getcwd(), "nest", "nest", "file3.txt"),
+        "ref": f"file://{here!s}/nest/nest/file3.txt",
         "size": size_3,
     }
 
 
-def test_add_reference_local_dir_with_name():
-    with open("file1.txt", "w") as f:
-        f.write("hello")
-    os.mkdir("nest")
-    with open("nest/file2.txt", "w") as f:
-        f.write("my")
-    os.mkdir("nest/nest")
-    with open("nest/nest/file3.txt", "w") as f:
-        f.write("dude")
+def test_add_reference_local_dir_with_name(artifact):
+    Path("file1.txt").write_text("hello")
+    Path("nest").mkdir(parents=True, exist_ok=True)
+    Path("nest/file2.txt").write_text("my")
+    Path("nest/nest").mkdir(parents=True, exist_ok=True)
+    Path("nest/nest/file3.txt").write_text("dude")
 
-    print(os.listdir("."))
-
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
-    artifact.add_reference("file://" + os.getcwd(), name="top")
+    here = Path.cwd()
+    artifact.add_reference(f"file://{here!s}", name="top")
 
     assert artifact.digest == "f718baf2d4c910dc6ccd0d9c586fa00f"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["top/file1.txt"] == {
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-        "ref": "file://" + os.path.join(os.getcwd(), "top", "file1.txt"),
+        "ref": f"file://{here!s}/top/file1.txt",
         "size": 5,
     }
     assert manifest["contents"]["top/nest/file2.txt"] == {
         "digest": "aGTzidmHZDa8h3j/Bx0bbA==",
-        "ref": "file://" + os.path.join(os.getcwd(), "top", "nest", "file2.txt"),
+        "ref": f"file://{here!s}/top/nest/file2.txt",
         "size": 2,
     }
     assert manifest["contents"]["top/nest/nest/file3.txt"] == {
         "digest": "E7c+2uhEOZC+GqjxpIO8Jw==",
-        "ref": "file://"
-        + os.path.join(os.getcwd(), "top", "nest", "nest", "file3.txt"),
+        "ref": f"file://{here!s}/top/nest/nest/file3.txt",
         "size": 4,
     }
 
 
-def test_add_reference_local_dir_by_uri(tmp_path):
+def test_add_reference_local_dir_by_uri(tmp_path, artifact):
     ugly_path = tmp_path / "i=D" / "has !@#$%^&[]()|',`~ awful taste in file names"
     ugly_path.mkdir(parents=True)
     file = ugly_path / "file.txt"
     file.write_text("sorry")
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_reference(ugly_path.as_uri())
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file.txt"] == {
@@ -561,8 +555,7 @@ def test_add_reference_local_dir_by_uri(tmp_path):
     }
 
 
-def test_add_s3_reference_object():
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_s3_reference_object(artifact):
     mock_boto(artifact)
     artifact.add_reference("s3://my-bucket/my_object.pb")
 
@@ -576,14 +569,12 @@ def test_add_s3_reference_object():
     }
 
 
-def test_add_s3_reference_object_directory():
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_s3_reference_object_directory(artifact):
     mock_boto(artifact, path=True)
     artifact.add_reference("s3://my-bucket/my_dir/")
 
     assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
     manifest = artifact.manifest.to_manifest_json()
-    print(manifest)
     assert manifest["contents"]["my_object.pb"] == {
         "digest": "1234567890abcde",
         "ref": "s3://my-bucket/my_dir",
@@ -592,8 +583,7 @@ def test_add_s3_reference_object_directory():
     }
 
 
-def test_add_s3_reference_object_no_version():
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_s3_reference_object_no_version(artifact):
     mock_boto(artifact, version_id=None)
     artifact.add_reference("s3://my-bucket/my_object.pb")
 
@@ -607,8 +597,7 @@ def test_add_s3_reference_object_no_version():
     }
 
 
-def test_add_s3_reference_object_with_version():
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_s3_reference_object_with_version(artifact):
     mock_boto(artifact)
     artifact.add_reference("s3://my-bucket/my_object.pb?versionId=2")
 
@@ -622,8 +611,7 @@ def test_add_s3_reference_object_with_version():
     }
 
 
-def test_add_s3_reference_object_with_name():
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_s3_reference_object_with_name(artifact):
     mock_boto(artifact)
     artifact.add_reference("s3://my-bucket/my_object.pb", name="renamed.pb")
 
@@ -637,27 +625,24 @@ def test_add_s3_reference_object_with_name():
     }
 
 
-def test_add_s3_reference_path(runner, capsys):
+def test_add_s3_reference_path(runner, capsys, artifact):
+    mock_boto(artifact, path=True)
+    artifact.add_reference("s3://my-bucket/")
+
+    assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
+    manifest = artifact.manifest.to_manifest_json()
+    assert manifest["contents"]["my_object.pb"] == {
+        "digest": "1234567890abcde",
+        "ref": "s3://my-bucket/my_object.pb",
+        "extra": {"etag": "1234567890abcde", "versionID": "1"},
+        "size": 10,
+    }
+    _, err = capsys.readouterr()
+    assert "Generating checksum" in err
+
+
+def test_add_s3_reference_path_with_content_type(runner, capsys, artifact):
     with runner.isolated_filesystem():
-        artifact = wandb.Artifact(type="dataset", name="my-arty")
-        mock_boto(artifact, path=True)
-        artifact.add_reference("s3://my-bucket/")
-
-        assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
-        manifest = artifact.manifest.to_manifest_json()
-        assert manifest["contents"]["my_object.pb"] == {
-            "digest": "1234567890abcde",
-            "ref": "s3://my-bucket/my_object.pb",
-            "extra": {"etag": "1234567890abcde", "versionID": "1"},
-            "size": 10,
-        }
-        _, err = capsys.readouterr()
-        assert "Generating checksum" in err
-
-
-def test_add_s3_reference_path_with_content_type(runner, capsys):
-    with runner.isolated_filesystem():
-        artifact = wandb.Artifact(type="dataset", name="my-arty")
         mock_boto(artifact, path=False, content_type="application/x-directory")
         artifact.add_reference("s3://my-bucket/my_dir")
 
@@ -673,17 +658,14 @@ def test_add_s3_reference_path_with_content_type(runner, capsys):
         assert "Generating checksum" in err
 
 
-def test_add_s3_max_objects():
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_s3_max_objects(artifact):
     mock_boto(artifact, path=True)
     with pytest.raises(ValueError):
         artifact.add_reference("s3://my-bucket/", max_objects=1)
 
 
-def test_add_reference_s3_no_checksum():
-    with open("file1.txt", "w") as f:
-        f.write("hello")
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_reference_s3_no_checksum(artifact):
+    Path("file1.txt").write_text("hello")
     mock_boto(artifact)
     # TODO: Should we require name in this case?
     artifact.add_reference("s3://my_bucket/file1.txt", checksum=False)
@@ -696,8 +678,7 @@ def test_add_reference_s3_no_checksum():
     }
 
 
-def test_add_gs_reference_object():
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_gs_reference_object(artifact):
     mock_gcs(artifact)
     artifact.add_reference("gs://my-bucket/my_object.pb")
 
@@ -711,8 +692,9 @@ def test_add_gs_reference_object():
     }
 
 
-def test_load_gs_reference_object_without_generation_and_mismatched_etag():
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_load_gs_reference_object_without_generation_and_mismatched_etag(
+    artifact,
+):
     mock_gcs(artifact)
     artifact.add_reference("gs://my-bucket/my_object.pb")
     artifact._state = ArtifactState.COMMITTED
@@ -724,8 +706,7 @@ def test_load_gs_reference_object_without_generation_and_mismatched_etag():
         entry.download()
 
 
-def test_add_gs_reference_object_with_version():
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_gs_reference_object_with_version(artifact):
     mock_gcs(artifact)
     artifact.add_reference("gs://my-bucket/my_object.pb#2")
 
@@ -739,8 +720,7 @@ def test_add_gs_reference_object_with_version():
     }
 
 
-def test_add_gs_reference_object_with_name():
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_gs_reference_object_with_name(artifact):
     mock_gcs(artifact)
     artifact.add_reference("gs://my-bucket/my_object.pb", name="renamed.pb")
 
@@ -754,9 +734,8 @@ def test_add_gs_reference_object_with_name():
     }
 
 
-def test_add_gs_reference_path(runner, capsys):
+def test_add_gs_reference_path(runner, capsys, artifact):
     with runner.isolated_filesystem():
-        artifact = wandb.Artifact(type="dataset", name="my-arty")
         mock_gcs(artifact, path=True)
         artifact.add_reference("gs://my-bucket/")
 
@@ -772,8 +751,7 @@ def test_add_gs_reference_path(runner, capsys):
         assert "Generating checksum" in err
 
 
-def test_add_gs_reference_object_no_md5():
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_gs_reference_object_no_md5(artifact):
     mock_gcs(artifact, hash=False)
     artifact.add_reference("gs://my-bucket/my_object.pb")
 
@@ -787,16 +765,14 @@ def test_add_gs_reference_object_no_md5():
     }
 
 
-def test_add_gs_reference_with_dir_paths():
-    artifact = wandb.Artifact(type="dataset", name="my-folder-arty")
+def test_add_gs_reference_with_dir_paths(artifact):
     mock_gcs(artifact, override_blob_name="my_folder/")
     artifact.add_reference("gs://my-bucket/my_folder/")
 
     assert len(artifact.manifest.entries) == 0
 
 
-def test_load_gs_reference_with_dir_paths():
-    artifact = wandb.Artifact(type="dataset", name="my-folder-arty")
+def test_load_gs_reference_with_dir_paths(artifact):
     mock = mock_gcs(artifact, override_blob_name="my_folder/")
     artifact.add_reference("gs://my-bucket/my_folder/")
 
@@ -826,110 +802,79 @@ def test_load_gs_reference_with_dir_paths():
         gcs_handler.load_path(entry, local=True)
 
 
-def test_add_azure_reference_no_checksum(mock_azure_handler):
-    artifact = wandb.Artifact("my_artifact", type="my_type")
-    entries = artifact.add_reference(
-        "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob",
-        checksum=False,
-    )
-    assert len(entries) == 1
-    assert entries[0].path == "nonexistent-blob"
-    assert (
-        entries[0].ref
-        == "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob"
-    )
-    assert (
-        entries[0].digest
-        == "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob"
-    )
-    assert entries[0].size is None
-    assert entries[0].extra == {}
-
-    # with name
-    artifact = wandb.Artifact("my_artifact", type="my_type")
-    entries = artifact.add_reference(
-        "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob",
-        name="my-name",
-        checksum=False,
-    )
-    assert len(entries) == 1
-    assert entries[0].path == "my-name"
-    assert (
-        entries[0].ref
-        == "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob"
-    )
-    assert (
-        entries[0].digest
-        == "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob"
-    )
-    assert entries[0].size is None
-    assert entries[0].extra == {}
-
-    # with version
-    artifact = wandb.Artifact("my_artifact", type="my_type")
-    entries = artifact.add_reference(
-        "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob?versionId=v2",
-        checksum=False,
-    )
-    assert len(entries) == 1
-    assert entries[0].path == "nonexistent-blob"
-    assert (
-        entries[0].ref
-        == "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob"
-    )
-    assert (
-        entries[0].digest
-        == "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob"
-    )
-    assert entries[0].size is None
-    assert entries[0].extra == {}
+@pytest.fixture
+def my_artifact() -> Artifact:
+    """A test artifact with a custom type."""
+    return Artifact("my_artifact", type="my_type")
 
 
-def test_add_azure_reference(mock_azure_handler):
-    artifact = wandb.Artifact("my_artifact", type="my_type")
-    entries = artifact.add_reference(
-        "https://myaccount.blob.core.windows.net/my-container/my-blob"
-    )
-    assert len(entries) == 1
-    assert entries[0].path == "my-blob"
-    assert (
-        entries[0].ref == "https://myaccount.blob.core.windows.net/my-container/my-blob"
-    )
-    assert entries[0].digest == "my-blob version None"
-    assert entries[0].size == 42
-    assert entries[0].extra == {"etag": "my-blob version None"}
+@pytest.mark.parametrize("name", [None, "my-name"])
+@pytest.mark.parametrize("version_id", [None, "v2"])
+def test_add_azure_reference_no_checksum(
+    mock_azure_handler, my_artifact, name, version_id
+):
+    uri = "https://myaccount.blob.core.windows.net/my-container/nonexistent-blob"
 
-    # with name
-    artifact = wandb.Artifact("my_artifact", type="my_type")
-    entries = artifact.add_reference(
-        "https://myaccount.blob.core.windows.net/my-container/my-blob", name="my-name"
-    )
-    assert len(entries) == 1
-    assert entries[0].path == "my-name"
-    assert (
-        entries[0].ref == "https://myaccount.blob.core.windows.net/my-container/my-blob"
-    )
-    assert entries[0].digest == "my-blob version None"
-    assert entries[0].size == 42
-    assert entries[0].extra == {"etag": "my-blob version None"}
+    if version_id and name:
+        entries = my_artifact.add_reference(
+            f"{uri}?versionId={version_id}", name=name, checksum=False
+        )
+    elif version_id and not name:
+        entries = my_artifact.add_reference(
+            f"{uri}?versionId={version_id}", checksum=False
+        )
+    elif (not version_id) and name:
+        entries = my_artifact.add_reference(uri, name=name, checksum=False)
+    else:
+        entries = my_artifact.add_reference(uri, checksum=False)
 
-    # with version
-    artifact = wandb.Artifact("my_artifact", type="my_type")
-    entries = artifact.add_reference(
-        "https://myaccount.blob.core.windows.net/my-container/my-blob?versionId=v2"
-    )
     assert len(entries) == 1
-    assert entries[0].path == "my-blob"
-    assert (
-        entries[0].ref == "https://myaccount.blob.core.windows.net/my-container/my-blob"
-    )
-    assert entries[0].digest == "my-blob version v2"
-    assert entries[0].size == 42
-    assert entries[0].extra == {"etag": "my-blob version v2", "versionID": "v2"}
+    entry = entries[0]
+    assert entry.path == "nonexistent-blob" if (name is None) else name
+    assert entry.ref == uri
+    assert entry.digest == uri
+    assert entry.size is None
+    assert entry.extra == {}
+
+
+@pytest.mark.parametrize("name", [None, "my-name"])
+@pytest.mark.parametrize("version_id", [None, "v2"])
+def test_add_azure_reference(mock_azure_handler, my_artifact, name, version_id):
+    uri = "https://myaccount.blob.core.windows.net/my-container/my-blob"
+
+    if version_id and name:
+        entries = my_artifact.add_reference(f"{uri}?versionId={version_id}", name=name)
+    elif version_id and not name:
+        entries = my_artifact.add_reference(f"{uri}?versionId={version_id}")
+    elif (not version_id) and name:
+        entries = my_artifact.add_reference(uri, name=name)
+    else:
+        entries = my_artifact.add_reference(uri)
+
+    assert len(entries) == 1
+    entry = entries[0]
+
+    if name is None:
+        assert entry.path == "my-blob"
+    else:
+        assert entry.path == name
+
+    if version_id is None:
+        assert entry.digest == "my-blob version None"
+        assert entry.extra == {"etag": "my-blob version None"}
+    else:
+        assert entry.digest == f"my-blob version {version_id}"
+        assert entry.extra == {
+            "etag": f"my-blob version {version_id}",
+            "versionID": version_id,
+        }
+
+    assert entry.ref == uri
+    assert entry.size == 42
 
 
 def test_add_azure_reference_directory(mock_azure_handler):
-    artifact = wandb.Artifact("my_artifact", type="my_type")
+    artifact = Artifact("my_artifact", type="my_type")
     entries = artifact.add_reference(
         "https://myaccount.blob.core.windows.net/my-container/my-dir"
     )
@@ -952,7 +897,7 @@ def test_add_azure_reference_directory(mock_azure_handler):
     assert entries[1].extra == {"etag": "my-dir/b version None"}
 
     # with name
-    artifact = wandb.Artifact("my_artifact", type="my_type")
+    artifact = Artifact("my_artifact", type="my_type")
     entries = artifact.add_reference(
         "https://myaccount.blob.core.windows.net/my-container/my-dir", name="my-name"
     )
@@ -1001,8 +946,7 @@ def test_add_azure_reference_max_objects(mock_azure_handler):
         assert entries[1].extra == {"etag": "my-dir/b version None"}
 
 
-def test_add_http_reference_path():
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_http_reference_path(artifact):
     mock_http(
         artifact,
         headers={
@@ -1024,12 +968,11 @@ def test_add_http_reference_path():
     }
 
 
-def test_add_reference_named_local_file(tmp_path):
+def test_add_reference_named_local_file(tmp_path, artifact):
     file = tmp_path / "file1.txt"
     file.write_text("hello")
     uri = file.as_uri()
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_reference(uri, name="great-file.txt")
 
     assert artifact.digest == "585b9ada17797e37c9cbab391e69b8c5"
@@ -1041,8 +984,7 @@ def test_add_reference_named_local_file(tmp_path):
     }
 
 
-def test_add_reference_unknown_handler():
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_add_reference_unknown_handler(artifact):
     artifact.add_reference("ref://example.com/somefile.txt", name="ref")
 
     assert artifact.digest == "410ade94865e89ebe1f593f4379ac228"
@@ -1055,14 +997,13 @@ def test_add_reference_unknown_handler():
 
 
 @pytest.mark.parametrize("name_type", [str, Path, PurePosixPath, PureWindowsPath])
-def test_remove_file(name_type):
+def test_remove_file(name_type, artifact):
     file1 = Path("file1.txt")
     file1.parent.mkdir(parents=True, exist_ok=True)
     file1.write_text("hello")
     file2 = Path("file2.txt")
     file2.write_text("hello")
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_file(file1)
     artifact.add_file(file2, name="renamed.txt")
 
@@ -1073,17 +1014,14 @@ def test_remove_file(name_type):
 
 
 @pytest.mark.parametrize("name_type", [str, Path, PurePosixPath, PureWindowsPath])
-def test_remove_directory(name_type):
+def test_remove_directory(name_type, artifact):
     file1 = Path("bar/foo/file1.txt")
     file1.parent.mkdir(parents=True, exist_ok=True)
     file1.write_text("hello")
     file2 = Path("bar/foo/file2.txt")
     file2.write_text("hello2")
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_dir("bar")
-
-    print(artifact.manifest.entries)
 
     assert len(artifact.manifest.entries) == 2
 
@@ -1092,12 +1030,11 @@ def test_remove_directory(name_type):
     assert artifact.manifest.entries == {}
 
 
-def test_remove_non_existent():
+def test_remove_non_existent(artifact):
     file1 = Path("baz/foo/file1.txt")
     file1.parent.mkdir(parents=True, exist_ok=True)
     file1.write_text("hello")
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_dir("baz")
 
     with pytest.raises(FileNotFoundError):
@@ -1108,8 +1045,7 @@ def test_remove_non_existent():
     assert len(artifact.manifest.entries) == 1
 
 
-def test_remove_manifest_entry():
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
+def test_remove_manifest_entry(artifact):
     entry = artifact.add_reference(Path(__file__).as_uri())[0]
 
     artifact.remove(entry)
@@ -1173,7 +1109,7 @@ def test_artifact_table_deserialize_timestamp_column():
     }
 
     for art in (artifact_json, artifact_json_non_null):
-        artifact = wandb.Artifact(name="test", type="test")
+        artifact = Artifact(name="test", type="test")
         timestamp_idx = art["columns"].index("Date Time")
         table = wandb.Table.from_json(art, artifact)
         assert [row[timestamp_idx] for row in table.data] == [
@@ -1184,10 +1120,9 @@ def test_artifact_table_deserialize_timestamp_column():
         ]
 
 
-def test_add_obj_wbimage_no_classes(assets_path):
+def test_add_obj_wbimage_no_classes(assets_path, artifact):
     im_path = str(assets_path("2x2.png"))
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
     wb_image = wandb.Image(
         im_path,
         masks={
@@ -1200,10 +1135,9 @@ def test_add_obj_wbimage_no_classes(assets_path):
         artifact.add(wb_image, "my-image")
 
 
-def test_add_obj_wbimage(assets_path):
+def test_add_obj_wbimage(assets_path, artifact):
     im_path = str(assets_path("2x2.png"))
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     artifact.add(wb_image, "my-image")
 
@@ -1225,10 +1159,53 @@ def test_add_obj_wbimage(assets_path):
     }
 
 
-def test_add_obj_using_brackets(assets_path):
+@pytest.mark.parametrize("overwrite", [True, False])
+def test_add_obj_wbimage_again_after_edit(
+    tmp_path, assets_path, copy_asset, overwrite, artifact
+):
+    orig_path1 = assets_path("test.png")
+    orig_path2 = assets_path("2x2.png")
+    assert filecmp.cmp(orig_path1, orig_path2) is False  # Consistency check
+
+    im_path = tmp_path / "image.png"
+
+    copied_path = copy_asset(orig_path1.name, im_path)
+    assert im_path == copied_path  # Consistency check
+    assert filecmp.cmp(orig_path1, im_path) is True  # Consistency check
+
+    image_name = "my-image"
+
+    wb_image = wandb.Image(str(im_path))
+    artifact.add(wb_image, image_name, overwrite=overwrite)
+
+    manifest1 = artifact.manifest.to_manifest_json()
+    digest1 = artifact.digest
+    manifest_contents1 = manifest1["contents"]
+    assert digest1 == "2a7a8a7f29c929fe05b57983a2944fca"
+    assert len(manifest_contents1) == 2
+
+    # Modify the object, keeping the path unchanged
+    copied_path = copy_asset(orig_path2.name, im_path)
+    assert im_path == copied_path  # Consistency check
+    assert filecmp.cmp(orig_path2, im_path) is True  # Consistency check
+
+    wb_image = wandb.Image(str(im_path))
+    artifact.add(wb_image, image_name, overwrite=overwrite)
+
+    manifest2 = artifact.manifest.to_manifest_json()
+    digest2 = artifact.digest
+    manifest_contents2 = manifest2["contents"]
+
+    assert overwrite is (digest2 != digest1)
+    assert overwrite is (manifest_contents2 != manifest_contents1)
+
+    # Regardless, we should have the same file paths/names in the manifest
+    assert manifest_contents1.keys() == manifest_contents2.keys()
+
+
+def test_add_obj_using_brackets(assets_path, artifact):
     im_path = str(assets_path("2x2.png"))
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     artifact["my-image"] = wb_image
 
@@ -1253,37 +1230,35 @@ def test_add_obj_using_brackets(assets_path):
         _ = artifact["my-image"]
 
 
-def test_duplicate_wbimage_from_file(assets_path):
+@pytest.mark.parametrize("add_duplicate", [True, False], ids=["duplicate", "unique"])
+def test_duplicate_wbimage_from_file(assets_path, artifact, add_duplicate):
     im_path_1 = str(assets_path("test.png"))
     im_path_2 = str(assets_path("test2.png"))
 
-    artifact = wandb.Artifact(type="dataset", name="artifact")
     wb_image_1 = wandb.Image(im_path_1)
-    wb_image_2 = wandb.Image(im_path_2)
-    artifact.add(wb_image_1, "my-image_1")
-    artifact.add(wb_image_2, "my-image_2")
-    assert len(artifact.manifest.entries) == 4
+    wb_image_2 = wandb.Image(im_path_1) if add_duplicate else wandb.Image(im_path_2)
 
-    artifact = wandb.Artifact(type="dataset", name="artifact")
-    wb_image_1 = wandb.Image(im_path_1)
-    wb_image_2 = wandb.Image(im_path_1)
     artifact.add(wb_image_1, "my-image_1")
     artifact.add(wb_image_2, "my-image_2")
-    assert len(artifact.manifest.entries) == 3
+
+    if add_duplicate:
+        assert len(artifact.manifest.entries) == 3
+    else:
+        assert len(artifact.manifest.entries) == 4
 
 
 def test_deduplicate_wbimage_from_array():
     im_data_1 = np.random.rand(300, 300, 3)
     im_data_2 = np.random.rand(300, 300, 3)
 
-    artifact = wandb.Artifact(type="dataset", name="artifact")
+    artifact = Artifact(type="dataset", name="artifact")
     wb_image_1 = wandb.Image(im_data_1)
     wb_image_2 = wandb.Image(im_data_2)
     artifact.add(wb_image_1, "my-image_1")
     artifact.add(wb_image_2, "my-image_2")
     assert len(artifact.manifest.entries) == 4
 
-    artifact = wandb.Artifact(type="dataset", name="artifact")
+    artifact = Artifact(type="dataset", name="artifact")
     wb_image_1 = wandb.Image(im_data_1)
     wb_image_2 = wandb.Image(im_data_2)
     wb_image_3 = wandb.Image(im_data_1)  # yes, should be 1
@@ -1293,29 +1268,28 @@ def test_deduplicate_wbimage_from_array():
     assert len(artifact.manifest.entries) == 5
 
 
-def test_deduplicate_wbimagemask_from_array():
+@pytest.mark.parametrize("add_duplicate", [True, False], ids=["duplicate", "unique"])
+def test_deduplicate_wbimagemask_from_array(artifact, add_duplicate):
     im_data_1 = np.random.randint(0, 10, (300, 300))
     im_data_2 = np.random.randint(0, 10, (300, 300))
 
-    artifact = wandb.Artifact(type="dataset", name="artifact")
     wb_imagemask_1 = data_types.ImageMask({"mask_data": im_data_1}, key="test")
-    wb_imagemask_2 = data_types.ImageMask({"mask_data": im_data_2}, key="test2")
+    wb_imagemask_2 = data_types.ImageMask(
+        {"mask_data": im_data_1 if add_duplicate else im_data_2}, key="test2"
+    )
+
     artifact.add(wb_imagemask_1, "my-imagemask_1")
     artifact.add(wb_imagemask_2, "my-imagemask_2")
-    assert len(artifact.manifest.entries) == 4
 
-    artifact = wandb.Artifact(type="dataset", name="artifact")
-    wb_imagemask_1 = data_types.ImageMask({"mask_data": im_data_1}, key="test")
-    wb_imagemask_2 = data_types.ImageMask({"mask_data": im_data_1}, key="test2")
-    artifact.add(wb_imagemask_1, "my-imagemask_1")
-    artifact.add(wb_imagemask_2, "my-imagemask_2")
-    assert len(artifact.manifest.entries) == 3
+    if add_duplicate:
+        assert len(artifact.manifest.entries) == 3
+    else:
+        assert len(artifact.manifest.entries) == 4
 
 
-def test_add_obj_wbimage_classes_obj(assets_path):
+def test_add_obj_wbimage_classes_obj(assets_path, artifact):
     im_path = str(assets_path("2x2.png"))
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
     classes = wandb.Classes([{"id": 0, "name": "person"}])
     wb_image = wandb.Image(im_path, classes=classes)
     artifact.add(wb_image, "my-image")
@@ -1337,10 +1311,9 @@ def test_add_obj_wbimage_classes_obj(assets_path):
     }
 
 
-def test_add_obj_wbimage_classes_obj_already_added(assets_path):
+def test_add_obj_wbimage_classes_obj_already_added(assets_path, artifact):
     im_path = str(assets_path("2x2.png"))
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
     classes = wandb.Classes([{"id": 0, "name": "person"}])
     artifact.add(classes, "my-classes")
     wb_image = wandb.Image(im_path, classes=classes)
@@ -1367,10 +1340,9 @@ def test_add_obj_wbimage_classes_obj_already_added(assets_path):
     }
 
 
-def test_add_obj_wbimage_image_already_added(assets_path):
+def test_add_obj_wbimage_image_already_added(assets_path, artifact):
     im_path = str(assets_path("2x2.png"))
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_file(im_path)
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     artifact.add(wb_image, "my-image")
@@ -1389,10 +1361,9 @@ def test_add_obj_wbimage_image_already_added(assets_path):
     }
 
 
-def test_add_obj_wbtable_images(assets_path):
+def test_add_obj_wbtable_images(assets_path, artifact):
     im_path = str(assets_path("2x2.png"))
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     wb_table = wandb.Table(["examples"])
     wb_table.add_data(wb_image)
@@ -1414,7 +1385,7 @@ def test_add_obj_wbtable_images(assets_path):
     }
 
 
-def test_add_obj_wbtable_images_duplicate_name(assets_path):
+def test_add_obj_wbtable_images_duplicate_name(assets_path, artifact):
     img_1 = str(assets_path("2x2.png"))
     img_2 = str(assets_path("test2.png"))
 
@@ -1423,7 +1394,6 @@ def test_add_obj_wbtable_images_duplicate_name(assets_path):
     os.mkdir("dir2")
     shutil.copy(img_2, "dir2/img.png")
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
     wb_image_1 = wandb.Image(os.path.join("dir1", "img.png"))
     wb_image_2 = wandb.Image(os.path.join("dir2", "img.png"))
     wb_table = wandb.Table(["examples"])
@@ -1445,18 +1415,13 @@ def test_add_obj_wbtable_images_duplicate_name(assets_path):
     }
 
 
-def test_add_partition_folder():
+def test_add_partition_folder(artifact):
     table_name = "dataset"
     table_parts_dir = "dataset_parts"
-    artifact_name = "simple_dataset"
-    artifact_type = "dataset"
 
-    artifact = wandb.Artifact(artifact_name, type=artifact_type)
     partition_table = wandb.data_types.PartitionedTable(parts_path=table_parts_dir)
     artifact.add(partition_table, table_name)
     manifest = artifact.manifest.to_manifest_json()
-    print(manifest)
-    print(artifact.digest)
     assert artifact.digest == "c6a4d80ed84fd68df380425ded894b19"
     assert manifest["contents"]["dataset.partitioned-table.json"] == {
         "digest": "uo/SjoAO+O7pcSfg+yhlDg==",
@@ -1474,7 +1439,9 @@ def test_add_partition_folder():
     ],
 )
 def test_http_storage_handler_uses_etag_for_digest(
-    headers: Optional[Mapping[str, str]], expected_digest: Optional[str]
+    headers: Optional[Mapping[str, str]],
+    expected_digest: Optional[str],
+    artifact,
 ):
     with responses.RequestsMock() as rsps, requests.Session() as session:
         rsps.add(
@@ -1485,18 +1452,18 @@ def test_http_storage_handler_uses_etag_for_digest(
         )
         handler = HTTPHandler(session)
 
-        art = wandb.Artifact("test", type="dataset")
         [entry] = handler.store_path(
-            art, "https://example.com/foo.json?bar=abc", "foo.json"
+            artifact, "https://example.com/foo.json?bar=abc", "foo.json"
         )
         assert entry.path == "foo.json"
         assert entry.ref == "https://example.com/foo.json?bar=abc"
         assert entry.digest == expected_digest
 
 
-def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init):
+def test_s3_storage_handler_load_path_missing_reference(
+    monkeypatch, wandb_init, artifact
+):
     # Create an artifact that references a non-existent S3 object.
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
     mock_boto(artifact, version_id="")
     artifact.add_reference("s3://my-bucket/my_object.pb")
 
@@ -1520,7 +1487,7 @@ def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init)
 
 def test_change_artifact_collection_type(monkeypatch, wandb_init):
     with wandb_init() as run:
-        artifact = wandb.Artifact("image_data", "data")
+        artifact = Artifact("image_data", "data")
         run.log_artifact(artifact)
 
     with wandb_init() as run:
@@ -1532,14 +1499,14 @@ def test_change_artifact_collection_type(monkeypatch, wandb_init):
         assert artifact.type == "lucas_type"
 
 
-def test_save_artifact_sequence(monkeypatch, wandb_init):
+def test_save_artifact_sequence(monkeypatch, wandb_init, api):
     with wandb_init() as run:
-        artifact = wandb.Artifact("sequence_name", "data")
+        artifact = Artifact("sequence_name", "data")
         run.log_artifact(artifact)
         artifact.wait()
 
         artifact = run.use_artifact("sequence_name:latest")
-        collection = wandb.Api().artifact_collection("data", "sequence_name")
+        collection = api.artifact_collection("data", "sequence_name")
         collection.description = "new description"
         collection.name = "new_name"
         collection.type = "new_type"
@@ -1562,14 +1529,14 @@ def test_save_artifact_sequence(monkeypatch, wandb_init):
         assert len(collection.tags) == 1 and collection.tags[0] == "new_tag"
 
 
-def test_save_artifact_portfolio(monkeypatch, wandb_init):
+def test_save_artifact_portfolio(monkeypatch, wandb_init, api):
     with wandb_init() as run:
-        artifact = wandb.Artifact("image_data", "data")
+        artifact = Artifact("image_data", "data")
         run.log_artifact(artifact)
         artifact.link("portfolio_name")
         artifact.wait()
 
-        portfolio = wandb.Api().artifact_collection("data", "portfolio_name")
+        portfolio = api.artifact_collection("data", "portfolio_name")
         portfolio.description = "new description"
         portfolio.name = "new_name"
         with pytest.raises(ValueError):
@@ -1592,10 +1559,9 @@ def test_save_artifact_portfolio(monkeypatch, wandb_init):
 
 
 def test_s3_storage_handler_load_path_missing_reference_allowed(
-    monkeypatch, wandb_init, capsys
+    monkeypatch, wandb_init, capsys, artifact
 ):
     # Create an artifact that references a non-existent S3 object.
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
     mock_boto(artifact, version_id="")
     artifact.add_reference("s3://my-bucket/my_object.pb")
 
@@ -1643,10 +1609,9 @@ def test_s3_storage_handler_load_path_uses_cache(tmp_path):
     assert local_path == path
 
 
-def test_tracking_storage_handler():
-    art = wandb.Artifact("test", "dataset")
+def test_tracking_storage_handler(artifact):
     handler = TrackingHandler()
-    [entry] = handler.store_path(art, path="/path/to/file.txt", name="some-file")
+    [entry] = handler.store_path(artifact, path="/path/to/file.txt", name="some-file")
     assert entry.path == "some-file"
     assert entry.ref == "/path/to/file.txt"
     assert entry.digest == entry.ref
@@ -1688,11 +1653,10 @@ def test_manifest_json_invalid_version(version):
 
 @pytest.mark.flaky
 @pytest.mark.xfail(reason="flaky")
-def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
+def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch, artifact):
     monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path))
     cache = artifact_file_cache.get_artifact_file_cache()
 
-    artifact = wandb.Artifact(type="dataset", name="survive-cleanup")
     with open("test-file", "wb") as f:
         f.truncate(2**20)
         f.flush()
@@ -1719,36 +1683,36 @@ def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
 
 
 def test_artifact_ttl_setter_getter():
-    art = wandb.Artifact("test", type="test")
+    art = Artifact("test", type="test")
     with pytest.raises(ArtifactNotLoggedError):
-        print(art.ttl)
+        _ = art.ttl
     assert art._ttl_duration_seconds is None
     assert art._ttl_changed is False
     assert art._ttl_is_inherited
 
-    art = wandb.Artifact("test", type="test")
+    art = Artifact("test", type="test")
     art.ttl = None
     assert art.ttl is None
     assert art._ttl_duration_seconds is None
     assert art._ttl_changed
     assert art._ttl_is_inherited is False
 
-    art = wandb.Artifact("test", type="test")
+    art = Artifact("test", type="test")
     art.ttl = ArtifactTTL.INHERIT
     with pytest.raises(ArtifactNotLoggedError):
-        print(art.ttl)
+        _ = art.ttl
     assert art._ttl_duration_seconds is None
     assert art._ttl_changed
     assert art._ttl_is_inherited
 
     ttl_timedelta = timedelta(days=100)
-    art = wandb.Artifact("test", type="test")
+    art = Artifact("test", type="test")
     art.ttl = ttl_timedelta
     assert art.ttl == ttl_timedelta
     assert art._ttl_duration_seconds == int(ttl_timedelta.total_seconds())
     assert art._ttl_changed
     assert art._ttl_is_inherited is False
 
-    art = wandb.Artifact("test", type="test")
+    art = Artifact("test", type="test")
     with pytest.raises(ValueError):
         art.ttl = timedelta(days=-1)
