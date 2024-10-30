@@ -258,7 +258,7 @@ func (e *tfEmitter) EmitImages(
 	key pathtree.TreePath,
 	images []wbvalue.Image,
 ) error {
-	format, height, width, err := e.verifyAndGetImagesMetadata(images)
+	format, width, height, err := e.verifyAndGetImagesMetadata(images)
 	if err != nil {
 		return err
 	}
@@ -297,24 +297,39 @@ func (e *tfEmitter) EmitImages(
 	return nil
 }
 
-func (e *tfEmitter) verifyAndGetImagesMetadata(images []wbvalue.Image) (format string, height int, width int, err error) {
-	// Tensorboard encodes all images to png format.
+func (e *tfEmitter) verifyAndGetImagesMetadata(
+	images []wbvalue.Image,
+) (format string, width int, height int, err error) {
+	// All Tensorboard iamges in a summary step should be of the same format.
 	// https://github.com/tensorflow/tensorboard/blob/b56c65521cbccf3097414cbd7e30e55902e08cab/tensorboard/plugins/image/summary.py#L85
 	format = images[0].Format
-	// Tensorboard gets the image dimensions from the first two values in the tensor.
+
+	// All Tensorboard images in a summary step should have the same width and height.
 	//https://github.com/tensorflow/tensorboard/blob/b56c65521cbccf3097414cbd7e30e55902e08cab/tensorboard/plugins/image/summary.py#L93-L94
-	height = images[0].Height
 	width = images[0].Width
+	height = images[0].Height
 
 	for _, img := range images {
 		if img.Format != format {
-			return "", -1, -1, fmt.Errorf("images have different formats, expected %s, but found %s", format, img.Format)
-		}
-		if img.Height != height {
-			return "", -1, -1, fmt.Errorf("images have different heights, expected %d, but found %d", height, img.Height)
+			return "", -1, -1, fmt.Errorf(
+				"images have different formats, expected %s, but found %s",
+				format,
+				img.Format,
+			)
 		}
 		if img.Width != width {
-			return "", -1, -1, fmt.Errorf("images have different widths, expected %d, but found %d", width, img.Width)
+			return "", -1, -1, fmt.Errorf(
+				"images have different widths, expected %d, but found %d",
+				width,
+				img.Width,
+			)
+		}
+		if img.Height != height {
+			return "", -1, -1, fmt.Errorf(
+				"images have different heights, expected %d, but found %d",
+				height,
+				img.Height,
+			)
 		}
 	}
 
