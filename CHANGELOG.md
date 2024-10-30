@@ -17,6 +17,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Fix limiting azure reference artifact uploads to `max_objects` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8703)
 - Fix downloading azure reference artifacts with `skip_cache=True` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8706)
 - Fix multipart uploads for files with no content type defined in headers (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8716)
+- Fixed tensorboard failing to sync when logging batches of images. (@jacobromero in https://github.com/wandb/wandb/pull/8641)
 - Fixed calling `wandb.log()` with file system reserved characters (`/`, `.`, `..`) could write outside of the run directory. (@jacobromero in https://github.com/wandb/wandb/pull/8578)
 
 ### Changed
