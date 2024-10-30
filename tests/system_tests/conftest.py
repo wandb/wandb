@@ -431,32 +431,37 @@ class LocalWandbBackendAddress:
 
 
 @pytest.fixture(scope="session")
-def local_wandb_backend(worker_id: str) -> Iterable[LocalWandbBackendAddress]:
+def local_wandb_backend(
+    worker_id: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterable[LocalWandbBackendAddress]:
     """Fixture that starts up or connects to the local-testcontainer."""
     repo_root = pathlib.Path(__file__).parent.parent.parent
     tool_file = repo_root / "tools" / "local_wandb_server.py"
+    session_id = f"pytest:{worker_id}"
 
     output_str = subprocess.check_output(
         [
             "python",
             tool_file,
             "start",
-            f"pytest:{worker_id}",
-            *["--name", "wandb-local-testcontainer"],
+            session_id,
+            "--name=wandb-local-testcontainer",
         ]
     )
-    output = json.loads(output_str)
-    base_port = int(output["base_port"])
-    fixture_port = int(output["fixture_port"])
 
     try:
-        yield LocalWandbBackendAddress(
+        output = json.loads(output_str)
+        address = LocalWandbBackendAddress(
             _url="http://localhost",
-            _base_port=base_port,
-            _fixture_port=fixture_port,
+            _base_port=int(output["base_port"]),
+            _fixture_port=int(output["fixture_port"]),
         )
+
+        monkeypatch.setenv("WANDB_BASE_URL", address.base_url)
+        yield address
     finally:
-        subprocess.check_call(["python", tool_file, "release", "pytest"])
+        subprocess.check_call(["python", tool_file, "release", session_id])
 
 
 def determine_scope(fixture_name, config):
@@ -492,7 +497,7 @@ def random_string(length: int = 12) -> str:
 
 
 @pytest.fixture(scope="session")
-def user_factory(worker_id: str) -> str:
+def user_factory(worker_id: str):
     def _user_factory(fixture_fn):
         username = f"user-{worker_id}-{random_string()}"
         command = UserFixtureCommand(command="up", username=username)
@@ -541,11 +546,11 @@ def fixture_fn_factory():
                 raise NotImplementedError(f"{cmd} is not implemented")
 
             # trigger fixture
-            print(f"Triggering fixture on {endpoint}: {data}")
+            print(f"Triggering fixture on {endpoint}: {data}", file=sys.stderr)
             response = getattr(requests, cmd.method)(endpoint, json=data)
 
             if response.status_code != 200:
-                print(response.json())
+                print(response.json(), file=sys.stderr)
                 return False
             return True
 
