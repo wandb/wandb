@@ -18,6 +18,9 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Fix downloading azure reference artifacts with `skip_cache=True` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8706)
 - Fix multipart uploads for files with no content type defined in headers (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8716)
 
+### Changed
+- Added internal method, api._artifact(), to fetch artifacts so that usage events are not created if not called by an external user. (@ibindlish in https://github.com/wandb/wandb/pull/8674)
+
 ## [0.18.5] - 2024-10-17
 
 ### Fixed
@@ -38,6 +41,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Log power on AMD MI300X series GPUs (@dmitryduev in https://github.com/wandb/wandb/pull/8630)
 - Fixed typing issue of `wandb.Api` (@bdvllrs in https://github.com/wandb/wandb/pull/8548)
+- Ensure artifact objects are fully updated on `Artifact.save()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8575)
 
 ### Changed
 
