@@ -51,13 +51,15 @@ executors:
   local-testcontainer-importers:
     parameters:
       python: { type: string }
+      server_image: { type: string }
+      server_image_tag: { type: string }
       dst_server_name:
         type: string
         default: localhost-wandb-2
     docker:
       - image: "python:<<parameters.python>>"
       # the src server
-      - image: <<pipeline.parameters.server_image>>:<<pipeline.parameters.server_image_tag>>
+      - image: <<parameters.server_image>>:<<parameters.server_image_tag>>
         auth:
           username: _json_key
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
@@ -65,7 +67,7 @@ executors:
           CI: 1
           WANDB_ENABLE_TEST_CONTAINER: true
       # the dst server
-      - image: <<pipeline.parameters.server_image>>:<<pipeline.parameters.server_image_tag>>
+      - image: <<parameters.server_image>>:<<parameters.server_image_tag>>
         auth:
           username: _json_key
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
@@ -608,16 +610,16 @@ workflows:
       # W&B Importer tests on Linux, using 2 real wandb servers
       #
       - nox-tests-linux:
-          name: "\
-            system-tests-linux-importers-\
-            <<matrix.tests>>-\
-            <<matrix.python>>"
-          session: importer_tests(importer='<<matrix.tests>>')
+          name: system-tests-linux-importers-wandb
+          session: importer_tests(importer='wandb')
           codecov_flags: system
           parallelism: 1
           executor_name: local-testcontainer-importers
-
-          matrix:
-            parameters:
-              python: ["3.9"]
-              tests: ["wandb", "mlflow"]
+          python: "3.9"
+      - nox-tests-linux:
+          name: system-tests-linux-importers-mlflow
+          session: importer_tests(importer='mlflow')
+          codecov_flags: system
+          parallelism: 1
+          executor_name: local-testcontainer-importers
+          python: "3.9"
