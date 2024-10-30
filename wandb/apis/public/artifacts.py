@@ -50,6 +50,7 @@ ARTIFACT_FILES_FRAGMENT = """fragment ArtifactFilesFragment on Artifact {
                 updatedAt
                 digest
                 md5
+                directUrl
             }
             cursor
         }
