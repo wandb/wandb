@@ -431,11 +431,11 @@ class LocalWandbBackendAddress:
 
 
 @pytest.fixture(scope="session")
-def local_wandb_backend(
-    worker_id: str,
-    monkeypatch: pytest.MonkeyPatch,
-) -> Iterable[LocalWandbBackendAddress]:
-    """Fixture that starts up or connects to the local-testcontainer."""
+def local_wandb_backend(worker_id: str) -> Iterable[LocalWandbBackendAddress]:
+    """Fixture that starts up or connects to the local-testcontainer.
+
+    This does not patch WANDB_BASE_URL! Use `use_local_wandb_backend` instead.
+    """
     repo_root = pathlib.Path(__file__).parent.parent.parent
     tool_file = repo_root / "tools" / "local_wandb_server.py"
     session_id = f"pytest:{worker_id}"
@@ -457,11 +457,22 @@ def local_wandb_backend(
             _base_port=int(output["base_port"]),
             _fixture_port=int(output["fixture_port"]),
         )
-
-        monkeypatch.setenv("WANDB_BASE_URL", address.base_url)
         yield address
     finally:
         subprocess.check_call(["python", tool_file, "release", session_id])
+
+
+@pytest.fixture(scope="function")
+def use_local_wandb_backend(
+    local_wandb_backend: LocalWandbBackendAddress,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fixture that patches WANDB_BASE_URL to point to the local container.
+
+    Unlike `local_wandb_backend`, this is function-scoped, so cannot be used
+    in session-scoped fixtures.
+    """
+    monkeypatch.setenv("WANDB_BASE_URL", local_wandb_backend.base_url)
 
 
 def determine_scope(fixture_name, config):
@@ -569,7 +580,8 @@ def fixture_fn(fixture_fn_factory, local_wandb_backend):
 
 
 @pytest.fixture(scope=determine_scope)
-def user(user_factory, fixture_fn):
+def user(user_factory, fixture_fn, use_local_wandb_backend):
+    _ = use_local_wandb_backend
     yield from user_factory(fixture_fn)
 
 
