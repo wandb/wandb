@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -26,12 +27,14 @@ type CredentialProvider interface {
 // authentication
 func NewCredentialProvider(
 	settings *settings.Settings,
+	logger *slog.Logger,
 ) (CredentialProvider, error) {
 	if settings.GetIdentityTokenFile() != "" {
 		return NewOAuth2CredentialProvider(
 			settings.GetBaseURL(),
 			settings.GetIdentityTokenFile(),
 			settings.GetCredentialsFile(),
+			logger,
 		)
 	}
 	return NewAPIKeyCredentialProvider(settings)
@@ -85,12 +88,14 @@ func NewOAuth2CredentialProvider(
 	baseURL string,
 	identityTokenFilePath string,
 	credentialsFilePath string,
+	logger *slog.Logger,
 ) (CredentialProvider, error) {
 	return &oauth2CredentialProvider{
 		baseURL:               baseURL,
 		identityTokenFilePath: identityTokenFilePath,
 		credentialsFilePath:   credentialsFilePath,
 		tokenMu:               &sync.RWMutex{},
+		logger:                logger,
 	}, nil
 }
 
@@ -108,6 +113,8 @@ type oauth2CredentialProvider struct {
 	token tokenInfo
 
 	tokenMu *sync.RWMutex
+
+	logger *slog.Logger
 }
 
 // ExpiresAt is a custom type representing a time.Time value. It is used to handle
@@ -159,9 +166,11 @@ type CredentialsFile struct {
 // as a Bearer token
 func (c *oauth2CredentialProvider) Apply(req *http.Request) error {
 	if c.shouldRefreshToken() {
-		if err := c.loadCredentials(); err != nil {
+		token, err := c.loadCredentials()
+		if err != nil {
 			return err
 		}
+		c.token = token
 	}
 	req.Header.Set(
 		"Authorization",
@@ -178,34 +187,38 @@ func (c *oauth2CredentialProvider) shouldRefreshToken() bool {
 }
 
 // loadCredentials attempts to load an access token from the credentials file.
-// If the credentials file does not exist, it creates it.
-func (c *oauth2CredentialProvider) loadCredentials() error {
+// If the credentials file does not exist, it attempts to create it.
+func (c *oauth2CredentialProvider) loadCredentials() (tokenInfo, error) {
 	c.tokenMu.Lock()
 	defer c.tokenMu.Unlock()
 
 	_, err := os.Stat(c.credentialsFilePath)
 	if os.IsNotExist(err) {
-		err = c.writeCredentialsFile()
+		token, err := c.writeCredentialsFile()
+		if err != nil {
+			return tokenInfo{}, err
+		}
+		return token, nil
 	}
 	if err != nil {
-		return err
+		return tokenInfo{}, err
 	}
 
 	return c.loadCredentialsFromFile()
 }
 
-// loadCredentialsFromFile loads the access token from the credentials file. If
+// loadCredentialsFromFile attempts to load the access token from the credentials file. If
 // the access token does not exist for the given base url, or the token is
 // expiring, it fetches a new one from the server, and saves it to the credentials file
-func (c *oauth2CredentialProvider) loadCredentialsFromFile() error {
+func (c *oauth2CredentialProvider) loadCredentialsFromFile() (tokenInfo, error) {
+	var credsFile CredentialsFile
 	file, err := os.ReadFile(c.credentialsFilePath)
 	if err != nil {
-		return fmt.Errorf("failed to read credentials file: %v", err)
-	}
-
-	var credsFile CredentialsFile
-	if err := json.Unmarshal(file, &credsFile); err != nil {
-		return fmt.Errorf("failed to read credentials file: %v", err)
+		c.logger.Error("failed to read credentials from file path %s: %v", c.credentialsFilePath, err)
+	} else {
+		if err := json.Unmarshal(file, &credsFile); err != nil {
+			c.logger.Error("failed to read credentials file: %v", err)
+		}
 	}
 
 	if credsFile.Credentials == nil {
@@ -217,31 +230,29 @@ func (c *oauth2CredentialProvider) loadCredentialsFromFile() error {
 	if !ok || creds.IsTokenExpiring() {
 		newCreds, err := c.createAccessToken()
 		if err != nil {
-			return err
+			return tokenInfo{}, err
 		}
 		credsFile.Credentials[c.baseURL] = newCreds
 		updatedFile, err := json.MarshalIndent(credsFile, "", "  ")
 		if err != nil {
-			return fmt.Errorf("failed to update credentials file: %v", err)
+			c.logger.Error("failed to update credentials file: %v", err)
+			return creds, nil
 		}
 		err = os.WriteFile(c.credentialsFilePath, updatedFile, 0600)
 		if err != nil {
-			return fmt.Errorf("failed to update credentials file: %v", err)
+			c.logger.Error("failed to update credentials file: %v", err)
 		}
-		c.token = newCreds
-	} else {
-		c.token = creds
 	}
 
-	return nil
+	return creds, nil
 }
 
-// writeCredentialsFile obtains an access token from the server and saves it
-// to a credentials file
-func (c *oauth2CredentialProvider) writeCredentialsFile() error {
+// writeCredentialsFile fetches an access token from the server and attempts to
+// save it to the credentials file
+func (c *oauth2CredentialProvider) writeCredentialsFile() (tokenInfo, error) {
 	token, err := c.createAccessToken()
 	if err != nil {
-		return err
+		return tokenInfo{}, err
 	}
 
 	data := CredentialsFile{
@@ -252,15 +263,16 @@ func (c *oauth2CredentialProvider) writeCredentialsFile() error {
 
 	file, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to write credentials file: %v", err)
+		c.logger.Error("failed to write credentials file : %v", err)
+		return token, nil
 	}
 
 	err = os.WriteFile(c.credentialsFilePath, file, 0600)
 	if err != nil {
-		return fmt.Errorf("failed to write credentials file: %v", err)
+		c.logger.Error("failed to write credentials file: %v", err)
 	}
 
-	return nil
+	return token, nil
 }
 
 // createAccessToken reads the identity token from a file and exchanges it for
