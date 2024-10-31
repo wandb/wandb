@@ -18,6 +18,7 @@ import urllib
 from typing import Any, Dict, List, Optional
 
 import requests
+from wandb.apis.public.utils import parse_org_from_registry_path
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
@@ -781,8 +782,15 @@ class Api:
         Returns:
             A `Project` object.
         """
+        # For registry artifacts, capture potential org user inputted before resolving entity
+        org = entity if is_artifact_registry_project(name) else ""
+
         if entity is None:
             entity = self.settings["entity"] or self.default_entity
+
+        # For registry artifacts, resolve org-based entity
+        if is_artifact_registry_project(name):
+            entity = self._resolve_org_entity_name(org, entity)
         return public.Project(self.client, entity, name, {})
 
     def reports(
@@ -1041,7 +1049,12 @@ class Api:
         Returns:
             An iterable `ArtifactTypes` object.
         """
-        entity, project = self._parse_project_path(project)
+        project_path = project
+        entity, project = self._parse_project_path(project_path)
+        # If its an Registry artifact, the entity is an org instead
+        if is_artifact_registry_project(project):
+            org = parse_org_from_registry_path(entity, project, project_path)
+            entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
         return public.ArtifactTypes(self.client, entity, project)
 
     @normalize_exceptions
@@ -1057,7 +1070,12 @@ class Api:
         Returns:
             An `ArtifactType` object.
         """
-        entity, project = self._parse_project_path(project)
+        project_path = project
+        entity, project = self._parse_project_path(project_path)
+        # If its an Registry artifact, the entity is an org instead
+        if is_artifact_registry_project(project):
+            org = parse_org_from_registry_path(entity, project, project_path)
+            entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
         return public.ArtifactType(self.client, entity, project, type_name)
 
     @normalize_exceptions
@@ -1076,6 +1094,10 @@ class Api:
             An iterable `ArtifactCollections` object.
         """
         entity, project = self._parse_project_path(project_name)
+        # If iterating through Registry project, the entity is an org instead
+        if is_artifact_registry_project(project):
+            org = parse_org_from_registry_path(entity, project, project_name)
+            entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
         return public.ArtifactCollections(
             self.client, entity, project, type_name, per_page=per_page
         )
@@ -1094,6 +1116,10 @@ class Api:
             An `ArtifactCollection` object.
         """
         entity, project, collection_name = self._parse_artifact_path(name)
+        # If its an Registry artifact, the entity the project belongs to is an org instead
+        if is_artifact_registry_project(project):
+            org = parse_org_from_registry_path(entity, project, name)
+            entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
         return public.ArtifactCollection(
             self.client, entity, project, collection_name, type_name
         )
@@ -1131,6 +1157,10 @@ class Api:
             An iterable `Artifacts` object.
         """
         entity, project, collection_name = self._parse_artifact_path(name)
+        # If its an Registry project, the entity is an org instead
+        if is_artifact_registry_project(project):
+            org = parse_org_from_registry_path(entity, project, name)
+            entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
         return public.Artifacts(
             self.client,
             entity,

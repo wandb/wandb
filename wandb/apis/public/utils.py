@@ -1,6 +1,8 @@
 import re
 from urllib.parse import urlparse
 
+from wandb.sdk.artifacts._validators import is_artifact_registry_project
+
 
 def parse_s3_url_to_s3_uri(url) -> str:
     """Convert an S3 HTTP(S) URL to an S3 URI.
@@ -32,3 +34,20 @@ def parse_s3_url_to_s3_uri(url) -> str:
     s3_uri = f"s3://{bucket_name}/{key}"
 
     return s3_uri
+
+
+def parse_org_from_registry_path(entity: str, project: str, path: str) -> str:
+    """Parse the org from a registry path.
+
+    Args:
+        entity (str): The entity name.
+        project (str): The project name.
+        path (str): The path to parse.
+    """
+    if not path or not entity or not project:
+        return ""
+    if not is_artifact_registry_project(project):
+        return ""
+    if path.startswith(f"{entity}/{project}/") or path == f"{entity}/{project}":
+        return entity
+    return ""
