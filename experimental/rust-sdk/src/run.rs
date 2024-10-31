@@ -1,15 +1,10 @@
-use pyo3::prelude::*;
-
 use crate::connection::Interface;
 use crate::session;
 use crate::wandb_internal;
 use chrono;
-use image;
-use numpy::PyReadonlyArrayDyn;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use serde::{Serialize, Serializer};
-use sha2::Digest;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing;
@@ -17,7 +12,6 @@ use tracing;
 use crate::printer;
 use crate::settings::Settings;
 
-// #[pyfunction]
 pub fn generate_id(length: usize) -> String {
     // Using ASCII lowercase and digits to create a base-36 alphabet
     let alphabet: Vec<char> = "abcdefghijklmnopqrstuvwxyz0123456789".chars().collect();
@@ -28,33 +22,14 @@ pub fn generate_id(length: usize) -> String {
         .collect()
 }
 
-fn normalize(data: &Vec<f64>) -> Vec<f64> {
-    let min = data
-        .iter()
-        .cloned()
-        .min_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap();
-    let max = data
-        .iter()
-        .cloned()
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap();
-
-    data.iter()
-        .map(|&value| (value - min) / (max - min))
-        .collect()
-}
-
-// #[derive(FromPyObject, Deserialize, Serialize, Clone)]
-#[derive(FromPyObject, Clone)]
-pub enum Value<'py> {
+#[derive(Clone)]
+pub enum Value {
     Float(f64),
     Int(i32),
     Str(String),
-    Ndarray(PyReadonlyArrayDyn<'py, f64>),
 }
 
-impl<'py> Serialize for Value<'py> {
+impl Serialize for Value {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -63,48 +38,11 @@ impl<'py> Serialize for Value<'py> {
             Value::Float(f) => serializer.serialize_f64(*f),
             Value::Int(i) => serializer.serialize_i32(*i),
             Value::Str(s) => serializer.serialize_str(s),
-            Value::Ndarray(arr) => {
-                // TODO: keep the shape intact
-                let vec_data: Vec<f64> = arr.as_slice().unwrap().to_vec();
-                vec_data.serialize(serializer)
-            }
         }
     }
 }
 
-fn ndarray_to_image(arr: PyReadonlyArrayDyn<'_, f64>, path: &String) -> HashMap<String, String> {
-    let shape = arr.shape();
-    // Convert the ndarray to a Vec<f64> for serialization
-    let vec_data: Vec<f64> = arr.as_slice().unwrap().to_vec();
-    // convert to Vec<u8> for image serialization
-    let normalized = normalize(&vec_data);
-    let byte_values: Vec<u8> = normalized.iter().map(|&v| (v * 255.0) as u8).collect();
-
-    // compute sha256 of the image
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(&byte_values);
-    let image_sha256 = hasher.finalize();
-    let image_sha256_str = format!("{:x}", image_sha256);
-
-    let img: image::ImageBuffer<image::Rgb<u8>, Vec<u8>> =
-        image::ImageBuffer::from_vec(shape[0] as u32, shape[1] as u32, byte_values).unwrap();
-
-    std::fs::create_dir_all(format!("{}/media/images", path)).unwrap();
-    // You can now save or manipulate the ImageBuffer
-    // use sha256 as the filename.png
-    let image_path = format!("media/images/{}.png", &image_sha256_str[..20]);
-    let full_path = format!("{}/{}", path, image_path);
-    img.save(&full_path).unwrap();
-
-    let mut json = HashMap::new();
-    json.insert("_type".to_string(), "image-file".to_string());
-    json.insert("path".to_string(), image_path.to_string());
-    json.insert("sha256".to_string(), image_sha256_str.to_string());
-
-    json
-}
-
-#[pyclass]
+#[derive(Debug)]
 pub struct Run {
     pub settings: Settings,
     pub interface: Interface,
@@ -121,13 +59,12 @@ impl Run {
     }
 }
 
-#[pymethods]
 impl Run {
     pub fn init(&mut self, id: Option<String>) {
         // generate a random string of length 8 if run_id is None:
         let run_id = match id {
             Some(id) => id,
-            None => generate_id(8),
+            _ => generate_id(8),
         };
         tracing::debug!("Initializing run {}", run_id);
         self.settings.proto.run_id = Some(run_id.clone());
@@ -230,7 +167,7 @@ impl Run {
             Some(_) => {
                 tracing::warn!("Unexpected result type");
             }
-            None => {
+            _ => {
                 tracing::warn!("No result type, me is puzzled");
             }
         }
@@ -274,46 +211,10 @@ impl Run {
         } else {
             printer::print_header(&self.settings.run_name(), &self.settings.run_url());
         }
-
-        // printer::print_header(&self.settings.run_name(), &self.settings.run_url());
     }
-
-    // pub fn log_json(&self, data: String) {
-    //     self.log(serde_json::from_str(&data).unwrap_or(HashMap::new()));
-    // }
 
     pub fn log(&self, data: HashMap<String, Value>) {
         tracing::debug!("Logging to run {}", self.id());
-
-        // TODO: make it work with steps
-        // let history_record = wandb_internal::HistoryRecord {
-        //     item: data
-        //         .iter()
-        //         .map(|(k, v)| wandb_internal::HistoryItem {
-        //             key: k.clone(),
-        //             value_json: v.to_string(),
-        //             ..Default::default()
-        //         })
-        //         .collect(),
-        //     ..Default::default()
-        // };
-
-        // let record = wandb_internal::Record {
-        //     record_type: Some(wandb_internal::record::RecordType::History(history_record)),
-        //     info: Some(wandb_internal::RecordInfo {
-        //         stream_id: self.id.clone(),
-        //         ..Default::default()
-        //     }),
-        //     ..Default::default()
-        // };
-
-        // let message = wandb_internal::ServerRequest {
-        //     server_request_type: Some(
-        //         wandb_internal::server_request::ServerRequestType::RecordPublish(record),
-        //     ),
-        // };
-
-        // self.interface.conn.send_message(&message).unwrap();
 
         let mut partial_history_request = wandb_internal::PartialHistoryRequest {
             ..Default::default()
@@ -325,36 +226,12 @@ impl Run {
                 ..Default::default()
             };
             match v {
-                Value::Ndarray(arr) => {
-                    // TODO: convert to image if shape is valid, otherwise just serialize
-                    let shape = arr.shape();
-                    if shape.len() == 3 {
-                        let value_json = ndarray_to_image(arr, &self.settings.files_dir());
-                        item.value_json = serde_json::to_string(&value_json).unwrap();
-                        // TODO: tell nexus to upload the image
-                        self.save_files(&value_json.get("path").unwrap().to_string());
-                    } else {
-                        item.value_json = serde_json::to_string(&Value::Ndarray(arr)).unwrap();
-                    }
-                }
                 _ => {
                     item.value_json = serde_json::to_string(&v).unwrap();
                 }
             }
             partial_history_request.item.push(item);
         }
-
-        // let partial_history_request = wandb_internal::PartialHistoryRequest {
-        //     item: data
-        //         .iter()
-        //         .map(|(k, v)| wandb_internal::HistoryItem {
-        //             key: k.clone(),
-        //             value_json: serde_json::to_string(&v).unwrap(),
-        //             ..Default::default()
-        //         })
-        //         .collect(),
-        //     ..Default::default()
-        // };
 
         let record = wandb_internal::Record {
             record_type: Some(wandb_internal::record::RecordType::Request(
@@ -445,7 +322,7 @@ impl Run {
                 tracing::warn!("Unexpected result type");
                 return;
             }
-            None => {
+            _ => {
                 tracing::warn!("No result type, me is puzzled");
                 return;
             }
@@ -499,7 +376,7 @@ impl Run {
                 tracing::warn!("Unexpected result type");
                 return;
             }
-            None => {
+            _ => {
                 tracing::warn!("No result type, me is puzzled");
                 return;
             }
@@ -569,34 +446,5 @@ impl Run {
                 history,
             );
         }
-    }
-}
-
-impl Run {
-    fn save_files(&self, path: &String) {
-        let record = wandb_internal::Record {
-            record_type: Some(wandb_internal::record::RecordType::Files(
-                wandb_internal::FilesRecord {
-                    files: vec![wandb_internal::FilesItem {
-                        path: path.clone(),
-                        policy: 0,
-                        ..Default::default()
-                    }],
-                    ..Default::default()
-                },
-            )),
-            info: Some(wandb_internal::RecordInfo {
-                stream_id: self.id(),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let message = wandb_internal::ServerRequest {
-            server_request_type: Some(
-                wandb_internal::server_request::ServerRequestType::RecordPublish(record),
-            ),
-        };
-
-        self.interface.conn.send_message(&message).unwrap();
     }
 }

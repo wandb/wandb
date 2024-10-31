@@ -32,6 +32,8 @@ except ImportError:
     from typing_extensions import Literal
 
 
+_WANDB_BACKEND_PROXY_PORT = 8000
+
 # `local-testcontainer` url and ports
 DEFAULT_SERVER_URL = "http://localhost"
 LOCAL_BASE_PORT = "8080"
@@ -870,7 +872,7 @@ def wandb_backend_proxy_server(
     base_url_parsed = urllib.parse.urlparse(base_url)
 
     with spy_proxy(
-        proxy_port=8000,
+        proxy_port=_WANDB_BACKEND_PROXY_PORT,
         target_host=base_url_parsed.hostname,
         target_port=base_url_parsed.port,
     ) as proxy:
@@ -905,7 +907,10 @@ def wandb_backend_spy(
     _ = user
 
     # Connect to the proxy to spy on requests:
-    monkeypatch.setenv("WANDB_BASE_URL", "http://127.0.0.1:8000")
+    monkeypatch.setenv(
+        "WANDB_BASE_URL",
+        f"http://127.0.0.1:{_WANDB_BACKEND_PROXY_PORT}",
+    )
 
     with wandb_backend_proxy_server.spy() as spy:
         yield spy

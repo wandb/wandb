@@ -4,7 +4,6 @@ __all__ = (
     "Disk",
     "GPU",
     "GPUAMD",
-    "GPUApple",
     "IPU",
     "Memory",
     "Network",
@@ -18,7 +17,6 @@ from .cpu import CPU
 from .disk import Disk
 from .gpu import GPU
 from .gpu_amd import GPUAMD
-from .gpu_apple import GPUApple
 from .ipu import IPU
 from .memory import Memory
 from .network import Network
