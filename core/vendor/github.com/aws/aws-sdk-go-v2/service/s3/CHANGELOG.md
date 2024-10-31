@@ -1,3 +1,11 @@
+# v1.66.2 (2024-10-28)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.66.1 (2024-10-25)
+
+* **Bug Fix**: Update presign post URL resolution to use the exact result from EndpointResolverV2
+
 # v1.66.0 (2024-10-16)
 
 * **Feature**: Add support for the new optional bucket-region and prefix query parameters in the ListBuckets API. For ListBuckets requests that express pagination, Amazon S3 will now return both the bucket names and associated AWS regions in the response.

@@ -13,7 +13,7 @@ def line_series(
     title: str = "",
     xname: str = "x",
     split_table: bool = False,
-):
+) -> CustomChart:
     """Constructs a line series chart.
 
     Args:

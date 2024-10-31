@@ -4,7 +4,6 @@ use std::path::Path;
 use tempfile::tempdir;
 
 fn main() -> Result<()> {
-    pyo3_build_config::add_extension_module_link_args();
     // proto magic
     let protos = [
         "../../wandb/proto/wandb_base.proto",
@@ -41,7 +40,7 @@ fn main() -> Result<()> {
     let bin_paths = ["../../wandb/bin/wandb-core", "../../wandb/bin/gpu_stats"];
     for bin_path in &bin_paths {
         let bin_name = Path::new(bin_path).file_name().unwrap();
-        let dest_path = Path::new("wandbrs").join(bin_name);
+        let dest_path = Path::new("bin").join(bin_name);
         // try copying the binary to the wandbrs directory. if doesn't exist, just continue
         if let Err(e) = fs::copy(bin_path, dest_path) {
             eprintln!("Error copying binary: {}", e);

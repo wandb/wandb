@@ -1,7 +1,6 @@
-use pyo3::prelude::*;
-
 use core::panic;
 use std::io;
+use std::io::Result;
 use std::net::TcpStream;
 
 use sentry;
@@ -16,12 +15,11 @@ use crate::run::Run;
 use crate::settings::Settings;
 use crate::wandb_internal;
 
-
-#[pyclass]
 pub struct Session {
     inner: Arc<SessionInner>,
 }
 
+#[derive(Debug)]
 pub struct SessionInner {
     settings: Settings,
     addr: String,
@@ -52,31 +50,6 @@ pub fn get_core_address() -> String {
         ));
         tracing::error!("Couldn't get port from launcher...");
         panic!();
-    }
-}
-
-#[pymethods]
-impl Session {
-    #[new]
-    pub fn new(settings: Settings) -> PyResult<Self> {
-        let addr = get_core_address();
-        let inner = Arc::new(SessionInner { settings, addr });
-        Ok(Session { inner })
-    }
-
-    pub fn init_run(&self, run_id: Option<String>) -> PyResult<Run> {
-        let conn = Connection::new(self.inner.connect());
-        let interface = Interface::new(conn);
-
-        let mut run = Run {
-            settings: self.inner.settings.clone(),
-            interface,
-            _session: Arc::clone(&self.inner),
-        };
-
-        run.init(run_id);
-
-        Ok(run)
     }
 }
 
@@ -125,5 +98,28 @@ impl Drop for SessionInner {
             .conn
             .send_message(&inform_teardown_request)
             .unwrap();
+    }
+}
+
+impl Session {
+    pub fn new(settings: Settings) -> Result<Session> {
+        let addr = get_core_address();
+        let inner = Arc::new(SessionInner { settings, addr });
+        Ok(Session { inner })
+    }
+
+    pub fn init_run(&self, run_id: Option<String>) -> Result<Run> {
+        let conn = Connection::new(self.inner.connect());
+        let interface = Interface::new(conn);
+
+        let mut run = Run {
+            settings: self.inner.settings.clone(),
+            interface,
+            _session: Arc::clone(&self.inner),
+        };
+
+        run.init(run_id);
+
+        Ok(run)
     }
 }
