@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 from wandb import _sentry, termlog
 from wandb.env import core_debug, error_reporting_enabled, is_require_legacy_service
 from wandb.errors import Error, WandbCoreNotAvailableError
-from wandb.sdk.lib.wburls import wburls
+from wandb.errors.links import url_registry
 from wandb.util import get_core_path, get_module
 
 from . import _startup_debug, port_file
@@ -164,8 +164,8 @@ class _Service:
 
                 exec_cmd_list = []
                 termlog(
-                    "Using wandb-core as the SDK backend."
-                    f" Please refer to {wburls.get('wandb_core')} for more information.",
+                    "Using wandb-core as the SDK backend.  Please refer to "
+                    f"{url_registry.url('wandb-core')} for more information.",
                     repeat=False,
                 )
             else:
