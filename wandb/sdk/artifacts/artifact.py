@@ -1145,7 +1145,7 @@ class Artifact:
     @contextlib.contextmanager
     @ensure_not_finalized
     def new_file(
-        self, name: str, mode: str = "w", encoding: str | None = None
+        self, name: str, mode: str = "x", encoding: str | None = None
     ) -> Iterator[IO]:
         """Open a new temporary file and add it to the artifact.
 
@@ -1162,24 +1162,28 @@ class Artifact:
             ArtifactFinalizedError: You cannot make changes to the current artifact
             version because it is finalized. Log a new artifact version instead.
         """
+        overwrite: bool = "x" not in mode
+
         if self._tmp_dir is None:
             self._tmp_dir = tempfile.TemporaryDirectory()
         path = os.path.join(self._tmp_dir.name, name.lstrip("/"))
-        if os.path.exists(path):
-            raise ValueError(f"File with name {name!r} already exists at {path!r}")
 
         filesystem.mkdir_exists_ok(os.path.dirname(path))
         try:
             with util.fsync_open(path, mode, encoding) as f:
                 yield f
+        except FileExistsError:
+            raise ValueError(f"File with name {name!r} already exists at {path!r}")
         except UnicodeEncodeError as e:
             termerror(
-                f"Failed to open the provided file (UnicodeEncodeError: {e}). Please "
+                f"Failed to open the provided file ({type(e).__name__}: {e}). Please "
                 f"provide the proper encoding."
             )
             raise e
 
-        self.add_file(path, name=name, policy="immutable", skip_cache=True)
+        self.add_file(
+            path, name=name, policy="immutable", skip_cache=True, overwrite=overwrite
+        )
 
     @ensure_not_finalized
     def add_file(
@@ -1189,6 +1193,7 @@ class Artifact:
         is_tmp: bool | None = False,
         skip_cache: bool | None = False,
         policy: Literal["mutable", "immutable"] | None = "mutable",
+        overwrite: bool = False,
     ) -> ArtifactManifestEntry:
         """Add a local file to the artifact.
 
@@ -1198,13 +1203,14 @@ class Artifact:
                 to the basename of the file.
             is_tmp: If true, then the file is renamed deterministically to avoid
                 collisions.
-            skip_cache: If set to `True`, W&B will not copy files to the cache after uploading.
+            skip_cache: If `True`, W&B will not copy files to the cache after uploading.
             policy: By default, set to "mutable". If set to "mutable", create a temporary copy of the
                 file to prevent corruption during upload. If set to "immutable", disable
                 protection and rely on the user not to delete or change the file.
+            overwrite: If `True`, overwrite the file if it already exists.
 
         Returns:
-            The added manifest entry
+            The added manifest entry.
 
         Raises:
             ArtifactFinalizedError: You cannot make changes to the current artifact
@@ -1212,7 +1218,7 @@ class Artifact:
             ValueError: Policy must be "mutable" or "immutable"
         """
         if not os.path.isfile(local_path):
-            raise ValueError("Path is not a file: {}".format(local_path))
+            raise ValueError(f"Path is not a file: {local_path!r}")
 
         name = LogicalPath(name or os.path.basename(local_path))
         digest = md5_file_b64(local_path)
@@ -1224,7 +1230,12 @@ class Artifact:
             name = os.path.join(file_path, ".".join(file_name_parts))
 
         return self._add_local_file(
-            name, local_path, digest=digest, skip_cache=skip_cache, policy=policy
+            name,
+            local_path,
+            digest=digest,
+            skip_cache=skip_cache,
+            policy=policy,
+            overwrite=overwrite,
         )
 
     @ensure_not_finalized
@@ -1373,7 +1384,9 @@ class Artifact:
         return manifest_entries
 
     @ensure_not_finalized
-    def add(self, obj: WBValue, name: StrPath) -> ArtifactManifestEntry:
+    def add(
+        self, obj: WBValue, name: StrPath, overwrite: bool = False
+    ) -> ArtifactManifestEntry:
         """Add wandb.WBValue `obj` to the artifact.
 
         Args:
@@ -1381,6 +1394,7 @@ class Artifact:
                 PartitionedTable, Table, Classes, ImageMask, BoundingBoxes2D, Audio,
                 Image, Video, Html, Object3D
             name: The path within the artifact to add the object.
+            overwrite: If True, overwrite existing objects with the same file path (if applicable).
 
         Returns:
             The added manifest entry
@@ -1399,7 +1413,7 @@ class Artifact:
         # Validate that the object is one of the correct wandb.Media types
         # TODO: move this to checking subclass of wandb.Media once all are
         # generally supported
-        allowed_types = [
+        allowed_types = (
             data_types.Bokeh,
             data_types.JoinedTable,
             data_types.PartitionedTable,
@@ -1414,13 +1428,10 @@ class Artifact:
             data_types.Object3D,
             data_types.Molecule,
             data_types._SavedModel,
-        ]
-
-        if not any(isinstance(obj, t) for t in allowed_types):
+        )
+        if not isinstance(obj, allowed_types):
             raise ValueError(
-                "Found object of type {}, expected one of {}.".format(
-                    obj.__class__, allowed_types
-                )
+                f"Found object of type {obj.__class__}, expected one of: {allowed_types}"
             )
 
         obj_id = id(obj)
@@ -1435,26 +1446,20 @@ class Artifact:
         val = obj.to_json(self)
         name = obj.with_suffix(name)
         entry = self.manifest.get_entry_by_path(name)
-        if entry is not None:
+        if (not overwrite) and (entry is not None):
             return entry
-
-        def do_write(f: IO) -> None:
-            import json
-
-            # TODO: Do we need to open with utf-8 codec?
-            f.write(json.dumps(val, sort_keys=True))
 
         if is_tmp_name:
             file_path = os.path.join(self._TMP_DIR.name, str(id(self)), name)
             folder_path, _ = os.path.split(file_path)
-            if not os.path.exists(folder_path):
-                os.makedirs(folder_path)
-            with open(file_path, "w") as tmp_f:
-                do_write(tmp_f)
+            os.makedirs(folder_path, exist_ok=True)
+            with open(file_path, "w", encoding="utf-8") as tmp_f:
+                json.dump(val, tmp_f, sort_keys=True)
         else:
-            with self.new_file(name) as f:
+            filemode = "w" if overwrite else "x"
+            with self.new_file(name, mode=filemode, encoding="utf-8") as f:
+                json.dump(val, f, sort_keys=True)
                 file_path = f.name
-                do_write(f)
 
         # Note, we add the file from our temp directory.
         # It will be added again later on finalize, but succeed since
@@ -1466,7 +1471,7 @@ class Artifact:
             obj._set_artifact_target(self, entry.path)
 
         if is_tmp_name:
-            if os.path.exists(file_path):
+            with contextlib.suppress(FileNotFoundError):
                 os.remove(file_path)
 
         return entry
@@ -1478,11 +1483,12 @@ class Artifact:
         digest: B64MD5 | None = None,
         skip_cache: bool | None = False,
         policy: Literal["mutable", "immutable"] | None = "mutable",
+        overwrite: bool = False,
     ) -> ArtifactManifestEntry:
         policy = policy or "mutable"
         if policy not in ["mutable", "immutable"]:
             raise ValueError(
-                f"Invalid policy `{policy}`. Policy may only be `mutable` or `immutable`."
+                f"Invalid policy {policy!r}. Policy may only be `mutable` or `immutable`."
             )
         upload_path = path
         if policy == "mutable":
@@ -1500,7 +1506,7 @@ class Artifact:
             local_path=upload_path,
             skip_cache=skip_cache,
         )
-        self.manifest.add_entry(entry)
+        self.manifest.add_entry(entry, overwrite=overwrite)
         self._added_local_paths[os.fspath(path)] = entry
         return entry
 
