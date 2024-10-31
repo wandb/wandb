@@ -29,6 +29,9 @@ def spy_proxy(
         proxy_port: The port on which to run the proxy server.
         target_host: The hostname of the W&B backend to proxy.
         target_port: The port of the W&B backend to proxy.
+
+    Yields:
+        A reference to the proxy server that can be used to create spies.
     """
 
     http_client = httpx.AsyncClient()
