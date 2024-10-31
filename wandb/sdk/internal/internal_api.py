@@ -3640,10 +3640,6 @@ class Api:
                 "entityName": entity,
             },
         )
-        if response is None:
-            raise ValueError(
-                f"Unable to find an entity with name: {entity!r}, response failed: {response}"
-            )
 
         # Parse organization from response
         entity_resp = response["entity"]["organization"]
@@ -3651,7 +3647,9 @@ class Api:
         # Check for organization under team/org entity type
         if entity_resp:
             org_name = entity_resp.get("name")
-            org_entity_name = entity_resp.get("orgEntity", {}).get("name")
+            org_entity_name = entity_resp.get("orgEntity") and entity_resp[
+                "orgEntity"
+            ].get("name")
             if not org_name or not org_entity_name:
                 raise ValueError(
                     f"Unable to find an organization under entity {entity!r}."
