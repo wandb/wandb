@@ -15,8 +15,10 @@ import (
 	"github.com/wandb/wandb/core/internal/gql"
 )
 
-const BATCH_SIZE int = 5000
-const MAX_BACKLOG int = 5000
+const (
+	BATCH_SIZE  int = 5000
+	MAX_BACKLOG int = 5000
+)
 
 type ArtifactDownloader struct {
 	// Resources
