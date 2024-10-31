@@ -15,7 +15,7 @@ def line(
     stroke: str | None = None,
     title: str = "",
     split_table: bool = False,
-):
+) -> CustomChart:
     """Constructs a customizable line chart.
 
     Args:
