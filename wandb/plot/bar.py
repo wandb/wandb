@@ -14,7 +14,7 @@ def bar(
     value: str,
     title: str = "",
     split_table: bool = False,
-):
+) -> CustomChart:
     """Constructs a bar chart from a wandb.Table of data.
 
     Args:

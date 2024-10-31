@@ -29,6 +29,9 @@ def spy_proxy(
         proxy_port: The port on which to run the proxy server.
         target_host: The hostname of the W&B backend to proxy.
         target_port: The port of the W&B backend to proxy.
+
+    Yields:
+        A reference to the proxy server that can be used to create spies.
     """
 
     http_client = httpx.AsyncClient()
@@ -71,11 +74,11 @@ def _wait_for_server(server: uvicorn.Server) -> None:
     Raises:
         AssertionError: if the server does not start within a timeout.
     """
-    tries = 100
+    start_time = time.monotonic()
+    timeout_sec = 10
 
-    while tries > 0 and not server.started:
+    while time.monotonic() - start_time < timeout_sec and not server.started:
         time.sleep(0.1)
-        tries -= 1
 
     if not server.started:
         raise AssertionError("Backend proxy server failed to start.")

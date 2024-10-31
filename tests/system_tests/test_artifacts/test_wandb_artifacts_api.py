@@ -82,6 +82,31 @@ def server_supports_artifact_tags() -> bool:
     return "tags" in internal_api.Api().server_artifact_introspection()
 
 
+def test_save_artifact_with_tags_repeated(
+    user, server_supports_artifact_tags, logged_artifact
+):
+    tags1 = ["tag1", "tag2"]
+    tags2 = ["tag3", "tag4"]
+
+    artifact = logged_artifact
+
+    artifact.tags = tags1
+    artifact.save()
+
+    if server_supports_artifact_tags:
+        assert set(artifact.tags) == set(tags1)
+    else:
+        assert artifact.tags == []
+
+    artifact.tags = artifact.tags + tags2
+    artifact.save()
+
+    if server_supports_artifact_tags:
+        assert set(artifact.tags) == set(tags1 + tags2)
+    else:
+        assert artifact.tags == []
+
+
 @pytest.mark.parametrize(
     "orig_tags",
     (

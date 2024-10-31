@@ -313,6 +313,7 @@ class Api:
         self.server_create_artifact_input_info: Optional[List[str]] = None
         self.server_artifact_fields_info: Optional[List[str]] = None
         self.server_organization_type_fields_info: Optional[List[str]] = None
+        self.server_supports_enabling_artifact_usage_tracking: Optional[bool] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
         self.fail_run_queue_item_input_info: Optional[List[str]] = None
@@ -3700,6 +3701,41 @@ class Api:
             ]
 
         return self.server_organization_type_fields_info
+
+    # Fetch input arguments for the "artifact" endpoint on the "Project" type
+    def server_project_type_introspection(self) -> bool:
+        if self.server_supports_enabling_artifact_usage_tracking is not None:
+            return self.server_supports_enabling_artifact_usage_tracking
+
+        query_string = """
+            query ProbeServerProjectInfo {
+                ProjectInfoType: __type(name:"Project") {
+                    fields {
+                        name
+                        args {
+                            name
+                        }
+                    }
+                }
+            }
+        """
+
+        query = gql(query_string)
+        res = self.gql(query)
+        input_fields = res.get("ProjectInfoType", {}).get("fields", [{}])
+        artifact_args: List[Dict[str, str]] = next(
+            (
+                field.get("args", [])
+                for field in input_fields
+                if field.get("name") == "artifact"
+            ),
+            [],
+        )
+        self.server_supports_enabling_artifact_usage_tracking = any(
+            arg.get("name") == "enableTracking" for arg in artifact_args
+        )
+
+        return self.server_supports_enabling_artifact_usage_tracking
 
     def create_artifact_type(
         self,
