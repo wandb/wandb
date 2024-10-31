@@ -7,7 +7,6 @@ import (
 	"image"
 	"path/filepath"
 
-	"github.com/wandb/wandb/core/internal/hashencode"
 	"github.com/wandb/wandb/core/internal/paths"
 
 	// Import image codecs.
@@ -66,18 +65,27 @@ func ImageFromData(
 	}, nil
 }
 
-// HistoryValueJSON is the image metadata to keep in the run history.
+// HistoryImageValuesJSON is the metadata for multiple images to keep in the run history.
 //
-// The `filePath` is the run file path to which the image was saved.
-func (img Image) HistoryValueJSON(filePath paths.RelativePath) (string, error) {
+// The `filePaths` are the run file paths to where each image was saved.
+func HistoryImageValuesJSON(
+	filePaths []paths.RelativePath,
+	format string,
+	width int,
+	height int,
+) (string, error) {
+	filePathToSlash := []string{}
+	for _, filePath := range filePaths {
+		filePathToSlash = append(filePathToSlash, filepath.ToSlash(string(filePath)))
+	}
+
 	bytes, err := json.Marshal(map[string]any{
-		"_type":  "image-file",
-		"path":   filepath.ToSlash(string(filePath)),
-		"sha256": hashencode.ComputeSHA256(img.EncodedData),
-		"format": img.Format,
-		"size":   len(img.EncodedData),
-		"width":  img.Width,
-		"height": img.Height,
+		"_type":     "images/separated",
+		"filenames": filePathToSlash,
+		"format":    format,
+		"width":     width,
+		"height":    height,
+		"count":     len(filePaths),
 	})
 
 	return string(bytes), err

@@ -97,15 +97,19 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
 
 @pytest.fixture(scope="session")
-def assets_path() -> Generator[Callable, None, None]:
-    def assets_path_fn(path: Path) -> Path:
-        return Path(__file__).resolve().parent / "assets" / path
+def assets_path() -> Generator[Callable[[StrPath], Path], None, None]:
+    assets_dir = Path(__file__).resolve().parent / "assets"
+
+    def assets_path_fn(path: StrPath) -> Path:
+        return assets_dir / path
 
     yield assets_path_fn
 
 
 @pytest.fixture
-def copy_asset(assets_path) -> Generator[Callable, None, None]:
+def copy_asset(
+    assets_path,
+) -> Generator[Callable[[StrPath, StrPath | None], Path], None, None]:
     def copy_asset_fn(path: StrPath, dst: StrPath | None = None) -> Path:
         src = assets_path(path)
         if src.is_file():
@@ -363,7 +367,7 @@ def clean_up():
 
 
 @pytest.fixture
-def api():
+def api() -> wandb.PublicApi:
     return Api()
 
 
