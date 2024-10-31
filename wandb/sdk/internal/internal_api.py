@@ -22,6 +22,7 @@ from typing import (
     List,
     Mapping,
     MutableMapping,
+    NamedTuple,
     Optional,
     Sequence,
     TextIO,
@@ -167,6 +168,49 @@ class _ThreadLocalData(threading.local):
 
     def __init__(self) -> None:
         self.context = None
+
+
+class _OrgNames(NamedTuple):
+    entity_name: str
+    display_name: str
+
+
+def _match_org_with_fetched_org_entities(
+    organization: str, orgs: List[_OrgNames]
+) -> str:
+    """Match the organization provided in the path with the org entity or org name of the input entity.
+
+    Args:
+        organization: The organization name to match
+        orgs: List of tuples containing (org_entity_name, org_display_name)
+
+    Returns:
+        str: The matched org entity name
+
+    Raises:
+        ValueError: If no matching organization is found or if multiple orgs exist without a match
+    """
+    for org_names in orgs:
+        if organization in (org_names.display_name, org_names.entity_name):
+            wandb.termwarn(
+                "Registries can be linked/fetched using a shorthand form without specifying the organization name. "
+                "Try using shorthand path format: <my_registry_name>/<artifact_name>"
+            )
+            return org_names.entity_name
+
+    if len(orgs) == 1:
+        raise ValueError(
+            f"Expecting the organization name or entity name to match {orgs[0].display_name!r} "
+            f"and cannot be linked/fetched with {organization!r}. "
+            "Please update the target path with the correct organization name."
+        )
+
+    raise ValueError(
+        "Personal entity belongs to multiple organizations "
+        f"and cannot be linked/fetched with {organization!r}. "
+        "Please update the target path with the correct organization name "
+        "or use a team entity in the entity settings."
+    )
 
 
 class Api:
@@ -3558,9 +3602,7 @@ class Api:
 
         orgs_from_entity = self._fetch_orgs_and_org_entities_from_entity(entity)
         if organization:
-            return self._match_org_with_fetched_org_entities(
-                organization, orgs_from_entity
-            )
+            return _match_org_with_fetched_org_entities(organization, orgs_from_entity)
 
         # If no input organization provided, error if entity belongs to multiple orgs because we
         # cannot determine which one to use.
@@ -3570,44 +3612,16 @@ class Api:
                 "and cannot be used without specifying the organization name. "
                 "Please specify the organization in the Registry path or use a team entity in the entity settings."
             )
-        return orgs_from_entity[0][0]
+        return orgs_from_entity[0].entity_name
 
-    def _match_org_with_fetched_org_entities(
-        self, organization: str, orgs: List[Tuple[str, str]]
-    ) -> str:
-        """Make sure the organization provided in the path matches with the org entity or org name of the input entity."""
-        for org_entity_name, org_name in orgs:
-            if organization in (org_name, org_entity_name):
-                wandb.termwarn(
-                    "Registries can be linked/fetched using a shorthand form without specifying the organization name. "
-                    "Try using shorthand path format: <my_registry_name>/<artifact_name>"
-                )
-                return org_entity_name
-
-        if len(orgs) == 1:
-            raise ValueError(
-                f"Expecting the organization name or entity name to match {orgs[0][1]!r} "
-                f"and cannot be linked/fetched with {organization!r}. "
-                "Please update the target path with the correct organization name."
-            )
-
-        raise ValueError(
-            "Personal entity belongs to multiple organizations "
-            f"and cannot be linked/fetched with {organization!r}. "
-            "Please update the target path with the correct organization name "
-            "or use a team entity in the entity settings."
-        )
-
-    def _fetch_orgs_and_org_entities_from_entity(
-        self, entity: str
-    ) -> List[Tuple[str, str]]:
+    def _fetch_orgs_and_org_entities_from_entity(self, entity: str) -> List[_OrgNames]:
         """Fetches organization entity names and display names for a given entity.
 
         Args:
             entity (str): Entity name to lookup. Can be either a personal or team entity.
 
         Returns:
-            List[Tuple[str, str]]: List of (org_entity_name, org_display_name) tuples.
+            List[_OrgNames]: List of _OrgNames tuples. (_OrgNames(entity_name, display_name))
 
         Raises:
         ValueError: If entity is not found, has no organizations, or other validation errors.
@@ -3654,12 +3668,14 @@ class Api:
                 raise ValueError(
                     f"Unable to find an organization under entity {entity!r}."
                 )
-            return [(org_entity_name, org_name)]
+            return [_OrgNames(entity_name=org_entity_name, display_name=org_name)]
         # Check for organization under personal entity type, where a user can belong to multiple orgs
         elif user_resp:
             orgs = user_resp.get("organizations", [])
             org_entities_return = [
-                (org["orgEntity"]["name"], org["name"])
+                _OrgNames(
+                    entity_name=org["orgEntity"]["name"], display_name=org["name"]
+                )
                 for org in orgs
                 if org.get("orgEntity") and org.get("name")
             ]

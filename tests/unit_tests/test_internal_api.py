@@ -15,6 +15,10 @@ import wandb.sdk.internal.internal_api
 import wandb.sdk.internal.progress
 from wandb.apis import internal
 from wandb.errors import CommError
+from wandb.sdk.internal.internal_api import (
+    _match_org_with_fetched_org_entities,
+    _OrgNames,
+)
 from wandb.sdk.lib import retry
 
 from .test_retry import MockTime, mock_time  # noqa: F401
@@ -119,7 +123,7 @@ def test_fetch_orgs_from_team_entity(mock_gql):
         }
     }
     result = api._fetch_orgs_and_org_entities_from_entity("team-entity")
-    assert result == [("test-org-entity", "test-org")]
+    assert result == [_OrgNames(entity_name="test-org-entity", display_name="test-org")]
 
 
 def test_fetch_orgs_from_personal_entity_single_org(mock_gql):
@@ -139,7 +143,9 @@ def test_fetch_orgs_from_personal_entity_single_org(mock_gql):
         }
     }
     result = api._fetch_orgs_and_org_entities_from_entity("personal-entity")
-    assert result == [("personal-org-entity", "personal-org")]
+    assert result == [
+        _OrgNames(entity_name="personal-org-entity", display_name="personal-org")
+    ]
 
 
 def test_fetch_orgs_from_personal_entity_multiple_orgs(mock_gql):
@@ -163,7 +169,10 @@ def test_fetch_orgs_from_personal_entity_multiple_orgs(mock_gql):
         }
     }
     result = api._fetch_orgs_and_org_entities_from_entity("personal-entity")
-    assert result == [("org1-entity", "org1"), ("org2-entity", "org2")]
+    assert result == [
+        _OrgNames(entity_name="org1-entity", display_name="org1"),
+        _OrgNames(entity_name="org2-entity", display_name="org2"),
+    ]
 
 
 def test_fetch_orgs_from_personal_entity_no_orgs(mock_gql):
@@ -215,54 +224,58 @@ def test_fetch_orgs_with_invalid_response_structure(mock_gql):
 
 
 def test_match_org_single_org_display_name_match():
-    api = internal.InternalApi()
     assert (
-        api._match_org_with_fetched_org_entities(
-            "org-display", [("org-entity", "org-display")]
+        _match_org_with_fetched_org_entities(
+            "org-display",
+            [_OrgNames(entity_name="org-entity", display_name="org-display")],
         )
         == "org-entity"
     )
 
 
 def test_match_org_single_org_entity_name_match():
-    api = internal.InternalApi()
     assert (
-        api._match_org_with_fetched_org_entities(
-            "org-entity", [("org-entity", "org-display")]
+        _match_org_with_fetched_org_entities(
+            "org-entity",
+            [_OrgNames(entity_name="org-entity", display_name="org-display")],
         )
         == "org-entity"
     )
 
 
 def test_match_org_multiple_orgs_successful_match():
-    api = internal.InternalApi()
     assert (
-        api._match_org_with_fetched_org_entities(
+        _match_org_with_fetched_org_entities(
             "org-display-2",
-            [("org-entity", "org-display"), ("org-entity-2", "org-display-2")],
+            [
+                _OrgNames(entity_name="org-entity", display_name="org-display"),
+                _OrgNames(entity_name="org-entity-2", display_name="org-display-2"),
+            ],
         )
         == "org-entity-2"
     )
 
 
 def test_match_org_single_org_no_match():
-    api = internal.InternalApi()
     with pytest.raises(
         ValueError, match="Expecting the organization name or entity name to match"
     ):
-        api._match_org_with_fetched_org_entities(
-            "wrong-org", [("org-entity", "org-display")]
+        _match_org_with_fetched_org_entities(
+            "wrong-org",
+            [_OrgNames(entity_name="org-entity", display_name="org-display")],
         )
 
 
 def test_match_org_multiple_orgs_no_match():
-    api = internal.InternalApi()
     with pytest.raises(
         ValueError, match="Personal entity belongs to multiple organizations"
     ):
-        api._match_org_with_fetched_org_entities(
+        _match_org_with_fetched_org_entities(
             "wrong-org",
-            [("org1-entity", "org1-display"), ("org2-entity", "org2-display")],
+            [
+                _OrgNames(entity_name="org1-entity", display_name="org1-display"),
+                _OrgNames(entity_name="org2-entity", display_name="org2-display"),
+            ],
         )
 
 
@@ -271,13 +284,13 @@ def api_with_single_org():
     api = internal.InternalApi()
     api.server_organization_type_introspection = Mock(return_value=["orgEntity"])
     api._fetch_orgs_and_org_entities_from_entity = Mock(
-        return_value=[("org-entity", "org-display")]
+        return_value=[_OrgNames(entity_name="org-entity", display_name="org-display")]
     )
     return api
 
 
 @pytest.mark.parametrize(
-    "entity, user_input_org, expected_org_entity",
+    "entity, input_org, expected_org_entity",
     [
         ("entity", "org-display", "org-entity"),
         ("entity", "org-entity", "org-entity"),
@@ -285,13 +298,16 @@ def api_with_single_org():
     ],
 )
 def test_resolve_org_entity_name_with_single_org_success(
-    api_with_single_org, entity, org, expected_result
+    api_with_single_org, entity, input_org, expected_org_entity
 ):
-    assert api_with_single_org._resolve_org_entity_name(entity, org) == expected_result
+    assert (
+        api_with_single_org._resolve_org_entity_name(entity, input_org)
+        == expected_org_entity
+    )
 
 
 @pytest.mark.parametrize(
-    "entity,org,error_message",
+    "entity,input_org,error_message",
     [
         (
             "entity",
@@ -303,10 +319,10 @@ def test_resolve_org_entity_name_with_single_org_success(
     ],
 )
 def test_resolve_org_entity_name_with_single_org_errors(
-    api_with_single_org, entity, org, error_message
+    api_with_single_org, entity, input_org, error_message
 ):
     with pytest.raises(ValueError, match=error_message):
-        api_with_single_org._resolve_org_entity_name(entity, org)
+        api_with_single_org._resolve_org_entity_name(entity, input_org)
 
 
 @pytest.fixture
@@ -315,9 +331,9 @@ def api_with_multiple_orgs():
     api.server_organization_type_introspection = Mock(return_value=["orgEntity"])
     api._fetch_orgs_and_org_entities_from_entity = Mock(
         return_value=[
-            ("org1-entity", "org1-display"),
-            ("org2-entity", "org2-display"),
-            ("org3-entity", "org3-display"),
+            _OrgNames(entity_name="org1-entity", display_name="org1-display"),
+            _OrgNames(entity_name="org2-entity", display_name="org2-display"),
+            _OrgNames(entity_name="org3-entity", display_name="org3-display"),
         ]
     )
     return api
