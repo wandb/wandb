@@ -8,6 +8,7 @@ def parse_s3_url_to_s3_uri(url) -> str:
     Arguments:
         url (str): The S3 URL to convert, in the format
                    'http(s)://<bucket>.s3.<region>.amazonaws.com/<key>'.
+                   or 'http(s)://<bucket>.s3.amazonaws.com/<key>'
 
     Returns:
         str: The corresponding S3 URI in the format 's3://<bucket>/<key>'.
@@ -16,7 +17,7 @@ def parse_s3_url_to_s3_uri(url) -> str:
         ValueError: If the provided URL is not a valid S3 URL.
     """
     # Regular expression to match S3 URL pattern
-    s3_pattern = r"^https?://([^.]+)\.s3\.([^.]+)\.amazonaws\.com/(.+)$"
+    s3_pattern = r"^https?://.*s3.*amazonaws\.com.*"
     parsed_url = urlparse(url)
 
     # Check if it's an S3 URL
