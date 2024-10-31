@@ -13,6 +13,7 @@ from wandb import util
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator
+from wandb.apis.public import utils
 from wandb.apis.public.api import Api
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.sdk.lib import retry
@@ -116,7 +117,7 @@ class File(Attrs):
         mimetype (string): mimetype of file
         updated_at (string): timestamp of last update
         size (int): size of file in bytes
-
+        path_uri (str): path to file in the bucket, currently only available for files stored in S3
     """
 
     def __init__(self, client, attrs):
@@ -130,6 +131,20 @@ class File(Attrs):
         if size_bytes is not None:
             return int(size_bytes)
         return 0
+
+    @property
+    def path_uri(self) -> str:
+        """
+        Returns the uri path to the file in the storage bucket.
+        """
+        path_uri = ""
+        try:
+            path_uri = utils.parse_s3_url_to_s3_uri(self._attrs["directUrl"])
+        except ValueError:
+            wandb.termwarn("path_uri is only available for files stored in S3")
+        except LookupError:
+            wandb.termwarn("Unable to find direct_url of file")
+        return path_uri
 
     @normalize_exceptions
     @retry.retriable(

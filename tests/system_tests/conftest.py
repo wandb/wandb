@@ -33,6 +33,9 @@ else:
     from typing_extensions import Literal
 
 
+_WANDB_BACKEND_PROXY_PORT = 8000
+
+
 class ConsoleFormatter:
     BOLD = "\033[1m"
     CODE = "\033[2m"
@@ -417,17 +420,17 @@ def pytest_addoption(parser: pytest.Parser):
 
 @dataclasses.dataclass(frozen=True)
 class LocalWandbBackendAddress:
-    _url: str
+    _host: str
     _base_port: int
     _fixture_port: int
 
     @property
     def base_url(self) -> str:
-        return f"{self._url}:{self._base_port}"
+        return f"http://{self._host}:{self._base_port}"
 
     @property
     def fixture_service_url(self) -> str:
-        return f"{self._url}:{self._fixture_port}"
+        return f"http://{self._host}:{self._fixture_port}"
 
 
 @pytest.fixture(scope="session")
@@ -471,7 +474,7 @@ def _local_wandb_backend(
     try:
         output = json.loads(output_str)
         address = LocalWandbBackendAddress(
-            _url="http://localhost",
+            _host="http://localhost",
             _base_port=int(output["base_port"]),
             _fixture_port=int(output["fixture_port"]),
         )
@@ -616,12 +619,10 @@ def wandb_backend_proxy_server(
     local_wandb_backend: LocalWandbBackendAddress,
 ) -> Generator[WandbBackendProxy, None, None]:
     """Session fixture that starts up a proxy server for the W&B backend."""
-    base_url_parsed = urllib.parse.urlparse(local_wandb_backend.base_url)
-
     with spy_proxy(
-        proxy_port=8000,
-        target_host=base_url_parsed.hostname,
-        target_port=base_url_parsed.port,
+        proxy_port=_WANDB_BACKEND_PROXY_PORT,
+        target_host=local_wandb_backend._host,
+        target_port=local_wandb_backend._base_port,
     ) as proxy:
         yield proxy
 
@@ -654,7 +655,10 @@ def wandb_backend_spy(
     _ = user
 
     # Connect to the proxy to spy on requests:
-    monkeypatch.setenv("WANDB_BASE_URL", "http://127.0.0.1:8000")
+    monkeypatch.setenv(
+        "WANDB_BASE_URL",
+        f"http://127.0.0.1:{_WANDB_BACKEND_PROXY_PORT}",
+    )
 
     with wandb_backend_proxy_server.spy() as spy:
         yield spy
