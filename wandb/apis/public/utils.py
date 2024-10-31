@@ -17,7 +17,7 @@ def parse_s3_url_to_s3_uri(url) -> str:
         ValueError: If the provided URL is not a valid S3 URL.
     """
     # Regular expression to match S3 URL pattern
-    s3_pattern = r"^https?://([^.]+)\.s3\..*amazonaws\.com/(.+)$"
+    s3_pattern = r"^https?://.*s3.*amazonaws\.com.*"
     parsed_url = urlparse(url)
 
     # Check if it's an S3 URL
