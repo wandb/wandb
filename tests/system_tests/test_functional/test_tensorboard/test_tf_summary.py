@@ -23,14 +23,13 @@ PR_CURVE_SPEC = {
                     "name": "runSets",
                     "args": [{"name": "runSets", "value": "${runSets}"}],
                     "fields": [
-                        {"name": "id", "fields": []},
-                        {"name": "name", "fields": []},
-                        {"name": "_defaultColorIndex", "fields": []},
+                        {"name": "id"},
+                        {"name": "name"},
+                        {"name": "_defaultColorIndex"},
                         {
                             "name": "summaryTable",
-                            "fields": [],
                             "args": [
-                                {"name": "tableKey", "value": "test_pr/pr_curves_table"}
+                                {"name": "tableKey", "value": "test_pr/pr_curves"}
                             ],
                         },
                     ],
@@ -41,10 +40,6 @@ PR_CURVE_SPEC = {
 }
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="hangs on processing data",
-)
 def test_histogram(wandb_init, relay_server):
     with relay_server() as relay:
         with wandb_init(sync_tensorboard=True) as run:
@@ -72,10 +67,6 @@ def test_histogram(wandb_init, relay_server):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="hangs on processing data",
-)
 def test_image(wandb_init, relay_server):
     with relay_server() as relay:
         with wandb_init(sync_tensorboard=True) as run:
@@ -133,10 +124,6 @@ def test_batch_images(wandb_init, relay_server):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="hangs on processing data",
-)
 def test_scalar(wandb_init, relay_server):
     with relay_server() as relay:
         scalars = [0.345, 0.234, 0.123]
@@ -160,10 +147,7 @@ def test_scalar(wandb_init, relay_server):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="hangs on processing data",
-)
+@pytest.mark.wandb_core_only
 def test_add_pr_curve(relay_server, wandb_init):
     with relay_server() as relay:
         with wandb_init(sync_tensorboard=True) as run:
@@ -189,10 +173,7 @@ def test_add_pr_curve(relay_server, wandb_init):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="hangs on processing data",
-)
+@pytest.mark.wandb_core_only
 def test_add_pr_curve_plugin(relay_server, wandb_init):
     with relay_server() as relay:
         with wandb_init(sync_tensorboard=True) as run:
@@ -223,7 +204,7 @@ def test_add_pr_curve_plugin(relay_server, wandb_init):
 
         summary = relay.context.get_run_summary(run.id)
         assert summary["global_step"] == 0
-        assert summary["test_pr/pr_curves_table"]["_type"] == "table-file"
+        assert summary["test_pr/pr_curves"]["_type"] == "table-file"
 
     wandb.tensorboard.unpatch()
 
@@ -272,10 +253,6 @@ def test_compat_tensorboard(relay_server, wandb_init):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="hangs on processing data",
-)
 def test_tb_sync_with_explicit_step_and_log(
     wandb_init,
     relay_server,
