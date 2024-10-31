@@ -97,8 +97,10 @@ func (ad *ArtifactDownloader) getBatchEntriesWithFileUrls(
 	entriesToFetch []gql.ArtifactManifestEntryInput,
 	manifest Manifest,
 	manifestEntries map[string]ManifestEntry,
+	nameToScheduledTime map[string]time.Time,
 ) ([]ManifestEntry, error) {
 	var entries []ManifestEntry
+	now := time.Now()
 	response, err := gql.ArtifactFileURLsByManifestEntries(
 		ad.Ctx,
 		ad.GraphqlClient,
@@ -123,6 +125,7 @@ func (ad *ArtifactDownloader) getBatchEntriesWithFileUrls(
 		}
 		entry.DownloadURL = &node.DirectUrl
 		entry.LocalPath = &filePath
+		nameToScheduledTime[*entry.LocalPath] = now
 		entries = append(entries, entry)
 		delete(manifestEntries, filePath)
 	}
@@ -139,16 +142,12 @@ func (ad *ArtifactDownloader) collectEntriesForBatch(
 ) ([]gql.ArtifactManifestEntryInput, int) {
 	curBatchSize, numSkipped := 0, 0
 	var entriesToFetch []gql.ArtifactManifestEntryInput
-	now := time.Now()
 	for filePath, entry := range manifestEntriesCopy {
 		if _, ok := nameToScheduledTime[filePath]; ok {
 			continue
 		}
 		if entry.Ref != nil {
 			// Reference artifacts will temporarily be handled by the python user process
-			// entry.LocalPath = &filePath
-			// nameToScheduledTime[*entry.LocalPath] = now
-			// refEntries = append(refEntries, entry)
 			numSkipped++
 			delete(manifestEntriesCopy, filePath)
 			continue
@@ -160,7 +159,6 @@ func (ad *ArtifactDownloader) collectEntriesForBatch(
 				Size:            &entry.Size,
 			}
 			entriesToFetch = append(entriesToFetch, entryInput)
-			nameToScheduledTime[*entry.LocalPath] = now
 		}
 		curBatchSize += 1
 		if curBatchSize >= BATCH_SIZE {
@@ -223,7 +221,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 	manifestEntries := manifest.Contents
 	numInProgress, numDone := 0, 0
 	nameToScheduledTime := map[string]time.Time{}
-	taskResultsChan := make(chan TaskResult)
+	taskResultsChan := make(chan TaskResult, MAX_BACKLOG)
 	manifestEntriesBatch := make([]ManifestEntry, 0, batchSize)
 	manifestEntriesCopy := map[string]ManifestEntry{}
 	maps.Copy(manifestEntriesCopy, manifestEntries)
@@ -252,6 +250,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 						entriesToFetch,
 						manifest,
 						manifestEntriesCopy,
+						nameToScheduledTime,
 					)
 					if err != nil {
 						return err
