@@ -264,7 +264,9 @@ class Artifact:
         # we need to fetch the org entity to for the user behind the scenes.
         if is_artifact_registry_project(project):
             try:
-                entity = InternalApi()._resolve_org_entity_name(entity, organization)
+                entity = InternalApi()._resolve_org_entity_name(
+                    entity=entity, organization=organization
+                )
             except ValueError as e:
                 wandb.termerror(str(e))
                 raise
