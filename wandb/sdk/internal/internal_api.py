@@ -176,7 +176,7 @@ class _OrgNames(NamedTuple):
 
 
 def _match_org_with_fetched_org_entities(
-    organization: str, orgs: List[_OrgNames]
+    organization: str, orgs: Sequence[_OrgNames]
 ) -> str:
     """Match the organization provided in the path with the org entity or org name of the input entity.
 
@@ -191,10 +191,11 @@ def _match_org_with_fetched_org_entities(
         ValueError: If no matching organization is found or if multiple orgs exist without a match
     """
     for org_names in orgs:
-        if organization in (org_names.display_name, org_names.entity_name):
+        if organization in org_names:
             wandb.termwarn(
                 "Registries can be linked/fetched using a shorthand form without specifying the organization name. "
-                "Try using shorthand path format: <my_registry_name>/<artifact_name>"
+                "Try using shorthand path format: <my_registry_name>/<artifact_name> or "
+                "just <my_registry_name> if fetching just the project."
             )
             return org_names.entity_name
 
