@@ -1051,7 +1051,7 @@ class Api:
         """
         project_path = project
         entity, project = self._parse_project_path(project_path)
-        # If its an Registry artifact, the entity is an org instead
+        # If its a Registry project, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(entity, project, project_path)
             entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
@@ -1094,7 +1094,7 @@ class Api:
             An iterable `ArtifactCollections` object.
         """
         entity, project = self._parse_project_path(project_name)
-        # If iterating through Registry project, the entity is an org instead
+        # If iterating through Registry project, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(entity, project, project_name)
             entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
@@ -1116,7 +1116,7 @@ class Api:
             An `ArtifactCollection` object.
         """
         entity, project, collection_name = self._parse_artifact_path(name)
-        # If its an Registry artifact, the entity the project belongs to is an org instead
+        # If its an Registry artifact, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(entity, project, name)
             entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
@@ -1157,7 +1157,7 @@ class Api:
             An iterable `Artifacts` object.
         """
         entity, project, collection_name = self._parse_artifact_path(name)
-        # If its an Registry project, the entity is an org instead
+        # If its an Registry project, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(entity, project, name)
             entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)

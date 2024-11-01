@@ -43,7 +43,8 @@ def parse_org_from_registry_path(entity: str, project: str, path: str) -> str:
     Args:
         entity (str): The entity name.
         project (str): The project name.
-        path (str): The path to parse.
+        path (str): The path to parse. Can be a project path <entity>/<project> or <project> or an 
+        artifact path like <entity>/<project>/<artifact> or <project>/<artifact> or <artifact>
     """
     if not path or not entity or not project:
         return ""
