@@ -27,7 +27,7 @@ SYS_PLATFORM = platform.system()
 def _wb_filename(
     key: Union[str, int], step: Union[str, int], id: Union[str, int], extension: str
 ) -> str:
-    """Generates a safe filename/path for storing media files, using the provided key, step, and id.
+    r"""Generates a safe filename/path for storing media files, using the provided key, step, and id.
 
     The filename is made safe by:
     1. Removing any leading slashes to prevent writing to absolute paths
@@ -47,7 +47,16 @@ def _wb_filename(
 
     Returns:
         A sanitized filename string in the format: key_step_id.extension
+
+    Raises:
+        ValueError: If running on Windows and the key contains invalid filename characters
+                   (\\, :, *, ?, ", <, >, |)
     """
+    if SYS_PLATFORM == "Windows" and not util.check_windows_valid_filename(key):
+        raise ValueError(
+            f'Media {key} is invalid. Please remove invalid filename characters (\\, :, *, ?, ", <, >, |)'
+        )
+
     # On Windows, convert forward slashes to backslashes.
     # This ensures that the key is a valid filename on Windows.
     if SYS_PLATFORM == "Windows":
@@ -138,11 +147,6 @@ class Media(WBValue):
         file associated with this object, from which other Runs can refer to it.
         """
         assert self.file_is_set(), "bind_to_run called before _set_file"
-
-        if SYS_PLATFORM == "Windows" and not util.check_windows_valid_filename(key):
-            raise ValueError(
-                f"Media {key} is invalid. Please remove invalid filename characters"
-            )
 
         # The following two assertions are guaranteed to pass
         # by definition file_is_set, but are needed for
