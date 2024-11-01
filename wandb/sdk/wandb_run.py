@@ -31,12 +31,13 @@ import requests
 
 import wandb
 import wandb.env
-from wandb import errors, trigger
+from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
-from wandb.errors import CommError
+from wandb.errors import CommError, UnsupportedError, UsageError
+from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
 from wandb.plot.viz import CustomChart, Visualize, custom_chart
 from wandb.proto.wandb_internal_pb2 import (
@@ -89,7 +90,6 @@ from .lib.gitlib import GitRepo
 from .lib.mailbox import MailboxError, MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
-from .lib.wburls import wburls
 from .wandb_alerts import AlertLevel
 from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
@@ -410,7 +410,7 @@ class _run_decorator:  # noqa: N801
                 if only_warn:
                     warnings.warn(resolved_message, UserWarning, stacklevel=2)
                 else:
-                    raise errors.UsageError(resolved_message)
+                    raise UsageError(resolved_message)
 
             return wrapper_fn
 
@@ -430,11 +430,10 @@ class _run_decorator:  # noqa: N801
                 #   - for fork case the new process share mem space hence the value would be of parent process.
                 _init_pid = getattr(self, "_init_pid", None)
                 if _init_pid != os.getpid():
-                    message = "`{}` ignored (called from pid={}, `init` called from pid={}). See: {}".format(
-                        func.__name__,
-                        os.getpid(),
-                        _init_pid,
-                        wburls.get("multiprocess"),
+                    message = (
+                        f"`{func.__name__}` ignored (called from pid={os.getpid()}, "
+                        f"`init` called from pid={_init_pid}). "
+                        f"See: {url_registry.url('multiprocess')}"
                     )
                     # - if this process was pickled in non-service case,
                     #   we ignore the attributes (since pickle is not supported)
@@ -443,7 +442,7 @@ class _run_decorator:  # noqa: N801
                     settings = getattr(self, "_settings", None)
                     if settings and settings["strict"]:
                         wandb.termerror(message, repeat=False)
-                        raise errors.UnsupportedError(
+                        raise UnsupportedError(
                             f"`{func.__name__}` does not support multiprocessing"
                         )
                     wandb.termwarn(message, repeat=False)
@@ -1923,7 +1922,7 @@ class Run:
         if self._settings._shared and step is not None:
             wandb.termwarn(
                 "In shared mode, the use of `wandb.log` with the step argument is not supported "
-                f"and will be ignored. Please refer to {wburls.get('wandb_define_metric')} "
+                f"and will be ignored. Please refer to {url_registry.url('define-metric')} "
                 "on how to customize your x-axis.",
                 repeat=False,
             )
@@ -3813,7 +3812,7 @@ class Run:
 
                 # TODO(settings): make settings the source of truth
                 if not wandb.jupyter.quiet():  # type: ignore
-                    doc_html = printer.link(wburls.get("doc_run"), "docs")
+                    doc_html = printer.link(url_registry.url("developer-guide"), "docs")
 
                     project_html = printer.link(project_url, "Weights & Biases")
                     project_line = f"to {project_html} ({doc_html})"
@@ -4056,7 +4055,7 @@ class Run:
         printer.display(
             "The legacy backend is deprecated. In future versions, `wandb-core` will become "
             "the sole backend service, and the `wandb.require('legacy-service')` flag will be removed. "
-            "For more information, visit https://wandb.me/wandb-core",
+            f"For more information, visit {url_registry.url('wandb-core')}",
             level="warn",
         )
 

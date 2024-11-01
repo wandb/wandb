@@ -25,6 +25,16 @@ def test_path_uri_s3_url(mock_client, termwarn_spy):
     termwarn_spy.assert_not_called()
 
 
+def test_path_uri_s3_url_no_datacenter(mock_client, termwarn_spy):
+    attrs = {
+        "directUrl": "https://my-bucket.s3.amazonaws.com/wandb-artifacts/my-artifact.txt"
+    }
+    file = File(mock_client, attrs)
+
+    assert file.path_uri == "s3://my-bucket/wandb-artifacts/my-artifact.txt"
+    termwarn_spy.assert_not_called()
+
+
 def test_path_uri_non_s3_url(mock_client, termwarn_spy):
     attrs = {
         "directUrl": "https://storage.googleapis.com/wandb-artifacts/my-artifact.txt"

@@ -120,7 +120,7 @@ def test_add_gif(wandb_init, relay_server):
 
         summary = relay.context.get_run_summary(run.id)
         assert summary["global_step"] == 10
-        assert summary["example"]["_type"] == "image-file"
+        assert summary["example"]["_type"] == "images/separated"
         assert summary["example"]["width"] == 1
         assert summary["example"]["height"] == 1
         assert summary["example"]["format"] == "gif"
