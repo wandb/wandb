@@ -7,14 +7,20 @@ from wandb.apis.importers.wandb import WandbImporter
 
 @pytest.mark.xfail(reason="TODO: Breaks on server > 0.57.4")
 @pytest.mark.wandb_core_only
-def test_import_runs(request, server_src, user, user2):
+def test_import_runs(
+    local_wandb_backend,
+    local_wandb_backend_importers,
+    server_src,
+    user,
+    user2,
+):
     project_name = "test"
 
     for _ in range(3):
         importer = WandbImporter(
-            src_base_url=request.config.wandb_server_settings.base_url,
+            src_base_url=local_wandb_backend.base_url,
             src_api_key=user,
-            dst_base_url=request.config.wandb_server_settings2.base_url,
+            dst_base_url=local_wandb_backend_importers.base_url,
             dst_api_key=user2,
         )
 
@@ -46,15 +52,21 @@ def test_import_runs(request, server_src, user, user2):
 
 @pytest.mark.skip(reason="This test is flaking")
 @pytest.mark.wandb_core_only
-def test_import_artifact_sequences(request, server_src, user, user2):
+def test_import_artifact_sequences(
+    local_wandb_backend,
+    local_wandb_backend_importers,
+    server_src,
+    user,
+    user2,
+):
     project_name = "test"
 
     # Run multiple times to check incremental import logic
     for _ in range(3):
         importer = WandbImporter(
-            src_base_url=request.config.wandb_server_settings.base_url,
+            src_base_url=local_wandb_backend.base_url,
             src_api_key=user,
-            dst_base_url=request.config.wandb_server_settings2.base_url,
+            dst_base_url=local_wandb_backend_importers.base_url,
             dst_api_key=user2,
         )
 
@@ -103,14 +115,20 @@ def test_import_artifact_sequences(request, server_src, user, user2):
 
 
 @pytest.mark.wandb_core_only
-def test_import_reports(request, server_src, user, user2):
+def test_import_reports(
+    local_wandb_backend,
+    local_wandb_backend_importers,
+    server_src,
+    user,
+    user2,
+):
     project_name = "test"
 
     for _ in range(3):
         importer = WandbImporter(
-            src_base_url=request.config.wandb_server_settings.base_url,
+            src_base_url=local_wandb_backend.base_url,
             src_api_key=user,
-            dst_base_url=request.config.wandb_server_settings2.base_url,
+            dst_base_url=local_wandb_backend_importers.base_url,
             dst_api_key=user2,
         )
 

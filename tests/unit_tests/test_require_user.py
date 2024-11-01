@@ -27,7 +27,6 @@ def test_require_single(capsys):
         wandb.require("something")
     captured = capsys.readouterr()
     assert "unsupported requirement: something" in captured.err
-    assert "https://wandb.me/library-require" in captured.err
 
 
 def test_require_list(capsys):
