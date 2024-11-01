@@ -474,7 +474,7 @@ def _local_wandb_backend(
     try:
         output = json.loads(output_str)
         address = LocalWandbBackendAddress(
-            _host="http://localhost",
+            _host="localhost",
             _base_port=int(output["base_port"]),
             _fixture_port=int(output["fixture_port"]),
         )
