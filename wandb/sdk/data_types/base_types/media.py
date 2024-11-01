@@ -24,6 +24,24 @@ if TYPE_CHECKING:  # pragma: no cover
 SYS_PLATFORM = platform.system()
 
 
+def check_windows_valid_filename(path: Union[int, str]) -> bool:
+    r"""Verify that the given path does not contain any invalid characters for a Windows filename.
+
+    Windows filenames cannot contain the following characters:
+    < > : " \ / | ? *
+
+    For more details, refer to the official documentation:
+    https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
+
+    Args:
+        path: The file path to check, which can be either an integer or a string.
+
+    Returns:
+        bool: True if the path does not contain any invalid characters, False otherwise.
+    """
+    return not bool(re.search(r'[<>:"\\?*]', path))  # type: ignore
+
+
 def _wb_filename(
     key: Union[str, int], step: Union[str, int], id: Union[str, int], extension: str
 ) -> str:
@@ -52,7 +70,7 @@ def _wb_filename(
         ValueError: If running on Windows and the key contains invalid filename characters
                    (\\, :, *, ?, ", <, >, |)
     """
-    if SYS_PLATFORM == "Windows" and not util.check_windows_valid_filename(key):
+    if SYS_PLATFORM == "Windows" and not check_windows_valid_filename(key):
         raise ValueError(
             f'Media {key} is invalid. Please remove invalid filename characters (\\, :, *, ?, ", <, >, |)'
         )

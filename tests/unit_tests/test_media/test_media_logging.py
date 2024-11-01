@@ -1,3 +1,4 @@
+import os
 import platform
 from pathlib import Path
 
@@ -132,11 +133,20 @@ def test_log_media_with_path_traversal(mock_run, image_media):
     # Resolve to path to verify no path traversals
     resolved_path = str(Path(image_media._path).resolve())
     assert resolved_path.startswith(run.dir)
+    assert os.path.exists(resolved_path)
 
 
-def test_log_media_prefixed_with_multiple_slashes(mock_run, image_media):
+@pytest.mark.parametrize(
+    "media_key",
+    [
+        "////image",
+        "my///image",
+    ],
+)
+def test_log_media_prefixed_with_multiple_slashes(mock_run, media_key, image_media):
     run = mock_run()
-    image_media.bind_to_run(run, "////image", 0)
+    image_media.bind_to_run(run, media_key, 0)
 
     resolved_path = str(Path(image_media._path).resolve())
     assert resolved_path.startswith(run.dir)
+    assert os.path.exists(resolved_path)
