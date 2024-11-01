@@ -1,7 +1,8 @@
 import pathlib
 from typing import TYPE_CHECKING, Optional
 
-from ..errors.term import termerror, termlog
+from wandb.errors.term import termerror, termlog
+
 from . import wandb_setup
 from .backend.backend import Backend
 from .lib.mailbox import Mailbox

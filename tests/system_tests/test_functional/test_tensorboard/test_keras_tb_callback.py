@@ -60,7 +60,7 @@ def test_tb_callback(relay_server, wandb_init):
             assert len(history[tag].dropna()) == 2
 
         for tag in ["kernel/image", "bias/image"]:
-            assert summary[tag]["_type"] == "image-file"
+            assert summary[tag]["_type"] == "images/separated"
             assert len(history[tag].dropna()) == 2
 
         telemetry = relay.context.get_run_telemetry(run_id)
