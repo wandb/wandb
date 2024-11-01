@@ -39,9 +39,12 @@ func NewArtifactDownloader(
 	skipCache bool,
 	pathPrefix string,
 ) *ArtifactDownloader {
-	fileCache := NewHashOnlyCache()
+	var fileCache Cache
 	if !skipCache {
 		fileCache = NewFileCache(UserCacheDir())
+	} else {
+		fileCache = NewHashOnlyCache()
+
 	}
 	return &ArtifactDownloader{
 		Ctx:                    ctx,
@@ -156,15 +159,18 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 					}
 					if entry.Ref != nil {
 						task := &filetransfer.ReferenceArtifactDownloadTask{
-							FileKind:  filetransfer.RunFileKindArtifact,
-							Path:      downloadLocalPath,
-							Reference: *entry.Ref,
-							Digest:    entry.Digest,
-							Size:      entry.Size,
+							FileKind:     filetransfer.RunFileKindArtifact,
+							PathOrPrefix: downloadLocalPath,
+							Reference:    *entry.Ref,
+							Digest:       entry.Digest,
+							Size:         entry.Size,
 						}
 						versionId, ok := entry.Extra["versionID"]
 						if ok {
-							task.VersionId = versionId
+							err := task.SetVersionID(versionId)
+							if err != nil {
+								return fmt.Errorf("error setting version id: %v", err)
+							}
 						}
 
 						task.OnComplete = func() {

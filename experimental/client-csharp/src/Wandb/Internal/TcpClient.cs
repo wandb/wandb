@@ -9,13 +9,15 @@ namespace Wandb.Internal
     /// <summary>
     /// Provides functionality to communicate with the Wandb server over TCP.
     /// </summary>
-    public class WandbTcpClient : IDisposable
+    public class WandbTcpClient : IAsyncDisposable
     {
         private readonly TcpClient _tcpClient;
         private NetworkStream? _networkStream;
         private readonly CancellationTokenSource _cancellationTokenSource;
         private Task? _receiveTask;
         private readonly ConcurrentDictionary<string, TaskCompletionSource<ServerResponse>> _pendingRequests;
+        private readonly SemaphoreSlim _writeSemaphore = new(1, 1);
+
 
         /// <summary>
         /// Initializes a new instance of the <see cref="WandbTcpClient"/> class.
@@ -60,14 +62,18 @@ namespace Wandb.Internal
 
             // TODO: This must exist in the message, but need to gracefully handle it if it doesn't
             // + check if it's empty, but we're asked to wait for a response
-            string messageId;
-            if (message.RecordCommunicate != null)
+            string messageId = message.RecordCommunicate != null
+                ? message.RecordCommunicate.Control.MailboxSlot
+                : string.Empty;
+
+            // TODO: Authenticate message is a ServerRequest, which normally does not
+            // expect a response, but in this case, we do. A random ID stored as
+            // StreamId is used to identify the response.
+            if (string.IsNullOrEmpty(messageId))
             {
-                messageId = message.RecordCommunicate.Control.MailboxSlot;
-            }
-            else
-            {
-                messageId = string.Empty;
+                messageId = message.Authenticate != null
+                    ? message.Authenticate.Info.StreamId
+                    : string.Empty;
             }
 
             var data = message.ToByteArray();
@@ -83,7 +89,22 @@ namespace Wandb.Internal
             {
                 throw new InvalidOperationException("Not connected.");
             }
-            await _networkStream.WriteAsync(packet).ConfigureAwait(false);
+
+            // Wait for the semaphore before writing
+            await _writeSemaphore.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                await _networkStream.WriteAsync(packet).ConfigureAwait(false);
+            }
+            catch (IOException ex)
+            {
+                // TODO: Handle disconnection or write errors?
+                throw new InvalidOperationException("Failed to write to the network stream.", ex);
+            }
+            finally
+            {
+                _writeSemaphore.Release();
+            }
 
             // Don't wait for a response if timeout is <= 0
             if (timeoutMilliseconds <= 0)
@@ -199,7 +220,17 @@ namespace Wandb.Internal
         private void ProcessReceivedMessage(ServerResponse message)
         {
             // TODO: This must exist in the message, but need to gracefully handle it if it doesn't
-            var messageId = message.ResultCommunicate.Control.MailboxSlot;
+            var messageId = message.ResultCommunicate != null
+                ? message.ResultCommunicate.Control.MailboxSlot
+                : string.Empty;
+
+            // A special case/hack for login messages
+            if (string.IsNullOrEmpty(messageId))
+            {
+                messageId = message.AuthenticateResponse != null
+                    ? message.AuthenticateResponse.Info.StreamId
+                    : string.Empty;
+            }
 
             if (_pendingRequests.TryRemove(messageId, out var tcs))
             {
@@ -232,13 +263,17 @@ namespace Wandb.Internal
         /// <summary>
         /// Releases all resources used by the <see cref="WandbTcpClient"/>.
         /// </summary>
-        public void Dispose()
+        public async ValueTask DisposeAsync()
         {
-            _cancellationTokenSource.Cancel();
+            await _cancellationTokenSource.CancelAsync().ConfigureAwait(false);
             _cancellationTokenSource.Dispose();
-            _receiveTask?.Wait();
+            if (_receiveTask != null)
+            {
+                await _receiveTask.ConfigureAwait(false);
+            }
             _networkStream?.Close();
             _tcpClient.Close();
+            _writeSemaphore.Dispose();
         }
     }
 }

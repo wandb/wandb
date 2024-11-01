@@ -78,6 +78,20 @@ namespace Wandb
         public string RunId { get; }
 
         /// <summary>
+        /// Tags associated with the run.
+        /// </summary>
+        private readonly string[] _RunTags;
+
+        /// <summary>
+        /// Gets the tags associated with the run.
+        /// </summary>
+        /// <returns></returns>
+        public string[] RunTags()
+        {
+            return (string[])_RunTags.Clone();
+        }
+
+        /// <summary>
         /// Gets or sets the amount of time (in seconds) to wait for wandb-core to launch.
         /// </summary>
         public float ServiceWait { get; set; }
@@ -98,7 +112,7 @@ namespace Wandb
         /// <returns>
         /// A lowercase string of the resume option, or <c>null</c> if not set.
         /// </returns>
-        public string ResumeOptionToString()
+        public string? ResumeOptionToString()
         {
             if (!Resume.HasValue)
             {
@@ -117,38 +131,41 @@ namespace Wandb
         /// <param name="baseUrl">The base URL of the wandb server.</param>
         /// <param name="displayName">The display name of the run.</param>
         /// <param name="entity">The entity under which the run is logged.</param>
+        /// <param name="initTimeout">The initialization timeout in seconds.</param>
         /// <param name="mode">The mode in which the run operates.</param>
         /// <param name="project">The project name.</param>
         /// <param name="resume">The resume option.</param>
         /// <param name="runId">The unique identifier for the run.</param>
+        /// <param name="runTags">The tags associated with the run.</param>
         /// <param name="serviceWait">The service wait time in seconds.</param>
-        /// <param name="initTimeout">The initialization timeout in seconds.</param>
         public Settings(
             string? apiKey = null,
             string? baseUrl = null,
             string? displayName = null,
             string? entity = null,
+            float initTimeout = 90.0f,
             string? mode = null,
             string? project = null,
             ResumeOption? resume = null,
             string? runId = null,
-            float serviceWait = 30.0f,
-            float initTimeout = 90.0f
-            )
+            string[]? runTags = null,
+            float serviceWait = 30.0f
+)
         {
-            Lib.RandomStringGenerator generator = new();
+            Library.RandomStringGenerator generator = new();
 
             ApiKey = apiKey ?? Environment.GetEnvironmentVariable("WANDB_API_KEY") ?? "";
             BaseUrl = baseUrl ?? Environment.GetEnvironmentVariable("WANDB_BASE_URL") ?? "https://api.wandb.ai";
             DisplayName = displayName ?? "";
             Entity = entity ?? "";
+            InitTimeout = initTimeout;
             Mode = mode ?? "online";
             Project = project ?? Environment.GetEnvironmentVariable("WANDB_PROJECT") ?? "uncategorized";
             Resume = resume;
             // TODO: consider using the default GUID library instead
             RunId = runId ?? Environment.GetEnvironmentVariable("WANDB_RUN_ID") ?? generator.GenerateRandomString(8);
+            _RunTags = runTags ?? [];
             ServiceWait = serviceWait;
-            InitTimeout = initTimeout;
 
             StartDatetime = DateTime.UtcNow;
         }
@@ -226,6 +243,10 @@ namespace Wandb
         /// <returns>A <see cref="WandbInternal.Settings"/> object.</returns>
         public WandbInternal.Settings ToProto()
         {
+            var runTags = new WandbInternal.ListStringValue
+            {
+                Value = { RunTags() }
+            };
             return new WandbInternal.Settings
             {
                 ApiKey = ApiKey,
@@ -246,6 +267,7 @@ namespace Wandb
                 RunId = RunId,
                 RunMode = RunMode,
                 RunName = DisplayName,
+                RunTags = runTags,
                 ServiceWait = ServiceWait,
                 SyncDir = SyncDir,
                 SyncFile = SyncFile,

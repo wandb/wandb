@@ -29,6 +29,11 @@ from typing import (
     Union,
 )
 
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
+
 import click
 import requests
 import yaml
@@ -41,6 +46,7 @@ from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messa
 from wandb.errors import AuthenticationError, CommError, UnsupportedError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
@@ -52,6 +58,8 @@ from . import context
 from .progress import Progress
 
 logger = logging.getLogger(__name__)
+
+LAUNCH_DEFAULT_PROJECT = "model-registry"
 
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
@@ -170,7 +178,7 @@ class Api:
         directory. If none can be found, we look in the current user's home
         directory.
 
-    Arguments:
+    Args:
         default_settings(dict, optional): If you aren't using a settings
         file, or you wish to override the section to use in the settings file
         Override the settings here.
@@ -304,6 +312,8 @@ class Api:
         self.server_use_artifact_input_info: Optional[List[str]] = None
         self.server_create_artifact_input_info: Optional[List[str]] = None
         self.server_artifact_fields_info: Optional[List[str]] = None
+        self.server_organization_type_fields_info: Optional[List[str]] = None
+        self.server_supports_enabling_artifact_usage_tracking: Optional[bool] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
         self.fail_run_queue_item_input_info: Optional[List[str]] = None
@@ -425,7 +435,7 @@ class Api:
     def settings(self, key: Optional[str] = None, section: Optional[str] = None) -> Any:
         """The settings overridden from the wandb/settings file.
 
-        Arguments:
+        Args:
             key (str, optional): If provided only this setting is returned
             section (str, optional): If provided this section of the setting file is
             used, defaults to "default"
@@ -505,7 +515,7 @@ class Api:
     ) -> Tuple[str, str]:
         """Parse a slug into a project and run.
 
-        Arguments:
+        Args:
             slug (str): The slug to parse
             project (str, optional): The project to use, if not provided it will be
             inferred from the slug
@@ -673,6 +683,11 @@ class Api:
             self.server_create_run_queue_supports_drc,
             self.server_create_run_queue_supports_priority,
         )
+
+    @normalize_exceptions
+    def upsert_run_queue_introspection(self) -> bool:
+        _, _, mutations = self.server_info_introspection()
+        return "upsertRunQueue" in mutations
 
     @normalize_exceptions
     def push_to_run_queue_introspection(self) -> Tuple[bool, bool]:
@@ -939,7 +954,7 @@ class Api:
     def list_projects(self, entity: Optional[str] = None) -> List[Dict[str, str]]:
         """List projects in W&B scoped by entity.
 
-        Arguments:
+        Args:
             entity (str, optional): The entity to scope this project to.
 
         Returns:
@@ -971,7 +986,7 @@ class Api:
     def project(self, project: str, entity: Optional[str] = None) -> "_Response":
         """Retrieve project.
 
-        Arguments:
+        Args:
             project (str): The project to get details for
             entity (str, optional): The entity to scope this project to.
 
@@ -1006,7 +1021,7 @@ class Api:
     ) -> Dict[str, Any]:
         """Retrieve sweep.
 
-        Arguments:
+        Args:
             sweep (str): The sweep to get details for
             specs (str): history specs
             project (str, optional): The project to scope this sweep to.
@@ -1079,7 +1094,7 @@ class Api:
     ) -> List[Dict[str, str]]:
         """List runs in W&B scoped by project.
 
-        Arguments:
+        Args:
             project (str): The project to scope the runs to
             entity (str, optional): The entity to scope this project to.  Defaults to public models
 
@@ -1120,7 +1135,7 @@ class Api:
     ) -> Tuple[str, Dict[str, Any], Optional[str], Dict[str, Any]]:
         """Get the relevant configs for a run.
 
-        Arguments:
+        Args:
             project (str): The project to download, (can include bucket)
             run (str, optional): The run to download
             entity (str, optional): The entity to scope this project to.
@@ -1209,7 +1224,7 @@ class Api:
     ) -> Optional[Dict[str, Any]]:
         """Check if a run exists and get resume information.
 
-        Arguments:
+        Args:
             entity (str): The entity to scope this project to.
             project_name (str): The project to download, (can include bucket)
             name (str): The run to download
@@ -1314,7 +1329,7 @@ class Api:
     ) -> Dict[str, Any]:
         """Create a new project.
 
-        Arguments:
+        Args:
             project (str): The project to create
             description (str, optional): A description of this project
             entity (str, optional): The entity to scope this project to.
@@ -1579,6 +1594,70 @@ class Api:
             "createRunQueue"
         ]
         return result
+
+    @normalize_exceptions
+    def upsert_run_queue(
+        self,
+        queue_name: str,
+        entity: str,
+        resource_type: str,
+        resource_config: dict,
+        project: str = LAUNCH_DEFAULT_PROJECT,
+        prioritization_mode: Optional[str] = None,
+        template_variables: Optional[dict] = None,
+        external_links: Optional[dict] = None,
+    ) -> Optional[Dict[str, Any]]:
+        if not self.upsert_run_queue_introspection():
+            raise UnsupportedError(
+                "upserting run queues is not supported by this version of "
+                "wandb server. Consider updating to the latest version."
+            )
+        query = gql(
+            """
+            mutation upsertRunQueue(
+                $entityName: String!
+                $projectName: String!
+                $queueName: String!
+                $resourceType: String!
+                $resourceConfig: JSONString!
+                $templateVariables: JSONString
+                $prioritizationMode: RunQueuePrioritizationMode
+                $externalLinks: JSONString
+                $clientMutationId: String
+            ) {
+                upsertRunQueue(
+                    input: {
+                        entityName: $entityName
+                        projectName: $projectName
+                        queueName: $queueName
+                        resourceType: $resourceType
+                        resourceConfig: $resourceConfig
+                        templateVariables: $templateVariables
+                        prioritizationMode: $prioritizationMode
+                        externalLinks: $externalLinks
+                        clientMutationId: $clientMutationId
+                    }
+                ) {
+                    success
+                    configSchemaValidationErrors
+                }
+            }
+            """
+        )
+        variable_values = {
+            "entityName": entity,
+            "projectName": project,
+            "queueName": queue_name,
+            "resourceType": resource_type,
+            "resourceConfig": json.dumps(resource_config),
+            "templateVariables": (
+                json.dumps(template_variables) if template_variables else None
+            ),
+            "prioritizationMode": prioritization_mode,
+            "externalLinks": json.dumps(external_links) if external_links else None,
+        }
+        result: Dict[str, Any] = self.gql(query, variable_values)
+        return result["upsertRunQueue"]
 
     @normalize_exceptions
     def push_to_run_queue_by_name(
@@ -2078,7 +2157,7 @@ class Api:
     ) -> Tuple[dict, bool, Optional[List]]:
         """Update a run.
 
-        Arguments:
+        Args:
             id (str, optional): The existing run to update
             name (str, optional): The name of the run to create
             group (str, optional): Name of the group this run is a part of
@@ -2265,7 +2344,7 @@ class Api:
     ) -> dict:
         """Rewinds a run to a previous state.
 
-        Arguments:
+        Args:
             run_name (str): The name of the run to rewind
             metric_name (str): The name of the metric to rewind to
             metric_value (float): The value of the metric to rewind to
@@ -2452,7 +2531,7 @@ class Api:
     ) -> Tuple[str, List[str], Dict[str, Dict[str, Any]]]:
         """Generate temporary resumable upload urls.
 
-        Arguments:
+        Args:
             project (str): The project to download
             files (list or dict): The filenames to upload
             run (str, optional): The run to upload to
@@ -2589,7 +2668,7 @@ class Api:
     ) -> Dict[str, Dict[str, str]]:
         """Generate download urls.
 
-        Arguments:
+        Args:
             project (str): The project to download
             run (str): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
@@ -2648,7 +2727,7 @@ class Api:
     ) -> Optional[Dict[str, str]]:
         """Generate download urls.
 
-        Arguments:
+        Args:
             project (str): The project to download
             file_name (str): The name of the file to download
             run (str): The run to upload to
@@ -2701,7 +2780,7 @@ class Api:
     def download_file(self, url: str) -> Tuple[int, requests.Response]:
         """Initiate a streaming download.
 
-        Arguments:
+        Args:
             url (str): The url to download
 
         Returns:
@@ -2735,7 +2814,7 @@ class Api:
     ) -> Tuple[str, Optional[requests.Response]]:
         """Download a file from a run and write it to wandb/.
 
-        Arguments:
+        Args:
             metadata (obj): The metadata object for the file to download. Comes from Api.download_urls().
             out_dir (str, optional): The directory to write the file to. Defaults to wandb/
 
@@ -2799,7 +2878,7 @@ class Api:
     ) -> Optional[requests.Response]:
         """Upload a file chunk to S3 with failure resumption.
 
-        Arguments:
+        Args:
             url: The url to download
             upload_chunk: The path to the file you want to upload
             extra_headers: A dictionary of extra headers to send with the request
@@ -2852,7 +2931,7 @@ class Api:
     ) -> Optional[requests.Response]:
         """Upload a file to W&B with failure resumption.
 
-        Arguments:
+        Args:
             url: The url to download
             file: The path to the file you want to upload
             callback: A callback which is passed the number of
@@ -2924,7 +3003,7 @@ class Api:
     ) -> dict:
         """Register a new agent.
 
-        Arguments:
+        Args:
             host (str): hostname
             sweep_id (str): sweep id
             project_name: (str): model that contains sweep
@@ -2974,7 +3053,7 @@ class Api:
     ) -> List[Dict[str, Any]]:
         """Notify server about agent state, receive commands.
 
-        Arguments:
+        Args:
             agent_id (str): agent_id
             metrics (dict): system metrics
             run_states (dict): run_id: state mapping
@@ -3083,7 +3162,7 @@ class Api:
     ) -> Tuple[str, List[str]]:
         """Upsert a sweep object.
 
-        Arguments:
+        Args:
             config (dict): sweep config (will be converted to yaml)
             controller (str): controller to use
             launch_scheduler (str): launch scheduler to use
@@ -3264,7 +3343,7 @@ class Api:
     ) -> "List[requests.Response]":
         """Download files from W&B.
 
-        Arguments:
+        Args:
             project (str): The project to download
             run (str, optional): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
@@ -3295,11 +3374,11 @@ class Api:
         project: Optional[str] = None,
         description: Optional[str] = None,
         force: bool = True,
-        progress: Union[TextIO, bool] = False,
+        progress: Union[TextIO, Literal[False]] = False,
     ) -> "List[Optional[requests.Response]]":
         """Uploads multiple files to W&B.
 
-        Arguments:
+        Args:
             files (list or dict): The filenames to upload, when dict the values are open files
             run (str, optional): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
@@ -3307,7 +3386,7 @@ class Api:
             description (str, optional): The description of the changes
             force (bool, optional): Whether to prevent push if git has uncommitted changes
             progress (callable, or stream): If callable, will be called with (chunk_bytes,
-                total_bytes) as argument else if True, renders a progress bar to stream.
+                total_bytes) as argument. If TextIO, renders a progress bar to it.
 
         Returns:
             A list of `requests.Response` objects
@@ -3368,8 +3447,8 @@ class Api:
                     )
                 else:
                     length = os.fstat(open_file.fileno()).st_size
-                    with click.progressbar(
-                        file=progress,  # type: ignore
+                    with click.progressbar(  # type: ignore
+                        file=progress,
                         length=length,
                         label=f"Uploading file: {file_name}",
                         fill_char=click.style("&", fg="green"),
@@ -3393,6 +3472,7 @@ class Api:
         entity: str,
         project: str,
         aliases: Sequence[str],
+        organization: str,
     ) -> Dict[str, Any]:
         template = """
                 mutation LinkArtifact(
@@ -3414,6 +3494,14 @@ class Api:
                     }
             """
 
+        org_entity = ""
+        if is_artifact_registry_project(project):
+            try:
+                org_entity = self._resolve_org_entity_name(entity, organization)
+            except ValueError as e:
+                wandb.termerror(str(e))
+                raise
+
         def replace(a: str, b: str) -> None:
             nonlocal template
             template = template.replace(a, b)
@@ -3429,7 +3517,7 @@ class Api:
             "clientID": client_id,
             "artifactID": server_id,
             "artifactPortfolioName": portfolio_name,
-            "entityName": entity,
+            "entityName": org_entity or entity,
             "projectName": project,
             "aliases": [
                 {"alias": alias, "artifactCollectionName": portfolio_name}
@@ -3441,6 +3529,89 @@ class Api:
         response = self.gql(mutation, variable_values=variable_values)
         link_artifact: Dict[str, Any] = response["linkArtifact"]
         return link_artifact
+
+    def _resolve_org_entity_name(self, entity: str, organization: str = "") -> str:
+        # resolveOrgEntityName fetches the portfolio's org entity's name.
+        #
+        # The organization parameter may be empty, an org's display name, or an org entity name.
+        #
+        # If the server doesn't support fetching the org name of a portfolio, then this returns
+        # the organization parameter, or an error if it is empty. Otherwise, this returns the
+        # fetched value after validating that the given organization, if not empty, matches
+        # either the org's display or entity name.
+        org_fields = self.server_organization_type_introspection()
+        can_fetch_org_entity = "orgEntity" in org_fields
+        if not organization and not can_fetch_org_entity:
+            raise ValueError(
+                "Fetching Registry artifacts without inputting an organization "
+                "is unavailable for your server version. "
+                "Please upgrade your server to 0.50.0 or later."
+            )
+        if not can_fetch_org_entity:
+            # Server doesn't support fetching org entity to validate,
+            # assume org entity is correctly inputted
+            return organization
+
+        org_entity, org_name = self.fetch_org_entity_from_entity(entity)
+        if organization:
+            if organization != org_name and organization != org_entity:
+                raise ValueError(
+                    f"Artifact belongs to the organization {org_name!r} "
+                    f"and cannot be linked/fetched with {organization!r}. "
+                    "Please update the target path with the correct organization name."
+                )
+            wandb.termwarn(
+                "Registries can be linked/fetched using a shorthand form without specifying the organization name. "
+                "Try using shorthand path format: <my_registry_name>/<artifact_name>"
+            )
+        return org_entity
+
+    def fetch_org_entity_from_entity(self, entity: str) -> Tuple[str, str]:
+        query = gql(
+            """
+            query FetchOrgEntityFromEntity(
+                $entityName: String!,
+            ) {
+                entity(name: $entityName) {
+                    isTeam
+                    organization {
+                        name
+                        orgEntity {
+                            name
+                        }
+                    }
+                }
+            }
+            """
+        )
+        response = self.gql(
+            query,
+            variable_values={
+                "entityName": entity,
+            },
+        )
+        try:
+            is_team = response["entity"].get("isTeam", False)
+            org = response["entity"]["organization"]
+            org_name = org["name"] or ""
+            org_entity_name = org["orgEntity"]["name"] or ""
+        except (LookupError, TypeError) as e:
+            if is_team:
+                # This path should pretty much never be reached as all team entities have an organization.
+                raise ValueError(
+                    f"Unable to find an organization under entity {entity!r}. "
+                ) from e
+            else:
+                raise ValueError(
+                    f"Unable to resolve an organization associated with the entity: {entity!r} "
+                    "that is initialized in the API or Run settings. This could be because "
+                    f"{entity!r} is a personal entity or the team entity doesn't exist. "
+                    "Please re-initialize the API or Run with a team entity using "
+                    "wandb.Api(overrides={'entity': '<my_team_entity>'}) "
+                    "or wandb.init(entity='<my_team_entity>') "
+                ) from e
+        else:
+            return org_entity_name, org_name
 
     def use_artifact(
         self,
@@ -3508,6 +3679,63 @@ class Api:
             artifact: Dict[str, Any] = response["useArtifact"]["artifact"]
             return artifact
         return None
+
+    # Fetch fields available in backend of Organization type
+    def server_organization_type_introspection(self) -> List[str]:
+        query_string = """
+            query ProbeServerOrganization {
+                OrganizationInfoType: __type(name:"Organization") {
+                    fields {
+                        name
+                    }
+                }
+            }
+        """
+
+        if self.server_organization_type_fields_info is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            input_fields = res.get("OrganizationInfoType", {}).get("fields", [{}])
+            self.server_organization_type_fields_info = [
+                field["name"] for field in input_fields if "name" in field
+            ]
+
+        return self.server_organization_type_fields_info
+
+    # Fetch input arguments for the "artifact" endpoint on the "Project" type
+    def server_project_type_introspection(self) -> bool:
+        if self.server_supports_enabling_artifact_usage_tracking is not None:
+            return self.server_supports_enabling_artifact_usage_tracking
+
+        query_string = """
+            query ProbeServerProjectInfo {
+                ProjectInfoType: __type(name:"Project") {
+                    fields {
+                        name
+                        args {
+                            name
+                        }
+                    }
+                }
+            }
+        """
+
+        query = gql(query_string)
+        res = self.gql(query)
+        input_fields = res.get("ProjectInfoType", {}).get("fields", [{}])
+        artifact_args: List[Dict[str, str]] = next(
+            (
+                field.get("args", [])
+                for field in input_fields
+                if field.get("name") == "artifact"
+            ),
+            [],
+        )
+        self.server_supports_enabling_artifact_usage_tracking = any(
+            arg.get("name") == "enableTracking" for arg in artifact_args
+        )
+
+        return self.server_supports_enabling_artifact_usage_tracking
 
     def create_artifact_type(
         self,

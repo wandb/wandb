@@ -1,9 +1,15 @@
+from __future__ import annotations
+
 import os
 import shutil
 import unittest.mock
 from pathlib import Path
 from queue import Queue
-from typing import Any, Callable, Generator, Iterable, Optional, Union
+from typing import Any, Callable, Generator, Iterable
+
+import pyte
+import pyte.modes
+from wandb.errors import term
 
 # Don't write to Sentry in wandb.
 #
@@ -91,16 +97,20 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
 
 @pytest.fixture(scope="session")
-def assets_path() -> Generator[Callable, None, None]:
-    def assets_path_fn(path: Path) -> Path:
-        return Path(__file__).resolve().parent / "assets" / path
+def assets_path() -> Generator[Callable[[StrPath], Path], None, None]:
+    assets_dir = Path(__file__).resolve().parent / "assets"
+
+    def assets_path_fn(path: StrPath) -> Path:
+        return assets_dir / path
 
     yield assets_path_fn
 
 
 @pytest.fixture
-def copy_asset(assets_path) -> Generator[Callable, None, None]:
-    def copy_asset_fn(path: StrPath, dst: Optional[StrPath] = None) -> Path:
+def copy_asset(
+    assets_path,
+) -> Generator[Callable[[StrPath, StrPath | None], Path], None, None]:
+    def copy_asset_fn(path: StrPath, dst: StrPath | None = None) -> Path:
         src = assets_path(path)
         if src.is_file():
             return shutil.copy(src, dst or path)
@@ -112,6 +122,13 @@ def copy_asset(assets_path) -> Generator[Callable, None, None]:
 # --------------------------------
 # Misc Fixtures
 # --------------------------------
+
+
+@pytest.fixture(autouse=True)
+def reset_logger():
+    """Resets the `wandb.errors.term` module before each test."""
+    wandb.termsetup(wandb.Settings(silent=False), None)
+    term._dynamic_blocks = []
 
 
 class MockWandbTerm:
@@ -180,6 +197,66 @@ def mock_wandb_log() -> Generator[MockWandbTerm, None, None]:
             patched["termwarn"],
             patched["termerror"],
         )
+
+
+class EmulatedTerminal:
+    """The return value of the emulated_terminal fixture."""
+
+    def __init__(self, capsys: pytest.CaptureFixture[str]):
+        self._capsys = capsys
+        self._screen = pyte.Screen(80, 24)
+        self._screen.set_mode(pyte.modes.LNM)  # \n implies \r
+        self._stream = pyte.Stream(self._screen)
+
+    def read_stderr(self) -> list[str]:
+        """Returns the text in the emulated terminal.
+
+        This processes the stderr text captured by pytest since the last
+        invocation and returns the updated state of the screen. Empty lines
+        at the top and bottom of the screen and empty text at the end of
+        any line are trimmed.
+
+        NOTE: This resets pytest's stderr and stdout buffers. You should not
+        use this with anything else that uses capsys.
+        """
+        self._stream.feed(self._capsys.readouterr().err)
+
+        lines = [line.rstrip() for line in self._screen.display]
+
+        n_empty_at_start = 0
+        for i in range(len(lines)):
+            if not lines[i]:
+                n_empty_at_start += 1
+            else:
+                break
+
+        n_empty_at_end = 0
+        for i in range(len(lines)):
+            if not lines[-1 - i]:
+                n_empty_at_end += 1
+            else:
+                break
+
+        return lines[n_empty_at_start:-n_empty_at_end]
+
+
+@pytest.fixture()
+def emulated_terminal(monkeypatch, capsys) -> EmulatedTerminal:
+    """Emulates a terminal for the duration of a test.
+
+    This makes functions in the `wandb.errors.term` module act as if
+    stderr is a terminal.
+    """
+
+    monkeypatch.setenv("TERM", "xterm")
+
+    monkeypatch.setattr(term, "_sys_stderr_isatty", lambda: True)
+
+    # Make click pretend we're a TTY, so it doesn't strip ANSI sequences.
+    # This is fragile and could break when click is updated.
+    monkeypatch.setattr("click._compat.isatty", lambda *args, **kwargs: True)
+
+    return EmulatedTerminal(capsys)
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -290,7 +367,7 @@ def clean_up():
 
 
 @pytest.fixture
-def api():
+def api() -> wandb.PublicApi:
     return Api()
 
 
@@ -300,12 +377,12 @@ def api():
 
 
 @pytest.fixture()
-def record_q() -> "Queue":
+def record_q() -> Queue:
     return Queue()
 
 
 @pytest.fixture()
-def mocked_interface(record_q: "Queue") -> InterfaceQueue:
+def mocked_interface(record_q: Queue) -> InterfaceQueue:
     return InterfaceQueue(record_q=record_q)
 
 
@@ -318,25 +395,21 @@ def mocked_backend(mocked_interface: InterfaceQueue) -> Generator[object, None, 
     yield MockedBackend()
 
 
-def dict_factory():
-    def helper():
-        return dict()
-
-    return helper
-
-
 @pytest.fixture(scope="function")
 def test_settings():
     def update_test_settings(
-        extra_settings: Union[dict, wandb.sdk.wandb_settings.Settings] = dict_factory(),  # noqa: B008
+        extra_settings: dict | wandb.Settings | None = None,
     ):
+        if not extra_settings:
+            extra_settings = dict()
+
         settings = wandb.Settings(
             console="off",
             save_code=False,
         )
         if isinstance(extra_settings, dict):
             settings.update(extra_settings, source=wandb.sdk.wandb_settings.Source.BASE)
-        elif isinstance(extra_settings, wandb.sdk.wandb_settings.Settings):
+        elif isinstance(extra_settings, wandb.Settings):
             settings.update(extra_settings)
         settings._set_run_start_time()
         return settings
@@ -348,12 +421,10 @@ def test_settings():
 def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
     from wandb.sdk.lib.module import unset_globals
 
-    def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> "wandb.sdk.wandb_run.Run":
+    def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> wandb.sdk.wandb_run.Run:
         kwargs_settings = kwargs.pop("settings", dict())
         kwargs_settings = {
-            **{
-                "run_id": runid.generate_id(),
-            },
+            "run_id": runid.generate_id(),
             **kwargs_settings,
         }
         run = wandb.wandb_sdk.wandb_run.Run(

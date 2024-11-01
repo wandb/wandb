@@ -13,7 +13,7 @@ from wandb.sdk.interface.interface_sock import InterfaceSock
 from wandb.sdk.lib import service_token
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.mailbox import Mailbox
-from wandb.sdk.lib.sock_client import SockClient
+from wandb.sdk.lib.sock_client import SockClient, SockClientTimeoutError
 from wandb.sdk.service import service
 
 
@@ -23,6 +23,10 @@ class WandbServiceNotOwnedError(Exception):
 
 class WandbServiceConnectionError(Exception):
     """Raised on failure to connect to the service process."""
+
+
+class WandbAttachFailedError(Exception):
+    """Raised if attaching to a run fails."""
 
 
 def connect_to_service(
@@ -149,11 +153,22 @@ class ServiceConnection:
         self,
         attach_id: str,
     ) -> wandb_settings_pb2.Settings:
-        """Sends an attach request to the service."""
+        """Sends an attach request to the service.
+
+        Raises a WandbAttachFailedError if attaching is not possible.
+        """
         request = spb.ServerInformAttachRequest()
         request._info.stream_id = attach_id
-        response = self._client.send_and_recv(inform_attach=request)
-        return response.inform_attach_response.settings
+
+        try:
+            response = self._client.send_and_recv(inform_attach=request)
+            return response.inform_attach_response.settings
+        except SockClientTimeoutError:
+            raise WandbAttachFailedError(
+                "Could not attach because the run does not belong to"
+                " the current service process, or because the service"
+                " process is busy (unlikely)."
+            )
 
     def inform_start(
         self,

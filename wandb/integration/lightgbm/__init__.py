@@ -155,7 +155,7 @@ class _WandbCallback:
 def wandb_callback(log_params: bool = True, define_metric: bool = True) -> Callable:
     """Automatically integrates LightGBM with wandb.
 
-    Arguments:
+    Args:
         log_params: (boolean) if True (default) logs params passed to lightgbm.train as W&B config
         define_metric: (boolean) if True (default) capture model performance at the best step, instead of the last step, of training in your `wandb.summary`
 
@@ -190,7 +190,7 @@ def log_summary(
 ) -> None:
     """Log useful metrics about lightgbm model after training is done.
 
-    Arguments:
+    Args:
         model: (Booster) is an instance of lightgbm.basic.Booster.
         feature_importance: (boolean) if True (default), logs the feature importance plot.
         save_model_checkpoint: (boolean) if True saves the best model and upload as W&B artifacts.

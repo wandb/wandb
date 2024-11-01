@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/wboperation"
 	"golang.org/x/time/rate"
 )
 
@@ -20,6 +21,7 @@ const (
 	SummaryFileName          = "wandb-summary.json"
 	OutputFileName           = "output.log"
 	defaultHeartbeatInterval = 30 * time.Second
+	defaultTransmitInterval  = 15 * time.Second
 
 	// Maximum line length for filestream jsonl files, imposed by the back-end.
 	//
@@ -80,6 +82,9 @@ type fileStream struct {
 	// A logger for internal debug logging.
 	logger *observability.CoreLogger
 
+	// The context in which to track filestream operations.
+	operations *wboperation.WandbOperations
+
 	// A way to print console messages to the user.
 	printer *observability.Printer
 
@@ -101,6 +106,7 @@ type fileStream struct {
 type FileStreamParams struct {
 	Settings           *settings.Settings
 	Logger             *observability.CoreLogger
+	Operations         *wboperation.WandbOperations
 	Printer            *observability.Printer
 	ApiClient          api.Client
 	TransmitRateLimit  *rate.Limiter
@@ -114,25 +120,28 @@ func NewFileStream(params FileStreamParams) FileStream {
 		panic("filestream: nil logger")
 	case params.Printer == nil:
 		panic("filestream: nil printer")
-	case params.TransmitRateLimit == nil:
-		panic("filestream: nil rate limit")
 	}
 
 	fs := &fileStream{
-		settings:          params.Settings,
-		logger:            params.Logger,
-		printer:           params.Printer,
-		apiClient:         params.ApiClient,
-		processChan:       make(chan Update, BufferSize),
-		feedbackWait:      &sync.WaitGroup{},
-		transmitRateLimit: params.TransmitRateLimit,
-		deadChanOnce:      &sync.Once{},
-		deadChan:          make(chan struct{}),
+		settings:     params.Settings,
+		logger:       params.Logger,
+		operations:   params.Operations,
+		printer:      params.Printer,
+		apiClient:    params.ApiClient,
+		processChan:  make(chan Update, BufferSize),
+		feedbackWait: &sync.WaitGroup{},
+		deadChanOnce: &sync.Once{},
+		deadChan:     make(chan struct{}),
 	}
 
 	fs.heartbeatStopwatch = params.HeartbeatStopwatch
 	if fs.heartbeatStopwatch == nil {
 		fs.heartbeatStopwatch = waiting.NewStopwatch(defaultHeartbeatInterval)
+	}
+
+	fs.transmitRateLimit = params.TransmitRateLimit
+	if fs.transmitRateLimit == nil {
+		fs.transmitRateLimit = rate.NewLimiter(rate.Every(defaultTransmitInterval), 1)
 	}
 
 	return fs

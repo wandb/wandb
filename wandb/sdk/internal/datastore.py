@@ -277,7 +277,7 @@ class DataStore:
     def write(self, obj: "Record") -> Tuple[int, int, int]:
         """Write a protocol buffer.
 
-        Arguments:
+        Args:
             obj: Protocol buffer to write.
 
         Returns:

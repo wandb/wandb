@@ -3,7 +3,7 @@
 import json
 import re
 from copy import copy
-from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence, Union
 
 from wandb_gql import Client, gql
 
@@ -50,6 +50,7 @@ ARTIFACT_FILES_FRAGMENT = """fragment ArtifactFilesFragment on Artifact {
                 updatedAt
                 digest
                 md5
+                directUrl
             }
             cursor
         }
@@ -757,12 +758,16 @@ class Artifacts(Paginator):
         filters: Optional[Mapping[str, Any]] = None,
         order: Optional[str] = None,
         per_page: int = 50,
+        tags: Optional[Union[str, List[str]]] = None,
     ):
+        from wandb.sdk.artifacts.artifact import _gql_artifact_fragment
+
         self.entity = entity
         self.collection_name = collection_name
         self.type = type
         self.project = project
         self.filters = {"state": "COMMITTED"} if filters is None else filters
+        self.tags = [tags] if isinstance(tags, str) else tags
         self.order = order
         variables = {
             "project": self.project,
@@ -802,7 +807,7 @@ class Artifacts(Paginator):
                 artifact_collection_edge_name(
                     server_supports_artifact_collections_gql_edges(client)
                 ),
-                wandb.Artifact._get_gql_artifact_fragment(),
+                _gql_artifact_fragment(),
             )
         )
         super().__init__(client, variables, per_page)
@@ -835,9 +840,9 @@ class Artifacts(Paginator):
             return None
 
     def convert_objects(self):
-        if self.last_response["project"]["artifactType"]["artifactCollection"] is None:
-            return []
-        return [
+        collection = self.last_response["project"]["artifactType"]["artifactCollection"]
+        artifact_edges = collection.get("artifacts", {}).get("edges", [])
+        artifacts = (
             wandb.Artifact._from_attrs(
                 self.entity,
                 self.project,
@@ -845,9 +850,11 @@ class Artifacts(Paginator):
                 a["node"],
                 self.client,
             )
-            for a in self.last_response["project"]["artifactType"][
-                "artifactCollection"
-            ]["artifacts"]["edges"]
+            for a in artifact_edges
+        )
+        required_tags = set(self.tags or [])
+        return [
+            artifact for artifact in artifacts if required_tags.issubset(artifact.tags)
         ]
 
 
@@ -855,6 +862,8 @@ class RunArtifacts(Paginator):
     def __init__(
         self, client: Client, run: "Run", mode="logged", per_page: Optional[int] = 50
     ):
+        from wandb.sdk.artifacts.artifact import _gql_artifact_fragment
+
         output_query = gql(
             """
             query RunOutputArtifacts(
@@ -879,7 +888,7 @@ class RunArtifacts(Paginator):
                 }
             }
             """
-            + wandb.Artifact._get_gql_artifact_fragment()
+            + _gql_artifact_fragment()
         )
 
         input_query = gql(
@@ -906,7 +915,7 @@ class RunArtifacts(Paginator):
                 }
             }
             """
-            + wandb.Artifact._get_gql_artifact_fragment()
+            + _gql_artifact_fragment()
         )
 
         self.run = run

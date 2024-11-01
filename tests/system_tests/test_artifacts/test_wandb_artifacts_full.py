@@ -665,7 +665,7 @@ def test_retrieve_missing_artifact(logged_artifact):
     with pytest.raises(CommError, match="must be specified as 'collection:alias'"):
         Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz")
 
-    with pytest.raises(CommError, match="do not have permission"):
+    with pytest.raises(CommError, match="failed to find artifact collection"):
         Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz:v0")
 
 
@@ -693,7 +693,7 @@ def test_new_draft(wandb_init):
     # We would use public properties, but they're only available on non-draft artifacts.
     assert draft._entity == parent.entity
     assert draft._project == parent.project
-    assert draft._source_name == art.name
+    assert draft._source_name == art.name.split(":")[0]
     assert draft._source_entity == parent.entity
     assert draft._source_project == parent.project
 

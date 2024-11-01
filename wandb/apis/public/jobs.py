@@ -45,7 +45,7 @@ class Job:
 
     def __init__(self, api: "Api", name, path: Optional[str] = None) -> None:
         try:
-            self._job_artifact = api.artifact(name, type="job")
+            self._job_artifact = api._artifact(name, type="job")
         except CommError:
             raise CommError(f"Job artifact {name} not found")
         if path:
@@ -94,7 +94,7 @@ class Job:
         if is_id:
             code_artifact = wandb.Artifact._from_id(artifact_string, self._api._client)
         else:
-            code_artifact = self._api.artifact(name=artifact_string, type="code")
+            code_artifact = self._api._artifact(name=artifact_string, type="code")
         if code_artifact is None:
             raise LaunchError("No code artifact found")
         if code_artifact.state == ArtifactState.DELETED:
@@ -474,6 +474,12 @@ class RunQueue:
         return self._access
 
     @property
+    def external_links(self) -> Dict[str, str]:
+        if self._external_links is None:
+            self._get_metadata()
+        return self._external_links
+
+    @property
     def type(self) -> RunQueueResourceType:
         if self._type is None:
             if self._default_resource_config_id is None:
@@ -549,6 +555,7 @@ class RunQueue:
                         access
                         defaultResourceConfigID
                         prioritizationMode
+                        externalLinks
                     }
                 }
             }
@@ -565,6 +572,7 @@ class RunQueue:
         self._default_resource_config_id = res["project"]["runQueue"][
             "defaultResourceConfigID"
         ]
+        self._external_links = res["project"]["runQueue"]["externalLinks"]
         if self._default_resource_config_id is None:
             self._default_resource_config = {}
         self._prioritization_mode = res["project"]["runQueue"]["prioritizationMode"]

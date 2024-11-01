@@ -10,7 +10,7 @@ import unittest.mock
 import urllib.parse
 from collections.abc import Sequence
 from contextlib import contextmanager
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, Generator, Iterator, List, Optional, Union
 
 import pytest
 import requests
@@ -24,12 +24,15 @@ from .relay import (
     RelayServer,
     TokenizedCircularPattern,
 )
+from .wandb_backend_spy import WandbBackendProxy, WandbBackendSpy, spy_proxy
 
 try:
     from typing import Literal
 except ImportError:
     from typing_extensions import Literal
 
+
+_WANDB_BACKEND_PROXY_PORT = 8000
 
 # `local-testcontainer` url and ports
 DEFAULT_SERVER_URL = "http://localhost"
@@ -861,9 +864,63 @@ def debug(wandb_debug, fixture_fn, base_url):
         yield None
 
 
+@pytest.fixture(scope="session")
+def wandb_backend_proxy_server(
+    base_url,
+) -> Generator[WandbBackendProxy, None, None]:
+    """Session fixture that starts up a proxy server for the W&B backend."""
+    base_url_parsed = urllib.parse.urlparse(base_url)
+
+    with spy_proxy(
+        proxy_port=_WANDB_BACKEND_PROXY_PORT,
+        target_host=base_url_parsed.hostname,
+        target_port=base_url_parsed.port,
+    ) as proxy:
+        yield proxy
+
+
+@pytest.fixture(scope="function")
+def wandb_backend_spy(
+    user,
+    wandb_backend_proxy_server: WandbBackendProxy,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[WandbBackendSpy, None, None]:
+    """Fixture that allows spying on requests to the W&B backend.
+
+    This patches WANDB_BASE_URL and creates a fake user for the test
+    setting auth-related environment variables.
+
+    NOTE: This replaces the `relay_server` fixture.
+
+    Usage:
+
+        def test_something(wandb_backend_spy):
+            with wandb.init() as run:
+                run.log({"x": 1})
+
+            with wandb_backend_spy.freeze() as snapshot:
+                history = snapshot.history(run_id=run.id)
+                assert history[0]["x"] == 1
+    """
+
+    # Use a fake API key for the test.
+    _ = user
+
+    # Connect to the proxy to spy on requests:
+    monkeypatch.setenv(
+        "WANDB_BASE_URL",
+        f"http://127.0.0.1:{_WANDB_BACKEND_PROXY_PORT}",
+    )
+
+    with wandb_backend_proxy_server.spy() as spy:
+        yield spy
+
+
 @pytest.fixture(scope="function")
 def relay_server(base_url, wandb_verbose):
     """A context manager in which the backend is a RelayServer.
+
+    NOTE: This is deprecated. Please use `wandb_backend_spy` instead.
 
     This returns a context manager that creates a RelayServer and monkey-patches
     WANDB_BASE_URL to point to it.

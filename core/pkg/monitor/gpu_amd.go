@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -21,11 +21,13 @@ const rocmSMICmd string = "/usr/bin/rocm-smi"
 type StatsKeys string
 
 const (
-	GPU             StatsKeys = "gpu"
-	MemoryAllocated StatsKeys = "memoryAllocated"
-	Temp            StatsKeys = "temp"
-	PowerWatts      StatsKeys = "powerWatts"
-	PowerPercent    StatsKeys = "powerPercent"
+	GPUUtilization          StatsKeys = "gpu"
+	MemoryAllocated         StatsKeys = "memoryAllocated"
+	MemoryReadWriteActivity StatsKeys = "memoryReadWriteActivity"
+	MemoryOverDrive         StatsKeys = "memoryOverDrive"
+	Temp                    StatsKeys = "temp"
+	PowerWatts              StatsKeys = "powerWatts"
+	PowerPercent            StatsKeys = "powerPercent"
 )
 
 type Stats map[StatsKeys]float64
@@ -157,16 +159,17 @@ func (g *GPUAMD) Probe() *spb.MetadataRequest {
 	info.GpuCount = uint32(len(cards))
 
 	keyMapping := map[string]string{
-		"Id":                 "GPU ID",
+		"GPUID":              "GPU ID",
+		"DeviceID":           "Device ID",
 		"UniqueId":           "Unique ID",
 		"VbiosVersion":       "VBIOS version",
 		"PerformanceLevel":   "Performance Level",
 		"GpuOverdrive":       "GPU OverDrive value (%)",
 		"GpuMemoryOverdrive": "GPU Memory OverDrive value (%)",
 		"MaxPower":           "Max Graphics Package Power (W)",
-		"Series":             "Card series",
-		"Model":              "Card model",
-		"Vendor":             "Card vendor",
+		"Series":             "Card Series",
+		"Model":              "Card Model",
+		"Vendor":             "Card Vendor",
 		"Sku":                "Card SKU",
 		"SclkRange":          "Valid sclk range",
 		"MclkRange":          "Valid mclk range",
@@ -177,7 +180,9 @@ func (g *GPUAMD) Probe() *spb.MetadataRequest {
 		for key, statKey := range keyMapping {
 			if value, ok := queryMapString(stats, statKey); ok {
 				switch key {
-				case "Id":
+				case "GPUID":
+					gpuInfo.Id = value
+				case "DeviceID":
 					gpuInfo.Id = value
 				case "UniqueId":
 					gpuInfo.UniqueId = value
@@ -237,13 +242,31 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 	for key, statFunc := range map[string]func(string) *Stats{
 		"GPU use (%)": func(s string) *Stats {
 			if f, err := parseFloat(s); err == nil {
-				return &Stats{GPU: f}
+				return &Stats{GPUUtilization: f}
 			}
 			return nil
 		},
 		"GPU memory use (%)": func(s string) *Stats {
 			if f, err := parseFloat(s); err == nil {
 				return &Stats{MemoryAllocated: f}
+			}
+			return nil
+		},
+		"GPU Memory Allocated (VRAM%)": func(s string) *Stats {
+			if f, err := parseFloat(s); err == nil {
+				return &Stats{MemoryAllocated: f}
+			}
+			return nil
+		},
+		"GPU Memory Read/Write Activity (%)": func(s string) *Stats {
+			if f, err := parseFloat(s); err == nil {
+				return &Stats{MemoryReadWriteActivity: f}
+			}
+			return nil
+		},
+		"GPU Memory OverDrive value (%)": func(s string) *Stats {
+			if f, err := parseFloat(s); err == nil {
+				return &Stats{MemoryOverDrive: f}
 			}
 			return nil
 		},
@@ -263,6 +286,22 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 
 			if err1 == nil && err2 == nil && mp != 0 {
 				powerStats := Stats{PowerWatts: ap, PowerPercent: (ap / mp) * 100}
+				return &powerStats
+			}
+			return nil
+		},
+		// For MI300X GPUs, instead of "Average Graphics Package Power (W)",
+		// "Current Socket Graphics Package Power (W)" is reported.
+		"Current Socket Graphics Package Power (W)": func(s string) *Stats {
+			maxPowerWatts, ok := queryMapString(stats, "Max Graphics Package Power (W)")
+			if !ok {
+				return nil
+			}
+			mp, err1 := parseFloat(maxPowerWatts)
+			cp, err2 := parseFloat(s)
+
+			if err1 == nil && err2 == nil && cp != 0 {
+				powerStats := Stats{PowerWatts: cp, PowerPercent: (cp / mp) * 100}
 				return &powerStats
 			}
 			return nil

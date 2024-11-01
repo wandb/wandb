@@ -4,21 +4,24 @@ package launch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/Khan/genqlient/graphql"
 
 	"github.com/wandb/wandb/core/internal/data_types"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/nullify"
+	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/pkg/artifacts"
-	"github.com/wandb/wandb/core/pkg/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 type SourceType string
@@ -157,8 +160,9 @@ type JobSourceMetadata struct {
 }
 
 type ArtifactInfoForJob struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	IsSet bool
+	ID    string
+	Name  string
 }
 
 type JobBuilder struct {
@@ -168,9 +172,12 @@ type JobBuilder struct {
 
 	verbose bool
 
-	Disable               bool
-	settings              *spb.Settings
-	RunCodeArtifact       *ArtifactInfoForJob
+	Disable  bool
+	settings *spb.Settings
+
+	runCodeArtifact   ArtifactInfoForJob
+	runCodeArtifactMu sync.Mutex
+
 	aliases               []string
 	isNotebookRun         bool
 	runConfig             *runconfig.RunConfig
@@ -355,7 +362,9 @@ func (j *JobBuilder) hasRepoJobIngredients(metadata RunMetadata) bool {
 }
 
 func (j *JobBuilder) hasArtifactJobIngredients() bool {
-	return j.RunCodeArtifact != nil
+	j.runCodeArtifactMu.Lock()
+	defer j.runCodeArtifactMu.Unlock()
+	return j.runCodeArtifact.IsSet
 }
 
 func (j *JobBuilder) hasImageJobIngredients(metadata RunMetadata) bool {
@@ -469,13 +478,24 @@ func (j *JobBuilder) createArtifactJobSource(programRelPath string, metadata Run
 	if err != nil {
 		return nil, nil, err
 	}
+
+	j.runCodeArtifactMu.Lock()
+	if !j.runCodeArtifact.IsSet {
+		j.runCodeArtifactMu.Unlock()
+		return nil, nil, errors.New("no runCodeArtifact")
+	}
+
+	runCodeArtifactID := j.runCodeArtifact.ID
+	runCodeArtifactName := j.runCodeArtifact.Name
+	j.runCodeArtifactMu.Unlock()
+
 	// TODO: update executable to a method that supports pex
 	source := &ArtifactSource{
-		Artifact:   "wandb-artifact://_id/" + j.RunCodeArtifact.ID,
+		Artifact:   "wandb-artifact://_id/" + runCodeArtifactID,
 		Notebook:   j.isNotebookRun,
 		Entrypoint: entrypoint,
 	}
-	name := j.makeJobName(j.RunCodeArtifact.Name)
+	name := j.makeJobName(runCodeArtifactName)
 
 	return source, &name, nil
 }
@@ -625,8 +645,8 @@ func (j *JobBuilder) Build(
 		Type:             "job",
 		Aliases:          append(j.aliases, "latest"),
 		Finalize:         true,
-		ClientId:         utils.GenerateAlphanumericSequence(128),
-		SequenceClientId: utils.GenerateAlphanumericSequence(128),
+		ClientId:         randomid.GenerateAlphanumericSequence(128),
+		SequenceClientId: randomid.GenerateAlphanumericSequence(128),
 		UseAfterCommit:   true,
 		UserCreated:      true,
 	}
@@ -755,19 +775,19 @@ func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (str
 	return string(metadataBytes), nil
 }
 
-func (j *JobBuilder) HandleLogArtifactResult(response *spb.LogArtifactResponse, record *spb.ArtifactRecord) {
+// SetRunCodeArtifact atomically records the ID and name of the artifact
+// containing the code for the run.
+func (j *JobBuilder) SetRunCodeArtifact(id, name string) {
 	if j == nil {
 		return
 	}
-	j.logger.Debug("jobBuilder: handling log artifact result")
-	if response == nil || response.ErrorMessage != "" {
-		return
-	}
-	if record.GetType() == "code" {
-		j.RunCodeArtifact = &ArtifactInfoForJob{
-			ID:   response.ArtifactId,
-			Name: record.Name,
-		}
+
+	j.runCodeArtifactMu.Lock()
+	defer j.runCodeArtifactMu.Unlock()
+	j.runCodeArtifact = ArtifactInfoForJob{
+		IsSet: true,
+		ID:    id,
+		Name:  name,
 	}
 }
 
@@ -791,7 +811,7 @@ func (j *JobBuilder) HandleJobInputRequest(request *spb.JobInputRequest) {
 	source := request.GetInputSource()
 	switch source := source.GetSource().(type) {
 	case *spb.JobInputSource_File:
-		schema := utils.NilIfZero(request.GetInputSchema())
+		schema := nullify.NilIfZero(request.GetInputSchema())
 		newInput, err := newFileInputFromProto(
 			source,
 			request.GetIncludePaths(),
@@ -809,6 +829,6 @@ func (j *JobBuilder) HandleJobInputRequest(request *spb.JobInputRequest) {
 		}
 		j.wandbConfigParameters.appendIncludePaths(request.GetIncludePaths())
 		j.wandbConfigParameters.appendExcludePaths(request.GetExcludePaths())
-		j.wandbConfigParameters.inputSchema = utils.NilIfZero(request.InputSchema)
+		j.wandbConfigParameters.inputSchema = nullify.NilIfZero(request.InputSchema)
 	}
 }

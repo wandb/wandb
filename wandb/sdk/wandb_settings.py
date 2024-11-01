@@ -48,9 +48,8 @@ from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SO
 from wandb.sdk.lib.run_moment import RunMoment
 from wandb.sdk.wandb_setup import _EarlyLogger
 
-from .lib import apikey
+from .lib import apikey, ipython
 from .lib.gitlib import GitRepo
-from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
 
 if sys.version_info >= (3, 8):
@@ -315,6 +314,7 @@ class SettingsData:
     _executable: str
     _extra_http_headers: Mapping[str, str]
     _file_stream_max_bytes: int  # max size for filestream requests in core
+    _file_stream_transmit_interval: float  # tx interval for filestream requests in core
     # file stream retry client configuration
     _file_stream_retry_max: int  # max number of retries
     _file_stream_retry_wait_min_seconds: float  # min wait time between retries
@@ -385,6 +385,7 @@ class SettingsData:
     _tracelog: str
     _unsaved_keys: Sequence[str]
     _windows: bool
+    _show_operation_stats: bool
     allow_val_change: bool
     anonymous: str
     api_key: str
@@ -664,6 +665,7 @@ class Settings(SettingsData):
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
             _file_stream_max_bytes={"preprocessor": int},
+            _file_stream_transmit_interval={"preprocessor": float},
             _file_stream_retry_max={"preprocessor": int},
             _file_stream_retry_wait_min_seconds={"preprocessor": float},
             _file_stream_retry_wait_max_seconds={"preprocessor": float},
@@ -687,11 +689,11 @@ class Settings(SettingsData):
             _internal_check_process={"value": 8, "preprocessor": float},
             _internal_queue_timeout={"value": 2, "preprocessor": float},
             _ipython={
-                "hook": lambda _: _get_python_type() == "ipython",
+                "hook": lambda _: ipython.in_ipython(),
                 "auto_hook": True,
             },
             _jupyter={
-                "hook": lambda _: _get_python_type() == "jupyter",
+                "hook": lambda _: ipython.in_jupyter(),
                 "auto_hook": True,
             },
             _kaggle={"hook": lambda _: util._is_likely_kaggle(), "auto_hook": True},
@@ -774,6 +776,7 @@ class Settings(SettingsData):
                 "hook": lambda _: platform.system() == "Windows",
                 "auto_hook": True,
             },
+            _show_operation_stats={"preprocessor": _str_as_bool},
             anonymous={"validator": self._validate_anonymous},
             api_key={"validator": self._validate_api_key},
             base_url={

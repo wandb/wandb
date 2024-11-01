@@ -4,8 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/sparselist"
-	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 // outputFileWriter saves run console logs in a local file.

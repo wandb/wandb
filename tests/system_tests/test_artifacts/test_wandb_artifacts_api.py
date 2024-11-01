@@ -82,6 +82,31 @@ def server_supports_artifact_tags() -> bool:
     return "tags" in internal_api.Api().server_artifact_introspection()
 
 
+def test_save_artifact_with_tags_repeated(
+    user, server_supports_artifact_tags, logged_artifact
+):
+    tags1 = ["tag1", "tag2"]
+    tags2 = ["tag3", "tag4"]
+
+    artifact = logged_artifact
+
+    artifact.tags = tags1
+    artifact.save()
+
+    if server_supports_artifact_tags:
+        assert set(artifact.tags) == set(tags1)
+    else:
+        assert artifact.tags == []
+
+    artifact.tags = artifact.tags + tags2
+    artifact.save()
+
+    if server_supports_artifact_tags:
+        assert set(artifact.tags) == set(tags1 + tags2)
+    else:
+        assert artifact.tags == []
+
+
 @pytest.mark.parametrize(
     "orig_tags",
     (
@@ -239,6 +264,50 @@ def test_log_artifact_with_invalid_tags(tmp_path, user, wandb_init, api, invalid
         # Logging an artifact with invalid tags should fail
         with pytest.raises(ValueError, match=re.compile(r"Invalid tag", re.IGNORECASE)):
             run.log_artifact(artifact, tags=invalid_tags)
+
+
+def test_retrieve_artifacts_by_tags(user, wandb_init, server_supports_artifact_tags):
+    project = "test"
+    artifact_name = "test-artifact"
+    artifact_type = "test-type"
+
+    with wandb_init(entity=user, project=project) as run:
+        for i in range(10):
+            artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+            with artifact.new_file(f"{i}.txt", "w") as f:
+                f.write("testing")
+            run.log_artifact(artifact)
+
+    artifact_name = f"{user}/{project}/{artifact_name}"
+
+    for logged_artifact in Api().artifacts(type_name=artifact_type, name=artifact_name):
+        version = int(logged_artifact.version.strip("v"))
+        if version % 3 == 0:
+            logged_artifact.tags.append("fizz")
+        if version % 5 == 0:
+            logged_artifact.tags.append("buzz")
+        logged_artifact.save()
+
+    # Retrieve all artifacts with a given tag.
+    artifacts = Api().artifacts(
+        type_name=artifact_type, name=artifact_name, tags="fizz"
+    )
+    retrieved_artifacts = list(artifacts)
+    if server_supports_artifact_tags:
+        assert len(retrieved_artifacts) == 4  # v0, v3, v6, v9
+    else:
+        assert len(retrieved_artifacts) == 0
+
+    # Retrieve only the artifacts that match multiple tags.
+    artifacts = Api().artifacts(
+        type_name=artifact_type, name=artifact_name, tags=["fizz", "buzz"]
+    )
+    retrieved_artifacts = list(artifacts)
+    if server_supports_artifact_tags:
+        assert len(retrieved_artifacts) == 1
+        assert retrieved_artifacts[0].version == "v0"
+    else:
+        assert len(retrieved_artifacts) == 0
 
 
 def test_update_aliases_on_artifact(user, wandb_init):

@@ -12,7 +12,7 @@ def split_files(
     This method is used in `FileStreamAPI._send()` to limit the size of post requests
     sent to wandb server.
 
-    Arguments:
+    Args:
     files (dict): `dict` of form {file_name: {'content': ".....", 'offset': 0}}
         The key `file_name` can also be mapped to a List [{"offset": int, "content": str}]
     `max_bytes`: max size for chunk in bytes

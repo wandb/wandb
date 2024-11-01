@@ -50,11 +50,12 @@ import fastai
 from fastai.callbacks import TrackerCallback
 
 import wandb
+from wandb.sdk.lib import ipython
 
 try:
     import matplotlib
 
-    if wandb.wandb_lib.ipython._get_python_type() != "jupyter":  # type: ignore[attr-defined]
+    if not ipython.in_jupyter():
         matplotlib.use("Agg")  # non-interactive backend (avoid tkinter issues)
     import matplotlib.pyplot as plt
 except ImportError:
@@ -66,7 +67,7 @@ class WandbCallback(TrackerCallback):
 
     Optionally logs weights, gradients, sample predictions and best trained model.
 
-    Arguments:
+    Args:
         learn (fastai.basic_train.Learner): the fast.ai learner to hook.
         log (str): "gradients", "parameters", "all", or None. Losses & metrics are always logged.
         save_model (bool): save model at the end of each epoch. It will also load best model at the end of training.

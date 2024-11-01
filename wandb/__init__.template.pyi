@@ -52,6 +52,8 @@ __all__ = (
     "Settings",
     "teardown",
     "watch",
+    "unwatch",
+    "plot",
 )
 
 import os
@@ -67,7 +69,8 @@ from typing import (
     Union,
 )
 
-from wandb.analytics import Sentry as _Sentry
+import wandb.plot as plot
+from wandb.analytics import Sentry
 from wandb.apis import InternalApi, PublicApi
 from wandb.data_types import (
     Audio,
@@ -95,17 +98,19 @@ from wandb.wandb_controller import _WandbController
 if TYPE_CHECKING:
     import torch  # type: ignore [import-not-found]
 
-__version__: str = "0.18.2.dev1"
+    from wandb.plot.viz import CustomChart
 
-run: Optional[Run] = None
-config = wandb_config.Config
-summary = wandb_summary.Summary
-Api = PublicApi
-api = InternalApi()
-_sentry = _Sentry()
+__version__: str = "0.18.6.dev1"
 
-# record of patched libraries
-patched = {"tensorboard": [], "keras": [], "gym": []}  # type: ignore
+run: Run | None
+config: wandb_config.Config
+summary: wandb_summary.Summary
+Api: type[PublicApi]
+
+# private attributes
+_sentry: Sentry
+api: InternalApi
+patched: Dict[str, List[Callable]]
 
 def setup(
     settings: Optional[Settings] = None,
@@ -118,37 +123,37 @@ def teardown(exit_code: Optional[int] = None) -> None:
     ...
 
 def init(
-    job_type: Optional[str] = None,
-    dir: Optional[StrPath] = None,
-    config: Union[Dict, str, None] = None,
-    project: Optional[str] = None,
-    entity: Optional[str] = None,
-    reinit: Optional[bool] = None,
-    tags: Optional[Sequence] = None,
-    group: Optional[str] = None,
-    name: Optional[str] = None,
-    notes: Optional[str] = None,
-    magic: Optional[Union[dict, str, bool]] = None,
-    config_exclude_keys: Optional[List[str]] = None,
-    config_include_keys: Optional[List[str]] = None,
-    anonymous: Optional[str] = None,
-    mode: Optional[str] = None,
-    allow_val_change: Optional[bool] = None,
-    resume: Optional[Union[bool, str]] = None,
-    force: Optional[bool] = None,
-    tensorboard: Optional[bool] = None,  # alias for sync_tensorboard
-    sync_tensorboard: Optional[bool] = None,
-    monitor_gym: Optional[bool] = None,
-    save_code: Optional[bool] = None,
-    id: Optional[str] = None,
-    fork_from: Optional[str] = None,
-    resume_from: Optional[str] = None,
-    settings: Union[Settings, Dict[str, Any], None] = None,
+    job_type: str | None = None,
+    dir: StrPath | None = None,
+    config: dict | str | None = None,
+    project: str | None = None,
+    entity: str | None = None,
+    reinit: bool | None = None,
+    tags: Sequence | None = None,
+    group: str | None = None,
+    name: str | None = None,
+    notes: str | None = None,
+    magic: dict | str | bool | None = None,
+    config_exclude_keys: list[str] | None = None,
+    config_include_keys: list[str] | None = None,
+    anonymous: str | None = None,
+    mode: str | None = None,
+    allow_val_change: bool | None = None,
+    resume: bool | str | None = None,
+    force: bool | None = None,
+    tensorboard: bool | None = None,  # alias for sync_tensorboard
+    sync_tensorboard: bool | None = None,
+    monitor_gym: bool | None = None,
+    save_code: bool | None = None,
+    id: str | None = None,
+    fork_from: str | None = None,
+    resume_from: str | None = None,
+    settings: Settings | dict[str, Any] | None = None,
 ) -> Run:
     """<sdk/wandb_init.py::init>"""
     ...
 
-def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> None:
+def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
     """<sdk/wandb_run.py::finish>"""
     ...
 
@@ -165,19 +170,19 @@ def login(
     ...
 
 def log(
-    data: Dict[str, Any],
-    step: Optional[int] = None,
-    commit: Optional[bool] = None,
-    sync: Optional[bool] = None,
+    data: dict[str, Any],
+    step: int | None = None,
+    commit: bool | None = None,
+    sync: bool | None = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::log>"""
     ...
 
 def save(
-    glob_str: Optional[Union[str, os.PathLike]] = None,
-    base_path: Optional[Union[str, os.PathLike]] = None,
+    glob_str: str | os.PathLike | None = None,
+    base_path: str | os.PathLike | None = None,
     policy: PolicyName = "live",
-) -> Union[bool, List[str]]:
+) -> bool | list[str]:
     """<sdk/wandb_run.py::Run::save>"""
     ...
 
@@ -210,39 +215,39 @@ def agent(
 
 def define_metric(
     name: str,
-    step_metric: Union[str, wandb_metric.Metric, None] = None,
-    step_sync: Optional[bool] = None,
-    hidden: Optional[bool] = None,
-    summary: Optional[str] = None,
-    goal: Optional[str] = None,
-    overwrite: Optional[bool] = None,
+    step_metric: str | wandb_metric.Metric | None = None,
+    step_sync: bool | None = None,
+    hidden: bool | None = None,
+    summary: str | None = None,
+    goal: str | None = None,
+    overwrite: bool | None = None,
 ) -> wandb_metric.Metric:
     """<sdk/wandb_run.py::Run::define_metric>"""
     ...
 
 def log_artifact(
-    artifact_or_path: Union[Artifact, StrPath],
-    name: Optional[str] = None,
-    type: Optional[str] = None,
-    aliases: Optional[List[str]] = None,
-    tags: Optional[List[str]] = None,
+    artifact_or_path: Artifact | StrPath,
+    name: str | None = None,
+    type: str | None = None,
+    aliases: list[str] | None = None,
+    tags: list[str] | None = None,
 ) -> Artifact:
     """<sdk/wandb_run.py::Run::log_artifact>"""
     ...
 
 def use_artifact(
-    artifact_or_name: Union[str, Artifact],
-    type: Optional[str] = None,
-    aliases: Optional[List[str]] = None,
-    use_as: Optional[str] = None,
+    artifact_or_name: str | Artifact,
+    type: str | None = None,
+    aliases: list[str] | None = None,
+    use_as: str | None = None,
 ) -> Artifact:
     """<sdk/wandb_run.py::Run::use_artifact>"""
     ...
 
 def log_model(
     path: StrPath,
-    name: Optional[str] = None,
-    aliases: Optional[List[str]] = None,
+    name: str | None = None,
+    aliases: list[str] | None = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::log_model>"""
     ...
@@ -254,10 +259,20 @@ def use_model(name: str) -> FilePathStr:
 def link_model(
     path: StrPath,
     registered_model_name: str,
-    name: Optional[str] = None,
-    aliases: Optional[List[str]] = None,
+    name: str | None = None,
+    aliases: list[str] | None = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::link_model>"""
+    ...
+
+def plot_table(
+    vega_spec_name: str,
+    data_table: Table,
+    fields: dict[str, Any],
+    string_fields: dict[str, Any] | None = None,
+    split_table: bool | None = False,
+) -> CustomChart:
+    """<sdk/wandb_run.py::Run::plot_table>"""
     ...
 
 def watch(
@@ -267,6 +282,12 @@ def watch(
     log_freq: int = 1000,
     idx: int | None = None,
     log_graph: bool = False,
-) -> Graph:
-    """<sdk/wandb_watch.py::watch>"""
+) -> None:
+    """<sdk/wandb_run.py::Run::watch>"""
+    ...
+
+def unwatch(
+    models: torch.nn.Module | Sequence[torch.nn.Module] | None = None,
+) -> None:
+    """<sdk/wandb_run.py::Run::unwatch>"""
     ...
