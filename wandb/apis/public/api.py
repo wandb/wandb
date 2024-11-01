@@ -27,7 +27,7 @@ from wandb.apis import public
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.utils import parse_org_from_registry_path
+from wandb.apis.public.utils import PathType, parse_org_from_registry_path
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
@@ -1053,7 +1053,7 @@ class Api:
         entity, project = self._parse_project_path(project_path)
         # If its a Registry project, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
-            org = parse_org_from_registry_path(entity, project, project_path)
+            org = parse_org_from_registry_path(project_path, PathType.PROJECT)
             entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
         return public.ArtifactTypes(self.client, entity, project)
 
@@ -1074,7 +1074,7 @@ class Api:
         entity, project = self._parse_project_path(project_path)
         # If its an Registry artifact, the entity is an org instead
         if is_artifact_registry_project(project):
-            org = parse_org_from_registry_path(entity, project, project_path)
+            org = parse_org_from_registry_path(project_path, PathType.PROJECT)
             entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
         return public.ArtifactType(self.client, entity, project, type_name)
 
@@ -1096,7 +1096,7 @@ class Api:
         entity, project = self._parse_project_path(project_name)
         # If iterating through Registry project, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
-            org = parse_org_from_registry_path(entity, project, project_name)
+            org = parse_org_from_registry_path(project_name, PathType.PROJECT)
             entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
         return public.ArtifactCollections(
             self.client, entity, project, type_name, per_page=per_page
@@ -1118,7 +1118,7 @@ class Api:
         entity, project, collection_name = self._parse_artifact_path(name)
         # If its an Registry artifact, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
-            org = parse_org_from_registry_path(entity, project, name)
+            org = parse_org_from_registry_path(name, PathType.ARTIFACT)
             entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
         return public.ArtifactCollection(
             self.client, entity, project, collection_name, type_name
@@ -1159,7 +1159,7 @@ class Api:
         entity, project, collection_name = self._parse_artifact_path(name)
         # If its an Registry project, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
-            org = parse_org_from_registry_path(entity, project, name)
+            org = parse_org_from_registry_path(name, PathType.ARTIFACT)
             entity = InternalApi()._resolve_org_entity_name(entity=entity, org=org)
         return public.Artifacts(
             self.client,

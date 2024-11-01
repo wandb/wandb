@@ -3,33 +3,24 @@ from wandb.apis.public.utils import parse_org_from_registry_path
 
 
 @pytest.mark.parametrize(
-    "entity, project, path, expected",
+    "path, path_type, expected",
     [
         # Valid cases
-        ("org1", "wandb-registry-model", "org1/wandb-registry-model", "org1"),
-        ("org1", "wandb-registry-model", "org1/wandb-registry-model/model:v1", "org1"),
+        ("my-org/wandb-registry-model", "project", "my-org"),
+        ("my-org/wandb-registry-model/model:v1", "artifact", "my-org"),
         # Invalid cases
-        ("", "wandb-registry-model", "org1/wandb-registry-model", ""),  # empty entity
-        ("org1", "", "org1/wandb-registry-model", ""),  # empty project
-        ("org1", "wandb-registry-model", "", ""),  # empty path
-        ("org1", "myproject", "org1/myproject", ""),  # non-registry project
-        (
-            "org1",
-            "wandb-registry-model",
-            "other/wandb-registry-model",
-            "",
-        ),  # mismatched entity
-        ("org1", "wandb-registry-model", "org1/other", ""),  # mismatched project
-        ("org1", "wandb-registry-model", "org1", ""),  # path is just entity
-        (
-            "org1",
-            "wandb-registry-model",
-            "wandb-registry-model",
-            "",
-        ),  # path is just project
+        ("", "project", ""),  # empty path
+        ("", "artifact", ""),  # empty path
+        ("my-org/myproject", "project", ""),  # not a Registry project
+        ("my-org/myproject/model", "artifact", ""),  # not a Registry project
+        # No orgs set in artifact paths
+        ("model", "artifact", ""),
+        ("wandb-registry-model/model", "artifact", ""),
+        # No orgs set in project path
+        ("wandb-registry-model", "project", ""),
     ],
 )
-def test_parse_org_from_registry_path(entity, project, path, expected):
+def test_parse_org_from_registry_path(path, path_type, expected):
     """Test parse_org_from_registry_path with various input combinations."""
-    result = parse_org_from_registry_path(entity, project, path)
+    result = parse_org_from_registry_path(path, path_type)
     assert result == expected
