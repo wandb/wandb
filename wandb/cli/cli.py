@@ -30,6 +30,7 @@ import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
+from wandb.errors.links import url_registry
 from wandb.integration.magic import magic_install
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.launch import utils as launch_utils
@@ -38,7 +39,6 @@ from wandb.sdk.launch.errors import ExecutionError, LaunchError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import filesystem
-from wandb.sdk.lib.wburls import wburls
 from wandb.sync import SyncManager, get_run_from_path, get_runs
 
 from .beta import beta
@@ -1172,7 +1172,7 @@ def launch_sweep(
     wandb.termlog(f"Scheduler added to launch queue ({queue})")
 
 
-@cli.command(help=f"Launch or queue a W&B Job. See {wburls.get('cli_launch')}")
+@cli.command(help=f"Launch or queue a W&B Job. See {url_registry.url('wandb-launch')}")
 @click.option(
     "--uri",
     "-u",
