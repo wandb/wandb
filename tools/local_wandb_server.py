@@ -365,6 +365,10 @@ def _start_container(
         # Expose ports to the host.
         *["--publish", "8080"],  # base port
         *["--publish", "9015"],  # fixture port
+        # Only this platform is available for now. Without specifying it,
+        # Docker defaults to the host's platform and fails if it's not
+        # supported.
+        *["--platform", "linux/amd64"],
     ]
 
     if clean_up:
