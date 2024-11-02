@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from wandb.plot.custom_chart import CustomChart
+from wandb.plot.custom_chart import plot_table
 
 if TYPE_CHECKING:
     import wandb
+    from wandb.plot.custom_chart import CustomChart
 
 
 def histogram(
@@ -20,8 +21,9 @@ def histogram(
         table (wandb.Table): The W&B Table containing the data for the histogram.
         value (str): The label for the bin axis (x-axis).
         title (str): The title of the histogram plot.
-        split_table (bool): Whether to split the table into a different section
-            in the UI. Default is False.
+        split_table (bool): Whether the table should be split into a separate section
+            in the W&B UI. If `True`, the table will be displayed in a section named
+            "Custom Chart Tables". Default is `False`.
 
     Returns:
         CustomChart: A custom chart object that can be logged to W&B. To log the
@@ -54,9 +56,9 @@ def histogram(
             run.log({'histogram-plot1': histogram})
         ```
     """
-    return CustomChart(
-        id="wandb/histogram/v0",
-        data=table,
+    return plot_table(
+        data_table=table,
+        vega_spec_name="wandb/histogram/v0",
         fields={"value": value},
         string_fields={"title": title},
         split_table=split_table,

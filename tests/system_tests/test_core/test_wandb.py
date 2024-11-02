@@ -15,7 +15,7 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.plot.viz import plot_table
+from wandb.plot import plot_table
 from wandb.sdk.lib import filesystem
 from wandb.sdk.wandb_init import init as real_wandb_init
 
