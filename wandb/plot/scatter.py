@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import wandb
-from wandb.plot.viz import CustomChart
+from wandb.plot.custom_chart import CustomChart
 
 
 def scatter(
