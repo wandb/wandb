@@ -5,7 +5,7 @@ from typing import Sequence
 
 import wandb
 from wandb import util
-from wandb.plot.viz import CustomChart
+from wandb.plot.custom_chart import CustomChart
 
 from .utils import test_missing, test_types
 
