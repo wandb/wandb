@@ -79,3 +79,23 @@ def for_each(
         )
 
     return [func(x) for x in iterable]
+
+def replace_json_key_value(obj, target_key, new_value):
+    """
+    Recursively replace all instances of target_key in a nested JSON object with new_value.
+
+    :param obj: The JSON object (dict or list) to process.
+    :param target_key: The key whose value needs to be replaced.
+    :param new_value: The new value to assign to the target key.
+    :return: The updated JSON object.
+    """
+    if isinstance(obj, dict):
+        for key in obj:
+            if key == target_key:
+                obj[key] = new_value
+            else:
+                obj[key] = replace_json_key_value(obj[key], target_key, new_value)
+    elif isinstance(obj, list):
+        for index, item in enumerate(obj):
+            obj[index] = replace_json_key_value(item, target_key, new_value)
+    return obj

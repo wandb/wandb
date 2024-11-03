@@ -31,7 +31,7 @@ from wandb.util import coalesce, random_string, remove_keys_with_none_values
 from . import validation
 from .internals import internal
 from .internals.protocols import PathStr, Policy
-from .internals.util import Namespace, for_each
+from .internals.util import Namespace, for_each, replace_json_key_value
 
 Artifact = wandb.Artifact
 Api = wandb.Api
@@ -737,6 +737,13 @@ class WandbImporter:
             if e.response.status_code != 409:
                 logger.warning(f"Issue upserting {entity=}/{project=}, {e=}")
 
+        new_report_spec = None
+        if report.entity != entity:
+            logger.info("Replacing old instances of entity for the new entity")
+            new_report_spec = replace_json_key_value(json.dumps(report.spec), "entity", entity)
+
+        report_spec = coalesce(new_report_spec, json.dumps(report.spec))
+
         logger.info(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
         api.client.execute(
             wr.report.UPSERT_VIEW,
@@ -748,7 +755,7 @@ class WandbImporter:
                 "description": description,
                 "displayName": title,
                 "type": "runs",
-                "spec": json.dumps(report.spec),
+                "spec": report_spec,
             },
         )
 
