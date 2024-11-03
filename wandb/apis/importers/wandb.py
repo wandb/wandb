@@ -741,9 +741,9 @@ class WandbImporter:
         if report.entity != entity:
             logger.info("Replacing old instances of entity for the new entity")
             new_report_spec = replace_json_key_value(report.spec, "entity", entity)
-            logger.info(json.dumps(report_spec))
 
         report_spec = coalesce(new_report_spec, report.spec)
+        logger.info(f"{report_spec=}")
 
         logger.info(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
         api.client.execute(
