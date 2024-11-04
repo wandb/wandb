@@ -801,7 +801,7 @@ class WandbImporter:
                 "description": description,
                 "displayName": title,
                 "type": "runs",
-                "spec": json.dumps(report.to_model().spec),
+                "spec": json.dumps(report.to_model().spec.json()),
             },
         )
 
