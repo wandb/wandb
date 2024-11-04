@@ -134,14 +134,14 @@ func (ad *ArtifactDownloader) getBatchEntriesWithFileUrls(
 	return entries, nil
 }
 
-// collectEntriesForBatch processes BATCH_SIZE manifest entries and returns the gql
-// inputs we need to fetch file urls for and the number of entries skipped. When
-// reference artifacts are handled in core, this should return those entries instead
-// of skipping them.
-func (ad *ArtifactDownloader) collectEntriesForBatch(
+// addEntriesToBatch fetches file urls for the entries in entriesToFetch and returns the formatted manifest entries to
+// download in the current batch, the number of entries skipped, and a boolean indicating if there are more pages to fetch.
+func (ad *ArtifactDownloader) addEntriesToBatch(
+	artifactID string,
+	manifest Manifest,
 	manifestEntriesCopy map[string]ManifestEntry,
 	nameToScheduledTime map[string]time.Time,
-) ([]gql.ArtifactManifestEntryInput, int) {
+) ([]ManifestEntry, int, bool, error) {
 	curBatchSize, numSkipped := 0, 0
 	var entriesToFetch []gql.ArtifactManifestEntryInput
 	for filePath, entry := range manifestEntriesCopy {
@@ -167,28 +167,57 @@ func (ad *ArtifactDownloader) collectEntriesForBatch(
 			break
 		}
 	}
-	return entriesToFetch, numSkipped
+	entries := []ManifestEntry{}
+	if len(entriesToFetch) > 0 {
+		var err error
+		entries, err = ad.getBatchEntriesWithFileUrls(
+			artifactID,
+			entriesToFetch,
+			manifest,
+			manifestEntriesCopy,
+			nameToScheduledTime,
+		)
+		if err != nil {
+			return nil, 0, false, err
+		}
+	}
+	hasNextPage := len(manifestEntriesCopy) > 0
+	return entries, numSkipped, hasNextPage, nil
 }
 
-type ArtifactFileURLEdge = gql.ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdge
-
-// createManifestEntryBatchLegacy gets the batch of manifest entries that we
-// want to download using the older gql query
-func (ad *ArtifactDownloader) createManifestEntryBatchLegacy(
-	edges []ArtifactFileURLEdge,
+// addEntriesToBatchLegacy is the legacy implementation of addEntriesToBatch.
+// It fetches file urls for the entries in entriesToFetch and returns the formatted manifest entries to
+// download in the current batch, the number of entries skipped, a boolean indicating if there are more pages to fetch,
+// and the cursor for the next page.
+func (ad *ArtifactDownloader) addEntriesToBatchLegacy(
+	artifactID string,
 	manifest Manifest,
+	manifestEntriesCopy map[string]ManifestEntry,
 	nameToScheduledTime map[string]time.Time,
-) ([]ManifestEntry, int, error) {
+	cursor *string,
+) ([]ManifestEntry, int, bool, *string, error) {
+	batchSize := BATCH_SIZE
 	numSkipped := 0
-	var entries []ManifestEntry
 	now := time.Now()
-	for _, edge := range edges {
+	entries := []ManifestEntry{}
+	response, err := gql.ArtifactFileURLs(
+		ad.Ctx,
+		ad.GraphqlClient,
+		artifactID,
+		cursor,
+		&batchSize,
+	)
+	if err != nil {
+		return nil, 0, false, nil, err
+	}
+	hasNextPage := response.Artifact.Files.PageInfo.HasNextPage
+	cursor = response.Artifact.Files.PageInfo.EndCursor
+	for _, edge := range response.GetArtifact().GetFiles().Edges {
 		filePath := edge.GetNode().Name
 		entry, err := manifest.GetManifestEntryFromArtifactFilePath(filePath)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, false, nil, err
 		}
-
 		if _, ok := nameToScheduledTime[filePath]; ok {
 			continue
 		}
@@ -199,14 +228,14 @@ func (ad *ArtifactDownloader) createManifestEntryBatchLegacy(
 		}
 		node := edge.GetNode()
 		if node == nil {
-			return nil, 0, fmt.Errorf("error reading entry from fetched file urls")
+			return nil, 0, false, nil, fmt.Errorf("error reading entry from fetched file urls")
 		}
 		entry.DownloadURL = &node.DirectUrl
 		entry.LocalPath = &filePath
 		nameToScheduledTime[*entry.LocalPath] = now
 		entries = append(entries, entry)
 	}
-	return entries, numSkipped, nil
+	return entries, numSkipped, hasNextPage, cursor, nil
 }
 
 func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest) error {
@@ -241,51 +270,30 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 			// Prepare a batch
 			manifestEntriesBatch = manifestEntriesBatch[:0]
 
+			var entries []ManifestEntry
+			var numSkipped int
+			var err error
 			if canFetchFilesByManifestEntry {
-				entriesToFetch, numSkipped := ad.collectEntriesForBatch(
+				entries, numSkipped, hasNextPage, err = ad.addEntriesToBatch(
+					artifactID,
+					manifest,
 					manifestEntriesCopy,
 					nameToScheduledTime,
 				)
-				if len(entriesToFetch) > 0 {
-					entries, err := ad.getBatchEntriesWithFileUrls(
-						artifactID,
-						entriesToFetch,
-						manifest,
-						manifestEntriesCopy,
-						nameToScheduledTime,
-					)
-					if err != nil {
-						return err
-					}
-					manifestEntriesBatch = append(manifestEntriesBatch, entries...)
-				}
-				numDone += numSkipped
-				hasNextPage = len(manifestEntriesCopy) > 0
 			} else {
-				response, err := gql.ArtifactFileURLs(
-					ad.Ctx,
-					ad.GraphqlClient,
+				entries, numSkipped, hasNextPage, cursor, err = ad.addEntriesToBatchLegacy(
 					artifactID,
-					cursor,
-					&batchSize,
-				)
-				if err != nil {
-					return err
-				}
-
-				hasNextPage = response.Artifact.Files.PageInfo.HasNextPage
-				cursor = response.Artifact.Files.PageInfo.EndCursor
-				entries, numSkipped, err := ad.createManifestEntryBatchLegacy(
-					response.GetArtifact().GetFiles().Edges,
 					manifest,
+					manifestEntriesCopy,
 					nameToScheduledTime,
+					cursor,
 				)
-				if err != nil {
-					return err
-				}
-				numDone += numSkipped
-				manifestEntriesBatch = append(manifestEntriesBatch, entries...)
 			}
+			if err != nil {
+				return err
+			}
+			manifestEntriesBatch = append(manifestEntriesBatch, entries...)
+			numDone += numSkipped
 
 			// Schedule downloads
 			if len(manifestEntriesBatch) > 0 {
