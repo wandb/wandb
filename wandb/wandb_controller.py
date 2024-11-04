@@ -307,6 +307,8 @@ class _WandbController:
             self._create["parameters"][name]["value"] = value
         if values is not None:
             self._create["parameters"][name]["values"] = values
+        if distribution is not None:
+            self._create["parameters"][name]["distribution"] = distribution
         if min is not None:
             self._create["parameters"][name]["min"] = min
         if max is not None:
