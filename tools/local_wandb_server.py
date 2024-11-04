@@ -8,6 +8,7 @@ import json
 import pathlib
 import pprint
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -412,11 +413,12 @@ def _start_container(
         docker_flags.append("--rm")
 
     image = f"{registry}/{repository}:{tag}"
+    command = ["docker", "run", *docker_flags, image]
 
-    subprocess.check_call(
-        ["docker", "run", *docker_flags, image],
-        stdout=sys.stderr,
-    )
+    if interactive:
+        _echo_info(f"Running command: {shlex.join(command)}")
+
+    subprocess.check_call(command, stdout=sys.stderr)
 
     ports_str = subprocess.check_output(["docker", "port", name]).decode()
 
