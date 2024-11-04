@@ -15,7 +15,7 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.plot.viz import custom_chart
+from wandb.plot.viz import plot_table
 from wandb.sdk.lib import filesystem
 from wandb.sdk.wandb_init import init as real_wandb_init
 
@@ -339,7 +339,7 @@ def test_log_step(relay_server, wandb_init):
 def test_log_custom_chart(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
-        my_custom_chart = custom_chart(
+        my_custom_chart = plot_table(
             "test_spec", wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"]), {}, {}
         )
         run.log({"my_custom_chart": my_custom_chart})

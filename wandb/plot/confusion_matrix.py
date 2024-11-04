@@ -4,7 +4,7 @@ from typing import Sequence, TypeVar
 
 from wandb import util
 from wandb.data_types import Table
-from wandb.plot.viz import CustomChart
+from wandb.plot.custom_chart import CustomChart
 
 T = TypeVar("T")
 
