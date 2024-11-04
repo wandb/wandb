@@ -113,12 +113,12 @@ api: InternalApi
 patched: Dict[str, List[Callable]]
 
 def setup(
-    settings: Optional[Settings] = None,
+    settings: Settings | None = None,
 ) -> Optional[_WandbSetup]:
     """<sdk/wandb_setup.py::setup>"""
     ...
 
-def teardown(exit_code: Optional[int] = None) -> None:
+def teardown(exit_code: int | None = None) -> None:
     """<sdk/wandb_setup.py::teardown>"""
     ...
 
