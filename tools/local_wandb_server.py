@@ -392,7 +392,11 @@ def _start_container(
         registry = click.prompt("Registry", default=registry)
         repository = click.prompt("Repository", default=repository)
         tag = click.prompt("Tag", default=tag)
-        pull = click.prompt("--pull", default=pull)
+        pull = click.prompt(
+            "--pull",
+            default=pull,
+            type=click.Choice(["always", "never", "missing"]),
+        )
 
     docker_flags = [
         "--detach",
