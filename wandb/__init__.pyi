@@ -113,7 +113,7 @@ api: InternalApi
 patched: Dict[str, List[Callable]]
 
 def setup(
-    settings: Optional[Settings] = None,
+    settings: Settings | None = None,
 ) -> Optional[_WandbSetup]:
     """Prepares W&B for use in the current process and its children.
 
@@ -172,7 +172,7 @@ def setup(
     """
     ...
 
-def teardown(exit_code: Optional[int] = None) -> None:
+def teardown(exit_code: int | None = None) -> None:
     """Waits for wandb to finish and frees resources.
 
     Completes any runs that were not explicitly finished
