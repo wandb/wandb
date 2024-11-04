@@ -33,9 +33,6 @@ else:
     from typing_extensions import Literal
 
 
-_WANDB_BACKEND_PROXY_PORT = 8000
-
-
 class ConsoleFormatter:
     BOLD = "\033[1m"
     CODE = "\033[2m"
@@ -620,7 +617,6 @@ def wandb_backend_proxy_server(
 ) -> Generator[WandbBackendProxy, None, None]:
     """Session fixture that starts up a proxy server for the W&B backend."""
     with spy_proxy(
-        proxy_port=_WANDB_BACKEND_PROXY_PORT,
         target_host=local_wandb_backend._host,
         target_port=local_wandb_backend._base_port,
     ) as proxy:
@@ -657,7 +653,7 @@ def wandb_backend_spy(
     # Connect to the proxy to spy on requests:
     monkeypatch.setenv(
         "WANDB_BASE_URL",
-        f"http://127.0.0.1:{_WANDB_BACKEND_PROXY_PORT}",
+        f"http://127.0.0.1:{wandb_backend_proxy_server.port}",
     )
 
     with wandb_backend_proxy_server.spy() as spy:
