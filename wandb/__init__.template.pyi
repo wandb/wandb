@@ -133,7 +133,6 @@ def init(
     group: str | None = None,
     name: str | None = None,
     notes: str | None = None,
-    magic: dict | str | bool | None = None,
     config_exclude_keys: list[str] | None = None,
     config_include_keys: list[str] | None = None,
     anonymous: str | None = None,
