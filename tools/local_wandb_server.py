@@ -47,9 +47,15 @@ def main():
     default="wandb-local-testcontainer",
 )
 @click.option(
+    "-i",
+    "--interactive",
+    help="Use to customize the Docker command.",
+    default=False,
+    is_flag=True,
+)
+@click.option(
     "--hostname",
     help="""The hostname for a running backend (e.g. localhost).
-
     If provided, then --base-port and --fixture-port are required.
     """,
 )
@@ -66,6 +72,7 @@ def main():
 def start(
     id: str,
     name: str,
+    interactive: bool,
     hostname: str | None,
     base_port: int | None,
     fixture_port: int | None,
@@ -100,7 +107,11 @@ def start(
                 fixture_port=fixture_port,
             )
         else:
-            server = _start_managed(info, name=name)
+            server = _start_managed(
+                info,
+                name=name,
+                interactive=interactive,
+            )
 
         server.ids.append(id)
         click.echo(
@@ -157,13 +168,21 @@ def _start_external(
     return server
 
 
-def _start_managed(info: _InfoFile, name: str) -> _ServerInfo:
+def _start_managed(
+    info: _InfoFile,
+    name: str,
+    interactive: bool,
+) -> _ServerInfo:
     server = info.servers.get(name)
 
     if server:
         _start_check_existing_server(server)
     else:
-        server = _start_new_server(info, name=name)
+        server = _start_new_server(
+            info,
+            name=name,
+            interactive=interactive,
+        )
 
     return server
 
@@ -176,7 +195,11 @@ def _start_check_existing_server(server: _ServerInfo) -> None:
         sys.exit(1)
 
 
-def _start_new_server(info: _InfoFile, name: str) -> _ServerInfo:
+def _start_new_server(
+    info: _InfoFile,
+    name: str,
+    interactive: bool,
+) -> _ServerInfo:
     server = _ServerInfo(
         managed=True,
         hostname="localhost",
@@ -185,7 +208,7 @@ def _start_new_server(info: _InfoFile, name: str) -> _ServerInfo:
         ids=[],
     )
 
-    _start_container(name=name).apply_ports(server)
+    _start_container(name=name, interactive=interactive).apply_ports(server)
 
     if not _check_health(
         f"http://localhost:{server.base_port}/healthz",
@@ -346,6 +369,7 @@ class _WandbContainerPorts:
 def _start_container(
     *,
     name: str,
+    interactive: bool,
     clean_up: bool = True,
 ) -> _WandbContainerPorts:
     """Start the local-testcontainer.
@@ -356,9 +380,22 @@ def _start_container(
         name: The container name to use.
         clean_up: Whether to remove the container and its volumes on exit.
             Passes the --rm option to docker run.
+        interactive: Whether to use to customize how the server is started.
     """
+    registry = "us-central1-docker.pkg.dev"
+    repository = "wandb-production/images/local-testcontainer"
+    tag = "master"
+    pull = "always"  # Always get latest image.
+
+    if interactive:
+        registry = click.prompt("Registry", default=registry)
+        repository = click.prompt("Repository", default=repository)
+        tag = click.prompt("Tag", default=tag)
+        pull = click.prompt("--pull", default=pull)
+
     docker_flags = [
         "--detach",
+        *["--pull", pull],
         *["-e", "WANDB_ENABLE_TEST_CONTAINER=true"],
         *["--name", name],
         *["--volume", f"{name}-vol:/vol"],
@@ -374,11 +411,7 @@ def _start_container(
     if clean_up:
         docker_flags.append("--rm")
 
-    image = (
-        "us-central1-docker.pkg.dev"
-        "/wandb-production/images/local-testcontainer"
-        ":master"
-    )
+    image = f"{registry}/{repository}:{tag}"
 
     subprocess.check_call(
         ["docker", "run", *docker_flags, image],
