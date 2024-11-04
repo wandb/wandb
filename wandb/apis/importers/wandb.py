@@ -18,10 +18,9 @@ import filelock
 import polars as pl
 import requests
 import urllib3
-import wandb_workspaces.reports.v1 as wr
+import wandb_workspaces.reports.v2 as wr
 import yaml
 from wandb_gql import gql
-# from wandb_workspaces.reports.v1 import Report
 
 import wandb
 from wandb.apis.public import ArtifactCollection, Run
@@ -53,6 +52,51 @@ DST_ART_PATH = "./artifacts/dst"
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+upsert_view = gql(
+    """
+    mutation upsertView(
+        $id: ID
+        $entityName: String
+        $projectName: String
+        $type: String
+        $name: String
+        $displayName: String
+        $description: String
+        $spec: String!
+    ) {
+        upsertView(
+        input: {
+            id: $id
+            entityName: $entityName
+            projectName: $projectName
+            name: $name
+            displayName: $displayName
+            description: $description
+            type: $type
+            createdUsing: WANDB_SDK
+            spec: $spec
+        }
+        ) {
+        view {
+            id
+            type
+            name
+            displayName
+            description
+            project {
+                id
+                name
+            entityName
+            }
+            spec
+            updatedAt
+        }
+        inserted
+        }
+    }
+"""
+)
 
 if os.getenv("WANDB_IMPORTER_ENABLE_RICH_LOGGING"):
     from rich.logging import RichHandler
@@ -723,7 +767,7 @@ class WandbImporter:
 
         entity = coalesce(namespace.entity, report.entity)
         project = coalesce(namespace.project, report.project)
-        name = report.name
+        id = report.id
         title = report.title
         description = report.description
 
@@ -737,26 +781,27 @@ class WandbImporter:
             if e.response.status_code != 409:
                 logger.warning(f"Issue upserting {entity=}/{project=}, {e=}")
 
-        new_report_spec = None
-        if report.entity != entity:
-            logger.info("Replacing old instances of entity for the new entity")
-            new_report_spec = replace_json_key_value(report.spec, "entityName", entity)
+        #new_report_spec = None
+        #if report.entity != entity:
+        #    logger.info("Replacing old instances of entity for the new entity")
+        #    new_report_spec = replace_json_key_value(report.spec, "entityName", entity)
 
-        report_spec = coalesce(new_report_spec, report.spec)
-        logger.info(f"{report_spec=}")
+        #report_spec = coalesce(new_report_spec, report.spec)
+        #logger.info(f"{report_spec=}")
 
-        logger.info(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
+
+        logger.info(f"Upserting report {entity=}, {project=}, {id=}, {title=}")
         api.client.execute(
-            wr.report.UPSERT_VIEW,
+            upsert_view,
             variable_values={
                 "id": None,  # Is there any benefit for this to be the same as default report?
-                "name": name,
+                "name": id,
                 "entityName": entity,
                 "projectName": project,
                 "description": description,
                 "displayName": title,
                 "type": "runs",
-                "spec": json.dumps(report_spec),
+                "spec": json.dumps(report.to_model().spec),
             },
         )
 
