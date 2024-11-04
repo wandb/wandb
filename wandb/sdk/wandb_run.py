@@ -19,6 +19,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
+from functools import reduce
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Sequence, TextIO
 
@@ -752,7 +753,7 @@ class Run:
         self._attach_pid = os.getpid()
 
         # for now, use runid as attach id, this could/should be versioned in the future
-        if not self._settings._disable_service:
+        if not self._settings.x_disable_service:
             self._attach_id = self._settings.run_id
 
     def _set_iface_pid(self, iface_pid: int) -> None:
@@ -934,9 +935,7 @@ class Run:
     @_run_decorator._attach
     def settings(self) -> Settings:
         """A frozen copy of run's Settings object."""
-        cp = self._settings.copy()
-        cp.freeze()
-        return cp
+        return self._settings.model_copy(deep=True)
 
     @property
     @_run_decorator._attach
@@ -1597,8 +1596,31 @@ class Run:
         self._step = self._get_starting_step()
 
         # update settings from run_obj
-        self._settings._apply_run_start(message_to_dict(self._run_obj))
-        self._update_settings(self._settings)
+        run_start_settings = message_to_dict(self._run_obj)
+        param_map = {
+            "run_id": "run_id",
+            "entity": "entity",
+            "project": "project",
+            "run_group": "run_group",
+            "job_type": "run_job_type",
+            "display_name": "run_name",
+            "notes": "run_notes",
+            "tags": "run_tags",
+            "sweep_id": "sweep_id",
+            "host": "host",
+            "resumed": "resumed",
+            "git.remote_url": "git_remote_url",
+            "git.commit": "git_commit",
+        }
+        run_settings = {
+            name: reduce(lambda d, k: d.get(k, {}), attr.split("."), run_start_settings)
+            for attr, name in param_map.items()
+        }
+        run_settings = {key: value for key, value in run_settings.items() if value}
+
+        if run_settings:
+            self._settings.from_dict(run_settings)
+            self._update_settings(self._settings)
 
         wandb._sentry.configure_scope(
             process_context="user",
@@ -2302,7 +2324,7 @@ class Run:
             console = self._settings.console
         # only use raw for service to minimize potential changes
         if console == "wrap":
-            if not self._settings._disable_service:
+            if not self._settings.x_disable_service:
                 console = "wrap_raw"
             else:
                 console = "wrap_emu"
@@ -2491,7 +2513,7 @@ class Run:
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
 
-        if self._settings._save_requirements:
+        if self._settings.x_save_requirements:
             if self._backend and self._backend.interface:
                 from wandb.util import working_set
 
@@ -4050,7 +4072,7 @@ class Run:
         printer: printer.Printer,
     ) -> None:
         """Prints a message advertising the upcoming core release."""
-        if quiet or not settings._require_legacy_service:
+        if quiet or not settings.x_require_legacy_service:
             return
 
         printer.display(

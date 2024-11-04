@@ -82,6 +82,8 @@ T = TypeVar("T")
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
+LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
+
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
 RE_WINFNAMES = re.compile(r'[<>:"\\?*]')

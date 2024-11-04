@@ -17,7 +17,7 @@ import logging
 import os
 import sys
 import threading
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 import wandb
 from wandb.sdk.lib import import_hooks
@@ -25,31 +25,18 @@ from wandb.sdk.lib import import_hooks
 from . import wandb_settings
 from .lib import config_util, server
 
-Settings = Union["wandb.sdk.wandb_settings.Settings", Dict[str, Any]]
-
-Logger = Union[logging.Logger, "_EarlyLogger"]
-
 if TYPE_CHECKING:
-    from wandb.sdk.lib import service_connection
-
-    from . import wandb_run
-
-# logger will be configured to be either a standard logger instance or _EarlyLogger
-logger: Optional[Logger] = None
-
-
-def _set_logger(log_object: Logger) -> None:
-    """Configure module logger."""
-    global logger
-    logger = log_object
+    from wandb.sdk.lib.service_connection import ServiceConnection
+    from wandb.sdk.wandb_run import Run
+    from wandb.sdk.wandb_settings import Settings
 
 
 class _EarlyLogger:
     """Early logger which captures logs in memory until logging can be configured."""
 
     def __init__(self) -> None:
-        self._log: List[tuple] = []
-        self._exception: List[tuple] = []
+        self._log: list[tuple] = []
+        self._exception: list[tuple] = []
         # support old warn() as alias of warning()
         self.warn = self.warning
 
@@ -83,6 +70,18 @@ class _EarlyLogger:
             logger.exception(msg, *args, **kwargs)
 
 
+Logger = logging.Logger | _EarlyLogger
+
+# logger will be configured to be either a standard logger instance or _EarlyLogger
+logger: Logger | None = None
+
+
+def _set_logger(log_object: Logger) -> None:
+    """Configure module logger."""
+    global logger
+    logger = log_object
+
+
 class _WandbSetup__WandbSetup:  # noqa: N801
     """Inner class of _WandbSetup."""
 
@@ -92,7 +91,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         settings: dict | None = None,
         environ: dict | None = None,
     ) -> None:
-        self._connection: service_connection.ServiceConnection | None = None
+        self._connection: ServiceConnection | None = None
 
         self._environ = environ or dict(os.environ)
         self._sweep_config: dict | None = None
@@ -101,7 +100,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         self._pid = pid
 
         # keep track of multiple runs, so we can unwind with join()s
-        self._global_run_stack: list[wandb_run.Run] = []
+        self._global_run_stack: list[Run] = []
 
         # TODO(jhr): defer strict checks until settings are fully initialized
         #            and logging is ready
@@ -145,38 +144,25 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             early_logger.info("Loading settings from environment variables")
         s.from_env_vars(self._environ)
 
-        # load settings from the setup settings
-        s.from_settings(settings)
-
         # infer settings from the system environment
         s.from_system_environment()
 
+        # load settings from the passed setup settings
+        s.from_settings(settings)
+
         return s
 
-    def _update(
-        self,
-        settings: Optional[Settings] = None,
-    ) -> None:
-        if settings is None:
+    def _update(self, settings: dict | None = None) -> None:
+        if not settings:
             return
-        # self._settings.unfreeze()
-        if isinstance(settings, wandb_settings.Settings):
-            # todo: check the logic here. this _only_ comes up in tests?
-            self._settings._apply_settings(settings)
-        elif isinstance(settings, dict):
-            # if it is a mapping, update the settings with it
-            self._settings.update(settings, source=wandb_settings.Source.SETUP)
-        # self._settings.freeze()
+        self._settings.from_dict(settings)
 
-    def _update_user_settings(self, settings: Optional[Settings] = None) -> None:
-        settings = settings or self._settings
+    def _update_user_settings(self) -> None:
         # Get rid of cached results to force a refresh.
         self._server = None
-        user_settings = self._load_user_settings(settings=settings)
+        user_settings = self._load_user_settings()
         if user_settings is not None:
-            # self._settings.unfreeze()
-            self._settings._apply_user(user_settings)
-            # self._settings.freeze()
+            self._settings.from_dict(user_settings)
 
     def _early_logger_flush(self, new_logger: Logger) -> None:
         if not self._early_logger:
@@ -185,14 +171,14 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         # self._settings._clear_early_logger()
         self._early_logger._flush()
 
-    def _get_logger(self) -> Optional[Logger]:
+    def _get_logger(self) -> Logger | None:
         return logger
 
     @property
     def settings(self) -> wandb_settings.Settings:
         return self._settings
 
-    def _get_entity(self) -> Optional[str]:
+    def _get_entity(self) -> str | None:
         if self._settings and self._settings._offline:
             return None
         if self._server is None:
@@ -201,16 +187,15 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         entity = self._server._viewer.get("entity")
         return entity
 
-    def _get_username(self) -> Optional[str]:
+    def _get_username(self) -> str | None:
         if self._settings and self._settings._offline:
             return None
         if self._server is None:
             self._load_viewer()
         assert self._server is not None
-        username = self._server._viewer.get("username")
-        return username
+        return self._server._viewer.get("username")
 
-    def _get_teams(self) -> List[str]:
+    def _get_teams(self) -> list[str]:
         if self._settings and self._settings._offline:
             return []
         if self._server is None:
@@ -221,20 +206,16 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             teams = [team["node"]["name"] for team in teams["edges"]]
         return teams or []
 
-    def _load_viewer(self, settings: Optional[Settings] = None) -> None:
+    def _load_viewer(self) -> None:
         if self._settings and self._settings._offline:
             return
-        if isinstance(settings, dict):
-            settings = wandb_settings.Settings(**settings)
-        s = server.Server(settings=settings)
+        s = server.Server(settings=self._settings)
         s.query_with_timeout()
         self._server = s
 
-    def _load_user_settings(
-        self, settings: Optional[Settings] = None
-    ) -> Optional[Dict[str, Any]]:
+    def _load_user_settings(self) -> dict[str, Any] | None:
         if self._server is None:
-            self._load_viewer(settings=settings)
+            self._load_viewer()
 
         # offline?
         if self._server is None:
@@ -284,7 +265,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
                 else:
                     self._config = config_dict
 
-    def _teardown(self, exit_code: Optional[int] = None) -> None:
+    def _teardown(self, exit_code: int | None = None) -> None:
         import_hooks.unregister_all_post_import_hooks()
 
         if not self._connection:
@@ -299,7 +280,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             sys.exit(internal_exit_code)
 
     @property
-    def service(self) -> Optional[service_connection.ServiceConnection]:
+    def service(self) -> ServiceConnection | None:
         """Returns a connection to the service process, if it exists."""
         return self._connection
 
@@ -311,9 +292,9 @@ class _WandbSetup:
     (Forked processes will get a new copy of the object)
     """
 
-    _instance: Optional[_WandbSetup__WandbSetup] = None
+    _instance: _WandbSetup__WandbSetup | None = None
 
-    def __init__(self, settings: Optional[Settings] = None) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
         pid = os.getpid()
         if _WandbSetup._instance and _WandbSetup._instance._pid == pid:
             _WandbSetup._instance._update(settings=settings)
@@ -321,7 +302,7 @@ class _WandbSetup:
         _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid)
 
     @property
-    def service(self) -> Optional[service_connection.ServiceConnection]:
+    def service(self) -> ServiceConnection | None:
         """Returns a connection to the service process, if it exists."""
         if not self._instance:
             return None
@@ -332,9 +313,9 @@ class _WandbSetup:
 
 
 def _setup(
-    settings: Optional[Settings] = None,
+    settings: Settings | None = None,
     _reset: bool = False,
-) -> Optional[_WandbSetup]:
+) -> _WandbSetup | None:
     """Set up library context."""
     if _reset:
         teardown()
@@ -344,7 +325,7 @@ def _setup(
     return wl
 
 
-def setup(settings: Optional[Settings] = None) -> Optional[_WandbSetup]:
+def setup(settings: Settings | None = None) -> _WandbSetup | None:
     """Prepares W&B for use in the current process and its children.
 
     You can usually ignore this as it is implicitly called by `wandb.init()`.
@@ -404,7 +385,7 @@ def setup(settings: Optional[Settings] = None) -> Optional[_WandbSetup]:
     return ret
 
 
-def teardown(exit_code: Optional[int] = None) -> None:
+def teardown(exit_code: int | None = None) -> None:
     """Waits for wandb to finish and frees resources.
 
     Completes any runs that were not explicitly finished

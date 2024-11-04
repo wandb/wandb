@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import configparser
-import datetime
 import getpass
+import json
 import logging
 import multiprocessing
 import os
@@ -12,13 +12,16 @@ import socket
 import sys
 import tempfile
 import time
-from typing import Any, Literal, Mapping, Sequence
+from datetime import datetime
+from typing import Any, Literal, Sequence
 from urllib.parse import quote, unquote, urlencode
 
+from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
 from pydantic import (
     AnyHttpUrl,
     BaseModel,
     Field,
+    HttpUrl,
     computed_field,
     field_validator,
     model_validator,
@@ -28,10 +31,12 @@ import wandb
 from wandb import termwarn, util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
+from wandb.proto import wandb_settings_pb2
 
-from .lib import apikey, credentials, ipython
+from .lib import apikey, credentials, filesystem, ipython
 from .lib.gitlib import GitRepo
 from .lib.run_moment import RunMoment
+from .lib.runid import generate_id
 
 
 class Settings(BaseModel, validate_assignment=True):
@@ -42,10 +47,13 @@ class Settings(BaseModel, validate_assignment=True):
     api_key: str | None = None
     azure_account_url_to_access_key: dict[str, str] | None = None
     # The base URL for the W&B API.
-    base_url: AnyHttpUrl = "https://api.wandb.ai"
+    base_url: AnyHttpUrl = HttpUrl("https://api.wandb.ai")
     code_dir: str | None = None
     config_paths: Sequence[str] | None = None
-    console: Literal["auto", "off", "wrap", "redirect", "wrap_raw", "wrap_emu"] = "auto"
+    console: Literal["auto", "off", "wrap", "redirect", "wrap_raw", "wrap_emu"] = Field(
+        default="auto",
+        validate_default=True,
+    )
     # whether to produce multipart console log files
     console_multipart: bool = False
     # file path to write access tokens
@@ -113,6 +121,7 @@ class Settings(BaseModel, validate_assignment=True):
     sweep_id: str | None = None
     sweep_param_path: str | None = None
     symlink: bool = False if platform.system() == "Windows" else True
+    sync_tensorboard: bool | None = None
     table_raise_on_max_row_limit_exceeded: bool = False
     username: str | None = None
 
@@ -158,6 +167,8 @@ class Settings(BaseModel, validate_assignment=True):
     x_file_transfer_retry_wait_min_seconds: float | None = None
     x_file_transfer_retry_wait_max_seconds: float | None = None
     x_file_transfer_timeout_seconds: float | None = None
+    x_flow_control_custom: bool | None = None
+    x_flow_control_disabled: bool | None = None
     # graphql retry client configuration
     x_graphql_retry_max: int | None = None
     x_graphql_retry_wait_min_seconds: float | None = None
@@ -179,7 +190,7 @@ class Settings(BaseModel, validate_assignment=True):
     x_require_legacy_service: bool = False
     x_save_requirements: bool = False
     x_service_transport: str | None = None
-    x_service_wait: float = Field(default=30.0, internal=True)
+    x_service_wait: float = Field(default=30.0)
     x_show_operation_stats: bool = False
     x_start_time: float = time.time()
     # PID of the process that started the wandb-core process to collect system stats for.
@@ -241,10 +252,7 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("API key cannot start or end with whitespace")
         return value
 
-    @field_validator("base_url", mode="before")
-    @classmethod
-    def validate_base_url(cls, value):
-        return value.strip().rstrip("/")
+    # @field_validtr(value).strip().rstrip("/")
 
     @field_validator("console", mode="after")
     @classmethod
@@ -299,8 +307,15 @@ class Settings(BaseModel, validate_assignment=True):
 
     @field_validator("fork_from", mode="before")
     @classmethod
-    def validate_fork_from(cls, value) -> RunMoment | None:
-        return cls._runmoment_preprocessor(value)
+    def validate_fork_from(cls, value, info) -> RunMoment | None:
+        run_moment = cls._runmoment_preprocessor(value)
+        if run_moment and info.data.get("run_id") == run_moment.run:
+            raise ValueError(
+                "Provided `run_id` is the same as the run to `fork_from`. "
+                "Please provide a different `run_id` or remove the `run_id` argument. "
+                "If you want to rewind the current run, please use `resume_from` instead."
+            )
+        return run_moment
 
     @field_validator("ignore_globs", mode="before")
     @classmethod
@@ -331,7 +346,15 @@ class Settings(BaseModel, validate_assignment=True):
 
     @field_validator("project", mode="after")
     @classmethod
-    def validate_project(cls, value):
+    def validate_project(cls, value, info):
+        if info.data.get("sweep_id"):
+            wandb.termwarn(f"Ignoring project {value!r} when running a sweep.")
+            return None
+
+        if info.data.get("launch"):
+            wandb.termwarn("Project is ignored when running from wandb launch context.")
+            return None
+
         invalid_chars_list = list("/\\#?%:")
         if len(value) > 128:
             raise UsageError(f"Invalid project name {value!r}: exceeded 128 characters")
@@ -344,9 +367,21 @@ class Settings(BaseModel, validate_assignment=True):
             )
         return value
 
+    @field_validator("entity", mode="after")
+    @classmethod
+    def validate_entity(cls, value, info):
+        if info.data.get("sweep_id"):
+            wandb.termwarn(f"Ignoring entity {value!r} when running a sweep.")
+            return None
+
+        if info.data.get("launch"):
+            wandb.termwarn("Entity is ignored when running from wandb launch context.")
+            return None
+        return value
+
     @field_validator("resume", mode="before")
     @classmethod
-    def validate_resume(cls, value):
+    def validate_resume(cls, value, info):
         if value is False:
             return None
         if value is True:
@@ -355,12 +390,27 @@ class Settings(BaseModel, validate_assignment=True):
 
     @field_validator("resume_from", mode="before")
     @classmethod
-    def validate_resume_from(cls, value) -> RunMoment | None:
-        return cls._runmoment_preprocessor(value)
+    def validate_resume_from(cls, value, info) -> RunMoment | None:
+        run_moment = cls._runmoment_preprocessor(value)
+        if run_moment and info.data.get("run_id") != run_moment.run:
+            raise ValueError(
+                "Both `run_id` and `resume_from` have been specified with different ids."
+            )
+        return run_moment
 
     @field_validator("run_id", mode="after")
     @classmethod
-    def validate_run_id(cls, value):
+    def validate_run_id(cls, value, info):
+        if info.data.get("sweep_id"):
+            wandb.termwarn(
+                f"Ignoring run ID {value!r} when running a sweep.",
+            )
+            return None
+
+        if info.data.get("launch"):
+            wandb.termwarn("Run ID is ignored when running from wandb launch context.")
+            return None
+
         if len(value) == 0:
             raise UsageError("Run ID cannot be empty")
         if len(value) > len(value.strip()):
@@ -496,7 +546,9 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field
     @property
     def _start_datetime(self) -> str:
-        datetime_now = datetime.datetime.fromtimestamp(self.x_start_time)
+        if self.x_start_time is None:
+            raise ValueError("Start time is not set.")
+        datetime_now = datetime.fromtimestamp(self.x_start_time)
         return datetime_now.strftime("%Y%m%d_%H%M%S")
 
     @computed_field
@@ -578,6 +630,11 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field
     @property
+    def resume_fname(self) -> str:
+        return self._path_convert(self.wandb_dir, "wandb-resume.json")
+
+    @computed_field
+    @property
     def run_mode(self) -> Literal["run", "offline-run"]:
         return "run" if not self._offline else "offline-run"
 
@@ -656,7 +713,9 @@ class Settings(BaseModel, validate_assignment=True):
 
         return os.path.expanduser(path)
 
-    # TODO: Methods to collect settings from different sources.
+    # TODO: Methods to collect and update settings from different sources.
+    # TODO: call them all update_... as they are updating the settings as opposed to
+    # building a Settings object from ... (which would be a class method).
     def from_system_config_file(self):
         if not self.settings_system or not os.path.exists(self.settings_system):
             return
@@ -705,11 +764,15 @@ class Settings(BaseModel, validate_assignment=True):
             if value is not None:
                 setattr(self, key, value)
 
-    def from_settings(self, settings: Mapping[str, Any]):
-        print(settings)
+    def from_dict(self, settings: dict[str, Any]) -> None:
         for key, value in dict(settings).items():
             if value is not None:
                 setattr(self, key, value)
+
+    def from_settings(self, settings: Settings) -> None:
+        d = {field: getattr(settings, field) for field in settings.model_fields_set}
+        if d:
+            self.from_dict(d)
 
     def from_system_environment(self):
         # For code saving, only allow env var override if value from server is true, or
@@ -787,6 +850,81 @@ class Settings(BaseModel, validate_assignment=True):
             self.program = "<python with no main file>"
 
     # Helper methods.
+    def to_proto(self) -> wandb_settings_pb2.Settings:
+        """Generate a protobuf representation of the settings."""
+        settings_proto = wandb_settings_pb2.Settings()
+        for k, v in self.model_dump(exclude_none=True).items():
+            # special case for _stats_open_metrics_filters
+            if k == "_stats_open_metrics_filters":
+                if isinstance(v, (list, set, tuple)):
+                    setting = getattr(settings_proto, k)
+                    setting.sequence.value.extend(v)
+                elif isinstance(v, dict):
+                    setting = getattr(settings_proto, k)
+                    for key, value in v.items():
+                        for kk, vv in value.items():
+                            setting.mapping.value[key].value[kk] = vv
+                else:
+                    raise TypeError(f"Unsupported type {type(v)} for setting {k}")
+                continue
+
+            if isinstance(v, bool):
+                getattr(settings_proto, k).CopyFrom(BoolValue(value=v))
+            elif isinstance(v, int):
+                getattr(settings_proto, k).CopyFrom(Int32Value(value=v))
+            elif isinstance(v, float):
+                getattr(settings_proto, k).CopyFrom(DoubleValue(value=v))
+            elif isinstance(v, str):
+                getattr(settings_proto, k).CopyFrom(StringValue(value=v))
+            elif isinstance(v, (list, set, tuple)):
+                # we only support sequences of strings for now
+                sequence = getattr(settings_proto, k)
+                sequence.value.extend(v)
+            elif isinstance(v, dict):
+                mapping = getattr(settings_proto, k)
+                for key, value in v.items():
+                    # we only support dicts with string values for now
+                    mapping.value[key] = value
+            elif isinstance(v, RunMoment):
+                getattr(settings_proto, k).CopyFrom(
+                    wandb_settings_pb2.RunMoment(
+                        run=v.run,
+                        value=v.value,
+                        metric=v.metric,
+                    )
+                )
+            elif v is None:
+                # None is the default value for all settings, so we don't need to set it,
+                # i.e. None means that the value was not set.
+                pass
+            else:
+                raise TypeError(f"Unsupported type {type(v)} for setting {k}")
+        # TODO: store property sources in the protobuf so that we can reconstruct the
+        #  settings object from the protobuf
+        return settings_proto
+
+    def handle_resume_logic(self):
+        # handle auto resume logic
+        if self.resume == "auto":
+            if os.path.exists(self.resume_fname):
+                with open(self.resume_fname) as f:
+                    resume_run_id = json.load(f)["run_id"]
+                if self.run_id is None:
+                    self.run_id = resume_run_id
+                elif self.run_id != resume_run_id:
+                    wandb.termwarn(
+                        "Tried to auto resume run with "
+                        f"id {resume_run_id} but id {self.run_id} is set.",
+                    )
+        if self.run_id is None:
+            self.run_id = generate_id()
+
+        # persist our run id in case of failure
+        if self.resume == "auto" and self.resume_fname is not None:
+            filesystem.mkdir_exists_ok(self.wandb_dir)
+            with open(self.resume_fname, "w") as f:
+                f.write(json.dumps({"run_id": self.run_id}))
+
     def _get_program_relpath(self, root: str | None = None) -> str | None:
         if not self.program:
             return None
