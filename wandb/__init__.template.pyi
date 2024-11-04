@@ -270,7 +270,7 @@ def plot_table(
     data_table: Table,
     fields: dict[str, Any],
     string_fields: dict[str, Any] | None = None,
-    split_table: bool | None = False,
+    split_table: bool = False,
 ) -> CustomChart:
     """<sdk/wandb_run.py::Run::plot_table>"""
     ...

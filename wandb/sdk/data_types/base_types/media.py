@@ -24,9 +24,75 @@ if TYPE_CHECKING:  # pragma: no cover
 SYS_PLATFORM = platform.system()
 
 
+def check_windows_valid_filename(path: Union[int, str]) -> bool:
+    r"""Verify that the given path does not contain any invalid characters for a Windows filename.
+
+    Windows filenames cannot contain the following characters:
+    < > : " \ / | ? *
+
+    For more details, refer to the official documentation:
+    https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
+
+    Args:
+        path: The file path to check, which can be either an integer or a string.
+
+    Returns:
+        bool: True if the path does not contain any invalid characters, False otherwise.
+    """
+    return not bool(re.search(r'[<>:"\\?*]', path))  # type: ignore
+
+
 def _wb_filename(
     key: Union[str, int], step: Union[str, int], id: Union[str, int], extension: str
 ) -> str:
+    r"""Generates a safe filename/path for storing media files, using the provided key, step, and id.
+
+    The filename is made safe by:
+    1. Removing any leading slashes to prevent writing to absolute paths
+    2. Replacing '.' and '..' with underscores to prevent directory traversal attacks
+
+    If the key contains slashes (e.g. 'images/cats/fluffy.jpg'), subdirectories will be created:
+        media/
+          images/
+            cats/
+              fluffy.jpg_step_id.ext
+
+    Args:
+        key: Name/path for the media file
+        step: Training step number
+        id: Unique identifier
+        extension: File extension (e.g. '.jpg', '.mp3')
+
+    Returns:
+        A sanitized filename string in the format: key_step_id.extension
+
+    Raises:
+        ValueError: If running on Windows and the key contains invalid filename characters
+                   (\\, :, *, ?, ", <, >, |)
+    """
+    if SYS_PLATFORM == "Windows" and not check_windows_valid_filename(key):
+        raise ValueError(
+            f'Media {key} is invalid. Please remove invalid filename characters (\\, :, *, ?, ", <, >, |)'
+        )
+
+    # On Windows, convert forward slashes to backslashes.
+    # This ensures that the key is a valid filename on Windows.
+    if SYS_PLATFORM == "Windows":
+        key = str(key).replace("/", os.sep)
+
+    # Avoid writing to absolute paths by striping any leading slashes.
+    # The key has already been validated for windows operating systems in util.check_windows_valid_filename
+    # This ensures the key does not contain invalid characters for windows, such as '\' or ':'.
+    # So we can check only for '/' in the key.
+    key = str(key).lstrip(os.sep)
+
+    # Avoid directory traversal by replacing dots with underscores.
+    keys = key.split(os.sep)
+    keys = [k.replace(".", "_") if k in (os.curdir, os.pardir) else k for k in keys]
+
+    # Recombine the key into a relative path.
+    key = os.sep.join(keys)
+
     return f"{str(key)}_{str(step)}_{str(id)}{extension}"
 
 
@@ -99,11 +165,6 @@ class Media(WBValue):
         file associated with this object, from which other Runs can refer to it.
         """
         assert self.file_is_set(), "bind_to_run called before _set_file"
-
-        if SYS_PLATFORM == "Windows" and not util.check_windows_valid_filename(key):
-            raise ValueError(
-                f"Media {key} is invalid. Please remove invalid filename characters"
-            )
 
         # The following two assertions are guaranteed to pass
         # by definition file_is_set, but are needed for
