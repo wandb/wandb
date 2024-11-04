@@ -470,10 +470,12 @@ class Api:
                     env=self._environ,
                 ),
                 "base_url": env.get_base_url(
+                    str(
                     self._settings.get(
                         Settings.DEFAULT_SECTION,
                         "base_url",
                         fallback=result.get("base_url"),
+                        )
                     ),
                     env=self._environ,
                 ),

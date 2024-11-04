@@ -290,9 +290,7 @@ def get_base_url(
     if env is None:
         env = os.environ
 
-    base_url = env.get(BASE_URL, default)
-
-    return base_url.rstrip("/") if base_url is not None else base_url
+    return env.get(BASE_URL, default)
 
 
 def get_app_url(

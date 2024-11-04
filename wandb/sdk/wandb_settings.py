@@ -17,15 +17,8 @@ from typing import Any, Literal, Sequence
 from urllib.parse import quote, unquote, urlencode
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
-from pydantic import (
-    AnyHttpUrl,
-    BaseModel,
-    Field,
-    HttpUrl,
-    computed_field,
-    field_validator,
-    model_validator,
-)
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
+from pydantic_core import SchemaValidator, core_schema
 
 import wandb
 from wandb import termwarn, util
@@ -47,7 +40,7 @@ class Settings(BaseModel, validate_assignment=True):
     api_key: str | None = None
     azure_account_url_to_access_key: dict[str, str] | None = None
     # The base URL for the W&B API.
-    base_url: AnyHttpUrl = HttpUrl("https://api.wandb.ai")
+    base_url: str = "https://api.wandb.ai"
     code_dir: str | None = None
     config_paths: Sequence[str] | None = None
     console: Literal["auto", "off", "wrap", "redirect", "wrap_raw", "wrap_emu"] = Field(
@@ -72,8 +65,8 @@ class Settings(BaseModel, validate_assignment=True):
     git_root: str | None = None
     heartbeat_seconds: int = 30
     host: str | None = None
-    http_proxy: AnyHttpUrl | None = None
-    https_proxy: AnyHttpUrl | None = None
+    http_proxy: str | None = None
+    https_proxy: str | None = None
     # file path to supply a jwt for authentication
     identity_token_file: str | None = None
     ignore_globs: tuple[str] = ()
@@ -252,7 +245,11 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("API key cannot start or end with whitespace")
         return value
 
-    # @field_validtr(value).strip().rstrip("/")
+    @field_validator("base_url", mode="before")
+    @classmethod
+    def validate_base_url(cls, value):
+        cls.validate_url(value)
+        return value.rstrip("/")
 
     @field_validator("console", mode="after")
     @classmethod
@@ -316,6 +313,18 @@ class Settings(BaseModel, validate_assignment=True):
                 "If you want to rewind the current run, please use `resume_from` instead."
             )
         return run_moment
+
+    @field_validator("http_proxy", mode="before")
+    @classmethod
+    def validate_http_proxy(cls, value):
+        cls.validate_url(value)
+        return value.rstrip("/")
+
+    @field_validator("https_proxy", mode="before")
+    @classmethod
+    def validate_https_proxy(cls, value):
+        cls.validate_url(value)
+        return value.rstrip("/")
 
     @field_validator("ignore_globs", mode="before")
     @classmethod
@@ -563,7 +572,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field
     @property
-    def colab_url(self) -> AnyHttpUrl | None:
+    def colab_url(self) -> str | None:
         if not self._colab:
             return None
         if self.x_jupyter_path and self.x_jupyter_path.startswith("fileId="):
@@ -588,7 +597,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field
     @property
     def is_local(self) -> bool:
-        return self.base_url != "https://api.wandb.ai"
+        return str(self.base_url) != "https://api.wandb.ai"
 
     @computed_field
     @property
@@ -619,7 +628,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field
     @property
-    def project_url(self) -> AnyHttpUrl:
+    def project_url(self) -> str:
         project_url = self._project_url_base()
         if not project_url:
             return ""
@@ -640,7 +649,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field
     @property
-    def run_url(self) -> AnyHttpUrl:
+    def run_url(self) -> str:
         project_url = self._project_url_base()
         if not all([project_url, self.run_id]):
             return ""
@@ -655,7 +664,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field
     @property
-    def sweep_url(self) -> AnyHttpUrl:
+    def sweep_url(self) -> str:
         project_url = self._project_url_base()
         if not all([project_url, self.sweep_id]):
             return ""
@@ -924,6 +933,12 @@ class Settings(BaseModel, validate_assignment=True):
             filesystem.mkdir_exists_ok(self.wandb_dir)
             with open(self.resume_fname, "w") as f:
                 f.write(json.dumps({"run_id": self.run_id}))
+
+    @staticmethod
+    def validate_url(url: str) -> None:
+        """Validate a URL string using pydantic-core."""
+        url_validator = SchemaValidator(core_schema.url_schema())
+        url_validator.validate_python(url)
 
     def _get_program_relpath(self, root: str | None = None) -> str | None:
         if not self.program:

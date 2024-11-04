@@ -22,7 +22,6 @@ from typing import TYPE_CHECKING, Any, Sequence
 
 import wandb
 import wandb.env
-from wandb import trigger
 from wandb.errors import CommError, Error, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
@@ -44,7 +43,6 @@ from .lib import (
 from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxProgress
 from .lib.wburls import wburls
-from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings
 

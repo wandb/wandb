@@ -515,7 +515,6 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 		Os:            h.settings.GetXOs().GetValue(),
 		Python:        h.settings.GetXPython().GetValue(),
 		Host:          h.settings.GetHost().GetValue(),
-		Cuda:          h.settings.GetXCuda().GetValue(),
 		Program:       h.settings.GetProgram().GetValue(),
 		CodePath:      h.settings.GetProgramRelpath().GetValue(),
 		CodePathLocal: h.settings.GetXCodePathLocal().GetValue(),
