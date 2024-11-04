@@ -359,6 +359,7 @@ def _start_container(
     """
     docker_flags = [
         "--detach",
+        *["--pull", "always"],  # Always get latest image.
         *["-e", "WANDB_ENABLE_TEST_CONTAINER=true"],
         *["--name", name],
         *["--volume", f"{name}-vol:/vol"],
