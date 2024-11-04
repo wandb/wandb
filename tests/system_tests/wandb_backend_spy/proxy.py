@@ -35,13 +35,13 @@ def spy_proxy(
 
     http_client = httpx.AsyncClient()
     port = _get_free_port()
-    spy = WandbBackendProxy(
+    proxy = WandbBackendProxy(
         client=http_client,
         target_host=target_host,
         target_port=target_port,
         local_port=port,
     )
-    server = uvicorn.Server(uvicorn.Config(spy._to_fast_api(), port=port))
+    server = uvicorn.Server(uvicorn.Config(proxy._to_fast_api(), port=port))
 
     proxy_thread = threading.Thread(
         target=asyncio.run,
@@ -51,7 +51,7 @@ def spy_proxy(
     _wait_for_server(server)
 
     try:
-        yield spy
+        yield proxy
     finally:
         try:
             server.should_exit = True
