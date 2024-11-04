@@ -18,6 +18,7 @@ import filelock
 import polars as pl
 import requests
 import urllib3
+import wandb_workspaces.reports.v1 as wr1
 import wandb_workspaces.reports.v2 as wr
 import yaml
 from wandb_gql import gql
@@ -789,21 +790,35 @@ class WandbImporter:
         #report_spec = coalesce(new_report_spec, report.spec)
         #logger.info(f"{report_spec=}")
 
-
         logger.info(f"Upserting report {entity=}, {project=}, {id=}, {title=}")
-        api.client.execute(
-            upsert_view,
-            variable_values={
-                "id": None,  # Is there any benefit for this to be the same as default report?
-                "name": id,
-                "entityName": entity,
-                "projectName": project,
-                "description": description,
-                "displayName": title,
-                "type": "runs",
-                "spec": report.to_model().spec.json(),
-            },
-        )
+        try:
+            api.client.execute(
+                upsert_view,
+                variable_values={
+                    "id": None,  # Is there any benefit for this to be the same as default report?
+                    "name": id,
+                    "entityName": entity,
+                    "projectName": project,
+                    "description": description,
+                    "displayName": title,
+                    "type": "runs",
+                    "spec": report.to_model().spec.json(),
+                },
+            )
+        finally:
+            api.client.execute(
+                upsert_view,
+                variable_values={
+                    "id": None,  # Is there any benefit for this to be the same as default report?
+                    "name": id,
+                    "entityName": entity,
+                    "projectName": project,
+                    "description": description,
+                    "displayName": title,
+                    "type": "runs",
+                    "spec": json.dumps(report.spec),
+                },
+            )
 
     def _use_artifact_sequence(
         self,
@@ -1403,7 +1418,10 @@ class WandbImporter:
             for ns in namespaces:
                 for r in api.reports(ns.path):
                     print(f"Collecting report {r.url}")
-                    yield wr.Report.from_url(r.url)
+                    try:
+                        yield wr.Report.from_url(r.url)
+                    finally:
+                        yield wr1.Report.from_url(r.url)
 
         yield from itertools.islice(reports(), limit)
 
