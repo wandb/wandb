@@ -40,6 +40,7 @@ from wandb.sdk.artifacts._validators import (
     ensure_not_finalized,
     is_artifact_registry_project,
     validate_aliases,
+    validate_artifact_name,
     validate_tags,
 )
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
@@ -164,7 +165,7 @@ class Artifact:
         self._sequence_client_id: str = runid.generate_id(128)
         self._entity: str | None = None
         self._project: str | None = None
-        self._name: str = name  # includes version after saving
+        self._name: str = validate_artifact_name(name)  # includes version after saving
         self._version: str | None = None
         self._source_entity: str | None = None
         self._source_project: str | None = None

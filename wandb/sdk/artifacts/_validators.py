@@ -24,6 +24,9 @@ if TYPE_CHECKING:
 REGISTRY_PREFIX: Final[str] = "wandb-registry-"
 MAX_ARTIFACT_METADATA_KEYS: Final[int] = 100
 
+ARTIFACT_NAME_MAXLEN: Final[int] = 128
+ARTIFACT_NAME_INVALID_CHARS: Final[frozenset[str]] = frozenset({"/"})
+
 
 # For mypy checks
 @overload
@@ -41,6 +44,27 @@ def always_list(obj: Any, base_type: Any = (str, bytes)) -> list[T]:
     https://more-itertools.readthedocs.io/en/stable/api.html#more_itertools.always_iterable
     """
     return [obj] if isinstance(obj, base_type) else list(obj)
+
+
+def validate_artifact_name(name: str) -> str:
+    """Validate the artifact name, returning it if successful.
+
+    Raises:
+        ValueError: If the artifact name is invalid.
+    """
+    if len(name) > ARTIFACT_NAME_MAXLEN:
+        short_name = f"{name[:ARTIFACT_NAME_MAXLEN]} ..."
+        raise ValueError(
+            f"Artifact name is longer than {ARTIFACT_NAME_MAXLEN} characters: {short_name!r}"
+        )
+
+    if ARTIFACT_NAME_INVALID_CHARS.intersection(name):
+        raise ValueError(
+            "Artifact names must not contain any of the following characters: "
+            f"{', '.join(sorted(ARTIFACT_NAME_INVALID_CHARS))}.  Got: {name!r}"
+        )
+
+    return name
 
 
 def validate_aliases(aliases: Collection[str] | str) -> list[str]:
