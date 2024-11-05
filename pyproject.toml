@@ -115,7 +115,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 minversion = "6.0"
 console_output_style = "count"
-addopts = "-vvv --cov-config=pyproject.toml --dist=loadscope"
+addopts = "-vvv --cov-config=pyproject.toml"
 markers = [
     "image_output",
     "multiclass",
