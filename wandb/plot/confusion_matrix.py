@@ -17,7 +17,7 @@ def confusion_matrix(
     y_true: Sequence[T] | None = None,
     preds: Sequence[T] | None = None,
     class_names: Sequence[str] | None = None,
-    title: str = "",
+    title: str = "Confusion Matrix Curve",
     split_table: bool = False,
 ) -> CustomChart:
     """Constructs a confusion matrix from a sequence of probabilities or predictions.
