@@ -5,7 +5,6 @@ import contextlib
 import socket
 import threading
 import time
-import traceback
 from typing import Iterator
 
 import fastapi
@@ -181,15 +180,14 @@ class WandbBackendProxy:
 
     async def _post_graphql(self, request: fastapi.Request) -> fastapi.Response:
         """Handle a GraphQL request and maybe relay it to the backend."""
-        with _continue_on_failure():
-            body = await request.body()
-            with self._lock:
-                if self._spy:
-                    response = self._spy.post_graphql(body)
-                    if response:
-                        return response
+        response = await self._relay(request)
 
-        return await self._relay(request)
+        request_body = await request.body()
+        with self._lock:
+            if self._spy:
+                self._spy.post_graphql(request_body, response.body)
+
+        return response
 
     async def _post_file_stream(
         self,
@@ -200,26 +198,17 @@ class WandbBackendProxy:
         run_id: str,
     ) -> fastapi.Response:
         """Handle a FileStream request and maybe relay it to the backend."""
-        with _continue_on_failure():
-            body = await request.body()
-            with self._lock:
-                if self._spy:
-                    response = self._spy.post_file_stream(
-                        body,
-                        entity=entity,
-                        project=project,
-                        run_id=run_id,
-                    )
-                    if response:
-                        return response
+        response = await self._relay(request)
 
-        return await self._relay(request)
+        request_body = await request.body()
+        with self._lock:
+            if self._spy:
+                self._spy.post_file_stream(
+                    request_body,
+                    response.body,
+                    entity=entity,
+                    project=project,
+                    run_id=run_id,
+                )
 
-
-@contextlib.contextmanager
-def _continue_on_failure() -> Iterator[None]:
-    """A context manager that prints a traceback and continues on error."""
-    try:
-        yield
-    except Exception as e:
-        traceback.print_exception(e)
+        return response
