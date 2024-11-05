@@ -5,22 +5,10 @@ import platform
 from unittest import mock
 
 import git
-import pytest  # type: ignore
+import pytest
 from wandb import env
-from wandb.sdk import wandb_settings
-
-Source = wandb_settings.Source
-
-# TODO: replace wandb_init with mock_run or move tests to integration tests
-
-# ------------------------------------
-# test Settings class
-# ------------------------------------
 
 
-# note: patching os.environ because other tests may have created env variables
-# that are not in the default environment, which would cause these test to fail.
-# setting {"USERNAME": "test"} because on Windows getpass.getuser() would otherwise fail.
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="backend crashes on Windows in CI"
 )

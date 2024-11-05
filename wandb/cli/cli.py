@@ -30,7 +30,6 @@ import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
-from wandb.integration.magic import magic_install
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch._launch_add import _launch_add
@@ -2644,44 +2643,6 @@ Run `git clone {}` and restore from there or pass the --no-git flag.""".format(r
         ctx.invoke(docker, docker_run_args=[image], cmd=cmd)
 
     return commit, json_config, patch_content, repo, metadata
-
-
-@cli.command(context_settings=CONTEXT, help="Run any script with wandb", hidden=True)
-@click.pass_context
-@click.argument("program")
-@click.argument("args", nargs=-1)
-@display_error
-def magic(ctx, program, args):
-    def magic_run(cmd, globals, locals):
-        try:
-            exec(cmd, globals, locals)
-        finally:
-            pass
-
-    sys.argv[:] = args
-    sys.argv.insert(0, program)
-    sys.path.insert(0, os.path.dirname(program))
-    try:
-        with open(program, "rb") as fp:
-            code = compile(fp.read(), program, "exec")
-    except OSError:
-        click.echo(
-            click.style("Could not launch program: {}".format(program), fg="red")
-        )
-        sys.exit(1)
-    globs = {
-        "__file__": program,
-        "__name__": "__main__",
-        "__package__": None,
-        "wandb_magic_install": magic_install,
-    }
-    prep = """
-import __main__
-__main__.__file__ = "{}"
-wandb_magic_install()
-""".format(program)
-    magic_run(prep, globs, None)
-    magic_run(code, globs, None)
 
 
 @cli.command("online", help="Enable W&B sync")

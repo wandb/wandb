@@ -156,12 +156,11 @@ class SystemInfo:
         data["python"] = self.settings._python
         data["heartbeatAt"] = datetime.datetime.utcnow().isoformat()
         data["startedAt"] = datetime.datetime.utcfromtimestamp(
-            self.settings._start_time
+            self.settings.x_start_time
         ).isoformat()
 
         data["docker"] = self.settings.docker
 
-        data["cuda"] = self.settings._cuda
         data["args"] = tuple(self.settings._args or ())
         data["state"] = "running"
 
@@ -225,7 +224,7 @@ class SystemInfo:
 
     def publish(self, system_info: dict) -> None:
         # save pip, conda, code patches to disk
-        if self.settings._save_requirements:
+        if self.settings.x_save_requirements:
             self._save_conda()
         if self.settings.save_code:
             self._save_code()

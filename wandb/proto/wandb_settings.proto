@@ -43,9 +43,9 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 177
+// Next ID: 178
 message Settings {
-  reserved 6, 12, 36, 45, 51, 94, 136, 137;
+  reserved 6, 12, 36, 45, 50, 51, 94, 136, 137;
 
   // The W&B API key.
   //
@@ -221,6 +221,9 @@ message Settings {
   // Remove after the feature is rolled out.
   google.protobuf.BoolValue x_show_operation_stats = 176;
 
+  // Whether to sync TensorBoard logs to W&B.
+  google.protobuf.BoolValue sync_tensorboard = 177;
+
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.BoolValue x_cli_only_mode = 4;
@@ -257,13 +260,12 @@ message Settings {
   google.protobuf.DoubleValue x_stats_sampling_interval = 174;
   google.protobuf.DoubleValue x_stats_sample_rate_seconds = 43;
   google.protobuf.Int32Value x_stats_samples_to_average = 44;
-  google.protobuf.StringValue _stats_neuron_monitor_config_path = 46;
-  MapStringKeyStringValue _stats_open_metrics_endpoints = 47;
-  OpenMetricsFilters _stats_open_metrics_filters = 48;
+  google.protobuf.StringValue x_stats_neuron_monitor_config_path = 46;
+  MapStringKeyStringValue x_stats_open_metrics_endpoints = 47;
+  OpenMetricsFilters x_stats_open_metrics_filters = 48;
   ListStringValue x_stats_disk_paths = 146;
   google.protobuf.Int32Value x_stats_buffer_size = 161;
   google.protobuf.StringValue _tmp_code_dir = 49;
-  google.protobuf.StringValue _tracelog = 50;
   google.protobuf.BoolValue _windows = 52;
   google.protobuf.BoolValue allow_val_change = 53;
   google.protobuf.StringValue anonymous = 54;

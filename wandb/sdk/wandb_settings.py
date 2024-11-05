@@ -11,13 +11,19 @@ import shutil
 import socket
 import sys
 import tempfile
-import time
 from datetime import datetime
 from typing import Any, Literal, Sequence
 from urllib.parse import quote, unquote, urlencode
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
-from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 from pydantic_core import SchemaValidator, core_schema
 
 import wandb
@@ -34,6 +40,10 @@ from .lib.runid import generate_id
 
 class Settings(BaseModel, validate_assignment=True):
     """Settings for W&B."""
+
+    model_config = ConfigDict(
+        extra="forbid",  # forbid extra fields
+    )
 
     allow_val_change: bool = False
     anonymous: Literal["allow", "must", "never", "false", "true"] | None = None
@@ -183,9 +193,9 @@ class Settings(BaseModel, validate_assignment=True):
     x_require_legacy_service: bool = False
     x_save_requirements: bool = False
     x_service_transport: str | None = None
-    x_service_wait: float = Field(default=30.0)
+    x_service_wait: float = 30.0
     x_show_operation_stats: bool = False
-    x_start_time: float = time.time()
+    x_start_time: float | None = None
     # PID of the process that started the wandb-core process to collect system stats for.
     x_stats_pid: int = os.getpid()
     # Sampling interval for the system monitor.
@@ -227,7 +237,7 @@ class Settings(BaseModel, validate_assignment=True):
         return new_values
 
     # Field validators.
-    @field_validator("x_disable_service", mode="before")
+    @field_validator("x_disable_service", mode="after")
     @classmethod
     def validate_disable_service(cls, value):
         if value:
@@ -238,17 +248,25 @@ class Settings(BaseModel, validate_assignment=True):
             )
         return value
 
-    @field_validator("api_key", mode="before")
+    @field_validator("api_key", mode="after")
     @classmethod
     def validate_api_key(cls, value):
         if len(value) > len(value.strip()):
             raise UsageError("API key cannot start or end with whitespace")
         return value
 
-    @field_validator("base_url", mode="before")
+    @field_validator("base_url", mode="after")
     @classmethod
     def validate_base_url(cls, value):
         cls.validate_url(value)
+        # TODO: port these old checks to the new validator
+        # if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
+        #     # user might guess app.wandb.ai or wandb.ai is the default cloud server
+        #     raise UsageError(
+        #         f"{value} is not a valid server address, did you mean https://api.wandb.ai?"
+        #     )
+        # elif re.match(r".*wandb\.ai[^\.]*$", value) and scheme != "https":
+        #     raise UsageError("http is not secure, please use https://api.wandb.ai")
         return value.rstrip("/")
 
     @field_validator("console", mode="after")
@@ -302,7 +320,7 @@ class Settings(BaseModel, validate_assignment=True):
             return True
         return value
 
-    @field_validator("fork_from", mode="before")
+    @field_validator("fork_from", mode="after")
     @classmethod
     def validate_fork_from(cls, value, info) -> RunMoment | None:
         run_moment = cls._runmoment_preprocessor(value)
@@ -314,19 +332,19 @@ class Settings(BaseModel, validate_assignment=True):
             )
         return run_moment
 
-    @field_validator("http_proxy", mode="before")
+    @field_validator("http_proxy", mode="after")
     @classmethod
     def validate_http_proxy(cls, value):
         cls.validate_url(value)
         return value.rstrip("/")
 
-    @field_validator("https_proxy", mode="before")
+    @field_validator("https_proxy", mode="after")
     @classmethod
     def validate_https_proxy(cls, value):
         cls.validate_url(value)
         return value.rstrip("/")
 
-    @field_validator("ignore_globs", mode="before")
+    @field_validator("ignore_globs", mode="after")
     @classmethod
     def validate_ignore_globs(cls, value):
         return tuple(value) if not isinstance(value, tuple) else value
@@ -388,16 +406,16 @@ class Settings(BaseModel, validate_assignment=True):
             return None
         return value
 
-    @field_validator("resume", mode="before")
+    @field_validator("resume", mode="after")
     @classmethod
-    def validate_resume(cls, value, info):
+    def validate_resume(cls, value):
         if value is False:
             return None
         if value is True:
             return "auto"
         return value
 
-    @field_validator("resume_from", mode="before")
+    @field_validator("resume_from", mode="after")
     @classmethod
     def validate_resume_from(cls, value, info) -> RunMoment | None:
         run_moment = cls._runmoment_preprocessor(value)
@@ -433,7 +451,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_settings_system(cls, value):
         return cls._path_convert(value)
 
-    @field_validator("x_service_wait", mode="before")
+    @field_validator("x_service_wait", mode="after")
     @classmethod
     def validate_service_wait(cls, value):
         if value < 0:
@@ -452,7 +470,7 @@ class Settings(BaseModel, validate_assignment=True):
             )
         return value
 
-    @field_validator("x_stats_sampling_interval", mode="before")
+    @field_validator("x_stats_sampling_interval", mode="after")
     @classmethod
     def validate_stats_sampling_interval(cls, value):
         if value < 0.1:
@@ -556,7 +574,7 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def _start_datetime(self) -> str:
         if self.x_start_time is None:
-            raise ValueError("Start time is not set.")
+            return ""
         datetime_now = datetime.fromtimestamp(self.x_start_time)
         return datetime_now.strftime("%Y%m%d_%H%M%S")
 
@@ -838,12 +856,13 @@ class Settings(BaseModel, validate_assignment=True):
 
         self.docker = wandb.env.get_docker(wandb.util.image_id_from_k8s())
 
-        if not self.x_cli_only_mode:
+        # proceed if not in CLI mode
+        if self.x_cli_only_mode:
             return
 
-        # proceed if not in CLI mode
+        program = self.program or self._get_program()
 
-        if self.program is not None:
+        if program is not None:
             repo = GitRepo()
             root = repo.root or os.getcwd()
 
@@ -851,12 +870,14 @@ class Settings(BaseModel, validate_assignment=True):
                 repo.root
             )
             program_abspath = os.path.abspath(
-                os.path.join(root, os.path.relpath(os.getcwd(), root), self.program)
+                os.path.join(root, os.path.relpath(os.getcwd(), root), program)
             )
             if os.path.exists(program_abspath):
                 self.program_abspath = program_abspath
         else:
-            self.program = "<python with no main file>"
+            program = "<python with no main file>"
+
+        self.program = program
 
     # Helper methods.
     def to_proto(self) -> wandb_settings_pb2.Settings:
@@ -939,6 +960,21 @@ class Settings(BaseModel, validate_assignment=True):
         """Validate a URL string using pydantic-core."""
         url_validator = SchemaValidator(core_schema.url_schema())
         url_validator.validate_python(url)
+
+    @staticmethod
+    def _get_program() -> str | None:
+        program = os.getenv(wandb.env.PROGRAM)
+        if program is not None:
+            return program
+        try:
+            import __main__
+
+            if __main__.__spec__ is None:
+                return __main__.__file__
+            # likely run as `python -m ...`
+            return f"-m {__main__.__spec__.name}"
+        except (ImportError, AttributeError):
+            return None
 
     def _get_program_relpath(self, root: str | None = None) -> str | None:
         if not self.program:
