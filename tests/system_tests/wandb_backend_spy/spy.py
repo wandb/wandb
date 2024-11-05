@@ -96,6 +96,11 @@ class WandbBackendSnapshot:
 
     _spy: WandbBackendSpy | None
 
+    def run_ids(self) -> set[str]:
+        """Returns the IDs of all runs."""
+        spy = self._assert_valid()
+        return set(spy._runs.keys())
+
     def history(self, *, run_id: str) -> dict[int, Any]:
         """Returns the history file for the run.
 
