@@ -46,9 +46,6 @@ class WandbBackendSpy:
             if query is None or variables is None:
                 return
 
-            print("GOT QUERY: ", query)
-            print("WITH VARIABLES: ", variables)
-
             self._spy_run_config(query, variables)
 
     def _spy_run_config(self, query: str, variables: dict[str, Any]) -> None:
@@ -66,8 +63,6 @@ class WandbBackendSpy:
 
         run_id = variables["name"]
         config = variables["config"]
-
-        print(f"UPDATED CONFIG {run_id}")
 
         run = self._runs.setdefault(run_id, _RunData())
         run._config_json_string = config
