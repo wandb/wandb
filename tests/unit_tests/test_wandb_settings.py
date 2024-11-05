@@ -1,25 +1,17 @@
-import copy
-import json
 import os
 import subprocess
 import sys
 import tempfile
-import time
-from typing import Any, Dict, List, Mapping, Sequence, Set, Tuple, Union
-from unittest import mock
 
 import pytest
 import wandb
-from click.testing import CliRunner
 from wandb import Settings
 from wandb.errors import UsageError
-from wandb.sdk import wandb_settings
-from wandb.sdk.lib.credentials import DEFAULT_WANDB_CREDENTIALS_FILE
 
 if sys.version_info >= (3, 8):
-    from typing import get_type_hints
+    pass
 else:
-    from typing_extensions import get_type_hints
+    pass
 
 
 @pytest.mark.skip(reason="Current behavior is to silently ignore unexpected arguments")
