@@ -771,7 +771,7 @@ class WandbImporter:
         entity = coalesce(namespace.entity, report.project.entity_name)
         project = coalesce(namespace.project, report.project.name)
         report_id = report.id
-        title = report.name
+        title = report.display_name
         description = report.description
 
         api = self.dst_api
