@@ -182,6 +182,23 @@ class WandbBackendSnapshot:
         except KeyError as e:
             raise AssertionError(f"No telemetry for run {run_id}") from e
 
+    def metrics(self, *, run_id: str) -> dict[str, Any]:
+        """Returns the metrics for the run as a JSON object.
+
+        Args:
+            run_id: The ID of the run.
+
+        Raises:
+            KeyError: if the run does not exist.
+            AssertionError: if no metrics were uploaded for the run.
+        """
+        config = self.config(run_id=run_id)
+
+        try:
+            return config["_wandb"]["value"]["m"]
+        except KeyError as e:
+            raise AssertionError(f"No metrics for run {run_id}") from e
+
     def _assert_valid(self) -> WandbBackendSpy:
         """Raise an error if we're not inside freeze()."""
         if not self._spy:
