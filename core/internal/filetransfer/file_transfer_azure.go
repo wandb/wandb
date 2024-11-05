@@ -30,8 +30,6 @@ type AzureFileTransfer struct {
 
 	// background context is used to create a reader and get the client
 	ctx context.Context
-
-	blobClient *blob.Client
 }
 
 // NewAzureFileTransfer creates a new fileTransfer.
@@ -66,24 +64,23 @@ func (ft *AzureFileTransfer) SetupClient(accountUrl string) error {
 }
 
 // SetupClient sets up the Azure client if it is not currently set
-func (ft *AzureFileTransfer) SetupBlobClient(blobUrl string, versionId string) error {
+func (ft *AzureFileTransfer) SetupBlobClient(blobUrl string, versionId string) (*blob.Client, error) {
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		ft.logger.Error("Unable to create Azure credential", "err", err)
-		return err
+		return nil, err
 	}
 	client, err := blob.NewClient(blobUrl, cred, nil)
 	if err != nil {
 		ft.logger.Error("Unable to create Azure client", "err", err)
-		return err
+		return nil, err
 	}
 	client, err = client.WithVersionID(versionId)
 	if err != nil {
 		ft.logger.Error("Unable to set version ID", "err", err)
-		return err
+		return nil, err
 	}
-	ft.blobClient = client
-	return nil
+	return client, nil
 }
 
 // Upload uploads a file to the server.
@@ -95,7 +92,7 @@ func (ft *AzureFileTransfer) Upload(task *ReferenceArtifactUploadTask) error {
 
 // Upload uploads a file to the server.
 func (ft *AzureFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
-	ft.logger.Debug("Azure file transfer: downloading file", "path", task.PathOrPrefix)
+	ft.logger.Debug("Azure file transfer: downloading file", "path", task.PathOrPrefix, "ref", task.Reference)
 
 	// Parse the reference path to get the scheme, bucket, and object
 	accountUrl, fullBlobPath, err := parseCloudReference(task.Reference, azureScheme)
@@ -104,7 +101,7 @@ func (ft *AzureFileTransfer) Download(task *ReferenceArtifactDownloadTask) error
 	}
 	pathSplit := strings.SplitN(fullBlobPath, "/", 2)
 	container := pathSplit[0]
-	blobName := pathSplit[1]
+	blobPrefix := pathSplit[1]
 
 	fullAccountUrl := fmt.Sprintf("%s://%s", azureScheme, accountUrl)
 	err = ft.SetupClient(fullAccountUrl)
@@ -112,85 +109,29 @@ func (ft *AzureFileTransfer) Download(task *ReferenceArtifactDownloadTask) error
 		return ft.formatDownloadError("error setting up Azure client", err)
 	}
 
+	var blobNames []string
 	if task.HasSingleFile() {
-		err := ft.downloadBlobToFile(container, blobName, task, nil)
-		if err != nil {
-			return ft.formatDownloadError("error downloading blob", err)
-		}
+		blobNames = []string{blobPrefix}
 	} else {
-		ft.logger.Debug("Azure file transfer: downloading multiple files", "path", task.PathOrPrefix)
-		blobNames, err := ft.listBlobsFlat(container)
+		blobNames, err = ft.listBlobsWithPrefix(container, blobPrefix)
 		if err != nil {
 			return ft.formatDownloadError("error listing blobs", err)
 		}
-		err = ft.downloadFiles(container, fullBlobPath, blobNames, task)
-		if err != nil {
-			return ft.formatDownloadError("error downloading objects", err)
-		}
 	}
 
+	err = ft.downloadFiles(container, blobPrefix, blobNames, task)
+	if err != nil {
+		return ft.formatDownloadError(fmt.Sprintf("error downloading reference %s", task.Reference), err)
+	}
 	return nil
 }
 
-func (ft *AzureFileTransfer) downloadFiles(
-	containerName string,
-	fullBlobPath string,
-	blobNames []string,
-	task *ReferenceArtifactDownloadTask,
-) error {
-	g := new(errgroup.Group)
-	g.SetLimit(maxAzureWorkers)
-	for _, blobName := range blobNames {
-		g.Go(func() error {
-			objectRelativePath, _ := strings.CutPrefix(blobName, fullBlobPath)
-			localPath := filepath.Join(task.PathOrPrefix, filepath.FromSlash(objectRelativePath))
-			return ft.downloadBlobToFile(containerName, blobName, task, &localPath)
-		})
-	}
-
-	return g.Wait()
-}
-
-func (ft *AzureFileTransfer) downloadBlobToFile(
-	containerName string,
-	blobName string,
-	task *ReferenceArtifactDownloadTask,
-	overridePath *string,
-) error {
-	downloadPath := task.PathOrPrefix
-	if overridePath != nil {
-		downloadPath = *overridePath
-	}
-
-	// Create or open a local file where we can download the blob
-	if err := os.MkdirAll(filepath.Dir(downloadPath), 0755); err != nil {
-		return fmt.Errorf("unable to create destination directory %s: %w", filepath.Dir(downloadPath), err)
-	}
-
-	destination, err := os.Create(downloadPath)
-	if err != nil {
-		return fmt.Errorf("unable to create destination file %s: %w", downloadPath, err)
-	}
-
-	// If version ID is specified, append it to the blob name
-	versionId, ok := task.VersionIDString()
-	if ok {
-		err = ft.SetupBlobClient(task.Reference, versionId)
-		if err != nil {
-			return ft.formatDownloadError("error setting up Azure blob client", err)
-		}
-		_, err = ft.blobClient.DownloadFile(ft.ctx, destination, nil)
-		return err
-	} else {
-		// Download the blob to the local file
-		_, err = ft.client.DownloadFile(ft.ctx, containerName, blobName, destination, nil)
-		return err
-	}
-}
-
-func (ft *AzureFileTransfer) listBlobsFlat(containerName string) ([]string, error) {
+// listBlobs lists all the blobs in the container with the given prefix
+func (ft *AzureFileTransfer) listBlobsWithPrefix(containerName string, prefix string) ([]string, error) {
 	// List the blobs in the container
-	pager := ft.client.NewListBlobsFlatPager(containerName, nil)
+	pager := ft.client.NewListBlobsFlatPager(containerName, &azblob.ListBlobsFlatOptions{
+		Prefix: &prefix,
+	})
 
 	blobNames := []string{}
 	for pager.More() {
@@ -205,6 +146,58 @@ func (ft *AzureFileTransfer) listBlobsFlat(containerName string) ([]string, erro
 	}
 
 	return blobNames, nil
+}
+
+func (ft *AzureFileTransfer) downloadFiles(
+	containerName string,
+	blobPrefix string,
+	blobNames []string,
+	task *ReferenceArtifactDownloadTask,
+) error {
+	g := new(errgroup.Group)
+	g.SetLimit(maxAzureWorkers)
+	for _, blobName := range blobNames {
+		g.Go(func() error {
+			objectRelativePath, _ := strings.CutPrefix(blobName, blobPrefix)
+			localPath := filepath.Join(task.PathOrPrefix, filepath.FromSlash(objectRelativePath))
+			println("downloading blob", blobName, "to", localPath)
+			return ft.downloadBlobToFile(containerName, blobName, task, localPath)
+		})
+	}
+
+	return g.Wait()
+}
+
+func (ft *AzureFileTransfer) downloadBlobToFile(
+	containerName string,
+	blobName string,
+	task *ReferenceArtifactDownloadTask,
+	localPath string,
+) error {
+	// Create or open a local file where we can download the blob
+	if err := os.MkdirAll(filepath.Dir(localPath), 0755); err != nil {
+		return fmt.Errorf("unable to create destination directory %s: %w", filepath.Dir(localPath), err)
+	}
+
+	destination, err := os.Create(localPath)
+	if err != nil {
+		return fmt.Errorf("unable to create destination file %s: %w", localPath, err)
+	}
+
+	// If version ID is specified, use the blob client to download the blob
+	versionId, ok := task.VersionIDString()
+	if ok {
+		blobClient, err := ft.SetupBlobClient(task.Reference, versionId)
+		if err != nil {
+			return err
+		}
+		_, err = blobClient.DownloadFile(ft.ctx, destination, nil)
+		return err
+	} else {
+		// Download the blob to the local file
+		_, err = ft.client.DownloadFile(ft.ctx, containerName, blobName, destination, nil)
+		return err
+	}
 }
 
 func (ft *AzureFileTransfer) formatDownloadError(message string, err error) error {
