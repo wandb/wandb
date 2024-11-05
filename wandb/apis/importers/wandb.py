@@ -766,12 +766,12 @@ class WandbImporter:
         Use `namespace` to specify alternate settings like where the report should be uploaded
         """
         if namespace is None:
-            namespace = Namespace(report.entity, report.project.name)
+            namespace = Namespace(report.project.entity_name, report.project.name)
 
-        entity = coalesce(namespace.entity, report.entity)
-        project = coalesce(namespace.project, report.project)
+        entity = coalesce(namespace.entity, report.project.entity_name)
+        project = coalesce(namespace.project, report.project.name)
         report_id = report.id
-        title = report.title
+        title = report.name
         description = report.description
 
         api = self.dst_api
@@ -911,7 +911,7 @@ class WandbImporter:
         logger.info("Importing reports")
 
         def _import_report_wrapped(report: ReportViewspec):
-            namespace = Namespace(report.entity, report.project.name)
+            namespace = Namespace(report.project.entity_name, report.project.name)
             if remapping is not None and namespace in remapping:
                 namespace = remapping[namespace]
 
