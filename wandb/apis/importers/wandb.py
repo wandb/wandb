@@ -8,7 +8,6 @@ import os
 import re
 import shutil
 
-from black import Report
 from dataclasses import dataclass, field
 from datetime import datetime as dt
 from pathlib import Path
@@ -774,7 +773,7 @@ class WandbImporter:
         report_id = report.id
         title = report.title
         description = report.description
-        
+
         api = self.dst_api
 
         # We shouldn't need to upsert the project for every report
