@@ -540,7 +540,6 @@ class Run:
     _sweep_id: str | None
 
     _run_obj: RunRecord | None
-    # Use string literal annotation because of type reference loop
     _backend: wandb.sdk.backend.backend.Backend | None
     _internal_run_interface: wandb.sdk.interface.interface_queue.InterfaceQueue | None
     _wl: _WandbSetup | None
