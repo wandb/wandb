@@ -270,12 +270,12 @@ def test_run_not_resumed(wandb_init):
 
 
 def test_run_resumed(wandb_init):
-    run = wandb_init()
-    run.finish()
+    with wandb_init() as run:
+        run.config.update({"fruit": "banana"})
 
-    run = wandb_init(id=run.id, resume="must")
-    assert run.resumed is True
-    run.finish()
+    with wandb_init(id=run.id, resume="must") as run:
+        assert run.resumed is True
+        assert run.config.fruit == "banana"
 
 
 def test_run_sweepid(wandb_init):
