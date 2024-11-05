@@ -909,7 +909,7 @@ class WandbImporter:
 
         logger.info("Importing reports")
 
-        def _import_report_wrapped(report):
+        def _import_report_wrapped(report: wr.Report):
             namespace = Namespace(report.entity, report.project)
             if remapping is not None and namespace in remapping:
                 namespace = remapping[namespace]
@@ -1395,7 +1395,7 @@ class WandbImporter:
         def reports():
             for ns in namespaces:
                 for r in api.reports(ns.path):
-                    yield wr.Report.from_url(r.url)
+                    yield wr.Report.from_url(r.url, as_model=False)
 
         yield from itertools.islice(reports(), limit)
 
