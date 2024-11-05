@@ -5,8 +5,6 @@ import json
 import threading
 from typing import Any, Iterator
 
-import fastapi
-
 
 class WandbBackendSpy:
     """A spy that intercepts interactions with the W&B backend."""
@@ -34,23 +32,55 @@ class WandbBackendSpy:
             finally:
                 snapshot._spy = None
 
-    def post_graphql(self, contents: bytes) -> fastapi.Response | None:
-        """Intercept a GraphQL request."""
-        return None
+    def post_graphql(
+        self,
+        request_raw: bytes,
+        response_raw: bytes,
+    ) -> None:
+        """Spy on a GraphQL request and response."""
+        request = json.loads(request_raw)
+
+        with self._lock:
+            query: str | None = request.get("query")
+            variables: dict[str, Any] | None = request.get("variables")
+            if query is None or variables is None:
+                return
+
+            self._spy_run_config(query, variables)
+
+    def _spy_run_config(self, query: str, variables: dict[str, Any]) -> None:
+        """Detect changes to run config.
+
+        Requires self._lock.
+        """
+        # NOTE: This is an exact-string match to the query we send.
+        # It does not depend on the GraphQL schema.
+        if "mutation UpsertBucket" not in query:
+            return
+
+        if "config" not in variables:
+            return
+
+        run_id = variables["name"]
+        config = variables["config"]
+
+        run = self._runs.setdefault(run_id, _RunData())
+        run._config_json_string = config
 
     def post_file_stream(
         self,
-        contents: bytes,
+        request_raw: bytes,
+        response_raw: bytes,
         *,
         entity: str,
         project: str,
         run_id: str,
-    ) -> fastapi.Response | None:
-        """Intercept a FileStream request."""
+    ) -> None:
+        """Spy on a FileStream request and response."""
+        request = json.loads(request_raw)
+
         with self._lock:
             run = self._runs.setdefault(run_id, _RunData())
-
-            request = json.loads(contents)
 
             for file_name, file_data in request.get("files", {}).items():
                 file = run._file_stream_files.setdefault(file_name, {})
@@ -59,8 +89,6 @@ class WandbBackendSpy:
                 for line in file_data["content"]:
                     file[offset] = line
                     offset += 1
-
-        return None
 
 
 class WandbBackendSnapshot:
@@ -115,6 +143,28 @@ class WandbBackendSnapshot:
             return {}
         return json.loads(summary_file[last_line_offset])
 
+    def config(self, *, run_id: str) -> dict[str, Any]:
+        """Returns the config for the run as a JSON object.
+
+        Args:
+            run_id: The ID of the run.
+
+        Raises:
+            KeyError: if the run does not exist.
+            AssertionError: if no config was uploaded for the run.
+        """
+        spy = self._assert_valid()
+
+        try:
+            config = spy._runs[run_id]._config_json_string
+        except KeyError as e:
+            raise KeyError(f"No run with ID {run_id}") from e
+
+        if config is None:
+            raise AssertionError(f"No config for run {run_id}")
+
+        return json.loads(config)
+
     def _assert_valid(self) -> WandbBackendSpy:
         """Raise an error if we're not inside freeze()."""
         if not self._spy:
@@ -126,3 +176,4 @@ class WandbBackendSnapshot:
 class _RunData:
     def __init__(self) -> None:
         self._file_stream_files: dict[str, dict[int, Any]] = {}
+        self._config_json_string: str | None = None
