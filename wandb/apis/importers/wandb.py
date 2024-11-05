@@ -1427,13 +1427,9 @@ class WandbImporter:
         def reports():
             for ns in namespaces:
                 for r in api.reports(ns.path):
-                    print(f"Collecting report {r.url}")
-                    try:
-                        logger.info("Collecting Report with v2")
-                        yield wr.Report.from_url(r.url, as_model=True)
-                    finally:
-                        logger.info("Collecting Report with v1")
-                        yield wr1.Report.from_url(r.url)
+                    ## Need to yield with v1 and v2
+                    yield wr.Report.from_url(r.url, as_model=True)
+                    yield wr1.Report.from_url(r.url)
 
         yield from itertools.islice(reports(), limit)
 
