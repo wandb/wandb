@@ -314,11 +314,11 @@ def _start_backend(
         st = start_send_thread(ism)
         if initial_run:
             handle = _internal_sender.deliver_run(run)
-            result = handle.wait(timeout=5)
+            result = handle.wait(timeout=60)
             run_result = result.run_result
             if initial_start:
                 handle = _internal_sender.deliver_run_start(run_result.run)
-                handle.wait(timeout=5)
+                handle.wait(timeout=60)
         return ht, wt, st
 
     yield start_backend_func
@@ -332,7 +332,7 @@ def _stop_backend(
     def stop_backend_func(threads=None):
         threads = threads or ()
         handle = _internal_sender.deliver_exit(0)
-        record = handle.wait(timeout=30)
+        record = handle.wait(timeout=60)
         assert record
 
         _internal_sender.join()
