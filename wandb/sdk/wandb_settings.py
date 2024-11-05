@@ -79,7 +79,7 @@ class Settings(BaseModel, validate_assignment=True):
     https_proxy: str | None = None
     # file path to supply a jwt for authentication
     identity_token_file: str | None = None
-    ignore_globs: tuple[str] = ()
+    ignore_globs: tuple[str, ...] = ()
     init_timeout: float = 90.0
     job_name: str | None = None
     job_source: Literal["repo", "artifact", "image"] | None = None
@@ -107,7 +107,7 @@ class Settings(BaseModel, validate_assignment=True):
     run_job_type: str | None = None
     run_name: str | None = None
     run_notes: str | None = None
-    run_tags: tuple[str] | None = None
+    run_tags: tuple[str, ...] | None = None
     sagemaker_disable: bool = False
     save_code: bool | None = None
     settings_system: str = os.path.join("~", ".config", "wandb", "settings")
