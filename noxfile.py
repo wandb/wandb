@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import pathlib
 import platform
@@ -5,7 +7,7 @@ import re
 import shutil
 import time
 from contextlib import contextmanager
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable
 
 import nox
 
@@ -66,7 +68,7 @@ def site_packages_dir(session: nox.Session) -> pathlib.Path:
         )
 
 
-def get_circleci_splits(session: nox.Session) -> Optional[Tuple[int, int]]:
+def get_circleci_splits(session: nox.Session) -> tuple[int, int]:
     """Returns the test splitting arguments from our CircleCI config.
 
     When using test splitting, CircleCI sets the CIRCLE_NODE_TOTAL and
@@ -87,10 +89,12 @@ def get_circleci_splits(session: nox.Session) -> Optional[Tuple[int, int]]:
 
 def run_pytest(
     session: nox.Session,
-    paths: List[str],
+    paths: list[str],
+    opts: dict[str, str] | None = None,
 ) -> None:
     session_file_name = get_session_file_name(session)
 
+    opts = opts or {}
     pytest_opts = []
     pytest_env = {
         "USERNAME": session.env.get("USERNAME"),
@@ -107,7 +111,7 @@ def run_pytest(
     }
 
     # Print 20 slowest tests.
-    pytest_opts.append("--durations=20")
+    pytest_opts.append(f"--durations={opts.get('durations', 20)}")
 
     # Output test results for tooling.
     junitxml = _NOX_PYTEST_RESULTS_DIR / session_file_name / "junit.xml"
@@ -115,10 +119,10 @@ def run_pytest(
     session.notify("combine_test_results")
 
     # (pytest-timeout) Per-test timeout.
-    pytest_opts.append("--timeout=300")
+    pytest_opts.append(f"--timeout={opts.get('timeout', 300)}")
 
     # (pytest-xdist) Run tests in parallel.
-    pytest_opts.append("-n=auto")
+    pytest_opts.append(f"-n={opts.get('n', 'auto')}")
 
     # (pytest-split) Run a subset of tests only (for external parallelism).
     (circle_node_index, circle_node_total) = get_circleci_splits(session)
@@ -239,6 +243,11 @@ def functional_tests(session: nox.Session):
     run_pytest(
         session,
         paths=(session.posargs or ["tests/system_tests/test_functional"]),
+        # the default n=auto spins up too many workers on CircleCI as it's
+        # based on the number of detected CPUs in the system, and doesn't
+        # take into account the number of available CPUs in the container,
+        # which results in OOM errors.
+        opts={"n": "4"},
     )
 
 
@@ -342,11 +351,11 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     To run this for a specific release tag, use:
     nox -s local-testcontainer-registry -- <release_tag>
     """
-    tags: List[str] = session.posargs or []
+    tags: list[str] = session.posargs or []
 
     import subprocess
 
-    def query_github(payload: dict[str, str]) -> dict[str, str]:
+    def query_github(payload: dict[str, Any]) -> dict[str, Any]:
         import json
 
         import requests
@@ -362,7 +371,7 @@ def local_testcontainer_registry(session: nox.Session) -> None:
 
         return data
 
-    def get_release_tag_and_commit_hash(tags: List[str]):
+    def get_release_tag_and_commit_hash(tags: list[str]):
         if not tags:
             # Get the latest release tag and commit hash
             query = """
@@ -377,9 +386,8 @@ def local_testcontainer_registry(session: nox.Session) -> None:
             }
             }
             """
-            payload = {"query": query}
 
-            data = query_github(payload)
+            data = query_github({"query": query})
 
             return (
                 data["data"]["repository"]["latestRelease"]["tagName"],
@@ -398,11 +406,17 @@ def local_testcontainer_registry(session: nox.Session) -> None:
             }
             }
             """
-            # TODO: allow passing multiple tags?
-            variables = {"owner": "wandb", "repo": "core", "tag": tags[0]}
-            payload = {"query": query, "variables": variables}
 
-            data = query_github(payload)
+            data = query_github(
+                {
+                    "query": query,
+                    "variables": {
+                        "owner": "wandb",
+                        "repo": "core",
+                        "tag": tags[0],
+                    },
+                }
+            )
 
             return tags[0], data["data"]["repository"]["ref"]["target"]["oid"]
 
@@ -564,7 +578,6 @@ def mypy_report(session: nox.Session) -> None:
         "lxml",
         "pandas-stubs",
         "platformdirs",
-        "types-click",
         "types-jsonschema",
         "types-openpyxl",
         "types-Pillow",
@@ -611,7 +624,7 @@ def mypy_report(session: nox.Session) -> None:
     )
 
 
-def python_coverage_env(session: nox.Session) -> Dict[str, str]:
+def python_coverage_env(session: nox.Session) -> dict[str, str]:
     """Returns environment variables configuring Python coverage output.
 
     Configures the 'coverage' tool https://coverage.readthedocs.io/en/latest/
@@ -630,7 +643,7 @@ def python_coverage_env(session: nox.Session) -> Dict[str, str]:
     return {"COVERAGE_FILE": str(pycovfile.absolute())}
 
 
-def go_coverage_env(session: nox.Session) -> Dict[str, str]:
+def go_coverage_env(session: nox.Session) -> dict[str, str]:
     """Returns environment variables configuring Go coverage output.
 
     Intended for use with the "coverage" session.
@@ -726,14 +739,17 @@ def bump_go_version(session: nox.Session) -> None:
     """Bump the Go version."""
     install_timed(session, "bump2version", "requests")
 
-    # Get the latest Go version
-    latest_version = session.run(
+    # Get the latest Go version.
+    get_go_version_output = session.run(
         "./tools/get_go_version.py",
         silent=True,
         external=True,
     )
-    latest_version = latest_version.strip()
 
+    # Guaranteed by silent=True above, but poorly documented in nox.
+    assert isinstance(get_go_version_output, str)
+
+    latest_version = get_go_version_output.strip()
     session.log(f"Latest Go version: {latest_version}")
 
     # Run bump2version with the fetched version
@@ -747,27 +763,6 @@ def bump_go_version(session: nox.Session) -> None:
         "--no-commit",
         "--allow-dirty",
         external=True,
-    )
-
-
-@nox.session(python=_SUPPORTED_PYTHONS)
-def launch_release_tests(session: nox.Session) -> None:
-    """Run launch-release tests.
-
-    See tests/release_tests/test_launch/README.md for more info.
-    """
-    install_wandb(session)
-    install_timed(
-        session,
-        "pytest",
-        "wandb[launch]",
-    )
-
-    session.run("wandb", "login")
-
-    run_pytest(
-        session,
-        paths=session.posargs or ["tests/release_tests/test_launch/"],
     )
 
 

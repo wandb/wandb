@@ -21,9 +21,8 @@ from requests.utils import NETRC_FILES, get_netrc_auth
 import wandb
 from wandb.apis import InternalApi
 from wandb.errors import term
+from wandb.errors.links import url_registry
 from wandb.util import _is_databricks, isatty, prompt_choices
-
-from .wburls import wburls
 
 LOGIN_CHOICE_ANON = "Private W&B dashboard, no account required"
 LOGIN_CHOICE_NEW = "Create a W&B account"
@@ -156,7 +155,8 @@ def prompt_api_key(  # noqa: C901
                     if app_url.startswith(prefix):
                         host = app_url[len(prefix) :]
                 wandb.termlog(
-                    f"Logging into {host}. (Learn how to deploy a W&B server locally: {wburls.get('wandb_server')})"
+                    f"Logging into {host}. (Learn how to deploy a W&B server "
+                    f"locally: {url_registry.url('wandb-server')})"
                 )
             wandb.termlog(
                 f"You can find your API key in your browser here: {app_url}/authorize"

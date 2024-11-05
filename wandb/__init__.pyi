@@ -52,6 +52,8 @@ __all__ = (
     "Settings",
     "teardown",
     "watch",
+    "unwatch",
+    "plot",
 )
 
 import os
@@ -67,6 +69,7 @@ from typing import (
     Union,
 )
 
+import wandb.plot as plot
 from wandb.analytics import Sentry
 from wandb.apis import InternalApi, PublicApi
 from wandb.data_types import (
@@ -97,7 +100,7 @@ if TYPE_CHECKING:
 
     from wandb.plot.viz import CustomChart
 
-__version__: str = "0.18.4.dev1"
+__version__: str = "0.18.6.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -183,32 +186,32 @@ def teardown(exit_code: Optional[int] = None) -> None:
     ...
 
 def init(
-    job_type: Optional[str] = None,
-    dir: Optional[StrPath] = None,
-    config: Union[Dict, str, None] = None,
-    project: Optional[str] = None,
-    entity: Optional[str] = None,
-    reinit: Optional[bool] = None,
-    tags: Optional[Sequence] = None,
-    group: Optional[str] = None,
-    name: Optional[str] = None,
-    notes: Optional[str] = None,
-    magic: Optional[Union[dict, str, bool]] = None,
-    config_exclude_keys: Optional[List[str]] = None,
-    config_include_keys: Optional[List[str]] = None,
-    anonymous: Optional[str] = None,
-    mode: Optional[str] = None,
-    allow_val_change: Optional[bool] = None,
-    resume: Optional[Union[bool, str]] = None,
-    force: Optional[bool] = None,
-    tensorboard: Optional[bool] = None,
-    sync_tensorboard: Optional[bool] = None,
-    monitor_gym: Optional[bool] = None,
-    save_code: Optional[bool] = None,
-    id: Optional[str] = None,
-    fork_from: Optional[str] = None,
-    resume_from: Optional[str] = None,
-    settings: Union[Settings, Dict[str, Any], None] = None,
+    job_type: str | None = None,
+    dir: StrPath | None = None,
+    config: dict | str | None = None,
+    project: str | None = None,
+    entity: str | None = None,
+    reinit: bool | None = None,
+    tags: Sequence | None = None,
+    group: str | None = None,
+    name: str | None = None,
+    notes: str | None = None,
+    magic: dict | str | bool | None = None,
+    config_exclude_keys: list[str] | None = None,
+    config_include_keys: list[str] | None = None,
+    anonymous: str | None = None,
+    mode: str | None = None,
+    allow_val_change: bool | None = None,
+    resume: bool | str | None = None,
+    force: bool | None = None,
+    tensorboard: bool | None = None,  # alias for sync_tensorboard
+    sync_tensorboard: bool | None = None,
+    monitor_gym: bool | None = None,
+    save_code: bool | None = None,
+    id: str | None = None,
+    fork_from: str | None = None,
+    resume_from: str | None = None,
+    settings: Settings | dict[str, Any] | None = None,
 ) -> Run:
     r"""Start a new run to track and log to W&B.
 
@@ -248,7 +251,7 @@ def init(
     For more on using `wandb.init()`, including detailed examples, check out our
     [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 
-    Arguments:
+    Args:
         project: (str, optional) The name of the project where you're sending
             the new run. If the project is not specified, we will try to infer
             the project name from git root or the current program file. If we
@@ -371,11 +374,11 @@ def init(
             for saving hyperparameters to compare across runs. The ID cannot
             contain the following special characters: `/\#?%:`.
             See [our guide to resuming runs](https://docs.wandb.com/guides/runs/resuming).
-        fork_from: (str, optional) A string with the format {run_id}?_step={step} describing
+        fork_from: (str, optional) A string with the format `{run_id}?_step={step}` describing
             a moment in a previous run to fork a new run from. Creates a new run that picks up
             logging history from the specified run at the specified moment. The target run must
             be in the current project. Example: `fork_from="my-run-id?_step=1234"`.
-        resume_from: (str, optional) A string with the format {run_id}?_step={step} describing
+        resume_from: (str, optional) A string with the format `{run_id}?_step={step}` describing
             a moment in a previous run to resume a run from. This allows users to truncate
             the history logged to a run at an intermediate step and resume logging from that step.
             It uses run forking under the hood. The target run must be in the
@@ -428,7 +431,7 @@ def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
     This is used when creating multiple runs in the same process.
     We automatically call this method when your script exits.
 
-    Arguments:
+    Args:
         exit_code: Set to something other than 0 to mark a run as failed
         quiet: Set to true to minimize log output
     """
@@ -449,7 +452,7 @@ def login(
     verifying them with the W&B server. To verify credentials, pass
     `verify=True`.
 
-    Arguments:
+    Args:
         anonymous: (string, optional) Can be "must", "allow", or "never".
             If set to "must", always log a user in anonymously. If set to
             "allow", only create an anonymous user if the user
@@ -502,7 +505,7 @@ def log(
     [guides to logging](https://docs.wandb.ai/guides/track/log) for examples,
     from 3D molecular structures and segmentation masks to PR curves and histograms.
     You can use `wandb.Table` to log structured data. See our
-    [guide to logging tables](https://docs.wandb.ai/guides/data-vis/log-tables)
+    [guide to logging tables](https://docs.wandb.ai/guides/tables/tables-walkthrough)
     for details.
 
     The W&B UI organizes metrics with a forward slash (`/`) in their name
@@ -565,7 +568,7 @@ def log(
     run.log({"accuracy": 0.9}, step=current_step)
     ```
 
-    Arguments:
+    Args:
         data: A `dict` with `str` keys and values that are serializable
             Python objects including: `int`, `float` and `string`;
             any of the `wandb.data_types`; lists, tuples and NumPy arrays
@@ -744,7 +747,7 @@ def save(
     Note: when given an absolute path or glob and no `base_path`, one
     directory level is preserved as in the example above.
 
-    Arguments:
+    Args:
         glob_str: A relative or absolute path or Unix glob.
         base_path: A path to use to infer a directory structure; see examples.
         policy: One of `live`, `now`, or `end`.
@@ -829,7 +832,7 @@ def agent(
     is a part of, what function to execute, and (optionally) how
     many agents to run.
 
-    Arguments:
+    Args:
         sweep_id: The unique identifier for a sweep. A sweep ID
             is generated by W&B CLI or Python SDK.
         function: A function to call instead of the "program"
@@ -857,7 +860,7 @@ def define_metric(
 ) -> wandb_metric.Metric:
     """Customize metrics logged with `wandb.log()`.
 
-    Arguments:
+    Args:
         name: The name of the metric to customize.
         step_metric: The name of another metric to serve as the X-axis
             for this metric in automatically generated charts.
@@ -892,7 +895,7 @@ def log_artifact(
 ) -> Artifact:
     """Declare an artifact as an output of a run.
 
-    Arguments:
+    Args:
         artifact_or_path: (str or Artifact) A path to the contents of this artifact,
             can be in the following forms:
                 - `/local/directory`
@@ -926,10 +929,11 @@ def use_artifact(
 
     Call `download` or `file` on the returned object to get the contents locally.
 
-    Arguments:
+    Args:
         artifact_or_name: (str or Artifact) An artifact name.
-            May be prefixed with entity/project/. Valid names
-            can be in the following forms:
+            May be prefixed with project/ or entity/project/.
+            If no entity is specified in the name, the Run or API setting's entity is used.
+            Valid names can be in the following forms:
                 - name:version
                 - name:alias
             You can also pass an Artifact object created by calling `wandb.Artifact`
@@ -950,7 +954,7 @@ def log_model(
 ) -> None:
     """Logs a model artifact containing the contents inside the 'path' to a run and marks it as an output to this run.
 
-    Arguments:
+    Args:
         path: (str) A path to the contents of this model,
             can be in the following forms:
                 - `/local/directory`
@@ -992,7 +996,7 @@ def log_model(
 def use_model(name: str) -> FilePathStr:
     """Download the files logged in a model artifact 'name'.
 
-    Arguments:
+    Args:
         name: (str) A model artifact name. 'name' must match the name of an existing logged
             model artifact.
             May be prefixed with entity/project/. Valid names
@@ -1049,7 +1053,7 @@ def link_model(
         - Link version of model artifact 'name' to registered model, 'registered_model_name'.
         - Attach aliases from 'aliases' list to the newly linked model artifact version.
 
-    Arguments:
+    Args:
         path: (str) A path to the contents of this model,
             can be in the following forms:
                 - `/local/directory`
@@ -1106,11 +1110,11 @@ def plot_table(
     data_table: Table,
     fields: dict[str, Any],
     string_fields: dict[str, Any] | None = None,
-    split_table: bool | None = False,
+    split_table: bool = False,
 ) -> CustomChart:
     """Create a custom plot on a table.
 
-    Arguments:
+    Args:
         vega_spec_name: the name of the spec for the plot
         data_table: a wandb.Table object containing the data to
             be used on the visualization
@@ -1130,7 +1134,7 @@ def watch(
     log_freq: int = 1000,
     idx: int | None = None,
     log_graph: bool = False,
-) -> Graph:
+) -> None:
     """Hooks into the given PyTorch model(s) to monitor gradients and the model's computational graph.
 
     This function can track parameters, gradients, or both during training. It should be
@@ -1148,16 +1152,23 @@ def watch(
             Frequency (in batches) to log gradients and parameters. (default=1000)
         idx (Optional[int]):
             Index used when tracking multiple models with `wandb.watch`. (default=None)
-         log_graph (bool):
+        log_graph (bool):
             Whether to log the model's computational graph. (default=False)
-
-    Returns:
-        wandb.Graph:
-            The graph object, which will be populated after the first backward pass.
 
     Raises:
         ValueError:
             If `wandb.init` has not been called or if any of the models are not instances
             of `torch.nn.Module`.
+    """
+    ...
+
+def unwatch(
+    models: torch.nn.Module | Sequence[torch.nn.Module] | None = None,
+) -> None:
+    """Remove pytorch model topology, gradient and parameter hooks.
+
+    Args:
+        models (torch.nn.Module | Sequence[torch.nn.Module]):
+            Optional list of pytorch models that have had watch called on them
     """
     ...

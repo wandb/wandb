@@ -190,7 +190,7 @@ def box3d(
 class Object3D(BatchableMedia):
     """Wandb class for 3D point clouds.
 
-    Arguments:
+    Args:
         data_or_path: (numpy array, string, io)
             Object3D can be initialized from a file or a numpy array.
 
@@ -341,7 +341,7 @@ class Object3D(BatchableMedia):
     ) -> "Object3D":
         """Initializes Object3D from a file or stream.
 
-        Arguments:
+        Args:
             data_or_path (Union["TextIO", str]): A path to a file or a `TextIO` stream.
             file_type (str): Specifies the data format passed to `data_or_path`. Required when `data_or_path` is a
                 `TextIO` stream. This parameter is ignored if a file path is provided. The type is taken from the file extension.
@@ -356,7 +356,7 @@ class Object3D(BatchableMedia):
     def from_numpy(cls, data: "np.ndarray") -> "Object3D":
         """Initializes Object3D from a numpy array.
 
-        Arguments:
+        Args:
             data (numpy array): Each entry in the array will
                 represent one point in the point cloud.
 
@@ -394,7 +394,7 @@ class Object3D(BatchableMedia):
     ) -> "Object3D":
         """Initializes Object3D from a python object.
 
-        Arguments:
+        Args:
             points (Sequence["Point"]): The points in the point cloud.
             boxes (Sequence["Box3D"]): 3D bounding boxes for labeling the point cloud. Boxes
             are displayed in point cloud visualizations.

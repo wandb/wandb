@@ -290,6 +290,22 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 			}
 			return nil
 		},
+		// For MI300X GPUs, instead of "Average Graphics Package Power (W)",
+		// "Current Socket Graphics Package Power (W)" is reported.
+		"Current Socket Graphics Package Power (W)": func(s string) *Stats {
+			maxPowerWatts, ok := queryMapString(stats, "Max Graphics Package Power (W)")
+			if !ok {
+				return nil
+			}
+			mp, err1 := parseFloat(maxPowerWatts)
+			cp, err2 := parseFloat(s)
+
+			if err1 == nil && err2 == nil && cp != 0 {
+				powerStats := Stats{PowerWatts: cp, PowerPercent: (cp / mp) * 100}
+				return &powerStats
+			}
+			return nil
+		},
 	} {
 		strVal, ok := queryMapString(stats, key)
 		if ok {

@@ -179,6 +179,11 @@ type AnalyticsS3BucketDestination struct {
 // In terms of implementation, a Bucket is a resource.
 type Bucket struct {
 
+	// BucketRegion indicates the Amazon Web Services region where the bucket is
+	// located. If the request contains at least one valid parameter, it is included in
+	// the response.
+	BucketRegion *string
+
 	// Date the bucket was created. This date can change when making changes to your
 	// bucket, such as editing its bucket policy.
 	CreationDate *time.Time
@@ -2205,7 +2210,7 @@ type LifecycleRule struct {
 	// The Filter is used to identify objects that a Lifecycle Rule applies to. A
 	// Filter must have exactly one of Prefix , Tag , or And specified. Filter is
 	// required if the LifecycleRule does not contain a Prefix element.
-	Filter LifecycleRuleFilter
+	Filter *LifecycleRuleFilter
 
 	// Unique identifier for the rule. The value cannot be longer than 255 characters.
 	ID *string
@@ -2266,69 +2271,32 @@ type LifecycleRuleAndOperator struct {
 // Filter can have exactly one of Prefix , Tag , ObjectSizeGreaterThan ,
 // ObjectSizeLessThan , or And specified. If the Filter element is left empty, the
 // Lifecycle Rule applies to all objects in the bucket.
-//
-// The following types satisfy this interface:
-//
-//	LifecycleRuleFilterMemberAnd
-//	LifecycleRuleFilterMemberObjectSizeGreaterThan
-//	LifecycleRuleFilterMemberObjectSizeLessThan
-//	LifecycleRuleFilterMemberPrefix
-//	LifecycleRuleFilterMemberTag
-type LifecycleRuleFilter interface {
-	isLifecycleRuleFilter()
-}
+type LifecycleRuleFilter struct {
 
-// This is used in a Lifecycle Rule Filter to apply a logical AND to two or more
-// predicates. The Lifecycle Rule will apply to any object matching all of the
-// predicates configured inside the And operator.
-type LifecycleRuleFilterMemberAnd struct {
-	Value LifecycleRuleAndOperator
+	// This is used in a Lifecycle Rule Filter to apply a logical AND to two or more
+	// predicates. The Lifecycle Rule will apply to any object matching all of the
+	// predicates configured inside the And operator.
+	And *LifecycleRuleAndOperator
 
-	noSmithyDocumentSerde
-}
+	// Minimum object size to which the rule applies.
+	ObjectSizeGreaterThan *int64
 
-func (*LifecycleRuleFilterMemberAnd) isLifecycleRuleFilter() {}
+	// Maximum object size to which the rule applies.
+	ObjectSizeLessThan *int64
 
-// Minimum object size to which the rule applies.
-type LifecycleRuleFilterMemberObjectSizeGreaterThan struct {
-	Value int64
+	// Prefix identifying one or more objects to which the rule applies.
+	//
+	// Replacement must be made for object keys containing special characters (such as
+	// carriage returns) when using XML requests. For more information, see [XML related object key constraints].
+	//
+	// [XML related object key constraints]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-xml-related-constraints
+	Prefix *string
+
+	// This tag must exist in the object's tag set in order for the rule to apply.
+	Tag *Tag
 
 	noSmithyDocumentSerde
 }
-
-func (*LifecycleRuleFilterMemberObjectSizeGreaterThan) isLifecycleRuleFilter() {}
-
-// Maximum object size to which the rule applies.
-type LifecycleRuleFilterMemberObjectSizeLessThan struct {
-	Value int64
-
-	noSmithyDocumentSerde
-}
-
-func (*LifecycleRuleFilterMemberObjectSizeLessThan) isLifecycleRuleFilter() {}
-
-// Prefix identifying one or more objects to which the rule applies.
-//
-// Replacement must be made for object keys containing special characters (such as
-// carriage returns) when using XML requests. For more information, see [XML related object key constraints].
-//
-// [XML related object key constraints]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-xml-related-constraints
-type LifecycleRuleFilterMemberPrefix struct {
-	Value string
-
-	noSmithyDocumentSerde
-}
-
-func (*LifecycleRuleFilterMemberPrefix) isLifecycleRuleFilter() {}
-
-// This tag must exist in the object's tag set in order for the rule to apply.
-type LifecycleRuleFilterMemberTag struct {
-	Value Tag
-
-	noSmithyDocumentSerde
-}
-
-func (*LifecycleRuleFilterMemberTag) isLifecycleRuleFilter() {}
 
 // Specifies the location where the bucket will be created.
 //
@@ -3122,7 +3090,7 @@ type PublicAccessBlockConfiguration struct {
 
 	// Specifies whether Amazon S3 should restrict public bucket policies for this
 	// bucket. Setting this element to TRUE restricts access to this bucket to only
-	// Amazon Web Servicesservice principals and authorized users within this account
+	// Amazon Web Services service principals and authorized users within this account
 	// if the bucket has a public policy.
 	//
 	// Enabling this setting doesn't affect previously stored bucket policies, except
@@ -3316,7 +3284,7 @@ type ReplicationRule struct {
 	// A filter that identifies the subset of objects to which the replication rule
 	// applies. A Filter must specify exactly one Prefix , Tag , or an And child
 	// element.
-	Filter ReplicationRuleFilter
+	Filter *ReplicationRuleFilter
 
 	// A unique identifier for the rule. The maximum value is 255 characters.
 	ID *string
@@ -3380,58 +3348,35 @@ type ReplicationRuleAndOperator struct {
 // A filter that identifies the subset of objects to which the replication rule
 // applies. A Filter must specify exactly one Prefix , Tag , or an And child
 // element.
-//
-// The following types satisfy this interface:
-//
-//	ReplicationRuleFilterMemberAnd
-//	ReplicationRuleFilterMemberPrefix
-//	ReplicationRuleFilterMemberTag
-type ReplicationRuleFilter interface {
-	isReplicationRuleFilter()
-}
+type ReplicationRuleFilter struct {
 
-// A container for specifying rule filters. The filters determine the subset of
-// objects to which the rule applies. This element is required only if you specify
-// more than one filter. For example:
-//
-//   - If you specify both a Prefix and a Tag filter, wrap these filters in an And
-//     tag.
-//
-//   - If you specify a filter based on multiple tags, wrap the Tag elements in an
-//     And tag.
-type ReplicationRuleFilterMemberAnd struct {
-	Value ReplicationRuleAndOperator
+	// A container for specifying rule filters. The filters determine the subset of
+	// objects to which the rule applies. This element is required only if you specify
+	// more than one filter. For example:
+	//
+	//   - If you specify both a Prefix and a Tag filter, wrap these filters in an And
+	//   tag.
+	//
+	//   - If you specify a filter based on multiple tags, wrap the Tag elements in an
+	//   And tag.
+	And *ReplicationRuleAndOperator
 
-	noSmithyDocumentSerde
-}
+	// An object key name prefix that identifies the subset of objects to which the
+	// rule applies.
+	//
+	// Replacement must be made for object keys containing special characters (such as
+	// carriage returns) when using XML requests. For more information, see [XML related object key constraints].
+	//
+	// [XML related object key constraints]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-xml-related-constraints
+	Prefix *string
 
-func (*ReplicationRuleFilterMemberAnd) isReplicationRuleFilter() {}
-
-// An object key name prefix that identifies the subset of objects to which the
-// rule applies.
-//
-// Replacement must be made for object keys containing special characters (such as
-// carriage returns) when using XML requests. For more information, see [XML related object key constraints].
-//
-// [XML related object key constraints]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-xml-related-constraints
-type ReplicationRuleFilterMemberPrefix struct {
-	Value string
+	// A container for specifying a tag key and value.
+	//
+	// The rule applies only to objects that have the tag in their tag set.
+	Tag *Tag
 
 	noSmithyDocumentSerde
 }
-
-func (*ReplicationRuleFilterMemberPrefix) isReplicationRuleFilter() {}
-
-// A container for specifying a tag key and value.
-//
-// The rule applies only to objects that have the tag in their tag set.
-type ReplicationRuleFilterMemberTag struct {
-	Value Tag
-
-	noSmithyDocumentSerde
-}
-
-func (*ReplicationRuleFilterMemberTag) isReplicationRuleFilter() {}
 
 //	A container specifying S3 Replication Time Control (S3 RTC) related
 //
@@ -3508,23 +3453,13 @@ type RestoreRequest struct {
 	// Describes the location where the restore job's output is stored.
 	OutputLocation *OutputLocation
 
-	// Amazon S3 Select is no longer available to new customers. Existing customers of
-	// Amazon S3 Select can continue to use the feature as usual. [Learn more]
-	//
 	// Describes the parameters for Select job types.
-	//
-	// [Learn more]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
 	SelectParameters *SelectParameters
 
 	// Retrieval tier at which the restore will be processed.
 	Tier Tier
 
-	// Amazon S3 Select is no longer available to new customers. Existing customers of
-	// Amazon S3 Select can continue to use the feature as usual. [Learn more]
-	//
 	// Type of restore request.
-	//
-	// [Learn more]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
 	Type RestoreRequestType
 
 	noSmithyDocumentSerde
@@ -3711,25 +3646,10 @@ type SelectObjectContentEventStreamMemberStats struct {
 
 func (*SelectObjectContentEventStreamMemberStats) isSelectObjectContentEventStream() {}
 
-// Amazon S3 Select is no longer available to new customers. Existing customers of
-// Amazon S3 Select can continue to use the feature as usual. [Learn more]
-//
 // Describes the parameters for Select job types.
-//
-// Learn [How to optimize querying your data in Amazon S3] using [Amazon Athena], [S3 Object Lambda], or client-side filtering.
-//
-// [Learn more]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
-// [How to optimize querying your data in Amazon S3]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
-// [Amazon Athena]: https://docs.aws.amazon.com/athena/latest/ug/what-is.html
-// [S3 Object Lambda]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/transforming-objects.html
 type SelectParameters struct {
 
-	// Amazon S3 Select is no longer available to new customers. Existing customers of
-	// Amazon S3 Select can continue to use the feature as usual. [Learn more]
-	//
 	// The expression that is used to query the object.
-	//
-	// [Learn more]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
 	//
 	// This member is required.
 	Expression *string
@@ -3763,7 +3683,8 @@ type SelectParameters struct {
 //     key for SSE-KMS.
 //
 //   - Directory buckets - Your SSE-KMS configuration can only support 1 [customer managed key]per
-//     directory bucket for the lifetime of the bucket. [Amazon Web Services managed key]( aws/s3 ) isn't supported.
+//     directory bucket for the lifetime of the bucket. The [Amazon Web Services managed key]( aws/s3 ) isn't
+//     supported.
 //
 //   - Directory buckets - For directory buckets, there are only two supported
 //     options for server-side encryption: SSE-S3 and SSE-KMS.
@@ -4224,7 +4145,5 @@ type UnknownUnionMember struct {
 }
 
 func (*UnknownUnionMember) isAnalyticsFilter()                {}
-func (*UnknownUnionMember) isLifecycleRuleFilter()            {}
 func (*UnknownUnionMember) isMetricsFilter()                  {}
-func (*UnknownUnionMember) isReplicationRuleFilter()          {}
 func (*UnknownUnionMember) isSelectObjectContentEventStream() {}

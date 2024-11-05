@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/wandb/wandb/core/pkg/server"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 
 	"net"
 
@@ -67,13 +67,13 @@ func (c *Connection) Recv() {
 	tokenizer := &server.Tokenizer{}
 	scanner.Split(tokenizer.Split)
 	for scanner.Scan() {
-		msg := &service.ServerResponse{}
+		msg := &spb.ServerResponse{}
 		err := proto.Unmarshal(scanner.Bytes(), msg)
 		if err != nil {
 			panic(err)
 		}
 		switch x := msg.ServerResponseType.(type) {
-		case *service.ServerResponse_ResultCommunicate:
+		case *spb.ServerResponse_ResultCommunicate:
 			c.Mbox.Respond(x.ResultCommunicate)
 		default:
 		}

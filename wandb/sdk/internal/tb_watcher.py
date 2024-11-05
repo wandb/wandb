@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import wandb
 from wandb import util
-from wandb.plot.viz import CustomChart
+from wandb.plot.custom_chart import CustomChart
 from wandb.sdk.interface.interface import GlobStr
 from wandb.sdk.lib import filesystem
 
@@ -73,7 +73,7 @@ def is_tfevents_file_created_by(
     if not path:
         raise ValueError("Path must be a nonempty string")
     basename = os.path.basename(path)
-    if basename.endswith(".profile-empty") or basename.endswith(".sagemaker-uploaded"):
+    if basename.endswith((".profile-empty", ".sagemaker-uploaded")):
         return False
     fname_components = basename.split(".")
     try:

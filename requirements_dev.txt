@@ -2,6 +2,13 @@
 
 astunparse; python_version < '3.9'
 
+click~=8.1
+filelock~=3.13
+pydantic~=2.9
+# For Pydantic to work with modern type annotations in older Pythons:
+eval-type-backport~=0.1.3; python_version < '3.8'
+eval-type-backport~=0.2.0; python_version >= '3.8' and python_version < '3.10'
+
 hypothesis
 hypothesis-fspaths
 
@@ -46,6 +53,7 @@ openai
 gymnasium < 1.0.0
 stable_baselines3
 
+requests~=2.23
 responses
 prometheus_client
 google-cloud-aiplatform

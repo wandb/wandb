@@ -45,11 +45,8 @@ def mocked_ipython():
         print("Running cell: ", cell)
         exec(cell)
 
-    with patch("wandb.sdk.lib.ipython._get_python_type") as ipython_get_type, patch(
-        "wandb.sdk.wandb_settings._get_python_type"
-    ) as settings_get_type:
-        ipython_get_type.return_value = "jupyter"
-        settings_get_type.return_value = "jupyter"
+    with patch("wandb.sdk.lib.ipython._get_python_type") as _get_python_type:
+        _get_python_type.return_value = "jupyter"
         html_mock = MagicMock()
         with patch("wandb.sdk.lib.ipython.display_html", html_mock):
             ipython = MagicMock()
@@ -186,7 +183,7 @@ def notebook(user, run_id, assets_path):
             "import pytest\n"
             "mp = pytest.MonkeyPatch()\n"
             "import wandb\n"
-            f"mp.setattr(wandb.sdk.wandb_settings, '_get_python_type', lambda: '{notebook_type}')"
+            f"mp.setattr(wandb.sdk.lib.ipython, '_get_python_type', lambda: '{notebook_type}')"
         )
 
         # inject:

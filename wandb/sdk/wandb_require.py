@@ -16,7 +16,6 @@ import wandb
 from wandb.env import _REQUIRE_LEGACY_SERVICE
 from wandb.errors import UnsupportedError
 from wandb.sdk import wandb_run
-from wandb.sdk.lib.wburls import wburls
 
 
 class _Requires:
@@ -63,9 +62,7 @@ class _Requires:
             func()
 
         if last_message:
-            wandb.termerror(
-                f"Supported wandb.require() features can be found at: {wburls.get('doc_require')}"
-            )
+            wandb.termwarn("Supported requirements are: `legacy-service`, `service`.")
             raise UnsupportedError(last_message)
 
 
