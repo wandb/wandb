@@ -758,7 +758,7 @@ class WandbImporter:
                 run.delete(delete_artifacts=False)
 
     def _import_report(
-        self, report, *, namespace: Optional[Namespace] = None
+        self, report: wr.Report, *, namespace: Optional[Namespace] = None
     ) -> None:
         """Import one wandb.Report.
 
@@ -766,15 +766,6 @@ class WandbImporter:
         """
         if namespace is None:
             namespace = Namespace(report.entity, report.project)
-
-        is_v2 = False
-
-        if type(report) is ReportViewspec:
-            report: ReportViewspec
-            report = wr.Report.from_model(report)
-            is_v2 = True
-        else:
-            report: wr1.Report
 
         entity = coalesce(namespace.entity, report.entity)
         project = coalesce(namespace.project, report.project)
@@ -792,43 +783,20 @@ class WandbImporter:
             if e.response.status_code != 409:
                 logger.warning(f"Issue upserting {entity=}/{project=}, {e=}")
 
-        #new_report_spec = None
-        #if report.entity != entity:
-        #    logger.info("Replacing old instances of entity for the new entity")
-        #    new_report_spec = replace_json_key_value(report.spec, "entityName", entity)
-
-        #report_spec = coalesce(new_report_spec, report.spec)
-        #logger.info(f"{report_spec=}")
-
         logger.info(f"Upserting report {entity=}, {project=}, {id=}, {title=}")
-        if is_v2:
-            api.client.execute(
-                upsert_view,
-                variable_values={
-                    "id": None,  # Is there any benefit for this to be the same as default report?
-                    "name": id,
-                    "entityName": entity,
-                    "projectName": project,
-                    "description": description,
-                    "displayName": title,
-                    "type": "runs",
-                    "spec": report.to_model().spec.json(),
-                },
-            )
-        else:
-            api.client.execute(
-                upsert_view,
-                variable_values={
-                    "id": None,  # Is there any benefit for this to be the same as default report?
-                    "name": id,
-                    "entityName": entity,
-                    "projectName": project,
-                    "description": description,
-                    "displayName": title,
-                    "type": "runs",
-                    "spec": json.dumps(report.spec),
-                },
-            )
+        api.client.execute(
+            upsert_view,
+            variable_values={
+                "id": None,  # Is there any benefit for this to be the same as default report?
+                "name": id,
+                "entityName": entity,
+                "projectName": project,
+                "description": description,
+                "displayName": title,
+                "type": "runs",
+                "spec": report.to_model().spec.model_dump_json(by_alias=True, exclude_none=True),
+            },
+        )
 
     def _use_artifact_sequence(
         self,
@@ -1427,9 +1395,7 @@ class WandbImporter:
         def reports():
             for ns in namespaces:
                 for r in api.reports(ns.path):
-                    ## Need to yield with v1 and v2
-                    yield wr.Report.from_url(r.url, as_model=True)
-                    yield wr1.Report.from_url(r.url)
+                    yield wr.Report.from_url(r.url)
 
         yield from itertools.islice(reports(), limit)
 
