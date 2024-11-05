@@ -423,7 +423,35 @@ def _start_container(
         _echo_info(f"Running command: {shlex.join(command)}")
 
     subprocess.check_call(command, stdout=sys.stderr)
+    return _get_ports_retrying(name)
 
+
+def _get_ports_retrying(name: str) -> _WandbContainerPorts:
+    """Returns the local-testcontainer's ports.
+
+    Retries up to one second before failing.
+    """
+    ports = None
+    ports_start_time = time.monotonic()
+    while not ports and time.monotonic() - ports_start_time < 1:
+        ports = _get_ports(name)
+        if not ports:
+            time.sleep(0.1)
+
+    if not ports:
+        _echo_bad("Failed to get ports from container.")
+        sys.exit(1)
+
+    return ports
+
+
+def _get_ports(name: str) -> _WandbContainerPorts | None:
+    """Query the container's ports.
+
+    Returns None if the container's ports are not available yet. On occasion,
+    `docker port` doesn't return all ports if it happens too soon after
+    `docker run`.
+    """
     ports_str = subprocess.check_output(["docker", "port", name]).decode()
 
     port_line_re = re.compile(r"(\d+)(\/\w+)? -> [^:]*:(\d+)")
@@ -443,9 +471,9 @@ def _start_container(
             fixture_port = int(external_port)
 
     if not base_port:
-        raise AssertionError(f"Couldn't determine W&B base port: {ports_str}")
+        return None
     if not fixture_port:
-        raise AssertionError(f"Couldn't determine W&B fixture port: {ports_str}")
+        return None
 
     return _WandbContainerPorts(
         base_port=base_port,

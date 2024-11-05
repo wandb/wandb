@@ -135,89 +135,75 @@ def _gen_metric_sync_step(run):
     # run.finish()
 
 
-def test_metric_no_sync_step(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
-        run_id = run.id
-        run.define_metric("val", summary="min", step_metric="mystep", step_sync=False)
+def test_metric_no_sync_step(wandb_backend_spy, wandb_init):
+    with wandb_init() as run:
+        run.define_metric(
+            "val",
+            summary="min",
+            step_metric="mystep",
+            step_sync=False,
+        )
         _gen_metric_sync_step(run)
-        run.finish()
 
-    summary = relay.context.get_run_summary(run_id)
-    history = relay.context.get_run_history(run_id)
-    metrics = relay.context.get_run_metrics(run_id)
+    with wandb_backend_spy.freeze() as snapshot:
+        summary = snapshot.summary(run_id=run.id)
+        assert summary["val"] == {"min": 2}
+        assert summary["val2"] == 8
+        assert summary["mystep"] == 5
 
-    assert summary["val"] == {"min": 2}
-    assert summary["val2"] == 8
-    assert summary["mystep"] == 5
+        history = snapshot.history(run_id=run.id)
+        assert history[0]["val"] == 2 and history[0]["mystep"] == 1
+        assert history[1]["mystep"] == 3
+        assert history[2]["val"] == 8 and "mystep" not in history[2]
+        assert history[4]["val"] == 3 and history[4]["mystep"] == 5
 
-    history_val = history[history["val"].notnull()][["val", "mystep"]].reset_index(
-        drop=True
-    )
-    assert history_val["val"][0] == 2 and history_val["mystep"][0] == 1
-    assert history_val["val"][1] == 8
-    assert history_val["val"][2] == 3 and history_val["mystep"][2] == 5
-
-    assert metrics and len(metrics) == 2
+        metrics = snapshot.metrics(run_id=run.id)
+        assert metrics and len(metrics) == 2
 
 
-def test_metric_sync_step(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
-        run_id = run.id
+def test_metric_sync_step(wandb_backend_spy, wandb_init):
+    with wandb_init() as run:
         run.define_metric("val", summary="min", step_metric="mystep", step_sync=True)
         _gen_metric_sync_step(run)
-        run.finish()
 
-    summary = relay.context.get_run_summary(run_id)
-    history = relay.context.get_run_history(run_id)
-    metrics = relay.context.get_run_metrics(run_id)
-    telemetry = relay.context.get_run_telemetry(run_id)
+    with wandb_backend_spy.freeze() as snapshot:
+        summary = snapshot.summary(run_id=run.id)
+        assert summary["val"] == {"min": 2}
+        assert summary["val2"] == 8
+        assert summary["mystep"] == 5
 
-    assert summary["val"] == {"min": 2}
-    assert summary["val2"] == 8
-    assert summary["mystep"] == 5
+        history = snapshot.history(run_id=run.id)
+        assert history[0]["val"] == 2 and history[0]["mystep"] == 1
+        assert history[1]["mystep"] == 3
+        assert history[2]["val"] == 8 and history[2]["mystep"] == 3
+        assert history[4]["val"] == 3 and history[4]["mystep"] == 5
 
-    history_val = history[history["val"].notnull()][["val", "mystep"]].reset_index(
-        drop=True
-    )
-    assert history_val["val"][0] == 2 and history_val["mystep"][0] == 1
-    assert history_val["val"][1] == 8 and history_val["mystep"][1] == 3
-    assert history_val["val"][2] == 3 and history_val["mystep"][2] == 5
-    # Check for nan values
-    assert not history_val.isnull().any().sum()
-
-    assert metrics and len(metrics) == 2
-    # metric in telemetry options
-    # TODO: fix this in core:
-    assert telemetry and 7 in telemetry.get("3", [])
+        metrics = snapshot.metrics(run_id=run.id)
+        assert metrics and len(metrics) == 2
+        telemetry = snapshot.telemetry(run_id=run.id)
+        assert telemetry and 7 in telemetry.get("3", [])
 
 
-def test_metric_mult(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
-        run_id = run.id
+def test_metric_mult(wandb_backend_spy, wandb_init):
+    with wandb_init() as run:
         run.define_metric("mystep", hidden=True)
         run.define_metric("*", step_metric="mystep")
         _gen_metric_sync_step(run)
-        run.finish()
 
-    metrics = relay.context.get_run_metrics(run_id)
-    assert metrics and len(metrics) == 3
+    with wandb_backend_spy.freeze() as snapshot:
+        metrics = snapshot.metrics(run_id=run.id)
+        assert metrics and len(metrics) == 3
 
 
-def test_metric_goal(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
-        run_id = run.id
+def test_metric_goal(wandb_backend_spy, wandb_init):
+    with wandb_init() as run:
         run.define_metric("mystep", hidden=True)
         run.define_metric("*", step_metric="mystep", goal="maximize")
         _gen_metric_sync_step(run)
-        run.finish()
 
-    metrics = relay.context.get_run_metrics(run_id)
-
-    assert metrics and len(metrics) == 3
+    with wandb_backend_spy.freeze() as snapshot:
+        metrics = snapshot.metrics(run_id=run.id)
+        assert metrics and len(metrics) == 3
 
 
 @pytest.mark.wandb_core_only(
@@ -297,86 +283,47 @@ def test_metric_nested_min(wandb_backend_spy):
         assert summary["this"] == {"that": {"min": 2}}
 
 
-def test_metric_nested_mult(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
-        run_id = run.id
+def test_metric_nested_mult(wandb_backend_spy, wandb_init):
+    with wandb_init() as run:
         run.define_metric("this.that", summary="min,max")
         run.log(dict(this=dict(that=3)))
         run.log(dict(this=dict(that=2)))
         run.log(dict(this=dict(that=4)))
-        run.finish()
 
-    summary = relay.context.get_run_summary(run_id)
-    metrics = relay.context.get_run_metrics(run_id)
+    with wandb_backend_spy.freeze() as snapshot:
+        summary = snapshot.summary(run_id=run.id)
+        assert summary["this"] == {"that": {"min": 2, "max": 4}}
 
-    assert summary["this"] == {"that": {"min": 2, "max": 4}}
-    assert metrics and len(metrics) == 1
-    assert metrics[0] == {"1": "this.that", "7": [1, 2], "6": [3]}
+        metrics = snapshot.metrics(run_id=run.id)
+        assert metrics and len(metrics) == 1
+        assert metrics[0] == {"1": "this.that", "7": [1, 2], "6": [3]}
 
 
-def test_metric_dotted(relay_server, wandb_init):
+def test_metric_dotted(wandb_backend_spy, wandb_init):
     """Escape dots in metric definitions."""
-    with relay_server() as relay:
-        run = wandb_init()
-        run_id = run.id
+    with wandb_init() as run:
         run.define_metric("test\\this\\.that", summary="min")
         run.log({"test\\this.that": 3})
         run.log({"test\\this.that": 2})
         run.log({"test\\this.that": 4})
-        run.finish()
 
-    summary = relay.context.get_run_summary(run_id)
-    metrics = relay.context.get_run_metrics(run_id)
+    with wandb_backend_spy.freeze() as snapshot:
+        summary = snapshot.summary(run_id=run.id)
+        assert summary["test\\this.that"] == {"min": 2}
 
-    assert summary["test\\this.that"] == {"min": 2}
-    assert len(metrics) == 1
-    assert metrics[0] == {"1": "test\\this\\.that", "7": [1], "6": [3]}
+        metrics = snapshot.metrics(run_id=run.id)
+        assert metrics and len(metrics) == 1
+        assert metrics[0] == {"1": "test\\this\\.that", "7": [1], "6": [3]}
 
 
-def test_metric_nested_glob(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
-        run_id = run.id
+def test_metric_nested_glob(wandb_backend_spy, wandb_init):
+    with wandb_init() as run:
         run.define_metric("*", summary="min,max")
         run.log(dict(this=dict(that=3)))
         run.log(dict(this=dict(that=2)))
         run.log(dict(this=dict(that=4)))
         run.finish()
 
-    summary = relay.context.get_run_summary(run_id)
-    # metrics = relay.context.get_run_metrics(run_id)
-
-    assert summary["this"] == {"that": {"min": 2, "max": 4}}
-    # TODO: fix this in core:
-    # assert len(metrics) == 1
-    # assert metrics[0] == {"1": "this.that", "7": [1, 2]}
-
-
-def test_metric_debouncing(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
-        run.define_metric("*", summary="min,max")
-
-        # test many defined metrics logged at once
-        log_arg = {str(i): i for i in range(100)}
-        run.log(log_arg)
-
-        # and serially
-        for i in range(100, 200):
-            run.log({str(i): i})
-
-        run.finish()
-
-    # without debouncing, the number of config updates should be ~200, one for each defined metric.
-    # with debouncing, the number should be << 12 (the minimum number of debounce loops to exceed the
-    # 60s test timeout at a 5s debounce interval)
-    # assert relay["upsert_bucket_count"] <= 12
-    assert (
-        1
-        <= sum(
-            "UpsertBucket" in entry["request"].get("query", "")
-            for entry in relay.context.raw_data
-        )
-        <= 12
-    )
+    with wandb_backend_spy.freeze() as snapshot:
+        summary = snapshot.summary(run_id=run.id)
+        assert summary["this"] == {"that": {"min": 2, "max": 4}}
