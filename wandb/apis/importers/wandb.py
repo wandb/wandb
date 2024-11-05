@@ -7,6 +7,8 @@ import numbers
 import os
 import re
 import shutil
+
+from black import Report
 from dataclasses import dataclass, field
 from datetime import datetime as dt
 from pathlib import Path
@@ -758,21 +760,21 @@ class WandbImporter:
                 run.delete(delete_artifacts=False)
 
     def _import_report(
-        self, report: wr.Report, *, namespace: Optional[Namespace] = None
+        self, report: ReportViewspec, *, namespace: Optional[Namespace] = None
     ) -> None:
         """Import one wandb.Report.
 
         Use `namespace` to specify alternate settings like where the report should be uploaded
         """
         if namespace is None:
-            namespace = Namespace(report.entity, report.project)
+            namespace = Namespace(report.entity, report.project.name)
 
         entity = coalesce(namespace.entity, report.entity)
         project = coalesce(namespace.project, report.project)
-        id = report.id
+        report_id = report.id
         title = report.title
         description = report.description
-
+        
         api = self.dst_api
 
         # We shouldn't need to upsert the project for every report
@@ -783,18 +785,18 @@ class WandbImporter:
             if e.response.status_code != 409:
                 logger.warning(f"Issue upserting {entity=}/{project=}, {e=}")
 
-        logger.info(f"Upserting report {entity=}, {project=}, {id=}, {title=}")
+        logger.info(f"Upserting report {entity=}, {project=}, {report_id=}, {title=}")
         api.client.execute(
             upsert_view,
             variable_values={
                 "id": None,  # Is there any benefit for this to be the same as default report?
-                "name": id,
+                "name": report_id,
                 "entityName": entity,
                 "projectName": project,
                 "description": description,
                 "displayName": title,
                 "type": "runs",
-                "spec": report.to_model().spec.model_dump_json(by_alias=True, exclude_none=True),
+                "spec": report.spec.model_dump_json(by_alias=True, exclude_none=True),
             },
         )
 
@@ -909,8 +911,8 @@ class WandbImporter:
 
         logger.info("Importing reports")
 
-        def _import_report_wrapped(report: wr.Report):
-            namespace = Namespace(report.entity, report.project)
+        def _import_report_wrapped(report: ReportViewspec):
+            namespace = Namespace(report.entity, report.project.name)
             if remapping is not None and namespace in remapping:
                 namespace = remapping[namespace]
 
@@ -1395,7 +1397,7 @@ class WandbImporter:
         def reports():
             for ns in namespaces:
                 for r in api.reports(ns.path):
-                    yield wr.Report.from_url(r.url, as_model=False)
+                    yield wr.Report.from_url(r.url, as_model=True)
 
         yield from itertools.islice(reports(), limit)
 
