@@ -39,8 +39,7 @@ from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError, UnsupportedError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
-from wandb.plot.custom_chart import CustomChart
-from wandb.plot.viz import Visualize, plot_table
+from wandb.plot import CustomChart, Visualize, plot_table
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,

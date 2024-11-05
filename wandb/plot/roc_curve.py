@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import numbers
-from typing import Sequence
+from typing import TYPE_CHECKING, Sequence
 
 import wandb
 from wandb import util
-from wandb.plot.custom_chart import CustomChart
+from wandb.plot.custom_chart import plot_table
+from wandb.plot.utils import test_missing, test_types
 
-from .utils import test_missing, test_types
+if TYPE_CHECKING:
+    from wandb.plot.custom_chart import CustomChart
 
 
 def roc_curve(
@@ -17,7 +19,7 @@ def roc_curve(
     classes_to_plot: list[numbers.Number] | None = None,
     title: str = "ROC Curve",
     split_table: bool = False,
-):
+) -> CustomChart:
     """Constructs Receiver Operating Characteristic (ROC) curve chart.
 
     Args:
@@ -33,12 +35,14 @@ def roc_curve(
         classes_to_plot (list[numbers.Number]): A subset of unique class labels
             to include in the ROC curve. If None, all classes in `y_true` will
             be plotted. Default is None.
-        split_table (bool): Whether to split the table into a separate section
-            in the UI. Default is False.
+        title (str): Title of the ROC curve plot. Default is "ROC Curve".
+        split_table (bool): Whether the table should be split into a separate
+            section in the W&B UI. If `True`, the table will be displayed in a
+            section named "Custom Chart Tables". Default is `False`.
 
     Returns:
-        A CustomChart object with the ROC curve data. To log the chart to W&B,
-        use `wandb.log()`.
+        CustomChart: A custom chart object that can be logged to W&B. To log the
+            chart, pass it to `wandb.log()`.
 
     Raises:
         wandb.Error: If numpy, pandas, or scikit-learn are not found.
@@ -142,9 +146,9 @@ def roc_curve(
             stratify=df["class"],
         ).sort_values(["fpr", "tpr", "class"])
 
-    return CustomChart(
-        id="wandb/area-under-curve/v0",
-        data=wandb.Table(dataframe=df),
+    return plot_table(
+        data_table=wandb.Table(dataframe=df),
+        vega_spec_name="wandb/area-under-curve/v0",
         fields={
             "x": "fpr",
             "y": "tpr",

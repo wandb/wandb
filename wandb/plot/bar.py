@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from wandb.plot.custom_chart import CustomChart
+from wandb.plot.custom_chart import plot_table
 
 if TYPE_CHECKING:
     import wandb
+    from wandb.plot.custom_chart import CustomChart
 
 
 def bar(
@@ -22,12 +23,13 @@ def bar(
         label (str): The name of the column to use for the labels of each bar.
         value (str): The name of the column to use for the values of each bar.
         title (str): The title of the bar chart.
-        split_table (bool): Whether to split the table into a different section
-            in the UI. Default is False.
+        split_table (bool): Whether the table should be split into a separate section
+            in the W&B UI. If `True`, the table will be displayed in a section named
+            "Custom Chart Tables". Default is `False`.
 
     Returns:
-        CustomChart: A bar chart. That can be logged to W&B with
-            `wandb.log({'bar-plot1': bar_plot})`.
+        CustomChart: A custom chart object that can be logged to W&B. To log the
+            chart, pass it to `wandb.log()`.
 
     Example:
         ```
@@ -60,9 +62,9 @@ def bar(
             run.log({'bar_plot': bar_plot})
         ```
     """
-    return CustomChart(
-        id="wandb/bar/v0",
-        data=table,
+    return plot_table(
+        data_table=table,
+        vega_spec_name="wandb/bar/v0",
         fields={"label": label, "value": value},
         string_fields={"title": title},
         split_table=split_table,

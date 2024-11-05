@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import wandb
 import wandb.util
-from wandb.plot.viz import plot_table
+from wandb.plot import plot_table
 from wandb.sdk.lib import telemetry
 
 if TYPE_CHECKING:
