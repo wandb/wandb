@@ -22,6 +22,7 @@ import wandb_workspaces.reports.v1 as wr1
 import wandb_workspaces.reports.v2 as wr
 import yaml
 from wandb_gql import gql
+from wandb_workspaces.reports.v2.internal import ReportViewspec
 
 import wandb
 from wandb.apis.public import ArtifactCollection, Run
@@ -766,6 +767,15 @@ class WandbImporter:
         if namespace is None:
             namespace = Namespace(report.entity, report.project)
 
+        is_v2 = False
+
+        if type(report) is ReportViewspec:
+            report: ReportViewspec
+            report = wr.Report.from_model(report)
+            is_v2 = True
+        else:
+            report: wr1.Report
+
         entity = coalesce(namespace.entity, report.entity)
         project = coalesce(namespace.project, report.project)
         id = report.id
@@ -791,7 +801,7 @@ class WandbImporter:
         #logger.info(f"{report_spec=}")
 
         logger.info(f"Upserting report {entity=}, {project=}, {id=}, {title=}")
-        try:
+        if is_v2:
             api.client.execute(
                 upsert_view,
                 variable_values={
@@ -805,7 +815,7 @@ class WandbImporter:
                     "spec": report.to_model().spec.json(),
                 },
             )
-        finally:
+        else:
             api.client.execute(
                 upsert_view,
                 variable_values={
@@ -1419,8 +1429,10 @@ class WandbImporter:
                 for r in api.reports(ns.path):
                     print(f"Collecting report {r.url}")
                     try:
-                        yield wr.Report.from_url(r.url)
+                        logger.info("Collecting Report with v2")
+                        yield wr.Report.from_url(r.url, as_model=True)
                     finally:
+                        logger.info("Collecting Report with v1")
                         yield wr1.Report.from_url(r.url)
 
         yield from itertools.islice(reports(), limit)
