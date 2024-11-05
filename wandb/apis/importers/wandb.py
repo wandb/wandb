@@ -757,7 +757,7 @@ class WandbImporter:
                 run.delete(delete_artifacts=False)
 
     def _import_report(
-        self, report: wr.Report, *, namespace: Optional[Namespace] = None
+        self, report, *, namespace: Optional[Namespace] = None
     ) -> None:
         """Import one wandb.Report.
 
