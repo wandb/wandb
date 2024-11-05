@@ -86,13 +86,14 @@ def test_manage_config_file(
 
         api = wandb.Api()
         run_api_object = api.run(run.path)
-        poll = 1
-        while poll < 8:
+
+        # In CI, the file upload can take a while if CPU usage is high.
+        start_time = time.monotonic()
+        while time.monotonic() - start_time < 600:
             file = run_api_object.file("_wandb_configs/config.yaml")
             if file.size == len(config_str):
                 break
-            time.sleep(poll)
-            poll *= 2
+            time.sleep(5)
             run_api_object.update()
         else:
             raise ValueError("File was not uploaded")
@@ -179,13 +180,14 @@ def test_manage_config_file_with_input_schema(
 
         api = wandb.Api()
         run_api_object = api.run(run.path)
-        poll = 1
-        while poll < 8:
+
+        # In CI, the file upload can take a while if CPU usage is high.
+        start_time = time.monotonic()
+        while time.monotonic() - start_time < 600:
             file = run_api_object.file("_wandb_configs/config.yaml")
             if file.size == len(config_str):
                 break
-            time.sleep(poll)
-            poll *= 2
+            time.sleep(5)
             run_api_object.update()
         else:
             raise ValueError("File was not uploaded")
@@ -419,13 +421,14 @@ def test_manage_both_with_input_schema(
 
         api = wandb.Api()
         run_api_object = api.run(run.path)
-        poll = 1
-        while poll < 8:
+
+        # In CI, the file upload can take a while if CPU usage is high.
+        start_time = time.monotonic()
+        while time.monotonic() - start_time < 600:
             file = run_api_object.file("_wandb_configs/config.yaml")
             if file.size == len(config_str):
                 break
-            time.sleep(poll)
-            poll *= 2
+            time.sleep(5)
             run_api_object.update()
         else:
             raise ValueError("File was not uploaded")
