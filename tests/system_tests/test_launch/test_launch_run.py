@@ -8,7 +8,7 @@ from wandb.sdk.launch._project_spec import _inject_wandb_config_env_vars
 from wandb.util import make_artifact_name_safe
 
 
-def test_run_use_job_env_var(runner, relay_server, test_settings, user, wandb_init):
+def test_run_use_job_env_var(runner, test_settings, user, wandb_init):
     art_name = "job-my-test-image"
     artifact_name = f"{user}/uncategorized/{art_name}"
     artifact_env = json.dumps({"_wandb_job": f"{artifact_name}:latest"})
