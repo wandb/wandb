@@ -96,6 +96,11 @@ class WandbBackendSnapshot:
 
     _spy: WandbBackendSpy | None
 
+    def run_ids(self) -> set[str]:
+        """Returns the IDs of all runs."""
+        spy = self._assert_valid()
+        return set(spy._runs.keys())
+
     def history(self, *, run_id: str) -> dict[int, Any]:
         """Returns the history file for the run.
 
@@ -164,6 +169,40 @@ class WandbBackendSnapshot:
             raise AssertionError(f"No config for run {run_id}")
 
         return json.loads(config)
+
+    def telemetry(self, *, run_id: str) -> dict[str, Any]:
+        """Returns the telemetry for the run as a JSON object.
+
+        Args:
+            run_id: The ID of the run.
+
+        Raises:
+            KeyError: if the run does not exist.
+            AssertionError: if no telemetry was uploaded for the run.
+        """
+        config = self.config(run_id=run_id)
+
+        try:
+            return config["_wandb"]["value"]["t"]
+        except KeyError as e:
+            raise AssertionError(f"No telemetry for run {run_id}") from e
+
+    def metrics(self, *, run_id: str) -> dict[str, Any]:
+        """Returns the metrics for the run as a JSON object.
+
+        Args:
+            run_id: The ID of the run.
+
+        Raises:
+            KeyError: if the run does not exist.
+            AssertionError: if no metrics were uploaded for the run.
+        """
+        config = self.config(run_id=run_id)
+
+        try:
+            return config["_wandb"]["value"]["m"]
+        except KeyError as e:
+            raise AssertionError(f"No metrics for run {run_id}") from e
 
     def _assert_valid(self) -> WandbBackendSpy:
         """Raise an error if we're not inside freeze()."""

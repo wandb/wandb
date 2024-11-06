@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from wandb.plot.custom_chart import CustomChart
+from wandb.plot.custom_chart import plot_table
 
 if TYPE_CHECKING:
     import wandb
+    from wandb.plot.custom_chart import CustomChart
 
 
 def line(
@@ -25,11 +26,13 @@ def line(
         stroke (str):Column name to differentiate line strokes (e.g., for
             grouping lines).
         title (str):Title of the chart.
-        split_table (bool): Whether to split the table into a separate section.
-            Defaults to False.
+        split_table (bool): Whether the table should be split into a separate section
+            in the W&B UI. If `True`, the table will be displayed in a section named
+            "Custom Chart Tables". Default is `False`.
 
     Returns:
-       CustomChart: A plot object, to be passed to wandb.log()
+       CustomChart: A custom chart object that can be logged to W&B. To log the
+            chart, pass it to `wandb.log()`.
 
     Example:
        ```python
@@ -62,9 +65,9 @@ def line(
             run.log({"line-chart": line_chart})
         ```
     """
-    return CustomChart(
-        id="wandb/line/v0",
-        data=table,
+    return plot_table(
+        data_table=table,
+        vega_spec_name="wandb/line/v0",
         fields={"x": x, "y": y, "stroke": stroke},
         string_fields={"title": title},
         split_table=split_table,

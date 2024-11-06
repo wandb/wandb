@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Iterable
+from typing import TYPE_CHECKING, Any, Iterable
 
 import wandb
-from wandb.plot.custom_chart import CustomChart
+from wandb.plot.custom_chart import plot_table
+
+if TYPE_CHECKING:
+    from wandb.plot.custom_chart import CustomChart
 
 
 def line_series(
@@ -28,12 +31,13 @@ def line_series(
             "line_2", etc.
         title (str): Title of the chart.
         xname (str): Label for the x-axis.
-        split_table (bool): Whether to split the table into a different section
-            in the UI. Default is False.
+        split_table (bool): Whether the table should be split into a separate section
+            in the W&B UI. If `True`, the table will be displayed in a section named
+            "Custom Chart Tables". Default is `False`.
 
     Returns:
-        CustomChart: A line series chart. That can be logged to W&B with
-            `wandb.log({'line_series': line_series})`.
+        CustomChart: A custom chart object that can be logged to W&B. To log the
+            chart, pass it to `wandb.log()`.
 
     Examples:
         1. Logging a single x array where all y series are plotted against
@@ -159,9 +163,9 @@ def line_series(
         columns=["step", "lineKey", "lineVal"],
     )
 
-    return CustomChart(
-        id="wandb/lineseries/v0",
-        data=table,
+    return plot_table(
+        data_table=table,
+        vega_spec_name="wandb/lineseries/v0",
         fields={
             "step": "step",
             "lineKey": "lineKey",
