@@ -3,7 +3,7 @@
 import os
 
 
-def test_file_upload_good(mock_run, publish_util, relay_server, user):
+def test_file_upload_good(wandb_backend_spy, mock_run, publish_util):
     run = mock_run(use_magic_mock=True)
 
     def begin_fn(interface):
@@ -13,7 +13,7 @@ def test_file_upload_good(mock_run, publish_util, relay_server, user):
             f.write("TEST TEST")
 
     files = [dict(files_dict=dict(files=[("test.txt", "now")]))]
-    with relay_server() as relay:
-        publish_util(run, begin_cb=begin_fn, files=files)
+    publish_util(run, begin_cb=begin_fn, files=files)
 
-    assert "test.txt" in relay.context.get_run_uploaded_files(run.id)
+    with wandb_backend_spy.freeze() as snapshot:
+        assert "test.txt" in snapshot.uploaded_files(run_id=run.id)
