@@ -40,7 +40,7 @@ func (am *AzureClientsMap) GetClient(accountUrl string) (*azblob.Client, error) 
 	return client.(*azblob.Client), nil
 }
 
-// AzureFileTransfer uploads or downloads files to/from Azure
+// AzureFileTransfer uploads or downloads files to/from Azure.
 type AzureFileTransfer struct {
 	// logger is the logger for the file transfer
 	logger *observability.CoreLogger
@@ -73,7 +73,7 @@ func NewAzureFileTransfer(
 	}
 }
 
-// SetupClient sets up the Azure account client if it is not currently set
+// SetupClient sets up the Azure account client if it is not currently set.
 func (ft *AzureFileTransfer) SetupClient(accountUrl string) {
 	onceVal, _ := ft.clients.once.LoadOrStore(accountUrl, &sync.Once{})
 	once := onceVal.(*sync.Once)
@@ -92,8 +92,10 @@ func (ft *AzureFileTransfer) SetupClient(accountUrl string) {
 	})
 }
 
-// SetupBlobClient sets up the Azure blob client
-func (ft *AzureFileTransfer) SetupBlobClient(task *ReferenceArtifactDownloadTask) (*blob.Client, error) {
+// SetupBlobClient sets up the Azure blob client.
+func (ft *AzureFileTransfer) SetupBlobClient(
+	task *ReferenceArtifactDownloadTask,
+) (*blob.Client, error) {
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		ft.logger.Error("Unable to create Azure credential", "err", err)
@@ -115,8 +117,10 @@ func (ft *AzureFileTransfer) SetupBlobClient(task *ReferenceArtifactDownloadTask
 	return client, nil
 }
 
-// SetupContainerClient sets up the Azure container client
-func (ft *AzureFileTransfer) SetupContainerClient(containerName string) (*container.Client, error) {
+// SetupContainerClient sets up the Azure container client.
+func (ft *AzureFileTransfer) SetupContainerClient(
+	containerName string,
+) (*container.Client, error) {
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		ft.logger.Error("Unable to create Azure credential", "err", err)
@@ -145,7 +149,11 @@ type ParsedBlobInfo struct {
 
 // Download downloads a file from the server.
 func (ft *AzureFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
-	ft.logger.Debug("Azure file transfer: downloading file", "path", task.PathOrPrefix, "ref", task.Reference)
+	ft.logger.Debug(
+		"Azure file transfer: downloading file",
+		"path", task.PathOrPrefix,
+		"ref", task.Reference,
+	)
 
 	// Parse the reference path to get the account URL and blob path
 	accountUrl, fullBlobPath, err := parseCloudReference(task.Reference, azureScheme)
@@ -164,35 +172,57 @@ func (ft *AzureFileTransfer) Download(task *ReferenceArtifactDownloadTask) error
 	ft.SetupClient(fullAccountUrl)
 	_, ok := ft.clients.clients.Load(fullAccountUrl)
 	if !ok {
-		return ft.formatDownloadError("error setting up Azure account client", fmt.Errorf("client not found"))
+		return ft.formatDownloadError(
+			"error setting up Azure account client",
+			fmt.Errorf("client not found"),
+		)
 	}
 
 	var blobNames []string
 	if task.HasSingleFile() {
 		blobName, versionId, err := ft.getBlobName(blobInfo, task)
 		if err != nil {
-			return ft.formatDownloadError("error getting correctblob name and version", err)
+			return ft.formatDownloadError(
+				"error getting correct blob name and version",
+				err,
+			)
 		}
 		if versionId != "" {
-			task.SetVersionID(versionId)
+			err = task.SetVersionID(versionId)
+			if err != nil {
+				return ft.formatDownloadError(
+					"error setting version ID",
+					err,
+				)
+			}
 		}
 		blobNames = []string{blobName}
 	} else {
 		blobNames, err = ft.listBlobsWithPrefix(blobInfo)
 		if err != nil {
-			return ft.formatDownloadError(fmt.Sprintf("error finding blobs with prefix %s", blobInfo.BlobPrefix), err)
+			return ft.formatDownloadError(
+				fmt.Sprintf("error finding blobs with prefix %s", blobInfo.BlobPrefix),
+				err,
+			)
 		}
 	}
 
 	err = ft.downloadFiles(blobInfo, blobNames, task)
 	if err != nil {
-		return ft.formatDownloadError(fmt.Sprintf("error downloading reference %s", task.Reference), err)
+		return ft.formatDownloadError(
+			fmt.Sprintf("error downloading reference %s", task.Reference),
+			err,
+		)
 	}
 	return nil
 }
 
-// getBlobName tries to get the blob name and version ID that matches the expected digest for the given task
-func (ft *AzureFileTransfer) getBlobName(blobInfo ParsedBlobInfo, task *ReferenceArtifactDownloadTask) (string, string, error) {
+// getBlobName tries to get the blob name and version ID that matches the
+// expected digest for the given task.
+func (ft *AzureFileTransfer) getBlobName(
+	blobInfo ParsedBlobInfo,
+	task *ReferenceArtifactDownloadTask,
+) (string, string, error) {
 	blobClient, err := ft.SetupBlobClient(task)
 	if err != nil {
 		return "", "", err
@@ -220,9 +250,15 @@ func (ft *AzureFileTransfer) getBlobName(blobInfo ParsedBlobInfo, task *Referenc
 	return blobInfo.BlobPrefix, "", nil
 }
 
-// getCorrectBlobVersion finds the correct blob version that matches the expected digest
-func (ft *AzureFileTransfer) getCorrectBlobVersion(blobInfo ParsedBlobInfo, task *ReferenceArtifactDownloadTask) (string, string, error) {
-	containerClient, err := ft.SetupContainerClient(fmt.Sprintf("%s/%s", blobInfo.AccountUrl, blobInfo.Container))
+// getCorrectBlobVersion finds the correct blob version that matches the
+// expected digest.
+func (ft *AzureFileTransfer) getCorrectBlobVersion(
+	blobInfo ParsedBlobInfo,
+	task *ReferenceArtifactDownloadTask,
+) (string, string, error) {
+	containerClient, err := ft.SetupContainerClient(
+		fmt.Sprintf("%s/%s", blobInfo.AccountUrl, blobInfo.Container),
+	)
 	if err != nil {
 		return "", "", err
 	}
@@ -241,7 +277,8 @@ func (ft *AzureFileTransfer) getCorrectBlobVersion(blobInfo ParsedBlobInfo, task
 		}
 
 		for _, blob := range resp.Segment.BlobItems {
-			blobClient, err := containerClient.NewBlobClient(*blob.Name).WithVersionID(*blob.VersionID)
+			blobClient, err := containerClient.NewBlobClient(*blob.Name).
+				WithVersionID(*blob.VersionID)
 			if err != nil {
 				return "", "", err
 			}
@@ -249,7 +286,8 @@ func (ft *AzureFileTransfer) getCorrectBlobVersion(blobInfo ParsedBlobInfo, task
 			if err != nil {
 				return "", "", err
 			}
-			if properties.ETag != nil && strings.Trim(string(*properties.ETag), "\"") == task.Digest {
+			if properties.ETag != nil &&
+				strings.Trim(string(*properties.ETag), "\"") == task.Digest {
 				return *blob.Name, *blob.VersionID, nil
 			}
 		}
@@ -261,7 +299,7 @@ func (ft *AzureFileTransfer) getCorrectBlobVersion(blobInfo ParsedBlobInfo, task
 	)
 }
 
-// listBlobs lists all the blobs in the container with the given prefix
+// listBlobs lists all the blobs in the container with the given prefix.
 func (ft *AzureFileTransfer) listBlobsWithPrefix(blobInfo ParsedBlobInfo) ([]string, error) {
 	client, err := ft.clients.GetClient(blobInfo.AccountUrl)
 	if err != nil {
@@ -288,7 +326,7 @@ func (ft *AzureFileTransfer) listBlobsWithPrefix(blobInfo ParsedBlobInfo) ([]str
 	return blobNames, nil
 }
 
-// downloadFiles downloads all of the blobs with the given names
+// downloadFiles downloads all of the blobs with the given names.
 func (ft *AzureFileTransfer) downloadFiles(
 	blobInfo ParsedBlobInfo,
 	blobNames []string,
@@ -307,7 +345,7 @@ func (ft *AzureFileTransfer) downloadFiles(
 	return g.Wait()
 }
 
-// downloadBlobToFile downloads a blob to a file at the given local path
+// downloadBlobToFile downloads a blob to a file at the given local path.
 func (ft *AzureFileTransfer) downloadBlobToFile(
 	blobInfo ParsedBlobInfo,
 	blobName string,
@@ -316,7 +354,11 @@ func (ft *AzureFileTransfer) downloadBlobToFile(
 ) error {
 	// Create or open a local file where we can download the blob
 	if err := os.MkdirAll(filepath.Dir(localPath), 0755); err != nil {
-		return fmt.Errorf("unable to create destination directory %s: %w", filepath.Dir(localPath), err)
+		return fmt.Errorf(
+			"unable to create destination directory %s: %w",
+			filepath.Dir(localPath),
+			err,
+		)
 	}
 
 	destination, err := os.Create(localPath)
