@@ -82,6 +82,9 @@ class WandbBackendSpy:
         with self._lock:
             run = self._runs.setdefault(run_id, _RunData())
 
+            run._was_ever_preempting |= request.get("preempting", False)
+            run._uploaded_files |= set(request.get("uploaded", []))
+
             for file_name, file_data in request.get("files", {}).items():
                 file = run._file_stream_files.setdefault(file_name, {})
 
@@ -100,6 +103,15 @@ class WandbBackendSnapshot:
         """Returns the IDs of all runs."""
         spy = self._assert_valid()
         return set(spy._runs.keys())
+
+    def uploaded_files(self, *, run_id: str) -> set[str]:
+        """Returns the set of files uploaded for the run.
+
+        This is based on the values reported in the "uploaded" field of
+        FileStream requests, and doesn't track actual file uploads.
+        """
+        spy = self._assert_valid()
+        return spy._runs[run_id]._uploaded_files
 
     def history(self, *, run_id: str) -> dict[int, Any]:
         """Returns the history file for the run.
@@ -204,6 +216,11 @@ class WandbBackendSnapshot:
         except KeyError as e:
             raise AssertionError(f"No metrics for run {run_id}") from e
 
+    def was_ever_preempting(self, *, run_id: str) -> bool:
+        """Returns whether the run was ever marked 'preempting'."""
+        spy = self._assert_valid()
+        return spy._runs[run_id]._was_ever_preempting
+
     def _assert_valid(self) -> WandbBackendSpy:
         """Raise an error if we're not inside freeze()."""
         if not self._spy:
@@ -214,5 +231,7 @@ class WandbBackendSnapshot:
 
 class _RunData:
     def __init__(self) -> None:
+        self._was_ever_preempting = False
+        self._uploaded_files: set[str] = set()
         self._file_stream_files: dict[str, dict[int, Any]] = {}
         self._config_json_string: str | None = None
