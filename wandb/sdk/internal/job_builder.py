@@ -152,7 +152,7 @@ class JobBuilder:
         self._logged_code_artifact = None
         self._job_seq_id = None
         self._job_version_alias = None
-        self._disable = settings.disable_job_creation
+        self._disable = settings.disable_job_creation or settings.x_disable_machine_info
         self._partial_source_id = None
         self._aliases = []
         self._source_type: Optional[Literal["repo", "artifact", "image"]] = (

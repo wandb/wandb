@@ -7,6 +7,7 @@ import logging
 import multiprocessing
 import os
 import platform
+import re
 import shutil
 import socket
 import sys
@@ -60,7 +61,9 @@ class Settings(BaseModel, validate_assignment=True):
     # whether to produce multipart console log files
     console_multipart: bool = False
     # file path to write access tokens
-    credentials_file: str = str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE)
+    credentials_file: str = Field(
+        default_factory=lambda: str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE)
+    )
     disable_code: bool = False
     disable_git: bool = False
     disable_job_creation: bool = False
@@ -87,7 +90,10 @@ class Settings(BaseModel, validate_assignment=True):
     launch: bool = False
     launch_config_path: str | None = None
     login_timeout: float | None = None
-    mode: Literal["online", "offline", "dryrun", "disabled", "run", "shared"] = "online"
+    mode: Literal["online", "offline", "dryrun", "disabled", "run", "shared"] = Field(
+        default="online",
+        validate_default=True,
+    )
     notebook_name: str | None = None
     program: str | None = None
     program_abspath: str | None = None
@@ -101,7 +107,7 @@ class Settings(BaseModel, validate_assignment=True):
     # Indication from the server about the state of the run.
     # NOTE: this is different from resume, a user provided flag
     resumed: bool = False
-    root_dir: str = os.path.abspath(os.getcwd())
+    root_dir: str = Field(default_factory=lambda: os.path.abspath(os.getcwd()))
     run_group: str | None = None
     run_id: str | None = None
     run_job_type: str | None = None
@@ -110,7 +116,9 @@ class Settings(BaseModel, validate_assignment=True):
     run_tags: tuple[str, ...] | None = None
     sagemaker_disable: bool = False
     save_code: bool | None = None
-    settings_system: str = os.path.join("~", ".config", "wandb", "settings")
+    settings_system: str = Field(
+        default_factory=lambda: os.path.join("~", ".config", "wandb", "settings")
+    )
     show_colors: bool | None = None
     show_emoji: bool | None = None
     show_errors: bool = True
@@ -123,7 +131,9 @@ class Settings(BaseModel, validate_assignment=True):
     summary_warnings: int = 5  # TODO: kill this with fire
     sweep_id: str | None = None
     sweep_param_path: str | None = None
-    symlink: bool = False if platform.system() == "Windows" else True
+    symlink: bool = Field(
+        default_factory=lambda: False if platform.system() == "Windows" else True
+    )
     sync_tensorboard: bool | None = None
     table_raise_on_max_row_limit_exceeded: bool = False
     username: str | None = None
@@ -259,14 +269,14 @@ class Settings(BaseModel, validate_assignment=True):
     @classmethod
     def validate_base_url(cls, value):
         cls.validate_url(value)
-        # TODO: port these old checks to the new validator
-        # if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
-        #     # user might guess app.wandb.ai or wandb.ai is the default cloud server
-        #     raise UsageError(
-        #         f"{value} is not a valid server address, did you mean https://api.wandb.ai?"
-        #     )
-        # elif re.match(r".*wandb\.ai[^\.]*$", value) and scheme != "https":
-        #     raise UsageError("http is not secure, please use https://api.wandb.ai")
+        # wandb.ai-specific checks
+        if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
+            # user might guess app.wandb.ai or wandb.ai is the default cloud server
+            raise ValueError(
+                f"{value} is not a valid server address, did you mean https://api.wandb.ai?"
+            )
+        elif re.match(r".*wandb\.ai[^\.]*$", value) and not value.startswith("https"):
+            raise ValueError("http is not secure, please use https://api.wandb.ai")
         return value.rstrip("/")
 
     @field_validator("console", mode="after")
@@ -283,41 +293,6 @@ class Settings(BaseModel, validate_assignment=True):
             value = "wrap"
         else:
             value = "redirect"
-        return value
-
-    @field_validator("x_disable_meta", mode="after")
-    @classmethod
-    def validate_disable_meta(cls, value, info):
-        if info.data.get("x_disable_machine_info"):
-            return True
-        return value
-
-    @field_validator("x_disable_stats", mode="after")
-    @classmethod
-    def validate_disable_stats(cls, value, info):
-        if info.data.get("x_disable_machine_info"):
-            return True
-        return value
-
-    @field_validator("disable_code", mode="after")
-    @classmethod
-    def validate_disable_code(cls, value, info):
-        if info.data.get("x_disable_machine_info"):
-            return True
-        return value
-
-    @field_validator("disable_git", mode="after")
-    @classmethod
-    def validate_disable_git(cls, value, info):
-        if info.data.get("x_disable_machine_info"):
-            return True
-        return value
-
-    @field_validator("disable_job_creation", mode="after")
-    @classmethod
-    def validate_disable_job_creation(cls, value, info):
-        if info.data.get("x_disable_machine_info"):
-            return True
         return value
 
     @field_validator("fork_from", mode="after")
@@ -958,7 +933,12 @@ class Settings(BaseModel, validate_assignment=True):
     @staticmethod
     def validate_url(url: str) -> None:
         """Validate a URL string using pydantic-core."""
-        url_validator = SchemaValidator(core_schema.url_schema())
+        url_validator = SchemaValidator(
+            core_schema.url_schema(
+                allowed_schemes=["http", "https"],
+                strict=True,
+            )
+        )
         url_validator.validate_python(url)
 
     @staticmethod

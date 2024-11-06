@@ -531,12 +531,12 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 	h.handleMetadata(metadata)
 
 	// start the system monitor
-	if !h.settings.GetXDisableStats().GetValue() {
+	if !h.settings.GetXDisableStats().GetValue() && !h.settings.GetXDisableMachineInfo().GetValue() {
 		h.systemMonitor.Start()
 	}
 
 	// save code and patch
-	if h.settings.GetSaveCode().GetValue() {
+	if h.settings.GetSaveCode().GetValue() && !h.settings.GetXDisableMachineInfo().GetValue() {
 		h.handleCodeSave()
 		h.handlePatchSave()
 	}
@@ -623,7 +623,7 @@ func (h *Handler) handleCodeSave() {
 
 func (h *Handler) handlePatchSave() {
 	// capture git state
-	if h.settings.GetDisableGit().GetValue() {
+	if h.settings.GetDisableGit().GetValue() || h.settings.GetXDisableMachineInfo().GetValue() {
 		return
 	}
 
@@ -671,7 +671,7 @@ func (h *Handler) handlePatchSave() {
 func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
 	// TODO: Sending metadata as a request for now, eventually this should be turned into
 	//  a record and stored in the transaction log
-	if h.settings.GetXDisableMeta().GetValue() {
+	if h.settings.GetXDisableMeta().GetValue() || h.settings.GetXDisableMachineInfo().GetValue() {
 		return
 	}
 

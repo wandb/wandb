@@ -126,7 +126,7 @@ class SystemInfo:
         logger.debug("Saving git patches done")
 
     def _probe_git(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        if self.settings.disable_git:
+        if self.settings.disable_git or self.setttings.x_disable_machine_info:
             return data
 
         # in case of manually passing the git repo info, `enabled` would be False,
@@ -169,7 +169,7 @@ class SystemInfo:
             # Used during artifact-job creation, always points to the relpath
             # of code execution, even when in a git repo
             data["codePathLocal"] = self.settings._code_path_local
-        if not self.settings.disable_code:
+        if not (self.settings.disable_code or self.settings.x_disable_machine_info):
             if self.settings.program_relpath:
                 data["codePath"] = self.settings.program_relpath
             elif self.settings._jupyter:

@@ -744,7 +744,7 @@ class _WandbInit:
         # Using GitRepo() blocks & can be slow, depending on user's current git setup.
         # We don't want to block run initialization/start request, so populate run's git
         # info beforehand.
-        if not self.settings.disable_git:
+        if not (self.settings.disable_git or self.settings.x_disable_machine_info):
             run._populate_git_info()
 
         run_result: pb.RunUpdateResult | None = None

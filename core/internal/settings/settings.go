@@ -280,7 +280,7 @@ func (s *Settings) IsConsoleCaptureEnabled() bool {
 
 // Whether to create a job artifact for W&B Launch.
 func (s *Settings) IsJobCreationDisabled() bool {
-	return s.Proto.DisableJobCreation.GetValue()
+	return s.Proto.DisableJobCreation.GetValue() || s.Proto.XDisableMachineInfo.GetValue()
 }
 
 // The W&B sweep URL.
