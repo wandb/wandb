@@ -86,7 +86,6 @@ LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
 
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
-RE_WINFNAMES = re.compile(r'[<>:"\\?*]')
 
 # From https://docs.docker.com/engine/reference/commandline/tag/
 # "Name components may contain lowercase letters, digits and separators.
@@ -1567,10 +1566,6 @@ def _is_py_requirements_or_dockerfile(path: str) -> bool:
         or file.startswith("Dockerfile")
         or file == "requirements.txt"
     )
-
-
-def check_windows_valid_filename(path: Union[int, str]) -> bool:
-    return not bool(re.search(RE_WINFNAMES, path))  # type: ignore
 
 
 def artifact_to_json(artifact: "Artifact") -> Dict[str, Any]:

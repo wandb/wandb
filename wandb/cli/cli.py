@@ -30,6 +30,8 @@ import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
+from wandb.errors.links import url_registry
+from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch._launch_add import _launch_add
@@ -37,7 +39,6 @@ from wandb.sdk.launch.errors import ExecutionError, LaunchError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import filesystem
-from wandb.sdk.lib.wburls import wburls
 from wandb.sync import SyncManager, get_run_from_path, get_runs
 
 from .beta import beta
@@ -1171,7 +1172,7 @@ def launch_sweep(
     wandb.termlog(f"Scheduler added to launch queue ({queue})")
 
 
-@cli.command(help=f"Launch or queue a W&B Job. See {wburls.get('cli_launch')}")
+@cli.command(help=f"Launch or queue a W&B Job. See {url_registry.url('wandb-launch')}")
 @click.option(
     "--uri",
     "-u",
@@ -2389,6 +2390,15 @@ def get(path, root, type):
             artifact_name = artifact_parts[0]
         else:
             version = "latest"
+        if is_artifact_registry_project(project):
+            organization = path.split("/")[0] if path.count("/") == 2 else ""
+            # set entity to match the settings since in above code it was potentially set to an org
+            settings_entity = public_api.settings["entity"] or public_api.default_entity
+            # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
+            # we need to fetch the org entity to for the user behind the scenes.
+            entity = InternalApi()._resolve_org_entity_name(
+                entity=settings_entity, organization=organization
+            )
         full_path = f"{entity}/{project}/{artifact_name}:{version}"
         wandb.termlog(
             "Downloading {type} artifact {full_path}".format(

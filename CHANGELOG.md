@@ -11,6 +11,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+## [0.18.6] - 2024-11-06
+
 ### Added
 
 - Add a boolean `overwrite` param to `Artifact.add()`/`Artifact.add_file()` to allow overwrite of previously-added artifact files (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8553)
@@ -23,6 +25,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Fix multipart uploads for files with no content type defined in headers (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8716)
 - Fixed tensorboard failing to sync when logging batches of images. (@jacobromero in https://github.com/wandb/wandb/pull/8641)
 - Fixed behavior of `mode='x'`/`mode='w'` in `Artifact.new_file()` to conform to Python's built-in file modes (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8553)
+- Do not ignore parameter `distribution` when configuring sweep parameters from SDK. (@temporaer in https://github.com/wandb/wandb/pull/8737)
 
 ### Changed
 - Added internal method, api._artifact(), to fetch artifacts so that usage events are not created if not called by an external user. (@ibindlish in https://github.com/wandb/wandb/pull/8674)

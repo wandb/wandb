@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, Sequence
 import wandb
 import wandb.env
 from wandb.errors import CommError, Error, UsageError
+from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
 from wandb.sdk.lib import runid
@@ -42,7 +43,6 @@ from .lib import (
 )
 from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxProgress
-from .lib.wburls import wburls
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings
 
@@ -165,7 +165,7 @@ class _WandbInit:
                 "because your `wandb` session has already started. "
                 "For more information on how to modify your settings with "
                 "`wandb.init()` arguments, please refer to "
-                f"{self.printer.link(wburls.get('wandb_init'), 'the W&B docs')}."
+                f"{self.printer.link(url_registry.url('wandb_init'), 'the W&B docs')}."
             )
             self.printer.display(line, level="warn")
 
@@ -776,7 +776,8 @@ class _WandbInit:
         if run_result is None:
             error_message = (
                 f"Run initialization has timed out after {timeout} sec. "
-                f"\nPlease refer to the documentation for additional information: {wburls.get('doc_start_err')}"
+                "Please try increasing the timeout with the `init_timeout` setting: "
+                "`wandb.init(settings=wandb.Settings(init_timeout=120))`."
             )
             # We're not certain whether the error we encountered is due to an issue
             # with the server (a "CommError") or if it's a problem within the SDK (an "Error").
@@ -800,7 +801,8 @@ class _WandbInit:
 
         if not run_result.HasField("run"):
             raise Error(
-                "It appears that something have gone wrong during the program execution as an unexpected missing field was encountered. "
+                "It appears that something have gone wrong during the program "
+                "execution as an unexpected missing field was encountered. "
                 "(run_result is missing the 'run' field)"
             )
 
