@@ -43,21 +43,25 @@ def _patch_wandb_run(monkeypatch, config=None):
 @patch.multiple(Scheduler, __abstractmethods__=set())
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_sweep_scheduler_entity_project_sweep_id(
-    user, relay_server, sweep_config, monkeypatch
+    user,
+    sweep_config,
+    monkeypatch,
 ):
     _patch_wandb_run(monkeypatch)
-    with relay_server():
-        _entity = user
-        _project = "test-project"
-        api = internal.Api()
-        # Entity, project, and sweep should be everything you need to create a scheduler
-        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
-        _ = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
-        # Bogus sweep id should result in error
-        with pytest.raises(SchedulerError):
-            _ = Scheduler(
-                api, sweep_id="foo-sweep-id", entity=_entity, project=_project
-            )
+    _entity = user
+    _project = "test-project"
+    api = internal.Api()
+    # Entity, project, and sweep should be everything you need to create a scheduler
+    sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
+    _ = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+    # Bogus sweep id should result in error
+    with pytest.raises(SchedulerError):
+        _ = Scheduler(
+            api,
+            sweep_id="foo-sweep-id",
+            entity=_entity,
+            project=_project,
+        )
 
 
 def test_sweep_scheduler_start_failed(user, monkeypatch):
@@ -210,155 +214,149 @@ def test_sweep_scheduler_sweep_id_with_job(user, wandb_init, monkeypatch):
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
-def test_sweep_scheduler_base_scheduler_states(
-    user, relay_server, sweep_config, monkeypatch
-):
+def test_sweep_scheduler_base_scheduler_states(user, sweep_config, monkeypatch):
     _patch_wandb_run(monkeypatch)
-    with relay_server():
-        _entity = user
-        _project = "test-project"
-        api = internal.Api()
-        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
+    _entity = user
+    _project = "test-project"
+    api = internal.Api()
+    sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
 
-        def mock_run_complete_scheduler(self, *args, **kwargs):
-            self.state = SchedulerState.COMPLETED
+    def mock_run_complete_scheduler(self, *args, **kwargs):
+        self.state = SchedulerState.COMPLETED
 
-        def mock_get_run_state(*args, **kwargs):
-            if args[2] == "sweep-scheduler":
-                return "running"
-            return "finished"
+    def mock_get_run_state(*args, **kwargs):
+        if args[2] == "sweep-scheduler":
+            return "running"
+        return "finished"
 
-        api.get_run_state = mock_get_run_state
+    api.get_run_state = mock_get_run_state
 
-        monkeypatch.setattr(
-            "wandb.sdk.launch.sweeps.scheduler.Scheduler._update_run_states",
-            mock_run_complete_scheduler,
-        )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._update_run_states",
+        mock_run_complete_scheduler,
+    )
 
-        monkeypatch.setattr(
-            "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
-            lambda _: True,
-        )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._try_load_executable",
+        lambda _: True,
+    )
 
-        _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
-        assert _scheduler.state == SchedulerState.PENDING
-        assert _scheduler.is_alive is True
+    _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+    assert _scheduler.state == SchedulerState.PENDING
+    assert _scheduler.is_alive is True
+    _scheduler.start()
+    assert _scheduler.state == SchedulerState.COMPLETED
+    assert _scheduler.is_alive is False
+
+    def mock_run_raise_keyboard_interrupt(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._update_run_states",
+        mock_run_raise_keyboard_interrupt,
+    )
+
+    sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
+    _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+    _scheduler.start()
+    assert _scheduler.state == SchedulerState.STOPPED
+    assert _scheduler.is_alive is False
+
+    def mock_run_raise_exception(*args, **kwargs):
+        raise Exception("Generic exception")
+
+    sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
+    _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+    _scheduler._update_run_states = mock_run_raise_exception
+    with pytest.raises(Exception) as e:
         _scheduler.start()
-        assert _scheduler.state == SchedulerState.COMPLETED
-        assert _scheduler.is_alive is False
+    assert "Generic exception" in str(e.value)
+    assert _scheduler.state == SchedulerState.FAILED
+    assert _scheduler.is_alive is False
 
-        def mock_run_raise_keyboard_interrupt(*args, **kwargs):
-            raise KeyboardInterrupt
+    def mock_run_exit(self, *args, **kwargs):
+        self.exit()
 
-        monkeypatch.setattr(
-            "wandb.sdk.launch.sweeps.scheduler.Scheduler._update_run_states",
-            mock_run_raise_keyboard_interrupt,
-        )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._update_run_states",
+        mock_run_exit,
+    )
 
-        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
-        _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
-        _scheduler.start()
-        assert _scheduler.state == SchedulerState.STOPPED
-        assert _scheduler.is_alive is False
+    def mock_get_run_state(*args, **kwargs):
+        if args[0] == "sweep-scheduler":
+            return "running"
+        return "finished"
 
-        def mock_run_raise_exception(*args, **kwargs):
-            raise Exception("Generic exception")
-
-        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
-        _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
-        _scheduler._update_run_states = mock_run_raise_exception
-        with pytest.raises(Exception) as e:
-            _scheduler.start()
-        assert "Generic exception" in str(e.value)
-        assert _scheduler.state == SchedulerState.FAILED
-        assert _scheduler.is_alive is False
-
-        def mock_run_exit(self, *args, **kwargs):
-            self.exit()
-
-        monkeypatch.setattr(
-            "wandb.sdk.launch.sweeps.scheduler.Scheduler._update_run_states",
-            mock_run_exit,
-        )
-
-        def mock_get_run_state(*args, **kwargs):
-            if args[0] == "sweep-scheduler":
-                return "running"
-            return "finished"
-
-        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
-        _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
-        _scheduler._get_run_state = mock_get_run_state
-        _scheduler.start()
-        assert _scheduler.state == SchedulerState.FAILED
-        assert _scheduler.is_alive is False
+    sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
+    _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+    _scheduler._get_run_state = mock_get_run_state
+    _scheduler.start()
+    assert _scheduler.state == SchedulerState.FAILED
+    assert _scheduler.is_alive is False
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
-def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monkeypatch):
+def test_sweep_scheduler_base_run_states(user, sweep_config, monkeypatch):
     _patch_wandb_run(monkeypatch)
-    with relay_server():
-        _entity = user
-        _project = "test-project"
-        api = internal.Api()
-        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
+    _entity = user
+    _project = "test-project"
+    api = internal.Api()
+    sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
 
-        # Mock api.get_run_state() to return crashed and running runs
-        mock_run_states: Dict[str, RunState] = {
-            "run1": RunState.CRASHED,
-            "run2": RunState.FAILED,
-            "run3": RunState.KILLED,
-            "run4": RunState.FINISHED,
-            "run5": RunState.RUNNING,
-            "run6": RunState.PENDING,
-            "run7": RunState.PREEMPTED,
-            "run8": RunState.PREEMPTING,
-            "run9": RunState.UNKNOWN,
-            "run10": "?????",
-        }
+    # Mock api.get_run_state() to return crashed and running runs
+    mock_run_states: Dict[str, RunState] = {
+        "run1": RunState.CRASHED,
+        "run2": RunState.FAILED,
+        "run3": RunState.KILLED,
+        "run4": RunState.FINISHED,
+        "run5": RunState.RUNNING,
+        "run6": RunState.PENDING,
+        "run7": RunState.PREEMPTED,
+        "run8": RunState.PREEMPTING,
+        "run9": RunState.UNKNOWN,
+        "run10": "?????",
+    }
 
-        def mock_get_run_state(entity, project, run_id, *args, **kwargs):
-            if run_id not in mock_run_states:  # is scheduler
-                return RunState.RUNNING
-            return mock_run_states[run_id]
+    def mock_get_run_state(entity, project, run_id, *args, **kwargs):
+        if run_id not in mock_run_states:  # is scheduler
+            return RunState.RUNNING
+        return mock_run_states[run_id]
 
-        api.get_run_state = mock_get_run_state
-        _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
-        # Load up the runs into the Scheduler run dict
-        for i, run_id in enumerate(mock_run_states.keys()):
-            _scheduler._runs[run_id] = SweepRun(
-                id=run_id, state=RunState.RUNNING, worker_id=i
-            )
-        _scheduler._update_run_states()
-        for run_id, _state in mock_run_states.items():
-            if (
-                _state == "?????"
-            ):  # unknown state should be considered alive, but unknown
-                assert _scheduler._runs[run_id].state == RunState.UNKNOWN
-                continue
-            if not _state.is_alive:
-                # Dead runs should be removed from the run dict
-                assert run_id not in _scheduler._runs.keys()
-            else:
-                assert _scheduler._runs[run_id].state == _state
-
-        # ---- If get_run_state errors out, runs should have the state UNKNOWN
-        def mock_get_run_state_raise_exception(*args, **kwargs):
-            raise CommError("Generic Exception")
-
-        api.get_run_state = mock_get_run_state_raise_exception
-        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
-        _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
-        _scheduler._runs["foo_run_1"] = SweepRun(
-            id="foo_run_1", state=RunState.RUNNING, worker_id=1
+    api.get_run_state = mock_get_run_state
+    _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+    # Load up the runs into the Scheduler run dict
+    for i, run_id in enumerate(mock_run_states.keys()):
+        _scheduler._runs[run_id] = SweepRun(
+            id=run_id, state=RunState.RUNNING, worker_id=i
         )
-        _scheduler._runs["foo_run_2"] = SweepRun(
-            id="foo_run_2", state=RunState.RUNNING, worker_id=2
-        )
-        _scheduler._update_run_states()
-        assert _scheduler._runs["foo_run_1"].state == RunState.UNKNOWN
-        assert _scheduler._runs["foo_run_2"].state == RunState.UNKNOWN
+    _scheduler._update_run_states()
+    for run_id, _state in mock_run_states.items():
+        if _state == "?????":  # unknown state should be considered alive, but unknown
+            assert _scheduler._runs[run_id].state == RunState.UNKNOWN
+            continue
+        if not _state.is_alive:
+            # Dead runs should be removed from the run dict
+            assert run_id not in _scheduler._runs.keys()
+        else:
+            assert _scheduler._runs[run_id].state == _state
+
+    # ---- If get_run_state errors out, runs should have the state UNKNOWN
+    def mock_get_run_state_raise_exception(*args, **kwargs):
+        raise CommError("Generic Exception")
+
+    api.get_run_state = mock_get_run_state_raise_exception
+    sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
+    _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
+    _scheduler._runs["foo_run_1"] = SweepRun(
+        id="foo_run_1", state=RunState.RUNNING, worker_id=1
+    )
+    _scheduler._runs["foo_run_2"] = SweepRun(
+        id="foo_run_2", state=RunState.RUNNING, worker_id=2
+    )
+    _scheduler._update_run_states()
+    assert _scheduler._runs["foo_run_1"].state == RunState.UNKNOWN
+    assert _scheduler._runs["foo_run_2"].state == RunState.UNKNOWN
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
