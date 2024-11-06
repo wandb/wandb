@@ -26,6 +26,7 @@ from dockerpycreds.utils import find_executable
 import wandb
 import wandb.env
 import wandb.errors
+from wandb.sdk.artifacts._validators import is_artifact_registry_project
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
@@ -2390,6 +2391,15 @@ def get(path, root, type):
             artifact_name = artifact_parts[0]
         else:
             version = "latest"
+        if is_artifact_registry_project(project):
+            organization = path.split("/")[0] if path.count("/") == 2 else ""
+            # set entity to match the settings since in above code it was potentially set to an org
+            settings_entity = public_api.settings["entity"] or public_api.default_entity
+            # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
+            # we need to fetch the org entity to for the user behind the scenes.
+            entity = InternalApi()._resolve_org_entity_name(
+                entity=settings_entity, organization=organization
+            )
         full_path = f"{entity}/{project}/{artifact_name}:{version}"
         wandb.termlog(
             "Downloading {type} artifact {full_path}".format(

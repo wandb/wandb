@@ -790,8 +790,9 @@ class Api:
 
         # For registry artifacts, resolve org-based entity
         if is_artifact_registry_project(name):
+            settings_entity = self.settings["entity"] or self.default_entity
             entity = InternalApi()._resolve_org_entity_name(
-                entity=entity, organization=org
+                entity=settings_entity, organization=org
             )
         return public.Project(self.client, entity, name, {})
 
@@ -1055,9 +1056,10 @@ class Api:
         entity, project = self._parse_project_path(project_path)
         # If its a Registry project, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
+            settings_entity = self.settings["entity"] or self.default_entity
             org = parse_org_from_registry_path(project_path, PathType.PROJECT)
             entity = InternalApi()._resolve_org_entity_name(
-                entity=entity, organization=org
+                entity=settings_entity, organization=org
             )
         return public.ArtifactTypes(self.client, entity, project)
 
@@ -1079,8 +1081,9 @@ class Api:
         # If its an Registry artifact, the entity is an org instead
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(project_path, PathType.PROJECT)
+            settings_entity = self.settings["entity"] or self.default_entity
             entity = InternalApi()._resolve_org_entity_name(
-                entity=entity, organization=org
+                entity=settings_entity, organization=org
             )
         return public.ArtifactType(self.client, entity, project, type_name)
 
@@ -1103,8 +1106,9 @@ class Api:
         # If iterating through Registry project, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(project_name, PathType.PROJECT)
+            settings_entity = self.settings["entity"] or self.default_entity
             entity = InternalApi()._resolve_org_entity_name(
-                entity=entity, organization=org
+                entity=settings_entity, organization=org
             )
         return public.ArtifactCollections(
             self.client, entity, project, type_name, per_page=per_page
@@ -1127,8 +1131,9 @@ class Api:
         # If its an Registry artifact, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(name, PathType.ARTIFACT)
+            settings_entity = self.settings["entity"] or self.default_entity
             entity = InternalApi()._resolve_org_entity_name(
-                entity=entity, organization=org
+                entity=settings_entity, organization=org
             )
         return public.ArtifactCollection(
             self.client, entity, project, collection_name, type_name
@@ -1170,8 +1175,9 @@ class Api:
         # If its an Registry project, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(name, PathType.ARTIFACT)
+            settings_entity = self.settings["entity"] or self.default_entity
             entity = InternalApi()._resolve_org_entity_name(
-                entity=entity, organization=org
+                entity=settings_entity, organization=org
             )
         return public.Artifacts(
             self.client,
@@ -1191,19 +1197,18 @@ class Api:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
 
-        organization = ""
         # If its an Registry artifact, the entity is an org instead
         if is_artifact_registry_project(project):
-            # Update `organization` only if an organization name was provided,
-            # otherwise use the default that you already set above.
-            try:
-                organization, _, _ = name.split("/")
-            except ValueError:
-                organization = ""
+            organization = name.split("/")[0] if name.count("/") == 2 else ""
             # set entity to match the settings since in above code it was potentially set to an org
-            entity = self.settings["entity"] or self.default_entity
+            settings_entity = self.settings["entity"] or self.default_entity
+            # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
+            # we need to fetch the org entity to for the user behind the scenes.
+            entity = InternalApi()._resolve_org_entity_name(
+                entity=settings_entity, organization=organization
+            )
         artifact = wandb.Artifact._from_name(
-            entity, project, artifact_name, self.client, organization, enable_tracking
+            entity, project, artifact_name, self.client, enable_tracking
         )
         if type is not None and artifact.type != type:
             raise ValueError(

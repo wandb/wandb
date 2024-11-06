@@ -260,16 +260,6 @@ class Artifact:
             {_gql_artifact_fragment()}
             """
         )
-        # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
-        # we need to fetch the org entity to for the user behind the scenes.
-        if is_artifact_registry_project(project):
-            try:
-                entity = InternalApi()._resolve_org_entity_name(
-                    entity=entity, organization=organization
-                )
-            except ValueError as e:
-                wandb.termerror(str(e))
-                raise
         query_variable_values: dict[str, Any] = {
             "entityName": entity,
             "projectName": project,
