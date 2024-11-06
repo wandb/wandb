@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import socket
 import threading
 import time
-import traceback
 from typing import Iterator
 
 import fastapi
@@ -16,17 +16,15 @@ from .spy import WandbBackendSpy
 
 @contextlib.contextmanager
 def spy_proxy(
-    proxy_port: int,
     target_host: str,
     target_port: int,
 ) -> Iterator[WandbBackendProxy]:
     """A context manager that proxies a W&B backend.
 
-    The proxy server will be available at 127.0.0.1 on the given port.
-    The server is shut down when the context manager exits.
+    The proxy server will be available at 127.0.0.1 on a port chosen by the
+    system. The server is shut down when the context manager exits.
 
     Args:
-        proxy_port: The port on which to run the proxy server.
         target_host: The hostname of the W&B backend to proxy.
         target_port: The port of the W&B backend to proxy.
 
@@ -35,12 +33,14 @@ def spy_proxy(
     """
 
     http_client = httpx.AsyncClient()
-    spy = WandbBackendProxy(
+    port = _get_free_port()
+    proxy = WandbBackendProxy(
         client=http_client,
         target_host=target_host,
         target_port=target_port,
+        local_port=port,
     )
-    server = uvicorn.Server(uvicorn.Config(spy._to_fast_api(), port=proxy_port))
+    server = uvicorn.Server(uvicorn.Config(proxy._to_fast_api(), port=port))
 
     proxy_thread = threading.Thread(
         target=asyncio.run,
@@ -50,13 +50,20 @@ def spy_proxy(
     _wait_for_server(server)
 
     try:
-        yield spy
+        yield proxy
     finally:
         try:
             server.should_exit = True
             proxy_thread.join(timeout=30)
         except TimeoutError as e:
             raise AssertionError("Backend proxy server failed to shut down.") from e
+
+
+def _get_free_port() -> int:
+    """Returns a free port on the system."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
 
 
 async def _serve_then_close(
@@ -102,12 +109,14 @@ class WandbBackendProxy:
         client: httpx.AsyncClient,
         target_host: str,
         target_port: int,
+        local_port: int,
     ):
         self._lock = threading.Lock()
         self._client = client
         self._target_host = target_host
         self._target_port = target_port
         self._spy: WandbBackendSpy | None = None
+        self.port = local_port
 
     @contextlib.contextmanager
     def spy(self) -> Iterator[WandbBackendSpy]:
@@ -171,15 +180,14 @@ class WandbBackendProxy:
 
     async def _post_graphql(self, request: fastapi.Request) -> fastapi.Response:
         """Handle a GraphQL request and maybe relay it to the backend."""
-        with _continue_on_failure():
-            body = await request.body()
-            with self._lock:
-                if self._spy:
-                    response = self._spy.post_graphql(body)
-                    if response:
-                        return response
+        response = await self._relay(request)
 
-        return await self._relay(request)
+        request_body = await request.body()
+        with self._lock:
+            if self._spy:
+                self._spy.post_graphql(request_body, response.body)
+
+        return response
 
     async def _post_file_stream(
         self,
@@ -190,26 +198,17 @@ class WandbBackendProxy:
         run_id: str,
     ) -> fastapi.Response:
         """Handle a FileStream request and maybe relay it to the backend."""
-        with _continue_on_failure():
-            body = await request.body()
-            with self._lock:
-                if self._spy:
-                    response = self._spy.post_file_stream(
-                        body,
-                        entity=entity,
-                        project=project,
-                        run_id=run_id,
-                    )
-                    if response:
-                        return response
+        response = await self._relay(request)
 
-        return await self._relay(request)
+        request_body = await request.body()
+        with self._lock:
+            if self._spy:
+                self._spy.post_file_stream(
+                    request_body,
+                    response.body,
+                    entity=entity,
+                    project=project,
+                    run_id=run_id,
+                )
 
-
-@contextlib.contextmanager
-def _continue_on_failure() -> Iterator[None]:
-    """A context manager that prints a traceback and continues on error."""
-    try:
-        yield
-    except Exception as e:
-        traceback.print_exception(e)
+        return response
