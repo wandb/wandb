@@ -3542,7 +3542,9 @@ class Api:
         org_entity = ""
         if is_artifact_registry_project(project):
             try:
-                org_entity = self._resolve_org_entity_name(entity, organization)
+                org_entity = self._resolve_org_entity_name(
+                    entity=entity, organization=organization
+                )
             except ValueError as e:
                 wandb.termerror(str(e))
                 raise
