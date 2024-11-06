@@ -11,7 +11,7 @@ import unittest.mock
 import urllib.parse
 from collections.abc import Sequence
 from contextlib import contextmanager
-from typing import Any, Dict, Generator, Iterable, Iterator, List, Optional, Union
+from typing import Any, Dict, Generator, Iterator, List, Optional, Union
 
 import pytest
 import requests
