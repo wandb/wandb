@@ -166,12 +166,12 @@ type CredentialsFile struct {
 // as a Bearer token
 func (c *oauth2CredentialProvider) Apply(req *http.Request) error {
 	if c.shouldRefreshToken() {
-		token, err := c.loadCredentials()
+		err := c.loadCredentials()
 		if err != nil {
 			return err
 		}
-		c.token = token
 	}
+
 	req.Header.Set(
 		"Authorization",
 		"Bearer "+c.token.AccessToken,
@@ -188,17 +188,22 @@ func (c *oauth2CredentialProvider) shouldRefreshToken() bool {
 
 // loadCredentials attempts to load an access token from the credentials file.
 // If the credentials file does not exist, it attempts to create it.
-func (c *oauth2CredentialProvider) loadCredentials() (tokenInfo, error) {
+func (c *oauth2CredentialProvider) loadCredentials() error {
 	c.tokenMu.Lock()
 	defer c.tokenMu.Unlock()
+
+	if !c.token.IsTokenExpiring() {
+		return nil
+	}
 
 	_, err := os.Stat(c.credentialsFilePath)
 	if os.IsNotExist(err) {
 		token, err := c.writeCredentialsFile()
 		if err != nil {
-			return tokenInfo{}, err
+			return err
 		}
-		return token, nil
+		c.token = token
+		return nil
 	}
 	if err != nil {
 		c.logger.Warn("failed to access credentials file",
@@ -207,7 +212,13 @@ func (c *oauth2CredentialProvider) loadCredentials() (tokenInfo, error) {
 		)
 	}
 
-	return c.loadCredentialsFromFile()
+	token, err := c.loadCredentialsFromFile()
+	if err != nil {
+		return err
+	}
+	c.token = token
+
+	return nil
 }
 
 // loadCredentialsFromFile attempts to load the access token from the credentials file. If
