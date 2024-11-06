@@ -12,6 +12,7 @@ import shlex
 import subprocess
 import sys
 import time
+import traceback
 from typing import Iterator
 
 import click
@@ -25,34 +26,16 @@ def main():
     """Start or stop a W&B backend for testing.
 
     This manages a singleton local-testcontainer Docker process on your system.
-    You can start it up manually before running system_tests to speed up the
-    setup time; otherwise, any pytest invocation of system_tests that requires
-    the local-testcontainer will correctly start up a single instance of it
-    and shut it down after.
-
-    This tool is safe for concurrent use. In particular, multiple parallel
-    pytest invocations will only start a single container, and the container
-    will be kept alive until the last invocation exits.
-
-    NOTE: In certain error conditions, such as if you force-quit a pytest run,
-    the local-testcontainer process might not get cleaned up. You may use the
-    `release` or `stopall` commands manually to unblock it.
+    You must start it up manually before running system_tests by using the
+    start command. You can then stop it by using the stop command.
     """
 
 
 @main.command()
-@click.argument("id")
 @click.option(
     "--name",
-    help="The name for the server.",
+    help="The name for the server. This is used by 'connect' in pytest.",
     default="wandb-local-testcontainer",
-)
-@click.option(
-    "-i",
-    "--interactive",
-    help="Use to customize the Docker command.",
-    default=False,
-    is_flag=True,
 )
 @click.option(
     "--hostname",
@@ -71,207 +54,187 @@ def main():
     type=int,
 )
 def start(
-    id: str,
     name: str,
-    interactive: bool,
     hostname: str | None,
     base_port: int | None,
     fixture_port: int | None,
 ) -> None:
-    """Start and/or keep the container running until ID is released.
+    """Start a local-testcontainer.
 
-    The exit code is 0 if the backend starts up and is healthy. Otherwise,
-    the exit code is 1.
+    By default, starts an interactive session for spinning up the right
+    Docker container. If --hostname, --base-port and --fixture-port are
+    provided, then non-interactively connects to an existing container.
+    """
+    if not hostname:
+        _start_interactively(name=name)
 
-    The backend is accessible on localhost.
+    else:
+        if not base_port:
+            raise AssertionError("--base-port required")
+        if not fixture_port:
+            raise AssertionError("--fixture-port required")
 
-    If --hostname is provided, then the given server is used instead of
-    starting a Docker container. This is generally used in CI.
+        _start_external(
+            name=name,
+            hostname=hostname,
+            base_port=base_port,
+            fixture_port=fixture_port,
+        )
 
-    Prints a JSON dictionary with the following keys:
+
+@main.command()
+@click.option(
+    "--name",
+    help="The name used in the 'start' command.",
+    default="wandb-local-testcontainer",
+)
+def connect(name: str) -> None:
+    """Connect to a running local-testcontainer.
+
+    The exit code is 0 if there is a known local-testcontainer and it's healthy.
+    Otherwise, the exit code is 1.
+
+    On success, prints a JSON dictionary with the following keys:
 
         base_port: The main port (for GraphQL / FileStream / web UI)
         fixture_port: Port used for test-specific functionalities
     """
     with _info_file() as info:
-        if hostname:
-            if not base_port:
-                raise AssertionError("--base-port required")
-            if not fixture_port:
-                raise AssertionError("--fixture-port required")
+        server = info.servers.get(name)
 
-            server = _start_external(
-                info,
-                name=name,
-                hostname=hostname,
-                base_port=base_port,
-                fixture_port=fixture_port,
-            )
-        else:
-            server = _start_managed(
-                info,
-                name=name,
-                interactive=interactive,
-            )
-
-        server.ids.append(id)
-        click.echo(
-            json.dumps(
-                {
-                    "base_port": server.base_port,
-                    "fixture_port": server.fixture_port,
-                }
-            )
+    if not server:
+        _echo_bad(
+            f"Server {name} is not running. To start it, run:\n"
+            f"\tpython tools/local_wandb_server.py start --name={name}"
         )
+        sys.exit(1)
+
+    health_url = f"http://{server.hostname}:{server.base_port}/healthz"
+    if not _check_health(health_url):
+        _echo_bad(f"{health_url} did not respond HTTP 200.")
+        sys.exit(1)
+
+    _echo_good(f"Server {name} is healthy.")
+
+    click.echo(
+        json.dumps(
+            {
+                "base_port": server.base_port,
+                "fixture_port": server.fixture_port,
+            }
+        )
+    )
+
+
+def _start_interactively(name: str) -> None:
+    with _info_file() as info:
+        if name in info.servers:
+            _echo_bad(f"Server {name} is already running.")
+            sys.exit(1)
+
+        server = _ServerInfo(
+            managed=True,
+            hostname="localhost",
+            base_port=0,
+            fixture_port=0,
+        )
+        info.servers[name] = server
+
+        _start_container(name=name).apply_ports(server)
+
+        if not _check_health(
+            f"http://localhost:{server.base_port}/healthz",
+            timeout=30,
+        ):
+            _echo_bad("Server did not become healthy in time (base).")
+            sys.exit(1)
+
+        if not _check_health(
+            f"http://localhost:{server.fixture_port}/health",
+            timeout=30,
+        ):
+            _echo_bad("Server did not become healthy in time (fixtures).")
+            sys.exit(1)
+
+        _echo_good("Server is up and healthy!")
 
 
 def _start_external(
-    info: _InfoFile,
     name: str,
     hostname: str,
     base_port: int,
     fixture_port: int,
-) -> _ServerInfo:
-    server = info.servers.get(name)
+) -> None:
+    with _info_file() as info:
+        if name in info.servers:
+            _echo_bad(f"Server {name} is already running.")
+            sys.exit(1)
 
-    if server:
-        if not server.hostname == hostname:
-            _echo_bad(f"Already running on hostname {server.hostname}.")
-            sys.exit(1)
-        if not server.base_port == base_port:
-            _echo_bad(f"Already running with base port {server.base_port}.")
-            sys.exit(1)
-        if not server.fixture_port == fixture_port:
-            _echo_bad(f"Already running with fixture port {server.fixture_port}.")
-            sys.exit(1)
-    else:
-        server = _ServerInfo(
+        info.servers[name] = _ServerInfo(
             managed=False,
-            ids=[],
             hostname=hostname,
             base_port=base_port,
             fixture_port=fixture_port,
         )
-        info.servers[name] = server
 
-    app_health_url = f"http://{hostname}:{base_port}/healthz"
-    fixture_health_url = f"http://{hostname}:{fixture_port}/health"  # no z
+        app_health_url = f"http://{hostname}:{base_port}/healthz"
+        fixture_health_url = f"http://{hostname}:{fixture_port}/health"  # no z
 
-    if not _check_health(app_health_url, timeout=30):
-        _echo_bad(f"{app_health_url} did not respond HTTP 200.")
-        sys.exit(1)
+        if not _check_health(app_health_url, timeout=30):
+            _echo_bad(f"{app_health_url} did not respond HTTP 200.")
+            sys.exit(1)
 
-    if not _check_health(fixture_health_url, timeout=30):
-        _echo_bad(f"{fixture_health_url} did not respond HTTP 200.")
-        sys.exit(1)
+        if not _check_health(fixture_health_url, timeout=30):
+            _echo_bad(f"{fixture_health_url} did not respond HTTP 200.")
+            sys.exit(1)
 
-    _echo_good("Server is healthy!")
-    return server
-
-
-def _start_managed(
-    info: _InfoFile,
-    name: str,
-    interactive: bool,
-) -> _ServerInfo:
-    server = info.servers.get(name)
-
-    if server:
-        _start_check_existing_server(server)
-    else:
-        server = _start_new_server(
-            info,
-            name=name,
-            interactive=interactive,
-        )
-
-    return server
-
-
-def _start_check_existing_server(server: _ServerInfo) -> None:
-    if _check_health(f"http://localhost:{server.base_port}/healthz"):
-        _echo_good("Server is running.")
-    else:
-        _echo_bad("Server is not healthy.")
-        sys.exit(1)
-
-
-def _start_new_server(
-    info: _InfoFile,
-    name: str,
-    interactive: bool,
-) -> _ServerInfo:
-    server = _ServerInfo(
-        managed=True,
-        hostname="localhost",
-        base_port=0,
-        fixture_port=0,
-        ids=[],
-    )
-
-    _start_container(name=name, interactive=interactive).apply_ports(server)
-
-    if not _check_health(
-        f"http://localhost:{server.base_port}/healthz",
-        timeout=30,
-    ):
-        _echo_bad("Server did not become healthy in time (base).")
-        sys.exit(1)
-
-    if not _check_health(
-        f"http://localhost:{server.fixture_port}/health",
-        timeout=30,
-    ):
-        _echo_bad("Server did not become healthy in time (fixtures).")
-        sys.exit(1)
-
-    _echo_good("Server is up and healthy!")
-
-    info.servers[name] = server
-    return server
+        _echo_good("Server is healthy!")
 
 
 @main.command()
-@click.argument("id")
 @click.option(
     "--name",
-    help="The server name used in the 'start' command.",
-    default="wandb-local-testcontainer",
+    "names",
+    help="A name passed to 'start'. If not provided, stops all servers.",
+    default=[],
+    multiple=True,
 )
-def release(id: str, name: str) -> None:
-    """Release ID, stopping the container if no more IDs remain."""
-    with _info_file() as info:
-        server = info.servers.get(name)
+def stop(names: list[str]) -> None:
+    """Stops containers started by this script."""
+    all_good = True
 
-        if not server:
-            _echo_bad(f"Server {name} is not running.")
+    with _info_file() as info:
+        if not names:
+            names = list(info.servers.keys())
+
+        if not names:
+            _echo_bad("No servers to stop.")
             sys.exit(1)
 
-        if id not in server.ids:
-            _echo_bad(f"ID {id} was not in the list.")
-            sys.exit(1)
+        for name in names:
+            server = info.servers.pop(name, None)
+            if not server:
+                _echo_bad(f"No server called {name}.")
+                all_good = False
+                continue
 
-        server.ids.remove(id)
+            if not server.managed:
+                _echo_info(
+                    f"Forgetting {name}, but not stopping it because"
+                    " it wasn't started by this script."
+                )
+                continue
 
-        if server.ids:
-            _echo_good(f"Removed {id}. {len(server.ids)} left.")
-            return
-
-        _stop_container(name)
-        del info.servers[name]
-        _echo_good(f"Shut down {name}!")
-
-
-@main.command()
-def stopall() -> None:
-    """Stops all servers, disregarding any IDs still using them."""
-    with _info_file() as info:
-        for name, server in info.servers.items():
-            if server.managed:
+            try:
                 _stop_container(name)
+                _echo_info(f"Shut down {name}.")
+            except Exception as e:
+                traceback.print_exception(e, file=sys.stderr)
+                _echo_bad(f"Failed to stop {name}; forgetting it anyway.")
+                all_good = False
 
-        info.servers.clear()
-        _echo_good("Shut down local-test-container!")
+    if not all_good:
+        sys.exit(1)
 
 
 @main.command(name="print-debug")
@@ -315,9 +278,6 @@ class _InfoFile(pydantic.BaseModel):
 class _ServerInfo(pydantic.BaseModel):
     managed: bool
     """Whether this script started the server or just connected to it."""
-
-    ids: list[str]
-    """IDs of processes that are preventing us from killing the server."""
 
     hostname: str
     """The server's address, e.g. 'localhost'."""
@@ -367,38 +327,27 @@ class _WandbContainerPorts:
         server.fixture_port = self.fixture_port
 
 
-def _start_container(
-    *,
-    name: str,
-    interactive: bool,
-    clean_up: bool = True,
-) -> _WandbContainerPorts:
+def _start_container(*, name: str) -> _WandbContainerPorts:
     """Start the local-testcontainer.
 
     This issues the `docker run` command and returns immediately.
 
     Args:
         name: The container name to use.
-        clean_up: Whether to remove the container and its volumes on exit.
-            Passes the --rm option to docker run.
-        interactive: Whether to use to customize how the server is started.
     """
-    registry = "us-central1-docker.pkg.dev"
-    repository = "wandb-production/images/local-testcontainer"
-    tag = "master"
-    pull = "always"  # Always get latest image.
-
-    if interactive:
-        registry = click.prompt("Registry", default=registry)
-        repository = click.prompt("Repository", default=repository)
-        tag = click.prompt("Tag", default=tag)
-        pull = click.prompt(
-            "--pull",
-            default=pull,
-            type=click.Choice(["always", "never", "missing"]),
-        )
+    registry = click.prompt("Registry", default="us-central1-docker.pkg.dev")
+    repository = click.prompt(
+        "Repository", default="wandb-production/images/local-testcontainer"
+    )
+    tag = click.prompt("Tag", default="master")
+    pull = click.prompt(
+        "--pull",
+        default="always",
+        type=click.Choice(["always", "never", "missing"]),
+    )
 
     docker_flags = [
+        "--rm",
         "--detach",
         *["--pull", pull],
         *["-e", "WANDB_ENABLE_TEST_CONTAINER=true"],
@@ -413,17 +362,44 @@ def _start_container(
         *["--platform", "linux/amd64"],
     ]
 
-    if clean_up:
-        docker_flags.append("--rm")
-
     image = f"{registry}/{repository}:{tag}"
     command = ["docker", "run", *docker_flags, image]
 
-    if interactive:
-        _echo_info(f"Running command: {shlex.join(command)}")
-
+    _echo_info(f"Running command: {shlex.join(command)}")
     subprocess.check_call(command, stdout=sys.stderr)
+    return _get_ports_retrying(name)
 
+
+def _stop_container(name: str) -> None:
+    subprocess.check_call(["docker", "rm", "-f", name], stdout=sys.stderr)
+
+
+def _get_ports_retrying(name: str) -> _WandbContainerPorts:
+    """Returns the local-testcontainer's ports.
+
+    Retries up to one second before failing.
+    """
+    ports = None
+    ports_start_time = time.monotonic()
+    while not ports and time.monotonic() - ports_start_time < 1:
+        ports = _get_ports(name)
+        if not ports:
+            time.sleep(0.1)
+
+    if not ports:
+        _echo_bad("Failed to get ports from container.")
+        sys.exit(1)
+
+    return ports
+
+
+def _get_ports(name: str) -> _WandbContainerPorts | None:
+    """Query the container's ports.
+
+    Returns None if the container's ports are not available yet. On occasion,
+    `docker port` doesn't return all ports if it happens too soon after
+    `docker run`.
+    """
     ports_str = subprocess.check_output(["docker", "port", name]).decode()
 
     port_line_re = re.compile(r"(\d+)(\/\w+)? -> [^:]*:(\d+)")
@@ -443,18 +419,14 @@ def _start_container(
             fixture_port = int(external_port)
 
     if not base_port:
-        raise AssertionError(f"Couldn't determine W&B base port: {ports_str}")
+        return None
     if not fixture_port:
-        raise AssertionError(f"Couldn't determine W&B fixture port: {ports_str}")
+        return None
 
     return _WandbContainerPorts(
         base_port=base_port,
         fixture_port=fixture_port,
     )
-
-
-def _stop_container(name: str) -> None:
-    subprocess.check_call(["docker", "rm", "-f", name], stdout=sys.stderr)
 
 
 def _echo_good(msg: str) -> None:

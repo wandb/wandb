@@ -11,7 +11,7 @@ import unittest.mock
 import urllib.parse
 from collections.abc import Sequence
 from contextlib import contextmanager
-from typing import Any, Dict, Generator, Iterable, Iterator, List, Optional, Union
+from typing import Any, Dict, Generator, Iterator, List, Optional, Union
 
 import pytest
 import requests
@@ -431,61 +431,50 @@ class LocalWandbBackendAddress:
 
 
 @pytest.fixture(scope="session")
-def local_wandb_backend(worker_id: str) -> Iterable[LocalWandbBackendAddress]:
+def local_wandb_backend() -> LocalWandbBackendAddress:
     """Fixture that starts up or connects to the local-testcontainer.
 
     This does not patch WANDB_BASE_URL! Use `use_local_wandb_backend` instead.
     """
-    yield from _local_wandb_backend(
-        worker_id=worker_id,
-        name="wandb-local-testcontainer",
-    )
+    return _local_wandb_backend(name="wandb-local-testcontainer")
 
 
 @pytest.fixture(scope="session")
-def local_wandb_backend_importers(
-    worker_id: str,
-) -> Iterable[LocalWandbBackendAddress]:
+def local_wandb_backend_importers() -> LocalWandbBackendAddress:
     """Fixture that starts up or connects to a second local-testcontainer.
 
     This is used by importer tests, to move data between two backends.
     """
-    yield from _local_wandb_backend(
-        worker_id=worker_id,
-        name="wandb-local-testcontainer-importers",
-    )
+    return _local_wandb_backend(name="wandb-local-testcontainer-importers")
 
 
-def _local_wandb_backend(
-    worker_id: str,
-    name: str,
-) -> Iterable[LocalWandbBackendAddress]:
+def _local_wandb_backend(name: str) -> LocalWandbBackendAddress:
     repo_root = pathlib.Path(__file__).parent.parent.parent
     tool_file = repo_root / "tools" / "local_wandb_server.py"
-    session_id = f"pytest:{worker_id}"
 
-    output_str = subprocess.check_output(
-        ["python", tool_file, "start", session_id, f"--name={name}"]
+    result = subprocess.run(
+        [
+            "python",
+            tool_file,
+            "connect",
+            f"--name={name}",
+        ],
+        stdout=subprocess.PIPE,
     )
 
-    try:
-        output = json.loads(output_str)
-        address = LocalWandbBackendAddress(
-            _host="localhost",
-            _base_port=int(output["base_port"]),
-            _fixture_port=int(output["fixture_port"]),
+    if result.returncode != 0:
+        raise AssertionError(
+            "`python tools/local_wandb_server.py connect` failed. See stderr."
+            " Did you run `python tools/local_wandb_server.py start`?"
         )
-        yield address
-    finally:
-        subprocess.check_call(
-            [
-                "python",
-                tool_file,
-                "release",
-                session_id,
-                f"--name={name}",
-            ]
-        )
+
+    output = json.loads(result.stdout)
+    address = LocalWandbBackendAddress(
+        _host="localhost",
+        _base_port=int(output["base_port"]),
+        _fixture_port=int(output["fixture_port"]),
+    )
+    return address
 
 
 @pytest.fixture(scope="function")
