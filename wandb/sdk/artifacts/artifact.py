@@ -41,7 +41,6 @@ from wandb.errors.term import termerror, termlog, termwarn
 from wandb.sdk.artifacts._validators import (
     ensure_logged,
     ensure_not_finalized,
-    is_artifact_registry_project,
     validate_aliases,
     validate_tags,
 )
