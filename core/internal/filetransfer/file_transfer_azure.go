@@ -70,7 +70,7 @@ type AzureFileTransfer struct {
 	// clients is a map of account URLs to azblob.Client objects
 	clients *AzureClientsMap
 
-	// containerClients is a map of container names to azblob.ContainerClient objects
+	// containerClients is a map of container names to container.Client objects
 	containerClients *AzureClientsMap
 }
 
