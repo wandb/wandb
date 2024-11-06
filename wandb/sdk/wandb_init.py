@@ -850,7 +850,8 @@ class _WandbInit:
 
         if not run_result.HasField("run"):
             raise Error(
-                "It appears that something have gone wrong during the program execution as an unexpected missing field was encountered. "
+                "It appears that something have gone wrong during the program "
+                "execution as an unexpected missing field was encountered. "
                 "(run_result is missing the 'run' field)"
             )
 

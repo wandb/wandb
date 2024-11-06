@@ -39,7 +39,7 @@ from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError, UnsupportedError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
-from wandb.plot.viz import CustomChart, Visualize, custom_chart
+from wandb.plot import CustomChart, Visualize, plot_table
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
@@ -1472,36 +1472,27 @@ class Run:
     def _visualization_hack(self, row: dict[str, Any]) -> dict[str, Any]:
         # TODO(jhr): move visualize hack somewhere else
         chart_keys = set()
-        split_table_set = set()
-        for k in row:
-            if isinstance(row[k], Visualize):
-                key = row[k].get_config_key(k)
-                value = row[k].get_config_value(k)
-                row[k] = row[k]._data
-                self._config_callback(val=value, key=key)
-            elif isinstance(row[k], CustomChart):
+        for k, v in row.items():
+            if isinstance(v, Visualize):
+                row[k] = v.table
+                v.set_key(k)
+                self._config_callback(
+                    val=v.spec.config_value,
+                    key=v.spec.config_key,
+                )
+            elif isinstance(v, CustomChart):
                 chart_keys.add(k)
-                key = row[k].get_config_key(k)
-                if row[k]._split_table:
-                    value = row[k].get_config_value(
-                        "Vega2", row[k].user_query(f"Custom Chart Tables/{k}_table")
-                    )
-                    split_table_set.add(k)
-                else:
-                    value = row[k].get_config_value(
-                        "Vega2", row[k].user_query(f"{k}_table")
-                    )
-                row[k] = row[k]._data
-                self._config_callback(val=value, key=key)
+                v.set_key(k)
+                self._config_callback(
+                    key=v.spec.config_key,
+                    val=v.spec.config_value,
+                )
 
         for k in chart_keys:
             # remove the chart key from the row
-            # TODO: is this really the right move? what if the user logs
-            #     a non-custom chart to this key?
-            if k in split_table_set:
-                row[f"Custom Chart Tables/{k}_table"] = row.pop(k)
-            else:
-                row[f"{k}_table"] = row.pop(k)
+            v = row.pop(k)
+            if isinstance(v, CustomChart):
+                row[v.spec.table_key] = v.table
         return row
 
     def _partial_history_callback(
@@ -1706,7 +1697,7 @@ class Run:
         [guides to logging](https://docs.wandb.ai/guides/track/log) for examples,
         from 3D molecular structures and segmentation masks to PR curves and histograms.
         You can use `wandb.Table` to log structured data. See our
-        [guide to logging tables](https://docs.wandb.ai/guides/data-vis/log-tables)
+        [guide to logging tables](https://docs.wandb.ai/guides/tables/tables-walkthrough)
         for details.
 
         The W&B UI organizes metrics with a forward slash (`/`) in their name
@@ -2243,7 +2234,7 @@ class Run:
         data_table: Table,
         fields: dict[str, Any],
         string_fields: dict[str, Any] | None = None,
-        split_table: bool | None = False,
+        split_table: bool = False,
     ) -> CustomChart:
         """Create a custom plot on a table.
 
@@ -2258,7 +2249,7 @@ class Run:
             split_table: a boolean that indicates whether the table should be in
                 a separate section in the UI
         """
-        return custom_chart(
+        return plot_table(
             vega_spec_name, data_table, fields, string_fields or {}, split_table
         )
 

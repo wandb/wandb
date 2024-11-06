@@ -1,130 +1,252 @@
 import pytest
-from sklearn.naive_bayes import MultinomialNB
 from wandb.plot import confusion_matrix, line_series, pr_curve, roc_curve
 
 
-@pytest.fixture
-def dummy_classifier():
-    nb = MultinomialNB()
-    x_train = [
-        [1, 2],
-        [1, 2],
-        [1, 2],
-        [1, 2],
-        [2, 3],
-        [3, 4],
-        [3, 4],
-        [3, 4],
-        [3, 4],
-        [3, 4],
-        [3, 4],
+def test_roc_curve_no_title():
+    """Test ROC curve with no title.
+
+    The ROC curve is created with two sets of probabilities. The expected data
+    is pre-defined and compared with the actual data. The title is also checked.
+    """
+    chart = roc_curve(
+        y_true=[0, 1],
+        y_probas=[
+            (0.4, 0.6),
+            (0.8, 0.2),
+        ],
+    )
+    assert chart.spec.string_fields["title"] == "ROC Curve"
+    assert chart.table.data == [
+        [0, 0.0, 0.0],
+        [0, 1.0, 0.0],
+        [0, 1.0, 1.0],
+        [1, 0.0, 0.0],
+        [1, 1.0, 0.0],
+        [1, 1.0, 1.0],
     ]
-    y_train = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1]
-    nb.fit(x_train, y_train)
-    x_test = [[4, 5], [5, 6]]
-    y_test = [0, 1]
-    y_probas = nb.predict_proba(x_test)
-    y_pred = nb.predict(x_test)
-    return (nb, x_train, y_train, x_test, y_test, y_pred, y_probas)
 
 
-def test_roc(dummy_classifier, mock_run):
-    _ = mock_run(settings={"mode": "offline"})
-    *_, y_test, _, y_probas = dummy_classifier
-    custom_chart_no_title = roc_curve(y_test, y_probas)
-    assert custom_chart_no_title.string_fields["title"] == "ROC Curve"
-    first_row = custom_chart_no_title.table.data[0]
-    assert first_row == [0, 0.0, 0.0], first_row
-    custom_chart_with_title = roc_curve(y_test, y_probas, title="New title")
-    assert custom_chart_with_title.string_fields["title"] == "New title"
+def test_roc_curve_with_title():
+    """Test ROC curve with a title.
 
-
-def test_pr(dummy_classifier, mock_run):
-    _ = mock_run(settings={"mode": "offline"})
-    *_, y_test, _, y_probas = dummy_classifier
-    custom_chart_no_title = pr_curve(y_test, y_probas)
-    assert custom_chart_no_title.string_fields["title"] == "Precision-Recall Curve"
-    first_row = custom_chart_no_title.table.data[0]
-    assert first_row == [0, 1.0, 1.0], first_row
-    custom_chart_with_title = pr_curve(y_test, y_probas, title="New title")
-    assert custom_chart_with_title.string_fields["title"] == "New title"
-
-
-def test_conf_mat(dummy_classifier, mock_run):
-    _ = mock_run(settings={"mode": "offline"})
-    *_, y_test, y_pred, y_probas = dummy_classifier
-    conf_mat_using_probs = confusion_matrix(probs=y_probas, y_true=y_test)
-    conf_mat_using_preds = confusion_matrix(
-        preds=y_pred, y_true=y_test, title="New title"
+    The ROC curve is created with two sets of probabilities and a title. The
+    expected data is pre-defined and compared with the actual data. The title
+    is also checked.
+    """
+    chart = roc_curve(
+        y_true=[0, 1],
+        y_probas=[
+            (0.4, 0.6),
+            (0.3, 0.7),
+        ],
+        title="New title",
     )
-    assert conf_mat_using_probs.table.data[0] == ["Class_1", "Class_1", 0.0]
-    assert conf_mat_using_probs.table.data[0] == conf_mat_using_preds.table.data[0]
-    assert conf_mat_using_preds.string_fields["title"] == "New title"
+
+    assert chart.spec.string_fields["title"] == "New title"
+    assert chart.table.data == [
+        [0, 0.0, 0.0],
+        [0, 0.0, 1.0],
+        [0, 1.0, 1.0],
+        [1, 0.0, 0.0],
+        [1, 0.0, 1.0],
+        [1, 1.0, 1.0],
+    ]
 
 
-def test_conf_mat_missing_values_with_classes(mock_run):
-    _ = mock_run(settings={"mode": "offline"})
-    class_names = ["Cat", "Dog", "Bird"]
-    y_true = [1, 2, 1, 2]
-    y_pred = [2, 1, 1, 2]
-    conf_mat = confusion_matrix(
-        preds=y_pred, y_true=y_true, class_names=class_names, title="New title"
+def test_pr_curve_no_title():
+    """Test precision-recall curve with no title.
+
+    The precision-recall curve is created with two sets of probabilities. The
+    expected data is pre-defined and compared with the actual data. The title
+    is also checked.
+    """
+    chart = pr_curve(
+        y_true=[0, 1],
+        y_probas=[
+            (0.4, 0.6),
+            (0.8, 0.2),
+        ],
+        interp_size=4,
     )
-    assert conf_mat.table.data[0] == ["Cat", "Cat", 0]
-    assert conf_mat.table.data[1] == ["Cat", "Dog", 0]
-    assert conf_mat.table.data[2] == ["Cat", "Bird", 0]
-
-    assert conf_mat.table.data[3] == ["Dog", "Cat", 0]
-    assert conf_mat.table.data[4] == ["Dog", "Dog", 1]
-    assert conf_mat.table.data[5] == ["Dog", "Bird", 1]
-
-    assert conf_mat.table.data[6] == ["Bird", "Cat", 0]
-    assert conf_mat.table.data[7] == ["Bird", "Dog", 1]
-    assert conf_mat.table.data[8] == ["Bird", "Bird", 1]
-
-
-def test_conf_mat_missing_values_without_classes(mock_run):
-    _ = mock_run(settings={"mode": "offline"})
-    y_true = [2, 4, 2, 4, 4]
-    y_pred = [4, 2, 2, 4, 6]
-    conf_mat = confusion_matrix(preds=y_pred, y_true=y_true)
-    assert conf_mat.table.data[0] == ["Class_1", "Class_1", 1]
-    assert conf_mat.table.data[1] == ["Class_1", "Class_2", 1]
-    assert conf_mat.table.data[2] == ["Class_1", "Class_3", 0]
-
-    assert conf_mat.table.data[3] == ["Class_2", "Class_1", 1]
-    assert conf_mat.table.data[4] == ["Class_2", "Class_2", 1]
-    assert conf_mat.table.data[5] == ["Class_2", "Class_3", 1]
-
-    assert conf_mat.table.data[6] == ["Class_3", "Class_1", 0]
-    assert conf_mat.table.data[7] == ["Class_3", "Class_2", 0]
-    assert conf_mat.table.data[8] == ["Class_3", "Class_3", 0]
+    assert chart.spec.string_fields["title"] == "Precision-Recall Curve"
+    assert chart.table.data == [
+        [0, 0.5, 1.0],
+        [0, 0.5, 0.667],
+        [0, 0.5, 0.333],
+        [0, 1.0, 0.0],
+        [1, 0.5, 1.0],
+        [1, 0.5, 0.667],
+        [1, 0.5, 0.333],
+        [1, 1.0, 0.0],
+    ]
 
 
-@pytest.mark.parametrize("xs", [["600417", "600421"], [613, 215]])
-@pytest.mark.parametrize("ys", [[[3, 4]], [["3", "4"]], [[1, 2], [7.1, 8.3]]])
-def test_line_series(xs, ys, mock_run):
-    _ = mock_run(settings={"mode": "offline"})
-    line_series_plt = line_series(xs, ys)
-    assert line_series_plt.table.data[0] == [xs[0], "line_0", ys[0][0]]
-    assert line_series_plt.table.data[1] == [xs[1], "line_0", ys[0][1]]
+def test_pr_curve_with_title():
+    """Test precision-recall curve with a title.
 
-    if len(ys) == 2:
-        assert line_series_plt.table.data[2] == [xs[0], "line_1", ys[1][0]]
-        assert line_series_plt.table.data[3] == [xs[1], "line_1", ys[1][1]]
+    The precision-recall curve is created with two sets of probabilities and a
+    title. The expected data is pre-defined and compared with the actual data.
+    The title is also checked.
+    """
+    chart = pr_curve(
+        y_true=[0, 1],
+        y_probas=[
+            (0.4, 0.6),
+            (0.8, 0.2),
+        ],
+        interp_size=4,
+        title="New title",
+    )
+    assert chart.spec.string_fields["title"] == "New title"
+    assert chart.table.data == [
+        [0, 0.5, 1.0],
+        [0, 0.5, 0.667],
+        [0, 0.5, 0.333],
+        [0, 1.0, 0.0],
+        [1, 0.5, 1.0],
+        [1, 0.5, 0.667],
+        [1, 0.5, 0.333],
+        [1, 1.0, 0.0],
+    ]
+
+
+def test_confusion_matrix():
+    """Test confusion matrix with probabilities and predictions
+
+    The result of the confusion matrix using probabilities and predictions should
+    be the same. The expected data is pre-defined and compared with the actual data.
+    """
+    chart_w_probs = confusion_matrix(
+        y_true=[0, 1],
+        probs=[
+            (0.4, 0.6),
+            (0.2, 0.8),
+        ],
+    )
+    chart_w_preds = confusion_matrix(
+        y_true=[0, 1],
+        preds=[1, 1],
+    )
+    assert chart_w_probs.table.data == chart_w_preds.table.data
+    assert chart_w_preds.table.data == [
+        ["Class_1", "Class_1", 0],
+        ["Class_1", "Class_2", 1],
+        ["Class_2", "Class_1", 0],
+        ["Class_2", "Class_2", 1],
+    ]
+    assert chart_w_probs.spec == chart_w_preds.spec
+    assert chart_w_probs.spec.string_fields["title"] == "Confusion Matrix Curve"
+
+
+def test_confusion_matrix_with_predictions():
+    """Test confusion matrix using predictions
+
+    The confusion matrix is created using predictions. Note that the class names
+    are zero-indexed.
+    """
+    chart = confusion_matrix(
+        y_true=[0, 2, 1, 2],
+        preds=[2, 1, 1, 2],
+        class_names=["Cat", "Dog", "Bird"],
+        title="New title",
+    )
+    assert chart.spec.string_fields["title"] == "New title"
+    assert chart.table.data == [
+        ["Cat", "Cat", 0],
+        ["Cat", "Dog", 0],
+        ["Cat", "Bird", 1],
+        ["Dog", "Cat", 0],
+        ["Dog", "Dog", 1],
+        ["Dog", "Bird", 0],
+        ["Bird", "Cat", 0],
+        ["Bird", "Dog", 1],
+        ["Bird", "Bird", 1],
+    ]
+
+
+def test_confusion_matrix_without_class_names():
+    """Test confusion matrix without class names
+
+    The class names are generated automatically. The class names will only be
+    for the unique values in the predictions and true labels.
+    """
+    chart = confusion_matrix(
+        y_true=[2, 4, 2, 4, 4],
+        preds=[4, 2, 2, 4, 6],
+    )
+    assert chart.table.data == [
+        ["Class_1", "Class_1", 1],
+        ["Class_1", "Class_2", 1],
+        ["Class_1", "Class_3", 0],
+        ["Class_2", "Class_1", 1],
+        ["Class_2", "Class_2", 1],
+        ["Class_2", "Class_3", 1],
+        ["Class_3", "Class_1", 0],
+        ["Class_3", "Class_2", 0],
+        ["Class_3", "Class_3", 0],
+    ]
 
 
 @pytest.mark.parametrize(
-    ["args", "kwargs", "error"],
+    "x_values",
     [
-        [(1, [[3, 4]]), {}, TypeError],
-        [([1], [3]), {}, TypeError],
-        [([1], 3), {}, TypeError],
-        [([[1], [2]], [[3]]), {}, ValueError],
-        [([1, 2], [[3, 4]]), {"keys": ["a", "b"]}, ValueError],
+        ["600417", "600421"],
+        [613, 215],
     ],
 )
-def test_line_series_bad_inputs(args, kwargs, error):
-    with pytest.raises(error) as e_info:
-        line_series(*args, **kwargs)
-        print(e_info.value)
+@pytest.mark.parametrize(
+    "y_values",
+    [
+        [[3, 4]],
+        [["3", "4"]],
+        [[1, 2], [7.1, 8.3]],
+    ],
+)
+def test_line_series(x_values, y_values):
+    """Test line series chart with different data types.
+
+    The x_values and y_values are used to create a line series chart. The
+    expected data structure is built dynamically to compare with the actual
+    data structure.
+    """
+    chart = line_series(xs=x_values, ys=y_values)
+
+    # Build the expected data structure dynamically
+    expected_data = []
+    for idx, y_values_line in enumerate(y_values):
+        line_label = f"line_{idx}"
+        for x, y in zip(x_values, y_values_line):
+            expected_data.append([x, line_label, y])
+
+    assert chart.table.data == expected_data
+
+
+@pytest.mark.parametrize(
+    ["arguments", "exception"],
+    [
+        [
+            {"xs": 1, "ys": [[3, 4]]},
+            TypeError,
+        ],
+        [
+            {"xs": [1], "ys": [3]},
+            TypeError,
+        ],
+        [
+            {"xs": [1], "ys": 3},
+            TypeError,
+        ],
+        [
+            {"xs": [[1], [2]], "ys": [3]},
+            ValueError,
+        ],
+        [
+            {"xs": [1, 2], "ys": [[3, 4]], "keys": ["a", "b"]},
+            ValueError,
+        ],
+    ],
+)
+def test_line_series_invalid_inputs(arguments, exception):
+    """Test line series chart with invalid inputs."""
+    with pytest.raises(exception):
+        line_series(**arguments)
