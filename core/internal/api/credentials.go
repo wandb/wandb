@@ -201,7 +201,10 @@ func (c *oauth2CredentialProvider) loadCredentials() (tokenInfo, error) {
 		return token, nil
 	}
 	if err != nil {
-		return tokenInfo{}, err
+		c.logger.Warn("failed to access credentials file",
+			"file path", c.credentialsFilePath,
+			"error", err,
+		)
 	}
 
 	return c.loadCredentialsFromFile()
@@ -214,10 +217,13 @@ func (c *oauth2CredentialProvider) loadCredentialsFromFile() (tokenInfo, error) 
 	var credsFile CredentialsFile
 	file, err := os.ReadFile(c.credentialsFilePath)
 	if err != nil {
-		c.logger.Error("failed to read credentials from file path %s: %v", c.credentialsFilePath, err)
+		c.logger.Warn("failed to read credentials file",
+			"file path", c.credentialsFilePath,
+			"error", err,
+		)
 	} else {
 		if err := json.Unmarshal(file, &credsFile); err != nil {
-			c.logger.Error("failed to read credentials file: %v", err)
+			c.logger.Warn("failed to read credentials file", "error", err.Error())
 		}
 	}
 
@@ -226,21 +232,20 @@ func (c *oauth2CredentialProvider) loadCredentialsFromFile() (tokenInfo, error) 
 	}
 
 	creds, ok := credsFile.Credentials[c.baseURL]
-
 	if !ok || creds.IsTokenExpiring() {
-		newCreds, err := c.createAccessToken()
+		creds, err = c.createAccessToken()
 		if err != nil {
 			return tokenInfo{}, err
 		}
-		credsFile.Credentials[c.baseURL] = newCreds
+		credsFile.Credentials[c.baseURL] = creds
 		updatedFile, err := json.MarshalIndent(credsFile, "", "  ")
 		if err != nil {
-			c.logger.Error("failed to update credentials file: %v", err)
+			c.logger.Warn("failed to update credentials file", "error", err.Error())
 			return creds, nil
 		}
 		err = os.WriteFile(c.credentialsFilePath, updatedFile, 0600)
 		if err != nil {
-			c.logger.Error("failed to update credentials file: %v", err)
+			c.logger.Warn("failed to write credentials file", "error", err.Error())
 		}
 	}
 
@@ -263,13 +268,16 @@ func (c *oauth2CredentialProvider) writeCredentialsFile() (tokenInfo, error) {
 
 	file, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
-		c.logger.Error("failed to write credentials file : %v", err)
+		c.logger.Warn("failed to write credentials file", "error", err.Error())
 		return token, nil
 	}
 
 	err = os.WriteFile(c.credentialsFilePath, file, 0600)
 	if err != nil {
-		c.logger.Error("failed to write credentials file: %v", err)
+		c.logger.Warn("failed to write credentials file",
+			"file path", c.credentialsFilePath,
+			"error", err.Error(),
+		)
 	}
 
 	return token, nil
@@ -302,7 +310,7 @@ func (c *oauth2CredentialProvider) createAccessToken() (tokenInfo, error) {
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return tokenInfo{}, fmt.Errorf("failed to retrieve access token: %v", err)
+			return tokenInfo{}, err
 		}
 		return tokenInfo{}, fmt.Errorf("failed to retrieve access token: %s", string(body))
 	}
@@ -312,7 +320,7 @@ func (c *oauth2CredentialProvider) createAccessToken() (tokenInfo, error) {
 		ExpiresIn   int    `json:"expires_in"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&tokenResponse); err != nil {
-		return tokenInfo{}, fmt.Errorf("invalid response from auth server: %v", err)
+		return tokenInfo{}, err
 	}
 
 	// calculate the time at which the token will expire from the expires_in seconds
