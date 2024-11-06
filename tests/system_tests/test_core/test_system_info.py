@@ -61,7 +61,12 @@ def send_manager(
 
 
 def test_meta_probe(
-    relay_server, meta, mock_run, send_manager, record_q, user, monkeypatch
+    wandb_backend_spy,
+    meta,
+    mock_run,
+    send_manager,
+    record_q,
+    monkeypatch,
 ):
     orig_exists = os.path.exists
     orig_call = subprocess.call
@@ -79,24 +84,24 @@ def test_meta_probe(
     )
     with open("README", "w") as f:
         f.write("Testing")
-    with relay_server() as relay:
-        run = mock_run(use_magic_mock=True, settings={"save_code": True})
-        meta = meta(run.settings)
-        sm = send_manager(run, meta)
-        data = meta.probe()
-        meta.publish(data)
-        sm.send(record_q.get())
-        sm.finish()
+    run = mock_run(use_magic_mock=True, settings={"save_code": True})
+    meta = meta(run.settings)
+    sm = send_manager(run, meta)
+    data = meta.probe()
+    meta.publish(data)
+    sm.send(record_q.get())
+    sm.finish()
 
-    uploaded_files = relay.context.get_run_uploaded_files(run.id)
-    assert sorted(uploaded_files) == sorted(
-        [
-            "wandb-metadata.json",
-            "config.yaml",
-            "diff.patch",
-            "conda-environment.yaml",
-        ]
-    )
+    with wandb_backend_spy.freeze() as snapshot:
+        uploaded_files = snapshot.uploaded_files(run_id=run.id)
+        assert uploaded_files == set(
+            [
+                "wandb-metadata.json",
+                "config.yaml",
+                "diff.patch",
+                "conda-environment.yaml",
+            ]
+        )
 
 
 def test_executable_outside_cwd(meta, test_settings):

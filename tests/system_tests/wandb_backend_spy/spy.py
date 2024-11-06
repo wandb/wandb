@@ -82,6 +82,8 @@ class WandbBackendSpy:
         with self._lock:
             run = self._runs.setdefault(run_id, _RunData())
 
+            run._uploaded_files |= set(request.get("uploaded", []))
+
             for file_name, file_data in request.get("files", {}).items():
                 file = run._file_stream_files.setdefault(file_name, {})
 
@@ -100,6 +102,15 @@ class WandbBackendSnapshot:
         """Returns the IDs of all runs."""
         spy = self._assert_valid()
         return set(spy._runs.keys())
+
+    def uploaded_files(self, *, run_id: str) -> set[str]:
+        """Returns the set of files uploaded for the run.
+
+        This is based on the values reported in the "uploaded" field of
+        FileStream requests, and doesn't track actual file uploads.
+        """
+        spy = self._assert_valid()
+        return spy._runs[run_id]._uploaded_files
 
     def history(self, *, run_id: str) -> dict[int, Any]:
         """Returns the history file for the run.
@@ -214,5 +225,6 @@ class WandbBackendSnapshot:
 
 class _RunData:
     def __init__(self) -> None:
+        self._uploaded_files: set[str] = set()
         self._file_stream_files: dict[str, dict[int, Any]] = {}
         self._config_json_string: str | None = None
