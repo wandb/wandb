@@ -39,8 +39,7 @@ from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError, UnsupportedError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
-from wandb.plot.custom_chart import CustomChart
-from wandb.plot.viz import Visualize, plot_table
+from wandb.plot import CustomChart, Visualize, plot_table
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
@@ -1473,36 +1472,27 @@ class Run:
     def _visualization_hack(self, row: dict[str, Any]) -> dict[str, Any]:
         # TODO(jhr): move visualize hack somewhere else
         chart_keys = set()
-        split_table_set = set()
-        for k in row:
-            if isinstance(row[k], Visualize):
-                key = row[k].get_config_key(k)
-                value = row[k].get_config_value(k)
-                row[k] = row[k]._data
-                self._config_callback(val=value, key=key)
-            elif isinstance(row[k], CustomChart):
+        for k, v in row.items():
+            if isinstance(v, Visualize):
+                row[k] = v.table
+                v.set_key(k)
+                self._config_callback(
+                    val=v.spec.config_value,
+                    key=v.spec.config_key,
+                )
+            elif isinstance(v, CustomChart):
                 chart_keys.add(k)
-                key = row[k].get_config_key(k)
-                if row[k]._split_table:
-                    value = row[k].get_config_value(
-                        "Vega2", row[k].user_query(f"Custom Chart Tables/{k}_table")
-                    )
-                    split_table_set.add(k)
-                else:
-                    value = row[k].get_config_value(
-                        "Vega2", row[k].user_query(f"{k}_table")
-                    )
-                row[k] = row[k]._data
-                self._config_callback(val=value, key=key)
+                v.set_key(k)
+                self._config_callback(
+                    key=v.spec.config_key,
+                    val=v.spec.config_value,
+                )
 
         for k in chart_keys:
             # remove the chart key from the row
-            # TODO: is this really the right move? what if the user logs
-            #     a non-custom chart to this key?
-            if k in split_table_set:
-                row[f"Custom Chart Tables/{k}_table"] = row.pop(k)
-            else:
-                row[f"{k}_table"] = row.pop(k)
+            v = row.pop(k)
+            if isinstance(v, CustomChart):
+                row[v.spec.table_key] = v.table
         return row
 
     def _partial_history_callback(

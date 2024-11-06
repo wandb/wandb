@@ -41,7 +41,6 @@ from wandb.errors.term import termerror, termlog, termwarn
 from wandb.sdk.artifacts._validators import (
     ensure_logged,
     ensure_not_finalized,
-    is_artifact_registry_project,
     validate_aliases,
     validate_tags,
 )
@@ -260,29 +259,6 @@ class Artifact:
             {_gql_artifact_fragment()}
             """
         )
-        # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
-        # we need to fetch the org entity to for the user behind the scenes.
-        if is_artifact_registry_project(project):
-            try:
-                entity = InternalApi()._resolve_org_entity_name(entity, organization)
-            except ValueError as entity_error:
-                if not organization or organization == entity:
-                    wandb.termerror(str(entity_error))
-                    raise
-
-                # Try to resolve the organization using an org entity.
-                try:
-                    entity = InternalApi()._resolve_org_entity_name(
-                        organization, organization
-                    )
-                except ValueError as org_error:
-                    wandb.termerror(
-                        f"Error resolving organization of entity: {entity!r}. Failed with error: {entity_error!r}."
-                    )
-                    wandb.termerror(
-                        f"Defaulted to use {organization!r} as an org entity to resolve organization. Failed with error: {org_error!r}."
-                    )
-                    raise
         query_variable_values: dict[str, Any] = {
             "entityName": entity,
             "projectName": project,
