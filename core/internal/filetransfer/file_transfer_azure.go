@@ -32,12 +32,28 @@ func NewAzureClientsMap() *AzureClientsMap {
 	return &AzureClientsMap{clients: sync.Map{}, once: sync.Map{}}
 }
 
-func (am *AzureClientsMap) GetClient(accountUrl string) (*azblob.Client, error) {
+func (am *AzureClientsMap) GetAccountClient(accountUrl string) (*azblob.Client, error) {
 	client, ok := am.clients.Load(accountUrl)
 	if !ok {
 		return nil, fmt.Errorf("client not found")
 	}
-	return client.(*azblob.Client), nil
+	accountClient, ok := client.(*azblob.Client)
+	if !ok {
+		return nil, fmt.Errorf("client is not an account client")
+	}
+	return accountClient, nil
+}
+
+func (am *AzureClientsMap) GetContainerClient(accountUrl string) (*container.Client, error) {
+	client, ok := am.clients.Load(accountUrl)
+	if !ok {
+		return nil, fmt.Errorf("client not found")
+	}
+	containerClient, ok := client.(*container.Client)
+	if !ok {
+		return nil, fmt.Errorf("client is not a container client")
+	}
+	return containerClient, nil
 }
 
 // AzureFileTransfer uploads or downloads files to/from Azure.
@@ -53,6 +69,9 @@ type AzureFileTransfer struct {
 
 	// clients is a map of account URLs to azblob.Client objects
 	clients *AzureClientsMap
+
+	// containerClients is a map of container names to azblob.ContainerClient objects
+	containerClients *AzureClientsMap
 }
 
 // NewAzureFileTransfer creates a new fileTransfer.
@@ -70,6 +89,7 @@ func NewAzureFileTransfer(
 		fileTransferStats: fileTransferStats,
 		ctx:               ctx,
 		clients:           clients,
+		containerClients:  NewAzureClientsMap(),
 	}
 }
 
@@ -118,20 +138,22 @@ func (ft *AzureFileTransfer) SetupBlobClient(
 }
 
 // SetupContainerClient sets up the Azure container client.
-func (ft *AzureFileTransfer) SetupContainerClient(
-	containerName string,
-) (*container.Client, error) {
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
-	if err != nil {
-		ft.logger.Error("Unable to create Azure credential", "err", err)
-		return nil, err
-	}
-	client, err := container.NewClient(containerName, cred, nil)
-	if err != nil {
-		ft.logger.Error("Unable to create Azure client", "err", err)
-		return nil, err
-	}
-	return client, nil
+func (ft *AzureFileTransfer) SetupContainerClient(containerName string) {
+	onceVal, _ := ft.containerClients.once.LoadOrStore(containerName, &sync.Once{})
+	once := onceVal.(*sync.Once)
+	once.Do(func() {
+		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			ft.logger.Error("Unable to create Azure credential", "err", err)
+			return
+		}
+		client, err := container.NewClient(containerName, cred, nil)
+		if err != nil {
+			ft.logger.Error("Unable to create Azure client", "err", err)
+			return
+		}
+		ft.containerClients.clients.Store(containerName, client)
+	})
 }
 
 // Upload uploads a file to the server.
@@ -256,9 +278,9 @@ func (ft *AzureFileTransfer) getCorrectBlobVersion(
 	blobInfo ParsedBlobInfo,
 	task *ReferenceArtifactDownloadTask,
 ) (string, string, error) {
-	containerClient, err := ft.SetupContainerClient(
-		fmt.Sprintf("%s/%s", blobInfo.AccountUrl, blobInfo.Container),
-	)
+	containerUrl := fmt.Sprintf("%s/%s", blobInfo.AccountUrl, blobInfo.Container)
+	ft.SetupContainerClient(containerUrl)
+	containerClient, err := ft.containerClients.GetContainerClient(containerUrl)
 	if err != nil {
 		return "", "", err
 	}
@@ -301,7 +323,7 @@ func (ft *AzureFileTransfer) getCorrectBlobVersion(
 
 // listBlobs lists all the blobs in the container with the given prefix.
 func (ft *AzureFileTransfer) listBlobsWithPrefix(blobInfo ParsedBlobInfo) ([]string, error) {
-	client, err := ft.clients.GetClient(blobInfo.AccountUrl)
+	client, err := ft.clients.GetAccountClient(blobInfo.AccountUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -376,8 +398,7 @@ func (ft *AzureFileTransfer) downloadBlobToFile(
 		_, err = blobClient.DownloadFile(ft.ctx, destination, nil)
 		return err
 	} else {
-		// Download the blob to the local file
-		client, err := ft.clients.GetClient(blobInfo.AccountUrl)
+		client, err := ft.clients.GetAccountClient(blobInfo.AccountUrl)
 		if err != nil {
 			return err
 		}
