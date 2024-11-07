@@ -24,6 +24,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
@@ -42,7 +43,7 @@ const (
 )
 
 type HandlerParams struct {
-	Settings          *spb.Settings
+	Settings          *settings.Settings
 	FwdChan           chan runwork.Work
 	OutChan           chan *spb.Result
 	Logger            *observability.CoreLogger
@@ -65,7 +66,7 @@ type Handler struct {
 	commit string
 
 	// settings is the settings for the handler
-	settings *spb.Settings
+	settings *settings.Settings
 
 	// clientID is an ID for this process.
 	//
@@ -173,12 +174,12 @@ func NewHandler(
 //gocyclo:ignore
 func (h *Handler) Do(allWork <-chan runwork.Work) {
 	defer h.logger.Reraise()
-	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
+	h.logger.Info("handler: started", "stream_id", h.settings.GetRunID())
 	for work := range allWork {
 		h.logger.Debug(
 			"handler: got work",
 			"work", work,
-			"stream_id", h.settings.RunId,
+			"stream_id", h.settings.GetRunID(),
 		)
 
 		if work.Accept(h.handleRecord) {
@@ -191,7 +192,7 @@ func (h *Handler) Do(allWork <-chan runwork.Work) {
 func (h *Handler) Close() {
 	close(h.outChan)
 	close(h.fwdChan)
-	h.logger.Info("handler: closed", "stream_id", h.settings.RunId)
+	h.logger.Info("handler: closed", "stream_id", h.settings.GetRunID())
 }
 
 // respond sends a response to the client
@@ -427,7 +428,7 @@ func (h *Handler) handleRequestDefer(record *spb.Record, request *spb.DeferReque
 }
 
 func (h *Handler) handleRequestStopStatus(record *spb.Record) {
-	if h.settings.GetXOffline().GetValue() {
+	if h.settings.IsOffline() {
 		// Send an empty response if we're offline.
 		h.respond(record, &spb.Response{})
 	} else {
@@ -512,32 +513,32 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 	}
 
 	metadata := &spb.MetadataRequest{
-		Os:            h.settings.GetXOs().GetValue(),
-		Python:        h.settings.GetXPython().GetValue(),
-		Host:          h.settings.GetHost().GetValue(),
-		Cuda:          h.settings.GetXCuda().GetValue(),
-		Program:       h.settings.GetProgram().GetValue(),
-		CodePath:      h.settings.GetProgramRelpath().GetValue(),
-		CodePathLocal: h.settings.GetXCodePathLocal().GetValue(),
-		Email:         h.settings.GetEmail().GetValue(),
-		Root:          h.settings.GetRootDir().GetValue(),
-		Username:      h.settings.GetUsername().GetValue(),
-		Docker:        h.settings.GetDocker().GetValue(),
-		Executable:    h.settings.GetXExecutable().GetValue(),
-		Args:          h.settings.GetXArgs().GetValue(),
-		Colab:         h.settings.GetColabUrl().GetValue(),
+		Os:            h.settings.GetOS(),
+		Python:        h.settings.GetPython(),
+		Host:          h.settings.GetHostProcessorName(),
+		Cuda:          h.settings.GetCUDAVersion(),
+		Program:       h.settings.GetProgram(),
+		CodePath:      h.settings.GetProgramRelativePath(),
+		CodePathLocal: h.settings.GetProgramRelativePathFromCwd(),
+		Email:         h.settings.GetEmail(),
+		Root:          h.settings.GetRootDir(),
+		Username:      h.settings.GetUserName(),
+		Docker:        h.settings.GetDockerImageName(),
+		Executable:    h.settings.GetExecutable(),
+		Args:          h.settings.GetArgs(),
+		Colab:         h.settings.GetColabURL(),
 		StartedAt:     run.GetStartTime(),
 		Git:           git,
 	}
 	h.handleMetadata(metadata)
 
 	// start the system monitor
-	if !h.settings.GetXDisableStats().GetValue() {
+	if !h.settings.IsDisableStats() {
 		h.systemMonitor.Start()
 	}
 
 	// save code and patch
-	if h.settings.GetSaveCode().GetValue() {
+	if h.settings.IsSaveCode() {
 		h.handleCodeSave()
 		h.handlePatchSave()
 	}
@@ -548,7 +549,7 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 func (h *Handler) handleRequestPythonPackages(_ *spb.Record, request *spb.PythonPackagesRequest) {
 	// write all requirements to a file
 	// send the file as a Files record
-	filename := filepath.Join(h.settings.GetFilesDir().GetValue(), RequirementsFileName)
+	filename := filepath.Join(h.settings.GetFilesDir(), RequirementsFileName)
 	file, err := os.Create(filename)
 	if err != nil {
 		h.logger.Error("error creating requirements file", "error", err)
@@ -585,19 +586,19 @@ func (h *Handler) handleRequestPythonPackages(_ *spb.Record, request *spb.Python
 }
 
 func (h *Handler) handleCodeSave() {
-	programRelative := h.settings.GetProgramRelpath().GetValue()
+	programRelative := h.settings.GetProgramRelativePath()
 	if programRelative == "" {
 		h.logger.Warn("handleCodeSave: program relative path is empty")
 		return
 	}
 
-	programAbsolute := h.settings.GetProgramAbspath().GetValue()
+	programAbsolute := h.settings.GetProgramAbsolutePath()
 	if _, err := os.Stat(programAbsolute); err != nil {
 		h.logger.Warn("handleCodeSave: program absolute path does not exist", "path", programAbsolute)
 		return
 	}
 
-	codeDir := filepath.Join(h.settings.GetFilesDir().GetValue(), "code")
+	codeDir := filepath.Join(h.settings.GetFilesDir(), "code")
 	if err := os.MkdirAll(filepath.Join(codeDir, filepath.Dir(programRelative)), os.ModePerm); err != nil {
 		return
 	}
@@ -624,18 +625,18 @@ func (h *Handler) handleCodeSave() {
 
 func (h *Handler) handlePatchSave() {
 	// capture git state
-	if h.settings.GetDisableGit().GetValue() {
+	if h.settings.IsDisableGit() {
 		return
 	}
 
-	git := gitops.New(h.settings.GetRootDir().GetValue(), h.logger)
+	git := gitops.New(h.settings.GetRootDir(), h.logger)
 	if !git.IsAvailable() {
 		return
 	}
 
 	var files []*spb.FilesItem
 
-	filesDirPath := h.settings.GetFilesDir().GetValue()
+	filesDirPath := h.settings.GetFilesDir()
 	file := filepath.Join(filesDirPath, DiffFileName)
 	if err := git.SavePatch("HEAD", file); err != nil {
 		h.logger.Error("error generating diff", "error", err)
@@ -672,7 +673,7 @@ func (h *Handler) handlePatchSave() {
 func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
 	// TODO: Sending metadata as a request for now, eventually this should be turned into
 	//  a record and stored in the transaction log
-	if h.settings.GetXDisableMeta().GetValue() {
+	if h.settings.IsDisableMeta() {
 		return
 	}
 
@@ -692,7 +693,7 @@ func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
 			fmt.Errorf("error marshalling metadata: %v", err))
 		return
 	}
-	filePath := filepath.Join(h.settings.GetFilesDir().GetValue(), MetaFileName)
+	filePath := filepath.Join(h.settings.GetFilesDir(), MetaFileName)
 	if err := os.WriteFile(filePath, jsonBytes, 0644); err != nil {
 		h.logger.CaptureError(
 			fmt.Errorf("error writing metadata file: %v", err))
@@ -764,7 +765,7 @@ func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
 	h.runTimer.Pause()
 	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
 
-	if !h.settings.GetXSync().GetValue() {
+	if !h.settings.IsSync() {
 		h.updateRunTiming()
 	}
 
@@ -773,7 +774,7 @@ func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
 
 	// Flush any history data---any further history records must
 	// be configured to flush.
-	if h.settings.GetXShared().GetValue() {
+	if h.settings.IsSharedMode() {
 		h.flushPartialHistory(false, 0)
 	} else {
 		h.flushPartialHistory(true, h.partialHistoryStep+1)
@@ -784,7 +785,7 @@ func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
 		func(control *spb.Control) {
 			control.AlwaysSend = true
 			// do not write to the transaction log when syncing an offline run
-			if h.settings.GetXSync().GetValue() {
+			if h.settings.IsSync() {
 				control.Local = true
 			}
 		},
@@ -925,7 +926,7 @@ func (h *Handler) handleRequestPartialHistory(
 	_ *spb.Record,
 	request *spb.PartialHistoryRequest,
 ) {
-	if h.settings.GetXShared().GetValue() {
+	if h.settings.IsSharedMode() {
 		h.handlePartialHistoryAsync(request)
 	} else {
 		h.handlePartialHistorySync(request)
@@ -1043,7 +1044,7 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	// run (for example running on different machines). In that case, the
 	// backend determines the step, and the client ID identifies which metrics
 	// came from the same writer. Otherwise, we must set the step explicitly.
-	if h.settings.GetXShared().GetValue() {
+	if h.settings.IsSharedMode() {
 		// TODO: useStep must be false here
 		h.partialHistory.SetString(
 			pathtree.PathOf("_client_id"),
