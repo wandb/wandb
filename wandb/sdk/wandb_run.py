@@ -1467,12 +1467,14 @@ class Run:
         files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
-    def _visualization_hack(self, row: dict[str, Any]) -> dict[str, Any]:
-        # TODO(jhr): move visualize hack somewhere else
+    def _serialize_custom_charts(self, data: dict[str, Any]) -> dict[str, Any]:
+        if not data:
+            return data
+
         chart_keys = set()
-        for k, v in row.items():
+        for k, v in data.items():
             if isinstance(v, Visualize):
-                row[k] = v.table
+                data[k] = v.table
                 v.set_key(k)
                 self._config_callback(
                     val=v.spec.config_value,
@@ -1488,31 +1490,33 @@ class Run:
 
         for k in chart_keys:
             # remove the chart key from the row
-            v = row.pop(k)
+            v = data.pop(k)
             if isinstance(v, CustomChart):
-                row[v.spec.table_key] = v.table
-        return row
+                data[v.spec.table_key] = v.table
+        return data
 
     def _partial_history_callback(
         self,
-        row: dict[str, Any],
+        data: dict[str, Any],
         step: int | None = None,
         commit: bool | None = None,
     ) -> None:
-        row = row.copy()
-        if row:
-            row = self._visualization_hack(row)
+        if not (self._backend and self._backend.interface):
+            return
 
-        if self._backend and self._backend.interface:
-            not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+        data = data.copy()  # avoid modifying the original data
 
-            self._backend.interface.publish_partial_history(
-                row,
-                user_step=self._step,
-                step=step,
-                flush=commit,
-                publish_step=not_using_tensorboard,
-            )
+        # Serialize custom charts before publishing
+        data = self._serialize_custom_charts(data)
+
+        not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+        self._backend.interface.publish_partial_history(
+            data,
+            user_step=self._step,
+            step=step,
+            flush=commit,
+            publish_step=not_using_tensorboard,
+        )
 
     def _console_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
