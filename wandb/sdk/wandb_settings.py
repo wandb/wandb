@@ -47,7 +47,7 @@ class Settings(BaseModel, validate_assignment=True):
     )
 
     allow_val_change: bool = False
-    anonymous: Literal["allow", "must", "never", "false", "true"] | None = None
+    anonymous: Literal["allow", "must", "never"] | None = None
     api_key: str | None = None
     azure_account_url_to_access_key: dict[str, str] | None = None
     # The base URL for the W&B API.
@@ -180,6 +180,9 @@ class Settings(BaseModel, validate_assignment=True):
     x_file_transfer_retry_wait_min_seconds: float | None = None
     x_file_transfer_retry_wait_max_seconds: float | None = None
     x_file_transfer_timeout_seconds: float | None = None
+    # override setting for the computed files_dir
+    x_files_dir: str | None = None
+    # flow control configuration for file stream
     x_flow_control_custom: bool | None = None
     x_flow_control_disabled: bool | None = None
     # graphql retry client configuration
@@ -295,7 +298,7 @@ class Settings(BaseModel, validate_assignment=True):
             value = "redirect"
         return value
 
-    @field_validator("fork_from", mode="after")
+    @field_validator("fork_from", mode="before")
     @classmethod
     def validate_fork_from(cls, value, info) -> RunMoment | None:
         run_moment = cls._runmoment_preprocessor(value)
@@ -390,7 +393,7 @@ class Settings(BaseModel, validate_assignment=True):
             return "auto"
         return value
 
-    @field_validator("resume_from", mode="after")
+    @field_validator("resume_from", mode="before")
     @classmethod
     def validate_resume_from(cls, value, info) -> RunMoment | None:
         run_moment = cls._runmoment_preprocessor(value)
@@ -478,19 +481,20 @@ class Settings(BaseModel, validate_assignment=True):
         return value
 
     # Computed fields.
-    # TODO: remove underscores from underscored fields.
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def _args(self) -> list[str]:
         if not self._jupyter:
             return sys.argv[1:]
         return []
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def _aws_lambda(self) -> bool:
         """Check if we are running in a lambda environment."""
-        from sentry_sdk.integrations.aws_lambda import get_lambda_bootstrap
+        from sentry_sdk.integrations.aws_lambda import (  # type: ignore[import-not-found]
+            get_lambda_bootstrap,
+        )
 
         lambda_bootstrap = get_lambda_bootstrap()
         if not lambda_bootstrap or not hasattr(
@@ -499,67 +503,67 @@ class Settings(BaseModel, validate_assignment=True):
             return False
         return True
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def _code_path_local(self) -> str | None:
         return self._get_program_relpath()
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def _colab(self) -> bool:
         return "google.colab" in sys.modules
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def _ipython(self) -> bool:
         return ipython.in_ipython()
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def _jupyter(self) -> bool:
         return ipython.in_jupyter()
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def _kaggle(self) -> bool:
         return util._is_likely_kaggle()
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def _noop(self) -> bool:
         return self.mode == "disabled"
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def _notebook(self) -> bool:
         return self._ipython or self._jupyter or self._colab or self._kaggle
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def _offline(self) -> bool:
         return self.mode in ("offline", "dryrun")
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def _os(self) -> str:
         return platform.platform(aliased=True)
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def _platform(self) -> str:
         return f"{platform.system()}-{platform.machine()}".lower()
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def _python(self) -> str:
         return f"{platform.python_implementation()} {platform.python_version()}"
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def _shared(self) -> bool:
         return self.mode == "shared"
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def _start_datetime(self) -> str:
         if self.x_start_time is None:
@@ -567,7 +571,7 @@ class Settings(BaseModel, validate_assignment=True):
         datetime_now = datetime.fromtimestamp(self.x_start_time)
         return datetime_now.strftime("%Y%m%d_%H%M%S")
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def _tmp_code_dir(self) -> str:
         return self._path_convert(
@@ -577,12 +581,12 @@ class Settings(BaseModel, validate_assignment=True):
             "code",
         )
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def _windows(self) -> bool:
         return platform.system() == "Windows"
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def colab_url(self) -> str | None:
         if not self._colab:
@@ -592,53 +596,53 @@ class Settings(BaseModel, validate_assignment=True):
             return "https://colab.research.google.com/notebook#" + unescaped
         return None
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def deployment(self) -> Literal["local", "cloud"]:
         return "local" if self.is_local else "cloud"
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def files_dir(self) -> str:
-        return self._path_convert(
+        return self.x_files_dir or self._path_convert(
             self.wandb_dir,
             f"{self.run_mode}-{self.timespec}-{self.run_id}",
             "files",
         )
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def is_local(self) -> bool:
         return str(self.base_url) != "https://api.wandb.ai"
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def log_dir(self) -> str:
         return self._path_convert(
             self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", "logs"
         )
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def log_internal(self) -> str:
         return self._path_convert(self.log_dir, "debug-internal.log")
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def log_symlink_internal(self) -> str:
         return self._path_convert(self.wandb_dir, "debug-internal.log")
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def log_symlink_user(self) -> str:
         return self._path_convert(self.wandb_dir, "debug.log")
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def log_user(self) -> str:
         return self._path_convert(self.log_dir, "debug.log")
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def project_url(self) -> str:
         project_url = self._project_url_base()
@@ -649,17 +653,17 @@ class Settings(BaseModel, validate_assignment=True):
 
         return f"{project_url}{query}"
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def resume_fname(self) -> str:
         return self._path_convert(self.wandb_dir, "wandb-resume.json")
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def run_mode(self) -> Literal["run", "offline-run"]:
         return "run" if not self._offline else "offline-run"
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def run_url(self) -> str:
         project_url = self._project_url_base()
@@ -667,14 +671,14 @@ class Settings(BaseModel, validate_assignment=True):
             return ""
 
         query = self._get_url_query_string()
-        return f"{project_url}/runs/{quote(self.run_id)}{query}"
+        return f"{project_url}/runs/{quote(self.run_id or '')}{query}"
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def settings_workspace(self) -> str:
         return self._path_convert(self.wandb_dir, "settings")
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def sweep_url(self) -> str:
         project_url = self._project_url_base()
@@ -682,31 +686,31 @@ class Settings(BaseModel, validate_assignment=True):
             return ""
 
         query = self._get_url_query_string()
-        return f"{project_url}/sweeps/{quote(self.sweep_id)}{query}"
+        return f"{project_url}/sweeps/{quote(self.sweep_id or '')}{query}"
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def sync_dir(self) -> str:
         return self._path_convert(
             self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}"
         )
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def sync_file(self) -> str:
         return self._path_convert(self.sync_dir, f"run-{self.run_id}.wandb")
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def sync_symlink_latest(self) -> str:
         return self._path_convert(self.wandb_dir, "latest-run")
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def timespec(self) -> str:
         return self._start_datetime
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def wandb_dir(self) -> str:
         """Full path to the wandb directory.
@@ -1016,7 +1020,7 @@ class Settings(BaseModel, validate_assignment=True):
             return ""
 
         app_url = util.app_url(self.base_url)
-        return f"{app_url}/{quote(self.entity)}/{quote(self.project)}"
+        return f"{app_url}/{quote(self.entity or '')}/{quote(self.project or '')}"
 
     def _get_url_query_string(self) -> str:
         # TODO: use `wandb_settings` (if self.anonymous != "true")

@@ -897,7 +897,7 @@ class Run:
     def __getstate__(self) -> Any:
         """Return run state as a custom pickle."""
         # We only pickle in service mode
-        if not self._settings or self._settings._disable_service:
+        if not self._settings or self._settings.x_disable_service:
             return
 
         _attach_id = self._attach_id
@@ -2205,7 +2205,7 @@ class Run:
             #
             # TODO: Why not do this in _atexit_cleanup()?
             service = self._wl and self._wl.service
-            if service:
+            if service and self._run_id:
                 service.inform_finish(run_id=self._run_id)
 
         finally:
@@ -2547,6 +2547,8 @@ class Run:
 
         import_telemetry_set = telemetry.list_telemetry_imports()
         import_hook_fn = functools.partial(_telemetry_import_hook, self)
+        if not self._run_id:
+            return
         for module_name in import_telemetry_set:
             register_post_import_hook(
                 import_hook_fn,
@@ -2739,7 +2741,8 @@ class Run:
         if self._run_status_checker:
             self._run_status_checker.join()
 
-        self._unregister_telemetry_import_hooks(self._run_id)
+        if self._run_id:
+            self._unregister_telemetry_import_hooks(self._run_id)
 
     @staticmethod
     def _unregister_telemetry_import_hooks(run_id: str) -> None:
@@ -3372,7 +3375,7 @@ class Run:
         return artifact
 
     def _public_api(self, overrides: dict[str, str] | None = None) -> PublicApi:
-        overrides = {"run": self._run_id}
+        overrides = {"run": self._run_id}  # type: ignore
         if not (self._settings._offline or self._run_obj is None):
             overrides["entity"] = self._run_obj.entity
             overrides["project"] = self._run_obj.project

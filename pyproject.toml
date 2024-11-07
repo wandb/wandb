@@ -230,14 +230,13 @@ ignore-decorators = [
 
 
 [tool.mypy]
+plugins = ["pydantic.mypy"]
 warn_redundant_casts = true
 exclude = '''
    (?x)(
       wandb/vendor/.
    )
 '''
-
-
 # wandb.*
 [[tool.mypy.overrides]]
 module = "wandb.*"

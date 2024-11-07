@@ -88,7 +88,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
     def __init__(
         self,
         pid: int,
-        settings: dict | None = None,
+        settings: Settings | None = None,
         environ: dict | None = None,
     ) -> None:
         self._connection: ServiceConnection | None = None
@@ -117,7 +117,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
     def _settings_setup(
         self,
-        settings: dict | None = None,
+        settings: Settings | None = None,
         early_logger: _EarlyLogger | None = None,
     ) -> wandb_settings.Settings:
         s = wandb_settings.Settings()
@@ -148,14 +148,15 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         s.from_system_environment()
 
         # load settings from the passed setup settings
-        s.from_settings(settings)
+        if settings:
+            s.from_settings(settings)
 
         return s
 
-    def _update(self, settings: dict | None = None) -> None:
+    def _update(self, settings: Settings | None = None) -> None:
         if not settings:
             return
-        self._settings.from_dict(settings)
+        self._settings.from_settings(settings)
 
     def _update_user_settings(self) -> None:
         # Get rid of cached results to force a refresh.
@@ -168,7 +169,6 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         if not self._early_logger:
             return
         _set_logger(new_logger)
-        # self._settings._clear_early_logger()
         self._early_logger._flush()
 
     def _get_logger(self) -> Logger | None:

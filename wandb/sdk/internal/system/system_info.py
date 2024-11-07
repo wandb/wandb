@@ -155,9 +155,11 @@ class SystemInfo:
         data["os"] = self.settings._os
         data["python"] = self.settings._python
         data["heartbeatAt"] = datetime.datetime.utcnow().isoformat()
-        data["startedAt"] = datetime.datetime.utcfromtimestamp(
-            self.settings.x_start_time
-        ).isoformat()
+        data["startedAt"] = (
+            datetime.datetime.utcfromtimestamp(self.settings.x_start_time).isoformat()
+            if self.settings.x_start_time
+            else None
+        )
 
         data["docker"] = self.settings.docker
 

@@ -327,18 +327,19 @@ class SendManager:
     ) -> "SendManager":
         """Set up a standalone SendManager.
 
-        Currently, we're using this primarily for `sync.py`.
+        Exclusively used in `sync.py`.
         """
+        print(root_dir)
         files_dir = os.path.join(root_dir, "files")
         settings = wandb.Settings(
-            files_dir=files_dir,
+            x_files_dir=files_dir,
             root_dir=root_dir,
             # _start_time=0,
             resume=resume,
             # ignore_globs=(),
-            _sync=True,
+            x_sync=True,
             disable_job_creation=False,
-            _file_stream_timeout_seconds=0,
+            x_file_stream_timeout_seconds=0,
         )
         record_q: Queue[Record] = queue.Queue()
         result_q: Queue[Result] = queue.Queue()
@@ -1126,7 +1127,7 @@ class SendManager:
             self._api,
             self._run.run_id,
             self._run.start_time.ToMicroseconds() / 1e6,
-            timeout=self._settings.x_file_stream_timeout_seconds,
+            timeout=self._settings.x_file_stream_timeout_seconds or 0,
             settings=self._api_settings,
         )
         # Ensure the streaming polices have the proper offsets

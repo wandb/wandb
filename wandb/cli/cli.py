@@ -128,7 +128,7 @@ def _get_cling_api(reset=None):
     if _api is None:
         # TODO(jhr): make a settings object that is better for non runs.
         # only override the necessary setting
-        wandb.setup(settings=dict(_cli_only_mode=True))
+        wandb.setup(settings=wandb.Settings(x_cli_only_mode=True))
         _api = InternalApi()
     return _api
 

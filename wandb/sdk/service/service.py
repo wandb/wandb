@@ -120,7 +120,7 @@ class _Service:
             return
         raise ServiceStartTimeoutError(
             "Timed out waiting for wandb service to start after "
-            f"{self._settings._service_wait} seconds. "
+            f"{self._settings.x_service_wait} seconds. "
             "Try increasing the timeout with the `_service_wait` setting."
         )
 
@@ -212,7 +212,7 @@ class _Service:
 
             try:
                 internal_proc = subprocess.Popen(
-                    exec_cmd_list + service_args,
+                    exec_cmd_list + service_args,  # type: ignore[arg-type]
                     env=os.environ,
                     **kwargs,
                 )

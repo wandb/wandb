@@ -124,7 +124,7 @@ class _WandbLogin:
     def setup(
         self,
         *,
-        anonymous: Optional[Literal["must", "allow", "never"]] = None,
+        anonymous: Optional[Literal["allow", "must", "never"]] = None,
         key: Optional[str] = None,
         relogin: Optional[bool] = None,
         host: Optional[str] = None,
@@ -279,7 +279,7 @@ class _WandbLogin:
 
 def _login(
     *,
-    anonymous: Optional[Literal["must", "allow", "never"]] = None,
+    anonymous: Optional[Literal["allow", "must", "never"]] = None,
     key: Optional[str] = None,
     relogin: Optional[bool] = None,
     host: Optional[str] = None,

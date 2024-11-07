@@ -190,7 +190,7 @@ class _WandbInit:
         _set_logger(self._wl._get_logger())
 
         # Start with settings from wandb library singleton
-        settings: Settings = self._wl.settings.copy()
+        settings = self._wl.settings.copy()
 
         self._reporter = reporting.setup_reporter(settings=settings)
 
@@ -234,7 +234,7 @@ class _WandbInit:
             # split out artifacts, since when inserted into
             # config they will trigger use_artifact
             # but the run is not yet upserted
-            self._split_artifacts_from_config(config_data, self.config)
+            self._split_artifacts_from_config(config_data, self.config)  # type: ignore
 
         if sweep_config:
             self._split_artifacts_from_config(sweep_config, self.sweep_config)
@@ -496,7 +496,9 @@ class _WandbInit:
         The returned Run object has all expected attributes and methods, but they are
         no-op versions that don't perform any actual logging or communication.
         """
-        drun = Run(settings=Settings(mode="disabled", files_dir=tempfile.gettempdir()))
+        drun = Run(
+            settings=Settings(mode="disabled", x_files_dir=tempfile.gettempdir())
+        )
         # config and summary objects
         drun._config = wandb.sdk.wandb_config.Config()
         drun._config.update(self.sweep_config)
@@ -621,6 +623,7 @@ class _WandbInit:
 
         service = self._wl.service
         if service:
+            assert self.settings.run_id
             logger.info("sending inform_init request")
             service.inform_init(
                 settings=self.settings.to_proto(),
@@ -819,6 +822,7 @@ class _WandbInit:
         # initiate run (stats and metadata probing)
 
         if service:
+            assert self.settings.run_id
             service.inform_start(
                 settings=self.settings.to_proto(),
                 run_id=self.settings.run_id,
@@ -955,7 +959,7 @@ def init(  # noqa: C901
     project: str | None = None,
     entity: str | None = None,
     reinit: bool | None = None,
-    tags: Sequence | None = None,
+    tags: Sequence[str] | None = None,
     group: str | None = None,
     name: str | None = None,
     notes: str | None = None,
@@ -1203,7 +1207,7 @@ def init(  # noqa: C901
     if job_type is not None:
         s.run_job_type = job_type
     if dir is not None:
-        s.root_dir = dir
+        s.root_dir = dir  # type: ignore
     if project is not None:
         s.project = project
     if entity is not None:
@@ -1211,7 +1215,7 @@ def init(  # noqa: C901
     if reinit is not None:
         s.reinit = reinit
     if tags is not None:
-        s.run_tags = tags
+        s.run_tags = tuple(tags)
     if group is not None:
         s.run_group = group
     if name is not None:
@@ -1219,11 +1223,11 @@ def init(  # noqa: C901
     if notes is not None:
         s.run_notes = notes
     if anonymous is not None:
-        s.anonymous = anonymous
+        s.anonymous = anonymous  # type: ignore
     if mode is not None:
-        s.mode = mode
+        s.mode = mode  # type: ignore
     if resume is not None:
-        s.resume = resume
+        s.resume = resume  # type: ignore
     if force is not None:
         s.force = force
     # TODO: deprecate "tensorboard" in favor of "sync_tensorboard"
@@ -1236,9 +1240,9 @@ def init(  # noqa: C901
     if id is not None:
         s.run_id = id
     if fork_from is not None:
-        s.fork_from = fork_from
+        s.fork_from = fork_from  # type: ignore
     if resume_from is not None:
-        s.resume_from = resume_from
+        s.resume_from = resume_from  # type: ignore
 
     try:
         wi = _WandbInit()
