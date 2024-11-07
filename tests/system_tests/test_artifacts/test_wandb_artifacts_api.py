@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from inspect import signature
 import os
 import re
+from unittest.mock import patch
 
 import pytest
 import wandb
@@ -455,3 +457,45 @@ def test_run_log_artifact(wandb_init):
     actual_artifacts = list(run.logged_artifacts())
     assert len(actual_artifacts) == 1
     assert actual_artifacts[0].qualified_name == artifact.qualified_name
+
+
+def test_artifact_enable_tracking_flag(user, wandb_init):
+    """Test that enable_tracking flag is correctly passed through the API chain."""
+    api = Api()
+    entity = user
+    project = "test-project"
+    artifact_name = "test-artifact"
+    artifact_type = "test-type"
+
+    with wandb_init(entity=entity, project=project) as run:
+        art = wandb.Artifact(artifact_name, artifact_type)
+        with art.new_file("test.txt", "w") as f:
+            f.write("testing")
+        run.log_artifact(art)
+
+    with patch('wandb.sdk.artifacts.artifact.Artifact._from_name') as mock_from_name:
+        # Test that api.artifact() calls Artifact._from_name() with enable_tracking=True
+        api.artifact(
+            name=f"{entity}/{project}/{artifact_name}:v0",
+        )
+        mock_from_name.assert_called_once_with(
+            entity=entity,
+            project=project,
+            name=f"{artifact_name}:v0",
+            client=api.client,
+            enable_tracking=True
+        )
+
+        # Reset mock and test that, by default, api._artifact() calls Artifact._from_name() with enable_tracking=False
+        mock_from_name.reset_mock()
+        api._artifact(
+            name=f"{entity}/{project}/{artifact_name}:v0",
+        )
+ 
+        mock_from_name.assert_called_once_with(
+            entity=entity,
+            project=project,
+            name=f"{artifact_name}:v0",
+            client=api.client,
+            enable_tracking=False
+        )
