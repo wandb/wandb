@@ -214,8 +214,8 @@ class Sentry:
             "sweep_url",
             "sweep_id",
             "deployment",
-            "_disable_service",
-            "_require_legacy_service",
+            "x_disable_service",
+            "x_require_legacy_service",
             "launch",
             "_platform",
         )

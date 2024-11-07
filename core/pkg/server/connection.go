@@ -208,8 +208,6 @@ func (nc *Connection) processIncomingData() {
 	scanner.Buffer(make([]byte, messageSize), maxMessageSize)
 	scanner.Split(ScanWBRecords)
 
-	// i := 0
-
 	for scanner.Scan() {
 		msg := &spb.ServerRequest{}
 		if err := proto.Unmarshal(scanner.Bytes(), msg); err != nil {
@@ -218,12 +216,7 @@ func (nc *Connection) processIncomingData() {
 				"error", err,
 				"id", nc.id)
 		} else {
-			// fmt.Println("GOT ME A MESSAGE #", i, msg)
-			// if i > 16 {
-			// 	time.Sleep(130 * time.Second)
-			// }
 			nc.inChan <- msg
-			// i++
 		}
 	}
 
