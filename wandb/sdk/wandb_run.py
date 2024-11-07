@@ -1364,7 +1364,7 @@ class Run:
         data: dict[str, Any],
         key_prefix: str | None = None,
     ) -> dict[str, Any]:
-        """Transform plot objects into tables, and add the vega spec to the run config.
+        """Transform plot objects into tables, and adds the vega spec to the run config.
 
         Args:
             data: Dictionary containing data that may include plot objects
@@ -1379,21 +1379,17 @@ class Run:
         keys_to_replace = set()
         for k, v in data.items():
             key = f"{key_prefix}.{k}" if key_prefix else k
-            if isinstance(v, (Visualize, CustomChart)):
-                if isinstance(v, Visualize):
-                    data[k] = v.table
+
+            if isinstance(v, Visualize):
+                data[k] = v.table
+                self._process_chart(v, key)
+            elif isinstance(v, CustomChart):
                 # If this is a custom chart, we will update our history with the table key.
                 # Allowing for charts to be nested in dictionaries.
-                elif isinstance(v, CustomChart):
-                    keys_to_replace.add(k)
-
-                v.set_key(key)
-                self._config_callback(
-                    val=v.spec.config_value,
-                    key=v.spec.config_key,
-                )
-            # Recursively apply the visualization hack to nested dictionaries
+                keys_to_replace.add(k)
+                self._process_chart(v, key)
             elif isinstance(v, dict):
+                # Recursively apply the visualization hack to nested dictionaries
                 data[k] = self._visualization_hack(v, key_prefix=key)
 
         for k in keys_to_replace:
@@ -1401,6 +1397,7 @@ class Run:
             v = data.pop(k)
             if isinstance(v, CustomChart):
                 # Update our history with the table key.
+                # Only the last part of the key is needed when displaying the table.
                 data[v.spec.table_key.split(".")[-1]] = v.table
         return data
 
