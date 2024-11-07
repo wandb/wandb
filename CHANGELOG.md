@@ -11,6 +11,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Fixed
+
+- Fix `api.artifact()` to correctly pass the `enable_tracking` argument to the `Artifact._from_name()` method (@ibindlish in https://github.com/wandb/wandb/pull/)
+
 ### Added
 
 - Add a boolean `overwrite` param to `Artifact.add()`/`Artifact.add_file()` to allow overwrite of previously-added artifact files (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8553)
