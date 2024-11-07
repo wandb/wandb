@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from inspect import signature
 import os
 import re
 from unittest.mock import patch
@@ -473,7 +472,7 @@ def test_artifact_enable_tracking_flag(user, wandb_init):
             f.write("testing")
         run.log_artifact(art)
 
-    with patch('wandb.sdk.artifacts.artifact.Artifact._from_name') as mock_from_name:
+    with patch("wandb.sdk.artifacts.artifact.Artifact._from_name") as mock_from_name:
         # Test that api.artifact() calls Artifact._from_name() with enable_tracking=True
         api.artifact(
             name=f"{entity}/{project}/{artifact_name}:v0",
@@ -483,7 +482,7 @@ def test_artifact_enable_tracking_flag(user, wandb_init):
             project=project,
             name=f"{artifact_name}:v0",
             client=api.client,
-            enable_tracking=True
+            enable_tracking=True,
         )
 
         # Reset mock and test that, by default, api._artifact() calls Artifact._from_name() with enable_tracking=False
@@ -491,11 +490,11 @@ def test_artifact_enable_tracking_flag(user, wandb_init):
         api._artifact(
             name=f"{entity}/{project}/{artifact_name}:v0",
         )
- 
+
         mock_from_name.assert_called_once_with(
             entity=entity,
             project=project,
             name=f"{artifact_name}:v0",
             client=api.client,
-            enable_tracking=False
+            enable_tracking=False,
         )
