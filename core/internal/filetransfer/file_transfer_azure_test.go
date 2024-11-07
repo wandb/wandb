@@ -18,8 +18,8 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-// mockS3Client mocks the s3 client with the following buckets/objects:
-// bucket
+// the mockAzureClients mock the azure client with the following containers/blobs:
+// account/container
 // |
 // +-- file1.txt (version "0" content: "v0" ETag: "0", version "latest" content: "v1" ETag: "1")
 // +-- file2.txt (content: "file2 content" ETag: "file2 etag")
