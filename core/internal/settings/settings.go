@@ -288,6 +288,11 @@ func (s *Settings) GetSweepURL() string {
 	return s.Proto.SweepUrl.GetValue()
 }
 
+// Whether to disable machine info collection, such as hostname and hardware specs.
+func (s *Settings) GetDisableMachineInfo() bool {
+	return s.Proto.XDisableMachineInfo.GetValue()
+}
+
 // Update methods.
 //
 // These are used to update the settings in the proto.

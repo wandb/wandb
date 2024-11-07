@@ -413,7 +413,7 @@ func (h *Handler) handleMetric(record *spb.Record) {
 	}
 }
 
-func (h *Handler) handleRequestDefer(record *spb.Record, request *spb.DeferRequest) {
+func (h *Handler) handleRequestDefer(record *spb.Record, _ *spb.DeferRequest) {
 	// Need to clone the record to avoid race condition with the writer
 	record = proto.Clone(record).(*spb.Record)
 	h.fwdRecordWithControl(record,

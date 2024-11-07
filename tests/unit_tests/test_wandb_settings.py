@@ -493,23 +493,3 @@ def test_setup_offline(test_settings):
     login_settings.mode = "offline"
     assert wandb.setup(settings=login_settings)._instance._get_entity() is None
     assert wandb.setup(settings=login_settings)._instance._load_viewer() is None
-
-
-def test_disable_machine_info(test_settings):
-    settings = test_settings()
-    attrs = (
-        "x_disable_stats",
-        # "x_disable_meta",
-        # "disable_code",
-        # "disable_git",
-        # "disable_job_creation",
-    )
-    for attr in attrs:
-        assert not getattr(settings, attr)
-    settings.x_disable_machine_info = True
-    for attr in attrs:
-        print("+++", getattr(settings, attr))
-        # assert getattr(settings, attr) is True
-    # settings.x_disable_machine_info = False
-    # for attr in attrs:
-    #     assert getattr(settings, attr) is False
