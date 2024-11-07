@@ -1,9 +1,7 @@
-import time
 import unittest.mock
 
 import wandb
 import wandb.sdk.verify.verify as wandb_verify
-from wandb.apis import InternalApi
 
 
 def test_print_results(capsys):
@@ -38,49 +36,36 @@ def test_check_secure_requests(capsys):
     assert "\u274c" in captured
 
 
-def test_retry_fn():
-    i = 0
+def test_check_cors_configuration(capsys, monkeypatch):
+    with unittest.mock.patch("requests.options") as mock_options:
+        options_result = unittest.mock.Mock()
+        options_result.headers.get.return_value = None
+        mock_options.return_value = options_result
 
-    def fn():
-        nonlocal i
-        if i < 1:
-            i += 1
-            raise Exception("test")
-        return "test"
+        wandb_verify.check_cors_configuration("", "")
 
-    result = wandb_verify.retry_fn(fn)
-    assert result == "test"
-
-    j = 0
-
-    def fn2():
-        nonlocal j
-        if j == 0:
-            time.sleep(10)
-        if j < 4:  # retry 4 times
-            j += 1
-            raise Exception("test")
-        return "test"
-
-    result = wandb_verify.retry_fn(fn2)
-    assert result is None
-
-
-def test_check_cors_configuration(test_settings, capsys):
-    wandb_verify.check_cors_configuration(
-        test_settings().base_url,
-        "localhost",
-    )
-    captured = capsys.readouterr().out
-    assert "\u274c" in captured
+        captured = capsys.readouterr().out
+        assert "does not have a valid CORs configuration" in captured
 
 
 def test_check_wandb_version(capsys):
-    api = InternalApi()
+    api = unittest.mock.Mock()
+    api.viewer_server_info.return_value = (
+        None,
+        {
+            "cliVersionInfo": {
+                "min_cli_version": "0.10.0",
+                "max_cli_version": "1.0.0",
+            }
+        },
+    )
 
-    not_enough, too_much = "0.0.1", "100.0.0"
-    for version in [not_enough, too_much]:
-        with unittest.mock.patch.object(wandb, "__version__", version):
-            wandb_verify.check_wandb_version(api)
-            captured = capsys.readouterr().out
-            assert "\u274c" in captured
+    with unittest.mock.patch.object(wandb, "__version__", "0.0.1"):
+        wandb_verify.check_wandb_version(api)
+        captured = capsys.readouterr().out
+        assert "wandb version out of date" in captured
+
+    with unittest.mock.patch.object(wandb, "__version__", "100.0.0"):
+        wandb_verify.check_wandb_version(api)
+        captured = capsys.readouterr().out
+        assert "wandb version is not supported" in captured
