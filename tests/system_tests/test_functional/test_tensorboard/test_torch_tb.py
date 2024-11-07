@@ -68,9 +68,6 @@ def test_add_scalars(wandb_init, relay_server):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard", reason="missing implementation of old style TensorBoard"
-)
 def test_add_image(wandb_init, relay_server):
     """Test adding an image to TensorBoard and syncing it to W&B."""
     with relay_server() as relay:
@@ -128,10 +125,6 @@ def test_add_gif(wandb_init, relay_server):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="hangs on processing data and missing implementation of old style TensorBoard",
-)
 def test_add_images(wandb_init, relay_server):
     """Test adding multiple images to TensorBoard and syncing it to W&B."""
     with relay_server() as relay:
@@ -205,6 +198,29 @@ def test_add_pr_curve(wandb_init, relay_server):
         summary = relay.context.get_run_summary(run_id)
         assert summary["pr_curve_table"]["_type"] == "table-file"
         assert summary["pr_curve_table"]["ncols"] == 2
+
+        telemetry = relay.context.get_run_telemetry(run_id)
+        assert 35 in telemetry["3"]  # tensorboard_sync
+
+    wandb.tensorboard.unpatch()
+
+
+@pytest.mark.wandb_core_only
+def test_add_pr_curve_wandb_core(wandb_init, relay_server):
+    """Test adding a precision-recall curve to TensorBoard and syncing it to W&B."""
+    with relay_server() as relay:
+        with wandb_init(sync_tensorboard=True), SummaryWriter() as writer:
+            labels = np.random.randint(2, size=100)  # binary label
+            predictions = np.random.rand(100)
+            writer.add_pr_curve("pr_curve", labels, predictions, 0)
+
+        run_ids = relay.context.get_run_ids()
+        assert len(run_ids) == 1
+        run_id = run_ids[0]
+
+        summary = relay.context.get_run_summary(run_id)
+        assert summary["pr_curve"]["_type"] == "table-file"
+        assert summary["pr_curve"]["ncols"] == 2
 
         telemetry = relay.context.get_run_telemetry(run_id)
         assert 35 in telemetry["3"]  # tensorboard_sync
