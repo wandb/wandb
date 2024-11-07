@@ -2,7 +2,84 @@ from __future__ import annotations
 
 import json
 
+import pytest
 import wandb
+from wandb.plot.custom_chart import CustomChart
+
+
+@pytest.fixture
+def roc_curve() -> CustomChart:
+    return wandb.plot.roc_curve(
+        y_true=[0, 1],
+        y_probas=[
+            (0.4, 0.6),
+            (0.3, 0.7),
+        ],
+        title="New title",
+    )
+
+
+@pytest.fixture
+def line_series() -> CustomChart:
+    return wandb.plot.line_series(
+        xs=[0, 1, 2, 3, 4],
+        ys=[[123, 333, 111, 42, 533]],
+        keys=["metric_A"],
+    )
+
+
+@pytest.fixture
+def confusion_matrix() -> CustomChart:
+    return wandb.plot.confusion_matrix(
+        y_true=[0, 1],
+        probs=[
+            (0.4, 0.6),
+            (0.2, 0.8),
+        ],
+    )
+
+
+@pytest.fixture
+def bar_chart() -> CustomChart:
+    return wandb.plot.bar(
+        table=wandb.Table(columns=["a"], data=[[1]]),
+        label="a",
+        value="a",
+    )
+
+
+@pytest.fixture
+def histogram() -> CustomChart:
+    return wandb.plot.histogram(table=wandb.Table(columns=["a"], data=[[1]]), value="a")
+
+
+@pytest.fixture
+def line_chart() -> CustomChart:
+    return wandb.plot.line(
+        table=wandb.Table(columns=["a"], data=[[1]]),
+        x=[0, 1, 2, 3, 4],
+        y=[[1, 2, 3, 4, 5]],
+    )
+
+
+@pytest.fixture
+def pr_curve() -> CustomChart:
+    return wandb.plot.pr_curve(
+        y_true=[0, 1],
+        y_probas=[
+            (0.4, 0.6),
+            (0.3, 0.7),
+        ],
+    )
+
+
+@pytest.fixture
+def scatter_plot() -> CustomChart:
+    return wandb.plot.scatter(
+        table=wandb.Table(columns=["a"], data=[[1]]),
+        x=[1, 2, 3],
+        y=[4, 5, 6],
+    )
 
 
 def get_table_from_summary(run, summary: dict, key_path: list[str]) -> wandb.Table:
@@ -15,7 +92,44 @@ def get_table_from_summary(run, summary: dict, key_path: list[str]) -> wandb.Tab
     return wandb.Table(data=table_json["data"], columns=table_json["columns"])
 
 
-def test_log_nested_plot(wandb_init, wandb_backend_spy):
+@pytest.mark.parametrize(
+    "plot_object",
+    [
+        "line_series",
+        "roc_curve",
+        "confusion_matrix",
+        "bar_chart",
+        "histogram",
+        "line_chart",
+        "pr_curve",
+        "scatter_plot",
+    ],
+)
+def test_log_nested_plot(wandb_init, request, wandb_backend_spy, plot_object):
+    plot = request.getfixturevalue(plot_object)
+    with wandb_init() as run:
+        run.log(
+            {
+                "layer1": {
+                    "layer2": {"layer3": plot},
+                }
+            }
+        )
+        run.finish()
+
+        with wandb_backend_spy.freeze() as snapshot:
+            summary = snapshot.summary(run_id=run.id)
+
+            # Verify the table was set in the config and summary
+            assert "layer3_table" in summary["layer1"]["layer2"]
+
+            table = get_table_from_summary(
+                run, summary, ["layer1", "layer2", "layer3_table"]
+            )
+            assert table == plot.table
+
+
+def test_log_multiple_nested_plots(wandb_init, wandb_backend_spy):
     with wandb_init() as run:
         plot1 = wandb.plot.line_series(
             xs=[0, 1, 2, 3, 4],
