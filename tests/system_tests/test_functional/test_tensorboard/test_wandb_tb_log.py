@@ -12,7 +12,7 @@ def test_(wandb_backend_spy, wandb_init, assets_path):
         wandb.tensorboard.log(summary_pb)
 
     with wandb_backend_spy.freeze() as snapshot:
-        assert len(snapshot.run_ids) == 1
+        assert len(snapshot.run_ids()) == 1
 
         summary = snapshot.summary(run_id=run.id)
         for tag in [

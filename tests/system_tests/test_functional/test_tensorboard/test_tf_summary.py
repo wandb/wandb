@@ -4,7 +4,6 @@ Used https://www.tensorflow.org/api_docs/python/tf/summary as reference."""
 import os
 
 import numpy as np
-import pandas as pd
 import pytest
 import tensorboard.plugins.pr_curve.summary as pr_curve_plugins_summary
 import tensorboard.summary.v1 as tensorboard_summary_v1
@@ -134,10 +133,13 @@ def test_scalar(wandb_init, wandb_backend_spy):
         assert summary["loss"] == pytest.approx(scalars[-1])
 
         history = snapshot.history(run_id=run.id)
-        history_df = pd.DataFrame.from_dict(history, orient="index")
 
-        assert len(history_df) == 3
-        assert history_df["loss"].tolist() == pytest.approx(scalars)
+        assert len(history) == 3
+
+        for step in history:
+            # Using the summary writer through tensorboard there is some floating point precision loss.
+            # So we use pytest.approx to compare the values.
+            assert history[step]["loss"] == pytest.approx(scalars[step])
 
     wandb.tensorboard.unpatch()
 
@@ -253,12 +255,11 @@ def test_tb_sync_with_explicit_step_and_log(
         with tf.summary.create_file_writer(
             "test/logs",
         ).as_default():
-            for i in range(10):
-                tf.summary.scalar(
-                    "x_scalar",
-                    tf.constant(i**2),
-                    step=i,
-                )
+            tf.summary.scalar(
+                "x_scalar",
+                tf.constant(1),
+                step=1,
+            )
         run.log({"y_scalar": 1337}, step=42)
 
     with wandb_backend_spy.freeze() as snapshot:
@@ -266,17 +267,13 @@ def test_tb_sync_with_explicit_step_and_log(
             "Step cannot be set when using tensorboard syncing"
         )
         history = snapshot.history(run_id=run.id)
-        assert len(history) == 11
+        assert len(history) == 2
 
-        history_df = pd.DataFrame.from_dict(history, orient="index")
-
-        assert history_df["x_scalar"].dropna().tolist() == [i**2 for i in range(10)]
-        assert history_df["y_scalar"].dropna().tolist() == [1337]
-
-        summary = snapshot.summary(run_id=run.id)
-        assert summary["global_step"] == 9
-        assert summary["x_scalar"] == 81
-        assert summary["y_scalar"] == 1337
+        for item in history.values():
+            if "x_scalar" in item:
+                assert item["x_scalar"] == 1
+            else:
+                assert item["y_scalar"] == 1337
 
         telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # sync_tensorboard

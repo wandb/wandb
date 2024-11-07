@@ -4,7 +4,6 @@ Test that the Keras TensorBoard callback works with W&B.
 
 import keras
 import numpy as np
-import pandas as pd
 import pytest
 import tensorflow as tf
 import wandb
@@ -44,9 +43,10 @@ def test_tb_callback(wandb_init, wandb_backend_spy):
 
         summary = snapshot.summary(run_id=run.id)
         history = snapshot.history(run_id=run.id)
-        history_df = pd.DataFrame.from_dict(history, orient="index")
-        # assert that there are 10 non-nan epoch_loss values
-        assert len(history_df["epoch_loss"].dropna()) == 10
+        assert (
+            len(list(step for step, item in history.items() if "epoch_loss" in item))
+            == 10
+        )
 
         assert summary["global_step"] == 9
 
@@ -55,11 +55,15 @@ def test_tb_callback(wandb_init, wandb_backend_spy):
 
         for tag in ["kernel/histogram", "bias/histogram"]:
             assert summary[tag]["_type"] == "histogram"
-            assert len(history_df[tag].dropna()) == 2
+
+            items_with_tag = list(step for step, item in history.items() if tag in item)
+            assert len(items_with_tag) == 2
 
         for tag in ["kernel/image", "bias/image"]:
             assert summary[tag]["_type"] == "images/separated"
-            assert len(history_df[tag].dropna()) == 2
+
+            items_with_tag = list(step for step, item in history.items() if tag in item)
+            assert len(items_with_tag) == 2
 
         telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync
