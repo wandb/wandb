@@ -1382,12 +1382,20 @@ class Run:
 
             if isinstance(v, Visualize):
                 data[k] = v.table
-                self._process_chart(v, key)
+                v.set_key(key)
+                self._config_callback(
+                    val=v.spec.config_value,
+                    key=v.spec.config_key,
+                )
             elif isinstance(v, CustomChart):
                 # If this is a custom chart, we will update our history with the table key.
                 # Allowing for charts to be nested in dictionaries.
                 keys_to_replace.add(k)
-                self._process_chart(v, key)
+                v.set_key(key)
+                self._config_callback(
+                    val=v.spec.config_value,
+                    key=v.spec.config_key,
+                )
             elif isinstance(v, dict):
                 # Recursively apply the visualization hack to nested dictionaries
                 data[k] = self._visualization_hack(v, key_prefix=key)

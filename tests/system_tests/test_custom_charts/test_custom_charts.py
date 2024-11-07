@@ -115,18 +115,17 @@ def test_log_nested_plot(wandb_init, request, wandb_backend_spy, plot_object):
                 }
             }
         )
-        run.finish()
 
-        with wandb_backend_spy.freeze() as snapshot:
-            summary = snapshot.summary(run_id=run.id)
+    with wandb_backend_spy.freeze() as snapshot:
+        summary = snapshot.summary(run_id=run.id)
 
-            # Verify the table was set in the config and summary
-            assert "layer3_table" in summary["layer1"]["layer2"]
+        # Verify the table was set in the config and summary
+        assert "layer3_table" in summary["layer1"]["layer2"]
 
-            table = get_table_from_summary(
-                run, summary, ["layer1", "layer2", "layer3_table"]
-            )
-            assert table == plot.table
+        table = get_table_from_summary(
+            run, summary, ["layer1", "layer2", "layer3_table"]
+        )
+        assert table == plot.table
 
 
 def test_log_multiple_nested_plots(wandb_init, wandb_backend_spy):
@@ -153,27 +152,26 @@ def test_log_multiple_nested_plots(wandb_init, wandb_backend_spy):
                 }
             }
         )
-        run.finish()
 
-        with wandb_backend_spy.freeze() as snapshot:
-            summary = snapshot.summary(run_id=run.id)
-            config = snapshot.config(run_id=run.id)
+    with wandb_backend_spy.freeze() as snapshot:
+        summary = snapshot.summary(run_id=run.id)
+        config = snapshot.config(run_id=run.id)
 
-            print(config)
+        print(config)
 
-            # Verify the table was set in the config and summary
-            assert "layer3_table" in summary["layer1"]["layer2"]
-            assert "layer1.layer2.layer3" in config["_wandb"]["value"]["visualize"]
+        # Verify the table was set in the config and summary
+        assert "layer3_table" in summary["layer1"]["layer2"]
+        assert "layer1.layer2.layer3" in config["_wandb"]["value"]["visualize"]
 
-            assert "layer5_table" in summary["layer1"]["layer4"]
-            assert "layer1.layer4.layer5" in config["_wandb"]["value"]["visualize"]
+        assert "layer5_table" in summary["layer1"]["layer4"]
+        assert "layer1.layer4.layer5" in config["_wandb"]["value"]["visualize"]
 
-            for plot, key_path in [
-                (plot1, ["layer1", "layer2", "layer3_table"]),
-                (plot2, ["layer1", "layer4", "layer5_table"]),
-            ]:
-                table = get_table_from_summary(run, summary, key_path)
-                assert table == plot.table
+        for plot, key_path in [
+            (plot1, ["layer1", "layer2", "layer3_table"]),
+            (plot2, ["layer1", "layer4", "layer5_table"]),
+        ]:
+            table = get_table_from_summary(run, summary, key_path)
+            assert table == plot.table
 
 
 def test_log_nested_table(wandb_init, wandb_backend_spy):
@@ -188,7 +186,6 @@ def test_log_nested_table(wandb_init, wandb_backend_spy):
                 }
             }
         )
-        run.finish()
 
     with wandb_backend_spy.freeze() as snapshot:
         summary = snapshot.summary(run_id=run.id)
@@ -225,7 +222,6 @@ def test_log_nested_visualize(wandb_init, wandb_backend_spy):
                 }
             }
         )
-        run.finish()
 
     with wandb_backend_spy.freeze() as snapshot:
         summary = snapshot.summary(run_id=run.id)
