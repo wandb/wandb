@@ -69,3 +69,38 @@ def test_check_wandb_version(capsys):
         wandb_verify.check_wandb_version(api)
         captured = capsys.readouterr().out
         assert "wandb version is not supported" in captured
+
+
+def test_retry_fn_retries_exceptions():
+    i = 0
+
+    def fn():
+        nonlocal i
+        if i < 1:
+            i += 1
+            raise Exception("test")
+        return "test"
+
+    with unittest.mock.patch("time.sleep", return_value=None):
+        result = wandb_verify.retry_fn(fn)
+        assert result == "test"
+
+
+def test_retry_fn_times_out():
+    def fn():
+        raise Exception("test")
+
+    now = 0
+
+    def time():
+        nonlocal now
+        return now
+
+    def sleep(seconds):
+        nonlocal now
+        now += seconds
+
+    with unittest.mock.patch("time.sleep", side_effect=sleep):
+        with unittest.mock.patch("time.time", side_effect=time):
+            result = wandb_verify.retry_fn(fn)
+            assert result is None
