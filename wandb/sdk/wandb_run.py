@@ -1398,7 +1398,7 @@ class Run:
                 )
             elif isinstance(v, dict):
                 # Recursively apply the visualization hack to nested dictionaries
-                data[k] = self._visualization_hack(v, key_prefix=key)
+                data[k] = self._serialize_custom_charts(v, key_prefix=key)
 
         for k in keys_to_replace:
             # Remove the custom chart keys from the history.
