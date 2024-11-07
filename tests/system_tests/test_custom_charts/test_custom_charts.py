@@ -22,10 +22,13 @@ def test_log_nested_plot(wandb_init, wandb_backend_spy):
             ys=[[123, 333, 111, 42, 533]],
             keys=["metric_A"],
         )
-        plot2 = wandb.plot.line_series(
-            xs=[4, 3, 2, 1, 0],
-            ys=[[10, 20, 30, 40, 50]],
-            keys=["metric_B"],
+        plot2 = wandb.plot.roc_curve(
+            y_true=[0, 1],
+            y_probas=[
+                (0.4, 0.6),
+                (0.3, 0.7),
+            ],
+            title="New title",
         )
 
         run.log(
@@ -40,10 +43,16 @@ def test_log_nested_plot(wandb_init, wandb_backend_spy):
 
         with wandb_backend_spy.freeze() as snapshot:
             summary = snapshot.summary(run_id=run.id)
+            config = snapshot.config(run_id=run.id)
+
+            print(config)
 
             # Verify the table was set in the config and summary
             assert "layer3_table" in summary["layer1"]["layer2"]
+            assert "layer1.layer2.layer3" in config["_wandb"]["value"]["visualize"]
+
             assert "layer5_table" in summary["layer1"]["layer4"]
+            assert "layer1.layer4.layer5" in config["_wandb"]["value"]["visualize"]
 
             for plot, key_path in [
                 (plot1, ["layer1", "layer2", "layer3_table"]),
