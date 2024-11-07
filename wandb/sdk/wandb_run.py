@@ -549,7 +549,6 @@ class Run:
     _redirect_cb: Callable[[str, str], None] | None
     _redirect_raw_cb: Callable[[str, str], None] | None
     _output_writer: filesystem.CRDedupedFile | None
-    _quiet: bool | None
 
     _atexit_cleanup_called: bool
     _hooks: ExitHooks | None
@@ -657,7 +656,6 @@ class Run:
         self._stderr_slave_fd = None
         self._exit_code = None
         self._exit_result = None
-        self._quiet = self._settings.quiet
 
         self._output_writer = None
         self._used_artifact_slots: dict[str, str] = {}
@@ -2134,21 +2132,25 @@ class Run:
 
         Args:
             exit_code: Set to something other than 0 to mark a run as failed
-            quiet: Set to true to minimize log output
+            quiet: Deprecated, use `wandb.Settings(quiet=...)` to set this instead.
         """
-        return self._finish(exit_code, quiet)
+        if quiet is not None:
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__finish_quiet,
+                warning_message=(
+                    "The `quiet` argument to `wandb.run.finish()` is deprecated, "
+                    "use `wandb.Settings(quiet=...)` to set this instead."
+                ),
+            )
+        return self._finish(exit_code)
 
     def _finish(
         self,
         exit_code: int | None = None,
-        quiet: bool | None = None,
     ) -> None:
         logger.info(f"finishing run {self._get_path()}")
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
-
-        if quiet is not None:
-            self._quiet = quiet
 
         # Pop this run (hopefully) from the run stack, to support the "reinit"
         # functionality of wandb.init().
@@ -2442,7 +2444,6 @@ class Run:
             poll_exit_response=self._poll_exit_response,
             internal_messages_response=self._internal_messages_response,
             reporter=self._reporter,
-            quiet=self._quiet,
             settings=self._settings,
             printer=self._printer,
         )
@@ -3853,7 +3854,6 @@ class Run:
         poll_exit_response: PollExitResponse | None = None,
         internal_messages_response: InternalMessagesResponse | None = None,
         reporter: Reporter | None = None,
-        quiet: bool | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
@@ -3861,37 +3861,32 @@ class Run:
         Run._footer_history_summary_info(
             history=sampled_history,
             summary=final_summary,
-            quiet=quiet,
             settings=settings,
             printer=printer,
         )
 
         Run._footer_sync_info(
             poll_exit_response=poll_exit_response,
-            quiet=quiet,
             settings=settings,
             printer=printer,
         )
-        Run._footer_log_dir_info(quiet=quiet, settings=settings, printer=printer)
+        Run._footer_log_dir_info(settings=settings, printer=printer)
         Run._footer_notify_wandb_core(
-            quiet=quiet,
             settings=settings,
             printer=printer,
         )
         Run._footer_internal_messages(
             internal_messages_response=internal_messages_response,
-            quiet=quiet,
             settings=settings,
             printer=printer,
         )
         Run._footer_reporter_warn_err(
-            reporter=reporter, quiet=quiet, settings=settings, printer=printer
+            reporter=reporter, settings=settings, printer=printer
         )
 
     @staticmethod
     def _footer_sync_info(
         poll_exit_response: PollExitResponse | None = None,
-        quiet: bool | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
@@ -3900,7 +3895,7 @@ class Run:
             return
 
         if settings._offline:
-            if not quiet and not settings.quiet:
+            if not settings.quiet:
                 printer.display(
                     [
                         "You can sync this run to the cloud by running:",
@@ -3929,12 +3924,11 @@ class Run:
 
     @staticmethod
     def _footer_log_dir_info(
-        quiet: bool | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
     ) -> None:
-        if (quiet or settings.quiet) or settings.silent:
+        if settings.quiet or settings.silent:
             return
 
         log_dir = settings.log_user or settings.log_internal
@@ -3948,12 +3942,11 @@ class Run:
     def _footer_history_summary_info(
         history: SampledHistoryResponse | None = None,
         summary: GetSummaryResponse | None = None,
-        quiet: bool | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
     ) -> None:
-        if (quiet or settings.quiet) or settings.silent:
+        if settings.quiet or settings.silent:
             return
 
         panel = []
@@ -4018,12 +4011,11 @@ class Run:
     @staticmethod
     def _footer_internal_messages(
         internal_messages_response: InternalMessagesResponse | None = None,
-        quiet: bool | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
     ) -> None:
-        if (quiet or settings.quiet) or settings.silent:
+        if settings.quiet or settings.silent:
             return
 
         if not internal_messages_response:
@@ -4035,12 +4027,11 @@ class Run:
     @staticmethod
     def _footer_notify_wandb_core(
         *,
-        quiet: bool | None = None,
         settings: Settings,
         printer: printer.Printer,
     ) -> None:
         """Prints a message advertising the upcoming core release."""
-        if quiet or not settings._require_legacy_service:
+        if settings.quiet or not settings._require_legacy_service:
             return
 
         printer.display(
@@ -4053,12 +4044,11 @@ class Run:
     @staticmethod
     def _footer_reporter_warn_err(
         reporter: Reporter | None = None,
-        quiet: bool | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
     ) -> None:
-        if (quiet or settings.quiet) or settings.silent:
+        if settings.quiet or settings.silent:
             return
 
         if not reporter:
@@ -4151,7 +4141,7 @@ def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
 
     Args:
         exit_code: Set to something other than 0 to mark a run as failed
-        quiet: Set to true to minimize log output
+        quiet: Deprecated, use `wandb.Settings(quiet=...)` to set this instead.
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code, quiet=quiet)
