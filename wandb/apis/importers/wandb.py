@@ -200,7 +200,7 @@ class WandbRun:
             rows = self._get_rows_from_parquet_history_paths()
         else:
             logger.warning(
-                "No parquet files detected; using scan history (this may not be reliable)"
+                f"No parquet files detected; using scan history (this may not be reliable) for {self.run_id()=}"
             )
             rows = self.run.scan_history()
 
