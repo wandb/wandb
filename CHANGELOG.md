@@ -23,6 +23,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - The `quiet` argument to `wandb.run.finish()` is deprecated, use `wandb.Settings(quiet=...)` to set this instead. (@kptkin in https://github.com/wandb/wandb/pull/8794)
 
+### Changed
+
+- Tables logged in offline mode now have updated keys to artifact paths when syncing. To revert to old behavior, use setting `allow_offline_artifacts = False`. (@domphan-wandb in https://github.com/wandb/wandb/pull/8792)
+
 ## [0.18.6] - 2024-11-06
 
 ### Added

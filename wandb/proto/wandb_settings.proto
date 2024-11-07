@@ -43,7 +43,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 177
+// Next ID: 178
 message Settings {
   reserved 12, 36, 50, 94, 136, 137;
 
@@ -221,6 +221,10 @@ message Settings {
   // Remove after the feature is rolled out.
   google.protobuf.BoolValue _show_operation_stats = 176;
 
+  // Flag to allow table artifacts to be synced in offline mode
+  //
+  // By default, true, to revert to old behavior, set this to False.
+  google.protobuf.BoolValue allow_offline_artifacts = 177;
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.BoolValue _cli_only_mode = 4;
