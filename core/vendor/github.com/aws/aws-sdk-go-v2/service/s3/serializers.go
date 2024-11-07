@@ -4941,12 +4941,20 @@ func awsRestxml_serializeOpHttpBindingsListBucketsInput(v *ListBucketsInput, enc
 		return fmt.Errorf("unsupported serialization of nil %T", v)
 	}
 
+	if v.BucketRegion != nil {
+		encoder.SetQuery("bucket-region").String(*v.BucketRegion)
+	}
+
 	if v.ContinuationToken != nil {
 		encoder.SetQuery("continuation-token").String(*v.ContinuationToken)
 	}
 
 	if v.MaxBuckets != nil {
 		encoder.SetQuery("max-buckets").Integer(*v.MaxBuckets)
+	}
+
+	if v.Prefix != nil {
+		encoder.SetQuery("prefix").String(*v.Prefix)
 	}
 
 	return nil
@@ -11233,71 +11241,66 @@ func awsRestxml_serializeDocumentLifecycleRuleAndOperator(v *types.LifecycleRule
 	return nil
 }
 
-func awsRestxml_serializeDocumentLifecycleRuleFilter(v types.LifecycleRuleFilter, value smithyxml.Value) error {
+func awsRestxml_serializeDocumentLifecycleRuleFilter(v *types.LifecycleRuleFilter, value smithyxml.Value) error {
 	defer value.Close()
-	switch uv := v.(type) {
-	case *types.LifecycleRuleFilterMemberAnd:
-		customMemberNameAttr := []smithyxml.Attr{}
-		customMemberName := smithyxml.StartElement{
+	if v.And != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
 			Name: smithyxml.Name{
 				Local: "And",
 			},
-			Attr: customMemberNameAttr,
+			Attr: rootAttr,
 		}
-		av := value.MemberElement(customMemberName)
-		if err := awsRestxml_serializeDocumentLifecycleRuleAndOperator(&uv.Value, av); err != nil {
+		el := value.MemberElement(root)
+		if err := awsRestxml_serializeDocumentLifecycleRuleAndOperator(v.And, el); err != nil {
 			return err
 		}
-
-	case *types.LifecycleRuleFilterMemberObjectSizeGreaterThan:
-		customMemberNameAttr := []smithyxml.Attr{}
-		customMemberName := smithyxml.StartElement{
+	}
+	if v.ObjectSizeGreaterThan != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
 			Name: smithyxml.Name{
 				Local: "ObjectSizeGreaterThan",
 			},
-			Attr: customMemberNameAttr,
+			Attr: rootAttr,
 		}
-		av := value.MemberElement(customMemberName)
-		av.Long(uv.Value)
-
-	case *types.LifecycleRuleFilterMemberObjectSizeLessThan:
-		customMemberNameAttr := []smithyxml.Attr{}
-		customMemberName := smithyxml.StartElement{
+		el := value.MemberElement(root)
+		el.Long(*v.ObjectSizeGreaterThan)
+	}
+	if v.ObjectSizeLessThan != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
 			Name: smithyxml.Name{
 				Local: "ObjectSizeLessThan",
 			},
-			Attr: customMemberNameAttr,
+			Attr: rootAttr,
 		}
-		av := value.MemberElement(customMemberName)
-		av.Long(uv.Value)
-
-	case *types.LifecycleRuleFilterMemberPrefix:
-		customMemberNameAttr := []smithyxml.Attr{}
-		customMemberName := smithyxml.StartElement{
+		el := value.MemberElement(root)
+		el.Long(*v.ObjectSizeLessThan)
+	}
+	if v.Prefix != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
 			Name: smithyxml.Name{
 				Local: "Prefix",
 			},
-			Attr: customMemberNameAttr,
+			Attr: rootAttr,
 		}
-		av := value.MemberElement(customMemberName)
-		av.String(uv.Value)
-
-	case *types.LifecycleRuleFilterMemberTag:
-		customMemberNameAttr := []smithyxml.Attr{}
-		customMemberName := smithyxml.StartElement{
+		el := value.MemberElement(root)
+		el.String(*v.Prefix)
+	}
+	if v.Tag != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
 			Name: smithyxml.Name{
 				Local: "Tag",
 			},
-			Attr: customMemberNameAttr,
+			Attr: rootAttr,
 		}
-		av := value.MemberElement(customMemberName)
-		if err := awsRestxml_serializeDocumentTag(&uv.Value, av); err != nil {
+		el := value.MemberElement(root)
+		if err := awsRestxml_serializeDocumentTag(v.Tag, el); err != nil {
 			return err
 		}
-
-	default:
-		return fmt.Errorf("attempted to serialize unknown member type %T for union %T", uv, v)
-
 	}
 	return nil
 }
@@ -12405,49 +12408,44 @@ func awsRestxml_serializeDocumentReplicationRuleAndOperator(v *types.Replication
 	return nil
 }
 
-func awsRestxml_serializeDocumentReplicationRuleFilter(v types.ReplicationRuleFilter, value smithyxml.Value) error {
+func awsRestxml_serializeDocumentReplicationRuleFilter(v *types.ReplicationRuleFilter, value smithyxml.Value) error {
 	defer value.Close()
-	switch uv := v.(type) {
-	case *types.ReplicationRuleFilterMemberAnd:
-		customMemberNameAttr := []smithyxml.Attr{}
-		customMemberName := smithyxml.StartElement{
+	if v.And != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
 			Name: smithyxml.Name{
 				Local: "And",
 			},
-			Attr: customMemberNameAttr,
+			Attr: rootAttr,
 		}
-		av := value.MemberElement(customMemberName)
-		if err := awsRestxml_serializeDocumentReplicationRuleAndOperator(&uv.Value, av); err != nil {
+		el := value.MemberElement(root)
+		if err := awsRestxml_serializeDocumentReplicationRuleAndOperator(v.And, el); err != nil {
 			return err
 		}
-
-	case *types.ReplicationRuleFilterMemberPrefix:
-		customMemberNameAttr := []smithyxml.Attr{}
-		customMemberName := smithyxml.StartElement{
+	}
+	if v.Prefix != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
 			Name: smithyxml.Name{
 				Local: "Prefix",
 			},
-			Attr: customMemberNameAttr,
+			Attr: rootAttr,
 		}
-		av := value.MemberElement(customMemberName)
-		av.String(uv.Value)
-
-	case *types.ReplicationRuleFilterMemberTag:
-		customMemberNameAttr := []smithyxml.Attr{}
-		customMemberName := smithyxml.StartElement{
+		el := value.MemberElement(root)
+		el.String(*v.Prefix)
+	}
+	if v.Tag != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
 			Name: smithyxml.Name{
 				Local: "Tag",
 			},
-			Attr: customMemberNameAttr,
+			Attr: rootAttr,
 		}
-		av := value.MemberElement(customMemberName)
-		if err := awsRestxml_serializeDocumentTag(&uv.Value, av); err != nil {
+		el := value.MemberElement(root)
+		if err := awsRestxml_serializeDocumentTag(v.Tag, el); err != nil {
 			return err
 		}
-
-	default:
-		return fmt.Errorf("attempted to serialize unknown member type %T for union %T", uv, v)
-
 	}
 	return nil
 }

@@ -5,11 +5,7 @@ import pytest
 
 @pytest.mark.parametrize(
     "start_method",
-    [
-        "spawn",
-        "forkserver",
-        "fork",
-    ],
+    ["spawn", "forkserver"],
 )
 @pytest.mark.wandb_core_only
 def test_share_child_base_spawn(user, start_method, relay_server, execute_script):

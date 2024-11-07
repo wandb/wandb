@@ -512,4 +512,3 @@ class Notebook:
                 write(nb, f, version=4)
         except (OSError, validator.NotebookValidationError) as e:
             logger.error("Unable to save ipython session history:\n%s", e)
-            pass

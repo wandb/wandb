@@ -84,7 +84,6 @@ _not_importable = set()
 
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
-RE_WINFNAMES = re.compile(r'[<>:"\\?*]')
 
 # From https://docs.docker.com/engine/reference/commandline/tag/
 # "Name components may contain lowercase letters, digits and separators.
@@ -881,6 +880,23 @@ def no_retry_4xx(e: Exception) -> bool:
     raise UsageError(body["errors"][0]["message"])
 
 
+def parse_backend_error_messages(response: requests.Response) -> List[str]:
+    errors: List[str] = []
+    try:
+        data = response.json()
+    except ValueError:
+        return errors
+
+    if "errors" in data and isinstance(data["errors"], list):
+        for error in data["errors"]:
+            # Our tests and potentially some api endpoints return a string error?
+            if isinstance(error, str):
+                error = {"message": error}
+            if "message" in error:
+                errors.append(error["message"])
+    return errors
+
+
 def no_retry_auth(e: Any) -> bool:
     if hasattr(e, "exception"):
         e = e.exception
@@ -894,7 +910,9 @@ def no_retry_auth(e: Any) -> bool:
     # Retry all non-forbidden/unauthorized/not-found errors.
     if e.response.status_code not in (401, 403, 404):
         return True
-    # Crash w/message on forbidden/unauthorized errors.
+
+    # Crash with more informational message on forbidden/unauthorized errors.
+    # UnauthorizedError
     if e.response.status_code == 401:
         raise AuthenticationError(
             "The API key you provided is either invalid or missing.  "
@@ -904,15 +922,29 @@ def no_retry_auth(e: Any) -> bool:
             "If you're not sure, you can try logging in again using the 'wandb login --relogin --host [hostname]' command."
             f"(Error {e.response.status_code}: {e.response.reason})"
         )
-    elif wandb.run:
-        raise CommError(f"Permission denied to access {wandb.run.path}")
-    else:
-        raise CommError(
-            "It appears that you do not have permission to access the requested resource. "
-            "Please reach out to the project owner to grant you access. "
-            "If you have the correct permissions, verify that there are no issues with your networking setup."
-            f"(Error {e.response.status_code}: {e.response.reason})"
-        )
+    # ForbiddenError
+    if e.response.status_code == 403:
+        if wandb.run:
+            raise CommError(f"Permission denied to access {wandb.run.path}")
+        else:
+            raise CommError(
+                "It appears that you do not have permission to access the requested resource. "
+                "Please reach out to the project owner to grant you access. "
+                "If you have the correct permissions, verify that there are no issues with your networking setup."
+                f"(Error {e.response.status_code}: {e.response.reason})"
+            )
+
+    # NotFoundError
+    if e.response.status_code == 404:
+        # If error message is empty, raise a more generic NotFoundError message.
+        if parse_backend_error_messages(e.response):
+            return False
+        else:
+            raise LookupError(
+                f"Failed to find resource. Please make sure you have the correct resource path. "
+                f"(Error {e.response.status_code}: {e.response.reason})"
+            )
+    return False
 
 
 def check_retry_conflict(e: Any) -> Optional[bool]:
@@ -956,7 +988,7 @@ def make_check_retry_fn(
 ) -> CheckRetryFnType:
     """Return a check_retry_fn which can be used by lib.Retry().
 
-    Arguments:
+    Args:
         fallback_fn: Use this function if check_fn didn't decide if a retry should happen.
         check_fn: Function which returns bool if retry should happen or None if unsure.
         check_timedelta: Optional retry timeout if we check_fn matches the exception
@@ -978,7 +1010,7 @@ def make_check_retry_fn(
 def find_runner(program: str) -> Union[None, list, List[str]]:
     """Return a command that will run program.
 
-    Arguments:
+    Args:
         program: The string name of the program to try to run.
 
     Returns:
@@ -1283,7 +1315,7 @@ def prompt_choices(
 def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
     """Infer the type of data based on the shape of the tensors.
 
-    Arguments:
+    Args:
         shape (Sequence[int]): The shape of the data
         risky(bool): some guesses are more likely to be wrong.
     """
@@ -1561,10 +1593,6 @@ def _is_py_requirements_or_dockerfile(path: str) -> bool:
         or file.startswith("Dockerfile")
         or file == "requirements.txt"
     )
-
-
-def check_windows_valid_filename(path: Union[int, str]) -> bool:
-    return not bool(re.search(RE_WINFNAMES, path))  # type: ignore
 
 
 def artifact_to_json(artifact: "Artifact") -> Dict[str, Any]:

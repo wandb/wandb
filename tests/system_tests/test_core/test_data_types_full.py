@@ -48,9 +48,8 @@ def test_table_logging(
     run.finish()
 
 
-def test_object3d_logging(relay_server, wandb_init, assets_path):
-    with relay_server() as relay:
-        run = wandb_init()
+def test_object3d_logging(wandb_backend_spy, assets_path):
+    with wandb.init() as run:
         run.log(
             {
                 "point_cloud": wandb.Object3D.from_file(
@@ -58,9 +57,11 @@ def test_object3d_logging(relay_server, wandb_init, assets_path):
                 )
             }
         )
-        run.finish()
-        assert relay.context.summary["point_cloud"][0]["_type"] == "object3D-file"
-        assert relay.context.summary["point_cloud"][0]["path"].endswith(".pts.json")
+
+    with wandb_backend_spy.freeze() as snapshot:
+        summary = snapshot.summary(run_id=run.id)
+        assert summary["point_cloud"]["_type"] == "object3D-file"
+        assert summary["point_cloud"]["path"].endswith(".pts.json")
 
 
 def test_partitioned_table_logging(wandb_init):
@@ -112,22 +113,22 @@ def test_log_with_back_slash_windows(wandb_init):
 
 
 def test_image_array_old_wandb(
-    relay_server,
+    wandb_backend_spy,
     wandb_init,
     monkeypatch,
     mock_wandb_log,
 ):
-    with relay_server() as relay:
-        monkeypatch.setattr(wandb.util, "_get_max_cli_version", lambda: "0.10.33")
+    monkeypatch.setattr(wandb.util, "_get_max_cli_version", lambda: "0.10.33")
 
-        run = wandb_init()
+    with wandb.init() as run:
         wb_image = [wandb.Image(np.zeros((28, 28))) for i in range(5)]
         run.log({"logged_images": wb_image})
-        run.finish()
 
-        assert mock_wandb_log.warned("Unable to log image array filenames.")
+    assert mock_wandb_log.warned("Unable to log image array filenames.")
 
-        assert "filenames" not in relay.context.summary["logged_images"][0]
+    with wandb_backend_spy.freeze() as snapshot:
+        summary = snapshot.summary(run_id=run.id)
+        assert "filenames" not in summary["logged_images"]
 
 
 def test_image_array_old_wandb_mp_warning(

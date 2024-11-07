@@ -183,12 +183,10 @@ class Scheduler(ABC):
     @abstractmethod
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
         """Called when worker available."""
-        pass
 
     @abstractmethod
     def _poll(self) -> None:
         """Called every polling loop."""
-        pass
 
     @abstractmethod
     def _exit(self) -> None:

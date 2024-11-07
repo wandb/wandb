@@ -14,16 +14,17 @@ SWEEP_CONFIGURATION = {
 
 
 def test_run_from_dict():
+    kwargs = {
+        "name": "test",
+        "state": "running",
+        "config": {},
+        "stopped": False,
+        "shouldStop": False,
+        "sampledHistory": [{}],
+        "summaryMetrics": {},
+    }
     run = sweeps.SweepRun(
-        **{
-            "name": "test",
-            "state": "running",
-            "config": {},
-            "stopped": False,
-            "shouldStop": False,
-            "sampledHistory": [{}],
-            "summaryMetrics": {},
-        }
+        **kwargs,
     )
     assert run.name == "test"
     assert run.state == "running"

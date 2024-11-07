@@ -114,7 +114,7 @@ class WandBUltralyticsCallback:
         model(["img1.jpeg", "img2.jpeg"])
         ```
 
-    Arguments:
+    Args:
         model: (ultralytics.yolo.engine.model.YOLO) YOLO Model of type
             `ultralytics.yolo.engine.model.YOLO`.
         epoch_logging_interval: (int) interval to log the prediction visualizations
@@ -466,7 +466,7 @@ def add_wandb_callback(
         model(["img1.jpeg", "img2.jpeg"])
         ```
 
-    Arguments:
+    Args:
         model: (ultralytics.yolo.engine.model.YOLO) YOLO Model of type
             `ultralytics.yolo.engine.model.YOLO`.
         epoch_logging_interval: (int) interval to log the prediction visualizations

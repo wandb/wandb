@@ -46,6 +46,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Go",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: System :: Logging",
@@ -114,7 +115,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 minversion = "6.0"
 console_output_style = "count"
-addopts = "-vvv --cov-config=pyproject.toml --dist=loadscope"
+addopts = "-vvv --cov-config=pyproject.toml"
 markers = [
     "image_output",
     "multiclass",
@@ -179,9 +180,7 @@ ignore = [
     "D105",  # Allow missing docstrings in magic (dunder) methods, e.g. __str__().
     "D106",  # Allow missing docstrings in nested classes.
     "D107",  # Allow missing docstrings in __init__ methods.
-    "UP022",
     "UP032", # Allow using format instead of f-string.
-    "UP036",
 ]
 
 [tool.ruff.lint.mccabe]
