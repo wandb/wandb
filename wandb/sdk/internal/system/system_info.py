@@ -126,7 +126,7 @@ class SystemInfo:
         logger.debug("Saving git patches done")
 
     def _probe_git(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        if self.settings.disable_git or self.setttings.x_disable_machine_info:
+        if self.settings.disable_git or self.settings.x_disable_machine_info:
             return data
 
         # in case of manually passing the git repo info, `enabled` would be False,

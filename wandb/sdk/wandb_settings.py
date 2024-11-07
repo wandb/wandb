@@ -452,6 +452,20 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("Stats sampling interval cannot be less than 0.1 seconds")
         return value
 
+    @field_validator("x_stats_open_metrics_endpoints", mode="before")
+    @classmethod
+    def validate_stats_open_metrics_endpoints(cls, value):
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
+    @field_validator("x_stats_open_metrics_filters", mode="before")
+    @classmethod
+    def validate_stats_open_metrics_filters(cls, value):
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
     @field_validator("sweep_id", mode="after")
     @classmethod
     def validate_sweep_id(cls, value):
@@ -859,8 +873,8 @@ class Settings(BaseModel, validate_assignment=True):
         """Generate a protobuf representation of the settings."""
         settings_proto = wandb_settings_pb2.Settings()
         for k, v in self.model_dump(exclude_none=True).items():
-            # special case for _stats_open_metrics_filters
-            if k == "_stats_open_metrics_filters":
+            # special case for x_stats_open_metrics_filters
+            if k == "x_stats_open_metrics_filters":
                 if isinstance(v, (list, set, tuple)):
                     setting = getattr(settings_proto, k)
                     setting.sequence.value.extend(v)
