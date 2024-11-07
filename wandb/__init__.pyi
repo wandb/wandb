@@ -433,7 +433,7 @@ def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
 
     Args:
         exit_code: Set to something other than 0 to mark a run as failed
-        quiet: Set to true to minimize log output
+        quiet: Deprecated, use `wandb.Settings(quiet=...)` to set this instead.
     """
     ...
 
