@@ -1,0 +1,27 @@
+query ArtifactFileURLsByManifestEntries(
+  $id: ID!
+  $entries: [ArtifactManifestEntryInput!]
+  $storageLayout: String!
+  $manifestVersion: String!
+  $storageRegion: String
+) {
+  artifact(id: $id) {
+    filesByManifestEntries(
+      storageLayout: $storageLayout
+      manifestVersion: $manifestVersion
+      entries: $entries
+      storageRegion: $storageRegion
+    ) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      edges {
+        node {
+          name
+          directUrl
+        }
+      }
+    }
+  }
+}

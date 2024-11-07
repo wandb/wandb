@@ -1,16 +1,12 @@
 """Test stable_baselines3 integration."""
 
 import gymnasium as gym
-import pytest
 import wandb
 from stable_baselines3 import PPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 
 
-@pytest.mark.skip_wandb_core(
-    reason="There seems to be some issues with the implementation"
-)
 def test_sb3_tensorboard(wandb_init, relay_server):
     """Integration test for Stable Baselines 3 TensorBoard callback."""
     with relay_server() as relay:

@@ -100,7 +100,7 @@ if TYPE_CHECKING:
 
     from wandb.plot import CustomChart
 
-__version__: str = "0.18.6.dev1"
+__version__: str = "0.18.7.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -433,7 +433,7 @@ def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
 
     Args:
         exit_code: Set to something other than 0 to mark a run as failed
-        quiet: Set to true to minimize log output
+        quiet: Deprecated, use `wandb.Settings(quiet=...)` to set this instead.
     """
     ...
 
