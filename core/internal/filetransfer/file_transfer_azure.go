@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
@@ -18,6 +19,22 @@ import (
 
 const maxAzureWorkers int = 500
 const azureScheme string = "https"
+
+type AzureBlobClient interface {
+	DownloadFile(ctx context.Context, destination *os.File, options *blob.DownloadFileOptions) (int64, error)
+	GetProperties(ctx context.Context, options *blob.GetPropertiesOptions) (blob.GetPropertiesResponse, error)
+	WithVersionID(versionId string) (AzureBlobClient, error)
+}
+
+type AzureContainerClient interface {
+	NewListBlobsFlatPager(options *container.ListBlobsFlatOptions) *runtime.Pager[container.ListBlobsFlatResponse]
+	NewBlobClient(blobName string) AzureBlobClient
+}
+
+type AzureAccountClient interface {
+	DownloadFile(ctx context.Context, containerName string, blobName string, destination *os.File, options *azblob.DownloadFileOptions) (int64, error)
+	NewListBlobsFlatPager(containerName string, options *azblob.ListBlobsFlatOptions) *runtime.Pager[azblob.ListBlobsFlatResponse]
+}
 
 type AzureClientsMap struct {
 	// clients is a map of account URLs to azblob.Client objects
@@ -32,24 +49,28 @@ func NewAzureClientsMap() *AzureClientsMap {
 	return &AzureClientsMap{clients: sync.Map{}, once: sync.Map{}}
 }
 
-func (am *AzureClientsMap) GetAccountClient(accountUrl string) (*azblob.Client, error) {
+func (am *AzureClientsMap) StoreClient(key string, value any) {
+	am.clients.Store(key, value)
+}
+
+func (am *AzureClientsMap) GetAccountClient(accountUrl string) (AzureAccountClient, error) {
 	client, ok := am.clients.Load(accountUrl)
 	if !ok {
 		return nil, fmt.Errorf("client not found")
 	}
-	accountClient, ok := client.(*azblob.Client)
+	accountClient, ok := client.(AzureAccountClient)
 	if !ok {
 		return nil, fmt.Errorf("client is not an account client")
 	}
 	return accountClient, nil
 }
 
-func (am *AzureClientsMap) GetContainerClient(accountUrl string) (*container.Client, error) {
+func (am *AzureClientsMap) GetContainerClient(accountUrl string) (AzureContainerClient, error) {
 	client, ok := am.clients.Load(accountUrl)
 	if !ok {
 		return nil, fmt.Errorf("client not found")
 	}
-	containerClient, ok := client.(*container.Client)
+	containerClient, ok := client.(AzureContainerClient)
 	if !ok {
 		return nil, fmt.Errorf("client is not a container client")
 	}
@@ -72,6 +93,9 @@ type AzureFileTransfer struct {
 
 	// containerClients is a map of container names to container.Client objects
 	containerClients *AzureClientsMap
+
+	// blobClient is a client for a specific blob
+	blobClient AzureBlobClient
 }
 
 // NewAzureFileTransfer creates a new fileTransfer.
@@ -79,22 +103,32 @@ func NewAzureFileTransfer(
 	clients *AzureClientsMap,
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
+	containerClients *AzureClientsMap,
+	blobClient AzureBlobClient,
 ) *AzureFileTransfer {
 	ctx := context.Background()
 	if clients == nil {
 		clients = NewAzureClientsMap()
+	}
+	if containerClients == nil {
+		containerClients = NewAzureClientsMap()
 	}
 	return &AzureFileTransfer{
 		logger:            logger,
 		fileTransferStats: fileTransferStats,
 		ctx:               ctx,
 		clients:           clients,
-		containerClients:  NewAzureClientsMap(),
+		containerClients:  containerClients,
+		blobClient:        blobClient,
 	}
 }
 
 // SetupClient sets up the Azure account client if it is not currently set.
 func (ft *AzureFileTransfer) SetupClient(accountUrl string) {
+	_, ok := ft.clients.clients.Load(accountUrl)
+	if ok {
+		return
+	}
 	onceVal, _ := ft.clients.once.LoadOrStore(accountUrl, &sync.Once{})
 	once := onceVal.(*sync.Once)
 	once.Do(func() {
@@ -115,7 +149,7 @@ func (ft *AzureFileTransfer) SetupClient(accountUrl string) {
 // SetupBlobClient sets up the Azure blob client.
 func (ft *AzureFileTransfer) SetupBlobClient(
 	task *ReferenceArtifactDownloadTask,
-) (*blob.Client, error) {
+) (AzureBlobClient, error) {
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		ft.logger.Error("Unable to create Azure credential", "err", err)
@@ -134,11 +168,15 @@ func (ft *AzureFileTransfer) SetupBlobClient(
 			return nil, err
 		}
 	}
-	return client, nil
+	return &BlobClientWrapper{client: client}, nil
 }
 
 // SetupContainerClient sets up the Azure container client.
 func (ft *AzureFileTransfer) SetupContainerClient(containerName string) {
+	_, ok := ft.containerClients.clients.Load(containerName)
+	if ok {
+		return
+	}
 	onceVal, _ := ft.containerClients.once.LoadOrStore(containerName, &sync.Once{})
 	once := onceVal.(*sync.Once)
 	once.Do(func() {
@@ -152,7 +190,7 @@ func (ft *AzureFileTransfer) SetupContainerClient(containerName string) {
 			ft.logger.Error("Unable to create Azure client", "err", err)
 			return
 		}
-		ft.containerClients.clients.Store(containerName, client)
+		ft.containerClients.clients.Store(containerName, &ContainerClientWrapper{client: client})
 	})
 }
 
@@ -245,9 +283,13 @@ func (ft *AzureFileTransfer) getBlobName(
 	blobInfo ParsedBlobInfo,
 	task *ReferenceArtifactDownloadTask,
 ) (string, string, error) {
-	blobClient, err := ft.SetupBlobClient(task)
-	if err != nil {
-		return "", "", err
+	blobClient := ft.blobClient
+	if ft.blobClient == nil {
+		client, err := ft.SetupBlobClient(task)
+		if err != nil {
+			return "", "", err
+		}
+		blobClient = client
 	}
 	properties, err := blobClient.GetProperties(ft.ctx, nil)
 	if err != nil {
@@ -391,9 +433,13 @@ func (ft *AzureFileTransfer) downloadBlobToFile(
 	// If version ID is specified, use the blob client to download the blob
 	_, ok := task.VersionIDString()
 	if ok {
-		blobClient, err := ft.SetupBlobClient(task)
-		if err != nil {
-			return err
+		blobClient := ft.blobClient
+		if blobClient == nil {
+			client, err := ft.SetupBlobClient(task)
+			if err != nil {
+				return err
+			}
+			blobClient = client
 		}
 		_, err = blobClient.DownloadFile(ft.ctx, destination, nil)
 		return err
@@ -409,4 +455,36 @@ func (ft *AzureFileTransfer) downloadBlobToFile(
 
 func (ft *AzureFileTransfer) formatDownloadError(message string, err error) error {
 	return fmt.Errorf("AzureFileTransfer: Download: %s: %w", message, err)
+}
+
+type BlobClientWrapper struct {
+	client *blob.Client
+}
+
+func (b *BlobClientWrapper) DownloadFile(ctx context.Context, destination *os.File, options *blob.DownloadFileOptions) (int64, error) {
+	return b.client.DownloadFile(ctx, destination, options)
+}
+
+func (b *BlobClientWrapper) GetProperties(ctx context.Context, options *blob.GetPropertiesOptions) (blob.GetPropertiesResponse, error) {
+	return b.client.GetProperties(ctx, options)
+}
+
+func (b *BlobClientWrapper) WithVersionID(versionId string) (AzureBlobClient, error) {
+	client, err := b.client.WithVersionID(versionId)
+	if err != nil {
+		return nil, err
+	}
+	return &BlobClientWrapper{client: client}, nil
+}
+
+type ContainerClientWrapper struct {
+	client *container.Client
+}
+
+func (c *ContainerClientWrapper) NewBlobClient(blobName string) AzureBlobClient {
+	return &BlobClientWrapper{client: c.client.NewBlobClient(blobName)}
+}
+
+func (c *ContainerClientWrapper) NewListBlobsFlatPager(options *container.ListBlobsFlatOptions) *runtime.Pager[container.ListBlobsFlatResponse] {
+	return c.client.NewListBlobsFlatPager(options)
 }
