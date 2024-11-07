@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+from typing import TYPE_CHECKING
 
 import pytest
 import wandb
-from wandb.plot.custom_chart import CustomChart
+
+if TYPE_CHECKING:
+    from wandb.plot.custom_chart import CustomChart
 
 
 @pytest.fixture
