@@ -442,7 +442,7 @@ class SendManager:
         #     state machine
         #   - skipping the exit record in `wandb sync` mode so that
         #     it is always executed as the last record
-        if not self._settings._offline and not self._settings._sync:
+        if not self._settings._offline and not self._settings.x_sync:
             assert record_num == self._send_record_num + 1
         self._send_record_num = record_num
 
@@ -916,7 +916,7 @@ class SendManager:
         # update telemetry
         if run.telemetry:
             self._telemetry_obj.MergeFrom(run.telemetry)
-        if self._settings._sync:
+        if self._settings.x_sync:
             self._telemetry_obj.feature.sync = True
 
         # build config dict
@@ -1126,7 +1126,7 @@ class SendManager:
             self._api,
             self._run.run_id,
             self._run.start_time.ToMicroseconds() / 1e6,
-            timeout=self._settings._file_stream_timeout_seconds,
+            timeout=self._settings.x_file_stream_timeout_seconds,
             settings=self._api_settings,
         )
         # Ensure the streaming polices have the proper offsets

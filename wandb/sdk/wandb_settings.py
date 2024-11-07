@@ -570,7 +570,12 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field
     @property
     def _tmp_code_dir(self) -> str:
-        return self._path_convert(self.wandb_dir, "tmp", "code")
+        return self._path_convert(
+            self.wandb_dir,
+            f"{self.run_mode}-{self.timespec}-{self.run_id}",
+            "tmp",
+            "code",
+        )
 
     @computed_field
     @property

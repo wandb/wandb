@@ -46,17 +46,6 @@ def test_files_dir(wandb_init):
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="backend crashes on Windows in CI"
 )
-def test_tmp_dir(wandb_init):
-    run = wandb_init(mode="offline")
-    assert run._settings.tmp_dir == os.path.realpath(
-        os.path.join(".", "wandb", "latest-run", "tmp")
-    )
-    run.finish()
-
-
-@pytest.mark.skipif(
-    platform.system() == "Windows", reason="backend crashes on Windows in CI"
-)
 def test_tmp_code_dir(wandb_init):
     run = wandb_init(mode="offline")
     assert run._settings._tmp_code_dir == os.path.realpath(
