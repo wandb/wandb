@@ -278,7 +278,7 @@ def test_tb_sync_with_explicit_step_and_log(
         assert summary["x_scalar"] == 81
         assert summary["y_scalar"] == 1337
 
-        # telemetry = snapshot.telemetry(run_id=run.id)
-        # assert 35 in telemetry["3"]  # sync_tensorboard
+        telemetry = snapshot.telemetry(run_id=run.id)
+        assert 35 in telemetry["3"]  # sync_tensorboard
 
     wandb.tensorboard.unpatch()

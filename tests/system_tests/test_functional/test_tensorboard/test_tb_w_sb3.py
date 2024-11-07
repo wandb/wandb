@@ -30,8 +30,5 @@ def test_sb3_tensorboard(wandb_init, wandb_backend_spy):
         for tag in ["time/fps", "rollout/ep_len_mean", "rollout/ep_rew_mean"]:
             assert tag in summary
 
-        config = snapshot.config(run_id=run.id)
-        telemetry = config["_wandb"]["value"]["t"]
+        telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync
-
-    wandb.tensorboard.unpatch()

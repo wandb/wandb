@@ -30,8 +30,7 @@ def test_add_scalar(wandb_init, wandb_backend_spy):
         history = snapshot.history(run_id=run.id)
         assert len(history) == 100
 
-        config = snapshot.config(run_id=run.id)
-        telemetry = config["_wandb"]["value"]["t"]
+        telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync
 
     wandb.tensorboard.unpatch()
@@ -59,8 +58,7 @@ def test_add_scalars(wandb_init, wandb_backend_spy):
         assert summary["value_two/value"] == pytest.approx(2.2)
         assert summary["value_two/global_step"] == 9
 
-        config = snapshot.config(run_id=run.id)
-        telemetry = config["_wandb"]["value"]["t"]
+        telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync
 
     wandb.tensorboard.unpatch()
@@ -87,8 +85,7 @@ def test_add_image(wandb_init, wandb_backend_spy):
         assert summary["example"]["height"] == 28
         assert summary["example"]["format"] == "png"
 
-        config = snapshot.config(run_id=run.id)
-        telemetry = config["_wandb"]["value"]["t"]
+        telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync
 
     wandb.tensorboard.unpatch()
@@ -142,8 +139,7 @@ def test_add_images(wandb_init, wandb_backend_spy):
         assert summary["my_image_batch"]["count"] == 1
         assert summary["my_image_batch"]["format"] == "png"
 
-        config = snapshot.config(run_id=run.id)
-        telemetry = config["_wandb"]["value"]["t"]
+        telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync
 
     wandb.tensorboard.unpatch()
@@ -167,8 +163,7 @@ def test_add_histogram(wandb_init, wandb_backend_spy):
         assert summary["distribution centers"]["_type"] == "histogram"
         assert len(summary["distribution centers"]["values"]) == 500
 
-        config = snapshot.config(run_id=run.id)
-        telemetry = config["_wandb"]["value"]["t"]
+        telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync
 
     wandb.tensorboard.unpatch()
@@ -191,8 +186,7 @@ def test_add_pr_curve(wandb_init, wandb_backend_spy):
         assert summary["pr_curve_table"]["_type"] == "table-file"
         assert summary["pr_curve_table"]["ncols"] == 2
 
-        config = snapshot.config(run_id=run.id)
-        telemetry = config["_wandb"]["value"]["t"]
+        telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync
 
     wandb.tensorboard.unpatch()
@@ -213,8 +207,7 @@ def test_add_pr_curve_wandb_core(wandb_init, wandb_backend_spy):
         assert summary["pr_curve"]["_type"] == "table-file"
         assert summary["pr_curve"]["ncols"] == 2
 
-        config = snapshot.config(run_id=run.id)
-        telemetry = config["_wandb"]["value"]["t"]
+        telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync
 
     wandb.tensorboard.unpatch()
