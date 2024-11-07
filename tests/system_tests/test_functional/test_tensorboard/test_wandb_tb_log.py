@@ -69,7 +69,7 @@ def test_no_init_error(assets_path):
 
 
 @pytest.mark.skipif(tf.__version__ >= "2.16.0", reason="tf.estimator is not supported")
-def test_tensorflow_hook(wandb_init, relay_server):
+def test_tensorflow_hook():
     """Integration test for TensorFlow hook."""
 
     with tf.Graph().as_default():
