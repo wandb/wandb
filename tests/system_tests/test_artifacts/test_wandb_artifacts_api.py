@@ -8,6 +8,7 @@ import pytest
 import wandb
 from wandb import Api
 from wandb.errors import CommError
+from wandb.sdk.artifacts.artifact import Artifact
 
 
 def test_fetching_artifact_files(user, wandb_init):
@@ -458,9 +459,8 @@ def test_run_log_artifact(wandb_init):
     assert actual_artifacts[0].qualified_name == artifact.qualified_name
 
 
-def test_artifact_enable_tracking_flag(user, wandb_init):
+def test_artifact_enable_tracking_flag(user, wandb_init, api, mocker):
     """Test that enable_tracking flag is correctly passed through the API chain."""
-    api = Api()
     entity = user
     project = "test-project"
     artifact_name = "test-artifact"
@@ -472,29 +472,29 @@ def test_artifact_enable_tracking_flag(user, wandb_init):
             f.write("testing")
         run.log_artifact(art)
 
-    with patch("wandb.sdk.artifacts.artifact.Artifact._from_name") as mock_from_name:
-        # Test that api.artifact() calls Artifact._from_name() with enable_tracking=True
-        api.artifact(
-            name=f"{entity}/{project}/{artifact_name}:v0",
-        )
-        mock_from_name.assert_called_once_with(
-            entity=entity,
-            project=project,
-            name=f"{artifact_name}:v0",
-            client=api.client,
-            enable_tracking=True,
-        )
+    from_name_spy = mocker.spy(Artifact, "_from_name")
+    # Test that api.artifact() calls Artifact._from_name() with enable_tracking=True
+    api.artifact(
+        name=f"{entity}/{project}/{artifact_name}:v0",
+    )
+    from_name_spy.assert_called_once_with(
+        entity=entity,
+        project=project,
+        name=f"{artifact_name}:v0",
+        client=api.client,
+        enable_tracking=True,
+    )
 
-        # Reset mock and test that, by default, api._artifact() calls Artifact._from_name() with enable_tracking=False
-        mock_from_name.reset_mock()
-        api._artifact(
-            name=f"{entity}/{project}/{artifact_name}:v0",
-        )
+    # Test that, by default, api.artifact_exists() calls Artifact._from_name() with enable_tracking=False
+    from_name_spy.reset_mock()
+    api.artifact_exists(
+        name=f"{entity}/{project}/{artifact_name}:v0",
+    )
 
-        mock_from_name.assert_called_once_with(
-            entity=entity,
-            project=project,
-            name=f"{artifact_name}:v0",
-            client=api.client,
-            enable_tracking=False,
-        )
+    from_name_spy.assert_called_once_with(
+        entity=entity,
+        project=project,
+        name=f"{artifact_name}:v0",
+        client=api.client,
+        enable_tracking=False,
+    )
