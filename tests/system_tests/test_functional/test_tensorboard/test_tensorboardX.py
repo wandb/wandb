@@ -6,10 +6,6 @@ import wandb
 from tensorboardX import SummaryWriter
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="mismatched implementation details",
-)
 def test_add_scalar(wandb_init, wandb_backend_spy):
     with wandb_init(sync_tensorboard=True) as run:
         with SummaryWriter() as writer:
@@ -26,10 +22,6 @@ def test_add_scalar(wandb_init, wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="mismatched implementation details",
-)
 def test_add_image(wandb_init, wandb_backend_spy):
     with wandb_init(sync_tensorboard=True) as run:
         with SummaryWriter() as writer:
