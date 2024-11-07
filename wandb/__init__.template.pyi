@@ -129,7 +129,7 @@ def init(
     project: str | None = None,
     entity: str | None = None,
     reinit: bool | None = None,
-    tags: Sequence | None = None,
+    tags: Sequence[str] | None = None,
     group: str | None = None,
     name: str | None = None,
     notes: str | None = None,
