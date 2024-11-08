@@ -196,12 +196,12 @@ def test_log_nested_table(wandb_init, wandb_backend_spy):
         assert "layer3" in summary["layer1"]["layer2"]
         assert "layer5" in summary["layer1"]["layer4"]
 
-        for table, key_path in [
+        for expected_table, key_path in [
             (table1, ["layer1", "layer2", "layer3"]),
             (table2, ["layer1", "layer4", "layer5"]),
         ]:
-            table = get_table_from_summary(run, summary, key_path)
-            assert table == table
+            summary_table = get_table_from_summary(run, summary, key_path)
+            assert expected_table == summary_table
 
 
 def test_log_nested_visualize(wandb_init, wandb_backend_spy):

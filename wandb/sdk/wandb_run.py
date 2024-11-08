@@ -1364,11 +1364,16 @@ class Run:
         data: dict[str, Any],
         key_prefix: str | None = None,
     ) -> dict[str, Any]:
-        """Transform plot objects into tables, and adds the vega spec to the run config.
+        """Process and replace chart objects with their underlying table values.
+
+        This processes the chart objects passed to `run.log()`, replacing their entries
+        in the given dictionary (which is saved to the run's history) and adding them
+        to the run's config.
 
         Args:
             data: Dictionary containing data that may include plot objects
                 Plot objects can be nested in dictionaries, which will be processed recursively.
+            key_prefix: The prefix to add to the keys of the data.
 
         Returns:
             The processed dictionary with custom charts transformed into tables.
