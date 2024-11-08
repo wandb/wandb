@@ -17,7 +17,7 @@ import logging
 import os
 import sys
 import threading
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Union
 
 import wandb
 from wandb.sdk.lib import import_hooks
@@ -70,7 +70,7 @@ class _EarlyLogger:
             logger.exception(msg, *args, **kwargs)
 
 
-Logger = logging.Logger | _EarlyLogger
+Logger = Union[logging.Logger, _EarlyLogger]
 
 # logger will be configured to be either a standard logger instance or _EarlyLogger
 logger: Logger | None = None
