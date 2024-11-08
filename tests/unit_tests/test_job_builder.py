@@ -316,7 +316,7 @@ def test_build_artifact_notebook_job_no_program_metadata(
             "x_files_dir": "./",
             "disable_job_creation": False,
             "_jupyter": True,
-            "_jupyter_root": str(tmp_path),
+            "x_jupyter_root": str(tmp_path),
         }
         settings = SettingsStatic(
             make_proto_settings(
