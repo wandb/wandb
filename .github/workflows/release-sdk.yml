@@ -50,7 +50,9 @@ jobs:
 
       - name: Update CHANGELOG.md
         if: ${{ inputs.update-changelog }}
-        run: python tools/changelog.py --version ${{ github.event.inputs.version }}
+        run: |
+          python tools/changelog.py \
+            --version ${{ github.event.inputs.version }}
 
       - name: Lint changes
         run: |
