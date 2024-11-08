@@ -260,6 +260,8 @@ message Deprecated {
 
   // wandb.run.define_metric() called with summary="best" and goal="maximize/minimize"
   bool run__define_metric_best_goal = 18;
+
+  bool run__finish_quiet = 19;  // wandb.run.finish(quiet=...) called
 }
 
 message Issues {

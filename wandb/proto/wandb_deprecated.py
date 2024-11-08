@@ -29,6 +29,7 @@ DEPRECATED_FEATURES = Literal[
     "run_disabled",
     "keras_callback",
     "run__define_metric_best_goal",
+    "run__finish_quiet",
 ]
 
 
@@ -51,3 +52,4 @@ class Deprecated:
     run_disabled: DEPRECATED_FEATURES = "run_disabled"
     keras_callback: DEPRECATED_FEATURES = "keras_callback"
     run__define_metric_best_goal: DEPRECATED_FEATURES = "run__define_metric_best_goal"
+    run__finish_quiet: DEPRECATED_FEATURES = "run__finish_quiet"
