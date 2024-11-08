@@ -41,7 +41,7 @@ def test_build_repo_job(runner, api):
             f.write(json.dumps(metadata))
 
         kwargs = {
-            "files_dir": "./",
+            "x_files_dir": "./",
             "disable_job_creation": False,
             "_jupyter": False,
         }
@@ -99,7 +99,7 @@ def test_build_repo_notebook_job(runner, tmp_path, api, mocker):
             f.write(json.dumps(metadata))
 
         kwargs = {
-            "files_dir": "./",
+            "x_files_dir": "./",
             "disable_job_creation": False,
             "_jupyter": True,
             "x_jupyter_root": str(tmp_path),
@@ -136,7 +136,7 @@ def test_build_artifact_job(runner, api):
             f.write(json.dumps(metadata))
 
         kwargs = {
-            "files_dir": "./",
+            "x_files_dir": "./",
             "disable_job_creation": False,
             "_jupyter": False,
         }
@@ -180,7 +180,7 @@ def test_build_artifact_notebook_job(runner, tmp_path, mocker, api):
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
         kwargs = {
-            "files_dir": "./",
+            "x_files_dir": "./",
             "disable_job_creation": False,
             "_jupyter": True,
             "x_jupyter_root": str(tmp_path),
@@ -226,10 +226,10 @@ def test_build_artifact_notebook_job_no_program(
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
         kwargs = {
-            "files_dir": "./",
+            "x_files_dir": "./",
             "disable_job_creation": False,
             "_jupyter": True,
-            "_jupyter_root": str(tmp_path),
+            "x_jupyter_root": str(tmp_path),
         }
         settings = SettingsStatic(
             make_proto_settings(
@@ -267,10 +267,10 @@ def test_build_artifact_notebook_job_no_metadata(
             f.write("wandb")
 
         kwargs = {
-            "files_dir": "./",
+            "x_files_dir": "./",
             "disable_job_creation": False,
             "_jupyter": True,
-            "_jupyter_root": str(tmp_path),
+            "x_jupyter_root": str(tmp_path),
         }
         settings = SettingsStatic(
             make_proto_settings(
@@ -313,7 +313,7 @@ def test_build_artifact_notebook_job_no_program_metadata(
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
         kwargs = {
-            "files_dir": "./",
+            "x_files_dir": "./",
             "disable_job_creation": False,
             "_jupyter": True,
             "_jupyter_root": str(tmp_path),
@@ -354,7 +354,7 @@ def test_build_image_job(runner, api):
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
         kwargs = {
-            "files_dir": "./",
+            "x_files_dir": "./",
             "disable_job_creation": False,
             "_jupyter": False,
         }
@@ -374,7 +374,7 @@ def test_build_image_job(runner, api):
 
 def test_set_disabled():
     kwargs = {
-        "files_dir": "./",
+        "x_files_dir": "./",
         "disable_job_creation": False,
     }
     settings = SettingsStatic(make_proto_settings(**kwargs))
@@ -386,7 +386,7 @@ def test_set_disabled():
 
 def test_no_metadata_file(runner, api):
     kwargs = {
-        "files_dir": "./",
+        "x_files_dir": "./",
         "disable_job_creation": False,
     }
     settings = SettingsStatic(make_proto_settings(**kwargs))
