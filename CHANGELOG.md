@@ -11,10 +11,6 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
-### Changed
-
-- Tables logged in offline mode now have updated keys to artifact paths when syncing. To revert to old behavior, use setting `allow_offline_artifacts = False`. (@domphan-wandb in https://github.com/wandb/wandb/pull/8792)
-
 ## [0.18.6] - 2024-11-06
 
 ### Added
