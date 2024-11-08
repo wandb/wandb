@@ -271,7 +271,7 @@ class _WandbLogin:
         if status == ApiKeyStatus.NOTTY:
             directive = (
                 "wandb login [your_api_key]"
-                if self._settings._cli_only_mode
+                if self._settings.x_cli_only_mode
                 else "wandb.login(key=[your_api_key])"
             )
             raise UsageError("api_key not configured (no-tty). call " + directive)

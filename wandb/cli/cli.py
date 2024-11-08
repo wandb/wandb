@@ -237,8 +237,8 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
         relogin = True
 
     login_settings = dict(
-        _cli_only_mode=True,
-        _disable_viewer=relogin and not verify,
+        x_cli_only_mode=True,
+        x_disable_viewer=relogin and not verify,
         anonymous=anon_mode,
         base_url=host,
     )
