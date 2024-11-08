@@ -30,5 +30,4 @@
   ],
   "python.analysis.autoImportCompletions": false,
   "python.analysis.typeCheckingMode": "off"
-  "python.analysis.typeCheckingMode": "standard"
 }

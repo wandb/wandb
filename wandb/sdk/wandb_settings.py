@@ -28,7 +28,7 @@ from pydantic import (
 from pydantic_core import SchemaValidator, core_schema
 
 import wandb
-from wandb import termwarn, util
+from wandb import env, termwarn, util
 from wandb.apis.internal import Api
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
@@ -43,7 +43,7 @@ class Settings(BaseModel, validate_assignment=True):
     """Settings for W&B."""
 
     model_config = ConfigDict(
-        extra="forbid",  # forbid extra fields
+        extra="forbid",  # throw an error if extra fields are provided
     )
 
     allow_val_change: bool = False
@@ -264,7 +264,7 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("api_key", mode="after")
     @classmethod
     def validate_api_key(cls, value):
-        if len(value) > len(value.strip()):
+        if value is not None and (len(value) > len(value.strip())):
             raise UsageError("API key cannot start or end with whitespace")
         return value
 
@@ -803,12 +803,12 @@ class Settings(BaseModel, validate_assignment=True):
         # For code saving, only allow env var override if value from server is true, or
         # if no preference was specified.
         if (self.save_code is True or self.save_code is None) and (
-            os.getenv(wandb.env.SAVE_CODE) is not None
-            or os.getenv(wandb.env.DISABLE_CODE) is not None
+            os.getenv(env.SAVE_CODE) is not None
+            or os.getenv(env.DISABLE_CODE) is not None
         ):
-            self.save_code = wandb.env.should_save_code()
+            self.save_code = env.should_save_code()
 
-        self.disable_git = wandb.env.disable_git()
+        self.disable_git = env.disable_git()
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
@@ -845,14 +845,14 @@ class Settings(BaseModel, validate_assignment=True):
 
         _executable = (
             self.x_executable
-            or os.environ.get(wandb.env._EXECUTABLE)
+            or os.environ.get(env._EXECUTABLE)
             or sys.executable
             or shutil.which("python3")
             or "python3"
         )
         self.x_executable = _executable
 
-        self.docker = wandb.env.get_docker(wandb.util.image_id_from_k8s())
+        self.docker = env.get_docker(util.image_id_from_k8s())
 
         # proceed if not in CLI mode
         if self.x_cli_only_mode:
@@ -966,7 +966,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @staticmethod
     def _get_program() -> str | None:
-        program = os.getenv(wandb.env.PROGRAM)
+        program = os.getenv(env.PROGRAM)
         if program is not None:
             return program
         try:

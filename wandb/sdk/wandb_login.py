@@ -143,7 +143,11 @@ class _WandbLogin:
         }
 
         # make sure they are applied globally
-        self._wl = wandb.setup(settings=login_settings)
+        self._wl = wandb.setup(
+            settings=wandb.Settings(
+                **{k: v for k, v in login_settings.items() if v is not None}
+            )
+        )
         self._settings = self._wl.settings
 
     def is_apikey_configured(self) -> bool:
@@ -225,7 +229,6 @@ class _WandbLogin:
 
         If we're online, this also pulls in user settings from the server.
         """
-        _logger = wandb.setup()._get_logger()
         login_settings = dict()
         if status == ApiKeyStatus.OFFLINE:
             login_settings = dict(mode="offline")
@@ -233,7 +236,7 @@ class _WandbLogin:
             login_settings = dict(mode="disabled")
         elif key:
             login_settings = dict(api_key=key)
-        self._wl._settings._apply_login(login_settings, _logger=_logger)
+        self._wl._settings.from_dict(login_settings)
         # Whenever the key changes, make sure to pull in user settings
         # from server.
         if not self._wl.settings._offline:

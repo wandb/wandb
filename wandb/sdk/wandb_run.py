@@ -32,6 +32,7 @@ import requests
 
 import wandb
 import wandb.env
+import wandb.util
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
@@ -2900,7 +2901,7 @@ class Run:
     def watch(
         self,
         models: torch.nn.Module | Sequence[torch.nn.Module],
-        criterion: torch.F | None = None,
+        criterion: torch.F | None = None,  # type: ignore
         log: Literal["gradients", "parameters", "all"] | None = "gradients",
         log_freq: int = 1000,
         idx: int | None = None,
@@ -3718,9 +3719,10 @@ class Run:
         Returns:
             A dictionary of system metrics.
         """
+        from wandb.proto import wandb_internal_pb2
 
         def pb_to_dict(
-            system_metrics_pb: wandb.proto.wandb_internal_pb2.GetSystemMetricsResponse,
+            system_metrics_pb: wandb_internal_pb2.GetSystemMetricsResponse,
         ) -> dict[str, list[tuple[datetime, float]]]:
             res = {}
 
