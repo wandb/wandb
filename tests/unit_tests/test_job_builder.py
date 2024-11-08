@@ -102,7 +102,7 @@ def test_build_repo_notebook_job(runner, tmp_path, api, mocker):
             "files_dir": "./",
             "disable_job_creation": False,
             "_jupyter": True,
-            "_jupyter_root": str(tmp_path),
+            "x_jupyter_root": str(tmp_path),
         }
         settings = SettingsStatic(
             make_proto_settings(
@@ -183,7 +183,7 @@ def test_build_artifact_notebook_job(runner, tmp_path, mocker, api):
             "files_dir": "./",
             "disable_job_creation": False,
             "_jupyter": True,
-            "_jupyter_root": str(tmp_path),
+            "x_jupyter_root": str(tmp_path),
         }
         settings = SettingsStatic(
             make_proto_settings(
