@@ -329,15 +329,7 @@ deprecate.deprecate(
 ### Modifying GraphQL Schema in `wandb-core`
 
 If there is a schema change on the Server side that affects your GraphQL API,
-update `core/api/graphql/schemas/schema-latest.graphql` and run
-
-```shell
-nox -s graphql-codegen-schema-change
-```
-
-If there is no schema change and you are e.g. just adding a new query or mutation
-against the schema that already supports it, DO NOT USE this nox session.
-Our pre-commit hook will auto-generate the required code for you.
+follow the instructions [here](core/api/graphql/schemas/README.md).
 
 ## Testing
 
