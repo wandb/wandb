@@ -28,6 +28,6 @@
     "./experimental/rust-sdk/Cargo.toml",
     "./experimental/rust-sdk/examples/basic/Cargo.toml"
   ],
-  "python.analysis.autoImportCompletions": true,
-  "python.analysis.typeCheckingMode": "off"
+  "python.analysis.autoImportCompletions": false,
+  "python.analysis.typeCheckingMode": "standard"
 }
