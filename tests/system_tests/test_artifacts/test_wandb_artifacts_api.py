@@ -484,7 +484,7 @@ def test_artifact_enable_tracking_flag(user, wandb_init, api, mocker):
         enable_tracking=True,
     )
 
-    # Test that, by default, api.artifact_exists() calls Artifact._from_name() with enable_tracking=False
+    # Test that internal methods, like api.artifact_exists(), call Artifact._from_name() with enable_tracking=False
     from_name_spy.reset_mock()
     api.artifact_exists(
         name=f"{entity}/{project}/{artifact_name}:v0",
