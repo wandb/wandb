@@ -11,8 +11,6 @@ import threading
 import time
 from typing import TYPE_CHECKING, Optional, Tuple, Type, Union
 
-from ..lib import tracelog
-
 if TYPE_CHECKING:
     from queue import Queue
     from threading import Event
@@ -95,6 +93,5 @@ class RecordLoopThread(ExceptionThread):
                 record = self._input_record_q.get(timeout=1)
             except queue.Empty:
                 continue
-            tracelog.log_message_dequeue(record, self._input_record_q)
             self._process(record)
         self._finish()
