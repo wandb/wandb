@@ -84,6 +84,7 @@ _Setting = Literal[
     "_tracelog",
     "_unsaved_keys",
     "_windows",
+    "allow_offline_artifacts",
     "allow_val_change",
     "anonymous",
     "api_key",

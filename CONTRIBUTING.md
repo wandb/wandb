@@ -213,14 +213,15 @@ pip install -U nox uv
 
 Install Go version `1.23.2` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
 ```shell
-brew install go@1.22
+brew install go@1.23
 ```
 
 ### Setting up Rust
 
-You will need the Rust toolchain to build the `gpu_stats` binary used to monitor Nvidia GPUs and Apple Arm GPUs. Refer to the official Rust [docs](https://www.rust-lang.org/tools/install) and install it by running:
+You will need the Rust toolchain to build the `gpu_stats` binary used to monitor Nvidia GPUs and Apple Arm GPUs.
+Refer to the official Rust [docs](https://www.rust-lang.org/tools/install) and install it by running:
 ```shell
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . "$HOME/.cargo/env"
 ```
 
 ### Building/installing the package

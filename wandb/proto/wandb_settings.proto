@@ -43,9 +43,9 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 177
+// Next ID: 178
 message Settings {
-  reserved 12, 36, 94, 136, 137;
+  reserved 12, 36, 50, 94, 136, 137;
 
   // The W&B API key.
   //
@@ -221,6 +221,10 @@ message Settings {
   // Remove after the feature is rolled out.
   google.protobuf.BoolValue _show_operation_stats = 176;
 
+  // Flag to allow table artifacts to be synced in offline mode
+  //
+  // By default, true, to revert to old behavior, set this to False.
+  google.protobuf.BoolValue allow_offline_artifacts = 177;
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.BoolValue _cli_only_mode = 4;
@@ -263,7 +267,6 @@ message Settings {
   MapStringKeyStringValue _stats_open_metrics_endpoints = 47;
   OpenMetricsFilters _stats_open_metrics_filters = 48;
   google.protobuf.StringValue _tmp_code_dir = 49;
-  google.protobuf.StringValue _tracelog = 50;
   ListStringValue _unsaved_keys = 51;
   google.protobuf.BoolValue _windows = 52;
   google.protobuf.BoolValue allow_val_change = 53;

@@ -6,17 +6,15 @@ import wandb
 from tensorboard.compat.proto import summary_pb2
 
 
-def test_(relay_server, wandb_init, assets_path):
-    with relay_server() as relay:
-        with wandb_init():
-            summary_pb = open(assets_path("wandb_tensorflow_summary.pb"), "rb").read()
-            wandb.tensorboard.log(summary_pb)
+def test_(wandb_backend_spy, wandb_init, assets_path):
+    with wandb_init() as run:
+        summary_pb = open(assets_path("wandb_tensorflow_summary.pb"), "rb").read()
+        wandb.tensorboard.log(summary_pb)
 
-        run_ids = relay.context.get_run_ids()
-        assert len(run_ids) == 1
-        run_id = run_ids[0]
+    with wandb_backend_spy.freeze() as snapshot:
+        assert len(snapshot.run_ids()) == 1
 
-        summary = relay.context.get_run_summary(run_id)
+        summary = snapshot.summary(run_id=run.id)
         for tag in [
             "layer1/activations",
             "layer1/biases/summaries/histogram",
@@ -55,7 +53,7 @@ def test_(relay_server, wandb_init, assets_path):
         assert summary["input_reshape_input_image"]["_type"] == "images/separated"
         assert summary["input_reshape_input_image"]["count"] == 10
 
-        telemetry = relay.context.get_run_telemetry(run_id)
+        telemetry = snapshot.telemetry(run_id=run.id)
         assert 29 in telemetry["3"]  # wandb.tensorflow.log
 
 
@@ -69,7 +67,7 @@ def test_no_init_error(assets_path):
 
 
 @pytest.mark.skipif(tf.__version__ >= "2.16.0", reason="tf.estimator is not supported")
-def test_tensorflow_hook(wandb_init, relay_server):
+def test_tensorflow_hook():
     """Integration test for TensorFlow hook."""
 
     with tf.Graph().as_default():

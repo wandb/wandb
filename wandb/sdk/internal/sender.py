@@ -53,7 +53,6 @@ from wandb.sdk.lib import (
     proto_util,
     redirect,
     telemetry,
-    tracelog,
 )
 from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
@@ -418,7 +417,6 @@ class SendManager:
         send_handler(record)
 
     def _respond_result(self, result: "Result") -> None:
-        tracelog.log_message_queue(result, self._result_q)
         context_id = context.context_id_from_result(result)
         self._context_keeper.release(context_id)
         self._result_q.put(result)

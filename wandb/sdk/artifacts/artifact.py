@@ -228,11 +228,11 @@ class Artifact:
     @classmethod
     def _from_name(
         cls,
+        *,
         entity: str,
         project: str,
         name: str,
         client: RetryingClient,
-        organization: str = "",
         enable_tracking: bool = False,
     ) -> Artifact:
         server_supports_enabling_artifact_usage_tracking = (
