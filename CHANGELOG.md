@@ -7,17 +7,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 Starting with the 0.16.4 release on March 5, 2024, the format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-Please add to the relevant subsections under Unreleased below on every PR where this is applicable.
+Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
-## Unreleased
+<!-- tools/changelog.py: insert here -->
 
-### Added
+### Changed
 
-- Added `create_and_run_agent` to `__all__` in `wandb/sdk/launch/__init__.py` to expose it as a public API (@marijncv in https://github.com/wandb/wandb/pull/8621)
-
-### Deprecated
-
-- The `quiet` argument to `wandb.run.finish()` is deprecated, use `wandb.Settings(quiet=...)` to set this instead. (@kptkin in https://github.com/wandb/wandb/pull/8794)
+- Tables logged in offline mode now have updated keys to artifact paths when syncing. To revert to old behavior, use setting `allow_offline_artifacts = False`. (@domphan-wandb in https://github.com/wandb/wandb/pull/8792)
 
 ## [0.18.6] - 2024-11-06
 
