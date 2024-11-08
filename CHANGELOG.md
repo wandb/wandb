@@ -11,10 +11,13 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Added
+
+- Added `create_and_run_agent` to `__all__` in `wandb/sdk/launch/__init__.py` to expose it as a public API (@marijncv in https://github.com/wandb/wandb/pull/8621)
+
 ### Deprecated
 
 - The `quiet` argument to `wandb.run.finish()` is deprecated, use `wandb.Settings(quiet=...)` to set this instead. (@kptkin in https://github.com/wandb/wandb/pull/8794)
-
 
 ## [0.18.6] - 2024-11-06
 
@@ -33,7 +36,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Do not ignore parameter `distribution` when configuring sweep parameters from SDK. (@temporaer in https://github.com/wandb/wandb/pull/8737)
 
 ### Changed
-- Added internal method, api._artifact(), to fetch artifacts so that usage events are not created if not called by an external user. (@ibindlish in https://github.com/wandb/wandb/pull/8674)
+
+- Added internal method, api.\_artifact(), to fetch artifacts so that usage events are not created if not called by an external user. (@ibindlish in https://github.com/wandb/wandb/pull/8674)
 - Changed default `mode` in `Artifact.new_file()` from `'w'` to `'x'` to accurately reflect existing default behavior (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8553)
 
 ## [0.18.5] - 2024-10-17
@@ -104,7 +108,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Allow all users to read cache files when core is enabled (@moredatarequired in https://github.com/wandb/wandb/pull/8362)
 - Infinite scalars logged in TensorBoard are uploaded successfully rather than skipped (@timoffex in https://github.com/wandb/wandb/pull/8380)
-- Properly respect `WANDB_ERROR_REPORTING=false`.  This fixes a regression introduced in 0.18.0 (@kptkin in https://github.com/wandb/wandb/pull/8379)
+- Properly respect `WANDB_ERROR_REPORTING=false`. This fixes a regression introduced in 0.18.0 (@kptkin in https://github.com/wandb/wandb/pull/8379)
 
 ### Changed
 
@@ -124,8 +128,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Changed
 
 - The new "core" backend, previously activated using wandb.require("core"), is now used by default. To revert to the legacy behavior,
-add `wandb.require("legacy-service")` at the beginning of your script. Note: In the upcoming minor release, the option
-to disable this new behavior will be removed (@kptkin in https://github.com/wandb/wandb/pull/7777)
+  add `wandb.require("legacy-service")` at the beginning of your script. Note: In the upcoming minor release, the option
+  to disable this new behavior will be removed (@kptkin in https://github.com/wandb/wandb/pull/7777)
 
 ## [0.17.9] - 2024-09-05
 
