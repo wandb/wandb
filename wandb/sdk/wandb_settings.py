@@ -382,7 +382,6 @@ class SettingsData:
     _stats_disk_paths: Sequence[str]  # paths to monitor disk usage
     _stats_buffer_size: int  # number of consolidated samples to buffer before flushing, available in run obj
     _tmp_code_dir: str
-    _tracelog: str
     _unsaved_keys: Sequence[str]
     _windows: bool
     _show_operation_stats: bool
@@ -1677,7 +1676,6 @@ class Settings(SettingsData):
     ) -> None:
         env_prefix: str = "WANDB_"
         special_env_var_names = {
-            "WANDB_TRACELOG": "_tracelog",
             "WANDB_DISABLE_SERVICE": "_disable_service",
             "WANDB_SERVICE_TRANSPORT": "_service_transport",
             "WANDB_DIR": "root_dir",
