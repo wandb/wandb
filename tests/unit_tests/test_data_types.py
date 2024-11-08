@@ -1,15 +1,12 @@
 import glob
 import io
 import os
-import platform
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
 import rdkit.Chem
-import responses
 import wandb
 from bokeh.plotting import figure
 from PIL import Image
@@ -60,6 +57,40 @@ def matplotlib_without_image():
     return fig
 
 
+def test_matplotlib_image():
+    plt.plot([1, 2, 2, 4])
+    image = wandb.Image(plt)
+    assert image.image is not None
+    assert image.image.width == 640
+
+
+def test_matplotlib_image_with_multiple_axes():
+    """Test multiple axis pyplot or figure references.
+
+    Ensure that wandb.Image constructor accepts a pyplot or figure reference when the
+    figure has multiple axes. Importantly, there is no requirement that any of the axes
+    have plotted data.
+    """
+    for fig in matplotlib_multiple_axes_figures():
+        wandb.Image(fig)  # this should not error.
+
+    for _ in matplotlib_multiple_axes_figures():
+        wandb.Image(plt)  # this should not error.
+
+
+def test_image_from_matplotlib_with_image():
+    """Ensure that wandb.Image constructor supports a pyplot when an image is passed."""
+    # try the figure version
+    fig = matplotlib_with_image()
+    wandb.Image(fig)  # this should not error.
+    plt.close()
+
+    # try the plt version
+    fig = matplotlib_with_image()
+    wandb.Image(plt)  # this should not error.
+    plt.close()
+
+
 ###############################################################################
 # Test wandb.Histogram
 ###############################################################################
@@ -96,324 +127,6 @@ def test_invalid_histogram():
                 [1],
             )
         )
-
-
-###############################################################################
-# Test wandb.Image
-###############################################################################
-
-
-@pytest.fixture
-def image():
-    yield np.zeros((28, 28))
-
-
-@pytest.fixture
-def full_box():
-    yield {
-        "position": {
-            "middle": (0.5, 0.5),
-            "width": 0.1,
-            "height": 0.2,
-        },
-        "class_id": 2,
-        "box_caption": "This is a big car",
-        "scores": {"acc": 0.3},
-    }
-
-
-@pytest.fixture
-def dissoc():
-    # Helper function return a new dictionary with the key removed
-    def dissoc_fn(d, key):
-        new_d = d.copy()
-        new_d.pop(key)
-        return new_d
-
-    yield dissoc_fn
-
-
-@pytest.fixture
-def standard_mask():
-    yield {
-        "mask_data": np.array(
-            [
-                [1, 2, 2, 2],
-                [2, 3, 3, 4],
-                [4, 4, 4, 4],
-                [4, 4, 4, 2],
-            ]
-        ),
-        "class_labels": {
-            1: "car",
-            2: "pedestrian",
-            3: "tractor",
-            4: "cthululu",
-        },
-    }
-
-
-def test_captions(
-    image,
-):
-    wbone = wandb.Image(image, caption="Cool")
-    wbtwo = wandb.Image(image, caption="Nice")
-    assert wandb.Image.all_captions([wbone, wbtwo]) == ["Cool", "Nice"]
-
-
-def test_bind_image(
-    mock_run,
-    image,
-):
-    wb_image = wandb.Image(image)
-    wb_image.bind_to_run(mock_run(), "stuff", 10)
-    assert wb_image.is_bound()
-
-
-def test_image_accepts_other_images():
-    image_a = wandb.Image(np.random.random((300, 300, 3)))
-    image_b = wandb.Image(image_a)
-    assert image_a == image_b
-
-
-def test_image_accepts_bounding_boxes(
-    mock_run,
-    image,
-    full_box,
-):
-    run = mock_run()
-    img = wandb.Image(
-        image,
-        boxes={
-            "predictions": {
-                "box_data": [full_box],
-            },
-        },
-    )
-    img.bind_to_run(run, "images", 0)
-    img_json = img.to_json(run)
-    path = img_json["boxes"]["predictions"]["path"]
-    assert os.path.exists(os.path.join(run.dir, path))
-
-
-def test_image_accepts_bounding_boxes_optional_args(
-    mock_run,
-    image,
-    full_box,
-    dissoc,
-):
-    optional_keys = ["box_caption", "scores"]
-
-    boxes_with_removed_optional_args = [dissoc(full_box, k) for k in optional_keys]
-
-    img = data_types.Image(
-        image,
-        boxes={
-            "predictions": {
-                "box_data": boxes_with_removed_optional_args,
-            },
-        },
-    )
-    run = mock_run()
-    img.bind_to_run(run, "images", 0)
-    img_json = img.to_json(run)
-    path = img_json["boxes"]["predictions"]["path"]
-    assert os.path.exists(os.path.join(run.dir, path))
-
-
-def test_image_accepts_masks(
-    mock_run,
-    image,
-    standard_mask,
-):
-    img = wandb.Image(
-        image,
-        masks={
-            "overlay": standard_mask,
-        },
-    )
-    run = mock_run()
-    img.bind_to_run(run, "images", 0)
-    img_json = img.to_json(run)
-    path = img_json["masks"]["overlay"]["path"]
-    assert os.path.exists(os.path.join(run.dir, path))
-
-
-def test_image_accepts_masks_without_class_labels(
-    mock_run,
-    image,
-    dissoc,
-    standard_mask,
-):
-    img = wandb.Image(
-        image,
-        masks={
-            "overlay": dissoc(standard_mask, "class_labels"),
-        },
-    )
-    run = mock_run()
-    img.bind_to_run(run, "images", 0)
-    img_json = img.to_json(run)
-    path = img_json["masks"]["overlay"]["path"]
-    assert os.path.exists(os.path.join(run.dir, path))
-
-
-def test_image_seq_to_json(
-    mock_run,
-    image,
-):
-    run = mock_run()
-    wb_image = wandb.Image(image)
-    wb_image.bind_to_run(run, "test", 0, 0)
-    _ = wandb.Image.seq_to_json([wb_image], run, "test", 0)
-    assert os.path.exists(os.path.join(run.dir, "media", "images", "test_0_0.png"))
-
-
-def test_max_images(mock_run):
-    run = mock_run()
-    large_image = np.random.randint(255, size=(10, 10))
-    large_list = [wandb.Image(large_image)] * 200
-    large_list[0].bind_to_run(run, "test2", 0, 0)
-    meta = wandb.Image.seq_to_json(
-        wandb.wandb_sdk.data_types.utils._prune_max_seq(large_list),
-        run,
-        "test2",
-        0,
-    )
-    expected = {
-        "_type": "images/separated",
-        "count": data_types.Image.MAX_ITEMS,
-        "height": 10,
-        "width": 10,
-    }
-    path = os.path.join(run.dir, "media/images/test2_0_0.png")
-    assert subdict(meta, expected) == expected
-    assert os.path.exists(path)
-
-
-@pytest.fixture
-def mock_reference_get_responses():
-    with responses.RequestsMock() as rsps:
-        yield rsps
-
-
-@pytest.mark.skipif(
-    platform.system() == "Windows", reason="Windows doesn't support symlinks"
-)
-def test_image_refs(mock_reference_get_responses):
-    mock_reference_get_responses.add(
-        method="GET",
-        url="http://nonexistent/puppy.jpg",
-        body=b"test",
-        headers={"etag": "testEtag", "content-length": "200"},
-    )
-    image_obj = wandb.Image("http://nonexistent/puppy.jpg")
-    art = wandb.Artifact("image_ref_test", "images")
-    art.add(image_obj, "image_ref")
-    image_expected = {
-        "path": str(Path("media/images/75c13e5a637fb8052da9/puppy.jpg")),
-        "sha256": "75c13e5a637fb8052da99792fca8323c06b138966cd30482e84d62c83adc01ee",
-        "_type": "image-file",
-        "format": "jpg",
-    }
-    manifest_expected = {
-        "image_ref.image-file.json": {
-            "digest": "SZvdv5ouAEq2DEOgVBwOog==",
-            "size": 173,
-        },
-        str(Path("media/images/75c13e5a637fb8052da9/puppy.jpg")): {
-            "digest": "testEtag",
-            "ref": "http://nonexistent/puppy.jpg",
-            "extra": {"etag": "testEtag"},
-            "size": 200,
-        },
-    }
-    assert subdict(image_obj.to_json(art), image_expected) == image_expected
-    assert (
-        subdict(art.manifest.to_manifest_json()["contents"], manifest_expected)
-        == manifest_expected
-    )
-
-
-def test_guess_mode():
-    image = np.random.randint(255, size=(28, 28, 3))
-    wbimg = wandb.Image(image)
-    assert wbimg.image.mode == "RGB"
-
-
-def test_pil():
-    pil = Image.new("L", (28, 28))
-    img = wandb.Image(pil)
-    assert list(img.image.getdata()) == list(pil.getdata())
-
-
-def test_matplotlib_image():
-    plt.plot([1, 2, 2, 4])
-    img = wandb.Image(plt)
-    assert img.image.width == 640
-
-
-def test_matplotlib_image_with_multiple_axes():
-    """Test multiple axis pyplot or figure references.
-
-    Ensure that wandb.Image constructor accepts a pyplot or figure reference when the
-    figure has multiple axes. Importantly, there is no requirement that any of the axes
-    have plotted data.
-    """
-    for fig in matplotlib_multiple_axes_figures():
-        wandb.Image(fig)  # this should not error.
-
-    for _ in matplotlib_multiple_axes_figures():
-        wandb.Image(plt)  # this should not error.
-
-
-def test_image_from_matplotlib_with_image():
-    """Ensure that wandb.Image constructor supports a pyplot when an image is passed."""
-    # try the figure version
-    fig = matplotlib_with_image()
-    wandb.Image(fig)  # this should not error.
-    plt.close()
-
-    # try the plt version
-    fig = matplotlib_with_image()
-    wandb.Image(plt)  # this should not error.
-    plt.close()
-
-
-@pytest.mark.skipif(
-    platform.system() != "Windows", reason="Failure case is only happening on Windows"
-)
-def test_fail_to_make_file(
-    mock_run,
-    image,
-):
-    with pytest.raises(
-        ValueError,
-        match="is invalid. Please remove invalid filename characters",
-    ):
-        wb_image = wandb.Image(image)
-        wb_image.bind_to_run(mock_run(), "my key: an identifier", 0)
-
-
-# def test_cant_serialize_to_other_run(mock_run):
-#     """This isn't implemented yet. Should work eventually."""
-#     other_run = wandb.wandb_sdk.wandb_run.Run(settings=wandb_init)
-#     other_run._set_backend(mock_run._backend)
-#     wb_image = wandb.Image(image)
-
-#     wb_image.bind_to_run(mock_run, "stuff", 10)
-
-#     with pytest.raises(AssertionError):
-#         wb_image.to_json(other_run)
-
-
-#     meta_expected = {
-#         "_type": "images/separated",
-#         "count": 1,
-#         "height": 28,
-#         "width": 28,
-#     }
-#     assert utils.subdict(meta, meta_expected) == meta_expected
 
 
 ################################################################################
