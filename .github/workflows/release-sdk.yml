@@ -51,8 +51,8 @@ jobs:
       - name: Update CHANGELOG.md
         if: ${{ inputs.update-changelog }}
         run: |
-          DATE=$(date +'%Y-%m-%d')
-          sed -i "s/## Unreleased/## Unreleased\n\n## [${{ github.event.inputs.version }}] - $DATE/" CHANGELOG.md
+          python tools/changelog.py \
+            --version ${{ github.event.inputs.version }}
 
       - name: Lint changes
         run: |
