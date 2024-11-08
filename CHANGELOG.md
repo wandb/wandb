@@ -37,7 +37,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Changed
 
-- Added internal method, api.\_artifact(), to fetch artifacts so that usage events are not created if not called by an external user. (@ibindlish in https://github.com/wandb/wandb/pull/8674)
+- Added internal method, `api._artifact()`, to fetch artifacts so that usage events are not created if not called by an external user. (@ibindlish in https://github.com/wandb/wandb/pull/8674)
 - Changed default `mode` in `Artifact.new_file()` from `'w'` to `'x'` to accurately reflect existing default behavior (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8553)
 
 ## [0.18.5] - 2024-10-17
