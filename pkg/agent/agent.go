@@ -104,21 +104,6 @@ func (a *Agent) handleMessage(message []byte) error {
 		// Send input data to session's stdin
 		session.Stdin <- []byte(input.Data)
 
-	case string(payloads.SessionOutputJsonTypeSessionOutput):
-		var output payloads.SessionOutputJson
-		if err := json.Unmarshal(message, &output); err != nil {
-			return fmt.Errorf("failed to parse session output: %v", err)
-		}
-
-		// Handle session output message
-		session, exists := a.manager.GetSession(output.SessionId)
-		if !exists {
-			return fmt.Errorf("session %s not found", output.SessionId)
-		}
-
-		// Send output data to session's stdout
-		session.Stdout <- []byte(output.Data)
-
 	case string(payloads.SessionCreateJsonTypeSessionCreate):
 		var create payloads.SessionCreateJson
 		if err := json.Unmarshal(message, &create); err != nil {
@@ -126,6 +111,7 @@ func (a *Agent) handleMessage(message []byte) error {
 		}
 
 		_, err := a.CreateSession(
+			ptysession.WithSize(create.Rows, create.Cols),
 			ptysession.WithID(*create.SessionId),
 			ptysession.WithShell(create.Shell),
 			ptysession.AsUser(create.Username),

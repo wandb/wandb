@@ -108,15 +108,19 @@ func (c *Client) WritePump() {
 				return
 			}
 
-			w, err := c.conn.NextWriter(websocket.TextMessage)
-			if err != nil {
+			if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
 				return
 			}
-			w.Write(message)
 
-			if err := w.Close(); err != nil {
-				return
-			}
+			// w, err := c.conn.NextWriter(websocket.TextMessage)
+			// if err != nil {
+			// 	return
+			// }
+			// w.Write(message)
+
+			// if err := w.Close(); err != nil {
+			// 	return
+			// }
 		}
 	}
 }

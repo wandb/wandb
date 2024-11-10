@@ -18,6 +18,9 @@ type SessionCreateJson struct {
 
 	// Optional username for the session
 	Username string `json:"username,omitempty" yaml:"username,omitempty" mapstructure:"username,omitempty"`
+
+	Rows uint16 `json:"rows,omitempty" yaml:"rows,omitempty" mapstructure:"rows,omitempty"`
+	Cols uint16 `json:"cols,omitempty" yaml:"cols,omitempty" mapstructure:"cols,omitempty"`
 }
 
 type SessionCreateJsonType string

@@ -21,6 +21,7 @@ type sessionConfig struct {
 	username string
 	shell    string
 	id       string
+	size     *pty.Winsize
 }
 
 // AsUser sets the username for the session
@@ -49,6 +50,22 @@ func WithID(id string) options.Option {
 		}
 	})
 }
+
+// WithSize sets the terminal size for the session
+func WithSize(rows, cols uint16) options.Option {
+	return options.NewOptionFunc(func(v interface{}) {
+		if c, ok := v.(*sessionConfig); ok {
+			if rows == 0 || cols == 0 {
+				return
+			}
+			c.size = &pty.Winsize{
+				Rows: rows,
+				Cols: cols,
+			}
+		}
+	})
+}
+
 
 type Session struct {
 	ID           string
@@ -112,10 +129,15 @@ func StartSession(opts ...options.Option) (*Session, error) {
 	log.Printf("Setting up environment for user %s with shell %s", usr.Username, config.shell)
 	env := os.Environ()
 	env = append(env, "USER="+usr.Username)
-	env = append(env, "HOME="+usr.HomeDir)
 	env = append(env, "SHELL="+config.shell)
 	env = append(env, "TERM=xterm-256color")
 	env = append(env, "SESSION_ID="+config.id)
+	// Ensure proper encoding for websocket transmission
+	env = append(env, "LANG=en_US.UTF-8")
+	env = append(env, "LC_ALL=en_US.UTF-8")
+	// // Disable line buffering for real-time output
+	env = append(env, "PYTHONUNBUFFERED=1")
+	env = append(env, "FORCE_COLOR=1") // Enable color output
 
 	cmd := exec.Command(config.shell)
 	cmd.Env = env
@@ -134,6 +156,13 @@ func StartSession(opts ...options.Option) (*Session, error) {
 	if err != nil {
 		log.Printf("Failed to start PTY: %v", err)
 		return nil, fmt.Errorf("failed to start PTY: %v", err)
+	}
+
+	if config.size != nil {
+		if err := pty.Setsize(ptmx, config.size); err != nil {
+			log.Printf("Failed to set terminal size: %v", err)
+			return nil, fmt.Errorf("failed to set terminal size: %v", err)
+		}
 	}
 
 	// Create a cancellable context
