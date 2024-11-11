@@ -8,7 +8,7 @@ import "reflect"
 
 type SessionCreateJson struct {
 	// Optional ID for the session
-	SessionId *string `json:"sessionId,omitempty" yaml:"sessionId,omitempty" mapstructure:"sessionId,omitempty"`
+	SessionId string `json:"sessionId,omitempty" yaml:"sessionId,omitempty" mapstructure:"sessionId,omitempty"`
 
 	// Optional shell to use for the session
 	Shell string `json:"shell,omitempty" yaml:"shell,omitempty" mapstructure:"shell,omitempty"`

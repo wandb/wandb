@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/ctrlplanedev/cli/internal/options"
@@ -19,30 +20,6 @@ type Client struct {
 	connectHandler func()
 }
 
-// WithMessageHandler sets the message handler for the client
-func WithMessageHandler(handler MessageHandler) options.Option {
-	return options.NewOptionFunc(func(v interface{}) {
-		c := v.(*Client)
-		c.messageHandler = handler
-	})
-}
-
-// WithCloseHandler sets the close handler for the client
-func WithCloseHandler(handler func()) options.Option {
-	return options.NewOptionFunc(func(v interface{}) {
-		c := v.(*Client)
-		c.closeHandler = handler
-	})
-}
-
-// WithConnectHandler sets the connect handler for the client
-func WithConnectHandler(handler func()) options.Option {
-	return options.NewOptionFunc(func(v interface{}) {
-		c := v.(*Client)
-		c.connectHandler = handler
-	})
-}
-
 // NewClient creates a new WebSocket client
 func NewClient(conn *websocket.Conn, opts ...options.Option) *Client {
 	c := &Client{
@@ -52,8 +29,6 @@ func NewClient(conn *websocket.Conn, opts ...options.Option) *Client {
 		closeHandler:   func() {},                         // Default no-op handler
 		connectHandler: func() {},                         // Default no-op handler
 	}
-
-	log.Printf("New client created")
 
 	for _, opt := range opts {
 		opt.Apply(c)
@@ -93,6 +68,7 @@ func (c *Client) ReadPump() {
 
 // WritePump pumps messages from the hub to the WebSocket connection.
 func (c *Client) WritePump() {
+	fmt.Println("WritePump for " + c.conn.RemoteAddr().String())
 	defer func() {
 		c.conn.Close()
 	}()
@@ -101,26 +77,18 @@ func (c *Client) WritePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
-			log.Printf("Sending message to channel: %s, ok: %v", string(message), ok)
+			fmt.Println("WritePump sending message to " + c.conn.RemoteAddr().String())
 			if !ok {
+				fmt.Println("WritePump channel closed")
 				// Channel was closed
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
 
-			if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
+			if err := c.conn.WriteMessage(websocket.BinaryMessage, message); err != nil {
+				fmt.Println("WritePump error sending message: " + err.Error())
 				return
 			}
-
-			// w, err := c.conn.NextWriter(websocket.TextMessage)
-			// if err != nil {
-			// 	return
-			// }
-			// w.Write(message)
-
-			// if err := w.Close(); err != nil {
-			// 	return
-			// }
 		}
 	}
 }
@@ -135,6 +103,10 @@ func (c *Client) Send(message []byte) {
 		log.Printf("Failed to send message: channel full or closed")
 		c.conn.Close()
 	}
+}
+
+func (c *Client) Close() {
+	c.conn.Close()
 }
 
 // Example usage:

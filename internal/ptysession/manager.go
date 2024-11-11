@@ -32,12 +32,12 @@ func GetManager() *Manager {
 
 // AddSession adds a new PTY session to the manager. It acquires a write lock to
 // safely add the session to the map.
-func (m *Manager) AddSession(session *Session) {
-	log.Printf("Adding session %s to manager", session.ID)
+func (m *Manager) AddSession(id string, session *Session) {
+	log.Printf("Adding session %s to manager", id)
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.sessions[session.ID] = session
-	log.Printf("Successfully added session %s", session.ID)
+	m.sessions[id] = session
+	log.Printf("Successfully added session %s", id)
 }
 
 // GetSession retrieves a session by its ID. It returns the session and a

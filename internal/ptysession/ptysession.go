@@ -18,10 +18,11 @@ import (
 )
 
 type sessionConfig struct {
-	username string
-	shell    string
-	id       string
-	size     *pty.Winsize
+	username 	 string
+	shell        string
+	id           string
+	size         *pty.Winsize
+	closeHandler func()
 }
 
 // AsUser sets the username for the session
@@ -42,15 +43,6 @@ func WithShell(shell string) options.Option {
 	})
 }
 
-// WithID sets a custom ID for the session
-func WithID(id string) options.Option {
-	return options.NewOptionFunc(func(v interface{}) {
-		if c, ok := v.(*sessionConfig); ok {
-			c.id = id
-		}
-	})
-}
-
 // WithSize sets the terminal size for the session
 func WithSize(rows, cols uint16) options.Option {
 	return options.NewOptionFunc(func(v interface{}) {
@@ -66,9 +58,15 @@ func WithSize(rows, cols uint16) options.Option {
 	})
 }
 
+func WithCloseHandler(handler func()) options.Option {
+	return options.NewOptionFunc(func(v interface{}) {
+		if c, ok := v.(*sessionConfig); ok {
+			c.closeHandler = handler
+		}
+	})
+}
 
 type Session struct {
-	ID           string
 	Stdin        chan []byte
 	Stdout       chan []byte
 	Pty          *os.File
@@ -132,12 +130,12 @@ func StartSession(opts ...options.Option) (*Session, error) {
 	env = append(env, "SHELL="+config.shell)
 	env = append(env, "TERM=xterm-256color")
 	env = append(env, "SESSION_ID="+config.id)
+
 	// Ensure proper encoding for websocket transmission
 	env = append(env, "LANG=en_US.UTF-8")
 	env = append(env, "LC_ALL=en_US.UTF-8")
-	// // Disable line buffering for real-time output
 	env = append(env, "PYTHONUNBUFFERED=1")
-	env = append(env, "FORCE_COLOR=1") // Enable color output
+	env = append(env, "FORCE_COLOR=1")
 
 	cmd := exec.Command(config.shell)
 	cmd.Env = env
@@ -174,7 +172,6 @@ func StartSession(opts ...options.Option) (*Session, error) {
 	}
 	now := time.Now()
 	session := &Session{
-		ID:           sessionID,
 		Stdin:        make(chan []byte, 1024),
 		Stdout:       make(chan []byte, 1024),
 		Pty:          ptmx,
@@ -185,19 +182,22 @@ func StartSession(opts ...options.Option) (*Session, error) {
 		CreatedAt:    now,
 	}
 
-	// Register the session with the manager
-	log.Printf("Registering session %s", sessionID)
-	GetManager().AddSession(session)
-
 	// Handle session cleanup
 	go func() {
 		<-ctx.Done()
-		log.Printf("Context done, removing session %s", sessionID)
-		GetManager().RemoveSession(session.ID)
+		if config.closeHandler != nil {
+			config.closeHandler()
+		}
 	}()
 
 	log.Printf("Successfully started session %s", sessionID)
 	return session, nil
+}
+
+func (s *Session) SetSize(size *pty.Winsize) {
+	if err := pty.Setsize(s.Pty, size); err != nil {
+		log.Printf("Failed to set terminal size: %v", err)
+	}
 }
 
 func (s *Session) HandleIO() {
@@ -207,8 +207,6 @@ func (s *Session) HandleIO() {
 		s.Pty.Close()
 		s.Cmd.Process.Kill()
 		s.CancelFunc()
-		GetManager().RemoveSession(s.ID)
-		log.Printf("Session %s ended", s.ID)
 	}()
 
 	// PTY to Output channel

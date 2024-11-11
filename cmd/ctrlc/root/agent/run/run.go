@@ -31,7 +31,7 @@ func NewAgentRunCmd() *cobra.Command {
 				metadata[key] = value
 			}
 
-			proxyAddr := "ws://" + proxyAddr + "/api/target/proxy"
+			proxyAddr := "ws://" + proxyAddr
 			apiKey := os.Getenv("CTRLPLANE_API_KEY")
 			agent := agent.NewAgent(
 				proxyAddr,

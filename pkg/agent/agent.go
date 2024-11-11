@@ -15,11 +15,10 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func WithMetadata(metadata map[string]string) func(*Agent) {
-	return func(a *Agent) {
-		a.metadata = metadata
-	}
-}
+const (
+	ControllerURL = "/api/v1/target/proxy/controller"
+	SessionURL    = "/api/v1/target/proxy/session"
+)
 
 type Agent struct {
 	headers    http.Header
@@ -29,12 +28,6 @@ type Agent struct {
 	StopSignal chan struct{}
 	metadata   map[string]string
 	manager    *ptysession.Manager
-}
-
-func WithHeader(key string, value string) func(*Agent) {
-	return func(a *Agent) {
-		a.headers.Set(key, value)
-	}
 }
 
 func NewAgent(serverURL, agentName string, opts ...func(*Agent)) *Agent {
@@ -59,7 +52,7 @@ func NewAgent(serverURL, agentName string, opts ...func(*Agent)) *Agent {
 // handlers, starts read/write pumps, initializes heartbeat routine, and starts
 // the session cleaner. It returns an error if the connection fails.
 func (a *Agent) Connect() error {
-	conn, _, err := websocket.DefaultDialer.Dial(a.serverURL, a.headers)
+	conn, _, err := websocket.DefaultDialer.Dial(a.serverURL + ControllerURL, a.headers)
 	if err != nil {
 		return err
 	}
@@ -67,10 +60,9 @@ func (a *Agent) Connect() error {
 	a.client = client.NewClient(conn,
 		client.WithMessageHandler(a.handleMessage),
 		client.WithCloseHandler(a.handleClose),
+		client.WithReadPump(),
+		client.WithWritePump(),
 	)
-
-	go a.client.ReadPump()
-	go a.client.WritePump()
 
 	go a.heartbeatRoutine()
 	go a.handleConnect()
@@ -90,20 +82,6 @@ func (a *Agent) handleMessage(message []byte) error {
 	}
 
 	switch genericMsg.Type {
-	case string(payloads.SessionInputJsonTypeSessionInput):
-		var input payloads.SessionInputJson
-		if err := json.Unmarshal(message, &input); err != nil {
-			return fmt.Errorf("failed to parse session input: %v", err)
-		}
-
-		session, exists := a.manager.GetSession(input.SessionId)
-		if !exists {
-			return fmt.Errorf("session %s not found", input.SessionId)
-		}
-
-		// Send input data to session's stdin
-		session.Stdin <- []byte(input.Data)
-
 	case string(payloads.SessionCreateJsonTypeSessionCreate):
 		var create payloads.SessionCreateJson
 		if err := json.Unmarshal(message, &create); err != nil {
@@ -111,8 +89,8 @@ func (a *Agent) handleMessage(message []byte) error {
 		}
 
 		_, err := a.CreateSession(
+			create.SessionId,
 			ptysession.WithSize(create.Rows, create.Cols),
-			ptysession.WithID(*create.SessionId),
 			ptysession.WithShell(create.Shell),
 			ptysession.AsUser(create.Username),
 		)
@@ -192,32 +170,33 @@ func (a *Agent) Stop() {
 	close(a.StopSignal)
 }
 
-func (a *Agent) CreateSession(opts ...options.Option) (*ptysession.Session, error) {
+func (a *Agent) CreateSession(id string, opts ...options.Option) (*ptysession.Session, error) {
+	url := a.serverURL + SessionURL + "/" + id
+	conn, _, err := websocket.DefaultDialer.Dial(url, a.headers)
+	if err != nil {
+		return nil, err
+	}
+
 	session, err := ptysession.StartSession(opts...)
 	if err != nil {
 		return nil, err
 	}
 	go session.HandleIO()
 
-	// Start goroutine to listen for session stdout and send over websocket
+	handleMessages := func(message []byte) error {
+		session.Stdin <- message
+		return nil
+	}
+	ws := client.NewClient(conn, client.WithMessageHandler(handleMessages))
+	go ws.ReadPump()
+	go ws.WritePump()
 	go func() {
 		for {
 			select {
 			case data := <-session.Stdout:
-				output := payloads.SessionOutputJson{
-					Type:      payloads.SessionOutputJsonTypeSessionOutput,
-					SessionId: session.ID,
-					Data:      string(data),
-				}
-
-				// Marshal and send over websocket
-				if jsonData, err := json.Marshal(output); err == nil {
-					a.client.Send(jsonData)
-				} else {
-					log.Printf("Error marshaling session output: %v", err)
-				}
-
+				ws.Send(data)
 			case <-session.Ctx.Done():
+				ws.Close()
 				return
 			}
 		}
