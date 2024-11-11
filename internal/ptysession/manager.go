@@ -44,13 +44,10 @@ func (m *Manager) AddSession(id string, session *Session) {
 // boolean indicating if it exists. Uses a read lock since it doesn't modify the
 // sessions map.
 func (m *Manager) GetSession(id string) (*Session, bool) {
-	log.Printf("Looking up session %s", id)
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	session, exists := m.sessions[id]
-	if exists {
-		log.Printf("Found session %s", id)
-	} else {
+	if !exists {
 		log.Printf("Session %s not found", id)
 	}
 	return session, exists

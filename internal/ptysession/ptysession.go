@@ -14,13 +14,12 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/ctrlplanedev/cli/internal/options"
-	"github.com/google/uuid"
+	"github.com/moby/term"
 )
 
 type sessionConfig struct {
 	username 	 string
 	shell        string
-	id           string
 	size         *pty.Winsize
 	closeHandler func()
 }
@@ -129,7 +128,6 @@ func StartSession(opts ...options.Option) (*Session, error) {
 	env = append(env, "USER="+usr.Username)
 	env = append(env, "SHELL="+config.shell)
 	env = append(env, "TERM=xterm-256color")
-	env = append(env, "SESSION_ID="+config.id)
 
 	// Ensure proper encoding for websocket transmission
 	env = append(env, "LANG=en_US.UTF-8")
@@ -163,13 +161,10 @@ func StartSession(opts ...options.Option) (*Session, error) {
 		}
 	}
 
+
 	// Create a cancellable context
 	ctx, cancel := context.WithCancel(context.Background())
 
-	sessionID := config.id
-	if sessionID == "" {
-		sessionID = uuid.New().String()
-	}
 	now := time.Now()
 	session := &Session{
 		Stdin:        make(chan []byte, 1024),
@@ -189,15 +184,21 @@ func StartSession(opts ...options.Option) (*Session, error) {
 			config.closeHandler()
 		}
 	}()
-
-	log.Printf("Successfully started session %s", sessionID)
 	return session, nil
 }
 
-func (s *Session) SetSize(size *pty.Winsize) {
-	if err := pty.Setsize(s.Pty, size); err != nil {
+func (s *Session) SetSize(size *pty.Winsize) error {
+	oldRows, oldCols, _ := pty.Getsize(s.Pty)
+	log.Printf("Resizing terminal from (%dx%d) to (%dx%d)", oldRows, oldCols, size.Rows, size.Cols)
+
+	if err := term.SetWinsize(s.Pty.Fd(), &term.Winsize{
+		Height: size.Rows,
+		Width:  size.Cols,
+	}); err != nil {
 		log.Printf("Failed to set terminal size: %v", err)
+		return err
 	}
+	return nil
 }
 
 func (s *Session) HandleIO() {

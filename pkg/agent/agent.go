@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/creack/pty"
 	"github.com/ctrlplanedev/cli/internal/options"
 	"github.com/ctrlplanedev/cli/internal/ptysession"
 	client "github.com/ctrlplanedev/cli/internal/websocket"
@@ -84,7 +85,7 @@ func (a *Agent) handleMessage(message []byte) error {
 	switch genericMsg.Type {
 	case string(payloads.SessionCreateJsonTypeSessionCreate):
 		var create payloads.SessionCreateJson
-		if err := json.Unmarshal(message, &create); err != nil {
+		if err := create.UnmarshalJSON(message); err != nil {
 			return fmt.Errorf("failed to parse session create: %v", err)
 		}
 
@@ -98,6 +99,19 @@ func (a *Agent) handleMessage(message []byte) error {
 			return fmt.Errorf("failed to create session: %v", err)
 		}
 
+	case string(payloads.SessionResizeJsonTypeSessionResize):
+		var resize payloads.SessionResizeJson
+		if err := resize.UnmarshalJSON(message); err != nil {
+			return fmt.Errorf("failed to parse session resize: %v", err)
+		}
+
+		if session, exists := a.manager.GetSession(resize.SessionId); exists {
+			log.Printf("Resizing session %s to (%dx%d)", resize.SessionId, resize.Rows, resize.Cols)
+			session.SetSize(&pty.Winsize{
+				Rows: resize.Rows,
+				Cols: resize.Cols,
+			})
+		}
 	default:
 		return fmt.Errorf("unsupported message type: %s", genericMsg.Type)
 	}
@@ -201,6 +215,8 @@ func (a *Agent) CreateSession(id string, opts ...options.Option) (*ptysession.Se
 			}
 		}
 	}()
+
+	a.manager.AddSession(id, session)
 
 	return session, nil
 }

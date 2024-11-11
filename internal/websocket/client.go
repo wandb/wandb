@@ -68,7 +68,6 @@ func (c *Client) ReadPump() {
 
 // WritePump pumps messages from the hub to the WebSocket connection.
 func (c *Client) WritePump() {
-	fmt.Println("WritePump for " + c.conn.RemoteAddr().String())
 	defer func() {
 		c.conn.Close()
 	}()
@@ -77,7 +76,6 @@ func (c *Client) WritePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
-			fmt.Println("WritePump sending message to " + c.conn.RemoteAddr().String())
 			if !ok {
 				fmt.Println("WritePump channel closed")
 				// Channel was closed
@@ -108,35 +106,3 @@ func (c *Client) Send(message []byte) {
 func (c *Client) Close() {
 	c.conn.Close()
 }
-
-// Example usage:
-/*
-func ExampleClient() {
-	// Connect to WebSocket server
-	conn, _, err := websocket.DefaultDialer.Dial("ws://localhost:8080/ws", nil)
-	if err != nil {
-		log.Fatal("dial:", err)
-	}
-
-	// Create a new client with custom message handler
-	client := NewClient(conn,
-		WithMessageHandler(func(message []byte) error {
-			log.Printf("Received message: %s", message)
-			return nil
-		}),
-		WithConnectHandler(func() {
-			log.Println("Connected to server")
-		}),
-		WithCloseHandler(func() {
-			log.Println("Connection closed")
-		}),
-	)
-
-	// Start the read and write pumps in separate goroutines
-	go client.ReadPump()
-	go client.WritePump()
-
-	// Send a message
-	client.Send([]byte("Hello server!"))
-}
-*/
