@@ -1208,7 +1208,11 @@ class Api:
                 entity=settings_entity, organization=organization
             )
         artifact = wandb.Artifact._from_name(
-            entity, project, artifact_name, self.client, enable_tracking
+            entity=entity,
+            project=project,
+            name=artifact_name,
+            client=self.client,
+            enable_tracking=enable_tracking,
         )
         if type is not None and artifact.type != type:
             raise ValueError(
