@@ -112,6 +112,14 @@ func (s *Settings) GetStartTime() time.Time {
 	return time.UnixMicro(int64(seconds * 1e6))
 }
 
+// The root directory that will be used to derive other paths.
+// Such as the wandb directory, and the run directory.
+//
+// By default, this is the current working directory.
+func (s *Settings) GetRootDir() string {
+	return s.Proto.RootDir.GetValue()
+}
+
 // The directory for storing log files.
 func (s *Settings) GetLogDir() string {
 	return s.Proto.LogDir.GetValue()
@@ -235,6 +243,79 @@ func (s *Settings) GetProgram() string {
 	return s.Proto.Program.GetValue()
 }
 
+// The relative path from the root repository directory to the script that
+// created the run. If the script is not in the root repository directory,
+// this will be the relative path from the current working directory to the
+// script.
+//
+// For example, if the script is /home/user/project/example.py, and the root
+// repository directory is /home/user/project, then the relative path is
+// example.py.
+//
+// If couldn't find the relative path, this will be an empty string.
+func (s *Settings) GetProgramRelativePath() string {
+	return s.Proto.ProgramRelpath.GetValue()
+}
+
+// The relative path from the current working directory to the code path.
+//
+// For example, if the code path is /home/user/project/example.py, and the
+// current working directory is /home/user/project, then the code path local
+// is example.py.
+//
+// If couldn't find the relative path, this will be an empty string.
+func (s *Settings) GetProgramRelativePathFromCwd() string {
+	return s.Proto.XCodePathLocal.GetValue()
+}
+
+// The absolute path from the root repository directory to the script that
+// created the run. Root repository directory is defined as the directory
+// containing the .git directory, if it exists. Otherwise, it's the current
+// working directory.
+func (s *Settings) GetProgramAbsolutePath() string {
+	return s.Proto.ProgramAbspath.GetValue()
+}
+
+// The arguments passed to the script that created the run, if available.
+func (s *Settings) GetArgs() []string {
+	return s.Proto.XArgs.GetValue()
+}
+
+// The operating system of the machine running the run.
+func (s *Settings) GetOS() string {
+	return s.Proto.XOs.GetValue()
+}
+
+// The Docker image used to execute the script.
+func (s *Settings) GetDockerImageName() string {
+	return s.Proto.Docker.GetValue()
+}
+
+// The CUDA version of the machine running the run.
+func (s *Settings) GetCUDAVersion() string {
+	return s.Proto.XCuda.GetValue()
+}
+
+// The executable used to execute the script.
+func (s *Settings) GetExecutable() string {
+	return s.Proto.XExecutable.GetValue()
+}
+
+// The Python version used to execute the script.
+func (s *Settings) GetPython() string {
+	return s.Proto.XPython.GetValue()
+}
+
+// The Colab URL, if available.
+func (s *Settings) GetColabURL() string {
+	return s.Proto.ColabUrl.GetValue()
+}
+
+// The name of the host processor the run is running on.
+func (s *Settings) GetHostProcessorName() string {
+	return s.Proto.Host.GetValue()
+}
+
 // The W&B user name.
 func (s *Settings) GetUserName() string {
 	return s.Proto.Username.GetValue()
@@ -272,20 +353,45 @@ func (s *Settings) GetForkFrom() *spb.RunMoment {
 	return s.Proto.ForkFrom
 }
 
+// The W&B sweep URL.
+func (s *Settings) GetSweepURL() string {
+	return s.Proto.SweepUrl.GetValue()
+}
+
+// Whether to create a job artifact for W&B Launch.
+func (s *Settings) IsJobCreationDisabled() bool {
+	return s.Proto.DisableJobCreation.GetValue() || s.Proto.XDisableMachineInfo.GetValue()
+}
+
 // Checks whether console capture is enabled. If it is, stdout and stderr
 // will be captured and sent to W&B.
 func (s *Settings) IsConsoleCaptureEnabled() bool {
 	return s.Proto.Console.GetValue() != "off"
 }
 
-// Whether to create a job artifact for W&B Launch.
-func (s *Settings) IsJobCreationDisabled() bool {
-	return s.Proto.DisableJobCreation.GetValue()
+// Whether to disable system metrics collection.
+func (s *Settings) IsDisableStats() bool {
+	return s.Proto.XDisableStats.GetValue()
 }
 
-// The W&B sweep URL.
-func (s *Settings) GetSweepURL() string {
-	return s.Proto.SweepUrl.GetValue()
+// Whether to disable metadata collection.
+func (s *Settings) IsDisableMeta() bool {
+	return s.Proto.XDisableMeta.GetValue()
+}
+
+// Whether to save the code used to create the run.
+func (s *Settings) IsSaveCode() bool {
+	return s.Proto.SaveCode.GetValue()
+}
+
+// Whether to disable git capture and diff generation.
+func (s *Settings) IsDisableGit() bool {
+	return s.Proto.DisableGit.GetValue()
+}
+
+// Whether to disable machine info collection, such as hostname and hardware specs.
+func (s *Settings) GetDisableMachineInfo() bool {
+	return s.Proto.XDisableMachineInfo.GetValue()
 }
 
 // Update methods.

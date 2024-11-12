@@ -21,7 +21,7 @@ import wandb
 from wandb.sdk.lib import import_hooks
 
 from . import wandb_settings
-from .lib import config_util, server, tracelog
+from .lib import config_util, server
 
 Settings = Union["wandb.sdk.wandb_settings.Settings", Dict[str, Any]]
 
@@ -113,10 +113,6 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
         self._check()
         self._setup()
-
-        tracelog_mode = self._settings._tracelog
-        if tracelog_mode:
-            tracelog.enable(tracelog_mode)
 
     def _settings_setup(
         self,
@@ -346,8 +342,8 @@ def setup(settings: Optional[Settings] = None) -> Optional["_WandbSetup"]:
     See also `wandb.teardown()`.
 
     Args:
-        settings: Configuration settings to apply globally. These can be
-            overridden by subsequent `wandb.init()` calls.
+        settings (Optional[Union[Dict[str, Any], wandb.Settings]]): Configuration settings
+            to apply globally. These can be overridden by subsequent `wandb.init()` calls.
 
     Example:
         ```python
