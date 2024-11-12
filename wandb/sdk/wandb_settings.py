@@ -46,6 +46,7 @@ class Settings(BaseModel, validate_assignment=True):
         extra="forbid",  # throw an error if extra fields are provided
     )
 
+    allow_offline_artifacts: bool = True
     allow_val_change: bool = False
     anonymous: Literal["allow", "must", "never"] | None = None
     api_key: str | None = None

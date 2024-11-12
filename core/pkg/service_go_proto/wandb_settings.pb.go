@@ -318,7 +318,7 @@ func (x *RunMoment) GetMetric() string {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 179
+// Next ID: 180
 type Settings struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -462,128 +462,163 @@ type Settings struct {
 	// Remove after the feature is rolled out.
 	XShowOperationStats *wrapperspb.BoolValue `protobuf:"bytes,176,opt,name=x_show_operation_stats,json=xShowOperationStats,proto3" json:"x_show_operation_stats,omitempty"`
 	// Whether to sync TensorBoard logs to W&B.
-	SyncTensorboard *wrapperspb.BoolValue `protobuf:"bytes,177,opt,name=sync_tensorboard,json=syncTensorboard,proto3" json:"sync_tensorboard,omitempty"`
+	SyncTensorboard *wrapperspb.BoolValue `protobuf:"bytes,178,opt,name=sync_tensorboard,json=syncTensorboard,proto3" json:"sync_tensorboard,omitempty"`
 	// Internal override setting for the computed files_dir
-	XFilesDir                       *wrapperspb.StringValue  `protobuf:"bytes,178,opt,name=x_files_dir,json=xFilesDir,proto3" json:"x_files_dir,omitempty"`
-	XArgs                           *ListStringValue         `protobuf:"bytes,1,opt,name=_args,json=Args,proto3" json:"_args,omitempty"`
-	XAwsLambda                      *wrapperspb.BoolValue    `protobuf:"bytes,2,opt,name=_aws_lambda,json=AwsLambda,proto3" json:"_aws_lambda,omitempty"`
-	XCliOnlyMode                    *wrapperspb.BoolValue    `protobuf:"bytes,4,opt,name=x_cli_only_mode,json=xCliOnlyMode,proto3" json:"x_cli_only_mode,omitempty"`
-	XColab                          *wrapperspb.BoolValue    `protobuf:"bytes,5,opt,name=_colab,json=Colab,proto3" json:"_colab,omitempty"`
-	XDisableMeta                    *wrapperspb.BoolValue    `protobuf:"bytes,7,opt,name=x_disable_meta,json=xDisableMeta,proto3" json:"x_disable_meta,omitempty"`
-	XDisableService                 *wrapperspb.BoolValue    `protobuf:"bytes,8,opt,name=x_disable_service,json=xDisableService,proto3" json:"x_disable_service,omitempty"`
-	XDisableSetproctitle            *wrapperspb.BoolValue    `protobuf:"bytes,9,opt,name=x_disable_setproctitle,json=xDisableSetproctitle,proto3" json:"x_disable_setproctitle,omitempty"`
-	XDisableStats                   *wrapperspb.BoolValue    `protobuf:"bytes,10,opt,name=x_disable_stats,json=xDisableStats,proto3" json:"x_disable_stats,omitempty"`
-	XDisableViewer                  *wrapperspb.BoolValue    `protobuf:"bytes,11,opt,name=x_disable_viewer,json=xDisableViewer,proto3" json:"x_disable_viewer,omitempty"`
-	XExecutable                     *wrapperspb.StringValue  `protobuf:"bytes,13,opt,name=x_executable,json=xExecutable,proto3" json:"x_executable,omitempty"`
-	XFlowControlCustom              *wrapperspb.BoolValue    `protobuf:"bytes,16,opt,name=x_flow_control_custom,json=xFlowControlCustom,proto3" json:"x_flow_control_custom,omitempty"`
-	XFlowControlDisabled            *wrapperspb.BoolValue    `protobuf:"bytes,17,opt,name=x_flow_control_disabled,json=xFlowControlDisabled,proto3" json:"x_flow_control_disabled,omitempty"`
-	XInternalCheckProcess           *wrapperspb.DoubleValue  `protobuf:"bytes,18,opt,name=x_internal_check_process,json=xInternalCheckProcess,proto3" json:"x_internal_check_process,omitempty"`
-	XInternalQueueTimeout           *wrapperspb.DoubleValue  `protobuf:"bytes,19,opt,name=x_internal_queue_timeout,json=xInternalQueueTimeout,proto3" json:"x_internal_queue_timeout,omitempty"`
-	XIpython                        *wrapperspb.BoolValue    `protobuf:"bytes,20,opt,name=_ipython,json=Ipython,proto3" json:"_ipython,omitempty"`
-	XJupyter                        *wrapperspb.BoolValue    `protobuf:"bytes,21,opt,name=_jupyter,json=Jupyter,proto3" json:"_jupyter,omitempty"`
-	XJupyterRoot                    *wrapperspb.StringValue  `protobuf:"bytes,22,opt,name=x_jupyter_root,json=xJupyterRoot,proto3" json:"x_jupyter_root,omitempty"`
-	XKaggle                         *wrapperspb.BoolValue    `protobuf:"bytes,23,opt,name=_kaggle,json=Kaggle,proto3" json:"_kaggle,omitempty"`
-	XLivePolicyRateLimit            *wrapperspb.Int32Value   `protobuf:"bytes,24,opt,name=x_live_policy_rate_limit,json=xLivePolicyRateLimit,proto3" json:"x_live_policy_rate_limit,omitempty"`
-	XLivePolicyWaitTime             *wrapperspb.Int32Value   `protobuf:"bytes,25,opt,name=x_live_policy_wait_time,json=xLivePolicyWaitTime,proto3" json:"x_live_policy_wait_time,omitempty"`
-	XLogLevel                       *wrapperspb.Int32Value   `protobuf:"bytes,26,opt,name=x_log_level,json=xLogLevel,proto3" json:"x_log_level,omitempty"`
-	XNetworkBuffer                  *wrapperspb.Int32Value   `protobuf:"bytes,27,opt,name=x_network_buffer,json=xNetworkBuffer,proto3" json:"x_network_buffer,omitempty"`
-	XNoop                           *wrapperspb.BoolValue    `protobuf:"bytes,28,opt,name=_noop,json=Noop,proto3" json:"_noop,omitempty"`
-	XNotebook                       *wrapperspb.BoolValue    `protobuf:"bytes,29,opt,name=_notebook,json=Notebook,proto3" json:"_notebook,omitempty"`
-	XOs                             *wrapperspb.StringValue  `protobuf:"bytes,32,opt,name=_os,json=Os,proto3" json:"_os,omitempty"`
-	XPlatform                       *wrapperspb.StringValue  `protobuf:"bytes,33,opt,name=_platform,json=Platform,proto3" json:"_platform,omitempty"`
-	XPython                         *wrapperspb.StringValue  `protobuf:"bytes,34,opt,name=_python,json=Python,proto3" json:"_python,omitempty"`
-	XRunqueueItemId                 *wrapperspb.StringValue  `protobuf:"bytes,35,opt,name=x_runqueue_item_id,json=xRunqueueItemId,proto3" json:"x_runqueue_item_id,omitempty"`
-	XSaveRequirements               *wrapperspb.BoolValue    `protobuf:"bytes,37,opt,name=x_save_requirements,json=xSaveRequirements,proto3" json:"x_save_requirements,omitempty"`
-	XServiceTransport               *wrapperspb.StringValue  `protobuf:"bytes,38,opt,name=x_service_transport,json=xServiceTransport,proto3" json:"x_service_transport,omitempty"`
-	XServiceWait                    *wrapperspb.DoubleValue  `protobuf:"bytes,39,opt,name=x_service_wait,json=xServiceWait,proto3" json:"x_service_wait,omitempty"`
-	XStartDatetime                  *wrapperspb.StringValue  `protobuf:"bytes,40,opt,name=_start_datetime,json=StartDatetime,proto3" json:"_start_datetime,omitempty"`
-	XStatsPid                       *wrapperspb.Int32Value   `protobuf:"bytes,42,opt,name=x_stats_pid,json=xStatsPid,proto3" json:"x_stats_pid,omitempty"`
-	XStatsSamplingInterval          *wrapperspb.DoubleValue  `protobuf:"bytes,174,opt,name=x_stats_sampling_interval,json=xStatsSamplingInterval,proto3" json:"x_stats_sampling_interval,omitempty"`
-	XStatsSampleRateSeconds         *wrapperspb.DoubleValue  `protobuf:"bytes,43,opt,name=x_stats_sample_rate_seconds,json=xStatsSampleRateSeconds,proto3" json:"x_stats_sample_rate_seconds,omitempty"`
-	XStatsSamplesToAverage          *wrapperspb.Int32Value   `protobuf:"bytes,44,opt,name=x_stats_samples_to_average,json=xStatsSamplesToAverage,proto3" json:"x_stats_samples_to_average,omitempty"`
-	XStatsNeuronMonitorConfigPath   *wrapperspb.StringValue  `protobuf:"bytes,46,opt,name=x_stats_neuron_monitor_config_path,json=xStatsNeuronMonitorConfigPath,proto3" json:"x_stats_neuron_monitor_config_path,omitempty"`
-	XStatsOpenMetricsEndpoints      *MapStringKeyStringValue `protobuf:"bytes,47,opt,name=x_stats_open_metrics_endpoints,json=xStatsOpenMetricsEndpoints,proto3" json:"x_stats_open_metrics_endpoints,omitempty"`
-	XStatsOpenMetricsFilters        *OpenMetricsFilters      `protobuf:"bytes,48,opt,name=x_stats_open_metrics_filters,json=xStatsOpenMetricsFilters,proto3" json:"x_stats_open_metrics_filters,omitempty"`
-	XStatsDiskPaths                 *ListStringValue         `protobuf:"bytes,146,opt,name=x_stats_disk_paths,json=xStatsDiskPaths,proto3" json:"x_stats_disk_paths,omitempty"`
-	XStatsBufferSize                *wrapperspb.Int32Value   `protobuf:"bytes,161,opt,name=x_stats_buffer_size,json=xStatsBufferSize,proto3" json:"x_stats_buffer_size,omitempty"`
-	XTmpCodeDir                     *wrapperspb.StringValue  `protobuf:"bytes,49,opt,name=_tmp_code_dir,json=TmpCodeDir,proto3" json:"_tmp_code_dir,omitempty"`
-	XWindows                        *wrapperspb.BoolValue    `protobuf:"bytes,52,opt,name=_windows,json=Windows,proto3" json:"_windows,omitempty"`
-	AllowValChange                  *wrapperspb.BoolValue    `protobuf:"bytes,53,opt,name=allow_val_change,json=allowValChange,proto3" json:"allow_val_change,omitempty"`
-	Anonymous                       *wrapperspb.StringValue  `protobuf:"bytes,54,opt,name=anonymous,proto3" json:"anonymous,omitempty"`
-	AzureAccountUrlToAccessKey      *MapStringKeyStringValue `protobuf:"bytes,56,opt,name=azure_account_url_to_access_key,json=azureAccountUrlToAccessKey,proto3" json:"azure_account_url_to_access_key,omitempty"`
-	CodeDir                         *wrapperspb.StringValue  `protobuf:"bytes,58,opt,name=code_dir,json=codeDir,proto3" json:"code_dir,omitempty"`
-	ConfigPaths                     *ListStringValue         `protobuf:"bytes,59,opt,name=config_paths,json=configPaths,proto3" json:"config_paths,omitempty"`
-	Deployment                      *wrapperspb.StringValue  `protobuf:"bytes,61,opt,name=deployment,proto3" json:"deployment,omitempty"`
-	DisableCode                     *wrapperspb.BoolValue    `protobuf:"bytes,62,opt,name=disable_code,json=disableCode,proto3" json:"disable_code,omitempty"`
-	DisableGit                      *wrapperspb.BoolValue    `protobuf:"bytes,63,opt,name=disable_git,json=disableGit,proto3" json:"disable_git,omitempty"`
-	DisableHints                    *wrapperspb.BoolValue    `protobuf:"bytes,64,opt,name=disable_hints,json=disableHints,proto3" json:"disable_hints,omitempty"`
-	Disabled                        *wrapperspb.BoolValue    `protobuf:"bytes,66,opt,name=disabled,proto3" json:"disabled,omitempty"`
-	Docker                          *wrapperspb.StringValue  `protobuf:"bytes,67,opt,name=docker,proto3" json:"docker,omitempty"`
-	Force                           *wrapperspb.BoolValue    `protobuf:"bytes,71,opt,name=force,proto3" json:"force,omitempty"`
-	GitCommit                       *wrapperspb.StringValue  `protobuf:"bytes,72,opt,name=git_commit,json=gitCommit,proto3" json:"git_commit,omitempty"`
-	GitRemote                       *wrapperspb.StringValue  `protobuf:"bytes,73,opt,name=git_remote,json=gitRemote,proto3" json:"git_remote,omitempty"`
-	GitRemoteUrl                    *wrapperspb.StringValue  `protobuf:"bytes,74,opt,name=git_remote_url,json=gitRemoteUrl,proto3" json:"git_remote_url,omitempty"`
-	GitRoot                         *wrapperspb.StringValue  `protobuf:"bytes,75,opt,name=git_root,json=gitRoot,proto3" json:"git_root,omitempty"`
-	HeartbeatSeconds                *wrapperspb.Int32Value   `protobuf:"bytes,76,opt,name=heartbeat_seconds,json=heartbeatSeconds,proto3" json:"heartbeat_seconds,omitempty"`
-	Host                            *wrapperspb.StringValue  `protobuf:"bytes,77,opt,name=host,proto3" json:"host,omitempty"`
-	InitTimeout                     *wrapperspb.DoubleValue  `protobuf:"bytes,79,opt,name=init_timeout,json=initTimeout,proto3" json:"init_timeout,omitempty"`
-	IsLocal                         *wrapperspb.BoolValue    `protobuf:"bytes,80,opt,name=is_local,json=isLocal,proto3" json:"is_local,omitempty"`
-	JobSource                       *wrapperspb.StringValue  `protobuf:"bytes,81,opt,name=job_source,json=jobSource,proto3" json:"job_source,omitempty"`
-	LabelDisable                    *wrapperspb.BoolValue    `protobuf:"bytes,82,opt,name=label_disable,json=labelDisable,proto3" json:"label_disable,omitempty"`
-	Launch                          *wrapperspb.BoolValue    `protobuf:"bytes,83,opt,name=launch,proto3" json:"launch,omitempty"`
-	LaunchConfigPath                *wrapperspb.StringValue  `protobuf:"bytes,84,opt,name=launch_config_path,json=launchConfigPath,proto3" json:"launch_config_path,omitempty"`
-	LogSymlinkInternal              *wrapperspb.StringValue  `protobuf:"bytes,87,opt,name=log_symlink_internal,json=logSymlinkInternal,proto3" json:"log_symlink_internal,omitempty"`
-	LogSymlinkUser                  *wrapperspb.StringValue  `protobuf:"bytes,88,opt,name=log_symlink_user,json=logSymlinkUser,proto3" json:"log_symlink_user,omitempty"`
-	LogUser                         *wrapperspb.StringValue  `protobuf:"bytes,89,opt,name=log_user,json=logUser,proto3" json:"log_user,omitempty"`
-	LoginTimeout                    *wrapperspb.DoubleValue  `protobuf:"bytes,90,opt,name=login_timeout,json=loginTimeout,proto3" json:"login_timeout,omitempty"`
-	Mode                            *wrapperspb.StringValue  `protobuf:"bytes,92,opt,name=mode,proto3" json:"mode,omitempty"`
-	NotebookName                    *wrapperspb.StringValue  `protobuf:"bytes,93,opt,name=notebook_name,json=notebookName,proto3" json:"notebook_name,omitempty"`
-	ProgramRelpath                  *wrapperspb.StringValue  `protobuf:"bytes,96,opt,name=program_relpath,json=programRelpath,proto3" json:"program_relpath,omitempty"`
-	ProjectUrl                      *wrapperspb.StringValue  `protobuf:"bytes,98,opt,name=project_url,json=projectUrl,proto3" json:"project_url,omitempty"`
-	Quiet                           *wrapperspb.BoolValue    `protobuf:"bytes,99,opt,name=quiet,proto3" json:"quiet,omitempty"`
-	Reinit                          *wrapperspb.BoolValue    `protobuf:"bytes,100,opt,name=reinit,proto3" json:"reinit,omitempty"`
-	Relogin                         *wrapperspb.BoolValue    `protobuf:"bytes,101,opt,name=relogin,proto3" json:"relogin,omitempty"`
-	ResumeFname                     *wrapperspb.StringValue  `protobuf:"bytes,103,opt,name=resume_fname,json=resumeFname,proto3" json:"resume_fname,omitempty"`
-	Resumed                         *wrapperspb.BoolValue    `protobuf:"bytes,104,opt,name=resumed,proto3" json:"resumed,omitempty"`
-	RootDir                         *wrapperspb.StringValue  `protobuf:"bytes,105,opt,name=root_dir,json=rootDir,proto3" json:"root_dir,omitempty"`
-	RunGroup                        *wrapperspb.StringValue  `protobuf:"bytes,106,opt,name=run_group,json=runGroup,proto3" json:"run_group,omitempty"`
-	RunJobType                      *wrapperspb.StringValue  `protobuf:"bytes,108,opt,name=run_job_type,json=runJobType,proto3" json:"run_job_type,omitempty"`
-	RunMode                         *wrapperspb.StringValue  `protobuf:"bytes,109,opt,name=run_mode,json=runMode,proto3" json:"run_mode,omitempty"`
-	RunName                         *wrapperspb.StringValue  `protobuf:"bytes,110,opt,name=run_name,json=runName,proto3" json:"run_name,omitempty"`
-	RunNotes                        *wrapperspb.StringValue  `protobuf:"bytes,111,opt,name=run_notes,json=runNotes,proto3" json:"run_notes,omitempty"`
-	RunTags                         *ListStringValue         `protobuf:"bytes,112,opt,name=run_tags,json=runTags,proto3" json:"run_tags,omitempty"`
-	SagemakerDisable                *wrapperspb.BoolValue    `protobuf:"bytes,114,opt,name=sagemaker_disable,json=sagemakerDisable,proto3" json:"sagemaker_disable,omitempty"`
-	SaveCode                        *wrapperspb.BoolValue    `protobuf:"bytes,115,opt,name=save_code,json=saveCode,proto3" json:"save_code,omitempty"`
-	SettingsSystem                  *wrapperspb.StringValue  `protobuf:"bytes,116,opt,name=settings_system,json=settingsSystem,proto3" json:"settings_system,omitempty"`
-	SettingsWorkspace               *wrapperspb.StringValue  `protobuf:"bytes,117,opt,name=settings_workspace,json=settingsWorkspace,proto3" json:"settings_workspace,omitempty"`
-	ShowColors                      *wrapperspb.BoolValue    `protobuf:"bytes,118,opt,name=show_colors,json=showColors,proto3" json:"show_colors,omitempty"`
-	ShowEmoji                       *wrapperspb.BoolValue    `protobuf:"bytes,119,opt,name=show_emoji,json=showEmoji,proto3" json:"show_emoji,omitempty"`
-	ShowErrors                      *wrapperspb.BoolValue    `protobuf:"bytes,120,opt,name=show_errors,json=showErrors,proto3" json:"show_errors,omitempty"`
-	ShowInfo                        *wrapperspb.BoolValue    `protobuf:"bytes,121,opt,name=show_info,json=showInfo,proto3" json:"show_info,omitempty"`
-	ShowWarnings                    *wrapperspb.BoolValue    `protobuf:"bytes,122,opt,name=show_warnings,json=showWarnings,proto3" json:"show_warnings,omitempty"`
-	Silent                          *wrapperspb.BoolValue    `protobuf:"bytes,123,opt,name=silent,proto3" json:"silent,omitempty"`
-	StartMethod                     *wrapperspb.StringValue  `protobuf:"bytes,124,opt,name=start_method,json=startMethod,proto3" json:"start_method,omitempty"`
-	Strict                          *wrapperspb.BoolValue    `protobuf:"bytes,125,opt,name=strict,proto3" json:"strict,omitempty"`
-	SummaryErrors                   *wrapperspb.Int32Value   `protobuf:"bytes,126,opt,name=summary_errors,json=summaryErrors,proto3" json:"summary_errors,omitempty"`
-	SummaryTimeout                  *wrapperspb.Int32Value   `protobuf:"bytes,127,opt,name=summary_timeout,json=summaryTimeout,proto3" json:"summary_timeout,omitempty"`
-	SummaryWarnings                 *wrapperspb.Int32Value   `protobuf:"bytes,128,opt,name=summary_warnings,json=summaryWarnings,proto3" json:"summary_warnings,omitempty"`
-	SweepId                         *wrapperspb.StringValue  `protobuf:"bytes,129,opt,name=sweep_id,json=sweepId,proto3" json:"sweep_id,omitempty"`
-	SweepParamPath                  *wrapperspb.StringValue  `protobuf:"bytes,130,opt,name=sweep_param_path,json=sweepParamPath,proto3" json:"sweep_param_path,omitempty"`
-	Symlink                         *wrapperspb.BoolValue    `protobuf:"bytes,132,opt,name=symlink,proto3" json:"symlink,omitempty"`
-	SyncDir                         *wrapperspb.StringValue  `protobuf:"bytes,133,opt,name=sync_dir,json=syncDir,proto3" json:"sync_dir,omitempty"`
-	SyncSymlinkLatest               *wrapperspb.StringValue  `protobuf:"bytes,135,opt,name=sync_symlink_latest,json=syncSymlinkLatest,proto3" json:"sync_symlink_latest,omitempty"`
-	TableRaiseOnMaxRowLimitExceeded *wrapperspb.BoolValue    `protobuf:"bytes,138,opt,name=table_raise_on_max_row_limit_exceeded,json=tableRaiseOnMaxRowLimitExceeded,proto3" json:"table_raise_on_max_row_limit_exceeded,omitempty"`
-	Timespec                        *wrapperspb.StringValue  `protobuf:"bytes,139,opt,name=timespec,proto3" json:"timespec,omitempty"`
-	TmpDir                          *wrapperspb.StringValue  `protobuf:"bytes,140,opt,name=tmp_dir,json=tmpDir,proto3" json:"tmp_dir,omitempty"`
-	WandbDir                        *wrapperspb.StringValue  `protobuf:"bytes,142,opt,name=wandb_dir,json=wandbDir,proto3" json:"wandb_dir,omitempty"`
-	XJupyterName                    *wrapperspb.StringValue  `protobuf:"bytes,143,opt,name=x_jupyter_name,json=xJupyterName,proto3" json:"x_jupyter_name,omitempty"`
-	XJupyterPath                    *wrapperspb.StringValue  `protobuf:"bytes,144,opt,name=x_jupyter_path,json=xJupyterPath,proto3" json:"x_jupyter_path,omitempty"`
-	JobName                         *wrapperspb.StringValue  `protobuf:"bytes,145,opt,name=job_name,json=jobName,proto3" json:"job_name,omitempty"`
-	XDisableMachineInfo             *wrapperspb.BoolValue    `protobuf:"bytes,158,opt,name=x_disable_machine_info,json=xDisableMachineInfo,proto3" json:"x_disable_machine_info,omitempty"`
-	ProgramAbspath                  *wrapperspb.StringValue  `protobuf:"bytes,159,opt,name=program_abspath,json=programAbspath,proto3" json:"program_abspath,omitempty"`
-	ColabUrl                        *wrapperspb.StringValue  `protobuf:"bytes,160,opt,name=colab_url,json=colabUrl,proto3" json:"colab_url,omitempty"`
-	XCodePathLocal                  *wrapperspb.StringValue  `protobuf:"bytes,163,opt,name=_code_path_local,json=CodePathLocal,proto3" json:"_code_path_local,omitempty"`
-	ConsoleMultipart                *wrapperspb.BoolValue    `protobuf:"bytes,166,opt,name=console_multipart,json=consoleMultipart,proto3" json:"console_multipart,omitempty"`
+	XFilesDir *wrapperspb.StringValue `protobuf:"bytes,179,opt,name=x_files_dir,json=xFilesDir,proto3" json:"x_files_dir,omitempty"`
+	// The arguments passed to the script that created the run, if available.
+	XArgs                 *ListStringValue        `protobuf:"bytes,1,opt,name=_args,json=Args,proto3" json:"_args,omitempty"`
+	XAwsLambda            *wrapperspb.BoolValue   `protobuf:"bytes,2,opt,name=_aws_lambda,json=AwsLambda,proto3" json:"_aws_lambda,omitempty"`
+	XCliOnlyMode          *wrapperspb.BoolValue   `protobuf:"bytes,4,opt,name=x_cli_only_mode,json=xCliOnlyMode,proto3" json:"x_cli_only_mode,omitempty"`
+	XColab                *wrapperspb.BoolValue   `protobuf:"bytes,5,opt,name=_colab,json=Colab,proto3" json:"_colab,omitempty"`
+	XDisableMeta          *wrapperspb.BoolValue   `protobuf:"bytes,7,opt,name=x_disable_meta,json=xDisableMeta,proto3" json:"x_disable_meta,omitempty"`
+	XDisableService       *wrapperspb.BoolValue   `protobuf:"bytes,8,opt,name=x_disable_service,json=xDisableService,proto3" json:"x_disable_service,omitempty"`
+	XDisableSetproctitle  *wrapperspb.BoolValue   `protobuf:"bytes,9,opt,name=x_disable_setproctitle,json=xDisableSetproctitle,proto3" json:"x_disable_setproctitle,omitempty"`
+	XDisableStats         *wrapperspb.BoolValue   `protobuf:"bytes,10,opt,name=x_disable_stats,json=xDisableStats,proto3" json:"x_disable_stats,omitempty"`
+	XDisableViewer        *wrapperspb.BoolValue   `protobuf:"bytes,11,opt,name=x_disable_viewer,json=xDisableViewer,proto3" json:"x_disable_viewer,omitempty"`
+	XExecutable           *wrapperspb.StringValue `protobuf:"bytes,13,opt,name=x_executable,json=xExecutable,proto3" json:"x_executable,omitempty"`
+	XFlowControlCustom    *wrapperspb.BoolValue   `protobuf:"bytes,16,opt,name=x_flow_control_custom,json=xFlowControlCustom,proto3" json:"x_flow_control_custom,omitempty"`
+	XFlowControlDisabled  *wrapperspb.BoolValue   `protobuf:"bytes,17,opt,name=x_flow_control_disabled,json=xFlowControlDisabled,proto3" json:"x_flow_control_disabled,omitempty"`
+	XInternalCheckProcess *wrapperspb.DoubleValue `protobuf:"bytes,18,opt,name=x_internal_check_process,json=xInternalCheckProcess,proto3" json:"x_internal_check_process,omitempty"`
+	XInternalQueueTimeout *wrapperspb.DoubleValue `protobuf:"bytes,19,opt,name=x_internal_queue_timeout,json=xInternalQueueTimeout,proto3" json:"x_internal_queue_timeout,omitempty"`
+	XIpython              *wrapperspb.BoolValue   `protobuf:"bytes,20,opt,name=_ipython,json=Ipython,proto3" json:"_ipython,omitempty"`
+	XJupyter              *wrapperspb.BoolValue   `protobuf:"bytes,21,opt,name=_jupyter,json=Jupyter,proto3" json:"_jupyter,omitempty"`
+	XJupyterRoot          *wrapperspb.StringValue `protobuf:"bytes,22,opt,name=x_jupyter_root,json=xJupyterRoot,proto3" json:"x_jupyter_root,omitempty"`
+	XKaggle               *wrapperspb.BoolValue   `protobuf:"bytes,23,opt,name=_kaggle,json=Kaggle,proto3" json:"_kaggle,omitempty"`
+	XLivePolicyRateLimit  *wrapperspb.Int32Value  `protobuf:"bytes,24,opt,name=x_live_policy_rate_limit,json=xLivePolicyRateLimit,proto3" json:"x_live_policy_rate_limit,omitempty"`
+	XLivePolicyWaitTime   *wrapperspb.Int32Value  `protobuf:"bytes,25,opt,name=x_live_policy_wait_time,json=xLivePolicyWaitTime,proto3" json:"x_live_policy_wait_time,omitempty"`
+	XLogLevel             *wrapperspb.Int32Value  `protobuf:"bytes,26,opt,name=x_log_level,json=xLogLevel,proto3" json:"x_log_level,omitempty"`
+	XNetworkBuffer        *wrapperspb.Int32Value  `protobuf:"bytes,27,opt,name=x_network_buffer,json=xNetworkBuffer,proto3" json:"x_network_buffer,omitempty"`
+	XNoop                 *wrapperspb.BoolValue   `protobuf:"bytes,28,opt,name=_noop,json=Noop,proto3" json:"_noop,omitempty"`
+	XNotebook             *wrapperspb.BoolValue   `protobuf:"bytes,29,opt,name=_notebook,json=Notebook,proto3" json:"_notebook,omitempty"`
+	// The operating system of the machine running the script.
+	XOs                           *wrapperspb.StringValue  `protobuf:"bytes,32,opt,name=_os,json=Os,proto3" json:"_os,omitempty"`
+	XPlatform                     *wrapperspb.StringValue  `protobuf:"bytes,33,opt,name=_platform,json=Platform,proto3" json:"_platform,omitempty"`
+	XPython                       *wrapperspb.StringValue  `protobuf:"bytes,34,opt,name=_python,json=Python,proto3" json:"_python,omitempty"`
+	XRunqueueItemId               *wrapperspb.StringValue  `protobuf:"bytes,35,opt,name=x_runqueue_item_id,json=xRunqueueItemId,proto3" json:"x_runqueue_item_id,omitempty"`
+	XSaveRequirements             *wrapperspb.BoolValue    `protobuf:"bytes,37,opt,name=x_save_requirements,json=xSaveRequirements,proto3" json:"x_save_requirements,omitempty"`
+	XServiceTransport             *wrapperspb.StringValue  `protobuf:"bytes,38,opt,name=x_service_transport,json=xServiceTransport,proto3" json:"x_service_transport,omitempty"`
+	XServiceWait                  *wrapperspb.DoubleValue  `protobuf:"bytes,39,opt,name=x_service_wait,json=xServiceWait,proto3" json:"x_service_wait,omitempty"`
+	XStartDatetime                *wrapperspb.StringValue  `protobuf:"bytes,40,opt,name=_start_datetime,json=StartDatetime,proto3" json:"_start_datetime,omitempty"`
+	XStatsPid                     *wrapperspb.Int32Value   `protobuf:"bytes,42,opt,name=x_stats_pid,json=xStatsPid,proto3" json:"x_stats_pid,omitempty"`
+	XStatsSamplingInterval        *wrapperspb.DoubleValue  `protobuf:"bytes,174,opt,name=x_stats_sampling_interval,json=xStatsSamplingInterval,proto3" json:"x_stats_sampling_interval,omitempty"`
+	XStatsSampleRateSeconds       *wrapperspb.DoubleValue  `protobuf:"bytes,43,opt,name=x_stats_sample_rate_seconds,json=xStatsSampleRateSeconds,proto3" json:"x_stats_sample_rate_seconds,omitempty"`
+	XStatsSamplesToAverage        *wrapperspb.Int32Value   `protobuf:"bytes,44,opt,name=x_stats_samples_to_average,json=xStatsSamplesToAverage,proto3" json:"x_stats_samples_to_average,omitempty"`
+	XStatsNeuronMonitorConfigPath *wrapperspb.StringValue  `protobuf:"bytes,46,opt,name=x_stats_neuron_monitor_config_path,json=xStatsNeuronMonitorConfigPath,proto3" json:"x_stats_neuron_monitor_config_path,omitempty"`
+	XStatsOpenMetricsEndpoints    *MapStringKeyStringValue `protobuf:"bytes,47,opt,name=x_stats_open_metrics_endpoints,json=xStatsOpenMetricsEndpoints,proto3" json:"x_stats_open_metrics_endpoints,omitempty"`
+	XStatsOpenMetricsFilters      *OpenMetricsFilters      `protobuf:"bytes,48,opt,name=x_stats_open_metrics_filters,json=xStatsOpenMetricsFilters,proto3" json:"x_stats_open_metrics_filters,omitempty"`
+	XStatsDiskPaths               *ListStringValue         `protobuf:"bytes,146,opt,name=x_stats_disk_paths,json=xStatsDiskPaths,proto3" json:"x_stats_disk_paths,omitempty"`
+	XStatsBufferSize              *wrapperspb.Int32Value   `protobuf:"bytes,161,opt,name=x_stats_buffer_size,json=xStatsBufferSize,proto3" json:"x_stats_buffer_size,omitempty"`
+	XTmpCodeDir                   *wrapperspb.StringValue  `protobuf:"bytes,49,opt,name=_tmp_code_dir,json=TmpCodeDir,proto3" json:"_tmp_code_dir,omitempty"`
+	XWindows                      *wrapperspb.BoolValue    `protobuf:"bytes,52,opt,name=_windows,json=Windows,proto3" json:"_windows,omitempty"`
+	AllowValChange                *wrapperspb.BoolValue    `protobuf:"bytes,53,opt,name=allow_val_change,json=allowValChange,proto3" json:"allow_val_change,omitempty"`
+	Anonymous                     *wrapperspb.StringValue  `protobuf:"bytes,54,opt,name=anonymous,proto3" json:"anonymous,omitempty"`
+	AzureAccountUrlToAccessKey    *MapStringKeyStringValue `protobuf:"bytes,56,opt,name=azure_account_url_to_access_key,json=azureAccountUrlToAccessKey,proto3" json:"azure_account_url_to_access_key,omitempty"`
+	CodeDir                       *wrapperspb.StringValue  `protobuf:"bytes,58,opt,name=code_dir,json=codeDir,proto3" json:"code_dir,omitempty"`
+	ConfigPaths                   *ListStringValue         `protobuf:"bytes,59,opt,name=config_paths,json=configPaths,proto3" json:"config_paths,omitempty"`
+	Deployment                    *wrapperspb.StringValue  `protobuf:"bytes,61,opt,name=deployment,proto3" json:"deployment,omitempty"`
+	DisableCode                   *wrapperspb.BoolValue    `protobuf:"bytes,62,opt,name=disable_code,json=disableCode,proto3" json:"disable_code,omitempty"`
+	DisableGit                    *wrapperspb.BoolValue    `protobuf:"bytes,63,opt,name=disable_git,json=disableGit,proto3" json:"disable_git,omitempty"`
+	DisableHints                  *wrapperspb.BoolValue    `protobuf:"bytes,64,opt,name=disable_hints,json=disableHints,proto3" json:"disable_hints,omitempty"`
+	Disabled                      *wrapperspb.BoolValue    `protobuf:"bytes,66,opt,name=disabled,proto3" json:"disabled,omitempty"`
+	// The Docker image used to execute the script.
+	Docker             *wrapperspb.StringValue `protobuf:"bytes,67,opt,name=docker,proto3" json:"docker,omitempty"`
+	Force              *wrapperspb.BoolValue   `protobuf:"bytes,71,opt,name=force,proto3" json:"force,omitempty"`
+	GitCommit          *wrapperspb.StringValue `protobuf:"bytes,72,opt,name=git_commit,json=gitCommit,proto3" json:"git_commit,omitempty"`
+	GitRemote          *wrapperspb.StringValue `protobuf:"bytes,73,opt,name=git_remote,json=gitRemote,proto3" json:"git_remote,omitempty"`
+	GitRemoteUrl       *wrapperspb.StringValue `protobuf:"bytes,74,opt,name=git_remote_url,json=gitRemoteUrl,proto3" json:"git_remote_url,omitempty"`
+	GitRoot            *wrapperspb.StringValue `protobuf:"bytes,75,opt,name=git_root,json=gitRoot,proto3" json:"git_root,omitempty"`
+	HeartbeatSeconds   *wrapperspb.Int32Value  `protobuf:"bytes,76,opt,name=heartbeat_seconds,json=heartbeatSeconds,proto3" json:"heartbeat_seconds,omitempty"`
+	Host               *wrapperspb.StringValue `protobuf:"bytes,77,opt,name=host,proto3" json:"host,omitempty"`
+	InitTimeout        *wrapperspb.DoubleValue `protobuf:"bytes,79,opt,name=init_timeout,json=initTimeout,proto3" json:"init_timeout,omitempty"`
+	IsLocal            *wrapperspb.BoolValue   `protobuf:"bytes,80,opt,name=is_local,json=isLocal,proto3" json:"is_local,omitempty"`
+	JobSource          *wrapperspb.StringValue `protobuf:"bytes,81,opt,name=job_source,json=jobSource,proto3" json:"job_source,omitempty"`
+	LabelDisable       *wrapperspb.BoolValue   `protobuf:"bytes,82,opt,name=label_disable,json=labelDisable,proto3" json:"label_disable,omitempty"`
+	Launch             *wrapperspb.BoolValue   `protobuf:"bytes,83,opt,name=launch,proto3" json:"launch,omitempty"`
+	LaunchConfigPath   *wrapperspb.StringValue `protobuf:"bytes,84,opt,name=launch_config_path,json=launchConfigPath,proto3" json:"launch_config_path,omitempty"`
+	LogSymlinkInternal *wrapperspb.StringValue `protobuf:"bytes,87,opt,name=log_symlink_internal,json=logSymlinkInternal,proto3" json:"log_symlink_internal,omitempty"`
+	LogSymlinkUser     *wrapperspb.StringValue `protobuf:"bytes,88,opt,name=log_symlink_user,json=logSymlinkUser,proto3" json:"log_symlink_user,omitempty"`
+	LogUser            *wrapperspb.StringValue `protobuf:"bytes,89,opt,name=log_user,json=logUser,proto3" json:"log_user,omitempty"`
+	LoginTimeout       *wrapperspb.DoubleValue `protobuf:"bytes,90,opt,name=login_timeout,json=loginTimeout,proto3" json:"login_timeout,omitempty"`
+	Mode               *wrapperspb.StringValue `protobuf:"bytes,92,opt,name=mode,proto3" json:"mode,omitempty"`
+	NotebookName       *wrapperspb.StringValue `protobuf:"bytes,93,opt,name=notebook_name,json=notebookName,proto3" json:"notebook_name,omitempty"`
+	// The relative path from the root repository directory to the script that
+	// created the run.
+	//
+	// If the script is not in the root repository directory, this will be the
+	// relative path from the current working directory to the script.
+	//
+	// For example, if the script is /home/user/project/example.py, and the root
+	// repository directory is /home/user/project, then the relative path is
+	// example.py.
+	//
+	// If couldn't find the relative path, this will be an empty string.
+	ProgramRelpath *wrapperspb.StringValue `protobuf:"bytes,96,opt,name=program_relpath,json=programRelpath,proto3" json:"program_relpath,omitempty"`
+	ProjectUrl     *wrapperspb.StringValue `protobuf:"bytes,98,opt,name=project_url,json=projectUrl,proto3" json:"project_url,omitempty"`
+	Quiet          *wrapperspb.BoolValue   `protobuf:"bytes,99,opt,name=quiet,proto3" json:"quiet,omitempty"`
+	Reinit         *wrapperspb.BoolValue   `protobuf:"bytes,100,opt,name=reinit,proto3" json:"reinit,omitempty"`
+	Relogin        *wrapperspb.BoolValue   `protobuf:"bytes,101,opt,name=relogin,proto3" json:"relogin,omitempty"`
+	ResumeFname    *wrapperspb.StringValue `protobuf:"bytes,103,opt,name=resume_fname,json=resumeFname,proto3" json:"resume_fname,omitempty"`
+	Resumed        *wrapperspb.BoolValue   `protobuf:"bytes,104,opt,name=resumed,proto3" json:"resumed,omitempty"`
+	// The root directory that will be used to derive other paths.
+	// Such as the wandb directory, and the run directory.
+	//
+	// By default, this is the current working directory.
+	RootDir                         *wrapperspb.StringValue `protobuf:"bytes,105,opt,name=root_dir,json=rootDir,proto3" json:"root_dir,omitempty"`
+	RunGroup                        *wrapperspb.StringValue `protobuf:"bytes,106,opt,name=run_group,json=runGroup,proto3" json:"run_group,omitempty"`
+	RunJobType                      *wrapperspb.StringValue `protobuf:"bytes,108,opt,name=run_job_type,json=runJobType,proto3" json:"run_job_type,omitempty"`
+	RunMode                         *wrapperspb.StringValue `protobuf:"bytes,109,opt,name=run_mode,json=runMode,proto3" json:"run_mode,omitempty"`
+	RunName                         *wrapperspb.StringValue `protobuf:"bytes,110,opt,name=run_name,json=runName,proto3" json:"run_name,omitempty"`
+	RunNotes                        *wrapperspb.StringValue `protobuf:"bytes,111,opt,name=run_notes,json=runNotes,proto3" json:"run_notes,omitempty"`
+	RunTags                         *ListStringValue        `protobuf:"bytes,112,opt,name=run_tags,json=runTags,proto3" json:"run_tags,omitempty"`
+	SagemakerDisable                *wrapperspb.BoolValue   `protobuf:"bytes,114,opt,name=sagemaker_disable,json=sagemakerDisable,proto3" json:"sagemaker_disable,omitempty"`
+	SaveCode                        *wrapperspb.BoolValue   `protobuf:"bytes,115,opt,name=save_code,json=saveCode,proto3" json:"save_code,omitempty"`
+	SettingsSystem                  *wrapperspb.StringValue `protobuf:"bytes,116,opt,name=settings_system,json=settingsSystem,proto3" json:"settings_system,omitempty"`
+	SettingsWorkspace               *wrapperspb.StringValue `protobuf:"bytes,117,opt,name=settings_workspace,json=settingsWorkspace,proto3" json:"settings_workspace,omitempty"`
+	ShowColors                      *wrapperspb.BoolValue   `protobuf:"bytes,118,opt,name=show_colors,json=showColors,proto3" json:"show_colors,omitempty"`
+	ShowEmoji                       *wrapperspb.BoolValue   `protobuf:"bytes,119,opt,name=show_emoji,json=showEmoji,proto3" json:"show_emoji,omitempty"`
+	ShowErrors                      *wrapperspb.BoolValue   `protobuf:"bytes,120,opt,name=show_errors,json=showErrors,proto3" json:"show_errors,omitempty"`
+	ShowInfo                        *wrapperspb.BoolValue   `protobuf:"bytes,121,opt,name=show_info,json=showInfo,proto3" json:"show_info,omitempty"`
+	ShowWarnings                    *wrapperspb.BoolValue   `protobuf:"bytes,122,opt,name=show_warnings,json=showWarnings,proto3" json:"show_warnings,omitempty"`
+	Silent                          *wrapperspb.BoolValue   `protobuf:"bytes,123,opt,name=silent,proto3" json:"silent,omitempty"`
+	StartMethod                     *wrapperspb.StringValue `protobuf:"bytes,124,opt,name=start_method,json=startMethod,proto3" json:"start_method,omitempty"`
+	Strict                          *wrapperspb.BoolValue   `protobuf:"bytes,125,opt,name=strict,proto3" json:"strict,omitempty"`
+	SummaryErrors                   *wrapperspb.Int32Value  `protobuf:"bytes,126,opt,name=summary_errors,json=summaryErrors,proto3" json:"summary_errors,omitempty"`
+	SummaryTimeout                  *wrapperspb.Int32Value  `protobuf:"bytes,127,opt,name=summary_timeout,json=summaryTimeout,proto3" json:"summary_timeout,omitempty"`
+	SummaryWarnings                 *wrapperspb.Int32Value  `protobuf:"bytes,128,opt,name=summary_warnings,json=summaryWarnings,proto3" json:"summary_warnings,omitempty"`
+	SweepId                         *wrapperspb.StringValue `protobuf:"bytes,129,opt,name=sweep_id,json=sweepId,proto3" json:"sweep_id,omitempty"`
+	SweepParamPath                  *wrapperspb.StringValue `protobuf:"bytes,130,opt,name=sweep_param_path,json=sweepParamPath,proto3" json:"sweep_param_path,omitempty"`
+	Symlink                         *wrapperspb.BoolValue   `protobuf:"bytes,132,opt,name=symlink,proto3" json:"symlink,omitempty"`
+	SyncDir                         *wrapperspb.StringValue `protobuf:"bytes,133,opt,name=sync_dir,json=syncDir,proto3" json:"sync_dir,omitempty"`
+	SyncSymlinkLatest               *wrapperspb.StringValue `protobuf:"bytes,135,opt,name=sync_symlink_latest,json=syncSymlinkLatest,proto3" json:"sync_symlink_latest,omitempty"`
+	TableRaiseOnMaxRowLimitExceeded *wrapperspb.BoolValue   `protobuf:"bytes,138,opt,name=table_raise_on_max_row_limit_exceeded,json=tableRaiseOnMaxRowLimitExceeded,proto3" json:"table_raise_on_max_row_limit_exceeded,omitempty"`
+	Timespec                        *wrapperspb.StringValue `protobuf:"bytes,139,opt,name=timespec,proto3" json:"timespec,omitempty"`
+	TmpDir                          *wrapperspb.StringValue `protobuf:"bytes,140,opt,name=tmp_dir,json=tmpDir,proto3" json:"tmp_dir,omitempty"`
+	WandbDir                        *wrapperspb.StringValue `protobuf:"bytes,142,opt,name=wandb_dir,json=wandbDir,proto3" json:"wandb_dir,omitempty"`
+	XJupyterName                    *wrapperspb.StringValue `protobuf:"bytes,143,opt,name=x_jupyter_name,json=xJupyterName,proto3" json:"x_jupyter_name,omitempty"`
+	XJupyterPath                    *wrapperspb.StringValue `protobuf:"bytes,144,opt,name=x_jupyter_path,json=xJupyterPath,proto3" json:"x_jupyter_path,omitempty"`
+	JobName                         *wrapperspb.StringValue `protobuf:"bytes,145,opt,name=job_name,json=jobName,proto3" json:"job_name,omitempty"`
+	XDisableMachineInfo             *wrapperspb.BoolValue   `protobuf:"bytes,158,opt,name=x_disable_machine_info,json=xDisableMachineInfo,proto3" json:"x_disable_machine_info,omitempty"`
+	// The absolute path from the root repository directory to the script that
+	// created the run.
+	//
+	// Root repository directory is defined as the directory containing the
+	// .git directory, if it exists. Otherwise, it's the current working directory.
+	ProgramAbspath *wrapperspb.StringValue `protobuf:"bytes,159,opt,name=program_abspath,json=programAbspath,proto3" json:"program_abspath,omitempty"`
+	// The Colab URL, if available.
+	ColabUrl *wrapperspb.StringValue `protobuf:"bytes,160,opt,name=colab_url,json=colabUrl,proto3" json:"colab_url,omitempty"`
+	// The relative path from the current working directory to the code path.
+	//
+	// For example, if the code path is /home/user/project/example.py, and the
+	// current working directory is /home/user/project, then the code path local
+	// is example.py.
+	//
+	// If couldn't find the relative path, this will be an empty string.
+	XCodePathLocal   *wrapperspb.StringValue `protobuf:"bytes,163,opt,name=_code_path_local,json=CodePathLocal,proto3" json:"_code_path_local,omitempty"`
+	ConsoleMultipart *wrapperspb.BoolValue   `protobuf:"bytes,166,opt,name=console_multipart,json=consoleMultipart,proto3" json:"console_multipart,omitempty"`
+	// Flag to allow table artifacts to be synced in offline mode
+	//
+	// By default, true, to revert to old behavior, set this to False.
+	AllowOfflineArtifacts *wrapperspb.BoolValue `protobuf:"bytes,177,opt,name=allow_offline_artifacts,json=allowOfflineArtifacts,proto3" json:"allow_offline_artifacts,omitempty"`
 }
 
 func (x *Settings) Reset() {
@@ -1794,6 +1829,13 @@ func (x *Settings) GetConsoleMultipart() *wrapperspb.BoolValue {
 	return nil
 }
 
+func (x *Settings) GetAllowOfflineArtifacts() *wrapperspb.BoolValue {
+	if x != nil {
+		return x.AllowOfflineArtifacts
+	}
+	return nil
+}
+
 var File_wandb_proto_wandb_settings_proto protoreflect.FileDescriptor
 
 var file_wandb_proto_wandb_settings_proto_rawDesc = []byte{
@@ -1844,7 +1886,7 @@ var file_wandb_proto_wandb_settings_proto_rawDesc = []byte{
 	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x72, 0x75, 0x6e, 0x12, 0x14, 0x0a, 0x05, 0x76,
 	0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x01, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75,
 	0x65, 0x12, 0x16, 0x0a, 0x06, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x18, 0x03, 0x20, 0x01, 0x28,
-	0x09, 0x52, 0x06, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x22, 0xca, 0x5a, 0x0a, 0x08, 0x53, 0x65,
+	0x09, 0x52, 0x06, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x22, 0x9f, 0x5b, 0x0a, 0x08, 0x53, 0x65,
 	0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x12, 0x35, 0x0a, 0x07, 0x61, 0x70, 0x69, 0x5f, 0x6b, 0x65,
 	0x79, 0x18, 0x37, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65,
 	0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x53, 0x74, 0x72, 0x69, 0x6e, 0x67,
@@ -2062,11 +2104,11 @@ var file_wandb_proto_wandb_settings_proto_rawDesc = []byte{
 	0x6f, 0x62, 0x75, 0x66, 0x2e, 0x42, 0x6f, 0x6f, 0x6c, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x13,
 	0x78, 0x53, 0x68, 0x6f, 0x77, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74,
 	0x61, 0x74, 0x73, 0x12, 0x46, 0x0a, 0x10, 0x73, 0x79, 0x6e, 0x63, 0x5f, 0x74, 0x65, 0x6e, 0x73,
-	0x6f, 0x72, 0x62, 0x6f, 0x61, 0x72, 0x64, 0x18, 0xb1, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a,
+	0x6f, 0x72, 0x62, 0x6f, 0x61, 0x72, 0x64, 0x18, 0xb2, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a,
 	0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66,
 	0x2e, 0x42, 0x6f, 0x6f, 0x6c, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x0f, 0x73, 0x79, 0x6e, 0x63,
 	0x54, 0x65, 0x6e, 0x73, 0x6f, 0x72, 0x62, 0x6f, 0x61, 0x72, 0x64, 0x12, 0x3d, 0x0a, 0x0b, 0x78,
-	0x5f, 0x66, 0x69, 0x6c, 0x65, 0x73, 0x5f, 0x64, 0x69, 0x72, 0x18, 0xb2, 0x01, 0x20, 0x01, 0x28,
+	0x5f, 0x66, 0x69, 0x6c, 0x65, 0x73, 0x5f, 0x64, 0x69, 0x72, 0x18, 0xb3, 0x01, 0x20, 0x01, 0x28,
 	0x0b, 0x32, 0x1c, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
 	0x62, 0x75, 0x66, 0x2e, 0x53, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52,
 	0x09, 0x78, 0x46, 0x69, 0x6c, 0x65, 0x73, 0x44, 0x69, 0x72, 0x12, 0x34, 0x0a, 0x05, 0x5f, 0x61,
@@ -2565,13 +2607,18 @@ var file_wandb_proto_wandb_settings_proto_rawDesc = []byte{
 	0x6c, 0x74, 0x69, 0x70, 0x61, 0x72, 0x74, 0x18, 0xa6, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a,
 	0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66,
 	0x2e, 0x42, 0x6f, 0x6f, 0x6c, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x10, 0x63, 0x6f, 0x6e, 0x73,
-	0x6f, 0x6c, 0x65, 0x4d, 0x75, 0x6c, 0x74, 0x69, 0x70, 0x61, 0x72, 0x74, 0x4a, 0x04, 0x08, 0x06,
-	0x10, 0x07, 0x4a, 0x04, 0x08, 0x0c, 0x10, 0x0d, 0x4a, 0x04, 0x08, 0x24, 0x10, 0x25, 0x4a, 0x04,
-	0x08, 0x2d, 0x10, 0x2e, 0x4a, 0x04, 0x08, 0x32, 0x10, 0x33, 0x4a, 0x04, 0x08, 0x33, 0x10, 0x34,
-	0x4a, 0x04, 0x08, 0x5e, 0x10, 0x5f, 0x4a, 0x06, 0x08, 0x88, 0x01, 0x10, 0x89, 0x01, 0x4a, 0x06,
-	0x08, 0x89, 0x01, 0x10, 0x8a, 0x01, 0x42, 0x1b, 0x5a, 0x19, 0x63, 0x6f, 0x72, 0x65, 0x2f, 0x70,
-	0x6b, 0x67, 0x2f, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x5f, 0x67, 0x6f, 0x5f, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x6f, 0x6c, 0x65, 0x4d, 0x75, 0x6c, 0x74, 0x69, 0x70, 0x61, 0x72, 0x74, 0x12, 0x53, 0x0a, 0x17,
+	0x61, 0x6c, 0x6c, 0x6f, 0x77, 0x5f, 0x6f, 0x66, 0x66, 0x6c, 0x69, 0x6e, 0x65, 0x5f, 0x61, 0x72,
+	0x74, 0x69, 0x66, 0x61, 0x63, 0x74, 0x73, 0x18, 0xb1, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a,
+	0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66,
+	0x2e, 0x42, 0x6f, 0x6f, 0x6c, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x15, 0x61, 0x6c, 0x6c, 0x6f,
+	0x77, 0x4f, 0x66, 0x66, 0x6c, 0x69, 0x6e, 0x65, 0x41, 0x72, 0x74, 0x69, 0x66, 0x61, 0x63, 0x74,
+	0x73, 0x4a, 0x04, 0x08, 0x06, 0x10, 0x07, 0x4a, 0x04, 0x08, 0x0c, 0x10, 0x0d, 0x4a, 0x04, 0x08,
+	0x24, 0x10, 0x25, 0x4a, 0x04, 0x08, 0x2d, 0x10, 0x2e, 0x4a, 0x04, 0x08, 0x32, 0x10, 0x33, 0x4a,
+	0x04, 0x08, 0x33, 0x10, 0x34, 0x4a, 0x04, 0x08, 0x5e, 0x10, 0x5f, 0x4a, 0x06, 0x08, 0x88, 0x01,
+	0x10, 0x89, 0x01, 0x4a, 0x06, 0x08, 0x89, 0x01, 0x10, 0x8a, 0x01, 0x42, 0x1b, 0x5a, 0x19, 0x63,
+	0x6f, 0x72, 0x65, 0x2f, 0x70, 0x6b, 0x67, 0x2f, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x5f,
+	0x67, 0x6f, 0x5f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -2774,12 +2821,13 @@ var file_wandb_proto_wandb_settings_proto_depIdxs = []int32{
 	8,   // 169: wandb_internal.Settings.colab_url:type_name -> google.protobuf.StringValue
 	8,   // 170: wandb_internal.Settings._code_path_local:type_name -> google.protobuf.StringValue
 	9,   // 171: wandb_internal.Settings.console_multipart:type_name -> google.protobuf.BoolValue
-	1,   // 172: wandb_internal.MapStringKeyMapStringKeyStringValue.ValueEntry.value:type_name -> wandb_internal.MapStringKeyStringValue
-	173, // [173:173] is the sub-list for method output_type
-	173, // [173:173] is the sub-list for method input_type
-	173, // [173:173] is the sub-list for extension type_name
-	173, // [173:173] is the sub-list for extension extendee
-	0,   // [0:173] is the sub-list for field type_name
+	9,   // 172: wandb_internal.Settings.allow_offline_artifacts:type_name -> google.protobuf.BoolValue
+	1,   // 173: wandb_internal.MapStringKeyMapStringKeyStringValue.ValueEntry.value:type_name -> wandb_internal.MapStringKeyStringValue
+	174, // [174:174] is the sub-list for method output_type
+	174, // [174:174] is the sub-list for method input_type
+	174, // [174:174] is the sub-list for extension type_name
+	174, // [174:174] is the sub-list for extension extendee
+	0,   // [0:174] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_settings_proto_init() }

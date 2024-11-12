@@ -43,7 +43,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 179
+// Next ID: 180
 message Settings {
   reserved 6, 12, 36, 45, 50, 51, 94, 136, 137;
 
@@ -222,11 +222,12 @@ message Settings {
   google.protobuf.BoolValue x_show_operation_stats = 176;
 
   // Whether to sync TensorBoard logs to W&B.
-  google.protobuf.BoolValue sync_tensorboard = 177;
+  google.protobuf.BoolValue sync_tensorboard = 178;
 
   // Internal override setting for the computed files_dir
-  google.protobuf.StringValue x_files_dir = 178;
+  google.protobuf.StringValue x_files_dir = 179;
 
+  // The arguments passed to the script that created the run, if available.
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.BoolValue x_cli_only_mode = 4;
@@ -251,6 +252,7 @@ message Settings {
   google.protobuf.Int32Value x_network_buffer = 27;
   google.protobuf.BoolValue _noop = 28;
   google.protobuf.BoolValue _notebook = 29;
+  // The operating system of the machine running the script.
   google.protobuf.StringValue _os = 32;
   google.protobuf.StringValue _platform = 33;
   google.protobuf.StringValue _python = 34;
@@ -280,6 +282,7 @@ message Settings {
   google.protobuf.BoolValue disable_git = 63;
   google.protobuf.BoolValue disable_hints = 64;
   google.protobuf.BoolValue disabled = 66;
+  // The Docker image used to execute the script.
   google.protobuf.StringValue docker = 67;
   google.protobuf.BoolValue force = 71;
   google.protobuf.StringValue git_commit = 72;
@@ -300,6 +303,17 @@ message Settings {
   google.protobuf.DoubleValue login_timeout = 90;
   google.protobuf.StringValue mode = 92;
   google.protobuf.StringValue notebook_name = 93;
+  // The relative path from the root repository directory to the script that
+  // created the run.
+  //
+  // If the script is not in the root repository directory, this will be the
+  // relative path from the current working directory to the script.
+  //
+  // For example, if the script is /home/user/project/example.py, and the root
+  // repository directory is /home/user/project, then the relative path is
+  // example.py.
+  //
+  // If couldn't find the relative path, this will be an empty string.
   google.protobuf.StringValue program_relpath = 96;
   google.protobuf.StringValue project_url = 98;
   google.protobuf.BoolValue quiet = 99;
@@ -307,6 +321,10 @@ message Settings {
   google.protobuf.BoolValue relogin = 101;
   google.protobuf.StringValue resume_fname = 103;
   google.protobuf.BoolValue resumed = 104;
+  // The root directory that will be used to derive other paths.
+  // Such as the wandb directory, and the run directory.
+  //
+  // By default, this is the current working directory.
   google.protobuf.StringValue root_dir = 105;
   google.protobuf.StringValue run_group = 106;
   google.protobuf.StringValue run_job_type = 108;
@@ -342,8 +360,25 @@ message Settings {
   google.protobuf.StringValue x_jupyter_path = 144;
   google.protobuf.StringValue job_name = 145;
   google.protobuf.BoolValue x_disable_machine_info = 158;
+  // The absolute path from the root repository directory to the script that
+  // created the run.
+  //
+  // Root repository directory is defined as the directory containing the
+  // .git directory, if it exists. Otherwise, it's the current working directory.
   google.protobuf.StringValue program_abspath = 159;
+  // The Colab URL, if available.
   google.protobuf.StringValue colab_url = 160;
+  // The relative path from the current working directory to the code path.
+  //
+  // For example, if the code path is /home/user/project/example.py, and the
+  // current working directory is /home/user/project, then the code path local
+  // is example.py.
+  //
+  // If couldn't find the relative path, this will be an empty string.
   google.protobuf.StringValue _code_path_local = 163;
   google.protobuf.BoolValue console_multipart = 166;
+  // Flag to allow table artifacts to be synced in offline mode
+  //
+  // By default, true, to revert to old behavior, set this to False.
+  google.protobuf.BoolValue allow_offline_artifacts = 177;
 }
