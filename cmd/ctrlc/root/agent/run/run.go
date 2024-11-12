@@ -16,6 +16,7 @@ func NewAgentRunCmd() *cobra.Command {
 	var agentName string
 	var workspace string
 	var labels []string
+	var insecure bool
 
 	cmd := &cobra.Command{
 		Use:   "run",
@@ -31,7 +32,11 @@ func NewAgentRunCmd() *cobra.Command {
 				metadata[key] = value
 			}
 
-			proxyAddr := "ws://" + proxyAddr
+			proxyAddr := "wss://" + proxyAddr
+			if insecure {
+				proxyAddr = "ws://" + proxyAddr
+			}
+
 			apiKey := os.Getenv("CTRLPLANE_API_KEY")
 			agent := agent.NewAgent(
 				proxyAddr,
@@ -60,10 +65,11 @@ func NewAgentRunCmd() *cobra.Command {
 		SilenceUsage: true,
 	}
 
-	cmd.Flags().StringVarP(&proxyAddr, "proxy", "p", "localhost:4000", "Proxy address to connect through")
+	cmd.Flags().StringVarP(&proxyAddr, "proxy", "p", "app.ctrlplane.dev", "Proxy address to connect through")
 	cmd.Flags().StringVarP(&agentName, "name", "n", "", "Name for this agent")
 	cmd.Flags().StringVarP(&workspace, "workspace", "w", "", "Workspace for this agent")
 	cmd.Flags().StringSliceVarP(&labels, "labels", "l", []string{}, "Labels in the format key=value")
+	cmd.Flags().BoolVar(&insecure, "insecure", false, "Allow insecure connections")
 	
 	cmd.MarkFlagRequired("workspace")
 	cmd.MarkFlagRequired("name")
