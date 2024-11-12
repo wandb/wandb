@@ -593,7 +593,7 @@ class Settings(BaseModel, validate_assignment=True):
         if not self._colab:
             return None
         if self.x_jupyter_path and self.x_jupyter_path.startswith("fileId="):
-            unescaped = unquote(self._jupyter_path)
+            unescaped = unquote(self.x_jupyter_path)
             return "https://colab.research.google.com/notebook#" + unescaped
         return None
 

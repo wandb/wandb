@@ -2,10 +2,7 @@ import threading
 import time
 from collections import deque
 from typing import TYPE_CHECKING, Any
-from unittest import mock
 
-import pytest
-import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import (
     CPU,
@@ -20,7 +17,7 @@ from wandb.sdk.internal.system.assets import (
 )
 from wandb.sdk.internal.system.assets.asset_registry import asset_registry
 from wandb.sdk.internal.system.assets.interfaces import MetricsMonitor
-from wandb.sdk.internal.system.system_monitor import AssetInterface, SystemMonitor
+from wandb.sdk.internal.system.system_monitor import AssetInterface
 
 if TYPE_CHECKING:
     from typing import Deque
