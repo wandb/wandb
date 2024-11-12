@@ -101,12 +101,7 @@ def test_gpu_amd(test_settings):
 
         interface = AssetInterface()
         settings = SettingsStatic(
-            test_settings(
-                dict(
-                    _stats_sample_rate_seconds=0.1,
-                    _stats_samples_to_average=2,
-                )
-            ).to_proto()
+            test_settings(dict(x_stats_sampling_interval=0.1)).to_proto()
         )
         shutdown_event = threading.Event()
 
@@ -151,12 +146,7 @@ def test_gpu_amd_missing_keys(test_settings):
     ):
         interface = AssetInterface()
         settings = SettingsStatic(
-            test_settings(
-                dict(
-                    _stats_sample_rate_seconds=0.1,
-                    _stats_samples_to_average=2,
-                )
-            ).to_proto()
+            test_settings(dict(x_stats_sampling_interval=0.1)).to_proto()
         )
         shutdown_event = threading.Event()
 
