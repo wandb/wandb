@@ -59,6 +59,7 @@ class Paginator:
         self.last_response = self.client.execute(
             self.QUERY, variable_values=self.variables
         )
+        print("self.last_response in _load_page: ", self.last_response)
         self.objects.extend(self.convert_objects())
         return True
 

@@ -71,6 +71,7 @@ class Runs(Paginator):
         """
         query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
             project(name: $project, entityName: $entity) {{
+                internalId
                 runCount(filters: $filters)
                 readOnly
                 runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
@@ -103,6 +104,7 @@ class Runs(Paginator):
     ):
         self.entity = entity
         self.project = project
+        self._project_internal_id = None
         self.filters = filters or {}
         self.order = order
         self._sweeps = {}
@@ -140,6 +142,8 @@ class Runs(Paginator):
         objs = []
         if self.last_response is None or self.last_response.get("project") is None:
             raise ValueError("Could not find project {}".format(self.project))
+        print("last_response: ", self.last_response)
+        project_internal_id = self.last_response["project"]["internalId"]
         for run_response in self.last_response["project"]["runs"]["edges"]:
             run = Run(
                 self.client,
@@ -148,6 +152,7 @@ class Runs(Paginator):
                 run_response["node"]["name"],
                 run_response["node"],
                 include_sweeps=self._include_sweeps,
+                project_internal_id=project_internal_id,
             )
             objs.append(run)
 
@@ -288,6 +293,7 @@ class Run(Attrs):
                     Calling update will persist any changes.
         project (str): the project associated with the run
         entity (str): the name of the entity associated with the run
+        project_internal_id (int): the internal id of the project
         user (str): the name of the user who created the run
         path (str): Unique identifier [entity]/[project]/[run_id]
         notes (str): Notes about the run
@@ -305,6 +311,7 @@ class Run(Attrs):
         run_id: str,
         attrs: Optional[Mapping] = None,
         include_sweeps: bool = True,
+        project_internal_id: Optional[int] = None,
     ):
         """Initialize a Run object.
 
@@ -313,9 +320,11 @@ class Run(Attrs):
         """
         _attrs = attrs or {}
         super().__init__(dict(_attrs))
+        print("Run.__init__() — project_internal_id: ", project_internal_id)
         self.client = client
         self._entity = entity
         self.project = project
+        self._project_internal_id = project_internal_id
         self._files = {}
         self._base_dir = env.get_dir(tempfile.gettempdir())
         self.id = run_id
@@ -414,10 +423,12 @@ class Run(Attrs):
         )
 
     def load(self, force=False):
+        print("Run.load() — self._project_internal_id: ", self._project_internal_id)
         query = gql(
             """
         query Run($project: String!, $entity: String!, $name: String!) {{
             project(name: $project, entityName: $entity) {{
+                internalId
                 run(name: $name) {{
                     ...RunFragment
                 }}
@@ -436,7 +447,7 @@ class Run(Attrs):
                 raise ValueError("Could not find run {}".format(self))
             self._attrs = response["project"]["run"]
             self._state = self._attrs["state"]
-
+            self._project_internal_id = response["project"]["internalId"]
             if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
@@ -619,6 +630,7 @@ class Run(Attrs):
         Returns:
             A `Files` object, which is an iterator over `File` objects.
         """
+        print("run.files() — self._project_internal_id: ", self._project_internal_id)
         return public.Files(self.client, self, names or [], per_page)
 
     @normalize_exceptions

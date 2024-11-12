@@ -523,6 +523,12 @@ def test_delete_file(user, stub_run_gql_once, wandb_backend_spy):
                                             "name": "test.txt",
                                         }
                                     },
+                                    {
+                                        "node": {
+                                            "id": "RmlsZToxOTI1",
+                                            "name": "another-test.txt",
+                                        }
+                                    },
                                 ],
                             },
                         },
@@ -536,12 +542,20 @@ def test_delete_file(user, stub_run_gql_once, wandb_backend_spy):
         gql.Matcher(operation="deleteFiles"),
         delete_spy,
     )
-
     run = Api().run(f"{user}/test/test")
     file = run.files()[0]
     file.delete()
 
     assert delete_spy.requests[0].variables == {"files": [file.id]}
+    # inject_response.append(inject_delete_files)
+    # with relay_server(inject=inject_response) as relay:
+    #     run = Api().run(f"{user}/test/test")
+    #     file = run.files()[0]
+    #     file.delete()
+    #     assert relay.context.raw_data[-1]["request"]["variables"] == {
+    #         "files": [file.id],
+    #         "projectId": run.project,
+    #     }
 
 
 def test_nested_summary(user, stub_run_gql_once):

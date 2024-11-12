@@ -49,6 +49,7 @@ class Files(Paginator):
         query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
             $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false) {{
             project(name: $project, entityName: $entity) {{
+                internalId
                 run(name: $name) {{
                     fileCount
                     ...RunFilesFragment
@@ -61,6 +62,7 @@ class Files(Paginator):
 
     def __init__(self, client, run, names=None, per_page=50, upload=False):
         self.run = run
+        print("self.run: {}, self.run._project_internal_id: {}".format(self.run, self.run._project_internal_id))
         variables = {
             "project": run.project,
             "entity": run.entity,
@@ -98,11 +100,12 @@ class Files(Paginator):
 
     def convert_objects(self):
         return [
-            File(self.client, r["node"])
+            File(self.client, r["node"], self.run)
             for r in self.last_response["project"]["run"]["files"]["edges"]
         ]
 
     def __repr__(self):
+        # print("self.run._project_internal_id: ", self.run._internal_project_id) # auth error
         return "<Files {} ({})>".format("/".join(self.run.path), len(self))
 
 
@@ -120,9 +123,11 @@ class File(Attrs):
         path_uri (str): path to file in the bucket, currently only available for files stored in S3
     """
 
-    def __init__(self, client, attrs):
+    def __init__(self, client, attrs, run=None):
         self.client = client
         self._attrs = attrs
+        self.run = run
+        print("File.__init__() — self.run._project_internal_id: ", self.run._project_internal_id)
         super().__init__(dict(attrs))
 
     @property
@@ -189,18 +194,23 @@ class File(Attrs):
 
     @normalize_exceptions
     def delete(self):
+        print("self in delete: self — {} project_id — {} run — {}".format(self, self.run.project, self.run))
         mutation = gql(
             """
-        mutation deleteFiles($files: [ID!]!) {
-            deleteFiles(input: {
-                files: $files
-            }) {
-                success
+            mutation deleteFiles($files: [ID!]!, $projectId: Int!) {
+                deleteFilesWithProjectId(input: {
+                    files: $files
+                    projectId: $projectId
+                }) {
+                    success
+                }
             }
-        }
-        """
+            """
         )
-        self.client.execute(mutation, variable_values={"files": [self.id]})
+        self.client.execute(mutation, variable_values={
+            "files": [self.id], 
+            "projectId": self.run._project_internal_id
+        })
 
     def __repr__(self):
         return "<File {} ({}) {}>".format(
