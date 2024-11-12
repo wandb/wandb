@@ -814,17 +814,17 @@ class Settings(BaseModel, validate_assignment=True):
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
             meta = wandb.jupyter.notebook_metadata(self.silent)  # type: ignore
-            self._jupyter_path = meta.get("path")
-            self._jupyter_name = meta.get("name")
-            self._jupyter_root = meta.get("root")
+            self.x_jupyter_path = meta.get("path")
+            self.x_jupyter_name = meta.get("name")
+            self.x_jupyter_root = meta.get("root")
         elif (
             self._jupyter
             and self.notebook_name is not None
             and os.path.exists(self.notebook_name)
         ):
-            self._jupyter_path = self.notebook_name
-            self._jupyter_name = self.notebook_name
-            self._jupyter_root = os.getcwd()
+            self.x_jupyter_path = self.notebook_name
+            self.x_jupyter_name = self.notebook_name
+            self.x_jupyter_root = os.getcwd()
         elif self._jupyter:
             wandb.termwarn(
                 "WANDB_NOTEBOOK_NAME should be a path to a notebook file, "
