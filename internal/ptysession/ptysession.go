@@ -223,8 +223,12 @@ func (s *Session) HandleIO() {
 				return
 			}
 			s.LastActivity = time.Now()
+			// Create a copy of the data to prevent it from being overwritten
+			data := make([]byte, n)
+			copy(data, buf[:n])
+
 			select {
-			case s.Stdout <- buf[:n]:
+			case s.Stdout <- data:
 			case <-s.Ctx.Done():
 				return
 			}
