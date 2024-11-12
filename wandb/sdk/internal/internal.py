@@ -28,7 +28,6 @@ import psutil
 import wandb
 
 from ..interface.interface_queue import InterfaceQueue
-from ..lib import tracelog
 from . import context, handler, internal_util, sender, writer
 
 if TYPE_CHECKING:
@@ -63,7 +62,6 @@ def wandb_internal(
     """
     # mark this process as internal
     wandb._set_internal_process()  # type: ignore
-    _setup_tracelog()
     started = time.time()
 
     # any sentry events in the internal process will be tagged as such
@@ -88,8 +86,6 @@ def wandb_internal(
         datetime.fromtimestamp(started),
     )
 
-    tracelog.annotate_queue(record_q, "record_q")
-    tracelog.annotate_queue(result_q, "result_q")
     publish_interface = InterfaceQueue(record_q=record_q)
 
     stopped = threading.Event()
@@ -98,10 +94,8 @@ def wandb_internal(
     context_keeper = context.ContextKeeper()
 
     send_record_q: Queue[Record] = queue.Queue()
-    tracelog.annotate_queue(send_record_q, "send_q")
 
     write_record_q: Queue[Record] = queue.Queue()
-    tracelog.annotate_queue(write_record_q, "write_q")
 
     record_sender_thread = SenderThread(
         settings=_settings,
@@ -182,14 +176,6 @@ def wandb_internal(
             sys.exit(-1)
 
     close_internal_log()
-
-
-def _setup_tracelog() -> None:
-    # TODO: remove this temporary hack, need to find a better way to pass settings
-    # to the server.  for now lets just look at the environment variable we need
-    tracelog_mode = os.environ.get("WANDB_TRACELOG")
-    if tracelog_mode:
-        tracelog.enable(tracelog_mode)
 
 
 def configure_logging(

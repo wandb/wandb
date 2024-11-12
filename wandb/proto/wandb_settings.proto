@@ -176,6 +176,56 @@ message Settings {
 
   // Path to the script that created the run, if available.
   google.protobuf.StringValue program = 95;
+  // The relative path from the root repository directory to the script that
+  // created the run.
+  //
+  // If the script is not in the root repository directory, this will be the
+  // relative path from the current working directory to the script.
+  //
+  // For example, if the script is /home/user/project/example.py, and the root
+  // repository directory is /home/user/project, then the relative path is
+  // example.py.
+  //
+  // If couldn't find the relative path, this will be an empty string.
+  google.protobuf.StringValue program_relpath = 96;
+  // The relative path from the current working directory to the code path.
+  //
+  // For example, if the code path is /home/user/project/example.py, and the
+  // current working directory is /home/user/project, then the code path local
+  // is example.py.
+  //
+  // If couldn't find the relative path, this will be an empty string.
+  google.protobuf.StringValue _code_path_local = 163;
+  // The absolute path from the root repository directory to the script that
+  // created the run.
+  //
+  // Root repository directory is defined as the directory containing the
+  // .git directory, if it exists. Otherwise, it's the current working directory.
+  google.protobuf.StringValue program_abspath = 159;
+
+  // The arguments passed to the script that created the run, if available.
+  ListStringValue _args = 1;
+
+  // The operating system of the machine running the run.
+  google.protobuf.StringValue _os = 32;
+
+  // The Docker image used to execute the script.
+  google.protobuf.StringValue docker = 67;
+
+  // The CUDA version of the machine running the run.
+  google.protobuf.StringValue _cuda = 6;
+
+  // The executable used to execute the script.
+  google.protobuf.StringValue _executable = 13;
+
+  // The Python version used to execute the script.
+  google.protobuf.StringValue _python = 34;
+
+  // The Colab URL, if available.
+  google.protobuf.StringValue colab_url = 160;
+
+  // The name of the host processor the run is running on.
+  google.protobuf.StringValue host = 77;
 
   // The W&B user name.
   google.protobuf.StringValue username = 141;
@@ -203,6 +253,9 @@ message Settings {
 
   // Fork information for the run.
   RunMoment fork_from = 164;
+
+  // The W&B sweep URL.
+  google.protobuf.StringValue sweep_url = 131;
 
   // Whether to create a job artifact for W&B Launch.
   google.protobuf.BoolValue disable_job_creation = 65;
@@ -251,7 +304,6 @@ message Settings {
   google.protobuf.Int32Value x_network_buffer = 27;
   google.protobuf.BoolValue _noop = 28;
   google.protobuf.BoolValue _notebook = 29;
-  google.protobuf.StringValue _os = 32;
   google.protobuf.StringValue _platform = 33;
   google.protobuf.StringValue _python = 34;
   google.protobuf.StringValue x_runqueue_item_id = 35;
@@ -277,17 +329,14 @@ message Settings {
   ListStringValue config_paths = 59;
   google.protobuf.StringValue deployment = 61;
   google.protobuf.BoolValue disable_code = 62;
-  google.protobuf.BoolValue disable_git = 63;
   google.protobuf.BoolValue disable_hints = 64;
   google.protobuf.BoolValue disabled = 66;
-  google.protobuf.StringValue docker = 67;
   google.protobuf.BoolValue force = 71;
   google.protobuf.StringValue git_commit = 72;
   google.protobuf.StringValue git_remote = 73;
   google.protobuf.StringValue git_remote_url = 74;
   google.protobuf.StringValue git_root = 75;
   google.protobuf.Int32Value heartbeat_seconds = 76;
-  google.protobuf.StringValue host = 77;
   google.protobuf.DoubleValue init_timeout = 79;
   google.protobuf.BoolValue is_local = 80;
   google.protobuf.StringValue job_source = 81;
@@ -300,14 +349,12 @@ message Settings {
   google.protobuf.DoubleValue login_timeout = 90;
   google.protobuf.StringValue mode = 92;
   google.protobuf.StringValue notebook_name = 93;
-  google.protobuf.StringValue program_relpath = 96;
   google.protobuf.StringValue project_url = 98;
   google.protobuf.BoolValue quiet = 99;
   google.protobuf.BoolValue reinit = 100;
   google.protobuf.BoolValue relogin = 101;
   google.protobuf.StringValue resume_fname = 103;
   google.protobuf.BoolValue resumed = 104;
-  google.protobuf.StringValue root_dir = 105;
   google.protobuf.StringValue run_group = 106;
   google.protobuf.StringValue run_job_type = 108;
   google.protobuf.StringValue run_mode = 109;
@@ -315,7 +362,6 @@ message Settings {
   google.protobuf.StringValue run_notes = 111;
   ListStringValue run_tags = 112;
   google.protobuf.BoolValue sagemaker_disable = 114;
-  google.protobuf.BoolValue save_code = 115;
   google.protobuf.StringValue settings_system = 116;
   google.protobuf.StringValue settings_workspace = 117;
   google.protobuf.BoolValue show_colors = 118;

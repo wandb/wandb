@@ -216,7 +216,7 @@ func NewStream(
 		HandlerParams{
 			Logger:            s.logger,
 			Operations:        operations,
-			Settings:          s.settings.Proto,
+			Settings:          s.settings,
 			FwdChan:           make(chan runwork.Work, BufferSize),
 			OutChan:           make(chan *spb.Result, BufferSize),
 			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.runWork),
