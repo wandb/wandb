@@ -573,7 +573,7 @@ class _WandbInit:
         if logger is None:
             raise RuntimeError("Logger not initialized")
         logger.info("calling init triggers")
-        trigger.call("on_init", **self.kwargs)  # type: ignore
+        trigger.call("on_init")
 
         assert self.settings is not None
         assert self._wl is not None
