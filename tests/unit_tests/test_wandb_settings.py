@@ -274,6 +274,14 @@ def test_is_local():
     assert s.is_local is False
 
 
+def test_allow_offline_artifacts():
+    s = Settings()
+    assert s.allow_offline_artifacts is True
+
+    s2 = Settings(allow_offline_artifacts=False)
+    assert s2.allow_offline_artifacts is False
+
+
 def test_default_props_match_class_attributes():
     # make sure that the default properties match the class attributes
     s = Settings()
