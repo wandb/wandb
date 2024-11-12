@@ -59,7 +59,7 @@ func authServer(token string, expiresIn time.Duration) *apitest.RecordingServer 
 
 func TestNewOAuth2CredentialProvider(t *testing.T) {
 	// create identity token file
-	tokenFile, err := os.CreateTemp("", "jwt.txt")
+	tokenFile, err := os.CreateTemp(t.TempDir(), "jwt.txt")
 	require.NoError(t, err)
 	defer os.Remove(tokenFile.Name())
 
@@ -114,7 +114,7 @@ func TestNewOAuth2CredentialProvider_RefreshesToken(t *testing.T) {
 	defer server.Close()
 
 	// create identity token file
-	tokenFile, err := os.CreateTemp("", "jwt.txt")
+	tokenFile, err := os.CreateTemp(t.TempDir(), "jwt.txt")
 	require.NoError(t, err)
 	defer os.Remove(tokenFile.Name())
 
@@ -124,7 +124,7 @@ func TestNewOAuth2CredentialProvider_RefreshesToken(t *testing.T) {
 	require.NoError(t, tokenFile.Close())
 
 	// create credentials file
-	credsFile, err := os.CreateTemp("", "credentials.json")
+	credsFile, err := os.CreateTemp(t.TempDir(), "credentials.json")
 	require.NoError(t, err)
 	defer os.Remove(credsFile.Name())
 
@@ -178,7 +178,7 @@ func TestNewOAuth2CredentialProvider_RefreshesTokenOnce(t *testing.T) {
 	defer server.Close()
 
 	// create identity token file
-	tokenFile, err := os.CreateTemp("", "jwt.txt")
+	tokenFile, err := os.CreateTemp(t.TempDir(), "jwt.txt")
 	require.NoError(t, err)
 	defer os.Remove(tokenFile.Name())
 
@@ -188,7 +188,7 @@ func TestNewOAuth2CredentialProvider_RefreshesTokenOnce(t *testing.T) {
 	require.NoError(t, tokenFile.Close())
 
 	// create credentials file
-	credsFile, err := os.CreateTemp("", "credentials.json")
+	credsFile, err := os.CreateTemp(t.TempDir(), "credentials.json")
 	require.NoError(t, err)
 	defer os.Remove(credsFile.Name())
 
@@ -239,7 +239,7 @@ func TestNewOAuth2CredentialProvider_RefreshesTokenOnce(t *testing.T) {
 
 func TestNewOAuth2CredentialProvider_CreatesNewTokenForNewBaseURL(t *testing.T) {
 	// create identity token file
-	tokenFile, err := os.CreateTemp("", "jwt.txt")
+	tokenFile, err := os.CreateTemp(t.TempDir(), "jwt.txt")
 	require.NoError(t, err)
 	defer os.Remove(tokenFile.Name())
 
@@ -249,7 +249,7 @@ func TestNewOAuth2CredentialProvider_CreatesNewTokenForNewBaseURL(t *testing.T) 
 	require.NoError(t, tokenFile.Close())
 
 	// create credentials file
-	credsFile, err := os.CreateTemp("", "credentials.json")
+	credsFile, err := os.CreateTemp(t.TempDir(), "credentials.json")
 	require.NoError(t, err)
 	defer os.Remove(credsFile.Name())
 
