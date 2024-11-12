@@ -1971,10 +1971,9 @@ def get_core_path() -> str:
     bin_path = pathlib.Path(__file__).parent / "bin" / "wandb-core"
     if not bin_path.exists():
         raise WandbCoreNotAvailableError(
-            "Looks like wandb-core is not compiled for your system"
-            f" ({platform.platform()}). Please contact support at"
-            " support@wandb.com to request `wandb-core` support"
-            f" for your system. File does not exist: {bin_path}"
+            f"File not found: {bin_path}."
+            "Please contact support at support@wandb.com."
+            f"Your platform is: {platform.platform()}."
         )
 
     return str(bin_path)
