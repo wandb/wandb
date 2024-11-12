@@ -1972,9 +1972,9 @@ def get_core_path() -> str:
     if not bin_path.exists():
         raise WandbCoreNotAvailableError(
             "Looks like wandb-core is not compiled for your system"
-            f" ({platform.platform()}): file {bin_path} does not exist."
-            " Please contact support at support@wandb.com to request"
-            " `wandb-core` support for your system."
+            f" ({platform.platform()}). Please contact support at"
+            " support@wandb.com to request `wandb-core` support"
+            f" for your system. File does not exist: {bin_path}"
         )
 
     return str(bin_path)
