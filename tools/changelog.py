@@ -1,3 +1,4 @@
+import contextlib
 import os
 from datetime import datetime
 
@@ -36,11 +37,11 @@ def _insert_changelog(*, version: str, changes: str):
     """Insert a new section into CHANGELOG.md."""
     date = datetime.now().strftime("%Y-%m-%d")
 
-    # NOTE: This syntax requires Python 3.8+.
-    with (
-        open("CHANGELOG.md") as changelog_in,
-        open("CHANGELOG.md.tmp", "w") as changelog_out,
-    ):
+    with contextlib.ExitStack() as stack:
+        changelog_in = stack.enter_context(open("CHANGELOG.md"))
+        changelog_out = stack.enter_context(open("CHANGELOG.md.tmp", "w"))
+
+        # NOTE: This syntax requires Python 3.8+.
         while line := changelog_in.readline():
             changelog_out.writelines([line])
 
