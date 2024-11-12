@@ -62,7 +62,11 @@ class Files(Paginator):
 
     def __init__(self, client, run, names=None, per_page=50, upload=False):
         self.run = run
-        print("self.run: {}, self.run._project_internal_id: {}".format(self.run, self.run._project_internal_id))
+        print(
+            "self.run: {}, self.run._project_internal_id: {}".format(
+                self.run, self.run._project_internal_id
+            )
+        )
         variables = {
             "project": run.project,
             "entity": run.entity,
@@ -127,7 +131,10 @@ class File(Attrs):
         self.client = client
         self._attrs = attrs
         self.run = run
-        print("File.__init__() — self.run._project_internal_id: ", self.run._project_internal_id)
+        print(
+            "File.__init__() — self.run._project_internal_id: ",
+            self.run._project_internal_id,
+        )
         super().__init__(dict(attrs))
 
     @property
@@ -194,7 +201,11 @@ class File(Attrs):
 
     @normalize_exceptions
     def delete(self):
-        print("self in delete: self — {} project_id — {} run — {}".format(self, self.run.project, self.run))
+        print(
+            "self in delete: self — {} project_id — {} run — {}".format(
+                self, self.run.project, self.run
+            )
+        )
         mutation = gql(
             """
             mutation deleteFiles($files: [ID!]!, $projectId: Int!) {
@@ -207,10 +218,13 @@ class File(Attrs):
             }
             """
         )
-        self.client.execute(mutation, variable_values={
-            "files": [self.id], 
-            "projectId": self.run._project_internal_id
-        })
+        self.client.execute(
+            mutation,
+            variable_values={
+                "files": [self.id],
+                "projectId": self.run._project_internal_id,
+            },
+        )
 
     def __repr__(self):
         return "<File {} ({}) {}>".format(
