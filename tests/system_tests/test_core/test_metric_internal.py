@@ -20,7 +20,7 @@ def _make_metrics(mitems):
     return metrics
 
 
-def test_metric_none(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_none(publish_util, mock_run, wandb_backend_spy):
     run = mock_run(use_magic_mock=True)
     history = _gen_history()
     publish_util(run=run, history=history)
@@ -34,7 +34,7 @@ def test_metric_none(user, publish_util, mock_run, wandb_backend_spy):
         assert summary["_step"] == 2
 
 
-def test_metric_step(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_step(publish_util, mock_run, wandb_backend_spy):
     run = mock_run(use_magic_mock=True)
     history = _gen_history()
     metrics = [
@@ -52,7 +52,7 @@ def test_metric_step(user, publish_util, mock_run, wandb_backend_spy):
         assert summary["_step"] == 2
 
 
-def test_metric_max(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_max(publish_util, mock_run, wandb_backend_spy):
     run = mock_run(use_magic_mock=True)
     history = _gen_history()
     m1 = pb.MetricRecord(name="v2")
@@ -69,7 +69,7 @@ def test_metric_max(user, publish_util, mock_run, wandb_backend_spy):
         assert summary["_step"] == 2
 
 
-def test_metric_min(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_min(publish_util, mock_run, wandb_backend_spy):
     run = mock_run(use_magic_mock=True)
     history = _gen_history()
     m1 = pb.MetricRecord(name="v2")
@@ -86,7 +86,7 @@ def test_metric_min(user, publish_util, mock_run, wandb_backend_spy):
         assert summary["_step"] == 2
 
 
-def test_metric_min_str(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_min_str(publish_util, mock_run, wandb_backend_spy):
     run = mock_run(use_magic_mock=True)
     history = _gen_history()
     m1 = pb.MetricRecord(name="v3")
@@ -102,7 +102,7 @@ def test_metric_min_str(user, publish_util, mock_run, wandb_backend_spy):
         assert summary["_step"] == 2
 
 
-def test_metric_sum_none(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_sum_none(publish_util, mock_run, wandb_backend_spy):
     history = _gen_history()
     m1 = pb.MetricRecord(name="v2")
     metrics = _make_metrics([m1])
@@ -118,7 +118,7 @@ def test_metric_sum_none(user, publish_util, mock_run, wandb_backend_spy):
         assert summary["_step"] == 2
 
 
-def test_metric_mult(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_mult(publish_util, mock_run, wandb_backend_spy):
     history = _gen_history()
     m1 = pb.MetricRecord(name="mystep")
     m2 = pb.MetricRecord(name="v1", step_metric="mystep")
@@ -138,7 +138,7 @@ def test_metric_mult(user, publish_util, mock_run, wandb_backend_spy):
         assert summary["_step"] == 2
 
 
-def test_metric_again(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_again(publish_util, mock_run, wandb_backend_spy):
     history = _gen_history()
     m1 = pb.MetricRecord(name="mystep")
     m2 = pb.MetricRecord(name="v1", step_metric="mystep")
@@ -160,7 +160,7 @@ def test_metric_again(user, publish_util, mock_run, wandb_backend_spy):
         assert metrics and len(metrics) == 3
 
 
-def test_metric_mean(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_mean(publish_util, mock_run, wandb_backend_spy):
     history = _gen_history()
     m1 = pb.MetricRecord(name="v2", step_metric="mystep")
     m1.summary.mean = True
@@ -179,7 +179,7 @@ def test_metric_mean(user, publish_util, mock_run, wandb_backend_spy):
         assert summary["_step"] == 2
 
 
-def test_metric_stepsync(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_stepsync(publish_util, mock_run, wandb_backend_spy):
     history = []
     history.append(
         dict(
@@ -233,7 +233,7 @@ def test_metric_stepsync(user, publish_util, mock_run, wandb_backend_spy):
         assert s1_values == {2, 4, 6, 8}
 
 
-def test_metric_twice_norm(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_twice_norm(publish_util, mock_run, wandb_backend_spy):
     m1a = pb.MetricRecord(name="metric")
     m1a.summary.best = True
     m1a.summary.max = True
@@ -252,7 +252,7 @@ def test_metric_twice_norm(user, publish_util, mock_run, wandb_backend_spy):
         assert metrics[1] == {"1": "metric", "5": 1, "7": [1, 2, 4]}
 
 
-def test_metric_twice_over(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_twice_over(publish_util, mock_run, wandb_backend_spy):
     m1a = pb.MetricRecord(name="metric")
     m1a.summary.best = True
     m1a.summary.max = True
@@ -272,7 +272,7 @@ def test_metric_twice_over(user, publish_util, mock_run, wandb_backend_spy):
         assert metrics[1] == {"1": "metric", "7": [1]}
 
 
-def test_metric_glob_twice_over(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_glob_twice_over(publish_util, mock_run, wandb_backend_spy):
     history = []
     history.append(
         dict(
@@ -307,7 +307,7 @@ def test_metric_glob_twice_over(user, publish_util, mock_run, wandb_backend_spy)
         assert summary["_step"] == 0
 
 
-def test_metric_nan_max(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_nan_max(publish_util, mock_run, wandb_backend_spy):
     history = []
     history.append(dict(step=0, data=dict(v2=2)))
     history.append(dict(step=1, data=dict(v2=8)))
@@ -325,7 +325,7 @@ def test_metric_nan_max(user, publish_util, mock_run, wandb_backend_spy):
         assert summary["v2"] == {"max": 8}
 
 
-def test_metric_dot_flat_escaped(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_dot_flat_escaped(publish_util, mock_run, wandb_backend_spy):
     """Match works when metric is escaped."""
     history = []
     history.append(dict(step=0, data={"this.has.dots": 2}))
@@ -353,7 +353,7 @@ def test_metric_dot_flat_escaped(user, publish_util, mock_run, wandb_backend_spy
         assert summary["_step"] == 3
 
 
-def test_metric_dot_flat_notescaped(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_dot_flat_notescaped(publish_util, mock_run, wandb_backend_spy):
     """Match doesn't work if metric is not escaped."""
     history = []
     history.append(dict(step=0, data={"this.has.dots": 2}))
@@ -381,7 +381,7 @@ def test_metric_dot_flat_notescaped(user, publish_util, mock_run, wandb_backend_
         assert summary["_step"] == 3
 
 
-def test_metric_dot_glob(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_dot_glob(publish_util, mock_run, wandb_backend_spy):
     """Glob escapes the defined metric name."""
     run = mock_run(use_magic_mock=True)
     history = []
@@ -414,7 +414,7 @@ def test_metric_dot_glob(user, publish_util, mock_run, wandb_backend_spy):
         assert summary["_step"] == 3
 
 
-def test_metric_best(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_best(publish_util, mock_run, wandb_backend_spy):
     run = mock_run(use_magic_mock=True)
     history = _gen_history()
     m1 = pb.MetricRecord(name="mystep")
@@ -441,7 +441,7 @@ def test_metric_best(user, publish_util, mock_run, wandb_backend_spy):
         assert history[2]["_step"] == 2
 
 
-def test_metric_glob_twice_norm(user, publish_util, mock_run, wandb_backend_spy):
+def test_metric_glob_twice_norm(publish_util, mock_run, wandb_backend_spy):
     run = mock_run(use_magic_mock=True)
     _history = [dict(step=0, data=dict(metric=1))]
 
