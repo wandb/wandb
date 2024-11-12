@@ -7,7 +7,6 @@ import pytest
 import wandb
 import wandb.errors
 from wandb import wandb_sdk
-from wandb.sdk.lib import runid
 
 REFERENCE_ATTRIBUTES = set(
     [

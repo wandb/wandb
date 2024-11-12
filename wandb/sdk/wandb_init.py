@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any, Sequence
 
 import wandb
 import wandb.env
+from wandb import trigger
 from wandb.errors import CommError, Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
@@ -571,6 +572,8 @@ class _WandbInit:
     def init(self) -> Run:  # noqa: C901
         if logger is None:
             raise RuntimeError("Logger not initialized")
+        logger.info("calling init triggers")
+        trigger.call("on_init", **self.kwargs)  # type: ignore
 
         assert self.settings is not None
         assert self._wl is not None
