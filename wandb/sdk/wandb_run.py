@@ -442,7 +442,7 @@ class _run_decorator:  # noqa: N801
                     # - for fork case will use the settings of the parent process
                     # - only point of inconsistent behavior from forked and non-forked cases
                     settings = getattr(self, "_settings", None)
-                    if settings and settings["strict"]:
+                    if settings and settings.strict:
                         wandb.termerror(message, repeat=False)
                         raise UnsupportedError(
                             f"`{func.__name__}` does not support multiprocessing"

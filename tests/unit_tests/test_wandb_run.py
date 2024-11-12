@@ -7,6 +7,7 @@ import pytest
 import wandb
 import wandb.errors
 from wandb import wandb_sdk
+from wandb.sdk.lib import runid
 
 REFERENCE_ATTRIBUTES = set(
     [
@@ -235,10 +236,10 @@ def test_deprecated_run_log_sync(mock_run, mock_wandb_log):
 
 def test_run_log_mp_warn(mock_run, test_settings, monkeypatch, mock_wandb_log):
     monkeypatch.setenv("WANDB_DISABLE_SERVICE", "true")
-    test_settings = test_settings()
-    test_settings._apply_env_vars(os.environ)
+    settings = test_settings()
+    settings.from_env_vars(os.environ)
 
-    run = mock_run(settings=test_settings)
+    run = mock_run(settings=settings)
     run._init_pid = os.getpid()
     run._init_pid += 1
     run.log(dict(this=1))
@@ -309,21 +310,21 @@ def test_run_deepcopy():
     "settings, expected",
     [
         ({}, False),
+        ({"resume": False}, False),
         ({"resume": True}, True),
         ({"resume": "auto"}, True),
         ({"resume": "allow"}, True),
         ({"resume": "never"}, True),
         ({"resume": "must"}, True),
-        ({"resume": "run_id"}, True),
     ],
 )
-def test_resumed_run_resume_file_state(mock_run, tmp_path, settings, expected):
+def test_resumed_run_resume_file_state(mocker, mock_run, tmp_path, settings, expected):
     tmp_file = tmp_path / "test_resume.json"
     tmp_file.write_text("{'run_id': 'test'}")
 
-    run = mock_run(
-        use_magic_mock=True, settings={"resume_fname": str(tmp_file), **settings}
-    )
+    mocker.patch("wandb.sdk.wandb_settings.Settings.resume_fname", tmp_file)
+
+    run = mock_run(use_magic_mock=True, settings=settings)
     run._on_ready()
 
     assert tmp_file.exists() == expected

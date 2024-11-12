@@ -385,7 +385,7 @@ class Settings(BaseModel, validate_assignment=True):
             return None
         return value
 
-    @field_validator("resume", mode="after")
+    @field_validator("resume", mode="before")
     @classmethod
     def validate_resume(cls, value):
         if value is False:
