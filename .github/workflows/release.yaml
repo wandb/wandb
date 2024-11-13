@@ -16,7 +16,7 @@ on:
 jobs:
   linux:
     runs-on: ubuntu-latest
-    if: github.repository_owner == 'wandb'
+    if: github.repository_owner == 'ctrlplanedev'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
