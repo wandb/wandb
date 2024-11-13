@@ -30,7 +30,7 @@ runs:
           ARCH="arm64"
         fi
 
-        BINARY_NAME="${{ inputs.binary }}_${OS}_${ARCH}"
+        BINARY_NAME="ctrlc_${{ inputs.binary }}_${OS}_${ARCH}"
         echo "BINARY_NAME: $BINARY_NAME"
         DOWNLOAD_URL="https://github.com/${{ inputs.repo }}/releases/download/${{ inputs.version }}/$BINARY_NAME.tar.gz"
 
