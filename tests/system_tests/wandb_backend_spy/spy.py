@@ -5,6 +5,10 @@ import json
 import threading
 from typing import Any, Iterator
 
+import fastapi
+
+from . import gql_match
+
 
 class WandbBackendSpy:
     """A spy that intercepts interactions with the W&B backend."""
@@ -12,6 +16,7 @@ class WandbBackendSpy:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._runs: dict[str, _RunData] = {}
+        self._gql_stubs: list[gql_match.GQLStub] = []
 
     @contextlib.contextmanager
     def freeze(self) -> Iterator[WandbBackendSnapshot]:
@@ -31,6 +36,39 @@ class WandbBackendSpy:
                 yield snapshot
             finally:
                 snapshot._spy = None
+
+    # Provide an alias so that tests don't need to import gql_match.py.
+    gql = gql_match
+
+    def stub_gql(
+        self,
+        match: gql_match.Matcher,
+        respond: gql_match.Responder,
+    ) -> None:
+        """Stub the GraphQL endpoint.
+
+        Args:
+            match: Which GraphQL requests to intercept.
+            respond: How to handle matched requests.
+        """
+        with self._lock:
+            self._gql_stubs.append((match, respond))
+
+    def intercept_graphql(self, request_raw: bytes) -> fastapi.Response | None:
+        """Potentially inject a fake GraphQL response."""
+        with self._lock:
+            if not self._gql_stubs:
+                return None
+
+            request = json.loads(request_raw)
+            query = request.get("query", "")
+            variables = request.get("variables", {})
+
+            for matcher, responder in self._gql_stubs:
+                if matcher.matches(query, variables):
+                    return responder.respond(query, variables)
+
+            return None
 
     def post_graphql(
         self,
