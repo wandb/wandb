@@ -11,7 +11,7 @@ on:
   push:
     # run only against tags
     tags:
-      - "*"
+      - "v*"
 
 jobs:
   linux:
