@@ -33,11 +33,12 @@ runs:
         BINARY_NAME="ctrlc_${OS}_${ARCH}"
         echo "BINARY_NAME: $BINARY_NAME"
         DOWNLOAD_URL="https://github.com/${{ inputs.repo }}/releases/download/${{ inputs.version }}/$BINARY_NAME.tar.gz"
+        echo "DOWNLOAD_URL: $DOWNLOAD_URL"
 
         curl -L $DOWNLOAD_URL -o binary.tar.gz
         tar xzf binary.tar.gz
-        chmod +x ${{ inputs.binary }}
-        sudo mv ${{ inputs.binary }} /usr/local/bin/
+        chmod +x ctrlc
+        sudo mv ctrlc /usr/local/bin/
 
     - name: Set Ctrlplane URL
       shell: bash
