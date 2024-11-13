@@ -1,0 +1,32 @@
+name: Release
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+on:
+  push:
+    # run only against tags
+    tags:
+      - "*"
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    if: github.repository_owner == 'wandb'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+      - name: Install GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
