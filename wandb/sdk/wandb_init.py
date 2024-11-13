@@ -44,6 +44,7 @@ from .lib import (
 )
 from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxProgress
+from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings
 
@@ -228,6 +229,21 @@ class _WandbInit:
                 tel.feature.set_init_id = True
             if settings.run_tags is not None:
                 tel.feature.set_init_tags = True
+
+        # TODO: remove this once officially deprecated
+        if config_exclude_keys:
+            self.deprecated_features_used["config_exclude_keys"] = (
+                "Use `config=wandb.helper.parse_config(config_object, exclude=('key',))` instead."
+            )
+        if config_include_keys:
+            self.deprecated_features_used["config_include_keys"] = (
+                "Use `config=wandb.helper.parse_config(config_object, include=('key',))` instead."
+            )
+        config = parse_config(
+            config or dict(),
+            include=config_include_keys,
+            exclude=config_exclude_keys,
+        )
 
         # merge config with sweep or sagemaker (or config file)
         self.sweep_config = dict()

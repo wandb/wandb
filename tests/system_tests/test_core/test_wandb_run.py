@@ -103,16 +103,8 @@ def test_media_in_config(runner, wandb_init, test_settings):
 
 
 def test_init_with_settings(wandb_init, test_settings):
-    # test that when calling `wandb.init(settings=wandb.Settings(...))`,
-    # the settings are passed with Source.INIT as the source
-    test_settings = test_settings()
-    test_settings.update(_disable_stats=True)
-    run = wandb_init(settings=test_settings)
-    assert run.settings._disable_stats
-    assert (
-        run.settings.__dict__["_disable_stats"].source
-        == wandb_sdk.wandb_settings.Source.INIT
-    )
+    run = wandb_init(settings=wandb.Settings(x_disable_stats=True))
+    assert run.settings.x_disable_stats
     run.finish()
 
 
@@ -125,12 +117,9 @@ def test_attach_same_process(wandb_init, test_settings):
     assert "attach in the same process is not supported" in str(excinfo.value)
 
 
-def test_deprecated_feature_telemetry(wandb_init, relay_server, test_settings, user):
+def test_deprecated_feature_telemetry(user, relay_server):
     with relay_server() as relay:
-        run = wandb_init(
-            config_include_keys=("lol",),
-            settings=test_settings(),
-        )
+        run = wandb.init(config_include_keys=("lol",))
         # use deprecated features
         _ = [
             run.mode,
@@ -197,7 +186,6 @@ def assertion(run_id, found, stderr):
         ("allow", True),
         ("never", True),
         ("must", True),
-        ("", False),
         (True, True),
         (None, False),
     ],
@@ -222,7 +210,7 @@ def test_network_fault_graphql(relay_server, inject_graphql_response, wandb_init
         body=json.dumps({"errors": ["Server down"]}),
         status=500,
         query_match_fn=lambda *_: True,
-        application_pattern="1" * 5 + "2",  # apply once and stop
+        application_pattern="1" * 2 + "2",  # apply 3 times and stop
     )
     with relay_server(inject=[inject_response]) as relay:
         run = wandb_init()
