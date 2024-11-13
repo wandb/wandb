@@ -200,6 +200,9 @@ type ClientOptions struct {
 	//
 	// If Proxy is nil or returns a nil *URL, no proxy will be used.
 	Proxy func(*http.Request) (*url.URL, error)
+
+	// Function that get called before the retry attempt to prepare the request.
+	PrepareRetry func(*http.Request) error
 }
 
 // Creates a new [Client] for making requests to the [Backend].
@@ -227,6 +230,17 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 			backend.logger.Handler(),
 			slog.LevelDebug,
 		)
+	}
+
+	// PrepareRetry gets called before the retry attempt
+	retryableHTTP.PrepareRetry = func(req *http.Request) error {
+		if opts.PrepareRetry != nil {
+			if err := opts.PrepareRetry(req); err != nil {
+				return err
+			}
+		}
+		// credentials can expire, so ensure retries have fresh credentials
+		return backend.credentialProvider.Apply(req)
 	}
 
 	// Set the Proxy function on the HTTP client.
