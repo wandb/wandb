@@ -119,7 +119,7 @@ class _WandbInit:
 
     def __init__(self) -> None:
         self.kwargs = None
-        self.setting: Settings | None = None
+        self.settings: Settings | None = None
         self.sweep_config: dict[str, Any] = {}
         self.launch_config: dict[str, Any] = {}
         self.config: dict[str, Any] = {}
@@ -280,8 +280,8 @@ class _WandbInit:
             settings.from_dict(login_settings)
 
         # handle custom sweep-, launch-, and resume-related logic
-        settings.handle_sweep_logic()
-        settings.handle_launch_logic()
+        # settings.handle_sweep_logic()
+        # settings.handle_launch_logic()
         settings.handle_resume_logic()
 
         # get status of code saving before applying user settings

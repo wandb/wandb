@@ -108,7 +108,6 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         _set_logger(self._early_logger)
 
         self._settings = self._settings_setup(settings, self._early_logger)
-        # self._settings.freeze()
 
         wandb.termsetup(self._settings, logger)
 
