@@ -2,10 +2,6 @@ name: Install Ctrlplane CLI
 description: Installs the Ctrlplane CLI binary from a GitHub repository
 
 inputs:
-  binary:
-    description: "Name of the binary to install"
-    required: true
-    default: "ctrlc"
   version:
     description: "Version of the binary to install"
     required: true
@@ -35,7 +31,7 @@ runs:
         fi
 
         BINARY_NAME="${{ inputs.binary }}_${OS}_${ARCH}"
-        DOWNLOAD_URL="https://github.com/${{ inputs.repo }}/releases/download/${{ inputs.version }}/ctrlc_${BINARY_NAME}.tar.gz"
+        DOWNLOAD_URL="https://github.com/${{ inputs.repo }}/releases/download/${{ inputs.version }}/ctrlc_${OS}_${ARCH}.tar.gz"
 
         curl -L $DOWNLOAD_URL -o binary.tar.gz
         tar xzf binary.tar.gz
