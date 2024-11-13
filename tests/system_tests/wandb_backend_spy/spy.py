@@ -47,6 +47,16 @@ class WandbBackendSpy:
     ) -> None:
         """Stub the GraphQL endpoint.
 
+        Later calls to `stub_gql` take precedence. For example, this
+        responds "b" to the first UpsertBucket call, then "a" to the second:
+
+            gql = wandb_backend_spy.gql
+            matcher = gql.Matcher(operation="UpsertBucket")
+            wandb_backend_spy.stub_gql(matcher, gql.once(content="a"))
+            wandb_backend_spy.stub_gql(matcher, gql.once(content="b"))
+
+        This allows helper fixtures to set defaults for tests.
+
         Args:
             match: Which GraphQL requests to intercept.
             respond: How to handle matched requests.
@@ -64,9 +74,15 @@ class WandbBackendSpy:
             query = request.get("query", "")
             variables = request.get("variables", {})
 
-            for matcher, responder in self._gql_stubs:
-                if matcher.matches(query, variables):
-                    return responder.respond(query, variables)
+            for matcher, responder in reversed(self._gql_stubs):
+                if not matcher.matches(query, variables):
+                    continue
+
+                response = responder.respond(query, variables)
+                if not response:
+                    continue
+
+                return response
 
             return None
 
