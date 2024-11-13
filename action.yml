@@ -1,0 +1,36 @@
+name: Install Go Binary
+description: Installs a Go binary from a GitHub repository
+
+inputs:
+  binary:
+    description: "Name of the binary to install"
+    required: true
+    default: "ctrlc"
+  version:
+    description: "Version of the binary to install"
+    required: true
+  repo:
+    description: "GitHub repository containing the binary (format: owner/repo)"
+    required: true
+    default: "ctrlplanedev/ctrlc"
+runs:
+  using: "composite"
+  steps:
+    - name: Download binary
+      shell: bash
+      run: |
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+        if [ "$ARCH" = "x86_64" ]; then
+          ARCH="x86_64"
+        elif [ "$ARCH" = "aarch64" ]; then
+          ARCH="arm64"
+        fi
+
+        BINARY_NAME="${{ inputs.binary }}_${OS}_${ARCH}"
+        DOWNLOAD_URL="https://github.com/${{ inputs.repo }}/releases/download/${{ inputs.version }}/cli_${BINARY_NAME}.tar.gz"
+
+        curl -L $DOWNLOAD_URL -o binary.tar.gz
+        tar xzf binary.tar.gz
+        chmod +x ${{ inputs.binary }}
+        sudo mv ${{ inputs.binary }} /usr/local/bin/
