@@ -43,7 +43,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 178
+// Next ID: 179
 message Settings {
   reserved 12, 36, 50, 94, 136, 137;
 
@@ -149,6 +149,12 @@ message Settings {
   google.protobuf.DoubleValue _file_stream_retry_wait_max_seconds = 149;
   // Per-retry timeout for filestream operations.
   google.protobuf.DoubleValue _file_stream_timeout_seconds = 15;
+
+  // Maximum line length for filestream jsonl files, imposed by the back-end.
+  //
+  // Note: this value should not be set unless you have clear understanding of
+  // the impact on the back-end.
+  google.protobuf.Int32Value _file_stream_max_line_bytes = 178;
 
   // Maximum number of retries for file upload/download operations.
   google.protobuf.Int32Value _file_transfer_retry_max = 150;
