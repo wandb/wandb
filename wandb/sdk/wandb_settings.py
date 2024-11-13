@@ -39,6 +39,11 @@ from .lib.run_moment import RunMoment
 from .lib.runid import generate_id
 
 
+def _path_convert(*args: str) -> str:
+    """Join path and apply os.path.expanduser to it."""
+    return os.path.expanduser(os.path.join(*args))
+
+
 class Settings(BaseModel, validate_assignment=True):
     """Settings for W&B."""
 
@@ -118,7 +123,9 @@ class Settings(BaseModel, validate_assignment=True):
     sagemaker_disable: bool = False
     save_code: bool | None = None
     settings_system: str = Field(
-        default_factory=lambda: os.path.join("~", ".config", "wandb", "settings")
+        default_factory=lambda: _path_convert(
+            os.path.join("~", ".config", "wandb", "settings")
+        )
     )
     show_colors: bool | None = None
     show_emoji: bool | None = None
@@ -403,7 +410,7 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("settings_system", mode="after")
     @classmethod
     def validate_settings_system(cls, value):
-        return cls._path_convert(value)
+        return _path_convert(value)
 
     @field_validator("x_service_wait", mode="after")
     @classmethod
@@ -550,7 +557,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def _tmp_code_dir(self) -> str:
-        return self._path_convert(
+        return _path_convert(
             self.wandb_dir,
             f"{self.run_mode}-{self.timespec}-{self.run_id}",
             "tmp",
@@ -580,7 +587,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def files_dir(self) -> str:
-        return self.x_files_dir or self._path_convert(
+        return self.x_files_dir or _path_convert(
             self.wandb_dir,
             f"{self.run_mode}-{self.timespec}-{self.run_id}",
             "files",
@@ -594,29 +601,29 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def log_dir(self) -> str:
-        return self._path_convert(
+        return _path_convert(
             self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", "logs"
         )
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def log_internal(self) -> str:
-        return self._path_convert(self.log_dir, "debug-internal.log")
+        return _path_convert(self.log_dir, "debug-internal.log")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def log_symlink_internal(self) -> str:
-        return self._path_convert(self.wandb_dir, "debug-internal.log")
+        return _path_convert(self.wandb_dir, "debug-internal.log")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def log_symlink_user(self) -> str:
-        return self._path_convert(self.wandb_dir, "debug.log")
+        return _path_convert(self.wandb_dir, "debug.log")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def log_user(self) -> str:
-        return self._path_convert(self.log_dir, "debug.log")
+        return _path_convert(self.log_dir, "debug.log")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -632,7 +639,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def resume_fname(self) -> str:
-        return self._path_convert(self.wandb_dir, "wandb-resume.json")
+        return _path_convert(self.wandb_dir, "wandb-resume.json")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -652,7 +659,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def settings_workspace(self) -> str:
-        return self._path_convert(self.wandb_dir, "settings")
+        return _path_convert(self.wandb_dir, "settings")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -667,19 +674,19 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sync_dir(self) -> str:
-        return self._path_convert(
+        return _path_convert(
             self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}"
         )
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sync_file(self) -> str:
-        return self._path_convert(self.sync_dir, f"run-{self.run_id}.wandb")
+        return _path_convert(self.sync_dir, f"run-{self.run_id}.wandb")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sync_symlink_latest(self) -> str:
-        return self._path_convert(self.wandb_dir, "latest-run")
+        return _path_convert(self.wandb_dir, "latest-run")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -1011,11 +1018,6 @@ class Settings(BaseModel, validate_assignment=True):
             if k == "ignore_globs":
                 config[k] = config[k].split(",")
         return config
-
-    @staticmethod
-    def _path_convert(*args: str) -> str:
-        """Join path and apply os.path.expanduser to it."""
-        return os.path.expanduser(os.path.join(*args))
 
     def _project_url_base(self) -> str:
         if not all([self.entity, self.project]):
