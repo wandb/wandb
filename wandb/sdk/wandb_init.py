@@ -185,13 +185,22 @@ class _WandbInit:
         """
         self.warn_env_vars_change_after_setup()
 
-        self._wl = wandb_setup.setup(settings=init_settings)
+        setup_settings = wandb.Settings(
+            mode=init_settings.mode or os.environ.get(wandb.env.MODE) or "online",
+            x_disable_service=init_settings.x_disable_service
+            or os.environ.get(wandb.env._DISABLE_SERVICE)
+            or False,
+        )
+        self._wl = wandb_setup.setup(settings=setup_settings)
 
         assert self._wl is not None
         _set_logger(self._wl._get_logger())
 
         # Start with settings from wandb library singleton
         settings = self._wl.settings.copy()
+
+        # Apply settings from wandb.init() call
+        settings.from_settings(init_settings)
 
         self._reporter = reporting.setup_reporter(settings=settings)
 
@@ -822,7 +831,6 @@ class _WandbInit:
             logger.info("run resumed")
             with telemetry.context(run=run) as tel:
                 tel.feature.resumed = run_result.run.resumed
-
         run._set_run_obj(run_result.run)
 
         run._on_init()
@@ -1212,7 +1220,7 @@ def init(  # noqa: C901
     elif isinstance(settings, Settings):
         init_settings = settings
 
-    # convert explicit function arguments to settings
+    # Explicit function arguments take precedence over settings
     if job_type is not None:
         init_settings.run_job_type = job_type
     if dir is not None:
