@@ -1,6 +1,7 @@
 package release
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -16,8 +17,10 @@ func NewReleaseCmd() *cobra.Command {
 	var deploymentID string
 	var metadata map[string]string
 	var configArray map[string]string
+	var links map[string]string
 	var createdAt string
 	var name string
+
 	cmd := &cobra.Command{
 		Use:   "release [flags]",
 		Short: "Create a new release",
@@ -46,6 +49,15 @@ func NewReleaseCmd() *cobra.Command {
 				parsedTime = &t
 			}
 
+			if len(links) > 0 {
+				linksJSON, err := json.Marshal(links)
+				if err != nil {
+					return fmt.Errorf("failed to marshal links: %w", err)
+				}
+				metadata["ctrlplane/links"] = string(linksJSON)
+			}
+
+
 			config := cliutil.ConvertConfigArrayToNestedMap(configArray)
 			resp, err := client.CreateRelease(cmd.Context(), api.CreateReleaseJSONRequestBody{
 				Version:      versionFlag,
@@ -68,6 +80,7 @@ func NewReleaseCmd() *cobra.Command {
 	cmd.Flags().StringVar(&deploymentID, "deployment", "", "ID of the deployment (required)")
 	cmd.Flags().StringToStringVar(&metadata, "metadata", make(map[string]string), "Metadata key-value pairs (e.g. --metadata key=value)")
 	cmd.Flags().StringToStringVar(&configArray, "config", make(map[string]string), "Config key-value pairs with nested values (can be specified multiple times)")
+	cmd.Flags().StringToStringVar(&links, "link", make(map[string]string), "Links key-value pairs (can be specified multiple times)")
 	cmd.Flags().StringVar(&createdAt, "created-at", "", "Created at timestamp (e.g. --created-at 2024-01-01T00:00:00Z) for the release channel")
 	cmd.Flags().StringVar(&name, "name", "", "Name of the release channel")
 
