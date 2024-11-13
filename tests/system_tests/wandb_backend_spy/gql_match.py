@@ -7,7 +7,7 @@ import json
 import re
 import sys
 import threading
-from typing import Any, TypeAlias
+from typing import Any
 
 import fastapi
 
@@ -15,6 +15,11 @@ if sys.version_info >= (3, 12):
     from typing import override
 else:
     from typing_extensions import override
+
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
+else:
+    from typing_extensions import TypeAlias
 
 # Matches queries containing a line in one of the following forms:
 #   mutation OpName(
@@ -24,6 +29,7 @@ else:
 _GQL_OPNAME_RE = re.compile(r"(?m)^(mutation|query)\s+(\w+)\s*[\(\{]")
 
 
+# NOTE: In Python 3.12+, this would be done with a `type` statement.
 GQLStub: TypeAlias = "tuple[Matcher, Responder]"
 
 
