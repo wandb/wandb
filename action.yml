@@ -13,6 +13,13 @@ inputs:
     description: "GitHub repository containing the binary (format: owner/repo)"
     required: true
     default: "ctrlplanedev/ctrlc"
+  url:
+    description: "URL of the ctrlplane instance"
+    required: false
+  api_key:
+    description: "API key for the ctrlplane instance"
+    required: false
+
 runs:
   using: "composite"
   steps:
@@ -28,9 +35,21 @@ runs:
         fi
 
         BINARY_NAME="${{ inputs.binary }}_${OS}_${ARCH}"
-        DOWNLOAD_URL="https://github.com/${{ inputs.repo }}/releases/download/${{ inputs.version }}/cli_${BINARY_NAME}.tar.gz"
+        DOWNLOAD_URL="https://github.com/${{ inputs.repo }}/releases/download/${{ inputs.version }}/ctrlc_${BINARY_NAME}.tar.gz"
 
         curl -L $DOWNLOAD_URL -o binary.tar.gz
         tar xzf binary.tar.gz
         chmod +x ${{ inputs.binary }}
         sudo mv ${{ inputs.binary }} /usr/local/bin/
+
+    - name: Set Ctrlplane URL
+      shell: bash
+      if: inputs.url != ''
+      run: |
+        ctrlc config set url ${{ inputs.url }}
+
+    - name: Set Ctrlplane API Key
+      shell: bash
+      if: inputs.api_key != ''
+      run: |
+        ctrlc config set api-key ${{ inputs.api_key }}
