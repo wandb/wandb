@@ -181,9 +181,9 @@ def test_mocked_notebook_html_default(wandb_init, run_id, mocked_ipython):
 
 
 def test_mocked_notebook_html_quiet(wandb_init, run_id, mocked_ipython):
-    run = wandb_init(id=run_id)
+    run = wandb_init(id=run_id, settings=wandb.Settings(quiet=True))
     run.log({"acc": 99, "loss": 0})
-    run.finish(quiet=True)
+    run.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")

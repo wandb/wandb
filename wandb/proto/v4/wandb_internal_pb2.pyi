@@ -1486,6 +1486,7 @@ class LinkArtifactRequest(google.protobuf.message.Message):
     PORTFOLIO_ENTITY_FIELD_NUMBER: builtins.int
     PORTFOLIO_PROJECT_FIELD_NUMBER: builtins.int
     PORTFOLIO_ALIASES_FIELD_NUMBER: builtins.int
+    PORTFOLIO_ORGANIZATION_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     client_id: builtins.str
     server_id: builtins.str
@@ -1494,6 +1495,7 @@ class LinkArtifactRequest(google.protobuf.message.Message):
     portfolio_project: builtins.str
     @property
     def portfolio_aliases(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    portfolio_organization: builtins.str
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -1505,10 +1507,11 @@ class LinkArtifactRequest(google.protobuf.message.Message):
         portfolio_entity: builtins.str = ...,
         portfolio_project: builtins.str = ...,
         portfolio_aliases: collections.abc.Iterable[builtins.str] | None = ...,
+        portfolio_organization: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "client_id", b"client_id", "portfolio_aliases", b"portfolio_aliases", "portfolio_entity", b"portfolio_entity", "portfolio_name", b"portfolio_name", "portfolio_project", b"portfolio_project", "server_id", b"server_id"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "client_id", b"client_id", "portfolio_aliases", b"portfolio_aliases", "portfolio_entity", b"portfolio_entity", "portfolio_name", b"portfolio_name", "portfolio_organization", b"portfolio_organization", "portfolio_project", b"portfolio_project", "server_id", b"server_id"]) -> None: ...
 
 global___LinkArtifactRequest = LinkArtifactRequest
 
@@ -3825,25 +3828,31 @@ class CpuInfo(google.protobuf.message.Message):
 global___CpuInfo = CpuInfo
 
 @typing_extensions.final
-class GpuAppleInfo(google.protobuf.message.Message):
+class AppleInfo(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    GPUTYPE_FIELD_NUMBER: builtins.int
-    VENDOR_FIELD_NUMBER: builtins.int
-    CORES_FIELD_NUMBER: builtins.int
-    gpuType: builtins.str
-    vendor: builtins.str
-    cores: builtins.int
+    NAME_FIELD_NUMBER: builtins.int
+    ECPU_CORES_FIELD_NUMBER: builtins.int
+    PCPU_CORES_FIELD_NUMBER: builtins.int
+    GPU_CORES_FIELD_NUMBER: builtins.int
+    MEMORY_GB_FIELD_NUMBER: builtins.int
+    name: builtins.str
+    ecpu_cores: builtins.int
+    pcpu_cores: builtins.int
+    gpu_cores: builtins.int
+    memory_gb: builtins.int
     def __init__(
         self,
         *,
-        gpuType: builtins.str = ...,
-        vendor: builtins.str = ...,
-        cores: builtins.int = ...,
+        name: builtins.str = ...,
+        ecpu_cores: builtins.int = ...,
+        pcpu_cores: builtins.int = ...,
+        gpu_cores: builtins.int = ...,
+        memory_gb: builtins.int = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["cores", b"cores", "gpuType", b"gpuType", "vendor", b"vendor"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["ecpu_cores", b"ecpu_cores", "gpu_cores", b"gpu_cores", "memory_gb", b"memory_gb", "name", b"name", "pcpu_cores", b"pcpu_cores"]) -> None: ...
 
-global___GpuAppleInfo = GpuAppleInfo
+global___AppleInfo = AppleInfo
 
 @typing_extensions.final
 class GpuNvidiaInfo(google.protobuf.message.Message):
@@ -4031,7 +4040,7 @@ class MetadataRequest(google.protobuf.message.Message):
     DISK_FIELD_NUMBER: builtins.int
     MEMORY_FIELD_NUMBER: builtins.int
     CPU_FIELD_NUMBER: builtins.int
-    GPU_APPLE_FIELD_NUMBER: builtins.int
+    APPLE_FIELD_NUMBER: builtins.int
     GPU_NVIDIA_FIELD_NUMBER: builtins.int
     GPU_AMD_FIELD_NUMBER: builtins.int
     SLURM_FIELD_NUMBER: builtins.int
@@ -4071,7 +4080,7 @@ class MetadataRequest(google.protobuf.message.Message):
     @property
     def cpu(self) -> global___CpuInfo: ...
     @property
-    def gpu_apple(self) -> global___GpuAppleInfo: ...
+    def apple(self) -> global___AppleInfo: ...
     @property
     def gpu_nvidia(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___GpuNvidiaInfo]: ...
     @property
@@ -4111,7 +4120,7 @@ class MetadataRequest(google.protobuf.message.Message):
         disk: collections.abc.Mapping[builtins.str, global___DiskInfo] | None = ...,
         memory: global___MemoryInfo | None = ...,
         cpu: global___CpuInfo | None = ...,
-        gpu_apple: global___GpuAppleInfo | None = ...,
+        apple: global___AppleInfo | None = ...,
         gpu_nvidia: collections.abc.Iterable[global___GpuNvidiaInfo] | None = ...,
         gpu_amd: collections.abc.Iterable[global___GpuAmdInfo] | None = ...,
         slurm: collections.abc.Mapping[builtins.str, builtins.str] | None = ...,
@@ -4119,8 +4128,8 @@ class MetadataRequest(google.protobuf.message.Message):
         trainium: global___TrainiumInfo | None = ...,
         tpu: global___TPUInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["cpu", b"cpu", "git", b"git", "gpu_apple", b"gpu_apple", "heartbeatAt", b"heartbeatAt", "memory", b"memory", "startedAt", b"startedAt", "tpu", b"tpu", "trainium", b"trainium"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_apple", b"gpu_apple", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "startedAt", b"startedAt", "state", b"state", "tpu", b"tpu", "trainium", b"trainium", "username", b"username"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["apple", b"apple", "cpu", b"cpu", "git", b"git", "heartbeatAt", b"heartbeatAt", "memory", b"memory", "startedAt", b"startedAt", "tpu", b"tpu", "trainium", b"trainium"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["apple", b"apple", "args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "startedAt", b"startedAt", "state", b"state", "tpu", b"tpu", "trainium", b"trainium", "username", b"username"]) -> None: ...
 
 global___MetadataRequest = MetadataRequest
 

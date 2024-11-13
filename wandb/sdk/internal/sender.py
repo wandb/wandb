@@ -53,7 +53,6 @@ from wandb.sdk.lib import (
     proto_util,
     redirect,
     telemetry,
-    tracelog,
 )
 from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
@@ -418,7 +417,6 @@ class SendManager:
         send_handler(record)
 
     def _respond_result(self, result: "Result") -> None:
-        tracelog.log_message_queue(result, self._result_q)
         context_id = context.context_id_from_result(result)
         self._context_keeper.release(context_id)
         self._result_q.put(result)
@@ -1455,16 +1453,29 @@ class SendManager:
         entity = link.portfolio_entity
         project = link.portfolio_project
         aliases = link.portfolio_aliases
+        organization = link.portfolio_organization
         logger.debug(
-            f"link_artifact params - client_id={client_id}, server_id={server_id}, pfolio={portfolio_name}, entity={entity}, project={project}"
+            f"link_artifact params - client_id={client_id}, server_id={server_id}, "
+            f"portfolio_name={portfolio_name}, entity={entity}, project={project}, "
+            f"organization={organization}"
         )
         if (client_id or server_id) and portfolio_name and entity and project:
             try:
                 self._api.link_artifact(
-                    client_id, server_id, portfolio_name, entity, project, aliases
+                    client_id,
+                    server_id,
+                    portfolio_name,
+                    entity,
+                    project,
+                    aliases,
+                    organization,
                 )
             except Exception as e:
-                result.response.log_artifact_response.error_message = f'error linking artifact to "{entity}/{project}/{portfolio_name}"; error: {e}'
+                org_or_entity = organization or entity
+                result.response.log_artifact_response.error_message = (
+                    f"error linking artifact to "
+                    f'"{org_or_entity}/{project}/{portfolio_name}"; error: {e}'
+                )
                 logger.warning("Failed to link artifact to portfolio: %s", e)
         self._respond_result(result)
 

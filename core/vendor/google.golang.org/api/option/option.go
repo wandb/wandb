@@ -359,8 +359,6 @@ func (w withAuthCredentials) Apply(o *internal.DialSettings) {
 }
 
 // WithUniverseDomain returns a ClientOption that sets the universe domain.
-//
-// This is an EXPERIMENTAL API and may be changed or removed in the future.
 func WithUniverseDomain(ud string) ClientOption {
 	return withUniverseDomain(ud)
 }

@@ -63,7 +63,7 @@ def test_init_reinit(test_settings):
         )
 
         with patch("wandb.sdk.wandb_init.ipython", autospec=True), patch(
-            "wandb.sdk.wandb_settings._get_python_type", side_effect=lambda: "jupyter"
+            "wandb.sdk.lib.ipython._get_python_type", side_effect=lambda: "jupyter"
         ):
             wandbinit.init()
 

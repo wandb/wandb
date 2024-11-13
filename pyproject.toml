@@ -15,7 +15,7 @@ dependencies = [
     "GitPython>=1.0.0,!=3.1.29", # CVE-2022-24439
     "requests>=2.0.0,<3",
     "psutil>=5.0.0",
-    "sentry-sdk>=1.0.0",
+    "sentry-sdk>=2.0.0",
     "docker-pycreds>=0.4.0",
     # setuptools is needed for distutils in dependencies after Python 3.12 :(
     # One such dependency is docker-pycreds, where the latest release is 0.4.0
@@ -28,7 +28,9 @@ dependencies = [
     "PyYAML",
     "setproctitle",
     "platformdirs",
-    "typing_extensions; python_version < '3.10'",
+    # typing_extensions 4.4.0 adds 'override'.
+    # Python 3.12 adds 'override' to the typing module.
+    "typing_extensions>=4.4,<5; python_version < '3.12'",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -45,6 +47,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Go",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: System :: Logging",
@@ -113,7 +116,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 minversion = "6.0"
 console_output_style = "count"
-addopts = "-vvv --cov-config=pyproject.toml --dist=loadscope"
+addopts = "-vvv --cov-config=pyproject.toml"
 markers = [
     "image_output",
     "multiclass",
@@ -178,9 +181,7 @@ ignore = [
     "D105",  # Allow missing docstrings in magic (dunder) methods, e.g. __str__().
     "D106",  # Allow missing docstrings in nested classes.
     "D107",  # Allow missing docstrings in __init__ methods.
-    "UP022",
     "UP032", # Allow using format instead of f-string.
-    "UP036",
 ]
 
 [tool.ruff.lint.mccabe]

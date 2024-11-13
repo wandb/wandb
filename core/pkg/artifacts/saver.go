@@ -177,7 +177,7 @@ func (as *ArtifactSaver) createArtifact() (
 	}
 
 	// Check which fields are actually supported on the input
-	inputFieldNames, err := getInputFields(as.ctx, as.graphqlClient, "CreateArtifactInput")
+	inputFieldNames, err := GetGraphQLInputFields(as.ctx, as.graphqlClient, "CreateArtifactInput")
 	if err != nil {
 		return gql.CreatedArtifactArtifact{}, err
 	}
@@ -216,23 +216,6 @@ func (as *ArtifactSaver) createArtifact() (
 		return gql.CreatedArtifactArtifact{}, err
 	}
 	return response.GetCreateArtifact().GetArtifact(), nil
-}
-
-func getInputFields(ctx context.Context, client graphql.Client, typeName string) ([]string, error) {
-	response, err := gql.InputFields(ctx, client, typeName)
-	if err != nil {
-		return nil, err
-	}
-	typeInfo := response.GetTypeInfo()
-	if typeInfo == nil {
-		return nil, fmt.Errorf("unable to verify allowed fields for %s", typeName)
-	}
-	fields := typeInfo.GetInputFields()
-	fieldNames := make([]string, len(fields))
-	for i, field := range fields {
-		fieldNames[i] = field.GetName()
-	}
-	return fieldNames, nil
 }
 
 type createArtifactManifest = gql.CreateArtifactManifestCreateArtifactManifestCreateArtifactManifestPayloadArtifactManifest
@@ -570,10 +553,7 @@ func (as *ArtifactSaver) uploadMultipart(
 	partResponses := make(chan partResponse, len(partData))
 	// TODO: add mid-upload cancel.
 
-	contentType, err := getContentType(fileInfo.uploadHeaders)
-	if err != nil {
-		return uploadResult{name: fileInfo.name, err: err}
-	}
+	contentType := getContentType(fileInfo.uploadHeaders)
 
 	partInfo := fileInfo.multipartUploadInfo
 	for i, part := range partInfo {
@@ -652,13 +632,13 @@ func (as *ArtifactSaver) uploadMultipart(
 	return uploadResult{name: fileInfo.name, err: err}
 }
 
-func getContentType(headers []string) (string, error) {
+func getContentType(headers []string) string {
 	for _, h := range headers {
 		if strings.HasPrefix(h, "Content-Type:") {
-			return strings.TrimPrefix(h, "Content-Type:"), nil
+			return strings.TrimPrefix(h, "Content-Type:")
 		}
 	}
-	return "", fmt.Errorf("content-type header is required for multipart uploads")
+	return ""
 }
 
 func getChunkSize(fileSize int64) int64 {

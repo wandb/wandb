@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.internal.settings_static import SettingsStatic
 
-from ..lib import tracelog
 from ..lib.sock_client import SockClient, SockClientClosedError
 from .streams import StreamMux
 
@@ -65,7 +64,6 @@ class SockServerInterfaceReaderThread(threading.Thread):
             except ValueError:
                 # queue is closed
                 break
-            tracelog.log_message_dequeue(result, self._iface.relay_q)
             sockid = result.control.relay_id
             assert sockid
             sock_client = self._clients.get_client(sockid)

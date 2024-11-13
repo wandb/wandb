@@ -88,8 +88,6 @@ def _id_generator(size=10, chars=string.ascii_lowercase + string.digits):
 class ControllerError(Exception):
     """Base class for sweep errors."""
 
-    pass
-
 
 class _WandbController:
     """Sweep controller class.
@@ -309,6 +307,8 @@ class _WandbController:
             self._create["parameters"][name]["value"] = value
         if values is not None:
             self._create["parameters"][name]["values"] = values
+        if distribution is not None:
+            self._create["parameters"][name]["distribution"] = distribution
         if min is not None:
             self._create["parameters"][name]["min"] = min
         if max is not None:

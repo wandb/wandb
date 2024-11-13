@@ -2,7 +2,7 @@
 package runopts
 
 import (
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"github.com/wandb/wandb/experimental/client-go/pkg/runconfig"
 )
 
@@ -11,7 +11,7 @@ type RunParams struct {
 	Name      *string
 	RunID     *string
 	Project   *string
-	Telemetry *service.TelemetryRecord
+	Telemetry *spb.TelemetryRecord
 }
 
 type RunOption func(*RunParams)

@@ -300,7 +300,7 @@ def wandb_log(
     - Decorating the flow is equivalent to decorating all steps with a default
     - Decorating a step after decorating the flow will overwrite the flow decoration
 
-    Arguments:
+    Args:
         func: (`Callable`). The method or class being decorated (if decorating a step or flow respectively).
         datasets: (`bool`). If `True`, log datasets.  Datasets can be a `pd.DataFrame` or `pathlib.Path`.  The default value is `False`, so datasets are not logged.
         models: (`bool`). If `True`, log models.  Models can be a `nn.Module` or `sklearn.base.BaseEstimator`.  The default value is `False`, so models are not logged.
