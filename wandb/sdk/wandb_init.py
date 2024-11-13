@@ -263,13 +263,28 @@ class _WandbInit:
             )
 
         # apply updated global state after login was handled
-        # TODO: wut?
         wl = wandb.setup()
         assert wl is not None
-        # settings.from_settings(wl.settings)
+        login_settings = {
+            k: v
+            for k, v in {
+                "anonymous": wl.settings.anonymous,
+                "api_key": wl.settings.api_key,
+                "base_url": wl.settings.base_url,
+                "force": wl.settings.force,
+                "login_timeout": wl.settings.login_timeout,
+            }.items()
+            if v is not None
+        }
+        if login_settings:
+            settings.from_dict(login_settings)
 
         # get status of code saving before applying user settings
         save_code_pre_user_settings = settings.save_code
+
+        # TODO: handle launch- and sweeps-related logic
+        settings.handle_sweep_logic()
+        settings.handle_launch_logic()
 
         settings.handle_resume_logic()
 
@@ -638,8 +653,6 @@ class _WandbInit:
         )
         backend.ensure_launched()
         logger.info("backend started and connected")
-        # Make sure we are logged in
-        # wandb_login._login(_backend=backend, _settings=self.settings)
 
         # resuming needs access to the server, check server_status()?
         run = Run(
@@ -814,7 +827,6 @@ class _WandbInit:
             with telemetry.context(run=run) as tel:
                 tel.feature.resumed = run_result.run.resumed
 
-        print(run_result.run)
         run._set_run_obj(run_result.run)
 
         run._on_init()

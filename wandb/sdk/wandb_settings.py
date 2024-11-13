@@ -353,14 +353,8 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("project", mode="after")
     @classmethod
     def validate_project(cls, value, info):
-        if info.data.get("sweep_id"):
-            wandb.termwarn(f"Ignoring project {value!r} when running a sweep.")
+        if value is None:
             return None
-
-        if info.data.get("launch"):
-            wandb.termwarn("Project is ignored when running from wandb launch context.")
-            return None
-
         invalid_chars_list = list("/\\#?%:")
         if len(value) > 128:
             raise UsageError(f"Invalid project name {value!r}: exceeded 128 characters")
@@ -371,18 +365,6 @@ class Settings(BaseModel, validate_assignment=True):
                 f"cannot contain characters {','.join(invalid_chars_list)!r}, "
                 f"found {','.join(invalid_chars)!r}"
             )
-        return value
-
-    @field_validator("entity", mode="after")
-    @classmethod
-    def validate_entity(cls, value, info):
-        if info.data.get("sweep_id"):
-            wandb.termwarn(f"Ignoring entity {value!r} when running a sweep.")
-            return None
-
-        if info.data.get("launch"):
-            wandb.termwarn("Entity is ignored when running from wandb launch context.")
-            return None
         return value
 
     @field_validator("resume", mode="before")
@@ -407,14 +389,7 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("run_id", mode="after")
     @classmethod
     def validate_run_id(cls, value, info):
-        if info.data.get("sweep_id"):
-            wandb.termwarn(
-                f"Ignoring run ID {value!r} when running a sweep.",
-            )
-            return None
-
-        if info.data.get("launch"):
-            wandb.termwarn("Run ID is ignored when running from wandb launch context.")
+        if value is None:
             return None
 
         if len(value) == 0:
@@ -953,6 +928,32 @@ class Settings(BaseModel, validate_assignment=True):
             filesystem.mkdir_exists_ok(self.wandb_dir)
             with open(self.resume_fname, "w") as f:
                 f.write(json.dumps({"run_id": self.run_id}))
+
+    def handle_sweep_logic(self):
+        if self.sweep_id is None:
+            return
+
+        # when running a sweep, the project, entity, and run id are handled externally,
+        # so we should ignore them if they are set.
+        for key in ("project", "entity", "run_id"):
+            value = getattr(self, key)
+            if value is not None:
+                wandb.termwarn(f"Ignoring {key} {value!r} when running a sweep.")
+                setattr(self, key, None)
+
+    def handle_launch_logic(self):
+        if not self.launch:
+            return
+
+        # in the launch context, the project, entity, and run id are handled externally,
+        # so we should ignore them if they are set.
+        for key in ("project", "entity", "run_id"):
+            value = getattr(self, key)
+            if value is not None:
+                wandb.termwarn(
+                    f"Ignoring {key} {value!r} when running from wandb launch context."
+                )
+                setattr(self, key, None)
 
     @staticmethod
     def validate_url(url: str) -> None:
