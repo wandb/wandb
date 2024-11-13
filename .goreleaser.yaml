@@ -20,7 +20,6 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
-      - windows
       - darwin
     # if we want to sign containers, we need to revert this and implement different solution
     # https://github.com/containers/image/issues/1634
