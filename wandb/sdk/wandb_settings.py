@@ -160,6 +160,20 @@ def _get_program() -> Optional[str]:
         return None
 
 
+def _preprocess_file_stream_max_line_bytes(val: Any) -> Optional[int]:
+    """Preprocess the file_stream_max_line_bytes setting.
+
+    For now treat negative values as 0, which means use the default.
+    """
+    try:
+        value = int(val)
+        if value < 0:
+            return None
+        return value
+    except ValueError:
+        return None
+
+
 def _runmoment_preprocessor(val: Any) -> Optional[RunMoment]:
     if isinstance(val, RunMoment) or val is None:
         return val
@@ -320,6 +334,7 @@ class SettingsData:
     _file_stream_retry_wait_min_seconds: float  # min wait time between retries
     _file_stream_retry_wait_max_seconds: float  # max wait time between retries
     _file_stream_timeout_seconds: float  # timeout for individual HTTP requests
+    _file_stream_max_line_bytes: int  # max line length for filestream jsonl files
     # file transfer retry client configuration
     _file_transfer_retry_max: int
     _file_transfer_retry_wait_min_seconds: float
@@ -670,6 +685,9 @@ class Settings(SettingsData):
             _file_stream_retry_wait_min_seconds={"preprocessor": float},
             _file_stream_retry_wait_max_seconds={"preprocessor": float},
             _file_stream_timeout_seconds={"preprocessor": float},
+            _file_stream_max_line_bytes={
+                "preprocessor": _preprocess_file_stream_max_line_bytes,
+            },
             _file_transfer_retry_max={"preprocessor": int},
             _file_transfer_retry_wait_min_seconds={"preprocessor": float},
             _file_transfer_retry_wait_max_seconds={"preprocessor": float},
