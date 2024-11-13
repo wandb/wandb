@@ -172,7 +172,7 @@ class _WandbInit:
 
     def setup(  # noqa: C901
         self,
-        settings: Settings,
+        init_settings: Settings,
         config: dict | str | None = None,
         config_exclude_keys: list[str] | None = None,
         config_include_keys: list[str] | None = None,
@@ -185,7 +185,7 @@ class _WandbInit:
         """
         self.warn_env_vars_change_after_setup()
 
-        self._wl = wandb_setup.setup(settings=settings)
+        self._wl = wandb_setup.setup(settings=init_settings)
 
         assert self._wl is not None
         _set_logger(self._wl._get_logger())
@@ -1208,57 +1208,57 @@ def init(  # noqa: C901
             "You cannot specify more than one of `fork_from`, `resume`, or `resume_from`"
         )
 
-    s = Settings()
+    init_settings = Settings()
     if isinstance(settings, dict):
-        s = Settings(**settings)
+        init_settings = Settings(**settings)
     elif isinstance(settings, Settings):
-        s = settings
+        init_settings = settings
 
     # convert explicit function arguments to settings
     if job_type is not None:
-        s.run_job_type = job_type
+        init_settings.run_job_type = job_type
     if dir is not None:
-        s.root_dir = dir  # type: ignore
+        init_settings.root_dir = dir  # type: ignore
     if project is not None:
-        s.project = project
+        init_settings.project = project
     if entity is not None:
-        s.entity = entity
+        init_settings.entity = entity
     if reinit is not None:
-        s.reinit = reinit
+        init_settings.reinit = reinit
     if tags is not None:
-        s.run_tags = tuple(tags)
+        init_settings.run_tags = tuple(tags)
     if group is not None:
-        s.run_group = group
+        init_settings.run_group = group
     if name is not None:
-        s.run_name = name
+        init_settings.run_name = name
     if notes is not None:
-        s.run_notes = notes
+        init_settings.run_notes = notes
     if anonymous is not None:
-        s.anonymous = anonymous  # type: ignore
+        init_settings.anonymous = anonymous  # type: ignore
     if mode is not None:
-        s.mode = mode  # type: ignore
+        init_settings.mode = mode  # type: ignore
     if resume is not None:
-        s.resume = resume  # type: ignore
+        init_settings.resume = resume  # type: ignore
     if force is not None:
-        s.force = force
+        init_settings.force = force
     # TODO: deprecate "tensorboard" in favor of "sync_tensorboard"
     if tensorboard is not None:
-        s.sync_tensorboard = tensorboard
+        init_settings.sync_tensorboard = tensorboard
     if sync_tensorboard is not None:
-        s.sync_tensorboard = sync_tensorboard
+        init_settings.sync_tensorboard = sync_tensorboard
     if save_code is not None:
-        s.save_code = save_code
+        init_settings.save_code = save_code
     if id is not None:
-        s.run_id = id
+        init_settings.run_id = id
     if fork_from is not None:
-        s.fork_from = fork_from  # type: ignore
+        init_settings.fork_from = fork_from  # type: ignore
     if resume_from is not None:
-        s.resume_from = resume_from  # type: ignore
+        init_settings.resume_from = resume_from  # type: ignore
 
     try:
         wi = _WandbInit()
         wi.setup(
-            settings=s,
+            init_settings=init_settings,
             config=config,
             config_exclude_keys=config_exclude_keys,
             config_include_keys=config_include_keys,
