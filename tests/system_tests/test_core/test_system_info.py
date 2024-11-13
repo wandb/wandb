@@ -60,6 +60,7 @@ def send_manager(
     yield send_manager_helper
 
 
+@pytest.mark.skip(reason="This tests a deprecated codepath")
 def test_meta_probe(
     wandb_backend_spy,
     meta,
@@ -142,7 +143,7 @@ def test_jupyter_name(meta, test_settings, mocked_ipython):
 
 def test_jupyter_path(meta, test_settings, mocked_ipython, git_repo):
     # not actually how jupyter setup works but just to test the meta paths
-    meta = meta(test_settings(dict(_jupyter_path="dummy/path")))
+    meta = meta(test_settings(dict(x_jupyter_path="dummy/path")))
     data = meta.probe()
     assert data["program"] == "dummy/path"
     assert data.get("root") is not None

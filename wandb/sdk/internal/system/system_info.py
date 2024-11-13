@@ -177,16 +177,16 @@ class SystemInfo:
             elif self.settings._jupyter:
                 if self.settings.notebook_name:
                     data["program"] = self.settings.notebook_name
-                elif self.settings._jupyter_path:
-                    if self.settings._jupyter_path.startswith("fileId="):
-                        unescaped = unquote(self.settings._jupyter_path)
+                elif self.settings.x_jupyter_path:
+                    if self.settings.x_jupyter_path.startswith("fileId="):
+                        unescaped = unquote(self.settings.x_jupyter_path)
                         data["colab"] = (
                             "https://colab.research.google.com/notebook#" + unescaped
                         )
-                        data["program"] = self.settings._jupyter_name
+                        data["program"] = self.settings.x_jupyter_name
                     else:
-                        data["program"] = self.settings._jupyter_path
-                        data["root"] = self.settings._jupyter_root
+                        data["program"] = self.settings.x_jupyter_path
+                        data["root"] = self.settings.x_jupyter_root
             # get the git repo info
             data = self._probe_git(data)
 
