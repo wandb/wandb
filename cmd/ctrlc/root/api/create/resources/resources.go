@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc/v2"
@@ -19,6 +20,7 @@ func NewResourcesCmd() *cobra.Command {
 	var version string
 	var metadata map[string]string
 	var configArray map[string]string
+	var links map[string]string
 
 	cmd := &cobra.Command{
 		Use:   "resources [flags]",
@@ -41,6 +43,14 @@ func NewResourcesCmd() *cobra.Command {
 
 			// Convert configArray into a nested map[string]interface{}
 			config := cliutil.ConvertConfigArrayToNestedMap(configArray)
+
+			if len(links) > 0 {
+				linksJSON, err := json.Marshal(links)
+				if err != nil {
+					return fmt.Errorf("failed to marshal links: %w", err)
+				}
+				metadata["ctrlplane/links"] = string(linksJSON)
+			}
 
 			// Extrat into vars
 			resp, err := client.UpsertTargets(cmd.Context(), api.UpsertTargetsJSONRequestBody{
@@ -86,6 +96,7 @@ func NewResourcesCmd() *cobra.Command {
 	cmd.Flags().StringVar(&version, "version", "", "Version of the resource (required)")
 	cmd.Flags().StringToStringVar(&metadata, "metadata", make(map[string]string), "Metadata key-value pairs (e.g. --metadata key=value)")
 	cmd.Flags().StringToStringVar(&configArray, "config", make(map[string]string), "Config key-value pairs with nested values (can be specified multiple times)")
+	cmd.Flags().StringToStringVar(&links, "link", make(map[string]string), "Links key-value pairs (can be specified multiple times)")
 
 	cmd.MarkFlagRequired("version")
 	cmd.MarkFlagRequired("workspace")
