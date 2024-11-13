@@ -182,6 +182,11 @@ func (s *Settings) GetFileStreamTransmitInterval() time.Duration {
 	return time.Second * time.Duration(s.Proto.XFileStreamTransmitInterval.GetValue())
 }
 
+// Maximum line length for filestream jsonl files, imposed by the back-end.
+func (s *Settings) GetFileStreamMaxLineBytes() int32 {
+	return s.Proto.XFileStreamMaxLineBytes.GetValue()
+}
+
 // Maximum number of retries for file upload/download operations.
 func (s *Settings) GetFileTransferMaxRetries() int32 {
 	return s.Proto.XFileTransferRetryMax.GetValue()

@@ -37,8 +37,8 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git remote set-url origin https://${{ secrets.GITHUB_TOKEN }}@github.com/wandb/wandb.git
 
-      - name: Install bump2version
-        run: pip install bump2version
+      - name: Install Dependencies
+        run: pip install bump2version click
 
       - name: Create and Switch to Release Branch
         run: |
