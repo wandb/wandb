@@ -8,7 +8,7 @@ inputs:
   repo:
     description: "GitHub repository containing the binary (format: owner/repo)"
     required: true
-    default: "ctrlplanedev/ctrlc"
+    default: "ctrlplanedev/cli"
   url:
     description: "URL of the ctrlplane instance"
     required: false
