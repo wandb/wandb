@@ -9,9 +9,9 @@ def test_run_system_metrics(wandb_init, relay_server, test_settings):
         run = wandb_init(
             settings=test_settings(
                 dict(
-                    _file_stream_transmit_interval=1,
-                    _stats_sampling_interval=1,
-                    _stats_buffer_size=100,
+                    x_file_stream_transmit_interval=1,
+                    x_stats_sampling_interval=1,
+                    x_stats_buffer_size=100,
                 )
             ),
         )

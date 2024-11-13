@@ -166,7 +166,7 @@ class _WandbInit:
                 "because your `wandb` session has already started. "
                 "For more information on how to modify your settings with "
                 "`wandb.init()` arguments, please refer to "
-                f"{self.printer.link(url_registry.url('wandb_init'), 'the W&B docs')}."
+                f"{self.printer.link(url_registry.url('wandb-init'), 'the W&B docs')}."
             )
             self.printer.display(line, level="warn")
 
@@ -303,8 +303,6 @@ class _WandbInit:
             self._split_artifacts_from_config(launch_config, self.launch_config)
 
         self.settings = settings
-
-        # self.settings.freeze()
 
     def teardown(self) -> None:
         # TODO: currently this is only called on failed wandb.init attempts
@@ -626,11 +624,10 @@ class _WandbInit:
 
         service = self._wl.service
         if service:
-            assert self.settings.run_id
             logger.info("sending inform_init request")
             service.inform_init(
                 settings=self.settings.to_proto(),
-                run_id=self.settings.run_id,
+                run_id=self.settings.run_id,  # type: ignore
             )
 
         mailbox = Mailbox()
@@ -817,6 +814,7 @@ class _WandbInit:
             with telemetry.context(run=run) as tel:
                 tel.feature.resumed = run_result.run.resumed
 
+        print(run_result.run)
         run._set_run_obj(run_result.run)
 
         run._on_init()
