@@ -22,7 +22,7 @@ runs:
     - name: Download binary
       shell: bash
       run: |
-        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        OS=$(uname -s)
         ARCH=$(uname -m)
         if [ "$ARCH" = "x86_64" ]; then
           ARCH="x86_64"
@@ -31,7 +31,8 @@ runs:
         fi
 
         BINARY_NAME="${{ inputs.binary }}_${OS}_${ARCH}"
-        DOWNLOAD_URL="https://github.com/${{ inputs.repo }}/releases/download/${{ inputs.version }}/ctrlc_${OS}_${ARCH}.tar.gz"
+        echo "BINARY_NAME: $BINARY_NAME"
+        DOWNLOAD_URL="https://github.com/${{ inputs.repo }}/releases/download/${{ inputs.version }}/$BINARY_NAME.tar.gz"
 
         curl -L $DOWNLOAD_URL -o binary.tar.gz
         tar xzf binary.tar.gz
