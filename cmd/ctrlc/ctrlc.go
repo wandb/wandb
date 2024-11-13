@@ -37,6 +37,8 @@ func initConfig() {
 
 		viper.AddConfigPath(home)
 		viper.SetConfigName(".ctrlc")
+		viper.SetConfigType("yaml")
+		viper.SafeWriteConfig()
 	}
 
 	if err := viper.ReadInConfig(); err != nil {

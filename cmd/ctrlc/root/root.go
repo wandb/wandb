@@ -5,11 +5,13 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/agent"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/config"
 )
 
 func NewRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "ctrlc <command> <subcommand> [flags]",
+		Use:   "ctrlc <command> <subcommand> [subcommand] [flags]",
 		Short: "Ctrlconnect CLI",
 		Long:  `Configure and manage your deployment environments remotely.`,
 		Example: heredoc.Doc(`
@@ -22,6 +24,8 @@ func NewRootCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(agent.NewAgentCmd())
+	cmd.AddCommand(api.NewAPICmd())
+	cmd.AddCommand(config.NewConfigCmd())
 
 	return cmd
 }

@@ -70,7 +70,7 @@ func NewAgentRunCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&workspace, "workspace", "w", "", "Workspace for this agent")
 	cmd.Flags().StringSliceVarP(&labels, "labels", "l", []string{}, "Labels in the format key=value")
 	cmd.Flags().BoolVar(&insecure, "insecure", false, "Allow insecure connections")
-	
+
 	cmd.MarkFlagRequired("workspace")
 	cmd.MarkFlagRequired("name")
 

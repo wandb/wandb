@@ -18,7 +18,7 @@ import (
 )
 
 type sessionConfig struct {
-	username 	 string
+	username     string
 	shell        string
 	size         *pty.Winsize
 	closeHandler func()
@@ -160,7 +160,6 @@ func StartSession(opts ...options.Option) (*Session, error) {
 			return nil, fmt.Errorf("failed to set terminal size: %v", err)
 		}
 	}
-
 
 	// Create a cancellable context
 	ctx, cancel := context.WithCancel(context.Background())

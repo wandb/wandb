@@ -14,12 +14,24 @@ import (
 	client "github.com/ctrlplanedev/cli/internal/websocket"
 	"github.com/ctrlplanedev/cli/pkg/payloads"
 	"github.com/gorilla/websocket"
+	"github.com/spf13/viper"
 )
 
-const (
-	ControllerURL = "/api/v1/target/proxy/controller"
-	SessionURL    = "/api/v1/target/proxy/session"
-)
+func GetSessionProxyURL(sessionId string) string {
+	url := viper.GetString("proxy.sessionUrl")
+	if url == "" {
+		url = "/api/v1/resources/proxy/session"
+	}
+	return url + "/" + sessionId
+}
+
+func GetControllerProxyURL() string {
+	url := viper.GetString("proxy.controllerUrl")
+	if url == "" {
+		url = "/api/v1/resources/proxy/controller"
+	}
+	return url
+}
 
 type Agent struct {
 	headers    http.Header
@@ -53,7 +65,7 @@ func NewAgent(serverURL, agentName string, opts ...func(*Agent)) *Agent {
 // handlers, starts read/write pumps, initializes heartbeat routine, and starts
 // the session cleaner. It returns an error if the connection fails.
 func (a *Agent) Connect() error {
-	conn, _, err := websocket.DefaultDialer.Dial(a.serverURL + ControllerURL, a.headers)
+	conn, _, err := websocket.DefaultDialer.Dial(a.serverURL+GetControllerProxyURL(), a.headers)
 	if err != nil {
 		return err
 	}
@@ -185,7 +197,7 @@ func (a *Agent) Stop() {
 }
 
 func (a *Agent) CreateSession(id string, opts ...options.Option) (*ptysession.Session, error) {
-	url := a.serverURL + SessionURL + "/" + id
+	url := a.serverURL + GetSessionProxyURL(id)
 	conn, _, err := websocket.DefaultDialer.Dial(url, a.headers)
 	if err != nil {
 		return nil, err
