@@ -55,7 +55,7 @@ class WandbBackendSpy:
             self._gql_stubs.append((match, respond))
 
     def intercept_graphql(self, request_raw: bytes) -> fastapi.Response | None:
-        """Potentially inject a fake GraphQL response."""
+        """Intercept a GraphQL request to produce a fake response."""
         with self._lock:
             if not self._gql_stubs:
                 return None
