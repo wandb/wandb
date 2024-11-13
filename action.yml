@@ -1,5 +1,5 @@
-name: Install Go Binary
-description: Installs a Go binary from a GitHub repository
+name: Install Ctrlplane CLI
+description: Installs the Ctrlplane CLI binary from a GitHub repository
 
 inputs:
   binary:
