@@ -88,6 +88,9 @@ STATS_AMD = {
 
 
 def test_gpu_amd(test_settings):
+    proto = wandb.Settings(x_stats_sampling_interval=0.1).to_proto()
+    settings = SettingsStatic(proto)
+
     with mock.patch.object(
         wandb.sdk.internal.system.assets.gpu_amd.subprocess,
         "check_output",
@@ -97,12 +100,7 @@ def test_gpu_amd(test_settings):
         "which",
         return_value=True,
     ):
-        # print(wandb.sdk.internal.system.assets.gpu_amd.get_rocm_smi_stats())
-
         interface = AssetInterface()
-        settings = SettingsStatic(
-            test_settings(dict(x_stats_sampling_interval=0.1)).to_proto()
-        )
         shutdown_event = threading.Event()
 
         gpu = GPUAMD(
@@ -135,6 +133,9 @@ def test_gpu_amd_missing_keys(test_settings):
     stats_amd_missing_keys = copy.deepcopy(STATS_AMD)
     stats_amd_missing_keys["card0"].pop("GPU use (%)")
 
+    proto = wandb.Settings(x_stats_sampling_interval=0.1).to_proto()
+    settings = SettingsStatic(proto)
+
     with mock.patch.object(
         wandb.sdk.internal.system.assets.gpu_amd.subprocess,
         "check_output",
@@ -145,9 +146,6 @@ def test_gpu_amd_missing_keys(test_settings):
         return_value=True,
     ):
         interface = AssetInterface()
-        settings = SettingsStatic(
-            test_settings(dict(x_stats_sampling_interval=0.1)).to_proto()
-        )
         shutdown_event = threading.Event()
 
         gpu = GPUAMD(
