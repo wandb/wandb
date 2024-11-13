@@ -279,15 +279,13 @@ class _WandbInit:
         if login_settings:
             settings.from_dict(login_settings)
 
-        # get status of code saving before applying user settings
-        save_code_pre_user_settings = settings.save_code
-
-        # TODO: handle launch- and sweeps-related logic
+        # handle custom sweep-, launch-, and resume-related logic
         settings.handle_sweep_logic()
         settings.handle_launch_logic()
-
         settings.handle_resume_logic()
 
+        # get status of code saving before applying user settings
+        save_code_pre_user_settings = settings.save_code
         if not settings._offline and not settings._noop:
             user_settings = self._wl._load_user_settings()
             if user_settings is not None:
