@@ -57,9 +57,12 @@ type CreateReleaseChannelJSONBody struct {
 
 // CreateReleaseJSONBody defines parameters for CreateRelease.
 type CreateReleaseJSONBody struct {
-	DeploymentId string             `json:"deploymentId"`
-	Metadata     *map[string]string `json:"metadata,omitempty"`
-	Version      string             `json:"version"`
+	Config       *map[string]interface{} `json:"config,omitempty"`
+	CreatedAt    *time.Time              `json:"createdAt,omitempty"`
+	DeploymentId string                  `json:"deploymentId"`
+	Metadata     *map[string]string      `json:"metadata,omitempty"`
+	Name         *string                 `json:"name,omitempty"`
+	Version      string                  `json:"version"`
 }
 
 // SetTargetProvidersTargetsJSONBody defines parameters for SetTargetProvidersTargets.
@@ -1771,6 +1774,10 @@ type CreateReleaseResponse struct {
 		Metadata *map[string]string `json:"metadata,omitempty"`
 		Version  *string            `json:"version,omitempty"`
 	}
+	JSON409 *struct {
+		Error *string `json:"error,omitempty"`
+		Id    *string `json:"id,omitempty"`
+	}
 }
 
 // Status returns HTTPResponse.Status
@@ -2707,6 +2714,16 @@ func ParseCreateReleaseResponse(rsp *http.Response) (*CreateReleaseResponse, err
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+			Id    *string `json:"id,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	}
 

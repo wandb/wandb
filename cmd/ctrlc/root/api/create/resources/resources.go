@@ -2,8 +2,6 @@ package resources
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/ctrlplanedev/cli/internal/api"
@@ -42,37 +40,7 @@ func NewResourcesCmd() *cobra.Command {
 			}
 
 			// Convert configArray into a nested map[string]interface{}
-			config := make(map[string]interface{})
-			for path, value := range configArray {
-				// Split path into segments
-				segments := strings.Split(path, ".")
-
-				// Start at the root map
-				current := config
-
-				// Navigate through segments
-				for i, segment := range segments {
-					if i == len(segments)-1 {
-						// Last segment - try to convert string to number or boolean if possible
-						if num, err := strconv.ParseFloat(value, 64); err == nil {
-							current[segment] = num
-						} else if value == "true" {
-							current[segment] = true
-						} else if value == "false" {
-							current[segment] = false
-						} else {
-							current[segment] = value
-						}
-					} else {
-						// Create nested map if it doesn't exist
-						if _, exists := current[segment]; !exists {
-							current[segment] = make(map[string]interface{})
-						}
-						// Move to next level
-						current = current[segment].(map[string]interface{})
-					}
-				}
-			}
+			config := cliutil.ConvertConfigArrayToNestedMap(configArray)
 
 			// Extrat into vars
 			resp, err := client.UpsertTargets(cmd.Context(), api.UpsertTargetsJSONRequestBody{
