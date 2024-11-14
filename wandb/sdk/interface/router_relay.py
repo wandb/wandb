@@ -6,7 +6,6 @@ Router to manage responses from a queue with relay.
 
 from typing import TYPE_CHECKING
 
-from ..lib import tracelog
 from ..lib.mailbox import Mailbox
 from .router_queue import MessageQueueRouter
 
@@ -33,7 +32,6 @@ class MessageRelayRouter(MessageQueueRouter):
 
     def _handle_msg_rcv(self, msg: "pb.Result") -> None:
         if msg.control.relay_id:
-            tracelog.log_message_queue(msg, self._relay_queue)
             self._relay_queue.put(msg)
             return
         super()._handle_msg_rcv(msg)

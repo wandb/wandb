@@ -10,7 +10,6 @@ Be sure to use `test_settings` or an isolated directory
 import importlib
 import os
 import shutil
-import time
 from unittest import mock
 
 import pytest

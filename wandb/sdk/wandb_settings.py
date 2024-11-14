@@ -160,6 +160,20 @@ def _get_program() -> Optional[str]:
         return None
 
 
+def _preprocess_file_stream_max_line_bytes(val: Any) -> Optional[int]:
+    """Preprocess the file_stream_max_line_bytes setting.
+
+    For now treat negative values as 0, which means use the default.
+    """
+    try:
+        value = int(val)
+        if value < 0:
+            return None
+        return value
+    except ValueError:
+        return None
+
+
 def _runmoment_preprocessor(val: Any) -> Optional[RunMoment]:
     if isinstance(val, RunMoment) or val is None:
         return val
@@ -320,6 +334,7 @@ class SettingsData:
     _file_stream_retry_wait_min_seconds: float  # min wait time between retries
     _file_stream_retry_wait_max_seconds: float  # max wait time between retries
     _file_stream_timeout_seconds: float  # timeout for individual HTTP requests
+    _file_stream_max_line_bytes: int  # max line length for filestream jsonl files
     # file transfer retry client configuration
     _file_transfer_retry_max: int
     _file_transfer_retry_wait_min_seconds: float
@@ -382,10 +397,10 @@ class SettingsData:
     _stats_disk_paths: Sequence[str]  # paths to monitor disk usage
     _stats_buffer_size: int  # number of consolidated samples to buffer before flushing, available in run obj
     _tmp_code_dir: str
-    _tracelog: str
     _unsaved_keys: Sequence[str]
     _windows: bool
     _show_operation_stats: bool
+    allow_offline_artifacts: bool
     allow_val_change: bool
     anonymous: str
     api_key: str
@@ -670,6 +685,9 @@ class Settings(SettingsData):
             _file_stream_retry_wait_min_seconds={"preprocessor": float},
             _file_stream_retry_wait_max_seconds={"preprocessor": float},
             _file_stream_timeout_seconds={"preprocessor": float},
+            _file_stream_max_line_bytes={
+                "preprocessor": _preprocess_file_stream_max_line_bytes,
+            },
             _file_transfer_retry_max={"preprocessor": int},
             _file_transfer_retry_wait_min_seconds={"preprocessor": float},
             _file_transfer_retry_wait_max_seconds={"preprocessor": float},
@@ -777,6 +795,7 @@ class Settings(SettingsData):
                 "auto_hook": True,
             },
             _show_operation_stats={"preprocessor": _str_as_bool},
+            allow_offline_artifacts={"value": "True", "preprocessor": _str_as_bool},
             anonymous={"validator": self._validate_anonymous},
             api_key={"validator": self._validate_api_key},
             base_url={
@@ -1677,7 +1696,6 @@ class Settings(SettingsData):
     ) -> None:
         env_prefix: str = "WANDB_"
         special_env_var_names = {
-            "WANDB_TRACELOG": "_tracelog",
             "WANDB_DISABLE_SERVICE": "_disable_service",
             "WANDB_SERVICE_TRANSPORT": "_service_transport",
             "WANDB_DIR": "root_dir",

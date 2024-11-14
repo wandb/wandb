@@ -26,7 +26,7 @@ const (
 	// Maximum line length for filestream jsonl files, imposed by the back-end.
 	//
 	// See https://github.com/wandb/core/pull/7339 for history.
-	maxFileLineBytes = (10 << 20) - (100 << 10)
+	defaultMaxFileLineBytes = (10 << 20) - (100 << 10)
 )
 
 type ChunkTypeEnum int8
