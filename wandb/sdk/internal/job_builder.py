@@ -476,7 +476,8 @@ class JobBuilder:
         # can't build a job without a python version
         if runtime is None:
             self._log_if_verbose(
-                "No python version found in metadata, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
+                "No python version found in metadata, not creating job artifact. "
+                "See https://docs.wandb.ai/guides/launch/create-job",
                 "warn",
             )
             return None
@@ -505,7 +506,8 @@ class JobBuilder:
         program_relpath = self._get_program_relpath(source_type, metadata)
         if not self._partial and source_type != "image" and not program_relpath:
             self._log_if_verbose(
-                "No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
+                "No program path found, not creating job artifact. "
+                "See https://docs.wandb.ai/guides/launch/create-job",
                 "warn",
             )
             return None
