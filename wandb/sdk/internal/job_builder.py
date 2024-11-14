@@ -456,7 +456,6 @@ class JobBuilder:
             )
             return None
 
-        print("self._settings.files_dir", self._settings.files_dir)
         if not os.path.exists(
             os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)
         ):
@@ -504,15 +503,6 @@ class JobBuilder:
             return None
 
         program_relpath = self._get_program_relpath(source_type, metadata)
-        print(self._is_notebook_run)
-        print(
-            "program_relpath",
-            program_relpath,
-            "source_type",
-            source_type,
-            "metadata",
-            metadata,
-        )
         if not self._partial and source_type != "image" and not program_relpath:
             self._log_if_verbose(
                 "No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
