@@ -13,18 +13,13 @@ import socket
 import sys
 import tempfile
 from datetime import datetime
-from typing import Any, Sequence
+from typing import Any, Literal, Sequence
 from urllib.parse import quote, unquote, urlencode
 
 if sys.version_info >= (3, 11):
     from typing import Self
 else:
     from typing_extensions import Self
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
 from pydantic import (

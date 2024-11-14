@@ -21,12 +21,7 @@ from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 from functools import reduce
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Sequence, TextIO
-
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal
-else:
-    from typing import Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, Sequence, TextIO
 
 import requests
 
@@ -97,10 +92,7 @@ from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
 
 if TYPE_CHECKING:
-    if sys.version_info >= (3, 8):
-        from typing import TypedDict
-    else:
-        from typing_extensions import TypedDict
+    from typing import TypedDict
 
     import torch  # type: ignore [import-not-found]
 
@@ -2055,7 +2047,7 @@ class Run:
         policy: PolicyName,
     ) -> list[str]:
         # Can't use is_relative_to() because that's added in Python 3.9,
-        # but we support down to Python 3.7.
+        # but we support down to Python 3.8.
         if not str(glob_path).startswith(str(base_path)):
             raise ValueError("Glob may not walk above the base path")
 
@@ -2099,12 +2091,7 @@ class Run:
             target_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Delete the symlink if it exists.
-            try:
-                target_path.unlink()
-            except FileNotFoundError:
-                # In Python 3.8, we would pass missing_ok=True, but as of now
-                # we support down to Python 3.7.
-                pass
+            target_path.unlink(missing_ok=True)
 
             target_path.symlink_to(source_path)
 

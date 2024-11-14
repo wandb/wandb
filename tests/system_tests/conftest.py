@@ -11,7 +11,7 @@ import unittest.mock
 import urllib.parse
 from collections.abc import Sequence
 from contextlib import contextmanager
-from typing import Any, Dict, Generator, Iterator, List, Optional, Union
+from typing import Any, Dict, Generator, Iterator, List, Literal, Optional, Union
 
 import pytest
 import requests
@@ -26,11 +26,6 @@ from .relay import (
     TokenizedCircularPattern,
 )
 from .wandb_backend_spy import WandbBackendProxy, WandbBackendSpy, spy_proxy
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 
 class ConsoleFormatter:
