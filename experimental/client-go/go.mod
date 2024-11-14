@@ -1,6 +1,6 @@
 module github.com/wandb/wandb/experimental/client-go
 
-go 1.23.2
+go 1.23.3
 
 require (
 	github.com/wandb/wandb/core v0.0.0-20241004233953-869540fcb62c
