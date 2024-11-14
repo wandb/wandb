@@ -44,7 +44,7 @@ class Matcher:
     def __init__(
         self,
         *,
-        operation: str,
+        operation: str | None = None,
         variables: dict[str, Any] | None = None,
     ) -> None:
         self._operation = operation
@@ -58,7 +58,7 @@ class Matcher:
             return False
 
         opname = query_match.group(2)
-        if self._operation != opname:
+        if self._operation is not None and self._operation != opname:
             return False
 
         for key, expected in self._variables.items():
@@ -68,6 +68,11 @@ class Matcher:
                 return False
 
         return True
+
+
+def any() -> Matcher:
+    """A matcher that matches any request."""
+    return Matcher()
 
 
 @dataclasses.dataclass(frozen=True)
