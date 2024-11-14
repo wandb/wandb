@@ -818,6 +818,8 @@ class WandbImporter:
             arts = sorted(arts, key=lambda a: int(a.version.lstrip("v")))
             arts = sorted(arts, key=lambda a: a.type)
 
+            yield ArtifactSequence(arts, entity, project, _type, name)
+
 
     def _cleanup_dummy_runs(
         self,
