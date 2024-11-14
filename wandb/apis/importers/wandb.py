@@ -591,7 +591,7 @@ class WandbImporter:
         logger.info(f"Finished uploading {seq=}")
 
         # query it back and remove placeholders
-        self._remove_placeholders(seq)
+        #self._remove_placeholders(seq)
 
 
     def _import_art_via_sdk(self, namespace: Namespace, run: WandbRun, artifact_group: list[Artifact]):
