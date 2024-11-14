@@ -36,6 +36,7 @@ class UnsupportedError(UsageError):
 class WandbCoreNotAvailableError(Error):
     """Raised when wandb core is not available."""
 
+
 class WandbServiceNotOwnedError(Error):
     """Raised when the current process does not own the service process."""
 
