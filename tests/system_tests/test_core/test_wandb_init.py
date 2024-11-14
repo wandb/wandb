@@ -3,81 +3,65 @@ import os
 from unittest import mock
 
 import pytest
+import wandb
 from wandb.errors import CommError, UsageError
 
 
-def test_upsert_bucket_409(
-    wandb_init,
-    relay_server,
-    inject_graphql_response,
-):
+def test_upsert_bucket_409(wandb_backend_spy):
     """Test that we retry upsert bucket mutations on 409s."""
-    inject_response = inject_graphql_response(
-        body="GOT ME A 409",
-        status=409,
-        query_match_fn=lambda query, variables: "mutation UpsertBucket" in query,
-        application_pattern="12",  # apply once and stop
+    gql = wandb_backend_spy.gql
+    responder = gql.once(content="", status=409)
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="UpsertBucket"),
+        responder,
     )
-    # we'll retry once and succeed
-    with relay_server(inject=[inject_response]):
-        run = wandb_init()
 
-    run.finish()
+    with wandb.init():
+        pass
+
+    assert responder.total_calls >= 2
 
 
-def test_upsert_bucket_410(
-    wandb_init,
-    relay_server,
-    inject_graphql_response,
-):
+def test_upsert_bucket_410(wandb_backend_spy):
     """Test that we do not retry upsert bucket mutations on 410s."""
-    inject_response = inject_graphql_response(
-        body="GOT ME A 410",
-        status=410,
-        query_match_fn=lambda query, variables: "mutation UpsertBucket" in query,
-        application_pattern="12",  # apply once and stop
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="UpsertBucket"),
+        gql.once(content="", status=410),
     )
-    # we do not retry 410s on upsert bucket mutations, so this should fail
-    with relay_server(inject=[inject_response]):
-        with pytest.raises(CommError):
-            wandb_init()
+
+    with pytest.raises(CommError):
+        wandb.init()
 
 
-def test_gql_409(
-    wandb_init,
-    relay_server,
-    inject_graphql_response,
-):
-    """Test that we retry upsert bucket mutations on 409s."""
-    inject_response = inject_graphql_response(
-        body="GOT ME A 409",
-        status=409,
-        query_match_fn=lambda query, variables: "mutation CreateRunFiles" in query,
-        application_pattern="12",  # apply once and stop
+def test_gql_409(wandb_backend_spy):
+    """Test that we do retry non-UpsertBucket GraphQL operations on 409s."""
+    gql = wandb_backend_spy.gql
+    responder = gql.once(content="", status=409)
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="CreateRunFiles"),
+        responder,
     )
-    # we do not retry 409s on queries, so this should fail
-    with relay_server(inject=[inject_response]):
-        run = wandb_init()
-        run.finish()
+
+    with wandb.init():
+        pass
+
+    assert responder.total_calls >= 2
 
 
-def test_gql_410(
-    wandb_init,
-    test_settings,
-    relay_server,
-    inject_graphql_response,
-):
-    """Test that we do not retry upsert bucket mutations on 410s."""
-    inject_response = inject_graphql_response(
-        body="GOT ME A 410",
-        status=410,
-        query_match_fn=lambda query, variables: "mutation CreateRunFiles" in query,
-        application_pattern="1112",  # apply thrice and stop
+def test_gql_410(wandb_backend_spy):
+    """Test that we do retry non-UpsertBucket GraphQL operations on 410s."""
+    gql = wandb_backend_spy.gql
+    responder = gql.once(content="", status=410)
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="CreateRunFiles"),
+        responder,
     )
-    # we'll retry once and succeed
-    with relay_server(inject=[inject_response]):
-        run = wandb_init(settings=test_settings({"_graphql_retry_max": 4}))
-        run.finish()
+
+    with wandb.init():
+        pass
+
+    assert responder.total_calls >= 2
 
 
 def test_send_wandb_config_start_time_on_init(wandb_init, relay_server):
