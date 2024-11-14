@@ -4,6 +4,11 @@ import atexit
 import os
 from typing import Callable
 
+from wandb.errors import (
+    WandbAttachFailedError,
+    WandbServiceConnectionError,
+    WandbServiceNotOwnedError,
+)
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_settings_pb2
@@ -15,18 +20,6 @@ from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.sock_client import SockClient, SockClientTimeoutError
 from wandb.sdk.service import service
-
-
-class WandbServiceNotOwnedError(Exception):
-    """Raised when the current process does not own the service process."""
-
-
-class WandbServiceConnectionError(Exception):
-    """Raised on failure to connect to the service process."""
-
-
-class WandbAttachFailedError(Exception):
-    """Raised if attaching to a run fails."""
 
 
 def connect_to_service(
