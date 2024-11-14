@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 var errRecordAfterClose = errors.New("runwork: ignoring record after close")
@@ -131,7 +131,7 @@ func (rw *runWork) AddWorkOrCancel(
 	case <-rw.closed:
 		// Here, internalWork is closed or about to be closed,
 		// so we should drop the record.
-		rw.logger.CaptureError(errRecordAfterClose, "work", work)
+		rw.logger.Warn(errRecordAfterClose.Error(), "work", work)
 		return
 
 	default:

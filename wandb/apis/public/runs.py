@@ -178,7 +178,7 @@ class Runs(Paginator):
     ):
         """Return sampled history metrics for all runs that fit the filters conditions.
 
-        Arguments:
+        Args:
             samples : (int, optional) The number of samples to return per run
             keys : (list[str], optional) Only return metrics for specific keys
             x_axis : (str, optional) Use this metric as the xAxis defaults to _step
@@ -609,7 +609,7 @@ class Run(Attrs):
     def files(self, names=None, per_page=50):
         """Return a file path for each file named.
 
-        Arguments:
+        Args:
             names (list): names of the requested files, if empty returns all files
             per_page (int): number of results per page.
 
@@ -622,7 +622,7 @@ class Run(Attrs):
     def file(self, name):
         """Return the path of a file with a given name in the artifact.
 
-        Arguments:
+        Args:
             name (str): name of requested file.
 
         Returns:
@@ -634,7 +634,7 @@ class Run(Attrs):
     def upload_file(self, path, root="."):
         """Upload a file.
 
-        Arguments:
+        Args:
             path (str): name of file to upload.
             root (str): the root path to save the file relative to.  i.e.
                 If you want to have the file saved in the run as "my_dir/file.txt"
@@ -662,7 +662,7 @@ class Run(Attrs):
 
         This is simpler and faster if you are ok with the history records being sampled.
 
-        Arguments:
+        Args:
             samples : (int, optional) The number of samples to return
             pandas : (bool, optional) Return a pandas dataframe
             keys : (list, optional) Only return metrics for specific keys
@@ -709,7 +709,7 @@ class Run(Attrs):
             losses = [row["Loss"] for row in history]
             ```
 
-        Arguments:
+        Args:
             keys ([str], optional): only fetch these keys, and only fetch rows that have all of keys defined.
             page_size (int, optional): size of pages to fetch from the api.
             min_step (int, optional): the minimum number of pages to scan at a time.
@@ -753,18 +753,69 @@ class Run(Attrs):
             )
 
     @normalize_exceptions
-    def logged_artifacts(self, per_page=100):
+    def logged_artifacts(self, per_page: int = 100) -> public.RunArtifacts:
+        """Fetches all artifacts logged by this run.
+
+        Retrieves all output artifacts that were logged during the run. Returns a
+        paginated result that can be iterated over or collected into a single list.
+
+        Args:
+            per_page: Number of artifacts to fetch per API request.
+
+        Returns:
+            An iterable collection of all Artifact objects logged as outputs during this run.
+
+        Example:
+            >>> import wandb
+            >>> import tempfile
+            >>> with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as tmp:
+            ...     tmp.write("This is a test artifact")
+            ...     tmp_path = tmp.name
+            >>> run = wandb.init(project="artifact-example")
+            >>> artifact = wandb.Artifact("test_artifact", type="dataset")
+            >>> artifact.add_file(tmp_path)
+            >>> run.log_artifact(artifact)
+            >>> run.finish()
+            >>> api = wandb.Api()
+            >>> finished_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+            >>> for logged_artifact in finished_run.logged_artifacts():
+            ...     print(logged_artifact.name)
+            test_artifact
+        """
         return public.RunArtifacts(self.client, self, mode="logged", per_page=per_page)
 
     @normalize_exceptions
-    def used_artifacts(self, per_page=100):
+    def used_artifacts(self, per_page: int = 100) -> public.RunArtifacts:
+        """Fetches artifacts explicitly used by this run.
+
+        Retrieves only the input artifacts that were explicitly declared as used
+        during the run, typically via `run.use_artifact()`. Returns a paginated
+        result that can be iterated over or collected into a single list.
+
+        Args:
+            per_page: Number of artifacts to fetch per API request.
+
+        Returns:
+            An iterable collection of Artifact objects explicitly used as inputs in this run.
+
+        Example:
+            >>> import wandb
+            >>> run = wandb.init(project="artifact-example")
+            >>> run.use_artifact("test_artifact:latest")
+            >>> run.finish()
+            >>> api = wandb.Api()
+            >>> finished_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+            >>> for used_artifact in finished_run.used_artifacts():
+            ...     print(used_artifact.name)
+            test_artifact
+        """
         return public.RunArtifacts(self.client, self, mode="used", per_page=per_page)
 
     @normalize_exceptions
     def use_artifact(self, artifact, use_as=None):
         """Declare an artifact as an input to a run.
 
-        Arguments:
+        Args:
             artifact (`Artifact`): An artifact returned from
                 `wandb.Api().artifact(name)`
             use_as (string, optional): A string identifying
@@ -802,7 +853,7 @@ class Run(Attrs):
     ):
         """Declare an artifact as output of a run.
 
-        Arguments:
+        Args:
             artifact (`Artifact`): An artifact returned from
                 `wandb.Api().artifact(name)`.
             aliases (list, optional): Aliases to apply to this artifact.

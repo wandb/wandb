@@ -1,6 +1,8 @@
 """Storage policy."""
 
-from typing import TYPE_CHECKING, Dict, Optional, Sequence, Type, Union
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Sequence
 
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.paths import FilePathStr, URIStr
@@ -14,7 +16,7 @@ if TYPE_CHECKING:
 
 class StoragePolicy:
     @classmethod
-    def lookup_by_name(cls, name: str) -> Type["StoragePolicy"]:
+    def lookup_by_name(cls, name: str) -> type[StoragePolicy]:
         import wandb.sdk.artifacts.storage_policies  # noqa: F401
 
         for sub in cls.__subclasses__():
@@ -27,19 +29,17 @@ class StoragePolicy:
         raise NotImplementedError
 
     @classmethod
-    def from_config(
-        cls, config: Dict, api: Optional[InternalApi] = None
-    ) -> "StoragePolicy":
+    def from_config(cls, config: dict, api: InternalApi | None = None) -> StoragePolicy:
         raise NotImplementedError
 
-    def config(self) -> Dict:
+    def config(self) -> dict:
         raise NotImplementedError
 
     def load_file(
         self,
-        artifact: "Artifact",
-        manifest_entry: "ArtifactManifestEntry",
-        dest_path: Optional[str] = None,
+        artifact: Artifact,
+        manifest_entry: ArtifactManifestEntry,
+        dest_path: str | None = None,
     ) -> FilePathStr:
         raise NotImplementedError
 
@@ -47,26 +47,26 @@ class StoragePolicy:
         self,
         artifact_id: str,
         artifact_manifest_id: str,
-        entry: "ArtifactManifestEntry",
-        preparer: "StepPrepare",
-        progress_callback: Optional["ProgressFn"] = None,
+        entry: ArtifactManifestEntry,
+        preparer: StepPrepare,
+        progress_callback: ProgressFn | None = None,
     ) -> bool:
         raise NotImplementedError
 
     def store_reference(
         self,
-        artifact: "Artifact",
-        path: Union[URIStr, FilePathStr],
-        name: Optional[str] = None,
+        artifact: Artifact,
+        path: URIStr | FilePathStr,
+        name: str | None = None,
         checksum: bool = True,
-        max_objects: Optional[int] = None,
-    ) -> Sequence["ArtifactManifestEntry"]:
+        max_objects: int | None = None,
+    ) -> Sequence[ArtifactManifestEntry]:
         raise NotImplementedError
 
     def load_reference(
         self,
-        manifest_entry: "ArtifactManifestEntry",
+        manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-        dest_path: Optional[str] = None,
-    ) -> Union[FilePathStr, URIStr]:
+        dest_path: str | None = None,
+    ) -> FilePathStr | URIStr:
         raise NotImplementedError

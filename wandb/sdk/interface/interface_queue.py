@@ -8,7 +8,6 @@ import logging
 from multiprocessing.process import BaseProcess
 from typing import TYPE_CHECKING, Optional
 
-from ..lib import tracelog
 from ..lib.mailbox import Mailbox
 from .interface_shared import InterfaceShared
 from .router_queue import MessageQueueRouter
@@ -37,10 +36,6 @@ class InterfaceQueue(InterfaceShared):
     ) -> None:
         self.record_q = record_q
         self.result_q = result_q
-        if self.record_q:
-            tracelog.annotate_queue(self.record_q, "record_q")
-        if self.result_q:
-            tracelog.annotate_queue(self.result_q, "result_q")
         super().__init__(process=process, process_check=process_check, mailbox=mailbox)
 
     def _init_router(self) -> None:
@@ -55,5 +50,4 @@ class InterfaceQueue(InterfaceShared):
         if local:
             record.control.local = local
         if self.record_q:
-            tracelog.log_message_queue(record, self.record_q)
             self.record_q.put(record)

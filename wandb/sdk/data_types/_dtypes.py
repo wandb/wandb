@@ -620,9 +620,13 @@ class ListType(Type):
                 py_list = py_obj.tolist()
             else:
                 py_list = list(py_obj)
-            elm_type = (
-                UnknownType() if None not in py_list else OptionalType(UnknownType())
-            )
+
+            elm_type: Type
+            if None not in py_list:
+                elm_type = UnknownType()
+            else:
+                elm_type = OptionalType(UnknownType())
+
             for item in py_list:
                 _elm_type = elm_type.assign(item)
                 # Commenting this out since we don't want to crash user code at this point, but rather

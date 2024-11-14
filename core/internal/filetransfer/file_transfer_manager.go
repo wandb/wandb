@@ -3,7 +3,7 @@ package filetransfer
 import (
 	"sync"
 
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 type Storage int

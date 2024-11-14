@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wandb/wandb/core/pkg/utils"
+	"github.com/wandb/wandb/core/internal/hashencode"
 )
 
 func setupTestEnvironment(t *testing.T) (*FileCache, func()) {
@@ -42,14 +42,12 @@ func TestFileCache_Write(t *testing.T) {
 	data := []byte("test data")
 	expectedMd5, err := cache.Write(bytes.NewReader(data))
 	require.NoError(t, err)
-	assert.Equal(t, utils.ComputeB64MD5(data), expectedMd5)
+	assert.Equal(t, hashencode.ComputeB64MD5(data), expectedMd5)
 
 	path, err := cache.md5Path(expectedMd5)
 	require.NoError(t, err)
 	require.NotNil(t, path)
-	exists, err := utils.FileExists(path)
-	require.NoError(t, err)
-	require.True(t, exists)
+	assert.FileExists(t, path)
 	readData, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, data, readData)
@@ -60,7 +58,7 @@ func TestHashOnlyCache_Write(t *testing.T) {
 	data := []byte("test data")
 	expectedMd5, err := cache.Write(bytes.NewReader(data))
 	require.NoError(t, err)
-	assert.Equal(t, utils.ComputeB64MD5(data), expectedMd5)
+	assert.Equal(t, hashencode.ComputeB64MD5(data), expectedMd5)
 }
 
 func TestFileCache_AddFile(t *testing.T) {
@@ -78,7 +76,7 @@ func TestFileCache_AddFile(t *testing.T) {
 
 	md5Hash, err := cache.AddFile(srcFile.Name())
 	require.NoError(t, err)
-	calculatedHash, err := utils.ComputeFileB64MD5(srcFile.Name())
+	calculatedHash, err := hashencode.ComputeFileB64MD5(srcFile.Name())
 	require.NoError(t, err)
 	assert.Equal(t, md5Hash, calculatedHash)
 }
@@ -98,7 +96,7 @@ func TestFileCache_AddFileAndCheckDigest(t *testing.T) {
 	defer os.Remove(srcFile.Name())
 
 	data := []byte("some data")
-	calculatedHash := utils.ComputeB64MD5(data)
+	calculatedHash := hashencode.ComputeB64MD5(data)
 	_, err = srcFile.Write(data)
 	require.NoError(t, err)
 	srcFile.Close()
@@ -118,7 +116,7 @@ func TestHashOnlyCache_AddFileAndCheckDigest(t *testing.T) {
 	defer os.Remove(srcFile.Name())
 
 	data := []byte("some data")
-	calculatedHash := utils.ComputeB64MD5(data)
+	calculatedHash := hashencode.ComputeB64MD5(data)
 	_, err = srcFile.Write(data)
 	require.NoError(t, err)
 	srcFile.Close()

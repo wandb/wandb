@@ -13,7 +13,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filetransfer"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 func TestDefaultFileTransfer_Download(t *testing.T) {

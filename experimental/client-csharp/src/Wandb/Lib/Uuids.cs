@@ -1,7 +1,7 @@
 using System.Text;
 
 
-namespace Wandb.Lib
+namespace Wandb.Library
 {
     /// <summary>
     /// Provides functionality to generate random strings using a specified alphabet.

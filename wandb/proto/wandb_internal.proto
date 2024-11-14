@@ -495,6 +495,7 @@ message LinkArtifactRequest {
   string portfolio_entity = 4;
   string portfolio_project = 5;
   repeated string portfolio_aliases = 6;
+  string portfolio_organization = 7;
   _RecordInfo _info = 200;
 }
 
@@ -596,6 +597,7 @@ message Request {
     SyncRequest sync = 76;
     JobInputRequest job_input = 77;
     LinkArtifactRequest link_artifact = 78;
+    RunFinishWithoutExitRequest run_finish_without_exit = 79;
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -627,6 +629,7 @@ message Response {
     GetSystemMetricsResponse get_system_metrics_response = 69;
     SyncResponse sync_response = 70;
     LinkArtifactResponse link_artifact_response = 71;
+    RunFinishWithoutExitResponse run_finish_without_exit_response = 72;
     TestInjectResponse test_inject_response = 1000;
   }
 }
@@ -776,6 +779,67 @@ message PollExitResponse {
   RunExitResult exit_result = 2;
   FilePusherStats pusher_stats = 3;
   FileCounts file_counts = 4;
+  OperationStats operation_stats = 5;
+}
+
+// Information about ongoing operations in the internal process.
+//
+// This is printed in the console to help the user estimate how long
+// they have to wait for a run to finish, and why.
+//
+// For example, it may be displayed like this:
+//
+// wandb: (41s) uploading artifact my-dataset (13/68 files)
+// wandb:   (1.0s) my-dataset-14.h5 (1.2 MB / 100 MB)
+// wandb:   (0.2s) my-dataset-15.h5 (43 MB / 100 MB)
+// wandb: (24s) uploading history, summary, console logs
+// wandb:   retrying HTTP 500 in 13s; attempt 22/10085 - see logs
+// wandb: + 7 more tasks
+message OperationStats {
+  // The ongoing operations sorted by usefulness for the user to see.
+  //
+  // This may not contain all operations, but it may also contain more than can
+  // be displayed in the terminal.
+  repeated Operation operations = 1;
+
+  // The actual total number of ongoing operations.
+  //
+  // This is at least the number of items in `operations`, but could be more.
+  int64 total_operations = 2;
+}
+
+message Operation {
+  // A short description for the operation.
+  //
+  // For top-level operations, it should be a present continuous verb phrase,
+  // such as "uploading artifact my-dataset".
+  //
+  // For subtasks, it should be as short as possible while making sense in
+  // the parent operation's context, such as "my_dataset.h5" for a file upload
+  // subtask that's part of an artifact upload operation.
+  //
+  // This does not start with a capital letter and does not end in punctuation.
+  string desc = 1;
+
+  // The number of seconds the operation has been running for.
+  double runtime_seconds = 2;
+
+  // A short description of the operation's progress.
+  //
+  // Examples:
+  //   - "3.1 MB / 100 MB"
+  //   - "4/5 files"
+  string progress = 3;
+
+  // A short message describing the operation's latest problem.
+  //
+  // This does not start with a capital letter and does not end in punctuation.
+  //
+  // Example: "retrying HTTP 500 error".
+  string error_status = 4;
+
+  // The top few most interesting subtasks for this operation.
+  repeated Operation subtasks = 5;
 }
 
 /*
@@ -1000,6 +1064,15 @@ message RunStartRequest {
 message RunStartResponse {}
 
 /*
+ * RunFinishWithoutExitRequest: finish the run without updating the exit status on the server
+ */
+message RunFinishWithoutExitRequest {
+  _RequestInfo _info = 200;
+}
+
+message RunFinishWithoutExitResponse {}
+
+/*
  * CheckVersion:
  */
 message CheckVersionRequest {
@@ -1156,10 +1229,12 @@ message CpuInfo {
   uint32 count_logical = 2;
 }
 
-message GpuAppleInfo {
-  string gpuType = 1;
-  string vendor = 2;
-  uint32 cores = 3;
+message AppleInfo {
+  string name = 1;
+  uint32 ecpu_cores = 2;
+  uint32 pcpu_cores = 3;
+  uint32 gpu_cores = 4;
+  uint32 memory_gb = 5;
 }
 
 message GpuNvidiaInfo {
@@ -1192,6 +1267,13 @@ message TrainiumInfo {
   uint32 neuroncore_per_device_count = 4;
 }
 
+message TPUInfo {
+  string name = 1;
+  uint32 hbm_gib = 2;
+  uint32 devices_per_chip = 3;
+  uint32 count = 4;
+}
+
 message MetadataRequest {
   string os = 1;
   string python = 2;
@@ -1218,12 +1300,13 @@ message MetadataRequest {
   map<string, DiskInfo> disk = 23;
   MemoryInfo memory = 24;
   CpuInfo cpu = 25;
-  GpuAppleInfo gpu_apple = 26 [json_name = "gpuapple"];
+  AppleInfo apple = 26;
   repeated GpuNvidiaInfo gpu_nvidia = 27 [json_name = "gpu_nvidia"];
   repeated GpuAmdInfo gpu_amd = 28 [json_name = "gpu_amd"];
   map<string, string> slurm = 29;
   string cuda_version = 30;
   TrainiumInfo trainium = 31;
+  TPUInfo tpu = 32;
 }
 
 message PythonPackagesRequest {

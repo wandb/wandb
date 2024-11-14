@@ -203,7 +203,6 @@ class Backend:
 
     def server_status(self) -> None:
         """Report server status."""
-        pass
 
     def cleanup(self) -> None:
         # TODO: make _done atomic

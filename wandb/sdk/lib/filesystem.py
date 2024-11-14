@@ -16,7 +16,7 @@ from wandb.sdk.lib.paths import StrPath
 logger = logging.getLogger(__name__)
 
 # https://en.wikipedia.org/wiki/Filename#Comparison_of_filename_limitations
-PROBLEMATIC_PATH_CHARS = "".join(chr(i) for i in range(0, 32)) + ':"*<>?|'
+PROBLEMATIC_PATH_CHARS = "".join(chr(i) for i in range(32)) + ':"*<>?|'
 
 
 def mkdir_exists_ok(dir_name: StrPath) -> None:

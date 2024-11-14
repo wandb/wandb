@@ -8,13 +8,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filestreamtest"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	. "github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runfilestest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sparselist"
-	"github.com/wandb/wandb/core/pkg/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )

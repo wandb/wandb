@@ -102,6 +102,84 @@ func (v *ArtifactFileURLsArtifactFilesFileConnectionPageInfo) GetEndCursor() *st
 	return v.EndCursor
 }
 
+// ArtifactFileURLsByManifestEntriesArtifact includes the requested fields of the GraphQL type Artifact.
+type ArtifactFileURLsByManifestEntriesArtifact struct {
+	FilesByManifestEntries ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection `json:"filesByManifestEntries"`
+}
+
+// GetFilesByManifestEntries returns ArtifactFileURLsByManifestEntriesArtifact.FilesByManifestEntries, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesArtifact) GetFilesByManifestEntries() ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection {
+	return v.FilesByManifestEntries
+}
+
+// ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection includes the requested fields of the GraphQL type FileConnection.
+type ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection struct {
+	PageInfo ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionPageInfo        `json:"pageInfo"`
+	Edges    []ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdge `json:"edges"`
+}
+
+// GetPageInfo returns ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection) GetPageInfo() ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionPageInfo {
+	return v.PageInfo
+}
+
+// GetEdges returns ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection.Edges, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection) GetEdges() []ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdge {
+	return v.Edges
+}
+
+// ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdge includes the requested fields of the GraphQL type FileEdge.
+type ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdge struct {
+	Node *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdgeNodeFile `json:"node"`
+}
+
+// GetNode returns ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdge.Node, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdge) GetNode() *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdgeNodeFile {
+	return v.Node
+}
+
+// ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdgeNodeFile includes the requested fields of the GraphQL type File.
+type ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdgeNodeFile struct {
+	Name      string `json:"name"`
+	DirectUrl string `json:"directUrl"`
+}
+
+// GetName returns ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdgeNodeFile.Name, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdgeNodeFile) GetName() string {
+	return v.Name
+}
+
+// GetDirectUrl returns ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdgeNodeFile.DirectUrl, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdgeNodeFile) GetDirectUrl() string {
+	return v.DirectUrl
+}
+
+// ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+type ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionPageInfo struct {
+	HasNextPage bool    `json:"hasNextPage"`
+	EndCursor   *string `json:"endCursor"`
+}
+
+// GetHasNextPage returns ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
+}
+
+// GetEndCursor returns ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionPageInfo) GetEndCursor() *string {
+	return v.EndCursor
+}
+
+// ArtifactFileURLsByManifestEntriesResponse is returned by ArtifactFileURLsByManifestEntries on success.
+type ArtifactFileURLsByManifestEntriesResponse struct {
+	Artifact *ArtifactFileURLsByManifestEntriesArtifact `json:"artifact"`
+}
+
+// GetArtifact returns ArtifactFileURLsByManifestEntriesResponse.Artifact, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesResponse) GetArtifact() *ArtifactFileURLsByManifestEntriesArtifact {
+	return v.Artifact
+}
+
 // ArtifactFileURLsResponse is returned by ArtifactFileURLs on success.
 type ArtifactFileURLsResponse struct {
 	Artifact *ArtifactFileURLsArtifact `json:"artifact"`
@@ -139,6 +217,29 @@ type ArtifactManifestArtifactCurrentManifestArtifactManifestFile struct {
 func (v *ArtifactManifestArtifactCurrentManifestArtifactManifestFile) GetDirectUrl() string {
 	return v.DirectUrl
 }
+
+type ArtifactManifestEntryInput struct {
+	Name            string  `json:"name"`
+	Digest          string  `json:"digest"`
+	BirthArtifactID *string `json:"birthArtifactID"`
+	Ref             *string `json:"ref"`
+	Size            *int64  `json:"size"`
+}
+
+// GetName returns ArtifactManifestEntryInput.Name, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestEntryInput) GetName() string { return v.Name }
+
+// GetDigest returns ArtifactManifestEntryInput.Digest, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestEntryInput) GetDigest() string { return v.Digest }
+
+// GetBirthArtifactID returns ArtifactManifestEntryInput.BirthArtifactID, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestEntryInput) GetBirthArtifactID() *string { return v.BirthArtifactID }
+
+// GetRef returns ArtifactManifestEntryInput.Ref, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestEntryInput) GetRef() *string { return v.Ref }
+
+// GetSize returns ArtifactManifestEntryInput.Size, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestEntryInput) GetSize() *int64 { return v.Size }
 
 // ArtifactManifestResponse is returned by ArtifactManifest on success.
 type ArtifactManifestResponse struct {
@@ -687,6 +788,48 @@ type CreatedArtifactArtifactArtifactSequenceLatestArtifact struct {
 // GetId returns CreatedArtifactArtifactArtifactSequenceLatestArtifact.Id, and is useful for accessing the field via an interface.
 func (v *CreatedArtifactArtifactArtifactSequenceLatestArtifact) GetId() string { return v.Id }
 
+// FetchOrgEntityFromEntityEntity includes the requested fields of the GraphQL type Entity.
+type FetchOrgEntityFromEntityEntity struct {
+	Organization *FetchOrgEntityFromEntityEntityOrganization `json:"organization"`
+}
+
+// GetOrganization returns FetchOrgEntityFromEntityEntity.Organization, and is useful for accessing the field via an interface.
+func (v *FetchOrgEntityFromEntityEntity) GetOrganization() *FetchOrgEntityFromEntityEntityOrganization {
+	return v.Organization
+}
+
+// FetchOrgEntityFromEntityEntityOrganization includes the requested fields of the GraphQL type Organization.
+type FetchOrgEntityFromEntityEntityOrganization struct {
+	Name      string                                               `json:"name"`
+	OrgEntity *FetchOrgEntityFromEntityEntityOrganizationOrgEntity `json:"orgEntity"`
+}
+
+// GetName returns FetchOrgEntityFromEntityEntityOrganization.Name, and is useful for accessing the field via an interface.
+func (v *FetchOrgEntityFromEntityEntityOrganization) GetName() string { return v.Name }
+
+// GetOrgEntity returns FetchOrgEntityFromEntityEntityOrganization.OrgEntity, and is useful for accessing the field via an interface.
+func (v *FetchOrgEntityFromEntityEntityOrganization) GetOrgEntity() *FetchOrgEntityFromEntityEntityOrganizationOrgEntity {
+	return v.OrgEntity
+}
+
+// FetchOrgEntityFromEntityEntityOrganizationOrgEntity includes the requested fields of the GraphQL type Entity.
+type FetchOrgEntityFromEntityEntityOrganizationOrgEntity struct {
+	Name string `json:"name"`
+}
+
+// GetName returns FetchOrgEntityFromEntityEntityOrganizationOrgEntity.Name, and is useful for accessing the field via an interface.
+func (v *FetchOrgEntityFromEntityEntityOrganizationOrgEntity) GetName() string { return v.Name }
+
+// FetchOrgEntityFromEntityResponse is returned by FetchOrgEntityFromEntity on success.
+type FetchOrgEntityFromEntityResponse struct {
+	Entity *FetchOrgEntityFromEntityEntity `json:"entity"`
+}
+
+// GetEntity returns FetchOrgEntityFromEntityResponse.Entity, and is useful for accessing the field via an interface.
+func (v *FetchOrgEntityFromEntityResponse) GetEntity() *FetchOrgEntityFromEntityEntity {
+	return v.Entity
+}
+
 // InputFieldsResponse is returned by InputFields on success.
 type InputFieldsResponse struct {
 	TypeInfo *InputFieldsTypeInfoType `json:"TypeInfo"`
@@ -1014,6 +1157,30 @@ func (v *TagInput) GetTagName() string { return v.TagName }
 // GetAttributes returns TagInput.Attributes, and is useful for accessing the field via an interface.
 func (v *TagInput) GetAttributes() *string { return v.Attributes }
 
+// TypeFieldsResponse is returned by TypeFields on success.
+type TypeFieldsResponse struct {
+	TypeInfo *TypeFieldsTypeInfoType `json:"TypeInfo"`
+}
+
+// GetTypeInfo returns TypeFieldsResponse.TypeInfo, and is useful for accessing the field via an interface.
+func (v *TypeFieldsResponse) GetTypeInfo() *TypeFieldsTypeInfoType { return v.TypeInfo }
+
+// TypeFieldsTypeInfoType includes the requested fields of the GraphQL type __Type.
+type TypeFieldsTypeInfoType struct {
+	Fields []TypeFieldsTypeInfoTypeFieldsField `json:"fields"`
+}
+
+// GetFields returns TypeFieldsTypeInfoType.Fields, and is useful for accessing the field via an interface.
+func (v *TypeFieldsTypeInfoType) GetFields() []TypeFieldsTypeInfoTypeFieldsField { return v.Fields }
+
+// TypeFieldsTypeInfoTypeFieldsField includes the requested fields of the GraphQL type __Field.
+type TypeFieldsTypeInfoTypeFieldsField struct {
+	Name string `json:"name"`
+}
+
+// GetName returns TypeFieldsTypeInfoTypeFieldsField.Name, and is useful for accessing the field via an interface.
+func (v *TypeFieldsTypeInfoTypeFieldsField) GetName() string { return v.Name }
+
 // UpdateArtifactManifestResponse is returned by UpdateArtifactManifest on success.
 type UpdateArtifactManifestResponse struct {
 	UpdateArtifactManifest *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayload `json:"updateArtifactManifest"`
@@ -1301,6 +1468,34 @@ func (v *ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity) GetName
 	return v.Name
 }
 
+// __ArtifactFileURLsByManifestEntriesInput is used internally by genqlient
+type __ArtifactFileURLsByManifestEntriesInput struct {
+	Id              string                       `json:"id"`
+	Entries         []ArtifactManifestEntryInput `json:"entries"`
+	StorageLayout   string                       `json:"storageLayout"`
+	ManifestVersion string                       `json:"manifestVersion"`
+	StorageRegion   *string                      `json:"storageRegion"`
+}
+
+// GetId returns __ArtifactFileURLsByManifestEntriesInput.Id, and is useful for accessing the field via an interface.
+func (v *__ArtifactFileURLsByManifestEntriesInput) GetId() string { return v.Id }
+
+// GetEntries returns __ArtifactFileURLsByManifestEntriesInput.Entries, and is useful for accessing the field via an interface.
+func (v *__ArtifactFileURLsByManifestEntriesInput) GetEntries() []ArtifactManifestEntryInput {
+	return v.Entries
+}
+
+// GetStorageLayout returns __ArtifactFileURLsByManifestEntriesInput.StorageLayout, and is useful for accessing the field via an interface.
+func (v *__ArtifactFileURLsByManifestEntriesInput) GetStorageLayout() string { return v.StorageLayout }
+
+// GetManifestVersion returns __ArtifactFileURLsByManifestEntriesInput.ManifestVersion, and is useful for accessing the field via an interface.
+func (v *__ArtifactFileURLsByManifestEntriesInput) GetManifestVersion() string {
+	return v.ManifestVersion
+}
+
+// GetStorageRegion returns __ArtifactFileURLsByManifestEntriesInput.StorageRegion, and is useful for accessing the field via an interface.
+func (v *__ArtifactFileURLsByManifestEntriesInput) GetStorageRegion() *string { return v.StorageRegion }
+
 // __ArtifactFileURLsInput is used internally by genqlient
 type __ArtifactFileURLsInput struct {
 	Id      string  `json:"id"`
@@ -1451,6 +1646,14 @@ func (v *__CreateRunFilesInput) GetRun() string { return v.Run }
 // GetFiles returns __CreateRunFilesInput.Files, and is useful for accessing the field via an interface.
 func (v *__CreateRunFilesInput) GetFiles() []string { return v.Files }
 
+// __FetchOrgEntityFromEntityInput is used internally by genqlient
+type __FetchOrgEntityFromEntityInput struct {
+	EntityName string `json:"entityName"`
+}
+
+// GetEntityName returns __FetchOrgEntityFromEntityInput.EntityName, and is useful for accessing the field via an interface.
+func (v *__FetchOrgEntityFromEntityInput) GetEntityName() string { return v.EntityName }
+
 // __InputFieldsInput is used internally by genqlient
 type __InputFieldsInput struct {
 	TypeName string `json:"typeName"`
@@ -1574,6 +1777,14 @@ func (v *__RunStoppedStatusInput) GetProjectName() *string { return v.ProjectNam
 
 // GetRunId returns __RunStoppedStatusInput.RunId, and is useful for accessing the field via an interface.
 func (v *__RunStoppedStatusInput) GetRunId() string { return v.RunId }
+
+// __TypeFieldsInput is used internally by genqlient
+type __TypeFieldsInput struct {
+	TypeName string `json:"typeName"`
+}
+
+// GetTypeName returns __TypeFieldsInput.TypeName, and is useful for accessing the field via an interface.
+func (v *__TypeFieldsInput) GetTypeName() string { return v.TypeName }
 
 // __UpdateArtifactInput is used internally by genqlient
 type __UpdateArtifactInput struct {
@@ -1746,6 +1957,60 @@ func ArtifactFileURLs(
 	var err_ error
 
 	var data_ ArtifactFileURLsResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
+
+// The query or mutation executed by ArtifactFileURLsByManifestEntries.
+const ArtifactFileURLsByManifestEntries_Operation = `
+query ArtifactFileURLsByManifestEntries ($id: ID!, $entries: [ArtifactManifestEntryInput!], $storageLayout: String!, $manifestVersion: String!, $storageRegion: String) {
+	artifact(id: $id) {
+		filesByManifestEntries(storageLayout: $storageLayout, manifestVersion: $manifestVersion, entries: $entries, storageRegion: $storageRegion) {
+			pageInfo {
+				hasNextPage
+				endCursor
+			}
+			edges {
+				node {
+					name
+					directUrl
+				}
+			}
+		}
+	}
+}
+`
+
+func ArtifactFileURLsByManifestEntries(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	id string,
+	entries []ArtifactManifestEntryInput,
+	storageLayout string,
+	manifestVersion string,
+	storageRegion *string,
+) (*ArtifactFileURLsByManifestEntriesResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "ArtifactFileURLsByManifestEntries",
+		Query:  ArtifactFileURLsByManifestEntries_Operation,
+		Variables: &__ArtifactFileURLsByManifestEntriesInput{
+			Id:              id,
+			Entries:         entries,
+			StorageLayout:   storageLayout,
+			ManifestVersion: manifestVersion,
+			StorageRegion:   storageRegion,
+		},
+	}
+	var err_ error
+
+	var data_ ArtifactFileURLsByManifestEntriesResponse
 	resp_ := &graphql.Response{Data: &data_}
 
 	err_ = client_.MakeRequest(
@@ -2120,6 +2385,46 @@ func CreateRunFiles(
 	return &data_, err_
 }
 
+// The query or mutation executed by FetchOrgEntityFromEntity.
+const FetchOrgEntityFromEntity_Operation = `
+query FetchOrgEntityFromEntity ($entityName: String!) {
+	entity(name: $entityName) {
+		organization {
+			name
+			orgEntity {
+				name
+			}
+		}
+	}
+}
+`
+
+func FetchOrgEntityFromEntity(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entityName string,
+) (*FetchOrgEntityFromEntityResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "FetchOrgEntityFromEntity",
+		Query:  FetchOrgEntityFromEntity_Operation,
+		Variables: &__FetchOrgEntityFromEntityInput{
+			EntityName: entityName,
+		},
+	}
+	var err_ error
+
+	var data_ FetchOrgEntityFromEntityResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
+
 // The query or mutation executed by InputFields.
 const InputFields_Operation = `
 query InputFields ($typeName: String!) {
@@ -2432,6 +2737,44 @@ func ServerInfo(
 	var err_ error
 
 	var data_ ServerInfoResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
+
+// The query or mutation executed by TypeFields.
+const TypeFields_Operation = `
+query TypeFields ($typeName: String!) {
+	TypeInfo: __type(name: $typeName) {
+		fields {
+			name
+		}
+	}
+}
+`
+
+// Query is used to fetch the fields of a given type to check server compatibility
+func TypeFields(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	typeName string,
+) (*TypeFieldsResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "TypeFields",
+		Query:  TypeFields_Operation,
+		Variables: &__TypeFieldsInput{
+			TypeName: typeName,
+		},
+	}
+	var err_ error
+
+	var data_ TypeFieldsResponse
 	resp_ := &graphql.Response{Data: &data_}
 
 	err_ = client_.MakeRequest(

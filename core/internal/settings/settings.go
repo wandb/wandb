@@ -58,14 +58,24 @@ func (s *Settings) GetAPIKey() string {
 	return s.Proto.ApiKey.GetValue()
 }
 
-// Whether we are in sync mode.
-func (s *Settings) IsSync() bool {
-	return s.Proto.XSync.GetValue()
+// Path to file containing an identity token for authentication.
+func (s *Settings) GetIdentityTokenFile() string {
+	return s.Proto.IdentityTokenFile.GetValue()
 }
 
 // Whether we are in offline mode.
 func (s *Settings) IsOffline() bool {
 	return s.Proto.XOffline.GetValue()
+}
+
+// Whether we are syncing a run from the transaction log.
+func (s *Settings) IsSync() bool {
+	return s.Proto.XSync.GetValue()
+}
+
+// Path to the transaction log file, that is being synced.
+func (s *Settings) GetTransactionLogPath() string {
+	return s.Proto.SyncFile.GetValue()
 }
 
 // Whether we are in shared mode.
@@ -96,29 +106,18 @@ func (s *Settings) GetEntity() string {
 	return s.Proto.Entity.GetValue()
 }
 
-// The W&B user name.
-func (s *Settings) GetUserName() string {
-	return s.Proto.Username.GetValue()
-}
-
-// The W&B email address.
-func (s *Settings) GetEmail() string {
-	return s.Proto.Email.GetValue()
-}
-
-// The W&B sweep URL.
-func (s *Settings) GetSweepURL() string {
-	return s.Proto.SweepUrl.GetValue()
-}
-
-func (s *Settings) GetBaseURL() string {
-	return s.Proto.BaseUrl.GetValue()
-}
-
-// The start time of the run.
+// The start time of the run in microseconds since the Unix epoch.
 func (s *Settings) GetStartTime() time.Time {
 	seconds := s.Proto.XStartTime.GetValue()
 	return time.UnixMicro(int64(seconds * 1e6))
+}
+
+// The root directory that will be used to derive other paths.
+// Such as the wandb directory, and the run directory.
+//
+// By default, this is the current working directory.
+func (s *Settings) GetRootDir() string {
+	return s.Proto.RootDir.GetValue()
 }
 
 // The directory for storing log files.
@@ -131,7 +130,7 @@ func (s *Settings) GetInternalLogFile() string {
 	return s.Proto.LogInternal.GetValue()
 }
 
-// The local directory where the run's files are stored.
+// Absolute path to the local directory where this run's files are stored.
 func (s *Settings) GetFilesDir() string {
 	return s.Proto.FilesDir.GetValue()
 }
@@ -139,6 +138,13 @@ func (s *Settings) GetFilesDir() string {
 // Unix glob patterns relative to `files_dir` to not upload.
 func (s *Settings) GetIgnoreGlobs() []string {
 	return s.Proto.IgnoreGlobs.GetValue()
+}
+
+// The URL for the W&B backend.
+//
+// Used for GraphQL and "filestream" operations.
+func (s *Settings) GetBaseURL() string {
+	return s.Proto.BaseUrl.GetValue()
 }
 
 // An approximate maximum request size for the filestream API.
@@ -158,20 +164,27 @@ func (s *Settings) GetFileStreamMaxRetries() int32 {
 
 // Initial wait in-between filestream retries.
 func (s *Settings) GetFileStreamRetryWaitMin() time.Duration {
-	return time.Second * time.Duration(
-		s.Proto.XFileStreamRetryWaitMinSeconds.GetValue())
+	return time.Second * time.Duration(s.Proto.XFileStreamRetryWaitMinSeconds.GetValue())
 }
 
 // Final wait in-between filestream retries.
 func (s *Settings) GetFileStreamRetryWaitMax() time.Duration {
-	return time.Second * time.Duration(
-		s.Proto.XFileStreamRetryWaitMaxSeconds.GetValue())
+	return time.Second * time.Duration(s.Proto.XFileStreamRetryWaitMaxSeconds.GetValue())
 }
 
 // Per-retry timeout for filestream operations.
 func (s *Settings) GetFileStreamTimeout() time.Duration {
-	return time.Second * time.Duration(
-		s.Proto.XFileStreamTimeoutSeconds.GetValue())
+	return time.Second * time.Duration(s.Proto.XFileStreamTimeoutSeconds.GetValue())
+}
+
+// Interval at which to transmit filestream updates.
+func (s *Settings) GetFileStreamTransmitInterval() time.Duration {
+	return time.Second * time.Duration(s.Proto.XFileStreamTransmitInterval.GetValue())
+}
+
+// Maximum line length for filestream jsonl files, imposed by the back-end.
+func (s *Settings) GetFileStreamMaxLineBytes() int32 {
+	return s.Proto.XFileStreamMaxLineBytes.GetValue()
 }
 
 // Maximum number of retries for file upload/download operations.
@@ -230,7 +243,107 @@ func (s *Settings) GetHTTPSProxy() string {
 	return s.Proto.HttpsProxy.GetValue()
 }
 
-// Resume mode for the run.
+// Path to the script that created the run, if available.
+func (s *Settings) GetProgram() string {
+	return s.Proto.Program.GetValue()
+}
+
+// The relative path from the root repository directory to the script that
+// created the run. If the script is not in the root repository directory,
+// this will be the relative path from the current working directory to the
+// script.
+//
+// For example, if the script is /home/user/project/example.py, and the root
+// repository directory is /home/user/project, then the relative path is
+// example.py.
+//
+// If couldn't find the relative path, this will be an empty string.
+func (s *Settings) GetProgramRelativePath() string {
+	return s.Proto.ProgramRelpath.GetValue()
+}
+
+// The relative path from the current working directory to the code path.
+//
+// For example, if the code path is /home/user/project/example.py, and the
+// current working directory is /home/user/project, then the code path local
+// is example.py.
+//
+// If couldn't find the relative path, this will be an empty string.
+func (s *Settings) GetProgramRelativePathFromCwd() string {
+	return s.Proto.XCodePathLocal.GetValue()
+}
+
+// The absolute path from the root repository directory to the script that
+// created the run. Root repository directory is defined as the directory
+// containing the .git directory, if it exists. Otherwise, it's the current
+// working directory.
+func (s *Settings) GetProgramAbsolutePath() string {
+	return s.Proto.ProgramAbspath.GetValue()
+}
+
+// The arguments passed to the script that created the run, if available.
+func (s *Settings) GetArgs() []string {
+	return s.Proto.XArgs.GetValue()
+}
+
+// The operating system of the machine running the run.
+func (s *Settings) GetOS() string {
+	return s.Proto.XOs.GetValue()
+}
+
+// The Docker image used to execute the script.
+func (s *Settings) GetDockerImageName() string {
+	return s.Proto.Docker.GetValue()
+}
+
+// The CUDA version of the machine running the run.
+func (s *Settings) GetCUDAVersion() string {
+	return s.Proto.XCuda.GetValue()
+}
+
+// The executable used to execute the script.
+func (s *Settings) GetExecutable() string {
+	return s.Proto.XExecutable.GetValue()
+}
+
+// The Python version used to execute the script.
+func (s *Settings) GetPython() string {
+	return s.Proto.XPython.GetValue()
+}
+
+// The Colab URL, if available.
+func (s *Settings) GetColabURL() string {
+	return s.Proto.ColabUrl.GetValue()
+}
+
+// The name of the host processor the run is running on.
+func (s *Settings) GetHostProcessorName() string {
+	return s.Proto.Host.GetValue()
+}
+
+// The W&B user name.
+func (s *Settings) GetUserName() string {
+	return s.Proto.Username.GetValue()
+}
+
+// The W&B email address.
+func (s *Settings) GetEmail() string {
+	return s.Proto.Email.GetValue()
+}
+
+// Specifies the resume behavior for the run. The available options are:
+//
+// "must": Resumes from an existing run with the same ID. If no such run exists,
+// it will result in failure.
+//
+// "allow": Attempts to resume from an existing run with the same ID. If none is
+// found, a new run will be created.
+//
+// "never": Always starts a new run. If a run with the same ID already exists,
+// it will result in failure.
+//
+// "auto": Automatically resumes from the most recent failed run on the same
+// machine.
 func (s *Settings) GetResume() string {
 	return s.Proto.Resume.GetValue()
 }
@@ -245,13 +358,69 @@ func (s *Settings) GetForkFrom() *spb.RunMoment {
 	return s.Proto.ForkFrom
 }
 
-// File path to supply a jwt for authentication
-func (s *Settings) GetIdentityTokenFile() string {
-	return s.Proto.IdentityTokenFile.GetValue()
+// The W&B sweep URL.
+func (s *Settings) GetSweepURL() string {
+	return s.Proto.SweepUrl.GetValue()
+}
+
+// Whether to create a job artifact for W&B Launch.
+func (s *Settings) IsJobCreationDisabled() bool {
+	return s.Proto.DisableJobCreation.GetValue() || s.Proto.XDisableMachineInfo.GetValue()
 }
 
 // Checks whether console capture is enabled. If it is, stdout and stderr
 // will be captured and sent to W&B.
 func (s *Settings) IsConsoleCaptureEnabled() bool {
 	return s.Proto.Console.GetValue() != "off"
+}
+
+// Whether to disable system metrics collection.
+func (s *Settings) IsDisableStats() bool {
+	return s.Proto.XDisableStats.GetValue()
+}
+
+// Whether to disable metadata collection.
+func (s *Settings) IsDisableMeta() bool {
+	return s.Proto.XDisableMeta.GetValue()
+}
+
+// Whether to save the code used to create the run.
+func (s *Settings) IsSaveCode() bool {
+	return s.Proto.SaveCode.GetValue()
+}
+
+// Whether to disable git capture and diff generation.
+func (s *Settings) IsDisableGit() bool {
+	return s.Proto.DisableGit.GetValue()
+}
+
+// Whether to disable machine info collection, such as hostname and hardware specs.
+func (s *Settings) GetDisableMachineInfo() bool {
+	return s.Proto.XDisableMachineInfo.GetValue()
+}
+
+// Update methods.
+//
+// These are used to update the settings in the proto.
+
+// Updates the start time of the run.
+func (s *Settings) UpdateStartTime(startTime time.Time) {
+	s.Proto.XStartTime = &wrapperspb.DoubleValue{
+		Value: float64(startTime.UnixNano()) / 1e9,
+	}
+}
+
+// Updates the run's entity name.
+func (s *Settings) UpdateEntity(entity string) {
+	s.Proto.Entity = &wrapperspb.StringValue{Value: entity}
+}
+
+// Updates the run's project name.
+func (s *Settings) UpdateProject(project string) {
+	s.Proto.Project = &wrapperspb.StringValue{Value: project}
+}
+
+// Updates the run's display name.
+func (s *Settings) UpdateDisplayName(displayName string) {
+	s.Proto.RunName = &wrapperspb.StringValue{Value: displayName}
 }

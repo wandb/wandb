@@ -21,6 +21,7 @@ from typing import (
     cast,
 )
 
+from wandb.errors.links import url_registry
 from wandb.proto.wandb_internal_pb2 import (
     HistoryRecord,
     InternalMessages,
@@ -37,7 +38,7 @@ from wandb.proto.wandb_internal_pb2 import (
 )
 
 from ..interface.interface_queue import InterfaceQueue
-from ..lib import handler_util, proto_util, tracelog, wburls
+from ..lib import handler_util, proto_util
 from . import context, sample, tb_watcher
 from .settings_static import SettingsStatic
 from .system.system_monitor import SystemMonitor
@@ -162,11 +163,9 @@ class HandleManager:
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
         if always_send:
             record.control.always_send = True
-        tracelog.log_message_queue(record, self._writer_q)
         self._writer_q.put(record)
 
     def _respond_result(self, result: Result) -> None:
-        tracelog.log_message_queue(result, self._result_q)
         context_id = context.context_id_from_result(result)
         self._context_keeper.release(context_id)
         self._result_q.put(result)
@@ -578,7 +577,7 @@ class HandleManager:
                 if not self._dropped_history:
                     message = (
                         "Step only supports monotonically increasing values, use define_metric to set a custom x "
-                        f"axis. For details see: {wburls.wburls.get('wandb_define_metric')}"
+                        f"axis. For details see: {url_registry.url('define-metric')}"
                     )
                     self._internal_messages.warning.append(message)
                     self._dropped_history = True

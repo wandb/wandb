@@ -27,6 +27,41 @@ namespace Wandb.Internal
         }
 
         /// <summary>
+        /// Sends a request to wandb-core to authenticate the user's credentials.
+        ///
+        /// TODO: This is an experimental feature and may be removed or changed in the future.
+        /// </summary>
+        /// <param name="apiKey"></param>
+        /// <param name="baseUrl"></param>
+        /// <param name="timeoutMilliseconds"></param>
+        /// <returns></returns>
+        /// <exception cref="TimeoutException"></exception>
+        /// <exception cref="Exception"></exception>
+        public async Task<string> Authenticate(string apiKey, string baseUrl, int timeoutMilliseconds = 0)
+        {
+            ServerRequest request = new()
+            {
+                Authenticate = new ServerAuthenticateRequest
+                {
+                    ApiKey = apiKey,
+                    BaseUrl = baseUrl,
+                    Info = new _RecordInfo
+                    {
+                        // TODO: This is a hack used to identify the response to this request
+                        StreamId = Guid.NewGuid().ToString()
+                    }
+                }
+            };
+            ServerResponse? response = await _client.SendAsync(request, timeoutMilliseconds).ConfigureAwait(false)
+                ?? throw new TimeoutException("The request timed out.");
+            if (!string.IsNullOrEmpty(response.AuthenticateResponse.ErrorStatus))
+            {
+                throw new Exception(response.AuthenticateResponse.ErrorStatus);
+            }
+            return response.AuthenticateResponse.DefaultEntity;
+        }
+
+        /// <summary>
         /// Delivers a Run record to wandb-core.
         /// </summary>
         /// <param name="run">The Run record to deliver.</param>
@@ -45,10 +80,13 @@ namespace Wandb.Internal
             {
                 Run = new RunRecord
                 {
+                    DisplayName = run.Settings.DisplayName,
+                    Entity = run.Settings.Entity,
                     Project = run.Settings.Project,
                     RunId = run.Settings.RunId,
                 }
             };
+            record.Run.Tags.AddRange(run.Settings.RunTags());
             return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
         }
 
@@ -63,7 +101,10 @@ namespace Wandb.Internal
         /// A task representing the asynchronous operation. The task result contains the <see cref="Result"/>.
         /// </returns>
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="run"/> is <c>null</c>.</exception>
-        public async Task<Result> DeliverRunStart(Run run, int timeoutMilliseconds = 0)
+        public async Task<Result> DeliverRunStart(
+            Run run,
+            int timeoutMilliseconds = 0
+        )
         {
             ArgumentNullException.ThrowIfNull(run);
 
@@ -89,6 +130,57 @@ namespace Wandb.Internal
             return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Gets the run summary from wandb-core.
+        /// </summary>
+        /// <param name="timeoutMilliseconds">
+        /// The timeout in milliseconds to wait for a response. Defaults to 0 (no timeout).
+        /// </param>
+        /// <returns>
+        /// A task representing the asynchronous operation. The task result contains the <see cref="Result"/>.
+        /// </returns>
+        /// <exception cref="TimeoutException">Thrown if the request times out.</exception>
+        /// <remarks>
+        public async Task<Result> DeliverGetSummary(int timeoutMilliseconds = 0)
+        {
+            var record = new Record
+            {
+                Request = new Request
+                {
+                    GetSummary = new GetSummaryRequest { }
+                }
+            };
+            return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Delivers a run finish request to wandb-core, without marking the run as exited
+        /// on the server.
+        /// </summary>
+        /// <param name="timeoutMilliseconds">
+        /// The timeout in milliseconds to wait for a response. Defaults to 0 (no timeout).
+        /// </param>
+        /// <returns>
+        /// A task representing the asynchronous operation. The task result contains the <see cref="Result"/>.
+        /// </returns>
+        /// <remarks>
+        /// This method is used to finish a run without marking it as exited on the server.
+        /// </remarks>
+        public async Task<Result> DeliverFinishWithoutExit(int timeoutMilliseconds = 0)
+        {
+            var record = new Record
+            {
+                Request = new Request
+                {
+                    RunFinishWithoutExit = new RunFinishWithoutExitRequest { }
+                },
+                Info = new _RecordInfo
+                {
+                    StreamId = _streamId
+                }
+            };
+            return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
+        }
 
         /// <summary>
         /// Delivers a run exit record to the server.
@@ -186,7 +278,7 @@ namespace Wandb.Internal
         /// <returns>A task representing the asynchronous operation.</returns>
         public async Task PublishMetricDefinition(
             string name,
-            string stepMetric,
+            string? stepMetric,
             SummaryType? summary,
             bool? hidden
         )
@@ -194,10 +286,13 @@ namespace Wandb.Internal
             var metricDefinition = new MetricRecord
             {
                 Name = name,
-                StepMetric = stepMetric,
                 Options = new MetricOptions { },
                 Summary = new MetricSummary { }
             };
+            if (stepMetric != null)
+            {
+                metricDefinition.StepMetric = stepMetric;
+            }
             if (hidden == true)
             {
                 metricDefinition.Options.Hidden = true;
@@ -253,6 +348,24 @@ namespace Wandb.Internal
             await Publish(record).ConfigureAwait(false);
         }
 
+
+        /// <summary>
+        /// Publishes a summary update to wandb-core.
+        /// </summary>
+        /// <param name="summary">The summary to publish.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        public async Task PublishSummary(SummaryRecord summary)
+        {
+            ArgumentNullException.ThrowIfNull(summary);
+
+            var record = new Record
+            {
+                Summary = summary
+            };
+            await Publish(record).ConfigureAwait(false);
+        }
+
+
         /// <summary>
         /// Publishes a record to the server without waiting for a response.
         /// </summary>
@@ -307,9 +420,9 @@ namespace Wandb.Internal
             await _client.SendAsync(request).ConfigureAwait(false);
         }
 
-        public void Dispose()
+        public async void Dispose()
         {
-            _client.Dispose();
+            await _client.DisposeAsync().ConfigureAwait(false);
         }
     }
 }

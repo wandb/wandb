@@ -6,7 +6,7 @@ flexible containers for information, like tables and HTML, and more.
 For more on logging media, see [our guide](https://docs.wandb.com/guides/track/log/media)
 
 For more on logging structured data for interactive dataset and model analysis,
-see [our guide to W&B Tables](https://docs.wandb.com/guides/data-vis).
+see [our guide to W&B Tables](https://docs.wandb.com/guides/tables/).
 
 All of these special data types are subclasses of WBValue. All the data types
 serialize to JSON, since that is what wandb uses to save the objects locally
@@ -14,6 +14,7 @@ and upload them to the W&B server.
 """
 
 from .sdk.data_types.audio import Audio
+from .sdk.data_types.base_types.media import BatchableMedia, Media
 from .sdk.data_types.base_types.wb_value import WBValue
 from .sdk.data_types.bokeh import Bokeh
 from .sdk.data_types.graph import Graph, Node
@@ -56,6 +57,8 @@ __all__ = [
     "WBTraceTree",
     "_SavedModel",
     "WBValue",
+    "Media",
+    "BatchableMedia",
     # Typed Legacy Exports (I'd like to remove these)
     "ImageMask",
     "BoundingBoxes2D",

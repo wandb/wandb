@@ -100,15 +100,15 @@ func (d *FakeDelay) IsZero() bool {
 	return d.isZero
 }
 
-func (d *FakeDelay) Wait() <-chan struct{} {
+func (d *FakeDelay) Wait() (<-chan struct{}, func()) {
 	if d == nil {
-		return completedDelay()
+		return completedDelay(), func() {}
 	}
 
 	d.mu.Lock()
 
 	if d.isZero {
-		return completedDelay()
+		return completedDelay(), func() {}
 	}
 
 	if !d.allowsWait {
@@ -128,5 +128,5 @@ func (d *FakeDelay) Wait() <-chan struct{} {
 		close(waitChan)
 	}()
 
-	return waitChan
+	return waitChan, func() {}
 }

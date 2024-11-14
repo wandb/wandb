@@ -575,7 +575,7 @@ class FileStreamApi:
     def push(self, filename: str, data: str) -> None:
         """Push a chunk of a file to the streaming endpoint.
 
-        Arguments:
+        Args:
             filename: Name of file to append to.
             data: Text to append to the file.
         """
@@ -584,7 +584,7 @@ class FileStreamApi:
     def push_success(self, artifact_id: str, save_name: str) -> None:
         """Notification that a file upload has been successfully completed.
 
-        Arguments:
+        Args:
             artifact_id: ID of artifact
             save_name: saved name of the uploaded file
         """
@@ -595,7 +595,7 @@ class FileStreamApi:
 
         Anything pushed after finish will be dropped.
 
-        Arguments:
+        Args:
             exitcode: The exitcode of the watched process.
         """
         logger.info("file stream finish called")
@@ -620,7 +620,7 @@ def request_with_retry(
 ) -> Union["requests.Response", "requests.RequestException"]:
     """Perform a requests http call, retrying with exponential backoff.
 
-    Arguments:
+    Args:
         func:        An http-requesting function to call, like requests.post
         max_retries: Maximum retries before giving up.
                      By default, we retry 30 times in ~2 hours before dropping the chunk

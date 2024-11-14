@@ -7,8 +7,8 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/nullify"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 // RewindBranch is a used to manage the state of the changes that need to be
@@ -78,8 +78,8 @@ func (rb RewindBranch) ApplyChanges(
 		rb.ctx,
 		rb.client,
 		runpath.RunID,
-		utils.NilIfZero(runpath.Entity),
-		utils.NilIfZero(runpath.Project),
+		nullify.NilIfZero(runpath.Entity),
+		nullify.NilIfZero(runpath.Project),
 		rb.branch.MetricName,
 		rb.branch.MetricValue,
 	)
@@ -129,8 +129,8 @@ func (rb RewindBranch) ApplyChanges(
 		&RunParams{
 			StorageID:        data.GetId(),
 			RunID:            data.GetName(),
-			DisplayName:      utils.ZeroIfNil(data.GetDisplayName()),
-			SweepID:          utils.ZeroIfNil(data.GetSweepName()),
+			DisplayName:      nullify.ZeroIfNil(data.GetDisplayName()),
+			SweepID:          nullify.ZeroIfNil(data.GetSweepName()),
 			StartingStep:     int64(rb.branch.MetricValue) + 1,
 			Forked:           true,
 			FileStreamOffset: filestreamOffset,
