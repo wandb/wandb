@@ -192,6 +192,31 @@ class WandbBackendSnapshot:
             history_parsed[offset] = json.loads(line)
         return history_parsed
 
+    def output(self, *, run_id: str) -> dict[int, Any]:
+        """Returns the history file for the run.
+
+        The file is represented as a dict that maps integer offsets to
+        JSON objects.
+
+        Args:
+            run_id: The ID of the run.
+
+        Raises:
+            KeyError: if the run does not exist.
+        """
+        spy = self._assert_valid()
+
+        try:
+            run = spy._runs[run_id]
+        except KeyError as e:
+            raise KeyError(f"No run with ID {run_id}") from e
+
+        output_file = run._file_stream_files.get("output.log", {})
+        output_parsed: dict[int, Any] = {}
+        for offset, line in output_file.items():
+            output_parsed[offset] = line
+        return output_parsed
+
     def summary(self, *, run_id: str) -> Any:
         """Returns the summary for the run as a JSON object.
 
