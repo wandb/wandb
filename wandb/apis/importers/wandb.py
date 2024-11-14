@@ -512,6 +512,96 @@ class WandbImporter:
             logger.warning(f"Collection can't be deleted, {art_type=}, {art_name=}, {e=}")
             return
 
+    def _import_art_sequence_v2(self,
+        seq: ArtifactSequence,
+        *,
+        namespace: Optional[Namespace] = None) -> None:
+        """Import one artifact sequence with W&B SDK
+
+        Use `namespace` to specify alternate settings like where the artifact sequence should be uploaded
+        """
+        if not seq.artifacts:
+            # The artifact sequence has no versions.  This usually means all artifacts versions were deleted intentionally,
+            # but it can also happen if the sequence represents run history and that run was deleted.
+            logger.warning(f"Artifact {seq=} has no artifacts, skipping.")
+            return
+
+        if namespace is None:
+            namespace = Namespace(seq.entity, seq.project)
+
+        settings_override = {
+            "api_key": self.dst_api_key,
+            "base_url": self.dst_base_url,
+            "resume": "true",
+            "resumed": True,
+        }
+
+        send_manager_config = internal.SendManagerConfig(log_artifacts=True)
+
+        # Delete any existing artifact sequence, otherwise versions will be out of order
+        # Unfortunately, you can't delete only part of the sequence because versions are "remembered" even after deletion
+        self._delete_collection_in_dst(seq, namespace)
+
+        # Get a placeholder run for dummy artifacts we'll upload later
+        art = seq.artifacts[0]
+        run_or_dummy: Optional[Run] = _get_run_or_dummy_from_art(art, self.src_api)
+
+        # Each `group_of_artifacts` is either:
+        # 1. A single "real" artifact in a list; or
+        # 2. A list of dummy artifacts that are uploaded together.
+        # This guarantees the real artifacts have the correct version numbers while allowing for parallel upload of dummies.
+        groups_of_artifacts = list(_make_groups_of_artifacts(seq))
+        for i, group in enumerate(groups_of_artifacts, 1):
+            art = group[0]
+            if art.description == ART_SEQUENCE_DUMMY_PLACEHOLDER:
+                run = WandbRun(run_or_dummy, **self.run_api_kwargs)
+
+                logger.info(
+                    f"Uploading partial artifact {seq=}, {i}/{len(groups_of_artifacts)}"
+                )
+                internal.send_run(
+                    run,
+                    extra_arts=group,
+                    overrides=namespace.send_manager_overrides,
+                    settings_override=settings_override,
+                    config=send_manager_config,
+                )
+
+            else:
+                try:
+                    wandb_run = art.logged_by()
+                except ValueError:
+                    # The run used to exist but has since been deleted
+                    # wandb_run = None
+                    pass
+
+                # Could be logged by None (rare) or ValueError
+                if wandb_run is None:
+                    logger.warning(
+                        f"Run for {art.name=} does not exist (deleted?), using {run_or_dummy=}"
+                    )
+                    wandb_run = run_or_dummy
+
+                new_art = _clone_art(art)
+                group = [new_art]
+                run = WandbRun(wandb_run, **self.run_api_kwargs)
+
+                self._import_art_via_sdk(namespace, run, group)
+
+        logger.info(f"Finished uploading {seq=}")
+
+        # query it back and remove placeholders
+        self._remove_placeholders(seq)
+
+
+    def _import_art_via_sdk(self, namespace: Namespace, run: WandbRun, artifact_group: list[Artifact]):
+        wandb.login(key=self.dst_api_key, host=self.dst_base_url, relogin=True, force=True)
+        with wandb.init(project=namespace.project, entity=namespace.entity,
+                        id=run.run_id(), resume="must") as logging_run:
+
+            # Log the artifact in reverse order to preserve upload sequence
+            logging_run.log_artifact(artifact_group[0])
+
     def _import_artifact_sequence(
         self,
         seq: ArtifactSequence,
@@ -728,7 +818,6 @@ class WandbImporter:
             arts = sorted(arts, key=lambda a: int(a.version.lstrip("v")))
             arts = sorted(arts, key=lambda a: a.type)
 
-            yield ArtifactSequence(arts, entity, project, _type, name)
 
     def _cleanup_dummy_runs(
         self,
@@ -960,7 +1049,7 @@ class WandbImporter:
                 namespace = remapping[namespace]
 
             logger.info(f"Importing artifact sequence {seq=}, {namespace=}")
-            self._import_artifact_sequence(seq, namespace=namespace)
+            self._import_art_sequence_v2(seq, namespace=namespace)
             logger.info(f"Finished importing artifact sequence {seq=}, {namespace=}")
 
         for_each(_import_artifact_sequence_wrapped, seqs, max_workers=max_workers, parallel=parallel)
