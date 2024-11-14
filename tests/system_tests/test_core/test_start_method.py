@@ -3,6 +3,7 @@
 import platform
 
 import pytest
+import wandb
 from wandb.errors import UsageError
 
 
@@ -19,16 +20,16 @@ def test_default(wandb_backend_spy, wandb_init):
         assert telemetry and 5 in telemetry.get("8", [])
 
 
-def test_junk(wandb_init):
+def test_junk():
     with pytest.raises(UsageError):
-        run = wandb_init(settings=dict(start_method="junk"))
+        run = wandb.init(settings=dict(start_method="junk"))
         run.finish()
 
 
-def test_spawn(wandb_backend_spy, wandb_init):
+def test_spawn(wandb_backend_spy):
     # note: passing in dict to settings (here and below)
     # since this will set start_method with source=Source.INIT
-    run = wandb_init(settings=dict(start_method="spawn"))
+    run = wandb.init(settings=dict(start_method="spawn"))
     run_id = run.id
     run.log(dict(val=1))
     run.finish()
@@ -39,8 +40,8 @@ def test_spawn(wandb_backend_spy, wandb_init):
 
 
 @pytest.mark.skipif(platform.system() == "Windows", reason="win has no fork")
-def test_fork(wandb_backend_spy, wandb_init):
-    run = wandb_init(settings=dict(start_method="fork"))
+def test_fork(wandb_backend_spy):
+    run = wandb.init(settings=dict(start_method="fork"))
     run_id = run.id
     run.log(dict(val=1))
     run.finish()
@@ -51,8 +52,8 @@ def test_fork(wandb_backend_spy, wandb_init):
 
 
 @pytest.mark.skipif(platform.system() == "Windows", reason="win has no forkserver")
-def test_forkserver(wandb_backend_spy, wandb_init):
-    run = wandb_init(settings=dict(start_method="forkserver"))
+def test_forkserver(wandb_backend_spy):
+    run = wandb.init(settings=dict(start_method="forkserver"))
     run_id = run.id
     run.log(dict(val=1))
     run.finish()
@@ -62,8 +63,8 @@ def test_forkserver(wandb_backend_spy, wandb_init):
         assert telemetry and 7 in telemetry.get("8", [])
 
 
-def test_thread(wandb_backend_spy, wandb_init):
-    run = wandb_init(settings=dict(start_method="thread"))
+def test_thread(wandb_backend_spy):
+    run = wandb.init(settings=dict(start_method="thread"))
     run_id = run.id
     run.log(dict(val=1))
     run.finish()

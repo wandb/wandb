@@ -8,7 +8,6 @@ from wandb.sdk.lib.runid import generate_id
 
 
 @pytest.mark.flaky
-# @pytest.mark.xfail(reason="flaky test")
 def test_sync_with_tensorboard(wandb_backend_spy, runner, copy_asset, user):
     run_id = generate_id()
     with unittest.mock.patch.dict("os.environ", {"WANDB_MODE": "offline"}):
@@ -25,11 +24,11 @@ def test_sync_with_tensorboard(wandb_backend_spy, runner, copy_asset, user):
 
 
 @pytest.mark.parametrize("mark_synced", [True, False])
-def test_beta_sync(wandb_init, runner, mark_synced):
+def test_beta_sync(runner, mark_synced):
     _ = pytest.importorskip("wandb_core")
 
     os.makedirs(".wandb", exist_ok=True)
-    run = wandb_init(settings={"mode": "offline"})
+    run = wandb.init(settings={"mode": "offline"})
     run.log(dict(a=1))
     run.finish()
 

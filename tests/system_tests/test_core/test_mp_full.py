@@ -19,8 +19,8 @@ def train(run, add_val):
     time.sleep(1)
 
 
-def test_multiproc_default(wandb_init, wandb_backend_spy):
-    run = wandb_init()
+def test_multiproc_default(wandb_backend_spy):
+    run = wandb.init()
     train(run, 0)
     run.finish()
 
