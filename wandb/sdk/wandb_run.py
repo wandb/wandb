@@ -1191,11 +1191,11 @@ class Run:
                 notebook_name = None
                 if self.settings.notebook_name:
                     notebook_name = self.settings.notebook_name
-                elif self.settings._jupyter_path:
-                    if self.settings._jupyter_path.startswith("fileId="):
-                        notebook_name = self.settings._jupyter_name
+                elif self.settings.x_jupyter_path:
+                    if self.settings.x_jupyter_path.startswith("fileId="):
+                        notebook_name = self.settings.x_jupyter_name
                     else:
-                        notebook_name = self.settings._jupyter_path
+                        notebook_name = self.settings.x_jupyter_path
                 name_string = f"{self._project}-{notebook_name}"
             else:
                 name_string = f"{self._project}-{self._settings.program_relpath}"
@@ -2601,6 +2601,7 @@ class Run:
         installed_packages_list: list[str],
         patch_path: os.PathLike | None = None,
     ) -> Artifact:
+        print("IMMA CONSTRUCTING JOB ARTIFACT")
         job_artifact = job_builder.JobArtifact(name)
         if patch_path and os.path.exists(patch_path):
             job_artifact.add_file(FilePathStr(str(patch_path)), "diff.patch")
