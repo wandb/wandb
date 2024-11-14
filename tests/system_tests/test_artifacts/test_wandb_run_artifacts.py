@@ -304,11 +304,10 @@ def test_wandb_artifact_init_config(user, test_settings):
     }
 
 
-@pytest.mark.wandb_core_only
 def test_log_code_settings(user):
     with open("test.py", "w") as f:
         f.write('print("test")')
-    settings = wandb.Settings(save_code=True)
+    settings = wandb.Settings(save_code=True, code_dir=".")
     with wandb.init(settings=settings) as run:
         pass
 

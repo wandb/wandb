@@ -838,9 +838,6 @@ class Settings(BaseModel, validate_assignment=True):
         else:
             program = "<python with no main file>"
 
-        print("program", program)
-        print("program_relpath", self.program_relpath)
-
         self.program = program
 
     # Helper methods.
