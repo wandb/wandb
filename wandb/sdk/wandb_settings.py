@@ -335,28 +335,6 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_ignore_globs(cls, value):
         return tuple(value) if not isinstance(value, tuple) else value
 
-    @field_validator("program", mode="after")
-    @classmethod
-    def validate_program(cls, program, info):
-        if program is not None and program != "<python with no main file>":
-            return program
-
-        if not ipython.in_jupyter():
-            return program
-
-        notebook_name = info.data.get("notebook_name")
-        if notebook_name:
-            return notebook_name
-
-        _jupyter_path = info.data.get("_jupyter_path")
-        if not _jupyter_path:
-            return program
-
-        if _jupyter_path.startswith("fileId="):
-            return info.data.get("_jupyter_name")
-        else:
-            return _jupyter_path
-
     @field_validator("project", mode="after")
     @classmethod
     def validate_project(cls, value, info):
@@ -860,6 +838,9 @@ class Settings(BaseModel, validate_assignment=True):
         else:
             program = "<python with no main file>"
 
+        print("program", program)
+        print("program_relpath", self.program_relpath)
+
         self.program = program
 
     # Helper methods.
@@ -975,20 +956,33 @@ class Settings(BaseModel, validate_assignment=True):
         )
         url_validator.validate_python(url)
 
-    @staticmethod
-    def _get_program() -> str | None:
-        program = os.getenv(env.PROGRAM)
-        if program is not None:
-            return program
-        try:
-            import __main__
+    def _get_program(self) -> str | None:
+        if not self._jupyter:
+            # If not in a notebook, try to get the program from the environment
+            # or the __main__ module for scripts run as `python -m ...`.
+            program = os.getenv(env.PROGRAM)
+            if program is not None:
+                return program
+            try:
+                import __main__
 
-            if __main__.__spec__ is None:
-                return __main__.__file__
-            # likely run as `python -m ...`
-            return f"-m {__main__.__spec__.name}"
-        except (ImportError, AttributeError):
-            return None
+                if __main__.__spec__ is None:
+                    return __main__.__file__
+                return f"-m {__main__.__spec__.name}"
+            except (ImportError, AttributeError):
+                return None
+        else:
+            # If in a notebook, try to get the program from the notebook metadata.
+            if self.notebook_name:
+                return self.notebook_name
+
+            if not self.x_jupyter_path:
+                return self.program
+
+            if self.x_jupyter_path.startswith("fileId="):
+                return self.x_jupyter_name
+            else:
+                return self.x_jupyter_path
 
     @staticmethod
     def _get_program_relpath(program: str, root: str | None = None) -> str | None:
