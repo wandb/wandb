@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.2](https://github.com/googleapis/google-cloud-go/compare/auth/v0.10.1...auth/v0.10.2) (2024-11-12)
+
+
+### Bug Fixes
+
+* **auth:** Restore use of grpc.Dial ([#11118](https://github.com/googleapis/google-cloud-go/issues/11118)) ([2456b94](https://github.com/googleapis/google-cloud-go/commit/2456b943b7b8aaabd4d8bfb7572c0f477ae0db45)), refs [#7556](https://github.com/googleapis/google-cloud-go/issues/7556)
+
 ## [0.10.1](https://github.com/googleapis/google-cloud-go/compare/auth/v0.10.0...auth/v0.10.1) (2024-11-06)
 
 
