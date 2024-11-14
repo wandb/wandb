@@ -39,7 +39,7 @@ func NewFileTransfers(
 	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats)
 	gcsFileTransfer := NewGCSFileTransfer(nil, logger, fileTransferStats)
 	s3FileTransfer := NewS3FileTransfer(nil, logger, fileTransferStats)
-	azureFileTransfer := NewAzureFileTransfer(nil, logger, fileTransferStats)
+	azureFileTransfer := NewAzureFileTransfer(nil, logger, fileTransferStats, nil)
 
 	return &FileTransfers{
 		Default: defaultFileTransfer,
