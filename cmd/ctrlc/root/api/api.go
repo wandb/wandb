@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/create"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/delete"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/get"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/upsert"
 	"github.com/spf13/cobra"
@@ -12,7 +13,7 @@ import (
 
 func NewAPICmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "api <subcommand>",
+		Use:   "api <action> <resource> [flags]",
 		Short: "API commands",
 		Long:  `Commands for interacting with the CtrlPlane API.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -41,6 +42,7 @@ func NewAPICmd() *cobra.Command {
 	cmd.AddCommand(get.NewGetCmd())
 	cmd.AddCommand(create.NewCreateCmd())
 	cmd.AddCommand(upsert.NewUpsertCmd())
+	cmd.AddCommand(delete.NewDeleteCmd())
 
 	return cmd
 }

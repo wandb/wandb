@@ -369,14 +369,14 @@ type ClientInterface interface {
 
 	SetTargetProvidersTargets(ctx context.Context, providerId string, body SetTargetProvidersTargetsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteResourceByIdentifier request
+	DeleteResourceByIdentifier(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetResourceByIdentifier request
+	GetResourceByIdentifier(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// UpsertTargetProvider request
 	UpsertTargetProvider(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteTargetByIdentifier request
-	DeleteTargetByIdentifier(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetTargetByIdentifier request
-	GetTargetByIdentifier(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) CreateEnvironmentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -655,32 +655,32 @@ func (c *Client) SetTargetProvidersTargets(ctx context.Context, providerId strin
 	return c.Client.Do(req)
 }
 
+func (c *Client) DeleteResourceByIdentifier(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteResourceByIdentifierRequest(c.Server, workspaceId, identifier)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetResourceByIdentifier(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetResourceByIdentifierRequest(c.Server, workspaceId, identifier)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) UpsertTargetProvider(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpsertTargetProviderRequest(c.Server, workspaceId, name)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteTargetByIdentifier(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteTargetByIdentifierRequest(c.Server, workspaceId, identifier)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetTargetByIdentifier(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetTargetByIdentifierRequest(c.Server, workspaceId, identifier)
 	if err != nil {
 		return nil, err
 	}
@@ -1270,6 +1270,88 @@ func NewSetTargetProvidersTargetsRequestWithBody(server string, providerId strin
 	return req, nil
 }
 
+// NewDeleteResourceByIdentifierRequest generates requests for DeleteResourceByIdentifier
+func NewDeleteResourceByIdentifierRequest(server string, workspaceId string, identifier string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workspaceId", runtime.ParamLocationPath, workspaceId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "identifier", runtime.ParamLocationPath, identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/workspaces/%s/resources/identifier/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetResourceByIdentifierRequest generates requests for GetResourceByIdentifier
+func NewGetResourceByIdentifierRequest(server string, workspaceId string, identifier string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workspaceId", runtime.ParamLocationPath, workspaceId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "identifier", runtime.ParamLocationPath, identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/workspaces/%s/resources/identifier/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewUpsertTargetProviderRequest generates requests for UpsertTargetProvider
 func NewUpsertTargetProviderRequest(server string, workspaceId string, name string) (*http.Request, error) {
 	var err error
@@ -1294,88 +1376,6 @@ func NewUpsertTargetProviderRequest(server string, workspaceId string, name stri
 	}
 
 	operationPath := fmt.Sprintf("/v1/workspaces/%s/target-providers/name/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewDeleteTargetByIdentifierRequest generates requests for DeleteTargetByIdentifier
-func NewDeleteTargetByIdentifierRequest(server string, workspaceId string, identifier string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workspaceId", runtime.ParamLocationPath, workspaceId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "identifier", runtime.ParamLocationPath, identifier)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/v1/workspaces/%s/targets/identifier/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetTargetByIdentifierRequest generates requests for GetTargetByIdentifier
-func NewGetTargetByIdentifierRequest(server string, workspaceId string, identifier string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workspaceId", runtime.ParamLocationPath, workspaceId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "identifier", runtime.ParamLocationPath, identifier)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/v1/workspaces/%s/targets/identifier/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1497,14 +1497,14 @@ type ClientWithResponsesInterface interface {
 
 	SetTargetProvidersTargetsWithResponse(ctx context.Context, providerId string, body SetTargetProvidersTargetsJSONRequestBody, reqEditors ...RequestEditorFn) (*SetTargetProvidersTargetsResponse, error)
 
+	// DeleteResourceByIdentifierWithResponse request
+	DeleteResourceByIdentifierWithResponse(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*DeleteResourceByIdentifierResponse, error)
+
+	// GetResourceByIdentifierWithResponse request
+	GetResourceByIdentifierWithResponse(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*GetResourceByIdentifierResponse, error)
+
 	// UpsertTargetProviderWithResponse request
 	UpsertTargetProviderWithResponse(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*UpsertTargetProviderResponse, error)
-
-	// DeleteTargetByIdentifierWithResponse request
-	DeleteTargetByIdentifierWithResponse(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*DeleteTargetByIdentifierResponse, error)
-
-	// GetTargetByIdentifierWithResponse request
-	GetTargetByIdentifierWithResponse(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*GetTargetByIdentifierResponse, error)
 }
 
 type CreateEnvironmentResponse struct {
@@ -2016,33 +2016,7 @@ func (r SetTargetProvidersTargetsResponse) StatusCode() int {
 	return 0
 }
 
-type UpsertTargetProviderResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		Id          string `json:"id"`
-		Name        string `json:"name"`
-		WorkspaceId string `json:"workspaceId"`
-	}
-}
-
-// Status returns HTTPResponse.Status
-func (r UpsertTargetProviderResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpsertTargetProviderResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteTargetByIdentifierResponse struct {
+type DeleteResourceByIdentifierResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
@@ -2054,7 +2028,7 @@ type DeleteTargetByIdentifierResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r DeleteTargetByIdentifierResponse) Status() string {
+func (r DeleteResourceByIdentifierResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2062,14 +2036,14 @@ func (r DeleteTargetByIdentifierResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r DeleteTargetByIdentifierResponse) StatusCode() int {
+func (r DeleteResourceByIdentifierResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetTargetByIdentifierResponse struct {
+type GetResourceByIdentifierResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
@@ -2095,7 +2069,7 @@ type GetTargetByIdentifierResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetTargetByIdentifierResponse) Status() string {
+func (r GetResourceByIdentifierResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2103,7 +2077,33 @@ func (r GetTargetByIdentifierResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetTargetByIdentifierResponse) StatusCode() int {
+func (r GetResourceByIdentifierResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpsertTargetProviderResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Id          string `json:"id"`
+		Name        string `json:"name"`
+		WorkspaceId string `json:"workspaceId"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r UpsertTargetProviderResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpsertTargetProviderResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2309,6 +2309,24 @@ func (c *ClientWithResponses) SetTargetProvidersTargetsWithResponse(ctx context.
 	return ParseSetTargetProvidersTargetsResponse(rsp)
 }
 
+// DeleteResourceByIdentifierWithResponse request returning *DeleteResourceByIdentifierResponse
+func (c *ClientWithResponses) DeleteResourceByIdentifierWithResponse(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*DeleteResourceByIdentifierResponse, error) {
+	rsp, err := c.DeleteResourceByIdentifier(ctx, workspaceId, identifier, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteResourceByIdentifierResponse(rsp)
+}
+
+// GetResourceByIdentifierWithResponse request returning *GetResourceByIdentifierResponse
+func (c *ClientWithResponses) GetResourceByIdentifierWithResponse(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*GetResourceByIdentifierResponse, error) {
+	rsp, err := c.GetResourceByIdentifier(ctx, workspaceId, identifier, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetResourceByIdentifierResponse(rsp)
+}
+
 // UpsertTargetProviderWithResponse request returning *UpsertTargetProviderResponse
 func (c *ClientWithResponses) UpsertTargetProviderWithResponse(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*UpsertTargetProviderResponse, error) {
 	rsp, err := c.UpsertTargetProvider(ctx, workspaceId, name, reqEditors...)
@@ -2316,24 +2334,6 @@ func (c *ClientWithResponses) UpsertTargetProviderWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseUpsertTargetProviderResponse(rsp)
-}
-
-// DeleteTargetByIdentifierWithResponse request returning *DeleteTargetByIdentifierResponse
-func (c *ClientWithResponses) DeleteTargetByIdentifierWithResponse(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*DeleteTargetByIdentifierResponse, error) {
-	rsp, err := c.DeleteTargetByIdentifier(ctx, workspaceId, identifier, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteTargetByIdentifierResponse(rsp)
-}
-
-// GetTargetByIdentifierWithResponse request returning *GetTargetByIdentifierResponse
-func (c *ClientWithResponses) GetTargetByIdentifierWithResponse(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*GetTargetByIdentifierResponse, error) {
-	rsp, err := c.GetTargetByIdentifier(ctx, workspaceId, identifier, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetTargetByIdentifierResponse(rsp)
 }
 
 // ParseCreateEnvironmentResponse parses an HTTP response from a CreateEnvironmentWithResponse call
@@ -2972,45 +2972,15 @@ func ParseSetTargetProvidersTargetsResponse(rsp *http.Response) (*SetTargetProvi
 	return response, nil
 }
 
-// ParseUpsertTargetProviderResponse parses an HTTP response from a UpsertTargetProviderWithResponse call
-func ParseUpsertTargetProviderResponse(rsp *http.Response) (*UpsertTargetProviderResponse, error) {
+// ParseDeleteResourceByIdentifierResponse parses an HTTP response from a DeleteResourceByIdentifierWithResponse call
+func ParseDeleteResourceByIdentifierResponse(rsp *http.Response) (*DeleteResourceByIdentifierResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UpsertTargetProviderResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Id          string `json:"id"`
-			Name        string `json:"name"`
-			WorkspaceId string `json:"workspaceId"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteTargetByIdentifierResponse parses an HTTP response from a DeleteTargetByIdentifierWithResponse call
-func ParseDeleteTargetByIdentifierResponse(rsp *http.Response) (*DeleteTargetByIdentifierResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteTargetByIdentifierResponse{
+	response := &DeleteResourceByIdentifierResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -3039,15 +3009,15 @@ func ParseDeleteTargetByIdentifierResponse(rsp *http.Response) (*DeleteTargetByI
 	return response, nil
 }
 
-// ParseGetTargetByIdentifierResponse parses an HTTP response from a GetTargetByIdentifierWithResponse call
-func ParseGetTargetByIdentifierResponse(rsp *http.Response) (*GetTargetByIdentifierResponse, error) {
+// ParseGetResourceByIdentifierResponse parses an HTTP response from a GetResourceByIdentifierWithResponse call
+func ParseGetResourceByIdentifierResponse(rsp *http.Response) (*GetResourceByIdentifierResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetTargetByIdentifierResponse{
+	response := &GetResourceByIdentifierResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -3084,6 +3054,36 @@ func ParseGetTargetByIdentifierResponse(rsp *http.Response) (*GetTargetByIdentif
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpsertTargetProviderResponse parses an HTTP response from a UpsertTargetProviderWithResponse call
+func ParseUpsertTargetProviderResponse(rsp *http.Response) (*UpsertTargetProviderResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpsertTargetProviderResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Id          string `json:"id"`
+			Name        string `json:"name"`
+			WorkspaceId string `json:"workspaceId"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	}
 

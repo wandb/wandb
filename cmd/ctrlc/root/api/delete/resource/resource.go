@@ -10,24 +10,24 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewGetResourceCmd() *cobra.Command {
+func NewDeleteResourceCmd() *cobra.Command {
 	var resourceId string
 	var workspace string
 	var identifier string
 
 	cmd := &cobra.Command{
 		Use:   "resource [flags]",
-		Short: "Get a resource",
-		Long:  `Get a resource by specifying either an ID or both a workspace and an identifier.`,
+		Short: "Delete a resource",
+		Long:  `Delete a resource by specifying either an ID or both a workspace and an identifier.`,
 		Example: heredoc.Doc(`
-            # Get a resource by ID
-            $ ctrlc get resource --id 123e4567-e89b-12d3-a456-426614174000
+            # Delete a resource by ID
+            $ ctrlc delete resource --id 123e4567-e89b-12d3-a456-426614174000
 
-            # Get a resource by workspace and identifier
-            $ ctrlc get resource --workspace myworkspace --identifier myidentifier
+            # Delete a resource by workspace and identifier
+            $ ctrlc delete resource --workspace 123e4567-e89b-12d3-a456-426614174000 --identifier myidentifier
 
-            # Get a resource using Go template syntax
-            $ ctrlc get resource --id 123e4567-e89b-12d3-a456-426614174000 --template='{{.id}}'
+            # Delete a resource using Go template syntax
+            $ ctrlc delete resource --id 123e4567-e89b-12d3-a456-426614174000 --template='{{.id}}'
         `),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if resourceId == "" && (workspace == "" || identifier == "") {
@@ -42,20 +42,20 @@ func NewGetResourceCmd() *cobra.Command {
 			apiKey := viper.GetString("api-key")
 			client, err := api.NewAPIKeyClientWithResponses(apiURL, apiKey)
 			if err != nil {
-				return fmt.Errorf("failed to create API client: %w", err)
+				return fmt.Errorf("failed to delete resource API client: %w", err)
 			}
 
 			if resourceId != "" {
-				resp, err := client.GetResource(cmd.Context(), resourceId)
+				resp, err := client.DeleteResource(cmd.Context(), resourceId)
 				if err != nil {
-					return fmt.Errorf("failed to get resource by ID: %w", err)
+					return fmt.Errorf("failed to delete resource by ID: %w", err)
 				}
 				return cliutil.HandleOutput(cmd, resp)
 			}
 
-			resp, err := client.GetResourceByIdentifier(cmd.Context(), workspace, identifier)
+			resp, err := client.DeleteResourceByIdentifier(cmd.Context(), workspace, identifier)
 			if err != nil {
-				return fmt.Errorf("failed to get resource by workspace and identifier: %w", err)
+				return fmt.Errorf("failed to delete resource by workspace and identifier: %w", err)
 			}
 			return cliutil.HandleOutput(cmd, resp)
 		},
