@@ -947,9 +947,8 @@ def _attach(
     settings.from_dict(
         {
             "run_id": attach_id,
-            "_start_time": attach_settings.x_start_time.value,
-            "_start_datetime": attach_settings._start_datetime.value,
-            "_offline": attach_settings._offline.value,
+            "x_start_time": attach_settings.x_start_time.value,
+            "mode": attach_settings.mode.value,
         }
     )
 

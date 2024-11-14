@@ -124,7 +124,7 @@ class PolicyLive(FileEventHandler):
         if settings is not None:
             if settings.x_live_policy_rate_limit is not None:
                 self.RATE_LIMIT_SECONDS = settings.x_live_policy_rate_limit
-            self._min_wait_time: Optional[float] = settings._live_policy_wait_time
+            self._min_wait_time: Optional[float] = settings.x_live_policy_wait_time
         else:
             self._min_wait_time = None
 
