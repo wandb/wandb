@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import abc
+import dataclasses
 import json
 import re
 import sys
@@ -69,6 +70,14 @@ class Matcher:
         return True
 
 
+@dataclasses.dataclass(frozen=True)
+class Request:
+    """The data in a GraphQL request."""
+
+    query: str
+    variables: dict[str, Any]
+
+
 class Responder(abc.ABC):
     """An object that produces responses to GQL requests.
 
@@ -78,12 +87,20 @@ class Responder(abc.ABC):
 
     def __init__(self) -> None:
         super().__init__()
-        self._total_calls = 0
+        self._lock = threading.Lock()
+        self._requests: list[Request] = []
 
     @property
     def total_calls(self) -> int:
         """The number of times this responder was used."""
-        return self._total_calls
+        with self._lock:
+            return len(self._requests)
+
+    @property
+    def requests(self) -> list[Request]:
+        """All requests handled, in order."""
+        with self._lock:
+            return list(self._requests)
 
     def respond(
         self,
@@ -100,15 +117,20 @@ class Responder(abc.ABC):
             A response, or None to let a request be handled by the backend or
             other responders.
         """
-        self._total_calls += 1
-        return self._respond(query, variables)
+        with self._lock:
+            self._requests.append(Request(query=query, variables=variables))
+            return self._respond(query, variables)
 
     @abc.abstractmethod
     def _respond(
         self,
         query: str,
         variables: dict[str, Any],
-    ) -> fastapi.Response | None: ...
+    ) -> fastapi.Response | None:
+        """Subclass implementation of `respond`.
+
+        Always called with `self._lock` held.
+        """
 
 
 class Capture(Responder):
@@ -162,7 +184,6 @@ class Sequence(Responder):
 
     def __init__(self, responders: list[Responder | None]):
         super().__init__()
-        self._lock = threading.Lock()
         self._responders = iter(responders)
 
     @override
@@ -171,13 +192,12 @@ class Sequence(Responder):
         query: str,
         variables: dict[str, Any],
     ) -> fastapi.Response | None:
-        with self._lock:
-            responder = next(self._responders, None)
+        responder = next(self._responders, None)
 
-            if not responder:
-                return None
+        if not responder:
+            return None
 
-            return responder.respond(query, variables)
+        return responder.respond(query, variables)
 
 
 def once(
