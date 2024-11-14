@@ -35,3 +35,14 @@ class UnsupportedError(UsageError):
 
 class WandbCoreNotAvailableError(Error):
     """Raised when wandb core is not available."""
+
+class WandbServiceNotOwnedError(Error):
+    """Raised when the current process does not own the service process."""
+
+
+class WandbServiceConnectionError(Error):
+    """Raised on failure to connect to the service process."""
+
+
+class WandbAttachFailedError(Error):
+    """Raised if attaching to a run fails."""
