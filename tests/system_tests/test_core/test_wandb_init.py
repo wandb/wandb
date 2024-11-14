@@ -64,42 +64,28 @@ def test_gql_410(wandb_backend_spy):
     assert responder.total_calls >= 2
 
 
-def test_send_wandb_config_start_time_on_init(wandb_init, relay_server):
-    with relay_server() as relay:
-        run = wandb_init(project="test")
-        run.finish()
-        config = relay.context.config[run.id]
-        assert config.get("_wandb", {}).get("value", {}).get("t") is not None
+def test_send_wandb_config_start_time_on_init(wandb_backend_spy):
+    with wandb.init() as run:
+        pass
+
+    with wandb_backend_spy.freeze() as snapshot:
+        config = snapshot.config(run_id=run.id)
+
+        assert "_wandb" in config
+        assert "value" in config["_wandb"]
+        assert "t" in config["_wandb"]["value"]
 
 
-def test_resume_no_metadata(relay_server, wandb_init):
-    run = wandb_init(project="test")
-    run_id = run.id
-    run.finish()
-
-    with relay_server() as relay:
-        run = wandb_init(resume="allow", id=run_id, project="test")
-        run.finish()
-        uploaded_files = relay.context.get_run_uploaded_files(run_id)
-
-        assert "wandb-metadata.json" not in uploaded_files
-
-
-def test_resume_allow_success(
-    wandb_init,
-    relay_server,
-):
-    with relay_server() as relay:
-        run = wandb_init(project="project")
-        run_id = run.id
+def test_resume_allow_success(wandb_backend_spy):
+    with wandb.init() as run:
         run.log({"acc": 10}, step=15, commit=True)
-        run.finish()
-
-        run = wandb_init(resume="allow", id=run_id, project="project")
+    with wandb.init(resume="allow", id=run.id) as run:
         run.log({"acc": 10})
-        run.finish()
-        history = relay.context.get_run_history(run_id, include_private=True)
-        assert len(history["_step"]) == 2 and history["_step"][1] == 16
+
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert history[0]["_step"] == 15
+        assert history[1]["_step"] == 16
 
 
 def test_resume_never_failure(wandb_init):
