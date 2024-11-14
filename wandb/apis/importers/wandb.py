@@ -1021,6 +1021,7 @@ class WandbImporter:
         incremental: bool = True,
         max_workers: Optional[int] = None,
         parallel: bool = True,
+        art_migration_v2: bool = False,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
     ):
         """Import all artifact sequences from `namespaces`.
@@ -1045,16 +1046,19 @@ class WandbImporter:
 
         logger.info(f"Importing artifact sequences, {len(seqs)=}")
 
-        def _import_artifact_sequence_wrapped(seq):
+        def _import_artifact_sequence_wrapped(seq, art_migration_v2):
             namespace = Namespace(seq.entity, seq.project)
             if remapping is not None and namespace in remapping:
                 namespace = remapping[namespace]
 
             logger.info(f"Importing artifact sequence {seq=}, {namespace=}")
-            self._import_art_sequence_v2(seq, namespace=namespace)
+            if art_migration_v2:
+                self._import_art_sequence_v2(seq, namespace=namespace)
+            else:
+                self._import_artifact_sequence(seq, namespace=namespace)
             logger.info(f"Finished importing artifact sequence {seq=}, {namespace=}")
 
-        for_each(_import_artifact_sequence_wrapped, seqs, max_workers=max_workers, parallel=parallel)
+        for_each(_import_artifact_sequence_wrapped, seqs, art_migration_v2,  max_workers=max_workers, parallel=parallel)
 
         # it's safer to just use artifact on all seqs to make sure we don't miss anything
         # For seqs that have already been used, this is a no-op.
@@ -1095,6 +1099,7 @@ class WandbImporter:
         force_retry_runs: bool = False,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
         start_date: Optional[str] = None,
+        art_migration_v2: bool = False
     ):
         logger.info(f"START: Importing all, {runs=}, {artifacts=}, {reports=}")
         if runs:
@@ -1123,6 +1128,7 @@ class WandbImporter:
                 remapping=remapping,
                 max_workers=max_workers,
                 parallel=parallel,
+                art_migration_v2=art_migration_v2
             )
 
         logger.info("END: Importing all")
