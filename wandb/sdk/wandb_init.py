@@ -209,9 +209,6 @@ class _WandbInit:
             init_settings.handle_launch_logic()
 
         # Apply settings from wandb.init() call
-        print("++", settings.entity, init_settings.entity)
-        print("++", settings.project, init_settings.project)
-        print("++", settings.run_id, init_settings.run_id)
         settings.from_settings(init_settings)
 
         self._reporter = reporting.setup_reporter(settings=settings)
