@@ -304,11 +304,11 @@ def test_wandb_artifact_init_config(user, test_settings):
     }
 
 
-def test_log_code_settings(user, test_settings):
+@pytest.mark.wandb_core_only
+def test_log_code_settings(user):
     with open("test.py", "w") as f:
         f.write('print("test")')
-    settings = test_settings()
-    settings.save_code = True
+    settings = wandb.Settings(save_code=True)
     with wandb.init(settings=settings) as run:
         pass
 
@@ -337,9 +337,7 @@ def test_log_code_env(
             ),
         )
         with relay_server(inject=[server_info_response]):
-            settings = test_settings()
-            settings.save_code = None
-            settings.code_dir = "."
+            settings = wandb.Settings(save_code=None, code_dir=".")
             with wandb.init(settings=settings) as run:
                 assert run._settings.save_code is save_code
 
