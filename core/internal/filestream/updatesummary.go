@@ -3,7 +3,6 @@ package filestream
 import (
 	"fmt"
 	"time"
-	"unsafe"
 
 	"github.com/wandb/wandb/core/internal/runsummary"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -19,20 +18,14 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 
 	for _, update := range u.Record.Update {
 		if err := rs.SetFromRecord(update); err != nil {
-			// TODO(corruption): Remove after data corruption is resolved.
-			valueJSONLen := min(50, len(update.ValueJson))
-			valueJSON := update.ValueJson[:valueJSONLen]
-
 			ctx.Logger.CaptureError(
 				fmt.Errorf(
 					"filestream: failed to apply summary record: %v",
 					err,
 				),
 				"key", update.Key,
-				"&key", unsafe.StringData(update.Key),
 				"nested_key", update.NestedKey,
-				"value_json[:50]", valueJSON,
-				"&value_json", unsafe.StringData(update.ValueJson))
+			)
 		}
 	}
 
@@ -48,12 +41,18 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 		)
 	}
 
-	if len(line) > maxFileLineBytes {
+	// Override the default max line length if the user has set a custom value.
+	maxLineBytes := ctx.Settings.GetFileStreamMaxLineBytes()
+	if maxLineBytes == 0 {
+		maxLineBytes = defaultMaxFileLineBytes
+	}
+
+	if len(line) > int(maxLineBytes) {
 		// Failing to upload the summary is non-blocking.
 		ctx.Logger.CaptureWarn(
 			"filestream: run summary line too long, skipping",
 			"len", len(line),
-			"max", maxFileLineBytes,
+			"max", maxLineBytes,
 		)
 		ctx.Printer.
 			AtMostEvery(time.Minute).
@@ -61,7 +60,8 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 				"Skipped uploading summary data that exceeded"+
 					" size limit (%d > %d).",
 				len(line),
-				maxFileLineBytes)
+				maxLineBytes,
+			)
 	} else {
 		ctx.MakeRequest(&FileStreamRequest{
 			LatestSummary: string(line),

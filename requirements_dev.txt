@@ -58,6 +58,8 @@ responses
 prometheus_client
 google-cloud-aiplatform
 
+boto3!=1.35.56
+
 .[perf]
 .[launch]
 .[sweeps] ; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
