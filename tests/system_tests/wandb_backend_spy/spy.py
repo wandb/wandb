@@ -100,10 +100,14 @@ class WandbBackendSpy:
             if query is None or variables is None:
                 return
 
-            self._spy_run_config(query, variables)
+            self._spy_upsert_bucket(query, variables)
 
-    def _spy_run_config(self, query: str, variables: dict[str, Any]) -> None:
-        """Detect changes to run config.
+    def _spy_upsert_bucket(
+        self,
+        query: str,
+        variables: dict[str, Any],
+    ) -> None:
+        """Change spied state based on UpsertBucket requests.
 
         Requires self._lock.
         """
@@ -112,14 +116,16 @@ class WandbBackendSpy:
         if "mutation UpsertBucket" not in query:
             return
 
-        if "config" not in variables:
-            return
-
         run_id = variables["name"]
-        config = variables["config"]
-
         run = self._runs.setdefault(run_id, _RunData())
-        run._config_json_string = config
+
+        config = variables.get("config")
+        if config is not None:
+            run._config_json_string = config
+
+        tags = variables.get("tags")
+        if tags is not None:
+            run._tags = tags
 
     def post_file_stream(
         self,
@@ -214,6 +220,28 @@ class WandbBackendSnapshot:
             return {}
         return json.loads(summary_file[last_line_offset])
 
+    def system_metrics(self, *, run_id: str) -> dict[int, Any]:
+        """Returns the system metrics file for the run.
+
+        Args:
+            run_id: The ID of the run.
+
+        Raises:
+            KeyError: if the run does not exist.
+        """
+        spy = self._assert_valid()
+
+        try:
+            run = spy._runs[run_id]
+        except KeyError as e:
+            raise KeyError(f"No run with ID {run_id}") from e
+
+        events_file = run._file_stream_files.get("wandb-events.jsonl", {})
+        events_parsed: dict[int, Any] = {}
+        for offset, line in events_file.items():
+            events_parsed[offset] = json.loads(line)
+        return events_parsed
+
     def config(self, *, run_id: str) -> dict[str, Any]:
         """Returns the config for the run as a JSON object.
 
@@ -235,6 +263,21 @@ class WandbBackendSnapshot:
             raise AssertionError(f"No config for run {run_id}")
 
         return json.loads(config)
+
+    def tags(self, *, run_id: str) -> list[str]:
+        """Returns the run's tags.
+
+        Args:
+            run_id: The ID of the run.
+
+        Raises:
+            KeyError: if the run does not exist.
+        """
+        spy = self._assert_valid()
+        try:
+            return spy._runs[run_id]._tags
+        except KeyError as e:
+            raise KeyError(f"No run with ID {run_id}") from e
 
     def telemetry(self, *, run_id: str) -> dict[str, Any]:
         """Returns the telemetry for the run as a JSON object.
@@ -289,3 +332,4 @@ class _RunData:
         self._uploaded_files: set[str] = set()
         self._file_stream_files: dict[str, dict[int, Any]] = {}
         self._config_json_string: str | None = None
+        self._tags: list[str] = []

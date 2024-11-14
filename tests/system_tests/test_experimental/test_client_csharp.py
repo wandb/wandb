@@ -6,7 +6,7 @@ import pytest
 
 
 @pytest.mark.wandb_core_only
-def test_client_sharp(user, relay_server):
+def test_client_sharp(wandb_backend_spy):
     script_path = (
         pathlib.Path(__file__).parent.parent.parent.parent
         / "experimental"
@@ -16,20 +16,20 @@ def test_client_sharp(user, relay_server):
         / "build_and_run.sh"
     )
 
-    with relay_server() as relay:
-        subprocess.run([str(script_path)], check=True, env=os.environ)
+    subprocess.run([str(script_path)], check=True, env=os.environ)
 
-    runs = relay.context.get_run_ids()
-    assert len(runs) == 1
-    run_id = runs[0]
+    with wandb_backend_spy.freeze() as snapshot:
+        runs = snapshot.run_ids()
+        assert len(runs) == 1
+        run_id = runs.pop()
 
-    config = relay.context.get_run_config(run_id)
-    assert config["batch_size"]["value"] == 64
-    assert config["learning_rate"]["value"] == 3e-4
+        config = snapshot.config(run_id=run_id)
+        assert config["batch_size"]["value"] == 64
+        assert config["learning_rate"]["value"] == 3e-4
 
-    history = relay.context.get_run_history(run_id)
-    assert len(history) == 4
+        history = snapshot.history(run_id=run_id)
+        assert len(history) == 4
 
-    tags = set(relay.context.get_run_tags(run_id))
-    assert "c" in tags
-    assert "sharp" in tags
+        tags = snapshot.tags(run_id=run_id)
+        assert "c" in tags
+        assert "sharp" in tags
