@@ -1,7 +1,7 @@
 package get
 
 import (
-	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/get/target"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/get/resource"
 	"github.com/spf13/cobra"
 )
 
@@ -15,6 +15,6 @@ func NewGetCmd() *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(target.NewTargetCmd())
+	cmd.AddCommand(resource.NewGetResourceCmd())
 	return cmd
 }

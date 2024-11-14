@@ -4,7 +4,6 @@ import (
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/create/environment"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/create/release"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/create/releasechannel"
-	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/create/resources"
 	"github.com/spf13/cobra"
 )
 
@@ -21,6 +20,6 @@ func NewCreateCmd() *cobra.Command {
 	cmd.AddCommand(release.NewReleaseCmd())
 	cmd.AddCommand(releasechannel.NewReleaseChannelCmd())
 	cmd.AddCommand(environment.NewEnvironmentCmd())
-	cmd.AddCommand(resources.NewResourcesCmd())
+
 	return cmd
 }

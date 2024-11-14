@@ -44,7 +44,7 @@ func NewReleaseCmd() *cobra.Command {
 			if createdAt != "" {
 				t, err := time.Parse(time.RFC3339, createdAt)
 				if err != nil {
-					return fmt.Errorf("failed to parse created_at time: %w", err) 
+					return fmt.Errorf("failed to parse created_at time: %w", err)
 				}
 				parsedTime = &t
 			}
@@ -56,7 +56,6 @@ func NewReleaseCmd() *cobra.Command {
 				}
 				metadata["ctrlplane/links"] = string(linksJSON)
 			}
-
 
 			config := cliutil.ConvertConfigArrayToNestedMap(configArray)
 			resp, err := client.CreateRelease(cmd.Context(), api.CreateReleaseJSONRequestBody{

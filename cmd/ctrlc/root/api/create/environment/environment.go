@@ -17,7 +17,7 @@ func NewEnvironmentCmd() *cobra.Command {
 	var releaseChannels []string
 	var expiresIn string
 	var system string
-	var targetFilter string
+	var resourceFilter string
 	cmd := &cobra.Command{
 		Use:   "environment [flags]",
 		Short: "Create a new environment",
@@ -42,12 +42,12 @@ func NewEnvironmentCmd() *cobra.Command {
 			body.ReleaseChannels = &releaseChannels
 			body.SystemId = system
 
-			if targetFilter != "" {
+			if resourceFilter != "" {
 				var parsedFilter map[string]interface{}
-				if err := json.Unmarshal([]byte(targetFilter), &parsedFilter); err != nil {
+				if err := json.Unmarshal([]byte(resourceFilter), &parsedFilter); err != nil {
 					return fmt.Errorf("failed to parse target filter: %w", err)
 				}
-				body.TargetFilter = &parsedFilter
+				body.ResourceFilter = &parsedFilter
 			}
 
 			if expiresIn != "" {
@@ -72,7 +72,7 @@ func NewEnvironmentCmd() *cobra.Command {
 	cmd.Flags().StringVar(&system, "system", "", "ID of the system (required)")
 	cmd.Flags().StringVar(&expiresIn, "expires-in", "", "Expiration time in duration (e.g. 1h)")
 	cmd.Flags().StringSliceVar(&releaseChannels, "release-channel", []string{}, "Release channel in format <channelid>")
-	cmd.Flags().StringVar(&targetFilter, "target-filter", "", "Target filter as JSON string")
+	cmd.Flags().StringVar(&resourceFilter, "resource-filter", "", "Resource filter as JSON string")
 
 	cmd.MarkFlagRequired("name")
 	cmd.MarkFlagRequired("system")

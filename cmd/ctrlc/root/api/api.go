@@ -5,6 +5,7 @@ import (
 
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/create"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/get"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/upsert"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -39,6 +40,7 @@ func NewAPICmd() *cobra.Command {
 
 	cmd.AddCommand(get.NewGetCmd())
 	cmd.AddCommand(create.NewCreateCmd())
+	cmd.AddCommand(upsert.NewUpsertCmd())
 
 	return cmd
 }

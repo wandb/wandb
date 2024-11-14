@@ -1,4 +1,4 @@
-package target
+package resource
 
 import (
 	"fmt"
@@ -10,8 +10,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewTargetCmd() *cobra.Command {
-	var targetId string
+func NewGetResourceCmd() *cobra.Command {
+	var resourceId string
 
 	cmd := &cobra.Command{
 		Use:   "target [flags]",
@@ -32,7 +32,7 @@ func NewTargetCmd() *cobra.Command {
 				return fmt.Errorf("failed to create API client: %w", err)
 			}
 
-			resp, err := client.GetTarget(cmd.Context(), targetId)
+			resp, err := client.GetResource(cmd.Context(), resourceId)
 			if err != nil {
 				return fmt.Errorf("failed to get target: %w", err)
 			}
@@ -42,7 +42,7 @@ func NewTargetCmd() *cobra.Command {
 	}
 
 	// Add flags
-	cmd.Flags().StringVar(&targetId, "id", "", "ID of the target (required)")
+	cmd.Flags().StringVar(&resourceId, "id", "", "ID of the target (required)")
 	cmd.MarkFlagRequired("id")
 
 	return cmd

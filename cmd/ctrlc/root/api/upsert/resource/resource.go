@@ -1,4 +1,4 @@
-package resources
+package resource
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewResourcesCmd() *cobra.Command {
+func NewUpsertResourceCmd() *cobra.Command {
 	var workspaceID string
 	var name string
 	var identifier string
@@ -21,17 +21,18 @@ func NewResourcesCmd() *cobra.Command {
 	var metadata map[string]string
 	var configArray map[string]string
 	var links map[string]string
+	var variables map[string]string
 
 	cmd := &cobra.Command{
-		Use:   "resources [flags]",
-		Short: "Create a new resources",
-		Long:  `Create a new resources with the specified version and configuration.`,
+		Use:   "resource [flags]",
+		Short: "Upsert a resource",
+		Long:  `Upsert a resource with the specified version and configuration.`,
 		Example: heredoc.Doc(`
-			# Create a new resource
-			$ ctrlc create resources --version v1.0.0
+			# Upsert a resource
+			$ ctrlc upsert resource --version v1.0.0
 
-			# Create a new resource using Go template syntax
-			$ ctrlc create resources --version v1.0.0 --template='{{.status.phase}}'
+			# Upsert a resource using Go template syntax
+			$ ctrlc upsert resource --version v1.0.0 --template='{{.status.phase}}'
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			apiURL := viper.GetString("url")
@@ -41,9 +42,7 @@ func NewResourcesCmd() *cobra.Command {
 				return fmt.Errorf("failed to create API client: %w", err)
 			}
 
-			// Convert configArray into a nested map[string]interface{}
 			config := cliutil.ConvertConfigArrayToNestedMap(configArray)
-
 			if len(links) > 0 {
 				linksJSON, err := json.Marshal(links)
 				if err != nil {
@@ -52,20 +51,29 @@ func NewResourcesCmd() *cobra.Command {
 				metadata["ctrlplane/links"] = string(linksJSON)
 			}
 
+			variablesRequest := &[]api.Variable{}
+			for k, v := range variables {
+				sensitive := false
+				vv := api.Variable_Value{}
+				vv.SetString(v)
+
+				*variablesRequest = append(*variablesRequest, api.Variable{
+					Key:       k,
+					Sensitive: &sensitive,
+					Value:     vv,
+				})
+			}
+
 			// Extrat into vars
-			resp, err := client.UpsertTargets(cmd.Context(), api.UpsertTargetsJSONRequestBody{
-				Targets: []struct {
+			resp, err := client.UpsertResources(cmd.Context(), api.UpsertResourcesJSONRequestBody{
+				Resources: []struct {
 					Config     map[string]interface{} `json:"config"`
 					Identifier string                 `json:"identifier"`
 					Kind       string                 `json:"kind"`
 					Metadata   *map[string]string     `json:"metadata,omitempty"`
 					Name       string                 `json:"name"`
-					Variables  *[]struct {
-						Key       string                                            `json:"key"`
-						Sensitive *bool                                             `json:"sensitive,omitempty"`
-						Value     api.UpsertTargetsJSONBody_Targets_Variables_Value `json:"value"`
-					} `json:"variables,omitempty"`
-					Version string `json:"version"`
+					Variables  *[]api.Variable        `json:"variables,omitempty"`
+					Version    string                 `json:"version"`
 				}{
 					{
 						Version:    version,
@@ -74,6 +82,7 @@ func NewResourcesCmd() *cobra.Command {
 						Name:       name,
 						Kind:       kind,
 						Config:     config,
+						Variables:  variablesRequest,
 					},
 				},
 
@@ -94,6 +103,8 @@ func NewResourcesCmd() *cobra.Command {
 	cmd.Flags().StringVar(&identifier, "identifier", "", "Identifier of the resource (required)")
 	cmd.Flags().StringVar(&kind, "kind", "", "Kind of the resource (required)")
 	cmd.Flags().StringVar(&version, "version", "", "Version of the resource (required)")
+
+	cmd.Flags().StringToStringVar(&variables, "var", make(map[string]string), "Variable key-value pairs (can be specified multiple times)")
 	cmd.Flags().StringToStringVar(&metadata, "metadata", make(map[string]string), "Metadata key-value pairs (e.g. --metadata key=value)")
 	cmd.Flags().StringToStringVar(&configArray, "config", make(map[string]string), "Config key-value pairs with nested values (can be specified multiple times)")
 	cmd.Flags().StringToStringVar(&links, "link", make(map[string]string), "Links key-value pairs (can be specified multiple times)")

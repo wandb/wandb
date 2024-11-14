@@ -22,6 +22,27 @@ const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
+// Variable defines model for Variable.
+type Variable struct {
+	Key       string         `json:"key"`
+	Sensitive *bool          `json:"sensitive,omitempty"`
+	Value     Variable_Value `json:"value"`
+}
+
+// VariableValue0 defines model for .
+type VariableValue0 = string
+
+// VariableValue1 defines model for .
+type VariableValue1 = float32
+
+// VariableValue2 defines model for .
+type VariableValue2 = bool
+
+// Variable_Value defines model for Variable.Value.
+type Variable_Value struct {
+	union json.RawMessage
+}
+
 // CreateEnvironmentJSONBody defines parameters for CreateEnvironment.
 type CreateEnvironmentJSONBody struct {
 	Description     *string                 `json:"description,omitempty"`
@@ -29,8 +50,8 @@ type CreateEnvironmentJSONBody struct {
 	Name            string                  `json:"name"`
 	PolicyId        *string                 `json:"policyId,omitempty"`
 	ReleaseChannels *[]string               `json:"releaseChannels,omitempty"`
+	ResourceFilter  *map[string]interface{} `json:"resourceFilter,omitempty"`
 	SystemId        string                  `json:"systemId"`
-	TargetFilter    *map[string]interface{} `json:"targetFilter,omitempty"`
 }
 
 // UpdateJobAgentJSONBody defines parameters for UpdateJobAgent.
@@ -65,6 +86,31 @@ type CreateReleaseJSONBody struct {
 	Version      string                  `json:"version"`
 }
 
+// UpsertResourcesJSONBody defines parameters for UpsertResources.
+type UpsertResourcesJSONBody struct {
+	Resources []struct {
+		Config     map[string]interface{} `json:"config"`
+		Identifier string                 `json:"identifier"`
+		Kind       string                 `json:"kind"`
+		Metadata   *map[string]string     `json:"metadata,omitempty"`
+		Name       string                 `json:"name"`
+		Variables  *[]Variable            `json:"variables,omitempty"`
+		Version    string                 `json:"version"`
+	} `json:"resources"`
+	WorkspaceId openapi_types.UUID `json:"workspaceId"`
+}
+
+// UpdateResourceJSONBody defines parameters for UpdateResource.
+type UpdateResourceJSONBody struct {
+	Identifier  *string            `json:"identifier,omitempty"`
+	Kind        *string            `json:"kind,omitempty"`
+	Metadata    *map[string]string `json:"metadata,omitempty"`
+	Name        *string            `json:"name,omitempty"`
+	Variables   *[]Variable        `json:"variables,omitempty"`
+	Version     *string            `json:"version,omitempty"`
+	WorkspaceId *string            `json:"workspaceId,omitempty"`
+}
+
 // SetTargetProvidersTargetsJSONBody defines parameters for SetTargetProvidersTargets.
 type SetTargetProvidersTargetsJSONBody struct {
 	Targets []struct {
@@ -75,67 +121,6 @@ type SetTargetProvidersTargetsJSONBody struct {
 		Name       string                 `json:"name"`
 		Version    string                 `json:"version"`
 	} `json:"targets"`
-}
-
-// UpsertTargetsJSONBody defines parameters for UpsertTargets.
-type UpsertTargetsJSONBody struct {
-	Targets []struct {
-		Config     map[string]interface{} `json:"config"`
-		Identifier string                 `json:"identifier"`
-		Kind       string                 `json:"kind"`
-		Metadata   *map[string]string     `json:"metadata,omitempty"`
-		Name       string                 `json:"name"`
-		Variables  *[]struct {
-			Key       string                                        `json:"key"`
-			Sensitive *bool                                         `json:"sensitive,omitempty"`
-			Value     UpsertTargetsJSONBody_Targets_Variables_Value `json:"value"`
-		} `json:"variables,omitempty"`
-		Version string `json:"version"`
-	} `json:"targets"`
-	WorkspaceId openapi_types.UUID `json:"workspaceId"`
-}
-
-// UpsertTargetsJSONBodyTargetsVariablesValue0 defines parameters for UpsertTargets.
-type UpsertTargetsJSONBodyTargetsVariablesValue0 = string
-
-// UpsertTargetsJSONBodyTargetsVariablesValue1 defines parameters for UpsertTargets.
-type UpsertTargetsJSONBodyTargetsVariablesValue1 = float32
-
-// UpsertTargetsJSONBodyTargetsVariablesValue2 defines parameters for UpsertTargets.
-type UpsertTargetsJSONBodyTargetsVariablesValue2 = bool
-
-// UpsertTargetsJSONBody_Targets_Variables_Value defines parameters for UpsertTargets.
-type UpsertTargetsJSONBody_Targets_Variables_Value struct {
-	union json.RawMessage
-}
-
-// UpdateTargetJSONBody defines parameters for UpdateTarget.
-type UpdateTargetJSONBody struct {
-	Identifier *string            `json:"identifier,omitempty"`
-	Kind       *string            `json:"kind,omitempty"`
-	Metadata   *map[string]string `json:"metadata,omitempty"`
-	Name       *string            `json:"name,omitempty"`
-	Variables  *[]struct {
-		Key       string                               `json:"key"`
-		Sensitive *bool                                `json:"sensitive,omitempty"`
-		Value     UpdateTargetJSONBody_Variables_Value `json:"value"`
-	} `json:"variables,omitempty"`
-	Version     *string `json:"version,omitempty"`
-	WorkspaceId *string `json:"workspaceId,omitempty"`
-}
-
-// UpdateTargetJSONBodyVariablesValue0 defines parameters for UpdateTarget.
-type UpdateTargetJSONBodyVariablesValue0 = string
-
-// UpdateTargetJSONBodyVariablesValue1 defines parameters for UpdateTarget.
-type UpdateTargetJSONBodyVariablesValue1 = float32
-
-// UpdateTargetJSONBodyVariablesValue2 defines parameters for UpdateTarget.
-type UpdateTargetJSONBodyVariablesValue2 = bool
-
-// UpdateTargetJSONBody_Variables_Value defines parameters for UpdateTarget.
-type UpdateTargetJSONBody_Variables_Value struct {
-	union json.RawMessage
 }
 
 // CreateEnvironmentJSONRequestBody defines body for CreateEnvironment for application/json ContentType.
@@ -153,14 +138,102 @@ type CreateReleaseChannelJSONRequestBody CreateReleaseChannelJSONBody
 // CreateReleaseJSONRequestBody defines body for CreateRelease for application/json ContentType.
 type CreateReleaseJSONRequestBody CreateReleaseJSONBody
 
+// UpsertResourcesJSONRequestBody defines body for UpsertResources for application/json ContentType.
+type UpsertResourcesJSONRequestBody UpsertResourcesJSONBody
+
+// UpdateResourceJSONRequestBody defines body for UpdateResource for application/json ContentType.
+type UpdateResourceJSONRequestBody UpdateResourceJSONBody
+
 // SetTargetProvidersTargetsJSONRequestBody defines body for SetTargetProvidersTargets for application/json ContentType.
 type SetTargetProvidersTargetsJSONRequestBody SetTargetProvidersTargetsJSONBody
 
-// UpsertTargetsJSONRequestBody defines body for UpsertTargets for application/json ContentType.
-type UpsertTargetsJSONRequestBody UpsertTargetsJSONBody
+// AsVariableValue0 returns the union data inside the Variable_Value as a VariableValue0
+func (t Variable_Value) AsVariableValue0() (VariableValue0, error) {
+	var body VariableValue0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
 
-// UpdateTargetJSONRequestBody defines body for UpdateTarget for application/json ContentType.
-type UpdateTargetJSONRequestBody UpdateTargetJSONBody
+// FromVariableValue0 overwrites any union data inside the Variable_Value as the provided VariableValue0
+func (t *Variable_Value) FromVariableValue0(v VariableValue0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeVariableValue0 performs a merge with any union data inside the Variable_Value, using the provided VariableValue0
+func (t *Variable_Value) MergeVariableValue0(v VariableValue0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsVariableValue1 returns the union data inside the Variable_Value as a VariableValue1
+func (t Variable_Value) AsVariableValue1() (VariableValue1, error) {
+	var body VariableValue1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromVariableValue1 overwrites any union data inside the Variable_Value as the provided VariableValue1
+func (t *Variable_Value) FromVariableValue1(v VariableValue1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeVariableValue1 performs a merge with any union data inside the Variable_Value, using the provided VariableValue1
+func (t *Variable_Value) MergeVariableValue1(v VariableValue1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsVariableValue2 returns the union data inside the Variable_Value as a VariableValue2
+func (t Variable_Value) AsVariableValue2() (VariableValue2, error) {
+	var body VariableValue2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromVariableValue2 overwrites any union data inside the Variable_Value as the provided VariableValue2
+func (t *Variable_Value) FromVariableValue2(v VariableValue2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeVariableValue2 performs a merge with any union data inside the Variable_Value, using the provided VariableValue2
+func (t *Variable_Value) MergeVariableValue2(v VariableValue2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t Variable_Value) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *Variable_Value) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -275,26 +348,26 @@ type ClientInterface interface {
 
 	CreateRelease(ctx context.Context, body CreateReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// UpsertResourcesWithBody request with any body
+	UpsertResourcesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpsertResources(ctx context.Context, body UpsertResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteResource request
+	DeleteResource(ctx context.Context, resourceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetResource request
+	GetResource(ctx context.Context, resourceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateResourceWithBody request with any body
+	UpdateResourceWithBody(ctx context.Context, resourceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateResource(ctx context.Context, resourceId string, body UpdateResourceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// SetTargetProvidersTargetsWithBody request with any body
 	SetTargetProvidersTargetsWithBody(ctx context.Context, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	SetTargetProvidersTargets(ctx context.Context, providerId string, body SetTargetProvidersTargetsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpsertTargetsWithBody request with any body
-	UpsertTargetsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpsertTargets(ctx context.Context, body UpsertTargetsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteTarget request
-	DeleteTarget(ctx context.Context, targetId string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetTarget request
-	GetTarget(ctx context.Context, targetId string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateTargetWithBody request with any body
-	UpdateTargetWithBody(ctx context.Context, targetId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateTarget(ctx context.Context, targetId string, body UpdateTargetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpsertTargetProvider request
 	UpsertTargetProvider(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -486,6 +559,78 @@ func (c *Client) CreateRelease(ctx context.Context, body CreateReleaseJSONReques
 	return c.Client.Do(req)
 }
 
+func (c *Client) UpsertResourcesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertResourcesRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpsertResources(ctx context.Context, body UpsertResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertResourcesRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteResource(ctx context.Context, resourceId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteResourceRequest(c.Server, resourceId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetResource(ctx context.Context, resourceId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetResourceRequest(c.Server, resourceId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateResourceWithBody(ctx context.Context, resourceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateResourceRequestWithBody(c.Server, resourceId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateResource(ctx context.Context, resourceId string, body UpdateResourceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateResourceRequest(c.Server, resourceId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) SetTargetProvidersTargetsWithBody(ctx context.Context, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetTargetProvidersTargetsRequestWithBody(c.Server, providerId, contentType, body)
 	if err != nil {
@@ -500,78 +645,6 @@ func (c *Client) SetTargetProvidersTargetsWithBody(ctx context.Context, provider
 
 func (c *Client) SetTargetProvidersTargets(ctx context.Context, providerId string, body SetTargetProvidersTargetsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetTargetProvidersTargetsRequest(c.Server, providerId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpsertTargetsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpsertTargetsRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpsertTargets(ctx context.Context, body UpsertTargetsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpsertTargetsRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteTarget(ctx context.Context, targetId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteTargetRequest(c.Server, targetId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetTarget(ctx context.Context, targetId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetTargetRequest(c.Server, targetId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateTargetWithBody(ctx context.Context, targetId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateTargetRequestWithBody(c.Server, targetId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateTarget(ctx context.Context, targetId string, body UpdateTargetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateTargetRequest(c.Server, targetId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -995,6 +1068,161 @@ func NewCreateReleaseRequestWithBody(server string, contentType string, body io.
 	return req, nil
 }
 
+// NewUpsertResourcesRequest calls the generic UpsertResources builder with application/json body
+func NewUpsertResourcesRequest(server string, body UpsertResourcesJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpsertResourcesRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewUpsertResourcesRequestWithBody generates requests for UpsertResources with any type of body
+func NewUpsertResourcesRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/resources")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteResourceRequest generates requests for DeleteResource
+func NewDeleteResourceRequest(server string, resourceId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "resourceId", runtime.ParamLocationPath, resourceId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/resources/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetResourceRequest generates requests for GetResource
+func NewGetResourceRequest(server string, resourceId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "resourceId", runtime.ParamLocationPath, resourceId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/resources/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateResourceRequest calls the generic UpdateResource builder with application/json body
+func NewUpdateResourceRequest(server string, resourceId string, body UpdateResourceJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateResourceRequestWithBody(server, resourceId, "application/json", bodyReader)
+}
+
+// NewUpdateResourceRequestWithBody generates requests for UpdateResource with any type of body
+func NewUpdateResourceRequestWithBody(server string, resourceId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "resourceId", runtime.ParamLocationPath, resourceId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/resources/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewSetTargetProvidersTargetsRequest calls the generic SetTargetProvidersTargets builder with application/json body
 func NewSetTargetProvidersTargetsRequest(server string, providerId string, body SetTargetProvidersTargetsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -1023,161 +1251,6 @@ func NewSetTargetProvidersTargetsRequestWithBody(server string, providerId strin
 	}
 
 	operationPath := fmt.Sprintf("/v1/target-providers/%s/set", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PATCH", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewUpsertTargetsRequest calls the generic UpsertTargets builder with application/json body
-func NewUpsertTargetsRequest(server string, body UpsertTargetsJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpsertTargetsRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewUpsertTargetsRequestWithBody generates requests for UpsertTargets with any type of body
-func NewUpsertTargetsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/v1/targets")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewDeleteTargetRequest generates requests for DeleteTarget
-func NewDeleteTargetRequest(server string, targetId string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "targetId", runtime.ParamLocationPath, targetId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/v1/targets/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetTargetRequest generates requests for GetTarget
-func NewGetTargetRequest(server string, targetId string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "targetId", runtime.ParamLocationPath, targetId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/v1/targets/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUpdateTargetRequest calls the generic UpdateTarget builder with application/json body
-func NewUpdateTargetRequest(server string, targetId string, body UpdateTargetJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateTargetRequestWithBody(server, targetId, "application/json", bodyReader)
-}
-
-// NewUpdateTargetRequestWithBody generates requests for UpdateTarget with any type of body
-func NewUpdateTargetRequestWithBody(server string, targetId string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "targetId", runtime.ParamLocationPath, targetId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/v1/targets/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1403,26 +1476,26 @@ type ClientWithResponsesInterface interface {
 
 	CreateReleaseWithResponse(ctx context.Context, body CreateReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateReleaseResponse, error)
 
+	// UpsertResourcesWithBodyWithResponse request with any body
+	UpsertResourcesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertResourcesResponse, error)
+
+	UpsertResourcesWithResponse(ctx context.Context, body UpsertResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertResourcesResponse, error)
+
+	// DeleteResourceWithResponse request
+	DeleteResourceWithResponse(ctx context.Context, resourceId string, reqEditors ...RequestEditorFn) (*DeleteResourceResponse, error)
+
+	// GetResourceWithResponse request
+	GetResourceWithResponse(ctx context.Context, resourceId string, reqEditors ...RequestEditorFn) (*GetResourceResponse, error)
+
+	// UpdateResourceWithBodyWithResponse request with any body
+	UpdateResourceWithBodyWithResponse(ctx context.Context, resourceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateResourceResponse, error)
+
+	UpdateResourceWithResponse(ctx context.Context, resourceId string, body UpdateResourceJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateResourceResponse, error)
+
 	// SetTargetProvidersTargetsWithBodyWithResponse request with any body
 	SetTargetProvidersTargetsWithBodyWithResponse(ctx context.Context, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetTargetProvidersTargetsResponse, error)
 
 	SetTargetProvidersTargetsWithResponse(ctx context.Context, providerId string, body SetTargetProvidersTargetsJSONRequestBody, reqEditors ...RequestEditorFn) (*SetTargetProvidersTargetsResponse, error)
-
-	// UpsertTargetsWithBodyWithResponse request with any body
-	UpsertTargetsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertTargetsResponse, error)
-
-	UpsertTargetsWithResponse(ctx context.Context, body UpsertTargetsJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertTargetsResponse, error)
-
-	// DeleteTargetWithResponse request
-	DeleteTargetWithResponse(ctx context.Context, targetId string, reqEditors ...RequestEditorFn) (*DeleteTargetResponse, error)
-
-	// GetTargetWithResponse request
-	GetTargetWithResponse(ctx context.Context, targetId string, reqEditors ...RequestEditorFn) (*GetTargetResponse, error)
-
-	// UpdateTargetWithBodyWithResponse request with any body
-	UpdateTargetWithBodyWithResponse(ctx context.Context, targetId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateTargetResponse, error)
-
-	UpdateTargetWithResponse(ctx context.Context, targetId string, body UpdateTargetJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTargetResponse, error)
 
 	// UpsertTargetProviderWithResponse request
 	UpsertTargetProviderWithResponse(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*UpsertTargetProviderResponse, error)
@@ -1439,11 +1512,11 @@ type CreateEnvironmentResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *struct {
 		Environment *struct {
-			Description  *string                 `json:"description,omitempty"`
-			ExpiresAt    *time.Time              `json:"expiresAt"`
-			Name         *string                 `json:"name,omitempty"`
-			SystemId     string                  `json:"systemId"`
-			TargetFilter *map[string]interface{} `json:"targetFilter,omitempty"`
+			Description    *string                 `json:"description,omitempty"`
+			ExpiresAt      *time.Time              `json:"expiresAt"`
+			Name           *string                 `json:"name,omitempty"`
+			ResourceFilter *map[string]interface{} `json:"resourceFilter,omitempty"`
+			SystemId       string                  `json:"systemId"`
 		} `json:"environment,omitempty"`
 	}
 	JSON409 *struct {
@@ -1633,14 +1706,7 @@ type GetJobResponse struct {
 			Metadata map[string]interface{} `json:"metadata"`
 			Version  string                 `json:"version"`
 		} `json:"release,omitempty"`
-		Runbook *struct {
-			Id         string `json:"id"`
-			JobAgentId string `json:"jobAgentId"`
-			Name       string `json:"name"`
-			SystemId   string `json:"systemId"`
-		} `json:"runbook,omitempty"`
-		Status GetJob200Status `json:"status"`
-		Target *struct {
+		Resource *struct {
 			Config      map[string]interface{} `json:"config"`
 			Id          string                 `json:"id"`
 			Identifier  string                 `json:"identifier"`
@@ -1649,7 +1715,14 @@ type GetJobResponse struct {
 			Name        string                 `json:"name"`
 			Version     string                 `json:"version"`
 			WorkspaceId string                 `json:"workspaceId"`
-		} `json:"target,omitempty"`
+		} `json:"resource,omitempty"`
+		Runbook *struct {
+			Id         string `json:"id"`
+			JobAgentId string `json:"jobAgentId"`
+			Name       string `json:"name"`
+			SystemId   string `json:"systemId"`
+		} `json:"runbook,omitempty"`
+		Status    GetJob200Status        `json:"status"`
 		UpdatedAt time.Time              `json:"updatedAt"`
 		Variables map[string]interface{} `json:"variables"`
 	}
@@ -1796,13 +1869,16 @@ func (r CreateReleaseResponse) StatusCode() int {
 	return 0
 }
 
-type SetTargetProvidersTargetsResponse struct {
+type UpsertResourcesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON200      *struct {
+		Count *float32 `json:"count,omitempty"`
+	}
 }
 
 // Status returns HTTPResponse.Status
-func (r SetTargetProvidersTargetsResponse) Status() string {
+func (r UpsertResourcesResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -1810,35 +1886,14 @@ func (r SetTargetProvidersTargetsResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r SetTargetProvidersTargetsResponse) StatusCode() int {
+func (r UpsertResourcesResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type UpsertTargetsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-}
-
-// Status returns HTTPResponse.Status
-func (r UpsertTargetsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpsertTargetsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteTargetResponse struct {
+type DeleteResourceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
@@ -1850,7 +1905,7 @@ type DeleteTargetResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r DeleteTargetResponse) Status() string {
+func (r DeleteResourceResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -1858,14 +1913,14 @@ func (r DeleteTargetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r DeleteTargetResponse) StatusCode() int {
+func (r DeleteResourceResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetTargetResponse struct {
+type GetResourceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
@@ -1880,28 +1935,18 @@ type GetTargetResponse struct {
 			Id   *string `json:"id,omitempty"`
 			Name *string `json:"name,omitempty"`
 		} `json:"provider"`
-		UpdatedAt time.Time `json:"updatedAt"`
-		Variables *[]struct {
-			Key       string                        `json:"key"`
-			Sensitive *bool                         `json:"sensitive,omitempty"`
-			Value     GetTarget_200_Variables_Value `json:"value"`
-		} `json:"variables,omitempty"`
-		Version     string `json:"version"`
-		WorkspaceId string `json:"workspaceId"`
+		UpdatedAt   time.Time   `json:"updatedAt"`
+		Variables   *[]Variable `json:"variables,omitempty"`
+		Version     string      `json:"version"`
+		WorkspaceId string      `json:"workspaceId"`
 	}
 	JSON404 *struct {
 		Error string `json:"error"`
 	}
 }
-type GetTarget200VariablesValue0 = string
-type GetTarget200VariablesValue1 = float32
-type GetTarget200VariablesValue2 = bool
-type GetTarget_200_Variables_Value struct {
-	union json.RawMessage
-}
 
 // Status returns HTTPResponse.Status
-func (r GetTargetResponse) Status() string {
+func (r GetResourceResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -1909,14 +1954,14 @@ func (r GetTargetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetTargetResponse) StatusCode() int {
+func (r GetResourceResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type UpdateTargetResponse struct {
+type UpdateResourceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
@@ -1935,7 +1980,7 @@ type UpdateTargetResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r UpdateTargetResponse) Status() string {
+func (r UpdateResourceResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -1943,7 +1988,28 @@ func (r UpdateTargetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r UpdateTargetResponse) StatusCode() int {
+func (r UpdateResourceResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SetTargetProvidersTargetsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r SetTargetProvidersTargetsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SetTargetProvidersTargetsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2174,6 +2240,58 @@ func (c *ClientWithResponses) CreateReleaseWithResponse(ctx context.Context, bod
 	return ParseCreateReleaseResponse(rsp)
 }
 
+// UpsertResourcesWithBodyWithResponse request with arbitrary body returning *UpsertResourcesResponse
+func (c *ClientWithResponses) UpsertResourcesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertResourcesResponse, error) {
+	rsp, err := c.UpsertResourcesWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpsertResourcesResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpsertResourcesWithResponse(ctx context.Context, body UpsertResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertResourcesResponse, error) {
+	rsp, err := c.UpsertResources(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpsertResourcesResponse(rsp)
+}
+
+// DeleteResourceWithResponse request returning *DeleteResourceResponse
+func (c *ClientWithResponses) DeleteResourceWithResponse(ctx context.Context, resourceId string, reqEditors ...RequestEditorFn) (*DeleteResourceResponse, error) {
+	rsp, err := c.DeleteResource(ctx, resourceId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteResourceResponse(rsp)
+}
+
+// GetResourceWithResponse request returning *GetResourceResponse
+func (c *ClientWithResponses) GetResourceWithResponse(ctx context.Context, resourceId string, reqEditors ...RequestEditorFn) (*GetResourceResponse, error) {
+	rsp, err := c.GetResource(ctx, resourceId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetResourceResponse(rsp)
+}
+
+// UpdateResourceWithBodyWithResponse request with arbitrary body returning *UpdateResourceResponse
+func (c *ClientWithResponses) UpdateResourceWithBodyWithResponse(ctx context.Context, resourceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateResourceResponse, error) {
+	rsp, err := c.UpdateResourceWithBody(ctx, resourceId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateResourceResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateResourceWithResponse(ctx context.Context, resourceId string, body UpdateResourceJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateResourceResponse, error) {
+	rsp, err := c.UpdateResource(ctx, resourceId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateResourceResponse(rsp)
+}
+
 // SetTargetProvidersTargetsWithBodyWithResponse request with arbitrary body returning *SetTargetProvidersTargetsResponse
 func (c *ClientWithResponses) SetTargetProvidersTargetsWithBodyWithResponse(ctx context.Context, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetTargetProvidersTargetsResponse, error) {
 	rsp, err := c.SetTargetProvidersTargetsWithBody(ctx, providerId, contentType, body, reqEditors...)
@@ -2189,58 +2307,6 @@ func (c *ClientWithResponses) SetTargetProvidersTargetsWithResponse(ctx context.
 		return nil, err
 	}
 	return ParseSetTargetProvidersTargetsResponse(rsp)
-}
-
-// UpsertTargetsWithBodyWithResponse request with arbitrary body returning *UpsertTargetsResponse
-func (c *ClientWithResponses) UpsertTargetsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertTargetsResponse, error) {
-	rsp, err := c.UpsertTargetsWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpsertTargetsResponse(rsp)
-}
-
-func (c *ClientWithResponses) UpsertTargetsWithResponse(ctx context.Context, body UpsertTargetsJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertTargetsResponse, error) {
-	rsp, err := c.UpsertTargets(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpsertTargetsResponse(rsp)
-}
-
-// DeleteTargetWithResponse request returning *DeleteTargetResponse
-func (c *ClientWithResponses) DeleteTargetWithResponse(ctx context.Context, targetId string, reqEditors ...RequestEditorFn) (*DeleteTargetResponse, error) {
-	rsp, err := c.DeleteTarget(ctx, targetId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteTargetResponse(rsp)
-}
-
-// GetTargetWithResponse request returning *GetTargetResponse
-func (c *ClientWithResponses) GetTargetWithResponse(ctx context.Context, targetId string, reqEditors ...RequestEditorFn) (*GetTargetResponse, error) {
-	rsp, err := c.GetTarget(ctx, targetId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetTargetResponse(rsp)
-}
-
-// UpdateTargetWithBodyWithResponse request with arbitrary body returning *UpdateTargetResponse
-func (c *ClientWithResponses) UpdateTargetWithBodyWithResponse(ctx context.Context, targetId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateTargetResponse, error) {
-	rsp, err := c.UpdateTargetWithBody(ctx, targetId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateTargetResponse(rsp)
-}
-
-func (c *ClientWithResponses) UpdateTargetWithResponse(ctx context.Context, targetId string, body UpdateTargetJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTargetResponse, error) {
-	rsp, err := c.UpdateTarget(ctx, targetId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateTargetResponse(rsp)
 }
 
 // UpsertTargetProviderWithResponse request returning *UpsertTargetProviderResponse
@@ -2287,11 +2353,11 @@ func ParseCreateEnvironmentResponse(rsp *http.Response) (*CreateEnvironmentRespo
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
 			Environment *struct {
-				Description  *string                 `json:"description,omitempty"`
-				ExpiresAt    *time.Time              `json:"expiresAt"`
-				Name         *string                 `json:"name,omitempty"`
-				SystemId     string                  `json:"systemId"`
-				TargetFilter *map[string]interface{} `json:"targetFilter,omitempty"`
+				Description    *string                 `json:"description,omitempty"`
+				ExpiresAt      *time.Time              `json:"expiresAt"`
+				Name           *string                 `json:"name,omitempty"`
+				ResourceFilter *map[string]interface{} `json:"resourceFilter,omitempty"`
+				SystemId       string                  `json:"systemId"`
 			} `json:"environment,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -2525,14 +2591,7 @@ func ParseGetJobResponse(rsp *http.Response) (*GetJobResponse, error) {
 				Metadata map[string]interface{} `json:"metadata"`
 				Version  string                 `json:"version"`
 			} `json:"release,omitempty"`
-			Runbook *struct {
-				Id         string `json:"id"`
-				JobAgentId string `json:"jobAgentId"`
-				Name       string `json:"name"`
-				SystemId   string `json:"systemId"`
-			} `json:"runbook,omitempty"`
-			Status GetJob200Status `json:"status"`
-			Target *struct {
+			Resource *struct {
 				Config      map[string]interface{} `json:"config"`
 				Id          string                 `json:"id"`
 				Identifier  string                 `json:"identifier"`
@@ -2541,7 +2600,14 @@ func ParseGetJobResponse(rsp *http.Response) (*GetJobResponse, error) {
 				Name        string                 `json:"name"`
 				Version     string                 `json:"version"`
 				WorkspaceId string                 `json:"workspaceId"`
-			} `json:"target,omitempty"`
+			} `json:"resource,omitempty"`
+			Runbook *struct {
+				Id         string `json:"id"`
+				JobAgentId string `json:"jobAgentId"`
+				Name       string `json:"name"`
+				SystemId   string `json:"systemId"`
+			} `json:"runbook,omitempty"`
+			Status    GetJob200Status        `json:"status"`
 			UpdatedAt time.Time              `json:"updatedAt"`
 			Variables map[string]interface{} `json:"variables"`
 		}
@@ -2730,47 +2796,43 @@ func ParseCreateReleaseResponse(rsp *http.Response) (*CreateReleaseResponse, err
 	return response, nil
 }
 
-// ParseSetTargetProvidersTargetsResponse parses an HTTP response from a SetTargetProvidersTargetsWithResponse call
-func ParseSetTargetProvidersTargetsResponse(rsp *http.Response) (*SetTargetProvidersTargetsResponse, error) {
+// ParseUpsertResourcesResponse parses an HTTP response from a UpsertResourcesWithResponse call
+func ParseUpsertResourcesResponse(rsp *http.Response) (*UpsertResourcesResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &SetTargetProvidersTargetsResponse{
+	response := &UpsertResourcesResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Count *float32 `json:"count,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	}
 
 	return response, nil
 }
 
-// ParseUpsertTargetsResponse parses an HTTP response from a UpsertTargetsWithResponse call
-func ParseUpsertTargetsResponse(rsp *http.Response) (*UpsertTargetsResponse, error) {
+// ParseDeleteResourceResponse parses an HTTP response from a DeleteResourceWithResponse call
+func ParseDeleteResourceResponse(rsp *http.Response) (*DeleteResourceResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UpsertTargetsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	return response, nil
-}
-
-// ParseDeleteTargetResponse parses an HTTP response from a DeleteTargetWithResponse call
-func ParseDeleteTargetResponse(rsp *http.Response) (*DeleteTargetResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteTargetResponse{
+	response := &DeleteResourceResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -2799,15 +2861,15 @@ func ParseDeleteTargetResponse(rsp *http.Response) (*DeleteTargetResponse, error
 	return response, nil
 }
 
-// ParseGetTargetResponse parses an HTTP response from a GetTargetWithResponse call
-func ParseGetTargetResponse(rsp *http.Response) (*GetTargetResponse, error) {
+// ParseGetResourceResponse parses an HTTP response from a GetResourceWithResponse call
+func ParseGetResourceResponse(rsp *http.Response) (*GetResourceResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetTargetResponse{
+	response := &GetResourceResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -2826,14 +2888,10 @@ func ParseGetTargetResponse(rsp *http.Response) (*GetTargetResponse, error) {
 				Id   *string `json:"id,omitempty"`
 				Name *string `json:"name,omitempty"`
 			} `json:"provider"`
-			UpdatedAt time.Time `json:"updatedAt"`
-			Variables *[]struct {
-				Key       string                        `json:"key"`
-				Sensitive *bool                         `json:"sensitive,omitempty"`
-				Value     GetTarget_200_Variables_Value `json:"value"`
-			} `json:"variables,omitempty"`
-			Version     string `json:"version"`
-			WorkspaceId string `json:"workspaceId"`
+			UpdatedAt   time.Time   `json:"updatedAt"`
+			Variables   *[]Variable `json:"variables,omitempty"`
+			Version     string      `json:"version"`
+			WorkspaceId string      `json:"workspaceId"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -2854,15 +2912,15 @@ func ParseGetTargetResponse(rsp *http.Response) (*GetTargetResponse, error) {
 	return response, nil
 }
 
-// ParseUpdateTargetResponse parses an HTTP response from a UpdateTargetWithResponse call
-func ParseUpdateTargetResponse(rsp *http.Response) (*UpdateTargetResponse, error) {
+// ParseUpdateResourceResponse parses an HTTP response from a UpdateResourceWithResponse call
+func ParseUpdateResourceResponse(rsp *http.Response) (*UpdateResourceResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UpdateTargetResponse{
+	response := &UpdateResourceResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -2893,6 +2951,22 @@ func ParseUpdateTargetResponse(rsp *http.Response) (*UpdateTargetResponse, error
 		}
 		response.JSON404 = &dest
 
+	}
+
+	return response, nil
+}
+
+// ParseSetTargetProvidersTargetsResponse parses an HTTP response from a SetTargetProvidersTargetsWithResponse call
+func ParseSetTargetProvidersTargetsResponse(rsp *http.Response) (*SetTargetProvidersTargetsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SetTargetProvidersTargetsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
 	}
 
 	return response, nil
