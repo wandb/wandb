@@ -597,7 +597,7 @@ class WandbImporter:
     def _import_art_via_sdk(self, namespace: Namespace, run: WandbRun, artifact_group: list[Artifact]):
         wandb.login(key=self.dst_api_key, host=self.dst_base_url, relogin=True, force=True)
         with wandb.init(project=namespace.project, entity=namespace.entity,
-                        id=run.run_id(), resume="must") as logging_run:
+                        id=run.run_id(), resume="allow", mode="shared") as logging_run:
 
             # Log the artifact in reverse order to preserve upload sequence
             logging_run.log_artifact(artifact_group[0])
