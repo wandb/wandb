@@ -86,7 +86,7 @@ jobs:
       ##################################################
       - name: Downgrade Go version
         run: |
-          sed -i '' 's/1.23.2/1.22.8/' core/go.mod
+          sed -i '' 's/1.23.3/1.22.8/' core/go.mod
 
       ##################################################
       # Non-Linux: install Go
