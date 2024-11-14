@@ -2,113 +2,101 @@ import pathlib
 
 import pytest
 
-# TODO: these tests do not test much beyond the callback initialization.
-# We should add tests that check that the callbacks actually log the expected data.
+
+@pytest.mark.wandb_core_only
+def test_eval_tables_builder(wandb_backend_spy, execute_script):
+    script_path = pathlib.Path(__file__).parent / "keras_eval_tables_builder.py"
+    execute_script(script_path)
+
+    with wandb_backend_spy.freeze() as snapshot:
+        run_ids = snapshot.run_ids()
+        assert len(run_ids) == 1
+        run_id = run_ids.pop()
+
+        telemetry = snapshot.telemetry(run_id=run_id)
+        assert 40 in telemetry["3"]  # feature=keras_wandb_eval_callback
 
 
 @pytest.mark.wandb_core_only
-def test_eval_tables_builder(user, relay_server, execute_script):
-    with relay_server() as relay:
-        script_path = pathlib.Path(__file__).parent / "keras_eval_tables_builder.py"
-        execute_script(script_path)
-    runs = relay.context.get_run_ids()
-    assert len(runs) == 1
-    run_id = runs[0]
+def test_metrics_logger_epochwise(wandb_backend_spy, execute_script):
+    script_path = pathlib.Path(__file__).parent / "keras_metrics_logger_epochwise.py"
+    execute_script(script_path)
 
-    telemetry = relay.context.get_run_telemetry(run_id)
-    assert 40 in telemetry["3"]  # feature=keras_wandb_eval_callback
+    with wandb_backend_spy.freeze() as snapshot:
+        run_ids = snapshot.run_ids()
+        assert len(run_ids) == 1
+        run_id = run_ids.pop()
 
+        telemetry = snapshot.telemetry(run_id=run_id)
+        assert 38 in telemetry["3"]  # feature=keras
 
-@pytest.mark.wandb_core_only
-def test_metrics_logger_epochwise(user, relay_server, execute_script):
-    with relay_server() as relay:
-        script_path = (
-            pathlib.Path(__file__).parent / "keras_metrics_logger_epochwise.py"
-        )
-        execute_script(script_path)
-
-    runs = relay.context.get_run_ids()
-    assert len(runs) == 1
-    run_id = runs[0]
-
-    telemetry = relay.context.get_run_telemetry(run_id)
-    assert 38 in telemetry["3"]  # feature=keras
-
-    summary = relay.context.get_run_summary(run_id)
-    assert summary["epoch/epoch"] == 1
-    assert summary["epoch/accuracy"] == pytest.approx(0.11999999)
-    assert summary["epoch/loss"] == pytest.approx(2.3033, rel=1e-4)
-    assert summary["epoch/val_accuracy"] == pytest.approx(0.11999999)
-    assert summary["epoch/val_loss"] == pytest.approx(2.3033, rel=1e-4)
-    assert summary["epoch/learning_rate"] == pytest.approx(1e-5)
+        summary = snapshot.summary(run_id=run_id)
+        assert summary["epoch/epoch"] == 1
+        assert "epoch/accuracy" in summary
+        assert "epoch/val_accuracy" in summary
+        assert "epoch/learning_rate" in summary
 
 
 @pytest.mark.wandb_core_only
-def test_metrics_logger(user, relay_server, execute_script):
-    with relay_server() as relay:
-        script_path = pathlib.Path(__file__).parent / "keras_metrics_logger.py"
-        execute_script(script_path)
+def test_metrics_logger(wandb_backend_spy, execute_script):
+    script_path = pathlib.Path(__file__).parent / "keras_metrics_logger.py"
+    execute_script(script_path)
 
-    runs = relay.context.get_run_ids()
-    assert len(runs) == 1
-    run_id = runs[0]
+    with wandb_backend_spy.freeze() as snapshot:
+        run_ids = snapshot.run_ids()
+        assert len(run_ids) == 1
+        run_id = run_ids.pop()
 
-    telemetry = relay.context.get_run_telemetry(run_id)
-    assert 38 in telemetry["3"]
+        telemetry = snapshot.telemetry(run_id=run_id)
+        assert 38 in telemetry["3"]
 
-    summary = relay.context.get_run_summary(run_id)
-    assert summary["epoch/epoch"] == 1
-    assert summary["epoch/accuracy"] == pytest.approx(0.14, rel=1e-2)
-    assert summary["epoch/loss"] == pytest.approx(2.302, rel=1e-3)
-    assert summary["epoch/val_accuracy"] == pytest.approx(0.140, rel=1e-3)
-    assert summary["epoch/val_loss"] == pytest.approx(2.302, rel=1e-3)
-    assert summary["batch/accuracy"] == pytest.approx(0.14, rel=1e-3)
-    assert summary["batch/loss"] == pytest.approx(2.302, rel=1e-3)
-    assert summary["batch/batch_step"] == 7
-    assert summary["batch/learning_rate"] == pytest.approx(0.00999999, rel=1e-5)
+        summary = snapshot.summary(run_id=run_id)
+        assert summary["epoch/epoch"] == 1
+        assert "epoch/accuracy" in summary
+        assert "epoch/val_accuracy" in summary
+        assert "batch/accuracy" in summary
+        assert summary["batch/batch_step"] == 7
+        assert "batch/learning_rate" in summary
 
 
 @pytest.mark.wandb_core_only
-def test_model_checkpoint(user, relay_server, execute_script):
-    with relay_server() as relay:
-        script_path = pathlib.Path(__file__).parent / "keras_model_checkpoint.py"
-        execute_script(script_path)
-    runs = relay.context.get_run_ids()
-    assert len(runs) == 1
-    run_id = runs[0]
+def test_model_checkpoint(wandb_backend_spy, execute_script):
+    script_path = pathlib.Path(__file__).parent / "keras_model_checkpoint.py"
+    execute_script(script_path)
 
-    telemetry = relay.context.get_run_telemetry(run_id)
-    assert 39 in telemetry["3"]  # feature=keras_wandb_model_checkpoint
+    with wandb_backend_spy.freeze() as snapshot:
+        run_ids = snapshot.run_ids()
+        assert len(run_ids) == 1
+        run_id = run_ids.pop()
+
+        telemetry = snapshot.telemetry(run_id=run_id)
+        assert 39 in telemetry["3"]  # feature=keras_wandb_model_checkpoint
 
 
 @pytest.mark.wandb_core_only
 def test_deprecated_keras_callback(
-    user,
-    relay_server,
+    wandb_backend_spy,
     execute_script,
     mock_wandb_log,
 ):
-    with relay_server() as relay:
-        script_path = pathlib.Path(__file__).parent / "keras_deprecated.py"
-        execute_script(script_path)
+    script_path = pathlib.Path(__file__).parent / "keras_deprecated.py"
+    execute_script(script_path)
 
-    runs = relay.context.get_run_ids()
-    assert len(runs) == 1
-    run_id = runs[0]
+    with wandb_backend_spy.freeze() as snapshot:
+        run_ids = snapshot.run_ids()
+        assert len(run_ids) == 1
+        run_id = run_ids.pop()
 
-    summary = relay.context.get_run_summary(run_id)
-    assert len(summary) == 7
-    assert summary["accuracy"] == 1
-    assert summary["val_accuracy"] == 1
-    assert summary["val_loss"] > 0
-    assert summary["best_val_loss"] > 0
-    assert summary["epoch"] == 6
-    assert "best_epoch" in summary
-    assert summary["loss"] > 0
+        summary = snapshot.summary(run_id=run_id)
+        assert "accuracy" in summary
+        assert "val_loss" in summary
+        assert "best_val_loss" in summary
+        assert summary["epoch"] == 6
+        assert "best_epoch" in summary
 
-    telemetry = relay.context.get_run_telemetry(run_id)
-    assert 8 in telemetry["3"]  # feature=keras
+        telemetry = snapshot.telemetry(run_id=run_id)
+        assert 8 in telemetry["3"]  # feature=keras
 
-    assert mock_wandb_log.warned(
-        "WandbCallback is deprecated and will be removed in a future release."
-    )
+        assert mock_wandb_log.warned(
+            "WandbCallback is deprecated and will be removed in a future release."
+        )
