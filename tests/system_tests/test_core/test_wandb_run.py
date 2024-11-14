@@ -8,7 +8,6 @@ import numpy as np
 import pytest
 import wandb
 import wandb.env
-from wandb import wandb_sdk
 from wandb.errors import UsageError
 
 
