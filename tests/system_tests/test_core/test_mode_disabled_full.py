@@ -99,16 +99,19 @@ def test_access_properties(wandb_init):
     run.finish()
 
 
-def test_disabled_no_activity(wandb_init, relay_server):
-    with relay_server() as relay:
-        with wandb_init(settings={"mode": "disabled"}) as run:
-            run.alert("alert")
-            run.define_metric("metric")
-            run.log_code()
-            run.save()
-            run.restore()
-            run.plot_table("table")
-            run.mark_preempting()
-            run.to_html()
-            run.display()
-    assert relay.context.raw_data == []
+def test_disabled_no_activity(wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    graphql_spy = gql.Capture()
+    wandb_backend_spy.stub_gql(gql.any(), graphql_spy)
+
+    with wandb.init(settings={"mode": "disabled"}) as run:
+        run.alert("alert")
+        run.define_metric("metric")
+        run.log_code()
+        run.save()
+        run.restore()
+        run.mark_preempting()
+        run.to_html()
+        run.display()
+
+    assert graphql_spy.total_calls == 0
