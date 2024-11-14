@@ -5,9 +5,6 @@ __all__ = (
     "UsageError",
     "UnsupportedError",
     "WandbCoreNotAvailableError",
-    "WandbAttachFailedError",
-    "WandbServiceConnectionError",
-    "WandbServiceNotOwnedError",
 )
 
 from .errors import (
@@ -16,8 +13,5 @@ from .errors import (
     Error,
     UnsupportedError,
     UsageError,
-    WandbAttachFailedError,
     WandbCoreNotAvailableError,
-    WandbServiceConnectionError,
-    WandbServiceNotOwnedError,
 )
