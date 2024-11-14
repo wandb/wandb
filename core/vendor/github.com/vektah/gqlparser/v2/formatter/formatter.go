@@ -40,6 +40,13 @@ func WithBuiltin() FormatterOption {
 	}
 }
 
+// WithoutDescription excludes GQL description from the source/AST in the formatted output.
+func WithoutDescription() FormatterOption {
+	return func(f *formatter) {
+		f.omitDescription = true
+	}
+}
+
 func NewFormatter(w io.Writer, options ...FormatterOption) Formatter {
 	f := &formatter{
 		indent: "\t",
@@ -54,10 +61,11 @@ func NewFormatter(w io.Writer, options ...FormatterOption) Formatter {
 type formatter struct {
 	writer io.Writer
 
-	indent       string
-	indentSize   int
-	emitBuiltin  bool
-	emitComments bool
+	indent          string
+	indentSize      int
+	emitBuiltin     bool
+	emitComments    bool
+	omitDescription bool
 
 	padNext  bool
 	lineHead bool
@@ -112,7 +120,7 @@ func (f *formatter) WriteString(s string) *formatter {
 }
 
 func (f *formatter) WriteDescription(s string) *formatter {
-	if s == "" {
+	if s == "" || f.omitDescription {
 		return f
 	}
 
@@ -364,7 +372,7 @@ func (f *formatter) FormatArgumentDefinitionList(lists ast.ArgumentDefinitionLis
 func (f *formatter) FormatArgumentDefinition(def *ast.ArgumentDefinition) {
 	f.FormatCommentGroup(def.BeforeDescriptionComment)
 
-	if def.Description != "" {
+	if def.Description != "" && !f.omitDescription {
 		f.WriteNewline().IncrementIndent()
 		f.WriteDescription(def.Description)
 	}
@@ -381,7 +389,7 @@ func (f *formatter) FormatArgumentDefinition(def *ast.ArgumentDefinition) {
 
 	f.NeedPadding().FormatDirectiveList(def.Directives)
 
-	if def.Description != "" {
+	if def.Description != "" && !f.omitDescription {
 		f.DecrementIndent()
 		f.WriteNewline()
 	}

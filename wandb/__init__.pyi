@@ -129,8 +129,8 @@ def setup(
     See also `wandb.teardown()`.
 
     Args:
-        settings: Configuration settings to apply globally. These can be
-            overridden by subsequent `wandb.init()` calls.
+        settings (Optional[Union[Dict[str, Any], wandb.Settings]]): Configuration settings
+            to apply globally. These can be overridden by subsequent `wandb.init()` calls.
 
     Example:
         ```python
