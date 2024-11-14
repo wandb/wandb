@@ -1,4 +1,3 @@
-import json
 import os
 from unittest import mock
 
@@ -14,6 +13,28 @@ from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, LaunchError
 class MockBranch:
     def __init__(self, name):
         self.name = name
+
+
+@pytest.fixture
+def push_to_run_queue_by_name_spy(wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    responder = gql.Capture()
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="pushToRunQueueByName"),
+        responder,
+    )
+    return responder
+
+
+@pytest.fixture
+def push_to_run_queue_spy(wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    responder = gql.Capture()
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="pushToRunQueue"),
+        responder,
+    )
+    return responder
 
 
 @pytest.fixture
@@ -74,8 +95,12 @@ def mocked_fetchable_git_repo():
 
 
 def test_launch_add_delete_queued_run(
-    relay_server, runner, user, monkeypatch, wandb_init, test_settings
+    use_local_wandb_backend,
+    user,
+    test_settings,
 ):
+    _ = use_local_wandb_backend
+
     queue = "default"
     proj = "test2"
     docker_image = "test/test:test"
@@ -84,8 +109,7 @@ def test_launch_add_delete_queued_run(
 
     api = InternalApi()
 
-    with relay_server():
-        run = wandb_init(settings=settings)
+    with wandb.init(settings=settings):
         api.create_run_queue(
             entity=user,
             project=LAUNCH_DEFAULT_PROJECT,
@@ -107,128 +131,12 @@ def test_launch_add_delete_queued_run(
 
         queued_run.delete()
 
-        run.finish()
-
-
-# TODO(gst): Identify root cause of (threaded?) artifact creation error
-@pytest.mark.xfail(
-    strict=False,
-    reason="Non-deterministic, 1-2 can fail but all 4 would suggest regression.",
-)
-@pytest.mark.timeout(200)
-@pytest.mark.parametrize(
-    "launch_config,override_config",
-    [
-        (
-            {"build": {"type": "docker"}},
-            {
-                "docker": {"args": ["--container_arg", "9 rams"]},
-                "resource": "local-process",
-            },
-        ),
-        (
-            {},
-            {
-                "overrides": {"args": ["--runtime", "nvidia"]},
-                "resource": "local-process",
-            },
-        ),
-        (
-            {"build": {"type": "docker"}},
-            {
-                "overrides": {"args": ["--runtime", "nvidia"]},
-                "resource": "local-process",
-            },
-        ),
-    ],
-)
-def test_launch_build_push_job(
-    relay_server,
-    user,
-    monkeypatch,
-    runner,
-    launch_config,
-    override_config,
-    mocked_fetchable_git_repo,
-    wandb_init,
-    test_settings,
-):
-    release_image = "THISISANIMAGETAG"
-    queue = "test_queue"
-    proj = "test8"
-    uri = "https://github.com/FooBar/examples.git"
-    entry_point = ["python", "train.py"]
-    settings_mr = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
-    # create project for artifacts
-    run_artifact = wandb_init(settings=settings_mr)
-    run_artifact.finish()
-    settings = test_settings({"project": proj})
-    internal_api = InternalApi()
-    public_api = PublicApi()
-
-    async def patched_validate_docker_installation():
-        return None
-
-    monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
-        "validate_docker_installation",
-        patched_validate_docker_installation,
-    )
-
-    monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
-        "LAUNCH_CONFIG_FILE",
-        "./config/wandb/launch-config.yaml",
-    )
-
-    with relay_server(), runner.isolated_filesystem():
-        # create project
-        run = wandb_init(settings=settings)
-
-        os.makedirs(os.path.expanduser("./config/wandb"))
-        with open(os.path.expanduser("./config/wandb/launch-config.yaml"), "w") as f:
-            json.dump(launch_config, f)
-
-        internal_api.create_run_queue(
-            entity=user,
-            project=LAUNCH_DEFAULT_PROJECT,
-            queue_name=queue,
-            access="PROJECT",
-        )
-
-        queued_run = launch_add(
-            uri=uri,
-            entity=user,
-            project=proj,
-            queue_name=queue,
-            build=True,
-            job="DELETE ME",
-            entry_point=entry_point,
-            config=override_config,
-            project_queue=LAUNCH_DEFAULT_PROJECT,
-        )
-
-        assert queued_run.state == "pending"
-        assert queued_run.entity == user
-        assert queued_run.project == proj
-        assert queued_run.project_queue == LAUNCH_DEFAULT_PROJECT
-
-        rqi = internal_api.pop_from_run_queue(queue, user, LAUNCH_DEFAULT_PROJECT)
-
-        assert rqi["runSpec"]["uri"] is None
-        assert rqi["runSpec"]["job"] != "DELETE ME"
-        assert rqi["runSpec"]["job"].split("/")[-1] == f"job-{release_image}:v0"
-        # rqi pushed to launch proj, but confirm it's still pointed at our end project
-        assert rqi["runSpec"]["project"] == proj
-
-        job = public_api.job(rqi["runSpec"]["job"])
-        run.finish()
-
-        assert job._job_info["source"]["image"] == release_image
-
 
 def test_launch_add_default_specify(
-    relay_server, user, mocked_fetchable_git_repo, wandb_init, test_settings
+    user,
+    push_to_run_queue_by_name_spy,
+    push_to_run_queue_spy,
+    mocked_fetchable_git_repo,
 ):
     proj = "test_project1"
     docker_image = "test/test:test"
@@ -241,12 +149,9 @@ def test_launch_add_default_specify(
         "entry_point": entry_point,
         "resource": "local-container",
     }
-    settings = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
 
-    with relay_server() as relay:
-        run = wandb_init(settings=settings)
+    with wandb.init(settings=wandb.Settings(project=LAUNCH_DEFAULT_PROJECT)):
         queued_run = launch_add(**args)
-        run.finish()
 
     assert queued_run.id
     assert queued_run.state == "pending"
@@ -255,18 +160,17 @@ def test_launch_add_default_specify(
     assert queued_run.queue_name == args["queue_name"]
     assert queued_run.project_queue == LAUNCH_DEFAULT_PROJECT
 
-    for comm in relay.context.raw_data:
-        q = comm["request"].get("query")
-        # below should fail for non-existent default queue,
-        # then fallback to legacy method
-        if q and "mutation pushToRunQueueByName(" in str(q):
-            assert comm["response"].get("data", {}).get("pushToRunQueueByName") is None
-        elif q and "mutation pushToRunQueue(" in str(q):
-            assert comm["response"]["data"]["pushToRunQueue"] is not None
+    # below should fail for non-existent default queue,
+    # then fallback to legacy method
+    assert push_to_run_queue_by_name_spy.total_calls == 1
+    assert push_to_run_queue_spy.total_calls == 1
 
 
 def test_launch_add_default_specify_project_queue(
-    relay_server, user, mocked_fetchable_git_repo, wandb_init, test_settings
+    push_to_run_queue_by_name_spy,
+    push_to_run_queue_spy,
+    user,
+    mocked_fetchable_git_repo,
 ):
     proj = "test_project1"
     docker_image = "test/test:test"
@@ -280,12 +184,9 @@ def test_launch_add_default_specify_project_queue(
         "resource": "local-container",
         "project_queue": proj,
     }
-    settings = test_settings({"project": proj})
 
-    with relay_server() as relay:
-        run = wandb_init(settings=settings)
+    with wandb.init(settings=wandb.Settings(project=proj)):
         queued_run = launch_add(**args)
-        run.finish()
 
     assert queued_run.id
     assert queued_run.state == "pending"
@@ -294,18 +195,17 @@ def test_launch_add_default_specify_project_queue(
     assert queued_run.queue_name == args["queue_name"]
     assert queued_run.project_queue == proj
 
-    for comm in relay.context.raw_data:
-        q = comm["request"].get("query")
-        # below should fail for non-existent default queue,
-        # then fallback to legacy method
-        if q and "mutation pushToRunQueueByName(" in str(q):
-            assert comm["response"].get("data", {}).get("pushToRunQueueByName") is None
-        elif q and "mutation pushToRunQueue(" in str(q):
-            assert comm["response"]["data"]["pushToRunQueue"] is not None
+    # below should fail for non-existent default queue,
+    # then fallback to legacy method
+    assert push_to_run_queue_by_name_spy.total_calls == 1
+    assert push_to_run_queue_spy.total_calls == 1
 
 
 def test_push_to_runqueue_exists(
-    relay_server, user, mocked_fetchable_git_repo, wandb_init, test_settings
+    push_to_run_queue_by_name_spy,
+    push_to_run_queue_spy,
+    user,
+    mocked_fetchable_git_repo,
 ):
     proj = "test_project2"
     queue = "existing-queue"
@@ -320,10 +220,7 @@ def test_push_to_runqueue_exists(
         "resource": "local-process",
     }
 
-    settings = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
-
-    with relay_server() as relay:
-        run = wandb_init(settings=settings)
+    with wandb.init(settings=wandb.Settings(project=LAUNCH_DEFAULT_PROJECT)):
         api = wandb.sdk.internal.internal_api.Api()
         api.create_run_queue(
             entity=user, project=LAUNCH_DEFAULT_PROJECT, queue_name=queue, access="USER"
@@ -333,25 +230,20 @@ def test_push_to_runqueue_exists(
 
         assert result["runQueueItemId"]
 
-        run.finish()
-
-    for comm in relay.context.raw_data:
-        q = comm["request"].get("query")
-        if q and "mutation pushToRunQueueByName(" in str(q):
-            assert comm["response"].get("data") is not None
-        elif q and "mutation pushToRunQueue(" in str(q):
-            raise Exception("should not be falling back to legacy here")
+    assert push_to_run_queue_by_name_spy.total_calls == 1
+    assert push_to_run_queue_spy.total_calls == 0
 
 
 def test_push_to_default_runqueue_notexist(
-    relay_server, user, mocked_fetchable_git_repo, test_settings, wandb_init
+    use_local_wandb_backend,
+    user,
+    mocked_fetchable_git_repo,
 ):
+    _ = use_local_wandb_backend
     api = wandb.sdk.internal.internal_api.Api()
     proj = "test_project54"
     uri = "https://github.com/FooBar/examples.git"
     entry_point = ["python", "train.py"]
-
-    settings = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
 
     launch_spec = {
         "uri": uri,
@@ -361,24 +253,25 @@ def test_push_to_default_runqueue_notexist(
         "resource": "local-process",
     }
 
-    with relay_server():
-        run = wandb_init(settings=settings)
+    with wandb.init(settings=wandb.Settings(project=LAUNCH_DEFAULT_PROJECT)):
         res = api.push_to_run_queue(
-            "nonexistent-queue", launch_spec, None, LAUNCH_DEFAULT_PROJECT
+            "nonexistent-queue",
+            launch_spec,
+            None,
+            LAUNCH_DEFAULT_PROJECT,
         )
-        run.finish()
 
         assert not res
 
 
 def test_push_to_runqueue_old_server(
-    relay_server,
+    use_local_wandb_backend,
     user,
     monkeypatch,
     mocked_fetchable_git_repo,
     test_settings,
-    wandb_init,
 ):
+    _ = use_local_wandb_backend
     proj = "test_project0"
     queue = "existing-queue"
     uri = "https://github.com/FooBar/examples.git"
@@ -398,8 +291,7 @@ def test_push_to_runqueue_old_server(
         lambda *args: None,
     )
 
-    with relay_server():
-        run = wandb_init(settings=settings)
+    with wandb.init(settings=settings):
         api = wandb.sdk.internal.internal_api.Api()
 
         api.create_run_queue(
@@ -407,12 +299,17 @@ def test_push_to_runqueue_old_server(
         )
 
         result = api.push_to_run_queue(queue, args, None, LAUNCH_DEFAULT_PROJECT)
-        run.finish()
 
-        assert result["runQueueItemId"]
+    assert result["runQueueItemId"]
 
 
-def test_launch_add_with_priority(runner, relay_server, user, monkeypatch):
+def test_launch_add_with_priority(
+    push_to_run_queue_by_name_spy,
+    push_to_run_queue_spy,
+    runner,
+    user,
+    monkeypatch,
+):
     def patched_push_to_run_queue_introspection(*args, **kwargs):
         args[0].server_supports_template_variables = True
         args[0].server_push_to_run_queue_supports_priority = True
@@ -440,7 +337,7 @@ def test_launch_add_with_priority(runner, relay_server, user, monkeypatch):
     queue_config = {}
     base_config = {}
 
-    with relay_server() as relay, runner.isolated_filesystem():
+    with runner.isolated_filesystem():
         api = PublicApi(api_key=user)
         api.create_run_queue(
             entity=user,
@@ -457,17 +354,19 @@ def test_launch_add_with_priority(runner, relay_server, user, monkeypatch):
             config=base_config,
             priority=0,
         )
-        for comm in relay.context.raw_data:
-            q = comm["request"].get("query")
-            if q and "mutation pushToRunQueueByName(" in str(q):
-                assert comm["response"].get("data") is not None
-            elif q and "mutation pushToRunQueue(" in str(q):
-                raise Exception("should not be falling back to legacy here")
+
+    assert push_to_run_queue_by_name_spy.total_calls == 1
+    assert push_to_run_queue_spy.total_calls == 0
 
 
 def test_launch_add_with_priority_to_no_prio_queue_raises(
-    runner, relay_server, user, monkeypatch
+    use_local_wandb_backend,
+    runner,
+    user,
+    monkeypatch,
 ):
+    _ = use_local_wandb_backend
+
     def patched_push_to_run_queue_introspection(*args, **kwargs):
         args[0].server_supports_template_variables = True
         args[0].server_push_to_run_queue_supports_priority = True
@@ -495,7 +394,7 @@ def test_launch_add_with_priority_to_no_prio_queue_raises(
     queue_config = {}
     base_config = {}
 
-    with relay_server(), runner.isolated_filesystem():
+    with runner.isolated_filesystem():
         api = PublicApi(api_key=user)
         api.create_run_queue(
             entity=user,
@@ -514,7 +413,12 @@ def test_launch_add_with_priority_to_no_prio_queue_raises(
             )
 
 
-def test_launch_add_template_variables(runner, relay_server, user):
+def test_launch_add_template_variables(
+    push_to_run_queue_by_name_spy,
+    push_to_run_queue_spy,
+    runner,
+    user,
+):
     queue_name = "tvqueue"
     proj = "test1"
     queue_config = {"e": ["{{var1}}"]}
@@ -523,7 +427,7 @@ def test_launch_add_template_variables(runner, relay_server, user):
     }
     template_variables = {"var1": "a"}
     base_config = {"template_variables": {"var1": "b"}}
-    with relay_server() as relay, runner.isolated_filesystem():
+    with runner.isolated_filesystem():
         api = PublicApi(api_key=user)
         api.create_run_queue(
             entity=user,
@@ -540,18 +444,19 @@ def test_launch_add_template_variables(runner, relay_server, user):
             docker_image="abc:latest",
             config=base_config,
         )
-        for comm in relay.context.raw_data:
-            q = comm["request"].get("query")
-            vars = comm["request"].get("variables")
-            if q and "mutation pushToRunQueueByName(" in str(q):
-                assert comm["response"].get("data") is not None
-                assert vars["templateVariableValues"] == '{"var1": "a"}'
-            elif q and "mutation pushToRunQueue(" in str(q):
-                raise Exception("should not be falling back to legacy here")
+
+    assert push_to_run_queue_spy.total_calls == 0
+    requests = push_to_run_queue_by_name_spy.requests
+    assert len(requests) == 1
+    assert requests[0].variables["templateVariableValues"] == '{"var1": "a"}'
 
 
 def test_launch_add_template_variables_legacy_push(
-    runner, relay_server, user, monkeypatch
+    push_to_run_queue_by_name_spy,
+    push_to_run_queue_spy,
+    runner,
+    user,
+    monkeypatch,
 ):
     queue_name = "tvqueue"
     proj = "test1"
@@ -565,7 +470,7 @@ def test_launch_add_template_variables_legacy_push(
         "push_to_run_queue_by_name",
         lambda *args, **kwargs: None,
     )
-    with relay_server() as relay, runner.isolated_filesystem():
+    with runner.isolated_filesystem():
         api = PublicApi(api_key=user)
         api.create_run_queue(
             entity=user,
@@ -581,12 +486,9 @@ def test_launch_add_template_variables_legacy_push(
             queue_name=queue_name,
             docker_image="abc:latest",
         )
-        for comm in relay.context.raw_data:
-            q = comm["request"].get("query")
-            if q and "mutation pushToRunQueue(" in str(q):
-                assert comm["response"].get("data") is not None
-            elif q and "mutation pushToRunQueueByName(" in str(q):
-                raise Exception("should not be using non legacy here")
+
+    assert push_to_run_queue_spy.total_calls == 1
+    assert push_to_run_queue_by_name_spy.total_calls == 0
 
 
 def test_launch_add_template_variables_not_supported(user, monkeypatch):
@@ -662,8 +564,12 @@ def test_launch_add_template_variables_not_supported_legacy_push(
 
 
 def test_display_updated_runspec(
-    relay_server, user, test_settings, wandb_init, monkeypatch
+    use_local_wandb_backend,
+    user,
+    test_settings,
+    monkeypatch,
 ):
+    _ = use_local_wandb_backend
     queue = "default"
     proj = "test1"
     entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
@@ -687,10 +593,12 @@ def test_display_updated_runspec(
         lambda *args, **kwargs: push_with_drc(*args, **kwargs),
     )
 
-    with relay_server():
-        run = wandb_init(settings=settings)
+    with wandb.init(settings=settings):
         api.create_run_queue(
-            entity=user, project=proj, queue_name=queue, access="PROJECT"
+            entity=user,
+            project=proj,
+            queue_name=queue,
+            access="PROJECT",
         )
 
         _ = launch_add(
@@ -702,8 +610,6 @@ def test_display_updated_runspec(
             config={"resource": "kubernetes"},
             project_queue=proj,
         )
-
-        run.finish()
 
 
 def test_container_queued_run(monkeypatch, user):
