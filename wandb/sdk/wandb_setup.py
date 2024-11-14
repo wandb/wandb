@@ -146,16 +146,15 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         # infer settings from the system environment
         s.from_system_environment()
 
-        # handle custom sweep- and launch-related logic for init settings
-        if s.sweep_id:
-            settings.sweep_id = s.sweep_id
-            settings.handle_sweep_logic()
-        if s.launch:
-            settings.launch = s.launch
-            settings.handle_launch_logic()
-
         # load settings from the passed init/setup settings
         if settings:
+            # handle custom sweep- and launch-related logic for init settings
+            if s.sweep_id:
+                settings.sweep_id = s.sweep_id
+                settings.handle_sweep_logic()
+            if s.launch:
+                settings.launch = s.launch
+                settings.handle_launch_logic()
             s.from_settings(settings)
 
         return s

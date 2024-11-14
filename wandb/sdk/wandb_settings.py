@@ -489,6 +489,8 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def _code_path_local(self) -> str | None:
+        if not self.program:
+            return None
         return self._get_program_relpath(self.program)
 
     @computed_field  # type: ignore[prop-decorator]
