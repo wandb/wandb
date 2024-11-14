@@ -17,7 +17,7 @@ class Server:
         self,
         settings: Settings,
     ) -> None:
-        self._api = InternalApi(settings=settings)
+        self._api = InternalApi(default_settings=settings)
         self._error_network: bool = False
         self._viewer: dict[str, Any] = {}
         self._flags: dict[str, Any] = {}

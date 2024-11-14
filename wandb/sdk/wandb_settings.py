@@ -489,7 +489,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def _code_path_local(self) -> str | None:
-        return self._get_program_relpath()
+        return self._get_program_relpath(self.program)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -848,7 +848,7 @@ class Settings(BaseModel, validate_assignment=True):
             root = repo.root or os.getcwd()
 
             self.program_relpath = self.program_relpath or self._get_program_relpath(
-                repo.root
+                program, root
             )
             program_abspath = os.path.abspath(
                 os.path.join(root, os.path.relpath(os.getcwd(), root), program)
@@ -988,8 +988,9 @@ class Settings(BaseModel, validate_assignment=True):
         except (ImportError, AttributeError):
             return None
 
-    def _get_program_relpath(self, root: str | None = None) -> str | None:
-        if not self.program:
+    @staticmethod
+    def _get_program_relpath(program: str, root: str | None = None) -> str | None:
+        if not program:
             return None
 
         root = root or os.getcwd()
@@ -997,7 +998,7 @@ class Settings(BaseModel, validate_assignment=True):
             return None
 
         full_path_to_program = os.path.join(
-            root, os.path.relpath(os.getcwd(), root), self.program
+            root, os.path.relpath(os.getcwd(), root), program
         )
         if os.path.exists(full_path_to_program):
             relative_path = os.path.relpath(full_path_to_program, start=root)
