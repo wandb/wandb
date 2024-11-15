@@ -358,7 +358,7 @@ class Settings(google.protobuf.message.Message):
 
     @property
     def sync_file(self) -> google.protobuf.wrappers_pb2.StringValue:
-        """Path to the transaction log file, that is being synced."""
+        """Path to the transaction log file."""
 
     @property
     def _shared(self) -> google.protobuf.wrappers_pb2.BoolValue:
@@ -394,7 +394,7 @@ class Settings(google.protobuf.message.Message):
 
     @property
     def log_internal(self) -> google.protobuf.wrappers_pb2.StringValue:
-        """Filename to use for internal logs."""
+        """The path to the file to use for internal logs."""
 
     @property
     def console(self) -> google.protobuf.wrappers_pb2.StringValue:
@@ -415,7 +415,7 @@ class Settings(google.protobuf.message.Message):
 
     @property
     def files_dir(self) -> google.protobuf.wrappers_pb2.StringValue:
-        """Absolute path to the local directory where this run's files are stored."""
+        """Absolute path to the local directory where the run's files are stored."""
 
     @property
     def ignore_globs(self) -> global___ListStringValue:
@@ -550,7 +550,7 @@ class Settings(google.protobuf.message.Message):
 
     @property
     def disable_job_creation(self) -> google.protobuf.wrappers_pb2.BoolValue:
-        """Whether to create a job artifact for W&B Launch."""
+        """Whether to disable the creation of a job artifact for W&B Launch."""
 
     @property
     def sweep_url(self) -> google.protobuf.wrappers_pb2.StringValue:
@@ -558,7 +558,7 @@ class Settings(google.protobuf.message.Message):
 
     @property
     def x_disable_update_check(self) -> google.protobuf.wrappers_pb2.BoolValue:
-        """Disable check for latest version of wandb, from pypi."""
+        """Disable check for latest version of wandb, from PyPI."""
 
     @property
     def x_require_legacy_service(self) -> google.protobuf.wrappers_pb2.BoolValue:
@@ -862,7 +862,7 @@ class Settings(google.protobuf.message.Message):
     def console_multipart(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
     def allow_offline_artifacts(self) -> google.protobuf.wrappers_pb2.BoolValue:
-        """Flag to allow table artifacts to be synced in offline mode
+        """Flag to allow table artifacts to be synced in offline mode.
 
         By default, true, to revert to old behavior, set this to False.
         """

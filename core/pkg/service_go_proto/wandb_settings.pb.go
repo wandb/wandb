@@ -337,7 +337,7 @@ type Settings struct {
 	// Flag to indicate whether we are syncing a run from
 	// the transaction log.
 	XSync *wrapperspb.BoolValue `protobuf:"bytes,31,opt,name=x_sync,json=xSync,proto3" json:"x_sync,omitempty"`
-	// Path to the transaction log file, that is being synced.
+	// Path to the transaction log file.
 	SyncFile *wrapperspb.StringValue `protobuf:"bytes,134,opt,name=sync_file,json=syncFile,proto3" json:"sync_file,omitempty"`
 	// Whether we are in shared mode.
 	//
@@ -356,7 +356,7 @@ type Settings struct {
 	XStartTime *wrapperspb.DoubleValue `protobuf:"bytes,41,opt,name=x_start_time,json=xStartTime,proto3" json:"x_start_time,omitempty"`
 	// The directory for storing log files.
 	LogDir *wrapperspb.StringValue `protobuf:"bytes,85,opt,name=log_dir,json=logDir,proto3" json:"log_dir,omitempty"`
-	// Filename to use for internal logs.
+	// The path to the file to use for internal logs.
 	LogInternal *wrapperspb.StringValue `protobuf:"bytes,86,opt,name=log_internal,json=logInternal,proto3" json:"log_internal,omitempty"`
 	// Defines the type of console capture to be applied. Possible values are:
 	//
@@ -372,7 +372,7 @@ type Settings struct {
 	//
 	// "wrap_emu" - Same as "wrap" but captures output through an emulator.
 	Console *wrapperspb.StringValue `protobuf:"bytes,60,opt,name=console,proto3" json:"console,omitempty"`
-	// Absolute path to the local directory where this run's files are stored.
+	// Absolute path to the local directory where the run's files are stored.
 	FilesDir *wrapperspb.StringValue `protobuf:"bytes,70,opt,name=files_dir,json=filesDir,proto3" json:"files_dir,omitempty"`
 	// Unix glob patterns relative to `files_dir` to not upload.
 	IgnoreGlobs *ListStringValue `protobuf:"bytes,78,opt,name=ignore_globs,json=ignoreGlobs,proto3" json:"ignore_globs,omitempty"`
@@ -449,11 +449,11 @@ type Settings struct {
 	ResumeFrom *RunMoment `protobuf:"bytes,167,opt,name=resume_from,json=resumeFrom,proto3" json:"resume_from,omitempty"`
 	// Fork information for the run.
 	ForkFrom *RunMoment `protobuf:"bytes,164,opt,name=fork_from,json=forkFrom,proto3" json:"fork_from,omitempty"`
-	// Whether to create a job artifact for W&B Launch.
+	// Whether to disable the creation of a job artifact for W&B Launch.
 	DisableJobCreation *wrapperspb.BoolValue `protobuf:"bytes,65,opt,name=disable_job_creation,json=disableJobCreation,proto3" json:"disable_job_creation,omitempty"`
 	// The W&B sweep URL.
 	SweepUrl *wrapperspb.StringValue `protobuf:"bytes,131,opt,name=sweep_url,json=sweepUrl,proto3" json:"sweep_url,omitempty"`
-	// Disable check for latest version of wandb, from pypi.
+	// Disable check for latest version of wandb, from PyPI.
 	XDisableUpdateCheck *wrapperspb.BoolValue `protobuf:"bytes,165,opt,name=x_disable_update_check,json=xDisableUpdateCheck,proto3" json:"x_disable_update_check,omitempty"`
 	// Explicitly require wandb-core to not be used.
 	XRequireLegacyService *wrapperspb.BoolValue `protobuf:"bytes,173,opt,name=x_require_legacy_service,json=xRequireLegacyService,proto3" json:"x_require_legacy_service,omitempty"`
@@ -615,7 +615,7 @@ type Settings struct {
 	// If couldn't find the relative path, this will be an empty string.
 	XCodePathLocal   *wrapperspb.StringValue `protobuf:"bytes,163,opt,name=_code_path_local,json=CodePathLocal,proto3" json:"_code_path_local,omitempty"`
 	ConsoleMultipart *wrapperspb.BoolValue   `protobuf:"bytes,166,opt,name=console_multipart,json=consoleMultipart,proto3" json:"console_multipart,omitempty"`
-	// Flag to allow table artifacts to be synced in offline mode
+	// Flag to allow table artifacts to be synced in offline mode.
 	//
 	// By default, true, to revert to old behavior, set this to False.
 	AllowOfflineArtifacts *wrapperspb.BoolValue `protobuf:"bytes,177,opt,name=allow_offline_artifacts,json=allowOfflineArtifacts,proto3" json:"allow_offline_artifacts,omitempty"`
