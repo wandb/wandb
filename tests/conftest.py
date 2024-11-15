@@ -409,9 +409,9 @@ def test_settings():
             save_code=False,
         )
         if isinstance(extra_settings, dict):
-            settings.from_dict(extra_settings)
+            settings.update_from_dict(extra_settings)
         elif isinstance(extra_settings, wandb.Settings):
-            settings.from_settings(extra_settings)
+            settings.update_from_settings(extra_settings)
         settings.x_start_time = time.time()
         return settings
 

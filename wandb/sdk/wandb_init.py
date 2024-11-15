@@ -952,7 +952,7 @@ def _attach(
 
     settings: Settings = copy.copy(_wl._settings)
 
-    settings.from_dict(
+    settings.update_from_dict(
         {
             "run_id": attach_id,
             "x_start_time": attach_settings.x_start_time.value,

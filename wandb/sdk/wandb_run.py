@@ -1612,7 +1612,7 @@ class Run:
         run_settings = {key: value for key, value in run_settings.items() if value}
 
         if run_settings:
-            self._settings.from_dict(run_settings)
+            self._settings.update_from_dict(run_settings)
             self._update_settings(self._settings)
 
         wandb._sentry.configure_scope(

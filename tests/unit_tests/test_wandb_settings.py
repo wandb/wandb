@@ -143,11 +143,11 @@ def test_ignore_globs_explicit():
 
 def test_ignore_globs_env():
     s = Settings()
-    s.from_env_vars({"WANDB_IGNORE_GLOBS": "foo"})
+    s.update_from_env_vars({"WANDB_IGNORE_GLOBS": "foo"})
     assert s.ignore_globs == ("foo",)
 
     s = Settings()
-    s.from_env_vars({"WANDB_IGNORE_GLOBS": "foo,bar"})
+    s.update_from_env_vars({"WANDB_IGNORE_GLOBS": "foo,bar"})
     assert s.ignore_globs == (
         "foo",
         "bar",
@@ -156,7 +156,7 @@ def test_ignore_globs_env():
 
 def test_token_file_env():
     s = Settings()
-    s.from_env_vars({"WANDB_IDENTITY_TOKEN_FILE": "jwt.txt"})
+    s.update_from_env_vars({"WANDB_IDENTITY_TOKEN_FILE": "jwt.txt"})
     assert s.identity_token_file == ("jwt.txt")
 
 
@@ -165,7 +165,7 @@ def test_credentials_file_env():
     assert s.credentials_file == str(DEFAULT_WANDB_CREDENTIALS_FILE)
 
     s = Settings()
-    s.from_env_vars({"WANDB_CREDENTIALS_FILE": "/tmp/credentials.json"})
+    s.update_from_env_vars({"WANDB_CREDENTIALS_FILE": "/tmp/credentials.json"})
     assert s.credentials_file == "/tmp/credentials.json"
 
 
@@ -175,7 +175,7 @@ def test_quiet():
     s = Settings(quiet=True)
     assert s.quiet
     s = Settings()
-    s.from_env_vars({"WANDB_QUIET": "false"})
+    s.update_from_env_vars({"WANDB_QUIET": "false"})
     assert not s.quiet
 
 
@@ -329,7 +329,7 @@ def test_preprocess_base_url(url, processed_url):
 def test_preprocess_bool_settings(setting: str):
     with mock.patch.dict(os.environ, {"WANDB_" + setting.upper(): "true"}):
         s = Settings()
-        s.from_env_vars(environ=os.environ)
+        s.update_from_env_vars(environ=os.environ)
         assert getattr(s, setting) is True
 
 
@@ -346,7 +346,7 @@ def test_preprocess_bool_settings(setting: str):
 def test_preprocess_dict_settings(setting: str, value: str):
     with mock.patch.dict(os.environ, {"WANDB_" + setting.upper(): value}):
         s = Settings()
-        s.from_env_vars(environ=os.environ)
+        s.update_from_env_vars(environ=os.environ)
         assert getattr(s, setting) == json.loads(value)
 
 

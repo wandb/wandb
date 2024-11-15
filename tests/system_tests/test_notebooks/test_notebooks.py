@@ -202,7 +202,7 @@ def test_mocked_notebook_run_display(user, mocked_ipython):
 def test_mocked_notebook_magic(user, run_id, mocked_ipython):
     magic = wandb.jupyter.WandBMagics(None)
     s = wandb.Settings()
-    s.from_env_vars(os.environ)
+    s.update_from_env_vars(os.environ)
     basic_settings = {
         "api_key": user,
         "base_url": s.base_url,

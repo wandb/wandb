@@ -45,11 +45,15 @@ def _path_convert(*args: str) -> str:
 
 
 class Settings(BaseModel, validate_assignment=True):
-    """Settings for W&B."""
+    """Settings for the W&B SDK."""
 
+    # pydantic configuration.
     model_config = ConfigDict(
         extra="forbid",  # throw an error if extra fields are provided
+        validate_default=True,  # validate default values
     )
+
+    # Public settings.
 
     allow_offline_artifacts: bool = True
     allow_val_change: bool = False
@@ -258,6 +262,7 @@ class Settings(BaseModel, validate_assignment=True):
         return new_values
 
     # Field validators.
+
     @field_validator("x_disable_service", mode="after")
     @classmethod
     def validate_disable_service(cls, value):
@@ -321,12 +326,16 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("http_proxy", mode="after")
     @classmethod
     def validate_http_proxy(cls, value):
+        if value is None:
+            return None
         cls.validate_url(value)
         return value.rstrip("/")
 
     @field_validator("https_proxy", mode="after")
     @classmethod
     def validate_https_proxy(cls, value):
+        if value is None:
+            return None
         cls.validate_url(value)
         return value.rstrip("/")
 
@@ -400,6 +409,8 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("start_method")
     @classmethod
     def validate_start_method(cls, value):
+        if value is None:
+            return value
         available_methods = ["thread"]
         if hasattr(multiprocessing, "get_all_start_methods"):
             available_methods += multiprocessing.get_all_start_methods()
@@ -433,6 +444,8 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("sweep_id", mode="after")
     @classmethod
     def validate_sweep_id(cls, value):
+        if value is None:
+            return None
         if len(value) == 0:
             raise UsageError("Sweep ID cannot be empty")
         if len(value) > len(value.strip()):
@@ -442,6 +455,7 @@ class Settings(BaseModel, validate_assignment=True):
         return value
 
     # Computed fields.
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def _args(self) -> list[str]:
@@ -467,9 +481,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def _code_path_local(self) -> str | None:
-        if not self.program:
-            return None
-        return self._get_program_relpath(self.program)
+        return self._get_program_relpath(self.program) if self.program else None
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -701,24 +713,31 @@ class Settings(BaseModel, validate_assignment=True):
 
         return os.path.expanduser(path)
 
-    # TODO: Methods to collect and update settings from different sources.
-    # TODO: call them all update_... as they are updating the settings as opposed to
-    # building a Settings object from ... (which would be a class method).
-    def from_system_config_file(self):
+    # Methods to collect and update settings from different sources.
+    #
+    # The Settings class does not track the source of the settings,
+    # so it is up to the developer to ensure that the settings are applied
+    # in the correct order. Most of the updates are done in
+    # wandb/sdk/wandb_setup.py::_WandbSetup__WandbSetup._settings_setup.
+
+    def update_from_system_config_file(self):
+        """Update settings from the system config file."""
         if not self.settings_system or not os.path.exists(self.settings_system):
             return
         for key, value in self._load_config_file(self.settings_system).items():
             if value is not None:
                 setattr(self, key, value)
 
-    def from_workspace_config_file(self):
+    def update_from_workspace_config_file(self):
+        """Update settings from the workspace config file."""
         if not self.settings_workspace or not os.path.exists(self.settings_workspace):
             return
         for key, value in self._load_config_file(self.settings_workspace).items():
             if value is not None:
                 setattr(self, key, value)
 
-    def from_env_vars(self, environ: dict[str, Any]):
+    def update_from_env_vars(self, environ: dict[str, Any]):
+        """Update settings from environment variables."""
         env_prefix: str = "WANDB_"
         special_env_var_names = {
             "WANDB_DISABLE_SERVICE": "x_disable_service",
@@ -752,17 +771,8 @@ class Settings(BaseModel, validate_assignment=True):
             if value is not None:
                 setattr(self, key, value)
 
-    def from_dict(self, settings: dict[str, Any]) -> None:
-        for key, value in dict(settings).items():
-            if value is not None:
-                setattr(self, key, value)
-
-    def from_settings(self, settings: Settings) -> None:
-        d = {field: getattr(settings, field) for field in settings.model_fields_set}
-        if d:
-            self.from_dict(d)
-
-    def from_system_environment(self):
+    def update_from_system_environment(self):
+        """Update settings from the system environment."""
         # For code saving, only allow env var override if value from server is true, or
         # if no preference was specified.
         if (self.save_code is True or self.save_code is None) and (
@@ -840,7 +850,20 @@ class Settings(BaseModel, validate_assignment=True):
 
         self.program = program
 
+    def update_from_dict(self, settings: dict[str, Any]) -> None:
+        """Update settings from a dictionary."""
+        for key, value in dict(settings).items():
+            if value is not None:
+                setattr(self, key, value)
+
+    def update_from_settings(self, settings: Settings) -> None:
+        """Update settings from another instance of `Settings`."""
+        d = {field: getattr(settings, field) for field in settings.model_fields_set}
+        if d:
+            self.update_from_dict(d)
+
     # Helper methods.
+
     def to_proto(self) -> wandb_settings_pb2.Settings:
         """Generate a protobuf representation of the settings."""
         settings_proto = wandb_settings_pb2.Settings()
@@ -885,16 +908,15 @@ class Settings(BaseModel, validate_assignment=True):
                     )
                 )
             elif v is None:
-                # None is the default value for all settings, so we don't need to set it,
-                # i.e. None means that the value was not set.
+                # None means that the setting value was not set.
                 pass
             else:
                 raise TypeError(f"Unsupported type {type(v)} for setting {k}")
-        # TODO: store property sources in the protobuf so that we can reconstruct the
-        #  settings object from the protobuf
+
         return settings_proto
 
     def handle_resume_logic(self):
+        """Handle logic for resuming runs."""
         # handle auto resume logic
         if self.resume == "auto":
             if os.path.exists(self.resume_fname):
@@ -910,18 +932,21 @@ class Settings(BaseModel, validate_assignment=True):
         if self.run_id is None:
             self.run_id = generate_id()
 
-        # persist our run id in case of failure
+        # persist run_id in case of failure
         if self.resume == "auto" and self.resume_fname is not None:
             filesystem.mkdir_exists_ok(self.wandb_dir)
             with open(self.resume_fname, "w") as f:
                 f.write(json.dumps({"run_id": self.run_id}))
 
     def handle_sweep_logic(self):
+        """Update settings based on sweep context.
+
+        When running a sweep, the project, entity, and run_id are handled externally,
+        and should be ignored if they are set.
+        """
         if self.sweep_id is None:
             return
 
-        # when running a sweep, the project, entity, and run id are handled externally,
-        # so we should ignore them if they are set.
         for key in ("project", "entity", "run_id"):
             value = getattr(self, key)
             if value is not None:
@@ -929,11 +954,14 @@ class Settings(BaseModel, validate_assignment=True):
                 setattr(self, key, None)
 
     def handle_launch_logic(self):
+        """Update settings based on launch context.
+
+        When running in a launch context, the project, entity, and run_id are handled
+        externally, and should be ignored if they are set.
+        """
         if not self.launch:
             return
 
-        # in the launch context, the project, entity, and run id are handled externally,
-        # so we should ignore them if they are set.
         for key in ("project", "entity", "run_id"):
             value = getattr(self, key)
             if value is not None:
@@ -944,7 +972,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @staticmethod
     def validate_url(url: str) -> None:
-        """Validate a URL string using pydantic-core."""
+        """Validate a URL string."""
         url_validator = SchemaValidator(
             core_schema.url_schema(
                 allowed_schemes=["http", "https"],
@@ -954,6 +982,7 @@ class Settings(BaseModel, validate_assignment=True):
         url_validator.validate_python(url)
 
     def _get_program(self) -> str | None:
+        """Get the program that started the current process."""
         if not self._jupyter:
             # If not in a notebook, try to get the program from the environment
             # or the __main__ module for scripts run as `python -m ...`.
@@ -983,6 +1012,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @staticmethod
     def _get_program_relpath(program: str, root: str | None = None) -> str | None:
+        """Get the relative path to the program from the root directory."""
         if not program:
             return None
 
@@ -1003,6 +1033,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @staticmethod
     def _load_config_file(file_name: str, section: str = "default") -> dict:
+        """Load a config file and return the settings for a given section."""
         parser = configparser.ConfigParser()
         parser.add_section(section)
         parser.read(file_name)
@@ -1014,6 +1045,7 @@ class Settings(BaseModel, validate_assignment=True):
         return config
 
     def _project_url_base(self) -> str:
+        """Construct the base URL for the project."""
         if not all([self.entity, self.project]):
             return ""
 
@@ -1021,7 +1053,8 @@ class Settings(BaseModel, validate_assignment=True):
         return f"{app_url}/{quote(self.entity or '')}/{quote(self.project or '')}"
 
     def _get_url_query_string(self) -> str:
-        # TODO: use `wandb_settings` (if self.anonymous != "true")
+        """Construct the query string for project, run, and sweep URLs."""
+        # TODO: remove dependency on Api()
         if Api().settings().get("anonymous") != "true":
             return ""
 
@@ -1031,6 +1064,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @staticmethod
     def _runmoment_preprocessor(val: RunMoment | str | None) -> RunMoment | None:
+        """Preprocess the setting for forking or resuming a run."""
         if isinstance(val, RunMoment) or val is None:
             return val
         elif isinstance(val, str):

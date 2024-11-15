@@ -131,38 +131,38 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         # load settings from the system config
         if s.settings_system and early_logger:
             early_logger.info(f"Loading settings from {s.settings_system}")
-        s.from_system_config_file()
+        s.update_from_system_config_file()
 
         # load settings from the workspace config
         if s.settings_workspace and early_logger:
             early_logger.info(f"Loading settings from {s.settings_workspace}")
-        s.from_workspace_config_file()
+        s.update_from_workspace_config_file()
 
         # load settings from the environment variables
         if early_logger:
             early_logger.info("Loading settings from environment variables")
-        s.from_env_vars(self._environ)
+        s.update_from_env_vars(self._environ)
 
         # infer settings from the system environment
-        s.from_system_environment()
+        s.update_from_system_environment()
 
         # load settings from the passed init/setup settings
         if settings:
-            s.from_settings(settings)
+            s.update_from_settings(settings)
 
         return s
 
     def _update(self, settings: Settings | None = None) -> None:
         if not settings:
             return
-        self._settings.from_settings(settings)
+        self._settings.update_from_settings(settings)
 
     def _update_user_settings(self) -> None:
         # Get rid of cached results to force a refresh.
         self._server = None
         user_settings = self._load_user_settings()
         if user_settings is not None:
-            self._settings.from_dict(user_settings)
+            self._settings.update_from_dict(user_settings)
 
     def _early_logger_flush(self, new_logger: Logger) -> None:
         if not self._early_logger:
