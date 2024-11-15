@@ -22,17 +22,19 @@ Please make sure to update the ToC when you update this page!
 - [Setting up your development environment](#setting-up-your-development-environment)
   * [Setting up Python](#setting-up-python)
   * [Setting up Go](#setting-up-go)
+  * [Setting up Rust](#setting-up-rust)
   * [Building/installing the package](#building-installing-the-package)
   * [Linting the code](#linting-the-code)
   * [Auto-Generating Code](#auto-generating-code)
     + [Building protocol buffers](#building-protocol-buffers)
     + [Adding a new setting](#adding-a-new-setting)
-    + [Adding URLs](#adding-urls)
+    + [Adding URLs (internal use only)](#adding-urls--internal-use-only-)
     + [Deprecating features](#deprecating-features)
       - [Marking a feature as deprecated](#marking-a-feature-as-deprecated)
-  * [Modifying GraphQL Schema in `wandb-core`](#modifying-graphql-schema-in--wandb-core)
+  * [Modifying GraphQL Schema in `wandb-core`](#modifying-graphql-schema-in-wandb-core)
 - [Testing](#testing)
   * [Using pytest](#using-pytest)
+
 
 ## Development workflow
 
@@ -211,16 +213,17 @@ pip install -U nox uv
 
 ### Setting up Go
 
-Install Go version `1.23.2` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+Install Go version `1.23.3` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
 ```shell
-brew install go@1.22
+brew install go@1.23
 ```
 
-### Setting up Rust on Linux
+### Setting up Rust
 
-If you are developing on a Linux machine, you will need the Rust toolchain to build the `nvidia_gpu_stats` binary used to monitor Nvidia GPUs on Linux. Refer to the official Rust [docs](https://www.rust-lang.org/tools/install) and install it by running:
+You will need the Rust toolchain to build the `gpu_stats` binary used to monitor Nvidia GPUs and Apple Arm GPUs.
+Refer to the official Rust [docs](https://www.rust-lang.org/tools/install) and install it by running:
 ```shell
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . "$HOME/.cargo/env"
 ```
 
 ### Building/installing the package
@@ -246,7 +249,7 @@ We are using [pre-commit hooks](https://pre-commit.com/#install) to manage our l
 
 To install `pre-commit` run the following:
 ```shell
-pip install -U pre-commit
+uv pip install -U pre-commit
 ```
 
 To install all of our pre-commit hooks run:
@@ -279,30 +282,18 @@ Note: you only need to do that if you change any of our protocol buffer files.
 
 #### Adding a new setting
 
-- Add a new type-annotated `SettingsData` class attribute.
+- Update the `wandb/sdk/wandb_settings.py::Settings` class.
+  - Public settings should be declared as class attributes with optional default value and validator methods.
+  - Modifiable settings meant for internal use should be prefixed with `x_`.
+  - Read-only computed settings should be defined as class methods using the `@computed_field` and `@property` decorators. If meant for internal use only, should be prefixed with `_`.
 - Add the new field to `wandb/proto/wandb_settings.proto` following the existing pattern.
   - Run `nox -t proto` to re-generate the python stubs.
-- If the setting comes with a default value/preprocessor/additional validators/runtime hooks, add them to
-  the template dictionary that the `Settings._default_props` method returns, using the same key name as
-  the corresponding class variable.
-  - For any setting that is only computed (from other settings) and need/should not be set/updated
-    (and so does not require any validation etc.), define a hook (which does not have to depend on the setting's value)
-    and use `"auto_hook": True` in the template dictionary (see e.g. the `wandb_dir` setting).
-- Add tests for the new setting to `tests/wandb_settings_test.py`.
-- Note that individual settings may depend on other settings through validator methods and runtime hooks,
-  but the resulting directed dependency graph must be acyclic. You should re-generate the topologically-sorted
-  modification order list with `nox -s codegen` -- it will also automatically
-  detect cyclic dependencies and throw an exception.
 
-#### Adding URLs
+#### Adding URLs (internal use only)
 
-All URLs displayed to the user should be added to `wandb/sdk/lib/wburls.py`.  This will better
+All URLs displayed to the user should be added to `wandb/errors/links.py`.  This will better
 ensure that URLs do not lead to broken links.
-
-Once you add the URL to that file you will need to run:
-```shell
-nox -s codegen
-```
+You can use the `dub.co` service to shorten the URLs.
 
 #### Deprecating features
 

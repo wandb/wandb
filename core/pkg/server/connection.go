@@ -11,12 +11,15 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/stream"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const (
@@ -25,7 +28,7 @@ const (
 )
 
 type ConnectionOptions struct {
-	StreamMux    *StreamMux
+	StreamMux    *stream.StreamMux
 	Conn         net.Conn
 	SentryClient *sentry_ext.Client
 	Commit       string
@@ -51,7 +54,7 @@ type Connection struct {
 
 	// A map that associates stream IDs with active streams (or runs). This helps
 	// track the streams associated with this connection.
-	streamMux *StreamMux
+	streamMux *stream.StreamMux
 
 	// id is the unique id for the connection
 	id string
@@ -69,7 +72,7 @@ type Connection struct {
 	// The stream associated with this connection. While each connection has one
 	// stream, a stream can have multiple active connections, typically for a
 	// multi-client session.
-	stream *Stream
+	stream *stream.Stream
 
 	// The current W&B Git commit hash, identifying the specific version of the binary.
 	commit string
@@ -264,6 +267,8 @@ func (nc *Connection) handleIncomingRequests() {
 		slog.Debug("handleIncomingRequests: processing message", "msg", msg, "id", nc.id)
 
 		switch x := msg.ServerRequestType.(type) {
+		case *spb.ServerRequest_Authenticate:
+			nc.handleAuthenticate(x.Authenticate)
 		case *spb.ServerRequest_InformInit:
 			nc.handleInformInit(x.InformInit)
 		case *spb.ServerRequest_InformStart:
@@ -314,16 +319,19 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 		sentryClient = nc.sentryClient
 	}
 
-	nc.stream = NewStream(
-		StreamOptions{
+	nc.stream = stream.NewStream(
+		stream.StreamOptions{
 			Commit:     nc.commit,
 			Settings:   settings,
 			Sentry:     sentryClient,
 			LoggerPath: nc.loggerPath,
 		})
-	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
+	nc.stream.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
 	nc.stream.Start()
 	slog.Info("handleInformInit: stream started", "streamId", streamId, "id", nc.id)
+
+	// TODO: remove this once we have a better observability setup
+	sentryClient.CaptureMessage("wandb-core", nil)
 
 	if err := nc.streamMux.AddStream(streamId, nc.stream); err != nil {
 		slog.Error("handleInformInit: error adding stream", "err", err, "streamId", streamId, "id", nc.id)
@@ -332,24 +340,18 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	}
 }
 
-// handleInformStart handles the update of the stream settings.
+// handleInformStart handles the start message from the client.
 //
 // This function is invoked when the server receives an `InformStart` message
-// from the client. It updates the stream settings with the new settings.
+// from the client. It updates the stream settings with the provided settings
+// from the client.
 //
-// TODO: This function should probably be replaced with a regular record message
+// TODO: should probably remove this message and use a different mechanism
+// to update stream settings
 func (nc *Connection) handleInformStart(msg *spb.ServerInformStartRequest) {
-	// todo: if we keep this and end up updating the settings here
-	//       we should update the stream logger to use the new settings as well
-	nc.stream.settings = settings.From(msg.GetSettings())
-
-	// update sentry tags
-	// add attrs from settings:
-	nc.stream.logger.SetGlobalTags(observability.Tags{
-		"run_url": nc.stream.settings.GetRunURL(),
-	})
-	// TODO: remove this once we have a better observability setup
-	nc.stream.logger.CaptureInfo("wandb-core", nil)
+	slog.Debug("handleInformStart: received", "id", nc.id)
+	nc.stream.UpdateSettings(settings.From(msg.GetSettings()))
+	nc.stream.UpdateRunURLTag()
 }
 
 // handleInformAttach handles the new connection attaching to an existing stream.
@@ -366,19 +368,64 @@ func (nc *Connection) handleInformAttach(msg *spb.ServerInformAttachRequest) {
 	if err != nil {
 		slog.Error("handleInformAttach: stream not found", "streamId", streamId, "id", nc.id)
 	} else {
-		nc.stream.AddResponders(ResponderEntry{nc, nc.id})
+		nc.stream.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
 		// TODO: we should redo this attach logic, so that the stream handles
 		//       the attach logic
 		resp := &spb.ServerResponse{
 			ServerResponseType: &spb.ServerResponse_InformAttachResponse{
 				InformAttachResponse: &spb.ServerInformAttachResponse{
 					XInfo:    msg.XInfo,
-					Settings: nc.stream.settings.Proto,
+					Settings: nc.stream.GetSettings().Proto,
 				},
 			},
 		}
 		nc.Respond(resp)
 	}
+}
+
+// handleAuthenticate processes client authentication messages.
+//
+// It validates client credentials and responds with the default entity
+// associated with the provided API key. This lightweight authentication
+// method avoids the overhead of starting a new stream while still
+// leveraging wandb-core's features.
+//
+// An alternative approach would be implementing a GraphQL Viewer query
+// on the client side for each supported language.
+//
+// Note: This function will be deprecated once the Public API workflow
+// in wandb-core is implemented.
+func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
+	slog.Debug("handleAuthenticate: received", "id", nc.id)
+
+	s := settings.From(&spb.Settings{
+		ApiKey:  &wrapperspb.StringValue{Value: msg.ApiKey},
+		BaseUrl: &wrapperspb.StringValue{Value: msg.BaseUrl},
+	})
+	backend := stream.NewBackend(observability.NewNoOpLogger(), s) // TODO: use a real logger
+	graphqlClient := stream.NewGraphQLClient(backend, s, &observability.Peeker{})
+
+	data, err := gql.Viewer(context.Background(), graphqlClient)
+	if err != nil || data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
+		nc.Respond(&spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
+				AuthenticateResponse: &spb.ServerAuthenticateResponse{
+					ErrorStatus: "Invalid credentials",
+					XInfo:       msg.XInfo,
+				},
+			},
+		})
+		return
+	}
+
+	nc.Respond(&spb.ServerResponse{
+		ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
+			AuthenticateResponse: &spb.ServerAuthenticateResponse{
+				DefaultEntity: *data.GetViewer().GetEntity(),
+				XInfo:         msg.XInfo,
+			},
+		},
+	})
 }
 
 // handleInformRecord processes a regular record message from the client.

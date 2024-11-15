@@ -15,7 +15,6 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.plot.viz import custom_chart
 from wandb.sdk.lib import filesystem
 from wandb.sdk.wandb_init import init as real_wandb_init
 
@@ -270,12 +269,12 @@ def test_run_not_resumed(wandb_init):
 
 
 def test_run_resumed(wandb_init):
-    run = wandb_init()
-    run.finish()
+    with wandb_init() as run:
+        run.config.update({"fruit": "banana"})
 
-    run = wandb_init(id=run.id, resume="must")
-    assert run.resumed is True
-    run.finish()
+    with wandb_init(id=run.id, resume="must") as run:
+        assert run.resumed is True
+        assert run.config.fruit == "banana"
 
 
 def test_run_sweepid(wandb_init):
@@ -339,7 +338,7 @@ def test_log_step(relay_server, wandb_init):
 def test_log_custom_chart(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
-        my_custom_chart = custom_chart(
+        my_custom_chart = wandb.plot_table(
             "test_spec", wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"]), {}, {}
         )
         run.log({"my_custom_chart": my_custom_chart})

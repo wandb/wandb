@@ -27,6 +27,41 @@ namespace Wandb.Internal
         }
 
         /// <summary>
+        /// Sends a request to wandb-core to authenticate the user's credentials.
+        ///
+        /// TODO: This is an experimental feature and may be removed or changed in the future.
+        /// </summary>
+        /// <param name="apiKey"></param>
+        /// <param name="baseUrl"></param>
+        /// <param name="timeoutMilliseconds"></param>
+        /// <returns></returns>
+        /// <exception cref="TimeoutException"></exception>
+        /// <exception cref="Exception"></exception>
+        public async Task<string> Authenticate(string apiKey, string baseUrl, int timeoutMilliseconds = 0)
+        {
+            ServerRequest request = new()
+            {
+                Authenticate = new ServerAuthenticateRequest
+                {
+                    ApiKey = apiKey,
+                    BaseUrl = baseUrl,
+                    Info = new _RecordInfo
+                    {
+                        // TODO: This is a hack used to identify the response to this request
+                        StreamId = Guid.NewGuid().ToString()
+                    }
+                }
+            };
+            ServerResponse? response = await _client.SendAsync(request, timeoutMilliseconds).ConfigureAwait(false)
+                ?? throw new TimeoutException("The request timed out.");
+            if (!string.IsNullOrEmpty(response.AuthenticateResponse.ErrorStatus))
+            {
+                throw new Exception(response.AuthenticateResponse.ErrorStatus);
+            }
+            return response.AuthenticateResponse.DefaultEntity;
+        }
+
+        /// <summary>
         /// Delivers a Run record to wandb-core.
         /// </summary>
         /// <param name="run">The Run record to deliver.</param>

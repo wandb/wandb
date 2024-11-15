@@ -11,6 +11,13 @@ def process_child(run):
     run.config.c2 = 22
     run.log({"s1": 21})
 
+    # Read the summary to force the previous messages to be processed
+    # before the child process exits. This works around the fact that
+    # connections to the internal process are not synchronized which allows
+    # the parent process's ExitRecord to get processed before our HistoryRecord,
+    # even if it's sent after.
+    _ = run.summary["s1"]
+
 
 def main():
     with wandb.init() as run:

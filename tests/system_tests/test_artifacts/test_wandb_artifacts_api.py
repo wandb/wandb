@@ -7,6 +7,7 @@ import pytest
 import wandb
 from wandb import Api
 from wandb.errors import CommError
+from wandb.sdk.artifacts.artifact import Artifact
 
 
 def test_fetching_artifact_files(user, wandb_init):
@@ -80,6 +81,31 @@ def server_supports_artifact_tags() -> bool:
     from wandb.sdk.internal import internal_api
 
     return "tags" in internal_api.Api().server_artifact_introspection()
+
+
+def test_save_artifact_with_tags_repeated(
+    user, server_supports_artifact_tags, logged_artifact
+):
+    tags1 = ["tag1", "tag2"]
+    tags2 = ["tag3", "tag4"]
+
+    artifact = logged_artifact
+
+    artifact.tags = tags1
+    artifact.save()
+
+    if server_supports_artifact_tags:
+        assert set(artifact.tags) == set(tags1)
+    else:
+        assert artifact.tags == []
+
+    artifact.tags = artifact.tags + tags2
+    artifact.save()
+
+    if server_supports_artifact_tags:
+        assert set(artifact.tags) == set(tags1 + tags2)
+    else:
+        assert artifact.tags == []
 
 
 @pytest.mark.parametrize(
@@ -430,3 +456,44 @@ def test_run_log_artifact(wandb_init):
     actual_artifacts = list(run.logged_artifacts())
     assert len(actual_artifacts) == 1
     assert actual_artifacts[0].qualified_name == artifact.qualified_name
+
+
+def test_artifact_enable_tracking_flag(user, wandb_init, api, mocker):
+    """Test that enable_tracking flag is correctly passed through the API chain."""
+    entity = user
+    project = "test-project"
+    artifact_name = "test-artifact"
+    artifact_type = "test-type"
+
+    with wandb_init(entity=entity, project=project) as run:
+        art = wandb.Artifact(artifact_name, artifact_type)
+        with art.new_file("test.txt", "w") as f:
+            f.write("testing")
+        run.log_artifact(art)
+
+    from_name_spy = mocker.spy(Artifact, "_from_name")
+    # Test that api.artifact() calls Artifact._from_name() with enable_tracking=True
+    api.artifact(
+        name=f"{entity}/{project}/{artifact_name}:v0",
+    )
+    from_name_spy.assert_called_once_with(
+        entity=entity,
+        project=project,
+        name=f"{artifact_name}:v0",
+        client=api.client,
+        enable_tracking=True,
+    )
+
+    # Test that internal methods, like api.artifact_exists(), call Artifact._from_name() with enable_tracking=False
+    from_name_spy.reset_mock()
+    api.artifact_exists(
+        name=f"{entity}/{project}/{artifact_name}:v0",
+    )
+
+    from_name_spy.assert_called_once_with(
+        entity=entity,
+        project=project,
+        name=f"{artifact_name}:v0",
+        client=api.client,
+        enable_tracking=False,
+    )

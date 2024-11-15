@@ -145,6 +145,7 @@ SYMBOLS_TYPING = {
     "Type",
     "TypeVar",
     "Union",
+    "annotations",
 }
 
 SYMBOLS_SERVICE = {"attach", "detach", "teardown"}
@@ -220,7 +221,6 @@ SYMBOLS_RUN_RESUME = {
 # Look into these
 SYMBOLS_RUN_OTHER = {
     "path",
-    "plot_table",
     "get_project_url",
     "url",
     "get_url",
@@ -285,7 +285,6 @@ SYMBOLS_WANDB_INIT = {
     "allow_val_change",
     "id",
     "monitor_gym",
-    "magic",
     "group",
     "resume",
     "dir",

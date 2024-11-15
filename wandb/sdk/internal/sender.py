@@ -53,7 +53,6 @@ from wandb.sdk.lib import (
     proto_util,
     redirect,
     telemetry,
-    tracelog,
 )
 from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
@@ -327,18 +326,19 @@ class SendManager:
     ) -> "SendManager":
         """Set up a standalone SendManager.
 
-        Currently, we're using this primarily for `sync.py`.
+        Exclusively used in `sync.py`.
         """
+        print(root_dir)
         files_dir = os.path.join(root_dir, "files")
         settings = wandb.Settings(
-            files_dir=files_dir,
+            x_files_dir=files_dir,
             root_dir=root_dir,
             # _start_time=0,
             resume=resume,
             # ignore_globs=(),
-            _sync=True,
+            x_sync=True,
             disable_job_creation=False,
-            _file_stream_timeout_seconds=0,
+            x_file_stream_timeout_seconds=0,
         )
         record_q: Queue[Record] = queue.Queue()
         result_q: Queue[Result] = queue.Queue()
@@ -418,7 +418,6 @@ class SendManager:
         send_handler(record)
 
     def _respond_result(self, result: "Result") -> None:
-        tracelog.log_message_queue(result, self._result_q)
         context_id = context.context_id_from_result(result)
         self._context_keeper.release(context_id)
         self._result_q.put(result)
@@ -442,7 +441,7 @@ class SendManager:
         #     state machine
         #   - skipping the exit record in `wandb sync` mode so that
         #     it is always executed as the last record
-        if not self._settings._offline and not self._settings._sync:
+        if not self._settings._offline and not self._settings.x_sync:
             assert record_num == self._send_record_num + 1
         self._send_record_num = record_num
 
@@ -916,7 +915,7 @@ class SendManager:
         # update telemetry
         if run.telemetry:
             self._telemetry_obj.MergeFrom(run.telemetry)
-        if self._settings._sync:
+        if self._settings.x_sync:
             self._telemetry_obj.feature.sync = True
 
         # build config dict
@@ -1126,7 +1125,7 @@ class SendManager:
             self._api,
             self._run.run_id,
             self._run.start_time.ToMicroseconds() / 1e6,
-            timeout=self._settings._file_stream_timeout_seconds,
+            timeout=self._settings.x_file_stream_timeout_seconds or 0,
             settings=self._api_settings,
         )
         # Ensure the streaming polices have the proper offsets
@@ -1455,16 +1454,29 @@ class SendManager:
         entity = link.portfolio_entity
         project = link.portfolio_project
         aliases = link.portfolio_aliases
+        organization = link.portfolio_organization
         logger.debug(
-            f"link_artifact params - client_id={client_id}, server_id={server_id}, pfolio={portfolio_name}, entity={entity}, project={project}"
+            f"link_artifact params - client_id={client_id}, server_id={server_id}, "
+            f"portfolio_name={portfolio_name}, entity={entity}, project={project}, "
+            f"organization={organization}"
         )
         if (client_id or server_id) and portfolio_name and entity and project:
             try:
                 self._api.link_artifact(
-                    client_id, server_id, portfolio_name, entity, project, aliases
+                    client_id,
+                    server_id,
+                    portfolio_name,
+                    entity,
+                    project,
+                    aliases,
+                    organization,
                 )
             except Exception as e:
-                result.response.log_artifact_response.error_message = f'error linking artifact to "{entity}/{project}/{portfolio_name}"; error: {e}'
+                org_or_entity = organization or entity
+                result.response.log_artifact_response.error_message = (
+                    f"error linking artifact to "
+                    f'"{org_or_entity}/{project}/{portfolio_name}"; error: {e}'
+                )
                 logger.warning("Failed to link artifact to portfolio: %s", e)
         self._respond_result(result)
 

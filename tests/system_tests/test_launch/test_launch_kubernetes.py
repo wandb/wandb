@@ -19,8 +19,12 @@ async def _mock_ensure_api_key_secret(*args, **kwargs):
 
 @pytest.mark.asyncio
 async def test_kubernetes_run_clean_generate_name(
-    relay_server, monkeypatch, assets_path
+    use_local_wandb_backend,
+    monkeypatch,
+    assets_path,
 ):
+    _ = use_local_wandb_backend
+
     jobs = {}
     status = MockDict(
         {
@@ -31,55 +35,52 @@ async def test_kubernetes_run_clean_generate_name(
         }
     )
 
-    with relay_server():
-        entity_name = "test.@#$()entity"
-        project_name = "test_\\[]project"
-        expected_generate_name = make_name_dns_safe(
-            f"launch-{entity_name}-{project_name}-"
-        )
-        expected_run_name = expected_generate_name + "testname"
+    entity_name = "test.@#$()entity"
+    project_name = "test_\\[]project"
+    expected_generate_name = make_name_dns_safe(f"launch-{entity_name}-{project_name}-")
+    expected_run_name = expected_generate_name + "testname"
 
-        setup_mock_kubernetes_client(monkeypatch, jobs, pods(expected_run_name), status)
+    setup_mock_kubernetes_client(monkeypatch, jobs, pods(expected_run_name), status)
 
-        project = MagicMock()
-        project.resource_args = {
-            "kubernetes": {
-                "configFile": str(assets_path("launch_k8s_config.yaml")),
-            }
+    project = MagicMock()
+    project.resource_args = {
+        "kubernetes": {
+            "configFile": str(assets_path("launch_k8s_config.yaml")),
         }
-        project.name = "testname"
-        project.sweep_id = None
-        project.target_entity = entity_name
-        project.target_project = project_name
-        project.override_config = {}
-        project.override_args = ["-a", "2"]
-        project.override_files = {}
-        project.run_id = "testname"
-        project.docker_image = "hello-world"
-        project.job = "testjob"
-        project.launch_spec = {"_resume_count": 0}
-        project.fill_macros = lambda _: project.resource_args
-        project.override_entrypoint.command = None
-        project.queue_name = None
-        project.queue_entity = None
-        project.run_queue_item_id = None
-        project.job_base_image = None
+    }
+    project.name = "testname"
+    project.sweep_id = None
+    project.target_entity = entity_name
+    project.target_project = project_name
+    project.override_config = {}
+    project.override_args = ["-a", "2"]
+    project.override_files = {}
+    project.run_id = "testname"
+    project.docker_image = "hello-world"
+    project.job = "testjob"
+    project.launch_spec = {"_resume_count": 0}
+    project.fill_macros = lambda _: project.resource_args
+    project.override_entrypoint.command = None
+    project.queue_name = None
+    project.queue_entity = None
+    project.run_queue_item_id = None
+    project.job_base_image = None
 
-        environment = loader.environment_from_config({})
-        api = Api()
-        runner = loader.runner_from_config(
-            runner_name="kubernetes",
-            api=api,
-            runner_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
-            environment=environment,
-            registry=MagicMock(),
-        )
-        monkeypatch.setattr(
-            kubernetes_runner,
-            "maybe_create_imagepull_secret",
-            _mock_maybe_create_imagepull_secret,
-        )
-        run = await runner.run(project, "hello-world")
+    environment = loader.environment_from_config({})
+    api = Api()
+    runner = loader.runner_from_config(
+        runner_name="kubernetes",
+        api=api,
+        runner_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
+        environment=environment,
+        registry=MagicMock(),
+    )
+    monkeypatch.setattr(
+        kubernetes_runner,
+        "maybe_create_imagepull_secret",
+        _mock_maybe_create_imagepull_secret,
+    )
+    run = await runner.run(project, "hello-world")
 
     assert run.name == expected_run_name
 
@@ -90,7 +91,13 @@ async def test_kubernetes_run_clean_generate_name(
 
 
 @pytest.mark.asyncio
-async def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path):
+async def test_kubernetes_run_with_annotations(
+    use_local_wandb_backend,
+    monkeypatch,
+    assets_path,
+):
+    _ = use_local_wandb_backend
+
     jobs = {}
     status = MockDict(
         {
@@ -101,57 +108,54 @@ async def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets
         }
     )
 
-    with relay_server():
-        environment = loader.environment_from_config({})
-        api = Api()
-        runner = loader.runner_from_config(
-            runner_name="kubernetes",
-            api=api,
-            runner_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
-            environment=environment,
-            registry=MagicMock(),
-        )
+    environment = loader.environment_from_config({})
+    api = Api()
+    runner = loader.runner_from_config(
+        runner_name="kubernetes",
+        api=api,
+        runner_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
+        environment=environment,
+        registry=MagicMock(),
+    )
 
-        entity_name = "testentity"
-        project_name = "testproject"
-        expected_generate_name = make_name_dns_safe(
-            f"launch-{entity_name}-{project_name}-"
-        )
-        expected_run_name = expected_generate_name + "testname"
+    entity_name = "testentity"
+    project_name = "testproject"
+    expected_generate_name = make_name_dns_safe(f"launch-{entity_name}-{project_name}-")
+    expected_run_name = expected_generate_name + "testname"
 
-        setup_mock_kubernetes_client(monkeypatch, jobs, pods(expected_run_name), status)
+    setup_mock_kubernetes_client(monkeypatch, jobs, pods(expected_run_name), status)
 
-        project = MagicMock()
-        project.resource_args = {
-            "kubernetes": {
-                "configFile": str(assets_path("launch_k8s_config.yaml")),
-                "metadata": {"annotations": {"x": "y"}},
-            }
+    project = MagicMock()
+    project.resource_args = {
+        "kubernetes": {
+            "configFile": str(assets_path("launch_k8s_config.yaml")),
+            "metadata": {"annotations": {"x": "y"}},
         }
-        project.name = "testname"
-        project.sweep_id = None
-        project.target_entity = entity_name
-        project.target_project = project_name
-        project.override_config = {}
-        project.override_args = ["-a", "2"]
-        project.override_files = {}
-        project.override_entrypoint.command = None
-        project.run_id = "testname"
-        project.docker_image = "hello-world"
-        project.job = "testjob"
-        project.fill_macros = lambda _: project.resource_args
-        project.queue_name = None
-        project.queue_entity = None
-        project.run_queue_item_id = None
-        project.job_base_image = None
+    }
+    project.name = "testname"
+    project.sweep_id = None
+    project.target_entity = entity_name
+    project.target_project = project_name
+    project.override_config = {}
+    project.override_args = ["-a", "2"]
+    project.override_files = {}
+    project.override_entrypoint.command = None
+    project.run_id = "testname"
+    project.docker_image = "hello-world"
+    project.job = "testjob"
+    project.fill_macros = lambda _: project.resource_args
+    project.queue_name = None
+    project.queue_entity = None
+    project.run_queue_item_id = None
+    project.job_base_image = None
 
-        monkeypatch.setattr(
-            kubernetes_runner,
-            "maybe_create_imagepull_secret",
-            _mock_maybe_create_imagepull_secret,
-        )
-        project.launch_spec = {"_resume_count": 0}
-        run = await runner.run(image_uri="hello-world", launch_project=project)
+    monkeypatch.setattr(
+        kubernetes_runner,
+        "maybe_create_imagepull_secret",
+        _mock_maybe_create_imagepull_secret,
+    )
+    project.launch_spec = {"_resume_count": 0}
+    run = await runner.run(image_uri="hello-world", launch_project=project)
     job = await run.batch_api.read_namespaced_job(
         name=run.name, namespace=run.namespace
     )
@@ -164,7 +168,13 @@ async def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets
 
 
 @pytest.mark.asyncio
-async def test_kubernetes_run_env_vars(relay_server, monkeypatch, assets_path):
+async def test_kubernetes_run_env_vars(
+    use_local_wandb_backend,
+    monkeypatch,
+    assets_path,
+):
+    _ = use_local_wandb_backend
+
     jobs = {}
     status = MockDict(
         {
@@ -175,65 +185,62 @@ async def test_kubernetes_run_env_vars(relay_server, monkeypatch, assets_path):
         }
     )
 
-    with relay_server():
-        entity_name = "testentity"
-        project_name = "testproject"
-        expected_generate_name = make_name_dns_safe(
-            f"launch-{entity_name}-{project_name}-"
-        )
-        expected_run_name = expected_generate_name + "testname"
+    entity_name = "testentity"
+    project_name = "testproject"
+    expected_generate_name = make_name_dns_safe(f"launch-{entity_name}-{project_name}-")
+    expected_run_name = expected_generate_name + "testname"
 
-        setup_mock_kubernetes_client(monkeypatch, jobs, pods(expected_run_name), status)
+    setup_mock_kubernetes_client(monkeypatch, jobs, pods(expected_run_name), status)
 
-        project = MagicMock()
-        project.resource_args = {
-            "kubernetes": {
-                "configFile": str(assets_path("launch_k8s_config.yaml")),
-            }
+    project = MagicMock()
+    project.resource_args = {
+        "kubernetes": {
+            "configFile": str(assets_path("launch_k8s_config.yaml")),
         }
-        project.name = "testname"
-        project.sweep_id = None
-        project.target_entity = entity_name
-        project.target_project = project_name
-        project.override_config = {}
-        project.override_args = ["-a", "2"]
-        project.override_files = {}
-        project.run_id = "testname"
-        project.docker_image = "hello-world"
-        project.job = "testjob"
-        project.launch_spec = {"_resume_count": 0, "_wandb_api_key": "test-key"}
-        project.fill_macros = lambda _: project.resource_args
-        project.override_entrypoint.command = None
-        project.queue_name = None
-        project.queue_entity = None
-        project.run_queue_item_id = None
-        project.get_env_vars_dict = lambda _, __: {
-            "WANDB_API_KEY": "test-key",
-        }
-        project.job_base_image = None
+    }
+    project.name = "testname"
+    project.sweep_id = None
+    project.target_entity = entity_name
+    project.target_project = project_name
+    project.override_config = {}
+    project.override_args = ["-a", "2"]
+    project.override_files = {}
+    project.run_id = "testname"
+    project.docker_image = "hello-world"
+    project.job = "testjob"
+    project.launch_spec = {"_resume_count": 0, "_wandb_api_key": "test-key"}
+    project.fill_macros = lambda _: project.resource_args
+    project.override_entrypoint.command = None
+    project.queue_name = None
+    project.queue_entity = None
+    project.run_queue_item_id = None
+    project.get_env_vars_dict = lambda _, __: {
+        "WANDB_API_KEY": "test-key",
+    }
+    project.job_base_image = None
 
-        environment = loader.environment_from_config({})
-        api = Api()
-        runner = loader.runner_from_config(
-            runner_name="kubernetes",
-            api=api,
-            runner_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
-            environment=environment,
-            registry=MagicMock(),
-        )
-        monkeypatch.setattr(
-            kubernetes_runner,
-            "maybe_create_imagepull_secret",
-            _mock_maybe_create_imagepull_secret,
-        )
-        monkeypatch.setattr(
-            kubernetes_runner,
-            "ensure_api_key_secret",
-            _mock_ensure_api_key_secret,
-        )
-        monkeypatch.setattr(LaunchAgent, "initialized", lambda: True)
-        monkeypatch.setattr(LaunchAgent, "name", lambda: "test-launch-agent")
-        run = await runner.run(project, "hello-world")
+    environment = loader.environment_from_config({})
+    api = Api()
+    runner = loader.runner_from_config(
+        runner_name="kubernetes",
+        api=api,
+        runner_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
+        environment=environment,
+        registry=MagicMock(),
+    )
+    monkeypatch.setattr(
+        kubernetes_runner,
+        "maybe_create_imagepull_secret",
+        _mock_maybe_create_imagepull_secret,
+    )
+    monkeypatch.setattr(
+        kubernetes_runner,
+        "ensure_api_key_secret",
+        _mock_ensure_api_key_secret,
+    )
+    monkeypatch.setattr(LaunchAgent, "initialized", lambda: True)
+    monkeypatch.setattr(LaunchAgent, "name", lambda: "test-launch-agent")
+    run = await runner.run(project, "hello-world")
 
     assert run.name == expected_run_name
 

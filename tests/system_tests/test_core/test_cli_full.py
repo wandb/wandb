@@ -131,13 +131,12 @@ def test_pull(runner, wandb_init):
 @pytest.mark.skip(reason="TODO: re-enable pending tensorboard support of numpy 2.0")
 def test_sync_tensorboard(
     runner,
-    relay_server,
-    user,
+    wandb_backend_spy,
     copy_asset,
     tb_file_name,
     history_length,
 ):
-    with relay_server() as relay, runner.isolated_filesystem():
+    with runner.isolated_filesystem():
         project_name = "test_sync_tensorboard"
         run = wandb.init(project=project_name)
         run.finish()
@@ -150,8 +149,10 @@ def test_sync_tensorboard(
 
         assert result.exit_code == 0
         assert "Found 1 tfevent files" in result.output
-        history = relay.context.get_run_history(run.id)
-        assert len(history) == history_length
+
+        with wandb_backend_spy.freeze() as snapshot:
+            history = snapshot.history(run_id=run.id)
+            assert len(history) == history_length
 
         # Check the no sync tensorboard flag
         result = runner.invoke(cli.sync, [".", "--no-sync-tensorboard"])
@@ -159,14 +160,14 @@ def test_sync_tensorboard(
         assert tb_file_name in os.listdir(".")
 
 
-def test_sync_wandb_run(runner, relay_server, user, copy_asset):
+def test_sync_wandb_run(runner, wandb_backend_spy, user, copy_asset):
     # note: we have to mock out ArtifactSaver.save
     # because the artifact does not actually exist
     # among assets listed in the .wandb file.
     # this a problem for a real backend that we use now
     # (as we used to use a mock backend)
     # todo: create a new test asset that will contain an artifact
-    with relay_server() as relay, runner.isolated_filesystem(), mock.patch(
+    with runner.isolated_filesystem(), mock.patch(
         "wandb.sdk.artifacts.artifact_saver.ArtifactSaver.save", return_value=None
     ):
         copy_asset("wandb")
@@ -177,7 +178,8 @@ def test_sync_wandb_run(runner, relay_server, user, copy_asset):
         assert result.exit_code == 0
 
         assert f"{user}/code-toad/runs/g9dvvkua ... done." in result.output
-        assert len(relay.context.events) == 1
+        with wandb_backend_spy.freeze() as snapshot:
+            assert len(snapshot.system_metrics(run_id="g9dvvkua")) == 1
 
         # Check we marked the run as synced
         result = runner.invoke(cli.sync, ["--sync-all"])
@@ -185,8 +187,8 @@ def test_sync_wandb_run(runner, relay_server, user, copy_asset):
         assert "wandb: ERROR Nothing to sync." in result.output
 
 
-def test_sync_wandb_run_and_tensorboard(runner, relay_server, user, copy_asset):
-    with relay_server() as relay, runner.isolated_filesystem(), mock.patch(
+def test_sync_wandb_run_and_tensorboard(runner, wandb_backend_spy, user, copy_asset):
+    with runner.isolated_filesystem(), mock.patch(
         "wandb.sdk.artifacts.artifact_saver.ArtifactSaver.save", return_value=None
     ):
         run_dir = os.path.join("wandb", "offline-run-20210216_154407-g9dvvkua")
@@ -200,10 +202,11 @@ def test_sync_wandb_run_and_tensorboard(runner, relay_server, user, copy_asset):
         assert result.exit_code == 0
 
         assert f"{user}/code-toad/runs/g9dvvkua ... done." in result.output
-        assert len(relay.context.events) == 1
+        with wandb_backend_spy.freeze() as snapshot:
+            assert len(snapshot.system_metrics(run_id="g9dvvkua")) == 1
 
-        uploaded_files = relay.context.get_run_uploaded_files("g9dvvkua")
-        assert "code/standalone_tests/code-toad.py" in uploaded_files
+            uploaded_files = snapshot.uploaded_files(run_id="g9dvvkua")
+            assert "code/standalone_tests/code-toad.py" in uploaded_files
 
         # Check we marked the run as synced
         result = runner.invoke(cli.sync, [run_dir])
