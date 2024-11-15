@@ -331,6 +331,24 @@ class Settings(BaseModel, validate_assignment=True):
                 new_values[key] = values[key]
         return new_values
 
+    @model_validator(mode="after")
+    def validate_mutual_exclusion_of_branching_args(self):
+        if (
+            sum(
+                o is not None
+                for o in [
+                    self.fork_from,
+                    self.resume,
+                    self.resume_from,
+                ]
+            )
+            > 1
+        ):
+            raise ValueError(
+                "`fork_from`, `resume`, or `resume_from` are mutually exclusive. "
+                "Please specify only one of them."
+            )
+
     # Field validators.
 
     @field_validator("x_disable_service", mode="after")

@@ -1225,16 +1225,6 @@ def init(  # noqa: C901
     """
     wandb._assert_is_user_process()  # type: ignore
 
-    num_resume_options_set = (
-        (fork_from is not None)  # wrap
-        + (resume is not None)
-        + (resume_from is not None)
-    )
-    if num_resume_options_set > 1:
-        raise ValueError(
-            "You cannot specify more than one of `fork_from`, `resume`, or `resume_from`"
-        )
-
     init_settings = Settings()
     if isinstance(settings, dict):
         init_settings = Settings(**settings)
