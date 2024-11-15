@@ -117,9 +117,9 @@ class CPU:
     ) -> None:
         self.name: str = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [
-            ProcessCpuPercent(settings._stats_pid),
+            ProcessCpuPercent(settings.x_stats_pid),
             CpuPercent(),
-            ProcessCpuThreads(settings._stats_pid),
+            ProcessCpuThreads(settings.x_stats_pid),
         ]
         self.metrics_monitor: MetricsMonitor = MetricsMonitor(
             self.name,

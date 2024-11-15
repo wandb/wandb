@@ -365,7 +365,7 @@ class Notebook:
 
     def probe_ipynb(self):
         """Return notebook as dict or None."""
-        relpath = self.settings._jupyter_path
+        relpath = self.settings.x_jupyter_path
         if relpath:
             if os.path.exists(relpath):
                 with open(relpath) as json_file:
@@ -394,7 +394,7 @@ class Notebook:
         return ret
 
     def _save_ipynb(self) -> bool:
-        relpath = self.settings._jupyter_path
+        relpath = self.settings.x_jupyter_path
         logger.info("looking for notebook: %s", relpath)
         if relpath:
             if os.path.exists(relpath):

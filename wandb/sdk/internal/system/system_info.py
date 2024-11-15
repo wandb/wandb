@@ -126,7 +126,7 @@ class SystemInfo:
         logger.debug("Saving git patches done")
 
     def _probe_git(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        if self.settings.disable_git:
+        if self.settings.disable_git or self.settings.x_disable_machine_info:
             return data
 
         # in case of manually passing the git repo info, `enabled` would be False,
@@ -155,13 +155,14 @@ class SystemInfo:
         data["os"] = self.settings._os
         data["python"] = self.settings._python
         data["heartbeatAt"] = datetime.datetime.utcnow().isoformat()
-        data["startedAt"] = datetime.datetime.utcfromtimestamp(
-            self.settings._start_time
-        ).isoformat()
+        data["startedAt"] = (
+            datetime.datetime.utcfromtimestamp(self.settings.x_start_time).isoformat()
+            if self.settings.x_start_time
+            else None
+        )
 
         data["docker"] = self.settings.docker
 
-        data["cuda"] = self.settings._cuda
         data["args"] = tuple(self.settings._args or ())
         data["state"] = "running"
 
@@ -170,22 +171,22 @@ class SystemInfo:
             # Used during artifact-job creation, always points to the relpath
             # of code execution, even when in a git repo
             data["codePathLocal"] = self.settings._code_path_local
-        if not self.settings.disable_code:
+        if not (self.settings.disable_code or self.settings.x_disable_machine_info):
             if self.settings.program_relpath:
                 data["codePath"] = self.settings.program_relpath
             elif self.settings._jupyter:
                 if self.settings.notebook_name:
                     data["program"] = self.settings.notebook_name
-                elif self.settings._jupyter_path:
-                    if self.settings._jupyter_path.startswith("fileId="):
-                        unescaped = unquote(self.settings._jupyter_path)
+                elif self.settings.x_jupyter_path:
+                    if self.settings.x_jupyter_path.startswith("fileId="):
+                        unescaped = unquote(self.settings.x_jupyter_path)
                         data["colab"] = (
                             "https://colab.research.google.com/notebook#" + unescaped
                         )
-                        data["program"] = self.settings._jupyter_name
+                        data["program"] = self.settings.x_jupyter_name
                     else:
-                        data["program"] = self.settings._jupyter_path
-                        data["root"] = self.settings._jupyter_root
+                        data["program"] = self.settings.x_jupyter_path
+                        data["root"] = self.settings.x_jupyter_root
             # get the git repo info
             data = self._probe_git(data)
 
@@ -225,7 +226,7 @@ class SystemInfo:
 
     def publish(self, system_info: dict) -> None:
         # save pip, conda, code patches to disk
-        if self.settings._save_requirements:
+        if self.settings.x_save_requirements:
             self._save_conda()
         if self.settings.save_code:
             self._save_code()
