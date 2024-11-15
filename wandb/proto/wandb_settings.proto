@@ -65,7 +65,7 @@ message Settings {
   // the transaction log.
   google.protobuf.BoolValue x_sync = 31;
 
-  // Path to the transaction log file, that is being synced.
+  // Path to the transaction log file.
   google.protobuf.StringValue sync_file = 134;
 
   // Whether we are in shared mode.
@@ -92,7 +92,7 @@ message Settings {
   // The directory for storing log files.
   google.protobuf.StringValue log_dir = 85;
 
-  // Filename to use for internal logs.
+  // The path to the file to use for internal logs.
   google.protobuf.StringValue log_internal = 86;
 
   // Defines the type of console capture to be applied. Possible values are:
@@ -110,7 +110,7 @@ message Settings {
   // "wrap_emu" - Same as "wrap" but captures output through an emulator.
   google.protobuf.StringValue console = 60;
 
-  // Absolute path to the local directory where this run's files are stored.
+  // Absolute path to the local directory where the run's files are stored.
   google.protobuf.StringValue files_dir = 70;
 
   // Unix glob patterns relative to `files_dir` to not upload.
@@ -204,13 +204,13 @@ message Settings {
   // Fork information for the run.
   RunMoment fork_from = 164;
 
-  // Whether to create a job artifact for W&B Launch.
+  // Whether to disable the creation of a job artifact for W&B Launch.
   google.protobuf.BoolValue disable_job_creation = 65;
 
   // The W&B sweep URL.
   google.protobuf.StringValue sweep_url = 131;
 
-  // Disable check for latest version of wandb, from pypi.
+  // Disable check for latest version of wandb, from PyPI.
   google.protobuf.BoolValue x_disable_update_check = 165;
 
   // Explicitly require wandb-core to not be used.
@@ -377,7 +377,7 @@ message Settings {
   // If couldn't find the relative path, this will be an empty string.
   google.protobuf.StringValue _code_path_local = 163;
   google.protobuf.BoolValue console_multipart = 166;
-  // Flag to allow table artifacts to be synced in offline mode
+  // Flag to allow table artifacts to be synced in offline mode.
   //
   // By default, true, to revert to old behavior, set this to False.
   google.protobuf.BoolValue allow_offline_artifacts = 177;

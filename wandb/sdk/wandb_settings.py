@@ -47,7 +47,7 @@ def _path_convert(*args: str) -> str:
 class Settings(BaseModel, validate_assignment=True):
     """Settings for the W&B SDK."""
 
-    # pydantic configuration.
+    # Pydantic configuration.
     model_config = ConfigDict(
         extra="forbid",  # throw an error if extra fields are provided
         validate_default=True,  # validate default values
@@ -55,30 +55,55 @@ class Settings(BaseModel, validate_assignment=True):
 
     # Public settings.
 
+    # Flag to allow table artifacts to be synced in offline mode.
+    #
+    # To revert to the old behavior, set this to False.
     allow_offline_artifacts: bool = True
     allow_val_change: bool = False
     anonymous: Literal["allow", "must", "never"] | None = None
+    # The W&B API key.
     api_key: str | None = None
     azure_account_url_to_access_key: dict[str, str] | None = None
-    # The base URL for the W&B API.
+    # The URL of the W&B backend, used for GraphQL and filestream operations.
     base_url: str = "https://api.wandb.ai"
     code_dir: str | None = None
     config_paths: Sequence[str] | None = None
+    # The type of console capture to be applied. Possible values are:
+    #  "auto" - Automatically selects the console capture method based on the
+    #   system environment and settings.
+    #
+    #   "off" - Disables console capture.
+    #
+    #   "redirect" - Redirects low-level file descriptors for capturing output.
+    #
+    #   "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
+    #   mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
+    #
+    #   "wrap_raw" - Same as "wrap" but captures raw output directly instead of
+    #   through an emulator.
+    #
+    #   "wrap_emu" - Same as "wrap" but captures output through an emulator.
     console: Literal["auto", "off", "wrap", "redirect", "wrap_raw", "wrap_emu"] = Field(
         default="auto",
         validate_default=True,
     )
-    # whether to produce multipart console log files
+    # Whether to produce multipart console log files.
     console_multipart: bool = False
-    # file path to write access tokens
+    # Path to file for writing temporary access tokens.
     credentials_file: str = Field(
         default_factory=lambda: str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE)
     )
+    # Whether to disable code saving.
     disable_code: bool = False
+    # Whether to disable capturing the git state.
     disable_git: bool = False
+    # Whether to disable the creation of a job artifact for W&B Launch.
     disable_job_creation: bool = False
+    # The Docker image used to execute the script.
     docker: str | None = None
+    # The email address of the user.
     email: str | None = None
+    # The W&B entity, like a user or a team.
     entity: str | None = None
     force: bool = False
     fork_from: RunMoment | None = None
@@ -88,10 +113,13 @@ class Settings(BaseModel, validate_assignment=True):
     git_root: str | None = None
     heartbeat_seconds: int = 30
     host: str | None = None
+    # The custom proxy servers for http requests to W&B.
     http_proxy: str | None = None
+    # The custom proxy servers for https requests to W&B.
     https_proxy: str | None = None
-    # file path to supply a jwt for authentication
+    # Path to file containing an identity token (JWT) for authentication.
     identity_token_file: str | None = None
+    # Unix glob patterns relative to `files_dir` to not upload.
     ignore_globs: tuple[str, ...] = ()
     init_timeout: float = 90.0
     job_name: str | None = None
@@ -105,20 +133,44 @@ class Settings(BaseModel, validate_assignment=True):
         validate_default=True,
     )
     notebook_name: str | None = None
+    # Path to the script that created the run, if available.
     program: str | None = None
+    # The absolute path from the root repository directory to the script that
+    # created the run.
+    #
+    # Root repository directory is defined as the directory containing the
+    # .git directory, if it exists. Otherwise, it's the current working directory.
     program_abspath: str | None = None
     program_relpath: str | None = None
+    # The W&B project ID.
     project: str | None = None
     quiet: bool = False
     reinit: bool = False
     relogin: bool = False
+    # Specifies the resume behavior for the run. The available options are:
+    #
+    #   "must": Resumes from an existing run with the same ID. If no such run exists,
+    #   it will result in failure.
+    #
+    #   "allow": Attempts to resume from an existing run with the same ID. If none is
+    #   found, a new run will be created.
+    #
+    #   "never": Always starts a new run. If a run with the same ID already exists,
+    #   it will result in failure.
+    #
+    #   "auto": Automatically resumes from the most recent failed run on the same
+    #   machine.
     resume: Literal["allow", "must", "never", "auto"] | None = None
     resume_from: RunMoment | None = None
     # Indication from the server about the state of the run.
-    # NOTE: this is different from resume, a user provided flag
+    #
+    # This is different from resume, a user provided flag.
     resumed: bool = False
+    # The root directory that will be used to derive other paths,
+    # such as the wandb directory, and the run directory.
     root_dir: str = Field(default_factory=lambda: os.path.abspath(os.getcwd()))
     run_group: str | None = None
+    # The ID of the run.
     run_id: str | None = None
     run_job_type: str | None = None
     run_name: str | None = None
@@ -157,28 +209,36 @@ class Settings(BaseModel, validate_assignment=True):
 
     # CLI mode.
     x_cli_only_mode: bool = False
-    # Do not collect system metadata
+    # Disable the collection of system metadata.
     x_disable_meta: bool = False
-    # Do not collect system metrics
+    # Pre-wandb-core, this setting was used to disable the (now legacy) wandb service.
+    #
+    # TODO: this is deprecated and will be removed in future versions.
     x_disable_service: bool = False
-    # Do not use setproctitle on internal process
+    # Do not use setproctitle for internal process in legacy service.
     x_disable_setproctitle: bool = False
-    # Do not collect system metrics
+    # Disable system metrics collection.
     x_disable_stats: bool = False
-    # Disable version check
+    # Disable check for latest version of wandb, from PyPI.
     x_disable_update_check: bool = False
-    # Prevent early viewer query
+    # Prevent early viewer query.
     x_disable_viewer: bool = False
-    # Disable automatic machine info collection
+    # Disable automatic machine info collection.
     x_disable_machine_info: bool = False
     # Python executable
     x_executable: str | None = None
+    # Additional headers to add to all outgoing HTTP requests.
     x_extra_http_headers: dict[str, str] | None = None
-    # max size for filestream requests in core
+    # An approximate maximum request size for the filestream API.
+    #
+    # This applies when wandb-core is enabled. Its purpose is to prevent
+    # HTTP requests from failing due to containing too much data.
+    #
+    # This number is approximate: requests will be slightly larger.
     x_file_stream_max_bytes: int | None = None
-    # tx interval for filestream requests in core
+    # Interval in seconds between filestream transmissions.
     x_file_stream_transmit_interval: float | None = None
-    # file stream retry client configuration
+    # Filestream retry client configuration.
     # max number of retries
     x_file_stream_retry_max: int | None = None
     # min wait time between retries
@@ -220,27 +280,30 @@ class Settings(BaseModel, validate_assignment=True):
     x_service_transport: str | None = None
     x_service_wait: float = 30.0
     x_show_operation_stats: bool = False
+    # The start time of the run in seconds since the Unix epoch.
     x_start_time: float | None = None
     # PID of the process that started the wandb-core process to collect system stats for.
     x_stats_pid: int = os.getpid()
-    # Sampling interval for the system monitor.
+    # Sampling interval for the system monitor in seconds.
     x_stats_sampling_interval: float = Field(default=10.0)
-    # Path to store the default config file for neuron-monitor tool
+    # Path to store the default config file for the neuron-monitor tool
     # used to monitor AWS Trainium devices.
     x_stats_neuron_monitor_config_path: str | None = None
-    # open metrics endpoint names/urls
+    # Open metrics endpoint names and urls.
     x_stats_open_metrics_endpoints: dict[str, str] | None = None
-    # open metrics filters in one of the two formats:
+    # Filter to apply to metrics collected from OpenMetrics endpoints.
+    # Supports two formats:
     # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
     # - ("metric regex pattern 1", "metric regex pattern 2", ...)
     x_stats_open_metrics_filters: dict[str, dict[str, str]] | Sequence[str] | None = (
         None
     )
-    # paths to monitor disk usage
+    # System paths to monitor for disk usage.
     x_stats_disk_paths: Sequence[str] | None = None
-    # number of system metric samples to buffer in memory in wandb-core before purging.
-    # can be accessed via wandb._system_metrics
+    # Number of system metric samples to buffer in memory in the wandb-core process.
+    # Can be accessed via run._system_metrics.
     x_stats_buffer_size: int = 0
+    # Flag to indicate whether we are syncing a run from the transaction log.
     x_sync: bool = False
 
     # Model validator to catch legacy settings.
@@ -481,6 +544,14 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def _code_path_local(self) -> str | None:
+        """The relative path from the current working directory to the code path.
+
+        For example, if the code path is /home/user/project/example.py, and the
+        current working directory is /home/user/project, then the code path local
+        is example.py.
+
+        If couldn't find the relative path, this will be an empty string.
+        """
         return self._get_program_relpath(self.program) if self.program else None
 
     @computed_field  # type: ignore[prop-decorator]
@@ -521,6 +592,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def _os(self) -> str:
+        """The operating system of the machine running the script."""
         return platform.platform(aliased=True)
 
     @computed_field  # type: ignore[prop-decorator]
@@ -536,6 +608,11 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def _shared(self) -> bool:
+        """Whether we are in shared mode.
+
+        In "shared" mode, multiple processes can write to the same run,
+        for example from different machines.
+        """
         return self.mode == "shared"
 
     @computed_field  # type: ignore[prop-decorator]
@@ -564,6 +641,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def colab_url(self) -> str | None:
+        """The URL to the Colab notebook, if running in Colab."""
         if not self._colab:
             return None
         if self.x_jupyter_path and self.x_jupyter_path.startswith("fileId="):
@@ -579,6 +657,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def files_dir(self) -> str:
+        """Absolute path to the local directory where the run's files are stored."""
         return self.x_files_dir or _path_convert(
             self.wandb_dir,
             f"{self.run_mode}-{self.timespec}-{self.run_id}",
@@ -593,6 +672,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def log_dir(self) -> str:
+        """The directory for storing log files."""
         return _path_convert(
             self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", "logs"
         )
@@ -600,26 +680,31 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def log_internal(self) -> str:
+        """The path to the file to use for internal logs."""
         return _path_convert(self.log_dir, "debug-internal.log")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def log_symlink_internal(self) -> str:
+        """The path to the symlink to the internal log file of the most recent run."""
         return _path_convert(self.wandb_dir, "debug-internal.log")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def log_symlink_user(self) -> str:
+        """The path to the symlink to the user-process log file of the most recent run."""
         return _path_convert(self.wandb_dir, "debug.log")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def log_user(self) -> str:
+        """The path to the file to use for user-process logs."""
         return _path_convert(self.log_dir, "debug.log")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def project_url(self) -> str:
+        """The W&B URL where the project can be viewed."""
         project_url = self._project_url_base()
         if not project_url:
             return ""
@@ -631,6 +716,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def resume_fname(self) -> str:
+        """The path to the resume file."""
         return _path_convert(self.wandb_dir, "wandb-resume.json")
 
     @computed_field  # type: ignore[prop-decorator]
@@ -641,6 +727,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def run_url(self) -> str:
+        """The W&B URL where the run can be viewed."""
         project_url = self._project_url_base()
         if not all([project_url, self.run_id]):
             return ""
@@ -651,11 +738,13 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def settings_workspace(self) -> str:
+        """The path to the workspace settings file."""
         return _path_convert(self.wandb_dir, "settings")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sweep_url(self) -> str:
+        """The W&B URL where the sweep can be viewed."""
         project_url = self._project_url_base()
         if not all([project_url, self.sweep_id]):
             return ""
@@ -673,6 +762,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sync_file(self) -> str:
+        """Path to the append-only binary transaction log file."""
         return _path_convert(self.sync_dir, f"run-{self.run_id}.wandb")
 
     @computed_field  # type: ignore[prop-decorator]
