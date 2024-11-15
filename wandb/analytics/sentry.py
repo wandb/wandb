@@ -214,12 +214,11 @@ class Sentry:
             "sweep_url",
             "sweep_id",
             "deployment",
-            "_disable_service",
-            "_require_legacy_service",
+            "x_disable_service",
+            "x_require_legacy_service",
             "launch",
+            "_platform",
         )
-
-        self.scope.set_tag("platform", wandb.util.get_platform_name())
 
         # set context
         if process_context:

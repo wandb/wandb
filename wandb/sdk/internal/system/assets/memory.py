@@ -134,8 +134,8 @@ class Memory:
         self.metrics: List[Metric] = [
             MemoryAvailable(),
             MemoryPercent(),
-            ProcessMemoryRSS(settings._stats_pid),
-            ProcessMemoryPercent(settings._stats_pid),
+            ProcessMemoryRSS(settings.x_stats_pid),
+            ProcessMemoryPercent(settings.x_stats_pid),
         ]
         self.metrics_monitor = MetricsMonitor(
             self.name,

@@ -296,11 +296,6 @@ func (s *Settings) GetDockerImageName() string {
 	return s.Proto.Docker.GetValue()
 }
 
-// The CUDA version of the machine running the run.
-func (s *Settings) GetCUDAVersion() string {
-	return s.Proto.XCuda.GetValue()
-}
-
 // The executable used to execute the script.
 func (s *Settings) GetExecutable() string {
 	return s.Proto.XExecutable.GetValue()
