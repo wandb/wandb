@@ -173,6 +173,7 @@ def unit_tests(session: nox.Session) -> None:
     run_pytest(
         session,
         paths=session.posargs or ["tests/unit_tests"],
+        opts={"n": "8"},
     )
 
 
@@ -198,6 +199,7 @@ def system_tests(session: nox.Session) -> None:
                 "--ignore=tests/system_tests/test_experimental",
             ]
         ),
+        opts={"n": "8"},
     )
 
 
