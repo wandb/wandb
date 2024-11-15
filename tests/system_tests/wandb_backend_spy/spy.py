@@ -119,6 +119,9 @@ class WandbBackendSpy:
         run_id = variables["name"]
         run = self._runs.setdefault(run_id, _RunData())
 
+        # Store the request variables sent as part of the request.
+        run.request_context.append(variables)
+
         config = variables.get("config")
         if config is not None:
             run._config_json_string = config
@@ -313,6 +316,11 @@ class WandbBackendSnapshot:
         except KeyError as e:
             raise AssertionError(f"No metrics for run {run_id}") from e
 
+    def request_context(self, *, run_id: str) -> dict[str, Any]:
+        """Returns the request context for the run."""
+        spy = self._assert_valid()
+        return spy._runs[run_id].request_context
+
     def was_ever_preempting(self, *, run_id: str) -> bool:
         """Returns whether the run was ever marked 'preempting'."""
         spy = self._assert_valid()
@@ -333,3 +341,4 @@ class _RunData:
         self._file_stream_files: dict[str, dict[int, Any]] = {}
         self._config_json_string: str | None = None
         self._tags: list[str] = []
+        self.request_context: list[dict[str, Any]] = []
