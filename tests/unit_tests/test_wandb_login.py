@@ -105,7 +105,7 @@ def test_login_timeout_env_blank(mock_tty):
 def test_login_timeout_env_invalid(mock_tty):
     mock_tty("")
     with mock.patch.dict(os.environ, {"WANDB_LOGIN_TIMEOUT": "junk"}):
-        with pytest.raises(wandb.sdk.wandb_settings.SettingsPreprocessingError):
+        with pytest.raises(ValueError):
             wandb.login()
 
 

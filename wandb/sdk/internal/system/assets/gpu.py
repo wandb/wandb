@@ -354,13 +354,13 @@ class GPU:
     ) -> None:
         self.name = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [
-            GPUMemoryAllocated(settings._stats_pid),
-            GPUMemoryAllocatedBytes(settings._stats_pid),
-            GPUMemoryUtilization(settings._stats_pid),
-            GPUUtilization(settings._stats_pid),
-            GPUTemperature(settings._stats_pid),
-            GPUPowerUsageWatts(settings._stats_pid),
-            GPUPowerUsagePercent(settings._stats_pid),
+            GPUMemoryAllocated(settings.x_stats_pid),
+            GPUMemoryAllocatedBytes(settings.x_stats_pid),
+            GPUMemoryUtilization(settings.x_stats_pid),
+            GPUUtilization(settings.x_stats_pid),
+            GPUTemperature(settings.x_stats_pid),
+            GPUPowerUsageWatts(settings.x_stats_pid),
+            GPUPowerUsagePercent(settings.x_stats_pid),
         ]
         self.metrics_monitor = MetricsMonitor(
             self.name,

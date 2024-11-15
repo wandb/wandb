@@ -97,7 +97,6 @@ def mocked_fetchable_git_repo():
 def test_launch_add_delete_queued_run(
     use_local_wandb_backend,
     user,
-    wandb_init,
     test_settings,
 ):
     _ = use_local_wandb_backend
@@ -110,7 +109,7 @@ def test_launch_add_delete_queued_run(
 
     api = InternalApi()
 
-    with wandb_init(settings=settings):
+    with wandb.init(settings=settings):
         api.create_run_queue(
             entity=user,
             project=LAUNCH_DEFAULT_PROJECT,
@@ -271,7 +270,6 @@ def test_push_to_runqueue_old_server(
     monkeypatch,
     mocked_fetchable_git_repo,
     test_settings,
-    wandb_init,
 ):
     _ = use_local_wandb_backend
     proj = "test_project0"
@@ -293,15 +291,14 @@ def test_push_to_runqueue_old_server(
         lambda *args: None,
     )
 
-    run = wandb_init(settings=settings)
-    api = wandb.sdk.internal.internal_api.Api()
+    with wandb.init(settings=settings):
+        api = wandb.sdk.internal.internal_api.Api()
 
-    api.create_run_queue(
-        entity=user, project=LAUNCH_DEFAULT_PROJECT, queue_name=queue, access="USER"
-    )
+        api.create_run_queue(
+            entity=user, project=LAUNCH_DEFAULT_PROJECT, queue_name=queue, access="USER"
+        )
 
-    result = api.push_to_run_queue(queue, args, None, LAUNCH_DEFAULT_PROJECT)
-    run.finish()
+        result = api.push_to_run_queue(queue, args, None, LAUNCH_DEFAULT_PROJECT)
 
     assert result["runQueueItemId"]
 
@@ -570,7 +567,6 @@ def test_display_updated_runspec(
     use_local_wandb_backend,
     user,
     test_settings,
-    wandb_init,
     monkeypatch,
 ):
     _ = use_local_wandb_backend
@@ -597,20 +593,23 @@ def test_display_updated_runspec(
         lambda *args, **kwargs: push_with_drc(*args, **kwargs),
     )
 
-    run = wandb_init(settings=settings)
-    api.create_run_queue(entity=user, project=proj, queue_name=queue, access="PROJECT")
+    with wandb.init(settings=settings):
+        api.create_run_queue(
+            entity=user,
+            project=proj,
+            queue_name=queue,
+            access="PROJECT",
+        )
 
-    _ = launch_add(
-        docker_image="test/test:test",
-        entity=user,
-        project=proj,
-        entry_point=entry_point,
-        repository="testing123",
-        config={"resource": "kubernetes"},
-        project_queue=proj,
-    )
-
-    run.finish()
+        _ = launch_add(
+            docker_image="test/test:test",
+            entity=user,
+            project=proj,
+            entry_point=entry_point,
+            repository="testing123",
+            config={"resource": "kubernetes"},
+            project_queue=proj,
+        )
 
 
 def test_container_queued_run(monkeypatch, user):
