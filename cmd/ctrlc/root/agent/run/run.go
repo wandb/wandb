@@ -2,7 +2,6 @@ package run
 
 import (
 	"log"
-	"os"
 	"strings"
 	"time"
 
@@ -12,23 +11,20 @@ import (
 )
 
 func NewAgentRunCmd() *cobra.Command {
-	var proxyAddr string
 	var agentName string
 	var workspace string
 	var metadata map[string]string
 	var insecure bool
-	var targetId string
+	var associatedResources []string
 
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run the agent",
 		Long:  `Run the agent to establish connection with the proxy.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if proxyAddr == "" {
-				proxyAddr = viper.GetString("url")
-				proxyAddr = strings.TrimPrefix(proxyAddr, "https://")
-				proxyAddr = strings.TrimPrefix(proxyAddr, "http://")
-			}
+			proxyAddr := viper.GetString("url")
+			proxyAddr = strings.TrimPrefix(proxyAddr, "https://")
+			proxyAddr = strings.TrimPrefix(proxyAddr, "http://")
 
 			if insecure {
 				proxyAddr = "ws://" + proxyAddr
@@ -36,21 +32,14 @@ func NewAgentRunCmd() *cobra.Command {
 				proxyAddr = "wss://" + proxyAddr
 			}
 
-			apiKey := os.Getenv("CTRLPLANE_API_KEY")
-			if apiKey == "" {
-				apiKey = viper.GetString("api-key")
-			}
-
-			opts := []func(*agent.Agent){
-				agent.WithMetadata(metadata),
-				agent.WithHeader("X-API-Key", apiKey),
-				agent.WithHeader("X-Workspace", workspace),
-			}
-
+			apiKey := viper.GetString("api-key")
 			agent := agent.NewAgent(
 				proxyAddr,
 				agentName,
-				opts...,
+				agent.WithMetadata(metadata),
+				agent.WithHeader("X-API-Key", apiKey),
+				agent.WithHeader("X-Workspace", workspace),
+				agent.WithAssociatedResources(associatedResources),
 			)
 
 			backoff := time.Second
@@ -72,12 +61,11 @@ func NewAgentRunCmd() *cobra.Command {
 		SilenceUsage: true,
 	}
 
-	cmd.Flags().StringVarP(&proxyAddr, "proxy", "p", "app.ctrlplane.dev", "Proxy address to connect through")
 	cmd.Flags().StringVarP(&agentName, "name", "n", "", "Name for this agent")
 	cmd.Flags().StringVarP(&workspace, "workspace", "w", "", "Workspace for this agent")
-	cmd.Flags().StringVarP(&targetId, "target", "t", "", "Target ID to link this agent too")
 	cmd.Flags().StringToStringVar(&metadata, "metadata", make(map[string]string), "Metadata key-value pairs (e.g. --metadata key=value)")
-	cmd.Flags().BoolVar(&insecure, "insecure", false, "Allow insecure connections")
+	cmd.Flags().BoolVar(&insecure, "insecure", false, "Allow insecure connections (a.k use ws://)")
+	cmd.Flags().StringArrayVarP(&associatedResources, "associated-resource", "r", []string{}, "Resource ID or Identifier to associate this agent with")
 
 	cmd.MarkFlagRequired("workspace")
 	cmd.MarkFlagRequired("name")

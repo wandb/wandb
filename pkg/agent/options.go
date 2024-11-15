@@ -11,3 +11,10 @@ func WithHeader(key string, value string) func(*Agent) {
 		a.headers.Set(key, value)
 	}
 }
+
+
+func WithAssociatedResources(resources []string) func(*Agent) {
+	return func(a *Agent) {
+		a.associatedResources = resources
+	}
+}

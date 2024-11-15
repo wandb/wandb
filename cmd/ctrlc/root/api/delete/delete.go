@@ -15,7 +15,6 @@ func NewDeleteCmd() *cobra.Command {
 		},
 	}
 
-
 	cmd.AddCommand(resource.NewDeleteResourceCmd())
 
 	return cmd

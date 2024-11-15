@@ -31,13 +31,8 @@ func NewAPICmd() *cobra.Command {
 			return cmd.Help()
 		},
 	}
-	cmd.PersistentFlags().String("url", "", "API URL")
-	cmd.PersistentFlags().String("api-key", "", "API key for authentication")
 	cmd.PersistentFlags().String("template", "", "Template for output format. Accepts Go template format (e.g. --template='{{.status.phase}}')")
 	cmd.PersistentFlags().String("format", "json", "Output format. Accepts 'json' or 'yaml'")
-
-	viper.BindPFlag("url", cmd.PersistentFlags().Lookup("url"))
-	viper.BindPFlag("api-key", cmd.PersistentFlags().Lookup("api-key"))
 
 	cmd.AddCommand(get.NewGetCmd())
 	cmd.AddCommand(create.NewCreateCmd())

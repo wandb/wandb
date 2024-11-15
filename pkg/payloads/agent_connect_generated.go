@@ -18,6 +18,9 @@ type AgentConnectJson struct {
 
 	// Type of payload - must be agent.register
 	Type AgentConnectJsonType `json:"type" yaml:"type" mapstructure:"type"`
+
+	// Optional list of resource IDs or identifiers to associate this agent with
+	AssociatedResources []string `json:"associatedResources,omitempty" yaml:"associatedResources,omitempty" mapstructure:"associatedResources,omitempty"`
 }
 
 // Optional configuration for the agent

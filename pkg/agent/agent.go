@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/creack/pty"
@@ -34,13 +36,14 @@ func GetControllerProxyURL() string {
 }
 
 type Agent struct {
-	headers    http.Header
-	client     *client.Client
-	serverURL  string
-	agentName  string
-	StopSignal chan struct{}
-	metadata   map[string]string
-	manager    *ptysession.Manager
+	headers             http.Header
+	client              *client.Client
+	serverURL           string
+	agentName           string
+	StopSignal          chan struct{}
+	metadata            map[string]string
+	associatedResources []string
+	manager             *ptysession.Manager
 }
 
 func NewAgent(serverURL, agentName string, opts ...func(*Agent)) *Agent {
@@ -48,12 +51,13 @@ func NewAgent(serverURL, agentName string, opts ...func(*Agent)) *Agent {
 	headers.Set("User-Agent", "ctrlplane-cli")
 	headers.Set("X-Agent-Name", agentName)
 	agent := &Agent{
-		headers:    headers,
-		serverURL:  serverURL,
-		agentName:  agentName,
-		StopSignal: make(chan struct{}),
-		metadata:   make(map[string]string),
-		manager:    ptysession.GetManager(),
+		headers:             headers,
+		serverURL:           serverURL,
+		agentName:           agentName,
+		StopSignal:          make(chan struct{}),
+		metadata:            make(map[string]string),
+		manager:             ptysession.GetManager(),
+		associatedResources: []string{},
 	}
 	for _, opt := range opts {
 		opt(agent)
@@ -135,11 +139,22 @@ func (a *Agent) handleConnect() {
 	log.Printf("Agent %s connected to server", a.agentName)
 
 	connectPayload := payloads.AgentConnectJson{
-		Type:     payloads.AgentConnectJsonTypeAgentConnect,
-		Name:     a.agentName,
-		Config:   map[string]interface{}{},
-		Metadata: a.metadata,
+		Type:                payloads.AgentConnectJsonTypeAgentConnect,
+		Name:                a.agentName,
+		Config:              map[string]interface{}{},
+		Metadata:            a.metadata,
+		AssociatedResources: a.associatedResources,
 	}
+
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+	connectPayload.Metadata["go/memstats/totalalloc"] = strconv.FormatUint(memStats.TotalAlloc, 10)
+	connectPayload.Metadata["go/memstats/sys"] = strconv.FormatUint(memStats.Sys, 10)
+	connectPayload.Metadata["runtime/os"] = runtime.GOOS
+	connectPayload.Metadata["runtime/arch"] = runtime.GOARCH
+	connectPayload.Metadata["go/version"] = runtime.Version()
+	connectPayload.Metadata["go/compiler"] = runtime.Compiler
+	connectPayload.Metadata["go/numcpu"] = strconv.Itoa(runtime.NumCPU())
 
 	data, err := json.Marshal(connectPayload)
 	if err != nil {
