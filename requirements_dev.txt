@@ -19,7 +19,7 @@ moviepy
 imageio[ffmpeg]
 matplotlib
 soundfile
-rdkit
+rdkit; python_version < '3.13'
 plotly
 bokeh
 
@@ -31,14 +31,14 @@ ipykernel
 nbclient
 
 scikit-learn
-tensorflow; python_version > '3.11'
+tensorflow; python_version > '3.11' and python_version < '3.13'
 tensorflow<2.14; sys_platform != 'darwin' and python_version < '3.12'
 tensorflow-macos; python_version < '3.11' and sys_platform == 'darwin' and platform.machine == 'arm64'
-torch
-torchvision
+torch; python_version < '3.13'
+torchvision; python_version < '3.13'
 jax[cpu]
-lightning
-ray[air,tune]
+lightning; python_version < '3.13'
+ray[air,tune]; python_version < '3.13'
 
 fastcore
 pyarrow
@@ -48,10 +48,10 @@ lightgbm
 mlflow
 urllib3
 docker
-catboost
+catboost; python_version < '3.13'
 openai
 gymnasium < 1.0.0
-stable_baselines3
+stable_baselines3; python_version < '3.13'
 
 requests~=2.23
 responses
