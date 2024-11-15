@@ -179,7 +179,7 @@ class _WandbInit:
         config_include_keys: list[str] | None = None,
         allow_val_change: bool | None = None,
         monitor_gym: bool | None = None,
-    ) -> None:  # noqa: C901
+    ) -> None:
         """Complete setup for `wandb.init()`.
 
         This includes parsing all arguments, applying them with settings and enabling logging.

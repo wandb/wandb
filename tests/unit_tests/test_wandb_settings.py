@@ -468,7 +468,7 @@ def test_code_saving_save_code_env_false(mock_run, test_settings):
     settings = test_settings()
     settings.save_code = None
     with mock.patch.dict("os.environ", WANDB_SAVE_CODE="false"):
-        settings.from_system_environment()
+        settings.update_from_system_environment()
         run = mock_run(settings=settings)
         assert run._settings.save_code is False
 
@@ -477,7 +477,7 @@ def test_code_saving_disable_code(mock_run, test_settings):
     settings = test_settings()
     settings.save_code = None
     with mock.patch.dict("os.environ", WANDB_DISABLE_CODE="true"):
-        settings.from_system_environment()
+        settings.update_from_system_environment()
         run = mock_run(settings=settings)
         assert run.settings.save_code is False
 
