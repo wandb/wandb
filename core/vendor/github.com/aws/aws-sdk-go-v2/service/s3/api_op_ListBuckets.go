@@ -20,6 +20,13 @@ import (
 //
 // For information about Amazon S3 buckets, see [Creating, configuring, and working with Amazon S3 buckets].
 //
+// We strongly recommend using only paginated requests. Unpaginated requests are
+// only supported for Amazon Web Services accounts set to the default general
+// purpose bucket quota of 10,000. If you have an approved general purpose bucket
+// quota above 10,000, you must send paginated requests to list your account’s
+// buckets. All unpaginated ListBuckets requests will be rejected for Amazon Web
+// Services accounts with a general purpose bucket quota greater than 10,000.
+//
 // [Creating, configuring, and working with Amazon S3 buckets]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/creating-buckets-s3.html
 func (c *Client) ListBuckets(ctx context.Context, params *ListBucketsInput, optFns ...func(*Options)) (*ListBucketsOutput, error) {
 	if params == nil {
@@ -59,6 +66,11 @@ type ListBucketsInput struct {
 	// Length Constraints: Minimum length of 0. Maximum length of 1024.
 	//
 	// Required: No.
+	//
+	// If you specify the bucket-region , prefix , or continuation-token query
+	// parameters without using max-buckets to set the maximum number of buckets
+	// returned in the response, Amazon S3 applies a default page size of 10,000 and
+	// provides a continuation token if there are more buckets.
 	ContinuationToken *string
 
 	// Maximum number of buckets to be returned in response. When the number is more

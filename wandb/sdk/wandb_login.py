@@ -124,7 +124,7 @@ class _WandbLogin:
     def setup(
         self,
         *,
-        anonymous: Optional[Literal["must", "allow", "never"]] = None,
+        anonymous: Optional[Literal["allow", "must", "never"]] = None,
         key: Optional[str] = None,
         relogin: Optional[bool] = None,
         host: Optional[str] = None,
@@ -134,23 +134,20 @@ class _WandbLogin:
         """Updates login-related settings on the global setup object."""
         self._relogin = relogin
 
-        # built up login settings
-        login_settings: Settings = wandb.Settings()
-        logger = wandb.setup()._get_logger()
-
-        login_settings._apply_login(
-            {
-                "anonymous": anonymous,
-                "key": key,
-                "host": host,
-                "force": force,
-                "timeout": timeout,
-            },
-            _logger=logger,
-        )
+        login_settings = {
+            "anonymous": anonymous,
+            "api_key": key,
+            "base_url": host,
+            "force": force,
+            "login_timeout": timeout,
+        }
 
         # make sure they are applied globally
-        self._wl = wandb.setup(settings=login_settings)
+        self._wl = wandb.setup(
+            settings=wandb.Settings(
+                **{k: v for k, v in login_settings.items() if v is not None}
+            )
+        )
         self._settings = self._wl.settings
 
     def is_apikey_configured(self) -> bool:
@@ -232,7 +229,6 @@ class _WandbLogin:
 
         If we're online, this also pulls in user settings from the server.
         """
-        _logger = wandb.setup()._get_logger()
         login_settings = dict()
         if status == ApiKeyStatus.OFFLINE:
             login_settings = dict(mode="offline")
@@ -240,7 +236,7 @@ class _WandbLogin:
             login_settings = dict(mode="disabled")
         elif key:
             login_settings = dict(api_key=key)
-        self._wl._settings._apply_login(login_settings, _logger=_logger)
+        self._wl._settings.update_from_dict(login_settings)
         # Whenever the key changes, make sure to pull in user settings
         # from server.
         if not self._wl.settings._offline:
@@ -275,7 +271,7 @@ class _WandbLogin:
         if status == ApiKeyStatus.NOTTY:
             directive = (
                 "wandb login [your_api_key]"
-                if self._settings._cli_only_mode
+                if self._settings.x_cli_only_mode
                 else "wandb.login(key=[your_api_key])"
             )
             raise UsageError("api_key not configured (no-tty). call " + directive)
@@ -286,7 +282,7 @@ class _WandbLogin:
 
 def _login(
     *,
-    anonymous: Optional[Literal["must", "allow", "never"]] = None,
+    anonymous: Optional[Literal["allow", "must", "never"]] = None,
     key: Optional[str] = None,
     relogin: Optional[bool] = None,
     host: Optional[str] = None,

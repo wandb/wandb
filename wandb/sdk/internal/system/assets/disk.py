@@ -167,8 +167,8 @@ class Disk:
         self.name = self.__class__.__name__.lower()
         self.settings = settings
         self.metrics: List[Metric] = [
-            DiskUsagePercent(list(settings._stats_disk_paths or ["/"])),
-            DiskUsage(list(settings._stats_disk_paths or ["/"])),
+            DiskUsagePercent(list(settings.x_stats_disk_paths or ["/"])),
+            DiskUsage(list(settings.x_stats_disk_paths or ["/"])),
             DiskIn(),
             DiskOut(),
         ]
@@ -186,7 +186,7 @@ class Disk:
         return psutil is not None
 
     def probe(self) -> dict:
-        disk_paths = list(self.settings._stats_disk_paths or ["/"])
+        disk_paths = list(self.settings.x_stats_disk_paths or ["/"])
         disk_metrics = {}
         for disk_path in disk_paths:
             try:
