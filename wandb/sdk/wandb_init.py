@@ -209,7 +209,7 @@ class _WandbInit:
             init_settings.handle_launch_logic()
 
         # Apply settings from wandb.init() call
-        settings.from_settings(init_settings)
+        settings.update_from_settings(init_settings)
 
         self._reporter = reporting.setup_reporter(settings=settings)
 
@@ -224,7 +224,7 @@ class _WandbInit:
                     sagemaker_env["WANDB_API_KEY"] = sagemaker_api_key
                 settings.from_env_vars(sagemaker_env)
                 wandb.setup(settings=settings)
-            settings.from_dict(sagemaker_run)
+            settings.update_from_dict(sagemaker_run)
             with telemetry.context(obj=self._init_telemetry_obj) as tel:
                 tel.feature.sagemaker = True
 
@@ -310,7 +310,7 @@ class _WandbInit:
             if v is not None
         }
         if login_settings:
-            settings.from_dict(login_settings)
+            settings.update_from_dict(login_settings)
 
         # handle custom resume logic
         settings.handle_resume_logic()
@@ -320,7 +320,7 @@ class _WandbInit:
         if not settings._offline and not settings._noop:
             user_settings = self._wl._load_user_settings()
             if user_settings is not None:
-                settings.from_dict(user_settings)
+                settings.update_from_dict(user_settings)
 
         # ensure that user settings don't set saving to true
         # if user explicitly set these to false in UI

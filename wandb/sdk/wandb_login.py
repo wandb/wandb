@@ -236,7 +236,7 @@ class _WandbLogin:
             login_settings = dict(mode="disabled")
         elif key:
             login_settings = dict(api_key=key)
-        self._wl._settings.from_dict(login_settings)
+        self._wl._settings.update_from_dict(login_settings)
         # Whenever the key changes, make sure to pull in user settings
         # from server.
         if not self._wl.settings._offline:
