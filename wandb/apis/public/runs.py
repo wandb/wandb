@@ -89,7 +89,9 @@ class Runs(Paginator):
             }}
         }}
         {}
-        """.format(RUN_FRAGMENT)
+        """.format(
+            RUN_FRAGMENT
+        )
     )
 
     def __init__(
@@ -142,8 +144,6 @@ class Runs(Paginator):
         objs = []
         if self.last_response is None or self.last_response.get("project") is None:
             raise ValueError("Could not find project {}".format(self.project))
-        print("last_response: ", self.last_response)
-        project_internal_id = self.last_response["project"]["internalId"]
         for run_response in self.last_response["project"]["runs"]["edges"]:
             run = Run(
                 self.client,
@@ -152,7 +152,6 @@ class Runs(Paginator):
                 run_response["node"]["name"],
                 run_response["node"],
                 include_sweeps=self._include_sweeps,
-                project_internal_id=project_internal_id,
             )
             objs.append(run)
 
@@ -311,7 +310,6 @@ class Run(Attrs):
         run_id: str,
         attrs: Optional[Mapping] = None,
         include_sweeps: bool = True,
-        project_internal_id: Optional[int] = None,
     ):
         """Initialize a Run object.
 
@@ -324,7 +322,6 @@ class Run(Attrs):
         self.client = client
         self._entity = entity
         self.project = project
-        self._project_internal_id = project_internal_id
         self._files = {}
         self._base_dir = env.get_dir(tempfile.gettempdir())
         self.id = run_id
@@ -435,7 +432,9 @@ class Run(Attrs):
             }}
         }}
         {}
-        """.format(RUN_FRAGMENT)
+        """.format(
+                RUN_FRAGMENT
+            )
         )
         if force or not self._attrs:
             response = self._exec(query)
@@ -526,7 +525,9 @@ class Run(Attrs):
             }}
         }}
         {}
-        """.format(RUN_FRAGMENT)
+        """.format(
+                RUN_FRAGMENT
+            )
         )
         _ = self._exec(
             mutation,
@@ -613,7 +614,9 @@ class Run(Attrs):
                 run(name: $name) {{ {}(samples: $samples) }}
             }}
         }}
-        """.format(node)
+        """.format(
+                node
+            )
         )
 
         response = self._exec(query, samples=samples)

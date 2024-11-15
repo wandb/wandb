@@ -57,7 +57,9 @@ class Files(Paginator):
             }}
         }}
         {}
-        """.format(FILE_FRAGMENT)
+        """.format(
+            FILE_FRAGMENT
+        )
     )
 
     def __init__(self, client, run, names=None, per_page=50, upload=False):
@@ -203,13 +205,13 @@ class File(Attrs):
     def delete(self):
         print(
             "self in delete: self — {} project_id — {} run — {}".format(
-                self, self.run.project, self.run
+                self, self.run._internal_project_id, self.run
             )
         )
         mutation = gql(
             """
-            mutation deleteFiles($files: [ID!]!, $projectId: Int!) {
-                deleteFilesWithProjectId(input: {
+            mutation deleteFiles($files: [ID!]!, $projectId: Int) {
+                deleteFiles(input: {
                     files: $files
                     projectId: $projectId
                 }) {
