@@ -574,12 +574,15 @@ def mypy_report(session: nox.Session) -> None:
     session.install(
         # https://github.com/python/mypy/issues/17166
         "mypy != 1.10.0",
+        "pip",
+        "pydantic",
         "pycobertura",
         "lxml",
         "pandas-stubs",
         "platformdirs",
         "types-jsonschema",
         "types-openpyxl",
+        "types-python-dateutil",
         "types-Pillow",
         "types-PyYAML",
         "types-Pygments",

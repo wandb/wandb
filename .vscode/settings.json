@@ -29,5 +29,5 @@
     "./experimental/rust-sdk/examples/basic/Cargo.toml"
   ],
   "python.analysis.autoImportCompletions": false,
-  "python.analysis.typeCheckingMode": "standard"
+  "python.analysis.typeCheckingMode": "off"
 }

@@ -27,7 +27,6 @@ from wandb.errors import CommError, Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
-from wandb.integration.magic import magic_install
 from wandb.sdk.lib import runid
 from wandb.sdk.lib.paths import StrPath
 from wandb.util import _is_artifact_representation
@@ -47,7 +46,7 @@ from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxProgress
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
-from .wandb_settings import Settings, Source
+from .wandb_settings import Settings
 
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2 as pb
@@ -121,7 +120,7 @@ class _WandbInit:
 
     def __init__(self) -> None:
         self.kwargs = None
-        self.setting: Settings | None = None
+        self.settings: Settings | None = None
         self.sweep_config: dict[str, Any] = {}
         self.launch_config: dict[str, Any] = {}
         self.config: dict[str, Any] = {}
@@ -138,69 +137,79 @@ class _WandbInit:
 
         self.deprecated_features_used: dict[str, str] = dict()
 
-    def setup(self, kwargs: Any) -> None:  # noqa: C901
+    def warn_env_vars_change_after_setup(self) -> None:
+        """Warn if environment variables change after wandb singleton is initialized.
+
+        Any settings from environment variables set after the singleton is initialized
+        (via login/setup/etc.) will be ignored.
+        """
+        singleton = wandb_setup._WandbSetup._instance
+        if singleton is None:
+            return
+
+        exclude_env_vars = {"WANDB_SERVICE", "WANDB_KUBEFLOW_URL"}
+        # check if environment variables have changed
+        singleton_env = {
+            k: v
+            for k, v in singleton._environ.items()
+            if k.startswith("WANDB_") and k not in exclude_env_vars
+        }
+        os_env = {
+            k: v
+            for k, v in os.environ.items()
+            if k.startswith("WANDB_") and k not in exclude_env_vars
+        }
+        if set(singleton_env.keys()) != set(os_env.keys()) or set(
+            singleton_env.values()
+        ) != set(os_env.values()):
+            line = (
+                "Changes to your `wandb` environment variables will be ignored "
+                "because your `wandb` session has already started. "
+                "For more information on how to modify your settings with "
+                "`wandb.init()` arguments, please refer to "
+                f"{self.printer.link(url_registry.url('wandb-init'), 'the W&B docs')}."
+            )
+            self.printer.display(line, level="warn")
+
+    def setup(  # noqa: C901
+        self,
+        init_settings: Settings,
+        config: dict | str | None = None,
+        config_exclude_keys: list[str] | None = None,
+        config_include_keys: list[str] | None = None,
+        allow_val_change: bool | None = None,
+        monitor_gym: bool | None = None,
+    ) -> None:
         """Complete setup for `wandb.init()`.
 
         This includes parsing all arguments, applying them with settings and enabling logging.
         """
-        self.kwargs = kwargs
+        self.warn_env_vars_change_after_setup()
 
-        # if the user ran, for example, `wandb.login(`) before `wandb.init()`,
-        # the singleton will already be set up and so if e.g. env vars are set
-        # in between, they will be ignored, which we need to inform the user about.
-        singleton = wandb_setup._WandbSetup._instance
-        if singleton is not None:
-            exclude_env_vars = {"WANDB_SERVICE", "WANDB_KUBEFLOW_URL"}
-            # check if environment variables have changed
-            singleton_env = {
-                k: v
-                for k, v in singleton._environ.items()
-                if k.startswith("WANDB_") and k not in exclude_env_vars
-            }
-            os_env = {
-                k: v
-                for k, v in os.environ.items()
-                if k.startswith("WANDB_") and k not in exclude_env_vars
-            }
-            if set(singleton_env.keys()) != set(os_env.keys()) or set(
-                singleton_env.values()
-            ) != set(os_env.values()):
-                line = (
-                    "Changes to your `wandb` environment variables will be ignored "
-                    "because your `wandb` session has already started. "
-                    "For more information on how to modify your settings with "
-                    "`wandb.init()` arguments, please refer to "
-                    f"{self.printer.link(url_registry.url('wandb-init'), 'the W&B docs')}."
-                )
-                self.printer.display(line, level="warn")
-
-        # we add this logic to be backward compatible with the old behavior of disable
-        # where it would disable the service if the mode was set to disabled
-        # TODO: use the regular settins object to handle this
-        mode = kwargs.get("mode")
-        settings_mode = (kwargs.get("settings") or {}).get("mode") or os.environ.get(
-            wandb.env.MODE
+        setup_settings = wandb.Settings(
+            mode=init_settings.mode or os.environ.get(wandb.env.MODE) or "online",
+            x_disable_service=init_settings.x_disable_service
+            or os.environ.get(wandb.env._DISABLE_SERVICE)
+            or False,
         )
-        settings__disable_service = (kwargs.get("settings") or {}).get(
-            "_disable_service"
-        ) or os.environ.get(wandb.env._DISABLE_SERVICE)
-
-        setup_settings = {
-            "mode": mode or settings_mode,
-            "_disable_service": settings__disable_service,
-        }
-
         self._wl = wandb_setup.setup(settings=setup_settings)
-        # Make sure we have a logger setup (might be an early logger)
+
         assert self._wl is not None
         _set_logger(self._wl._get_logger())
 
         # Start with settings from wandb library singleton
-        settings: Settings = self._wl.settings.copy()
+        settings = self._wl.settings.copy()
 
-        settings_param = kwargs.pop("settings", None)
-        if settings_param is not None and isinstance(settings_param, (Settings, dict)):
-            settings.update(settings_param, source=Source.INIT)
+        # handle custom sweep- and launch-related logic for init settings
+        if settings.sweep_id:
+            init_settings.sweep_id = settings.sweep_id
+            init_settings.handle_sweep_logic()
+        if settings.launch:
+            init_settings.launch = settings.launch
+            init_settings.handle_launch_logic()
+
+        # Apply settings from wandb.init() call
+        settings.update_from_settings(init_settings)
 
         self._reporter = reporting.setup_reporter(settings=settings)
 
@@ -213,42 +222,35 @@ class _WandbInit:
             if sagemaker_env:
                 if sagemaker_api_key:
                     sagemaker_env["WANDB_API_KEY"] = sagemaker_api_key
-                settings._apply_env_vars(sagemaker_env)
+                settings.update_from_env_vars(sagemaker_env)
                 wandb.setup(settings=settings)
-            settings.update(sagemaker_run, source=Source.SETUP)
+            settings.update_from_dict(sagemaker_run)
             with telemetry.context(obj=self._init_telemetry_obj) as tel:
                 tel.feature.sagemaker = True
 
         with telemetry.context(obj=self._init_telemetry_obj) as tel:
-            if kwargs.get("config"):
+            if config is not None:
                 tel.feature.set_init_config = True
-            if kwargs.get("name"):
+            if settings.run_name is not None:
                 tel.feature.set_init_name = True
-            if kwargs.get("id"):
+            if settings.run_id is not None:
                 tel.feature.set_init_id = True
-            if kwargs.get("tags"):
+            if settings.run_tags is not None:
                 tel.feature.set_init_tags = True
 
-        # Remove parameters that are not part of settings
-        init_config = kwargs.pop("config", None) or dict()
-
-        # todo: remove this once officially deprecated
-        deprecated_kwargs = {
-            "config_include_keys": (
-                "Use `config=wandb.helper.parse_config(config_object, include=('key',))` instead."
-            ),
-            "config_exclude_keys": (
+        # TODO: remove this once officially deprecated
+        if config_exclude_keys:
+            self.deprecated_features_used["config_exclude_keys"] = (
                 "Use `config=wandb.helper.parse_config(config_object, exclude=('key',))` instead."
-            ),
-        }
-        for deprecated_kwarg, msg in deprecated_kwargs.items():
-            if kwargs.get(deprecated_kwarg):
-                self.deprecated_features_used[deprecated_kwarg] = msg
-
-        init_config = parse_config(
-            init_config,
-            include=kwargs.pop("config_include_keys", None),
-            exclude=kwargs.pop("config_exclude_keys", None),
+            )
+        if config_include_keys:
+            self.deprecated_features_used["config_include_keys"] = (
+                "Use `config=wandb.helper.parse_config(config_object, include=('key',))` instead."
+            )
+        config = parse_config(
+            config or dict(),
+            include=config_include_keys,
+            exclude=config_exclude_keys,
         )
 
         # merge config with sweep or sagemaker (or config file)
@@ -259,19 +261,18 @@ class _WandbInit:
         for config_data in (
             sagemaker_config,
             self._wl._config,
-            init_config,
+            config,
         ):
             if not config_data:
                 continue
             # split out artifacts, since when inserted into
             # config they will trigger use_artifact
             # but the run is not yet upserted
-            self._split_artifacts_from_config(config_data, self.config)
+            self._split_artifacts_from_config(config_data, self.config)  # type: ignore
 
         if sweep_config:
             self._split_artifacts_from_config(sweep_config, self.sweep_config)
 
-        monitor_gym = kwargs.pop("monitor_gym", None)
         if monitor_gym and len(wandb.patched["gym"]) == 0:
             wandb.gym.monitor()  # type: ignore
 
@@ -279,53 +280,52 @@ class _WandbInit:
             with telemetry.context(obj=self._init_telemetry_obj) as tel:
                 tel.feature.tensorboard_patch = True
 
-        tensorboard = kwargs.pop("tensorboard", None)
-        sync_tensorboard = kwargs.pop("sync_tensorboard", None)
-        if tensorboard or sync_tensorboard:
+        if settings.sync_tensorboard:
             if len(wandb.patched["tensorboard"]) == 0:
                 wandb.tensorboard.patch()  # type: ignore
             with telemetry.context(obj=self._init_telemetry_obj) as tel:
                 tel.feature.tensorboard_sync = True
 
-        magic = kwargs.get("magic")
-        if magic not in (None, False):
-            magic_install(kwargs)
-
-        # handle login related parameters as these are applied to global state
-        init_settings = {
-            key: kwargs[key]
-            for key in ["anonymous", "force", "mode", "resume"]
-            if kwargs.get(key) is not None
-        }
-        if init_settings:
-            settings.update(init_settings, source=Source.INIT)
-
         if not settings._offline and not settings._noop:
             wandb_login._login(
-                anonymous=kwargs.pop("anonymous", None),
-                force=kwargs.pop("force", None),
+                anonymous=settings.anonymous,
+                force=settings.force,
                 _disable_warning=True,
                 _silent=settings.quiet or settings.silent,
-                _entity=kwargs.get("entity") or settings.entity,
+                _entity=settings.entity,
             )
 
         # apply updated global state after login was handled
         wl = wandb.setup()
         assert wl is not None
-        settings._apply_settings(wl.settings)
+        login_settings = {
+            k: v
+            for k, v in {
+                "anonymous": wl.settings.anonymous,
+                "api_key": wl.settings.api_key,
+                "base_url": wl.settings.base_url,
+                "force": wl.settings.force,
+                "login_timeout": wl.settings.login_timeout,
+            }.items()
+            if v is not None
+        }
+        if login_settings:
+            settings.update_from_dict(login_settings)
+
+        # handle custom resume logic
+        settings.handle_resume_logic()
 
         # get status of code saving before applying user settings
         save_code_pre_user_settings = settings.save_code
-
-        settings._apply_init(kwargs)
         if not settings._offline and not settings._noop:
             user_settings = self._wl._load_user_settings()
-            settings._apply_user(user_settings)
+            if user_settings is not None:
+                settings.update_from_dict(user_settings)
 
         # ensure that user settings don't set saving to true
         # if user explicitly set these to false in UI
         if save_code_pre_user_settings is False:
-            settings.update({"save_code": False}, source=Source.INIT)
+            settings.save_code = False
 
         # TODO: remove this once we refactor the client. This is a temporary
         # fix to make sure that we use the same project name for wandb-core.
@@ -333,11 +333,9 @@ class _WandbInit:
         # avoid failure cases in other parts of the code that will be
         # removed with the switch to wandb-core.
         if settings.project is None:
-            project = wandb.util.auto_project_name(settings.program)
-            settings.update({"project": project}, source=Source.INIT)
+            settings.project = wandb.util.auto_project_name(settings.program)
 
-        # TODO(jhr): should this be moved? probably.
-        settings._set_run_start_time(source=Source.INIT)
+        settings.x_start_time = time.time()
 
         if not settings._noop:
             self._log_setup(settings)
@@ -349,8 +347,6 @@ class _WandbInit:
             self._split_artifacts_from_config(launch_config, self.launch_config)
 
         self.settings = settings
-
-        # self.settings.freeze()
 
     def teardown(self) -> None:
         # TODO: currently this is only called on failed wandb.init attempts
@@ -543,7 +539,9 @@ class _WandbInit:
         The returned Run object has all expected attributes and methods, but they are
         no-op versions that don't perform any actual logging or communication.
         """
-        drun = Run(settings=Settings(mode="disabled", files_dir=tempfile.gettempdir()))
+        drun = Run(
+            settings=Settings(mode="disabled", x_files_dir=tempfile.gettempdir())
+        )
         # config and summary objects
         drun._config = wandb.sdk.wandb_config.Config()
         drun._config.update(self.sweep_config)
@@ -617,7 +615,7 @@ class _WandbInit:
         if logger is None:
             raise RuntimeError("Logger not initialized")
         logger.info("calling init triggers")
-        trigger.call("on_init", **self.kwargs)  # type: ignore
+        trigger.call("on_init")
 
         assert self.settings is not None
         assert self._wl is not None
@@ -673,7 +671,7 @@ class _WandbInit:
             logger.info("sending inform_init request")
             service.inform_init(
                 settings=self.settings.to_proto(),
-                run_id=self.settings.run_id,
+                run_id=self.settings.run_id,  # type: ignore
             )
 
         mailbox = Mailbox()
@@ -684,8 +682,6 @@ class _WandbInit:
         )
         backend.ensure_launched()
         logger.info("backend started and connected")
-        # Make sure we are logged in
-        # wandb_login._login(_backend=backend, _settings=self.settings)
 
         # resuming needs access to the server, check server_status()?
         run = Run(
@@ -749,11 +745,11 @@ class _WandbInit:
 
             if service:
                 tel.feature.service = True
-            if self.settings._flow_control_disabled:
+            if self.settings.x_flow_control_disabled:
                 tel.feature.flow_control_disabled = True
-            if self.settings._flow_control_custom:
+            if self.settings.x_flow_control_custom:
                 tel.feature.flow_control_custom = True
-            if not self.settings._require_legacy_service:
+            if not self.settings.x_require_legacy_service:
                 tel.feature.core = True
             if self.settings._shared:
                 wandb.termwarn(
@@ -793,7 +789,7 @@ class _WandbInit:
         # Using GitRepo() blocks & can be slow, depending on user's current git setup.
         # We don't want to block run initialization/start request, so populate run's git
         # info beforehand.
-        if not self.settings.disable_git:
+        if not (self.settings.disable_git or self.settings.x_disable_machine_info):
             run._populate_git_info()
 
         run_result: pb.RunUpdateResult | None = None
@@ -859,7 +855,6 @@ class _WandbInit:
             logger.info("run resumed")
             with telemetry.context(run=run) as tel:
                 tel.feature.resumed = run_result.run.resumed
-
         run._set_run_obj(run_result.run)
 
         run._on_init()
@@ -868,6 +863,7 @@ class _WandbInit:
         # initiate run (stats and metadata probing)
 
         if service:
+            assert self.settings.run_id
             service.inform_start(
                 settings=self.settings.to_proto(),
                 run_id=self.settings.run_id,
@@ -956,14 +952,12 @@ def _attach(
 
     settings: Settings = copy.copy(_wl._settings)
 
-    settings.update(
+    settings.update_from_dict(
         {
             "run_id": attach_id,
-            "_start_time": attach_settings._start_time.value,
-            "_start_datetime": attach_settings._start_datetime.value,
-            "_offline": attach_settings._offline.value,
-        },
-        source=Source.INIT,
+            "x_start_time": attach_settings.x_start_time.value,
+            "mode": attach_settings.mode.value,
+        }
     )
 
     # TODO: consolidate this codepath with wandb.init()
@@ -998,18 +992,17 @@ def _attach(
     return run
 
 
-def init(
+def init(  # noqa: C901
     job_type: str | None = None,
     dir: StrPath | None = None,
     config: dict | str | None = None,
     project: str | None = None,
     entity: str | None = None,
     reinit: bool | None = None,
-    tags: Sequence | None = None,
+    tags: Sequence[str] | None = None,
     group: str | None = None,
     name: str | None = None,
     notes: str | None = None,
-    magic: dict | str | bool | None = None,
     config_exclude_keys: list[str] | None = None,
     config_include_keys: list[str] | None = None,
     anonymous: str | None = None,
@@ -1148,10 +1141,6 @@ def init(
             for more.
         reinit: (bool, optional) Allow multiple `wandb.init()` calls in the same
             process. (default: `False`)
-        magic: (bool, dict, or str, optional) The bool controls whether we try to
-            auto-instrument your script, capturing basic details of your run
-            without you having to add more wandb code. (default: `False`)
-            You can also pass a dict, json string, or yaml filename.
         config_exclude_keys: (list, optional) string keys to exclude from
             `wandb.config`.
         config_include_keys: (list, optional) string keys to include in
@@ -1238,8 +1227,6 @@ def init(
     """
     wandb._assert_is_user_process()  # type: ignore
 
-    kwargs = dict(locals())
-
     num_resume_options_set = (
         (fork_from is not None)  # wrap
         + (resume is not None)
@@ -1250,9 +1237,63 @@ def init(
             "You cannot specify more than one of `fork_from`, `resume`, or `resume_from`"
         )
 
+    init_settings = Settings()
+    if isinstance(settings, dict):
+        init_settings = Settings(**settings)
+    elif isinstance(settings, Settings):
+        init_settings = settings
+
+    # Explicit function arguments take precedence over settings
+    if job_type is not None:
+        init_settings.run_job_type = job_type
+    if dir is not None:
+        init_settings.root_dir = dir  # type: ignore
+    if project is not None:
+        init_settings.project = project
+    if entity is not None:
+        init_settings.entity = entity
+    if reinit is not None:
+        init_settings.reinit = reinit
+    if tags is not None:
+        init_settings.run_tags = tuple(tags)
+    if group is not None:
+        init_settings.run_group = group
+    if name is not None:
+        init_settings.run_name = name
+    if notes is not None:
+        init_settings.run_notes = notes
+    if anonymous is not None:
+        init_settings.anonymous = anonymous  # type: ignore
+    if mode is not None:
+        init_settings.mode = mode  # type: ignore
+    if resume is not None:
+        init_settings.resume = resume  # type: ignore
+    if force is not None:
+        init_settings.force = force
+    # TODO: deprecate "tensorboard" in favor of "sync_tensorboard"
+    if tensorboard is not None:
+        init_settings.sync_tensorboard = tensorboard
+    if sync_tensorboard is not None:
+        init_settings.sync_tensorboard = sync_tensorboard
+    if save_code is not None:
+        init_settings.save_code = save_code
+    if id is not None:
+        init_settings.run_id = id
+    if fork_from is not None:
+        init_settings.fork_from = fork_from  # type: ignore
+    if resume_from is not None:
+        init_settings.resume_from = resume_from  # type: ignore
+
     try:
         wi = _WandbInit()
-        wi.setup(kwargs)
+        wi.setup(
+            init_settings=init_settings,
+            config=config,
+            config_exclude_keys=config_exclude_keys,
+            config_include_keys=config_include_keys,
+            allow_val_change=allow_val_change,
+            monitor_gym=monitor_gym,
+        )
         return wi.init()
 
     except KeyboardInterrupt as e:

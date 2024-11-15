@@ -134,7 +134,7 @@ class IPU:
     ) -> None:
         self.name = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [
-            IPUStats(settings._stats_pid),
+            IPUStats(settings.x_stats_pid),
         ]
         self.metrics_monitor = MetricsMonitor(
             self.name,

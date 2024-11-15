@@ -22,7 +22,7 @@ import (
 //
 // It represents the internal structure for spb.OpenMetricsFilters.
 // For more details on configuring OpenMetrics filters, refer to the documentation
-// for the _stats_open_metrics_endpoints and _stats_open_metrics_filters settings.
+// for the x_stats_open_metrics_endpoints and x_stats_open_metrics_filters settings.
 type Filter struct {
 	MetricNameRegex string
 	LabelFilters    []LabelFilter

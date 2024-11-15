@@ -286,7 +286,6 @@ SYMBOLS_WANDB_INIT = {
     "allow_val_change",
     "id",
     "monitor_gym",
-    "magic",
     "group",
     "resume",
     "dir",

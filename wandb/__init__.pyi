@@ -113,7 +113,7 @@ api: InternalApi
 patched: Dict[str, List[Callable]]
 
 def setup(
-    settings: Optional[Settings] = None,
+    settings: Settings | None = None,
 ) -> Optional[_WandbSetup]:
     """Prepares W&B for use in the current process and its children.
 
@@ -172,7 +172,7 @@ def setup(
     """
     ...
 
-def teardown(exit_code: Optional[int] = None) -> None:
+def teardown(exit_code: int | None = None) -> None:
     """Waits for wandb to finish and frees resources.
 
     Completes any runs that were not explicitly finished
@@ -192,11 +192,10 @@ def init(
     project: str | None = None,
     entity: str | None = None,
     reinit: bool | None = None,
-    tags: Sequence | None = None,
+    tags: Sequence[str] | None = None,
     group: str | None = None,
     name: str | None = None,
     notes: str | None = None,
-    magic: dict | str | bool | None = None,
     config_exclude_keys: list[str] | None = None,
     config_include_keys: list[str] | None = None,
     anonymous: str | None = None,
@@ -335,10 +334,6 @@ def init(
             for more.
         reinit: (bool, optional) Allow multiple `wandb.init()` calls in the same
             process. (default: `False`)
-        magic: (bool, dict, or str, optional) The bool controls whether we try to
-            auto-instrument your script, capturing basic details of your run
-            without you having to add more wandb code. (default: `False`)
-            You can also pass a dict, json string, or yaml filename.
         config_exclude_keys: (list, optional) string keys to exclude from
             `wandb.config`.
         config_include_keys: (list, optional) string keys to include in

@@ -11,8 +11,8 @@ readme = "package_readme.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.7"
 dependencies = [
-    "Click>=7.1,!=8.0.0",        # click 8.0.0 is broken
-    "GitPython>=1.0.0,!=3.1.29", # CVE-2022-24439
+    "Click>=7.1,!=8.0.0",
+    "GitPython>=1.0.0,!=3.1.29",
     "requests>=2.0.0,<3",
     "psutil>=5.0.0",
     "sentry-sdk>=2.0.0",
@@ -28,9 +28,8 @@ dependencies = [
     "PyYAML",
     "setproctitle",
     "platformdirs",
-    # typing_extensions 4.4.0 adds 'override'.
-    # Python 3.12 adds 'override' to the typing module.
     "typing_extensions>=4.4,<5; python_version < '3.12'",
+    "pydantic>2,<3",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -231,14 +230,13 @@ ignore-decorators = [
 
 
 [tool.mypy]
+plugins = ["pydantic.mypy"]
 warn_redundant_casts = true
 exclude = '''
    (?x)(
       wandb/vendor/.
    )
 '''
-
-
 # wandb.*
 [[tool.mypy.overrides]]
 module = "wandb.*"
