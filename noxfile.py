@@ -129,6 +129,12 @@ def run_pytest(
     # (pytest-xdist) Run tests in parallel.
     pytest_opts.append(f"-n={opts.get('n', 'auto')}")
 
+    # Limit the # of workers in CI. Due to heavy tensorflow and pytorch imports,
+    # each worker uses up 700MB+ of memory, so with a large number of workers,
+    # we start to max out the RAM and slow down. This also causes flakes in
+    # time-dependent tests.
+    pytest_opts.append("--maxprocesses=10")
+
     # (pytest-split) Run a subset of tests only (for external parallelism).
     (circle_node_index, circle_node_total) = get_circleci_splits(session)
     if circle_node_total > 0:
