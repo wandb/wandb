@@ -193,10 +193,10 @@ class WandbBackendSnapshot:
         return history_parsed
 
     def output(self, *, run_id: str) -> dict[int, Any]:
-        """Returns the history file for the run.
+        """Returns the run's console logs uploaded via FileStream.
 
         The file is represented as a dict that maps integer offsets to
-        JSON objects.
+        the printed output string.
 
         Args:
             run_id: The ID of the run.
@@ -211,11 +211,8 @@ class WandbBackendSnapshot:
         except KeyError as e:
             raise KeyError(f"No run with ID {run_id}") from e
 
-        output_file = run._file_stream_files.get("output.log", {})
-        output_parsed: dict[int, Any] = {}
-        for offset, line in output_file.items():
-            output_parsed[offset] = line
-        return output_parsed
+        print(run._file_stream_files.get("output.log", {}))
+        return dict(run._file_stream_files.get("output.log", {}))
 
     def summary(self, *, run_id: str) -> Any:
         """Returns the summary for the run as a JSON object.
@@ -312,5 +309,5 @@ class _RunData:
     def __init__(self) -> None:
         self._was_ever_preempting = False
         self._uploaded_files: set[str] = set()
-        self._file_stream_files: dict[str, dict[int, Any]] = {}
+        self._file_stream_files: dict[str, dict[int, str]] = {}
         self._config_json_string: str | None = None

@@ -59,7 +59,6 @@ def test_tqdm_nested(wandb_init, wandb_backend_spy):
 
     with wandb_backend_spy.freeze() as snapshot:
         output = snapshot.output(run_id=run.id)
-        print(output)
 
         assert "before progress" in output[0]
         assert output[1].startswith("ERROR") and bool(
