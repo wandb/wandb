@@ -156,10 +156,10 @@ def conv3x3(in_channels, out_channels, **kwargs):
 
 # TODO(jhr): does not work with --flake-finder
 @pytest.mark.xfail(reason="TODO: fix this test")
-def test_all_logging(wandb_backend_spy, wandb_init):
+def test_all_logging(wandb_backend_spy):
     pytest.importorskip("torch")
     n = 3
-    run = wandb_init()
+    run = wandb.init()
     net = ConvNet()
     run.watch(
         net,
@@ -193,9 +193,9 @@ def test_all_logging(wandb_backend_spy, wandb_init):
         #     assert len(history["gradients/fc2.bias"][i]["bins"]) == 65
 
 
-def test_embedding_dict_watch(wandb_backend_spy, wandb_init):
+def test_embedding_dict_watch(wandb_backend_spy):
     pytest.importorskip("torch")
-    run = wandb_init()
+    run = wandb.init()
     model = EmbModelWrapper()
     run.watch(model, log_freq=1, idx=0)
     opt = torch.optim.Adam(params=model.parameters())

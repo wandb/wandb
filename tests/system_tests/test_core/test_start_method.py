@@ -7,8 +7,8 @@ import wandb
 from wandb.errors import UsageError
 
 
-def test_default(wandb_backend_spy, wandb_init):
-    run = wandb_init()
+def test_default(wandb_backend_spy):
+    run = wandb.init()
     run_id = run.id
     run.log(dict(val=1))
     run.finish()

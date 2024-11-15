@@ -327,8 +327,8 @@ def test_run_url(wandb_init):
 # ----------------------------------
 
 
-def test_log_step(wandb_backend_spy, wandb_init):
-    run = wandb_init()
+def test_log_step(wandb_backend_spy):
+    run = wandb.init()
     run.log({"acc": 1}, step=5, commit=True)
     run.finish()
 
@@ -340,7 +340,7 @@ def test_log_step(wandb_backend_spy, wandb_init):
 
 def test_log_custom_chart(wandb_backend_spy):
     run = wandb.init()
-    my_custom_chart = plot_table(
+    my_custom_chart = wandb.plot_table(
         "test_spec", wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"]), {}, {}
     )
     run.log({"my_custom_chart": my_custom_chart})
@@ -361,8 +361,8 @@ def test_log_silent(wandb_init, capsys):
     assert "wandb: " not in err
 
 
-def test_log_multiple_cases_example(wandb_backend_spy, wandb_init):
-    run = wandb_init()
+def test_log_multiple_cases_example(wandb_backend_spy):
+    run = wandb.init()
     run.log(dict(n=1))
     run.log(dict(n=11), commit=False)
     run.log(dict(n=2), step=100)
@@ -379,8 +379,8 @@ def test_log_multiple_cases_example(wandb_backend_spy, wandb_init):
         assert [value["_step"] for value in history.values()] == [0, 1, 100, 101, 102]
 
 
-def test_log_step_uncommitted(wandb_backend_spy, wandb_init):
-    run = wandb_init()
+def test_log_step_uncommitted(wandb_backend_spy):
+    run = wandb.init()
     run.log(dict(cool=2), step=2, commit=False)
     run.log(dict(cool=2), step=4)
     run.finish()
@@ -390,8 +390,8 @@ def test_log_step_uncommitted(wandb_backend_spy, wandb_init):
         assert len(history) == 2
 
 
-def test_log_step_committed(wandb_backend_spy, wandb_init):
-    run = wandb_init()
+def test_log_step_committed(wandb_backend_spy):
+    run = wandb.init()
     run.log(dict(cool=2), step=2)
     run.log(dict(cool=2), step=4, commit=True)
     run.finish()
@@ -401,8 +401,8 @@ def test_log_step_committed(wandb_backend_spy, wandb_init):
         assert len(history) == 2
 
 
-def test_log_step_committed_same(wandb_backend_spy, wandb_init):
-    run = wandb_init()
+def test_log_step_committed_same(wandb_backend_spy):
+    run = wandb.init()
     run.log(dict(cool=2), step=1)
     run.log(dict(cool=2), step=4)
     run.log(dict(bad=3), step=4, commit=True)
@@ -418,8 +418,8 @@ def test_log_step_committed_same(wandb_backend_spy, wandb_init):
         assert history[1]["cool"] == 2
 
 
-def test_log_step_committed_same_dropped(wandb_backend_spy, wandb_init):
-    run = wandb_init()
+def test_log_step_committed_same_dropped(wandb_backend_spy):
+    run = wandb.init()
     run.log(dict(cool=2), step=1)
     run.log(dict(cool=2), step=4, commit=True)
     run.log(dict(bad=3), step=4, commit=True)
@@ -440,8 +440,8 @@ def test_log_step_committed_same_dropped(wandb_backend_spy, wandb_init):
             assert len(items) == 1
 
 
-def test_log_empty_string(wandb_backend_spy, wandb_init):
-    run = wandb_init()
+def test_log_empty_string(wandb_backend_spy):
+    run = wandb.init()
     run.log(dict(cool=""))
     run.finish()
 

@@ -8,7 +8,7 @@ from wandb.sdk.lib.runid import generate_id
 
 
 @pytest.mark.flaky
-def test_sync_with_tensorboard(wandb_backend_spy, runner, copy_asset, user):
+def test_sync_with_tensorboard(wandb_backend_spy, runner, copy_asset):
     run_id = generate_id()
     with unittest.mock.patch.dict("os.environ", {"WANDB_MODE": "offline"}):
         tf_event = copy_asset("events.out.tfevents.1585769947.cvp")
@@ -46,7 +46,7 @@ def test_beta_sync(runner, mark_synced):
         assert not os.path.exists(f"{run.settings.sync_file}.synced")
 
 
-def test_beta_sync_two_runs(user, test_settings, runner):
+def test_beta_sync_two_runs(test_settings, runner):
     _ = pytest.importorskip("wandb_core")
     os.makedirs(".wandb", exist_ok=True)
     run = wandb.init(settings=test_settings({"mode": "offline"}))
