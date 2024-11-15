@@ -211,7 +211,6 @@ class WandbBackendSnapshot:
         except KeyError as e:
             raise KeyError(f"No run with ID {run_id}") from e
 
-        print(run._file_stream_files.get("output.log", {}))
         return dict(run._file_stream_files.get("output.log", {}))
 
     def summary(self, *, run_id: str) -> Any:
