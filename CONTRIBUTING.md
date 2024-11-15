@@ -22,17 +22,19 @@ Please make sure to update the ToC when you update this page!
 - [Setting up your development environment](#setting-up-your-development-environment)
   * [Setting up Python](#setting-up-python)
   * [Setting up Go](#setting-up-go)
+  * [Setting up Rust](#setting-up-rust)
   * [Building/installing the package](#building-installing-the-package)
   * [Linting the code](#linting-the-code)
   * [Auto-Generating Code](#auto-generating-code)
     + [Building protocol buffers](#building-protocol-buffers)
     + [Adding a new setting](#adding-a-new-setting)
-    + [Adding URLs](#adding-urls)
+    + [Adding URLs (internal use only)](#adding-urls--internal-use-only-)
     + [Deprecating features](#deprecating-features)
       - [Marking a feature as deprecated](#marking-a-feature-as-deprecated)
-  * [Modifying GraphQL Schema in `wandb-core`](#modifying-graphql-schema-in--wandb-core)
+  * [Modifying GraphQL Schema in `wandb-core`](#modifying-graphql-schema-in-wandb-core)
 - [Testing](#testing)
   * [Using pytest](#using-pytest)
+
 
 ## Development workflow
 
@@ -287,15 +289,11 @@ Note: you only need to do that if you change any of our protocol buffer files.
 - Add the new field to `wandb/proto/wandb_settings.proto` following the existing pattern.
   - Run `nox -t proto` to re-generate the python stubs.
 
-#### Adding URLs
+#### Adding URLs (internal use only)
 
-All URLs displayed to the user should be added to `wandb/sdk/lib/wburls.py`.  This will better
+All URLs displayed to the user should be added to `wandb/errors/links.py`.  This will better
 ensure that URLs do not lead to broken links.
-
-Once you add the URL to that file you will need to run:
-```shell
-nox -s codegen
-```
+You can use the `dub.co` service to shorten the URLs.
 
 #### Deprecating features
 
