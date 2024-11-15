@@ -339,8 +339,8 @@ def setup(settings: Settings | None = None) -> _WandbSetup | None:
     See also `wandb.teardown()`.
 
     Args:
-        settings: Configuration settings to apply globally.
-            These can be overridden by subsequent `wandb.init()` calls.
+        settings: Configuration settings to apply globally. These can be
+            overridden by subsequent `wandb.init()` calls.
 
     Example:
         ```python
