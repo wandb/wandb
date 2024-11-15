@@ -487,3 +487,9 @@ def test_setup_offline(test_settings):
     login_settings.mode = "offline"
     assert wandb.setup(settings=login_settings)._instance._get_entity() is None
     assert wandb.setup(settings=login_settings)._instance._load_viewer() is None
+
+
+def test_mutual_exclusion_of_branching_args():
+    run_id = "test"
+    with pytest.raises(ValueError):
+        Settings(run_id=run_id, resume_from=f"{run_id}?_step=10", resume="allow")
