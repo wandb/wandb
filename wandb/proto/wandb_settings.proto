@@ -45,7 +45,7 @@ message RunMoment {
 //
 // Next ID: 181
 message Settings {
-  reserved 6, 12, 36, 45, 50, 51, 94, 136, 137;
+  reserved 6, 12, 36, 43, 44, 45, 50, 51, 94, 136, 137;
 
   // The W&B API key.
   //
@@ -269,8 +269,6 @@ message Settings {
   google.protobuf.StringValue _start_datetime = 40;
   google.protobuf.Int32Value x_stats_pid = 42;
   google.protobuf.DoubleValue x_stats_sampling_interval = 174;
-  google.protobuf.DoubleValue x_stats_sample_rate_seconds = 43;
-  google.protobuf.Int32Value x_stats_samples_to_average = 44;
   google.protobuf.StringValue x_stats_neuron_monitor_config_path = 46;
   MapStringKeyStringValue x_stats_open_metrics_endpoints = 47;
   OpenMetricsFilters x_stats_open_metrics_filters = 48;

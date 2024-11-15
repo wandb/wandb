@@ -18,7 +18,6 @@ class Server:
         settings: Settings,
     ) -> None:
         self._api = InternalApi(default_settings=settings)
-        self._error_network: bool = False
         self._viewer: dict[str, Any] = {}
         self._flags: dict[str, Any] = {}
         self._settings: Settings = settings
@@ -30,12 +29,9 @@ class Server:
         try:
             viewer_tuple, viewer_thread = async_viewer()
         except Exception:
-            # TODO: currently a bare exception as lots can happen, we should classify
-            self._error_network = True
             return
         if viewer_thread.is_alive():
             # this is likely a DNS hang
-            self._error_network = True
             return
         # TODO(jhr): should we kill the thread?
         self._viewer, self._serverinfo = viewer_tuple

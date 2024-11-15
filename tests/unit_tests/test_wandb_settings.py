@@ -12,15 +12,9 @@ from wandb import Settings
 from wandb.errors import UsageError
 from wandb.sdk.lib.credentials import DEFAULT_WANDB_CREDENTIALS_FILE
 
-if sys.version_info >= (3, 8):
-    pass
-else:
-    pass
 
-
-@pytest.mark.skip(reason="Current behavior is to silently ignore unexpected arguments")
 def test_unexpected_arguments():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         Settings(lol=False)
 
 
@@ -97,7 +91,7 @@ def test_offline(test_settings):
 
 def test_silent(test_settings):
     s = test_settings()
-    s.from_env_vars({"WANDB_SILENT": "true"})
+    s.update_from_env_vars({"WANDB_SILENT": "true"})
     assert s.silent is True
 
 

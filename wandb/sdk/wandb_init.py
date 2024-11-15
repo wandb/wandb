@@ -222,7 +222,7 @@ class _WandbInit:
             if sagemaker_env:
                 if sagemaker_api_key:
                     sagemaker_env["WANDB_API_KEY"] = sagemaker_api_key
-                settings.from_env_vars(sagemaker_env)
+                settings.update_from_env_vars(sagemaker_env)
                 wandb.setup(settings=settings)
             settings.update_from_dict(sagemaker_run)
             with telemetry.context(obj=self._init_telemetry_obj) as tel:

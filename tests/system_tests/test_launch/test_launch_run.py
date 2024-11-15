@@ -67,7 +67,7 @@ def test_run_in_launch_context_with_malformed_env_vars(
         assert "Malformed WANDB_ARTIFACTS, using original artifacts" in err
 
 
-def test_repo_job_creation(test_settings, user, wandb_init):
+def test_repo_job_creation(user, wandb_init):
     settings = wandb.Settings(
         program_relpath="./blah/test_program.py",
         git_remote_url="https://github.com/test/repo",

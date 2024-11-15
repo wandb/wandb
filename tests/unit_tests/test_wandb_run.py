@@ -236,7 +236,7 @@ def test_deprecated_run_log_sync(mock_run, mock_wandb_log):
 def test_run_log_mp_warn(mock_run, test_settings, monkeypatch, mock_wandb_log):
     monkeypatch.setenv("WANDB_DISABLE_SERVICE", "true")
     settings = test_settings()
-    settings.from_env_vars(os.environ)
+    settings.update_from_env_vars(os.environ)
 
     run = mock_run(settings=settings)
     run._init_pid = os.getpid()
