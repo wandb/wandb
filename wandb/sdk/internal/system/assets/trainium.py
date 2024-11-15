@@ -315,8 +315,8 @@ class Trainium:
         self.name = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [
             NeuronCoreStats(
-                settings._stats_pid,
-                settings._stats_neuron_monitor_config_path,
+                settings.x_stats_pid,
+                settings.x_stats_neuron_monitor_config_path,
             ),
         ]
         self.metrics_monitor = MetricsMonitor(

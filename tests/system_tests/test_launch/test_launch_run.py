@@ -45,7 +45,7 @@ def test_run_in_launch_context_with_multi_config_env_var(
         for k in config_env_vars.keys():
             monkeypatch.setenv(k, config_env_vars[k])
         settings = test_settings()
-        settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
+        settings.launch = True
         run = wandb_init(settings=settings, config={"epochs": 2, "lr": 0.004})
         run.finish()
         assert run.config.epochs == 10
@@ -59,7 +59,7 @@ def test_run_in_launch_context_with_malformed_env_vars(
         monkeypatch.setenv("WANDB_ARTIFACTS", '{"epochs: 6}')
         monkeypatch.setenv("WANDB_CONFIG", '{"old_name": {"name": "test:v0"')
         settings = test_settings()
-        settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
+        settings.launch = True
         run = wandb_init(settings=settings, config={"epochs": 2, "lr": 0.004})
         run.finish()
         _, err = capsys.readouterr()
@@ -67,14 +67,11 @@ def test_run_in_launch_context_with_malformed_env_vars(
         assert "Malformed WANDB_ARTIFACTS, using original artifacts" in err
 
 
-def test_repo_job_creation(test_settings, user, wandb_init):
-    settings = test_settings()
-    settings.update(
-        {
-            "program_relpath": "./blah/test_program.py",
-            "git_remote_url": "https://github.com/test/repo",
-            "git_commit": "asdasdasdasd",
-        }
+def test_repo_job_creation(user, wandb_init):
+    settings = wandb.Settings(
+        program_relpath="./blah/test_program.py",
+        git_remote_url="https://github.com/test/repo",
+        git_commit="asdasdasdasd",
     )
     with wandb_init(settings=settings) as run:
         run.log({"test": 1})
@@ -86,16 +83,13 @@ def test_repo_job_creation(test_settings, user, wandb_init):
     assert artifact.name == f"{job_name}:v0"
 
 
-def test_artifact_job_creation(test_settings, runner, user, wandb_init):
+def test_artifact_job_creation(runner, user, wandb_init):
     with runner.isolated_filesystem():
         with open("test.py", "w") as f:
             f.write('print("test")')
-        settings = test_settings()
-        settings.update(
-            {
-                "disable_git": True,
-                "program_relpath": "./blah/test_program.py",
-            }
+        settings = wandb.Settings(
+            disable_git=True,
+            program_relpath="./blah/test_program.py",
         )
         run = wandb_init(settings=settings)
         run.log_code()
@@ -110,7 +104,7 @@ def test_artifact_job_creation(test_settings, runner, user, wandb_init):
 
 def test_container_job_creation(test_settings, user):
     settings = test_settings()
-    settings.update({"disable_git": True})
+    settings.disable_git = True
     with mock.patch.dict("os.environ", WANDB_DOCKER="dummy-container:docker-tag"):
         run = wandb.init(settings=settings)
         run.finish()
