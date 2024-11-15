@@ -8,7 +8,7 @@ import pytest
     ["spawn", "forkserver"],
 )
 @pytest.mark.wandb_core_only
-def test_share_child_base_spawn(
+def test_share_child_base(
     wandb_backend_spy,
     start_method,
     execute_script,

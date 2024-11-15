@@ -98,12 +98,9 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     with runner.isolated_filesystem(), mock.patch.dict(
         "os.environ", WANDB_ARTIFACTS=artifact_env
     ):
-        settings.update(
-            {
-                "job_source": "artifact",
-                "launch": True,
-            }
-        )
+        settings.job_source = "artifact"
+        settings.launch = True
+
         run2 = wandb_init(settings=settings, config={"input1": 1})
         run2.log({"x": 2})
         run2.finish()
@@ -180,12 +177,8 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
     with runner.isolated_filesystem(), mock.patch.dict(
         "os.environ", WANDB_ARTIFACTS=artifact_env
     ):
-        settings.update(
-            {
-                "job_source": "repo",
-                "launch": True,
-            }
-        )
+        settings.job_source = "repo"
+        settings.launch = True
         run2 = wandb_init(settings=settings, config={"input1": 1})
         run2.log({"x": 2})
         run2.finish()

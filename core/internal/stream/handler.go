@@ -414,7 +414,7 @@ func (h *Handler) handleMetric(record *spb.Record) {
 	}
 }
 
-func (h *Handler) handleRequestDefer(record *spb.Record, request *spb.DeferRequest) {
+func (h *Handler) handleRequestDefer(record *spb.Record, _ *spb.DeferRequest) {
 	// Need to clone the record to avoid race condition with the writer
 	record = proto.Clone(record).(*spb.Record)
 	h.fwdRecordWithControl(record,
@@ -516,7 +516,6 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 		Os:            h.settings.GetOS(),
 		Python:        h.settings.GetPython(),
 		Host:          h.settings.GetHostProcessorName(),
-		Cuda:          h.settings.GetCUDAVersion(),
 		Program:       h.settings.GetProgram(),
 		CodePath:      h.settings.GetProgramRelativePath(),
 		CodePathLocal: h.settings.GetProgramRelativePathFromCwd(),
@@ -533,12 +532,12 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 	h.handleMetadata(metadata)
 
 	// start the system monitor
-	if !h.settings.IsDisableStats() {
+	if !h.settings.IsDisableStats() && !h.settings.GetDisableMachineInfo() {
 		h.systemMonitor.Start()
 	}
 
 	// save code and patch
-	if h.settings.IsSaveCode() {
+	if h.settings.IsSaveCode() && !h.settings.GetDisableMachineInfo() {
 		h.handleCodeSave()
 		h.handlePatchSave()
 	}
@@ -625,7 +624,7 @@ func (h *Handler) handleCodeSave() {
 
 func (h *Handler) handlePatchSave() {
 	// capture git state
-	if h.settings.IsDisableGit() {
+	if h.settings.IsDisableGit() || h.settings.GetDisableMachineInfo() {
 		return
 	}
 
@@ -673,7 +672,7 @@ func (h *Handler) handlePatchSave() {
 func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
 	// TODO: Sending metadata as a request for now, eventually this should be turned into
 	//  a record and stored in the transaction log
-	if h.settings.IsDisableMeta() {
+	if h.settings.IsDisableMeta() || h.settings.GetDisableMachineInfo() {
 		return
 	}
 
