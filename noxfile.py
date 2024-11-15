@@ -113,6 +113,11 @@ def run_pytest(
     # Print 20 slowest tests.
     pytest_opts.append(f"--durations={opts.get('durations', 20)}")
 
+    # Track and report memory usage with memray.
+    pytest_opts.append("--memray")
+    # Show the 5 tests that allocate most memory.
+    pytest_opts.append("--most-allocations=5")
+
     # Output test results for tooling.
     junitxml = _NOX_PYTEST_RESULTS_DIR / session_file_name / "junit.xml"
     pytest_opts.append(f"--junitxml={junitxml}")
@@ -123,6 +128,12 @@ def run_pytest(
 
     # (pytest-xdist) Run tests in parallel.
     pytest_opts.append(f"-n={opts.get('n', 'auto')}")
+
+    # Limit the # of workers in CI. Due to heavy tensorflow and pytorch imports,
+    # each worker uses up 700MB+ of memory, so with a large number of workers,
+    # we start to max out the RAM and slow down. This also causes flakes in
+    # time-dependent tests.
+    pytest_opts.append("--maxprocesses=10")
 
     # (pytest-split) Run a subset of tests only (for external parallelism).
     (circle_node_index, circle_node_total) = get_circleci_splits(session)
@@ -168,6 +179,8 @@ def unit_tests(session: nox.Session) -> None:
     run_pytest(
         session,
         paths=session.posargs or ["tests/unit_tests"],
+        # TODO: consider relaxing this once the test memory usage is under control.
+        opts={"n": "8"},
     )
 
 
@@ -193,6 +206,8 @@ def system_tests(session: nox.Session) -> None:
                 "--ignore=tests/system_tests/test_experimental",
             ]
         ),
+        # TODO: consider relaxing this once the test memory usage is under control.
+        opts={"n": "8"},
     )
 
 
