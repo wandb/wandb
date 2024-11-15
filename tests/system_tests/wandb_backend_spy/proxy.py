@@ -180,18 +180,17 @@ class WandbBackendProxy:
 
     async def _post_graphql(self, request: fastapi.Request) -> fastapi.Response:
         """Handle a GraphQL request and maybe relay it to the backend."""
-        request_body = await request.body()
+        with self._lock:
+            spy = self._spy
 
         response = None
-        with self._lock:
-            if self._spy:
-                response = self._spy.intercept_graphql(request_body)
+        if spy:
+            response = spy.intercept_graphql(await request.body())
         if not response:
             response = await self._relay(request)
 
-        with self._lock:
-            if self._spy:
-                self._spy.post_graphql(request_body, response.body)
+        if spy:
+            spy.post_graphql(await request.body(), response.body)
 
         return response
 
@@ -204,17 +203,22 @@ class WandbBackendProxy:
         run_id: str,
     ) -> fastapi.Response:
         """Handle a FileStream request and maybe relay it to the backend."""
-        response = await self._relay(request)
-
-        request_body = await request.body()
         with self._lock:
-            if self._spy:
-                self._spy.post_file_stream(
-                    request_body,
-                    response.body,
-                    entity=entity,
-                    project=project,
-                    run_id=run_id,
-                )
+            spy = self._spy
+
+        response = None
+        if spy:
+            response = spy.intercept_filestream()
+        if not response:
+            response = await self._relay(request)
+
+        if spy:
+            spy.post_file_stream(
+                await request.body(),
+                response.body,
+                entity=entity,
+                project=project,
+                run_id=run_id,
+            )
 
         return response
