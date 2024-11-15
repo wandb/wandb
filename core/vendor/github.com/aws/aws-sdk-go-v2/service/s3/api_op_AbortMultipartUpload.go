@@ -28,7 +28,7 @@ import (
 //     progress, you can't delete the bucket until all the in-progress multipart
 //     uploads are aborted or completed. To delete these in-progress multipart uploads,
 //     use the ListMultipartUploads operation to list the in-progress multipart
-//     uploads in the bucket and use the AbortMultupartUpload operation to abort all
+//     uploads in the bucket and use the AbortMultipartUpload operation to abort all
 //     the in-progress multipart uploads.
 //
 //   - Directory buckets - For directory buckets, you must make requests for this
