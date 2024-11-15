@@ -180,9 +180,15 @@ class WandbBackendProxy:
 
     async def _post_graphql(self, request: fastapi.Request) -> fastapi.Response:
         """Handle a GraphQL request and maybe relay it to the backend."""
-        response = await self._relay(request)
-
         request_body = await request.body()
+
+        response = None
+        with self._lock:
+            if self._spy:
+                response = self._spy.intercept_graphql(request_body)
+        if not response:
+            response = await self._relay(request)
+
         with self._lock:
             if self._spy:
                 self._spy.post_graphql(request_body, response.body)

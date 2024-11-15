@@ -230,7 +230,7 @@ func NewStream(
 	s.writer = NewWriter(
 		WriterParams{
 			Logger:   s.logger,
-			Settings: s.settings.Proto,
+			Settings: s.settings,
 			FwdChan:  make(chan runwork.Work, BufferSize),
 		},
 	)

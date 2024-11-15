@@ -50,7 +50,7 @@ class Settings(BaseModel, validate_assignment=True):
     # Pydantic configuration.
     model_config = ConfigDict(
         extra="forbid",  # throw an error if extra fields are provided
-        validate_default=True,  # validate default values
+        # validate_default=True,  # validate default values
     )
 
     # Public settings.
@@ -236,6 +236,8 @@ class Settings(BaseModel, validate_assignment=True):
     #
     # This number is approximate: requests will be slightly larger.
     x_file_stream_max_bytes: int | None = None
+    # Max line length for filestream jsonl files.
+    x_file_stream_max_line_bytes: int | None = None
     # Interval in seconds between filestream transmissions.
     x_file_stream_transmit_interval: float | None = None
     # Filestream retry client configuration.
@@ -372,6 +374,13 @@ class Settings(BaseModel, validate_assignment=True):
             value = "wrap"
         else:
             value = "redirect"
+        return value
+
+    @field_validator("x_file_stream_max_line_bytes", mode="after")
+    @classmethod
+    def validate_file_stream_max_line_bytes(cls, value):
+        if value is not None and value < 1:
+            raise ValueError("File stream max line bytes must be greater than 0")
         return value
 
     @field_validator("fork_from", mode="before")
