@@ -567,7 +567,6 @@ class _WandbInit:
             "log_model",
             "use_model",
             "mark_preempting",
-            "plot_table",
             "restore",
             "status",
             "watch",
@@ -599,7 +598,6 @@ class _WandbInit:
             use_artifact=drun.use_artifact,
             log_artifact=drun.log_artifact,
             define_metric=drun.define_metric,
-            plot_table=drun.plot_table,
             alert=drun.alert,
             watch=drun.watch,
             unwatch=drun.unwatch,
@@ -1226,16 +1224,6 @@ def init(  # noqa: C901
         A `Run` object.
     """
     wandb._assert_is_user_process()  # type: ignore
-
-    num_resume_options_set = (
-        (fork_from is not None)  # wrap
-        + (resume is not None)
-        + (resume_from is not None)
-    )
-    if num_resume_options_set > 1:
-        raise ValueError(
-            "You cannot specify more than one of `fork_from`, `resume`, or `resume_from`"
-        )
 
     init_settings = Settings()
     if isinstance(settings, dict):
