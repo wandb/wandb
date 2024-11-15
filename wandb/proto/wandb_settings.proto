@@ -148,7 +148,7 @@ message Settings {
   //
   // Note: this value should not be set unless you have clear understanding of
   // the impact on the back-end.
-  google.protobuf.Int32Value _file_stream_max_line_bytes = 178;
+  google.protobuf.Int32Value x_file_stream_max_line_bytes = 178;
 
   // Maximum number of retries for file upload/download operations.
   google.protobuf.Int32Value x_file_transfer_retry_max = 150;

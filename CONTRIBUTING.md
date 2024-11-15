@@ -283,7 +283,7 @@ Note: you only need to do that if you change any of our protocol buffer files.
 - Update the `wandb/sdk/wandb_settings.py::Settings` class.
   - Public settings should be declared as class attributes with optional default value and validator methods.
   - Modifiable settings meant for internal use should be prefixed with `x_`.
-  - Read-only computed settings should be defined as class methods using the `@computed_field` and `@property` decorators. If meant for intenal use only, should be prefixed with `_`.
+  - Read-only computed settings should be defined as class methods using the `@computed_field` and `@property` decorators. If meant for internal use only, should be prefixed with `_`.
 - Add the new field to `wandb/proto/wandb_settings.proto` following the existing pattern.
   - Run `nox -t proto` to re-generate the python stubs.
 
