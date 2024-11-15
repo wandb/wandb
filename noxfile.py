@@ -113,6 +113,11 @@ def run_pytest(
     # Print 20 slowest tests.
     pytest_opts.append(f"--durations={opts.get('durations', 20)}")
 
+    # Track and report memory usage with memray.
+    pytest_opts.append("--memray")
+    # Show the 5 tests that allocate most memory.
+    pytest_opts.append("--most-allocations=5")
+
     # Output test results for tooling.
     junitxml = _NOX_PYTEST_RESULTS_DIR / session_file_name / "junit.xml"
     pytest_opts.append(f"--junitxml={junitxml}")
@@ -168,6 +173,8 @@ def unit_tests(session: nox.Session) -> None:
     run_pytest(
         session,
         paths=session.posargs or ["tests/unit_tests"],
+        # TODO: consider relaxing this once the test memory usage is under control.
+        opts={"n": "8"},
     )
 
 
@@ -193,6 +200,8 @@ def system_tests(session: nox.Session) -> None:
                 "--ignore=tests/system_tests/test_experimental",
             ]
         ),
+        # TODO: consider relaxing this once the test memory usage is under control.
+        opts={"n": "8"},
     )
 
 

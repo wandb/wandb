@@ -35,6 +35,15 @@ from wandb.sdk.lib.paths import StrPath  # noqa: E402
 # --------------------------------
 
 
+@pytest.fixture
+def disable_memray(pytestconfig):
+    """Disables the memray plugin for the duration of the test."""
+    memray_plugin = pytestconfig.pluginmanager.get_plugin("memray_manager")
+    pytestconfig.pluginmanager.unregister(memray_plugin)
+    yield
+    pytestconfig.pluginmanager.register(memray_plugin, "memray_manager")
+
+
 @pytest.fixture(autouse=True)
 def setup_wandb_env_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     """Configures wandb env variables to suitable defaults for tests."""
