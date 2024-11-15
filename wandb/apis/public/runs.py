@@ -318,7 +318,6 @@ class Run(Attrs):
         """
         _attrs = attrs or {}
         super().__init__(dict(_attrs))
-        print("Run.__init__() — project_internal_id: ", project_internal_id)
         self.client = client
         self._entity = entity
         self.project = project
@@ -420,7 +419,6 @@ class Run(Attrs):
         )
 
     def load(self, force=False):
-        print("Run.load() — self._project_internal_id: ", self._project_internal_id)
         query = gql(
             """
         query Run($project: String!, $entity: String!, $name: String!) {{
@@ -506,7 +504,6 @@ class Run(Attrs):
             res = self._exec(query)
             state = res["project"]["run"]["state"]
             if state in ["finished", "crashed", "failed"]:
-                print(f"Run finished with status: {state}")
                 self._attrs["state"] = state
                 self._state = state
                 return
@@ -633,7 +630,6 @@ class Run(Attrs):
         Returns:
             A `Files` object, which is an iterator over `File` objects.
         """
-        print("run.files() — self._project_internal_id: ", self._project_internal_id)
         return public.Files(self.client, self, names or [], per_page)
 
     @normalize_exceptions
