@@ -398,12 +398,10 @@ func (nc *Connection) handleInformAttach(msg *spb.ServerInformAttachRequest) {
 func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 	slog.Debug("handleAuthenticate: received", "id", nc.id)
 
-	s := &settings.Settings{
-		Proto: &spb.Settings{
-			ApiKey:  &wrapperspb.StringValue{Value: msg.ApiKey},
-			BaseUrl: &wrapperspb.StringValue{Value: msg.BaseUrl},
-		},
-	}
+	s := settings.From(&spb.Settings{
+		ApiKey:  &wrapperspb.StringValue{Value: msg.ApiKey},
+		BaseUrl: &wrapperspb.StringValue{Value: msg.BaseUrl},
+	})
 	backend := stream.NewBackend(observability.NewNoOpLogger(), s) // TODO: use a real logger
 	graphqlClient := stream.NewGraphQLClient(backend, s, &observability.Peeker{})
 

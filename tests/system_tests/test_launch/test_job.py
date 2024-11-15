@@ -11,36 +11,35 @@ from wandb.sdk.launch.create_job import _create_job
 from wandb.sdk.launch.git_reference import GitReference
 
 
-def test_job_call(relay_server, user, wandb_init, test_settings):
+def test_job_call(user, wandb_init, test_settings):
     proj = "TEST_PROJECT"
     queue = "TEST_QUEUE"
     public_api = PublicApi()
     internal_api = InternalApi()
     settings = test_settings({"project": proj})
 
-    with relay_server():
-        run = wandb_init(settings=settings)
+    run = wandb_init(settings=settings)
 
-        docker_image = "TEST_IMAGE"
-        job_artifact = run._log_job_artifact_with_image(docker_image)
-        job_name = job_artifact.wait().name
-        job = public_api.job(f"{user}/{proj}/{job_name}")
+    docker_image = "TEST_IMAGE"
+    job_artifact = run._log_job_artifact_with_image(docker_image)
+    job_name = job_artifact.wait().name
+    job = public_api.job(f"{user}/{proj}/{job_name}")
 
-        internal_api.create_run_queue(
-            entity=user, project=proj, queue_name=queue, access="PROJECT"
-        )
+    internal_api.create_run_queue(
+        entity=user, project=proj, queue_name=queue, access="PROJECT"
+    )
 
-        queued_run = job.call(config={}, project=proj, queue=queue, project_queue=proj)
+    queued_run = job.call(config={}, project=proj, queue=queue, project_queue=proj)
 
-        assert queued_run.state == "pending"
-        assert queued_run.entity == user
-        assert queued_run.project == proj
+    assert queued_run.state == "pending"
+    assert queued_run.entity == user
+    assert queued_run.project == proj
 
-        rqi = internal_api.pop_from_run_queue(queue, user, proj)
+    rqi = internal_api.pop_from_run_queue(queue, user, proj)
 
-        assert rqi["runSpec"]["job"].split("/")[-1] == f"job-{docker_image}:v0"
-        assert rqi["runSpec"]["project"] == proj
-        run.finish()
+    assert rqi["runSpec"]["job"].split("/")[-1] == f"job-{docker_image}:v0"
+    assert rqi["runSpec"]["project"] == proj
+    run.finish()
 
 
 def test_create_job_artifact(runner, user, wandb_init, test_settings):

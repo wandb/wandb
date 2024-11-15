@@ -10,7 +10,7 @@ import uuid
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Dict, Optional
 
-from ..lib import mailbox, tracelog
+from ..lib import mailbox
 from .message_future import MessageFuture
 
 if TYPE_CHECKING:
@@ -108,7 +108,6 @@ class MessageRouter:
             # TODO (cvp): saw this in tests, seemed benign enough to ignore, but
             # could point to other issues.
             if msg.uuid != "":
-                tracelog.log_message_assert(msg)
                 logger.warning(
                     "No listener found for msg with uuid %s (%s)", msg.uuid, msg
                 )

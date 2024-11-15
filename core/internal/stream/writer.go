@@ -7,12 +7,13 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type WriterParams struct {
 	Logger   *observability.CoreLogger
-	Settings *spb.Settings
+	Settings *settings.Settings
 	FwdChan  chan runwork.Work
 }
 
@@ -22,7 +23,7 @@ type WriterParams struct {
 // It also sends the messages to the sender.
 type Writer struct {
 	// settings is the settings for the writer
-	settings *spb.Settings
+	settings *settings.Settings
 
 	// logger is the logger for the writer
 	logger *observability.CoreLogger
@@ -55,7 +56,7 @@ func NewWriter(params WriterParams) *Writer {
 }
 
 func (w *Writer) startStore() {
-	if w.settings.GetXSync().GetValue() {
+	if w.settings.IsSync() {
 		// do not set up store if we are syncing an offline run
 		return
 	}
@@ -63,7 +64,7 @@ func (w *Writer) startStore() {
 	w.storeChan = make(chan *spb.Record, BufferSize*8)
 
 	var err error
-	w.store = NewStore(w.settings.GetSyncFile().GetValue())
+	w.store = NewStore(w.settings.GetTransactionLogPath())
 	err = w.store.Open(os.O_WRONLY)
 	if err != nil {
 		w.logger.CaptureFatalAndPanic(
@@ -93,7 +94,7 @@ func (w *Writer) startStore() {
 // Do processes all records on the input channel.
 func (w *Writer) Do(allWork <-chan runwork.Work) {
 	defer w.logger.Reraise()
-	w.logger.Info("writer: Do: started", "stream_id", w.settings.RunId)
+	w.logger.Info("writer: Do: started", "stream_id", w.settings.GetRunID())
 
 	w.startStore()
 
@@ -101,12 +102,12 @@ func (w *Writer) Do(allWork <-chan runwork.Work) {
 		w.logger.Debug(
 			"write: Do: got work",
 			"work", work,
-			"stream_id", w.settings.RunId,
+			"stream_id", w.settings.GetRunID(),
 		)
 
 		work.Save(w.writeRecord)
 
-		if w.settings.GetXOffline().GetValue() && !work.BypassOfflineMode() {
+		if w.settings.IsOffline() && !work.BypassOfflineMode() {
 			continue
 		}
 
@@ -124,7 +125,7 @@ func (w *Writer) Close() {
 	if w.storeChan != nil {
 		close(w.storeChan)
 	}
-	w.logger.Info("writer: Close: closed", "stream_id", w.settings.RunId)
+	w.logger.Info("writer: Close: closed", "stream_id", w.settings.GetRunID())
 }
 
 // writeRecord Writing messages to the append-only log,

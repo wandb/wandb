@@ -10,7 +10,7 @@ For reference documentation, see https://docs.wandb.com/ref/python.
 """
 from __future__ import annotations
 
-__version__ = "0.18.6.dev1"
+__version__ = "0.18.8.dev1"
 
 
 from wandb.errors import Error
@@ -75,7 +75,7 @@ from wandb.data_types import JoinedTable
 
 from wandb.wandb_agent import agent
 
-from wandb.plot.viz import visualize
+from wandb.plot import visualize
 from wandb.integration.sagemaker import sagemaker_auth
 from wandb.sdk.internal import profiler
 

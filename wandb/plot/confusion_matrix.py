@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from typing import Sequence, TypeVar
+from typing import TYPE_CHECKING, Sequence, TypeVar
 
+import wandb
 from wandb import util
-from wandb.data_types import Table
-from wandb.plot.custom_chart import CustomChart
+from wandb.plot.custom_chart import plot_table
+
+if TYPE_CHECKING:
+    from wandb.plot.custom_chart import CustomChart
 
 T = TypeVar("T")
 
@@ -14,26 +17,28 @@ def confusion_matrix(
     y_true: Sequence[T] | None = None,
     preds: Sequence[T] | None = None,
     class_names: Sequence[str] | None = None,
-    title: str = "",
+    title: str = "Confusion Matrix Curve",
     split_table: bool = False,
 ) -> CustomChart:
     """Constructs a confusion matrix from a sequence of probabilities or predictions.
 
     Args:
-        probs (Sequence[Sequence[float]]): A sequence of predicted probabilities for each
+        probs (Sequence[Sequence[float]] | None): A sequence of predicted probabilities for each
             class. The sequence shape should be (N, K) where N is the number of samples
             and K is the number of classes. If provided, `preds` should not be provided.
-        y_true (Sequence[T]): A sequence of true labels.
-        preds (Sequence[T]): A sequence of predicted class labels. If provided,
+        y_true (Sequence[T] | None): A sequence of true labels.
+        preds (Sequence[T] | None): A sequence of predicted class labels. If provided,
             `probs` should not be provided.
-        class_names (Sequence[str]): Sequence of class names. If not
+        class_names (Sequence[str] | None): Sequence of class names. If not
             provided, class names will be defined as "Class_1", "Class_2", etc.
         title (str): Title of the confusion matrix chart.
-        split_table (bool): Whether to split the table into a different section
-            in the UI. Default is False.
+        split_table (bool): Whether the table should be split into a separate section
+            in the W&B UI. If `True`, the table will be displayed in a section named
+            "Custom Chart Tables". Default is `False`.
 
     Returns:
-        A confusion matrix chart. That can be logged to W&B with `wandb.log()`.
+        CustomChart: A custom chart object that can be logged to W&B. To log the
+            chart, pass it to `wandb.log()`.
 
     Raises:
         ValueError: If both `probs` and `preds` are provided or if the number of
@@ -160,12 +165,12 @@ def confusion_matrix(
         for j in range(n_classes)
     ]
 
-    return CustomChart(
-        id="wandb/confusion_matrix/v1",
-        data=Table(
+    return plot_table(
+        data_table=wandb.Table(
             columns=["Actual", "Predicted", "nPredictions"],
             data=data,
         ),
+        vega_spec_name="wandb/confusion_matrix/v1",
         fields={
             "Actual": "Actual",
             "Predicted": "Predicted",

@@ -39,8 +39,7 @@ from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError, UnsupportedError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
-from wandb.plot.custom_chart import CustomChart
-from wandb.plot.viz import Visualize, plot_table
+from wandb.plot import CustomChart, Visualize, plot_table
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
@@ -549,7 +548,6 @@ class Run:
     _redirect_cb: Callable[[str, str], None] | None
     _redirect_raw_cb: Callable[[str, str], None] | None
     _output_writer: filesystem.CRDedupedFile | None
-    _quiet: bool | None
 
     _atexit_cleanup_called: bool
     _hooks: ExitHooks | None
@@ -657,7 +655,6 @@ class Run:
         self._stderr_slave_fd = None
         self._exit_code = None
         self._exit_result = None
-        self._quiet = self._settings.quiet
 
         self._output_writer = None
         self._used_artifact_slots: dict[str, str] = {}
@@ -1469,61 +1466,56 @@ class Run:
         files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
-    def _visualization_hack(self, row: dict[str, Any]) -> dict[str, Any]:
-        # TODO(jhr): move visualize hack somewhere else
+    def _serialize_custom_charts(self, data: dict[str, Any]) -> dict[str, Any]:
+        if not data:
+            return data
+
         chart_keys = set()
-        split_table_set = set()
-        for k in row:
-            if isinstance(row[k], Visualize):
-                key = row[k].get_config_key(k)
-                value = row[k].get_config_value(k)
-                row[k] = row[k]._data
-                self._config_callback(val=value, key=key)
-            elif isinstance(row[k], CustomChart):
+        for k, v in data.items():
+            if isinstance(v, Visualize):
+                data[k] = v.table
+                v.set_key(k)
+                self._config_callback(
+                    val=v.spec.config_value,
+                    key=v.spec.config_key,
+                )
+            elif isinstance(v, CustomChart):
                 chart_keys.add(k)
-                key = row[k].get_config_key(k)
-                if row[k]._split_table:
-                    value = row[k].get_config_value(
-                        "Vega2", row[k].user_query(f"Custom Chart Tables/{k}_table")
-                    )
-                    split_table_set.add(k)
-                else:
-                    value = row[k].get_config_value(
-                        "Vega2", row[k].user_query(f"{k}_table")
-                    )
-                row[k] = row[k]._data
-                self._config_callback(val=value, key=key)
+                v.set_key(k)
+                self._config_callback(
+                    key=v.spec.config_key,
+                    val=v.spec.config_value,
+                )
 
         for k in chart_keys:
             # remove the chart key from the row
-            # TODO: is this really the right move? what if the user logs
-            #     a non-custom chart to this key?
-            if k in split_table_set:
-                row[f"Custom Chart Tables/{k}_table"] = row.pop(k)
-            else:
-                row[f"{k}_table"] = row.pop(k)
-        return row
+            v = data.pop(k)
+            if isinstance(v, CustomChart):
+                data[v.spec.table_key] = v.table
+        return data
 
     def _partial_history_callback(
         self,
-        row: dict[str, Any],
+        data: dict[str, Any],
         step: int | None = None,
         commit: bool | None = None,
     ) -> None:
-        row = row.copy()
-        if row:
-            row = self._visualization_hack(row)
+        if not (self._backend and self._backend.interface):
+            return
 
-        if self._backend and self._backend.interface:
-            not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+        data = data.copy()  # avoid modifying the original data
 
-            self._backend.interface.publish_partial_history(
-                row,
-                user_step=self._step,
-                step=step,
-                flush=commit,
-                publish_step=not_using_tensorboard,
-            )
+        # Serialize custom charts before publishing
+        data = self._serialize_custom_charts(data)
+
+        not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+        self._backend.interface.publish_partial_history(
+            data,
+            user_step=self._step,
+            step=step,
+            flush=commit,
+            publish_step=not_using_tensorboard,
+        )
 
     def _console_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
@@ -2143,21 +2135,25 @@ class Run:
 
         Args:
             exit_code: Set to something other than 0 to mark a run as failed
-            quiet: Set to true to minimize log output
+            quiet: Deprecated, use `wandb.Settings(quiet=...)` to set this instead.
         """
-        return self._finish(exit_code, quiet)
+        if quiet is not None:
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__finish_quiet,
+                warning_message=(
+                    "The `quiet` argument to `wandb.run.finish()` is deprecated, "
+                    "use `wandb.Settings(quiet=...)` to set this instead."
+                ),
+            )
+        return self._finish(exit_code)
 
     def _finish(
         self,
         exit_code: int | None = None,
-        quiet: bool | None = None,
     ) -> None:
         logger.info(f"finishing run {self._get_path()}")
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
-
-        if quiet is not None:
-            self._quiet = quiet
 
         # Pop this run (hopefully) from the run stack, to support the "reinit"
         # functionality of wandb.init().
@@ -2451,7 +2447,6 @@ class Run:
             poll_exit_response=self._poll_exit_response,
             internal_messages_response=self._internal_messages_response,
             reporter=self._reporter,
-            quiet=self._quiet,
             settings=self._settings,
             printer=self._printer,
         )
@@ -3862,7 +3857,6 @@ class Run:
         poll_exit_response: PollExitResponse | None = None,
         internal_messages_response: InternalMessagesResponse | None = None,
         reporter: Reporter | None = None,
-        quiet: bool | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
@@ -3870,37 +3864,32 @@ class Run:
         Run._footer_history_summary_info(
             history=sampled_history,
             summary=final_summary,
-            quiet=quiet,
             settings=settings,
             printer=printer,
         )
 
         Run._footer_sync_info(
             poll_exit_response=poll_exit_response,
-            quiet=quiet,
             settings=settings,
             printer=printer,
         )
-        Run._footer_log_dir_info(quiet=quiet, settings=settings, printer=printer)
+        Run._footer_log_dir_info(settings=settings, printer=printer)
         Run._footer_notify_wandb_core(
-            quiet=quiet,
             settings=settings,
             printer=printer,
         )
         Run._footer_internal_messages(
             internal_messages_response=internal_messages_response,
-            quiet=quiet,
             settings=settings,
             printer=printer,
         )
         Run._footer_reporter_warn_err(
-            reporter=reporter, quiet=quiet, settings=settings, printer=printer
+            reporter=reporter, settings=settings, printer=printer
         )
 
     @staticmethod
     def _footer_sync_info(
         poll_exit_response: PollExitResponse | None = None,
-        quiet: bool | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
@@ -3909,7 +3898,7 @@ class Run:
             return
 
         if settings._offline:
-            if not quiet and not settings.quiet:
+            if not settings.quiet:
                 printer.display(
                     [
                         "You can sync this run to the cloud by running:",
@@ -3938,12 +3927,11 @@ class Run:
 
     @staticmethod
     def _footer_log_dir_info(
-        quiet: bool | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
     ) -> None:
-        if (quiet or settings.quiet) or settings.silent:
+        if settings.quiet or settings.silent:
             return
 
         log_dir = settings.log_user or settings.log_internal
@@ -3957,12 +3945,11 @@ class Run:
     def _footer_history_summary_info(
         history: SampledHistoryResponse | None = None,
         summary: GetSummaryResponse | None = None,
-        quiet: bool | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
     ) -> None:
-        if (quiet or settings.quiet) or settings.silent:
+        if settings.quiet or settings.silent:
             return
 
         panel = []
@@ -4027,12 +4014,11 @@ class Run:
     @staticmethod
     def _footer_internal_messages(
         internal_messages_response: InternalMessagesResponse | None = None,
-        quiet: bool | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
     ) -> None:
-        if (quiet or settings.quiet) or settings.silent:
+        if settings.quiet or settings.silent:
             return
 
         if not internal_messages_response:
@@ -4044,12 +4030,11 @@ class Run:
     @staticmethod
     def _footer_notify_wandb_core(
         *,
-        quiet: bool | None = None,
         settings: Settings,
         printer: printer.Printer,
     ) -> None:
         """Prints a message advertising the upcoming core release."""
-        if quiet or not settings._require_legacy_service:
+        if settings.quiet or not settings._require_legacy_service:
             return
 
         printer.display(
@@ -4062,12 +4047,11 @@ class Run:
     @staticmethod
     def _footer_reporter_warn_err(
         reporter: Reporter | None = None,
-        quiet: bool | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
     ) -> None:
-        if (quiet or settings.quiet) or settings.silent:
+        if settings.quiet or settings.silent:
             return
 
         if not reporter:
@@ -4160,7 +4144,7 @@ def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
 
     Args:
         exit_code: Set to something other than 0 to mark a run as failed
-        quiet: Set to true to minimize log output
+        quiet: Deprecated, use `wandb.Settings(quiet=...)` to set this instead.
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code, quiet=quiet)

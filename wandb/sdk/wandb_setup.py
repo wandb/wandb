@@ -21,7 +21,7 @@ import wandb
 from wandb.sdk.lib import import_hooks
 
 from . import wandb_settings
-from .lib import config_util, server, tracelog
+from .lib import config_util, server
 
 Settings = Union["wandb.sdk.wandb_settings.Settings", Dict[str, Any]]
 
@@ -113,10 +113,6 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
         self._check()
         self._setup()
-
-        tracelog_mode = self._settings._tracelog
-        if tracelog_mode:
-            tracelog.enable(tracelog_mode)
 
     def _settings_setup(
         self,

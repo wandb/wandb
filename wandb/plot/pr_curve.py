@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import numbers
-from typing import Iterable, TypeVar
+from typing import TYPE_CHECKING, Iterable, TypeVar
 
 import wandb
 from wandb import util
-from wandb.plot.viz import CustomChart
+from wandb.plot.custom_chart import plot_table
+from wandb.plot.utils import test_missing, test_types
 
-from .utils import test_missing, test_types
+if TYPE_CHECKING:
+    from wandb.plot.custom_chart import CustomChart
+
 
 T = TypeVar("T")
 
@@ -48,11 +51,13 @@ def pr_curve(
             points in the range [0, 1], and the precision will be interpolated
             accordingly.
         title (str): Title of the plot. Defaults to "Precision-Recall Curve".
-        split_table (bool): Whether to split the table into a separate section
-            in the UI. Default is False.
+        split_table (bool): Whether the table should be split into a separate section
+            in the W&B UI. If `True`, the table will be displayed in a section named
+            "Custom Chart Tables". Default is `False`.
 
     Returns:
-        CustomChart: A plot object that can be logged to W&B with `wandb.log()`.
+        CustomChart: A custom chart object that can be logged to W&B. To log the
+            chart, pass it to `wandb.log()`.
 
     Raises:
         wandb.Error: If numpy, pandas, or scikit-learn is not installed.
@@ -163,9 +168,9 @@ def pr_curve(
             stratify=df["class"],
         ).sort_values(["precision", "recall", "class"])
 
-    return CustomChart(
-        id="wandb/area-under-curve/v0",
-        data=wandb.Table(dataframe=df),
+    return plot_table(
+        data_table=wandb.Table(dataframe=df),
+        vega_spec_name="wandb/area-under-curve/v0",
         fields={
             "x": "recall",
             "y": "precision",
