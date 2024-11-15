@@ -1,5 +1,3 @@
-import json
-
 import matplotlib
 import numpy as np
 import pytest
@@ -71,22 +69,19 @@ def test_log_dataframe(user, test_settings):
 def test_reference_table_logging(
     user, test_settings, wandb_backend_spy, max_cli_version
 ):
-    response = json.dumps(
-        {
-            "data": {
-                "serverInfo": {"cliVersionInfo": {"max_cli_version": max_cli_version}}
-            }
-        }
-    )
-
     gql = wandb_backend_spy.gql
-    responder = gql.once(
-        content=response,
-        status=200,
-    )
     wandb_backend_spy.stub_gql(
         gql.Matcher(operation="ServerInfo"),
-        responder,
+        gql.once(
+            content={
+                "data": {
+                    "serverInfo": {
+                        "cliVersionInfo": {"max_cli_version": max_cli_version}
+                    }
+                }
+            },
+            status=200,
+        ),
     )
 
     run = wandb.init(settings=test_settings())
@@ -100,18 +95,17 @@ def test_reference_table_logging(
 
 
 def test_reference_table_artifacts(user, test_settings, wandb_backend_spy):
-    response = json.dumps(
-        {"data": {"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.11.0"}}}}
-    )
-
     gql = wandb_backend_spy.gql
-    responder = gql.once(
-        content=response,
-        status=200,
-    )
     wandb_backend_spy.stub_gql(
         gql.Matcher(operation="ServerInfo"),
-        responder,
+        gql.once(
+            content={
+                "data": {
+                    "serverInfo": {"cliVersionInfo": {"max_cli_version": "0.11.0"}}
+                }
+            },
+            status=200,
+        ),
     )
 
     run = wandb.init(settings=test_settings())

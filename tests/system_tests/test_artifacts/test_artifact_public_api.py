@@ -90,13 +90,16 @@ def test_artifact_files(user, api, sample_data, wandb_backend_spy):
 
     # Assert we don't break legacy local installs
     gql = wandb_backend_spy.gql
-    responder = gql.once(
-        content="""{"data": {"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.12.20"}}}}""",
-        status=200,
-    )
     wandb_backend_spy.stub_gql(
         gql.Matcher(operation="ServerInfo"),
-        responder,
+        gql.once(
+            content={
+                "data": {
+                    "serverInfo": {"cliVersionInfo": {"max_cli_version": "0.12.20"}}
+                }
+            },
+            status=200,
+        ),
     )
 
     api = wandb.Api()

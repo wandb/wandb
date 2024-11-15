@@ -1,4 +1,3 @@
-import json
 import os
 from unittest import mock
 
@@ -325,18 +324,15 @@ def test_log_code_env(wandb_backend_spy, save_code):
             f.write('print("test")')
 
         # simulate user turning on code saving in UI
-        response = json.dumps(
-            {"data": {"viewer": {"flags": """{"code_saving_enabled": true}"""}}}
-        )
-
         gql = wandb_backend_spy.gql
-        responder = gql.once(
-            content=response,
-            status=200,
-        )
         wandb_backend_spy.stub_gql(
             gql.Matcher(operation="Viewer"),
-            responder,
+            gql.once(
+                content={
+                    "data": {"viewer": {"flags": """{"code_saving_enabled": true}"""}}
+                },
+                status=200,
+            ),
         )
         settings = wandb.Settings(save_code=None, code_dir=".")
         with wandb.init(settings=settings) as run:
