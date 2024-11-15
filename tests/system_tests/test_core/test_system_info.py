@@ -1,7 +1,5 @@
-import os
 import platform
 import queue
-import subprocess
 import unittest.mock
 
 import pytest
