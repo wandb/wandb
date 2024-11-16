@@ -20,7 +20,7 @@ type AgentHeartbeatJsonType string
 const AgentHeartbeatJsonTypeClientHeartbeat AgentHeartbeatJsonType = "client.heartbeat"
 
 var enumValues_AgentHeartbeatJsonType = []interface{}{
-	"client.heartbeat",
+	"agent.heartbeat",
 }
 
 // UnmarshalJSON implements json.Unmarshaler.
