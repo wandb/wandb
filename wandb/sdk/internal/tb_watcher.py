@@ -231,7 +231,7 @@ class TBDirWatcher:
             return is_tfevents_file_created_by(path, None, None)
         else:
             return is_tfevents_file_created_by(
-                path, self._hostname, self._tbwatcher._settings._start_time
+                path, self._hostname, self._tbwatcher._settings.x_start_time
             )
 
     def _loader(

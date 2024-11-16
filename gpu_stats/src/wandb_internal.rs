@@ -589,6 +589,9 @@ pub struct Deprecated {
     /// wandb.run.define_metric() called with summary="best" and goal="maximize/minimize"
     #[prost(bool, tag = "18")]
     pub run_define_metric_best_goal: bool,
+    /// wandb.run.finish(quiet=...) called
+    #[prost(bool, tag = "19")]
+    pub run_finish_quiet: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {

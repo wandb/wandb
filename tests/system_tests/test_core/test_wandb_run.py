@@ -7,7 +7,6 @@ import numpy as np
 import pytest
 import wandb
 import wandb.env
-from wandb import wandb_sdk
 from wandb.errors import UsageError
 
 
@@ -102,16 +101,8 @@ def test_media_in_config(runner, wandb_init, test_settings):
 
 
 def test_init_with_settings(wandb_init, test_settings):
-    # test that when calling `wandb.init(settings=wandb.Settings(...))`,
-    # the settings are passed with Source.INIT as the source
-    test_settings = test_settings()
-    test_settings.update(_disable_stats=True)
-    run = wandb_init(settings=test_settings)
-    assert run.settings._disable_stats
-    assert (
-        run.settings.__dict__["_disable_stats"].source
-        == wandb_sdk.wandb_settings.Source.INIT
-    )
+    run = wandb_init(settings=wandb.Settings(x_disable_stats=True))
+    assert run.settings.x_disable_stats
     run.finish()
 
 
@@ -195,7 +186,6 @@ def assertion(run_id, found, stderr):
         ("allow", True),
         ("never", True),
         ("must", True),
-        ("", False),
         (True, True),
         (None, False),
     ],
