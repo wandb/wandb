@@ -49,6 +49,14 @@ class RunFilter(And):
 InputEventFilter = AnyExpr
 
 
+_OP2SYM: Final[dict[str, str]] = {
+    Gte.OP: ">=",
+    Gt.OP: ">",
+    Lte.OP: "<=",
+    Lt.OP: "<",
+}
+
+
 class MetricFilter(Base):
     model_config = ConfigDict(alias_generator=None)  # JSON fields here are snake_case
 
@@ -66,25 +74,15 @@ class MetricFilter(Base):
             return RunMetricFilter(run_filter=other, metric_filter=self)
         raise NotImplementedError
 
-    _OP_MAP: Final[dict[str, str]] = {
-        Gte.OP: ">=",
-        Gt.OP: ">",
-        Lte.OP: "<=",
-        Lt.OP: "<",
-    }
-
-    def __repr__(self) -> str:
-        cls_name = type(self).__qualname__
-
+    def __repr_args__(self) -> _repr.ReprArgs:
         metric = f"`{self.name}`"
 
         left = f"{agg.value}({metric})" if (agg := self.agg_op) else metric
-        op = self._OP_MAP[self.cmp_op]
+        op = _OP2SYM[self.cmp_op]
         right = f"{self.threshold}"
 
         expr = f"{left} {op} {right}"
-
-        return f"{cls_name}({expr!r})"
+        yield None, expr
 
 
 class OnEvent(Base):
@@ -92,15 +90,19 @@ class OnEvent(Base):
     scope: ArtifactCollection | Project
     filter: Json[InputEventFilter | RunMetricFilter]
 
+    def add_action(
+        self, action: ActionInputT
+    ) -> EventAndActionInput[EventInputT, ActionInputT]:
+        """Define an executed action to be triggered by this event."""
+        if isinstance(action, (DoLaunchJob, DoNotification, DoWebhook)):
+            return self, action  # type: ignore[return-value]
+        raise TypeError(f"Expected a valid action, got: {type(action).__qualname__!r}")
+
     def __rshift__(
         self, other: ActionInputT
     ) -> EventAndActionInput[EventInputT, ActionInputT]:
         """Supports syntactic sugar to define the action triggered by this event as: `event >> action`."""
-        if isinstance(other, (DoLaunchJob, DoNotification, DoWebhook)):
-            return self, other  # type: ignore[return-value]
-        raise TypeError(
-            f"Expected an instance of a new action type, got: {type(other).__qualname__!r}"
-        )
+        return self.add_action(other)
 
 
 class RunMetricFilter(Base):

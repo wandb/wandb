@@ -12,4 +12,5 @@ __all__ = [
     "events",
     "actions",
     "filters",
+    "Automation",
 ]

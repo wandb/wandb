@@ -4,38 +4,29 @@
 __all__ = [
     "CREATE_FILTER_TRIGGER_GQL",
     "DELETE_TRIGGER_GQL",
-    "SLACK_INTEGRATIONS_FOR_ENTITY_GQL",
-    "TRIGGERS_IN_USER_ORG_ENTITY_GQL",
-    "TRIGGERS_IN_USER_TEAMS_GQL",
+    "SLACK_INTEGRATIONS_IN_ENTITY_GQL",
+    "TRIGGERS_IN_ENTITY_PROJECTS_GQL",
+    "TRIGGERS_IN_PROJECTS_GQL",
     "UPDATE_FILTER_TRIGGER_GQL",
 ]
 
-TRIGGERS_IN_USER_ORG_ENTITY_GQL = """
-query TriggersInUserOrgEntity($entityName: String, $cursor: String, $perPage: Int) {
-  viewer(entityName: $entityName) {
-    organizations {
-      orgEntity {
-        projects(after: $cursor, first: $perPage) {
-          ...PaginatedProjectTriggers
-        }
-      }
+TRIGGERS_IN_PROJECTS_GQL = """
+query TriggersInProjects($cursor: String, $perPage: Int) {
+  viewer {
+    projects(after: $cursor, first: $perPage) {
+      ...PaginatedProjectTriggers
     }
   }
 }
 
-fragment ArtifactPortfolioScope on ArtifactPortfolio {
-  __typename
-  id
-  name
-}
-
-fragment ArtifactSequenceScope on ArtifactSequence {
+fragment ArtifactCollectionScope on ArtifactCollection {
   __typename
   id
   name
 }
 
 fragment FilterEventTriggeringCondition on FilterEventTriggeringCondition {
+  __typename
   eventType
   filter
 }
@@ -51,11 +42,13 @@ fragment NotificationAction on NotificationTriggeredAction {
 }
 
 fragment PageInfo on PageInfo {
+  __typename
   endCursor
   hasNextPage
 }
 
 fragment PaginatedProjectTriggers on ProjectConnection {
+  __typename
   pageInfo {
     ...PageInfo
   }
@@ -84,6 +77,7 @@ fragment QueueJobAction on QueueJobTriggeredAction {
 }
 
 fragment RunQueue on RunQueue {
+  __typename
   id
   name
 }
@@ -96,6 +90,7 @@ fragment SlackIntegration on SlackIntegration {
 }
 
 fragment Trigger on Trigger {
+  __typename
   id
   createdAt
   createdBy {
@@ -106,17 +101,13 @@ fragment Trigger on Trigger {
   description
   enabled
   scope {
-    __typename
     ...ProjectScope
-    ...ArtifactPortfolioScope
-    ...ArtifactSequenceScope
+    ...ArtifactCollectionScope
   }
   event: triggeringCondition {
-    __typename
     ...FilterEventTriggeringCondition
   }
   action: triggeredAction {
-    __typename
     ...QueueJobAction
     ...NotificationAction
     ...WebhookAction
@@ -124,6 +115,7 @@ fragment Trigger on Trigger {
 }
 
 fragment UserInfo on User {
+  __typename
   id
   username
 }
@@ -147,32 +139,23 @@ fragment WebhookIntegration on GenericWebhookIntegration {
 }
 """
 
-TRIGGERS_IN_USER_TEAMS_GQL = """
-query TriggersInUserTeams($entityName: String, $cursor: String, $perPage: Int) {
-  viewer(entityName: $entityName) {
-    organizations {
-      teams {
-        projects(after: $cursor, first: $perPage) {
-          ...PaginatedProjectTriggers
-        }
-      }
+TRIGGERS_IN_ENTITY_PROJECTS_GQL = """
+query TriggersInEntityProjects($entityName: String!, $cursor: String, $perPage: Int) {
+  entity(name: $entityName) {
+    projects(after: $cursor, first: $perPage) {
+      ...PaginatedProjectTriggers
     }
   }
 }
 
-fragment ArtifactPortfolioScope on ArtifactPortfolio {
-  __typename
-  id
-  name
-}
-
-fragment ArtifactSequenceScope on ArtifactSequence {
+fragment ArtifactCollectionScope on ArtifactCollection {
   __typename
   id
   name
 }
 
 fragment FilterEventTriggeringCondition on FilterEventTriggeringCondition {
+  __typename
   eventType
   filter
 }
@@ -188,11 +171,13 @@ fragment NotificationAction on NotificationTriggeredAction {
 }
 
 fragment PageInfo on PageInfo {
+  __typename
   endCursor
   hasNextPage
 }
 
 fragment PaginatedProjectTriggers on ProjectConnection {
+  __typename
   pageInfo {
     ...PageInfo
   }
@@ -221,6 +206,7 @@ fragment QueueJobAction on QueueJobTriggeredAction {
 }
 
 fragment RunQueue on RunQueue {
+  __typename
   id
   name
 }
@@ -233,6 +219,7 @@ fragment SlackIntegration on SlackIntegration {
 }
 
 fragment Trigger on Trigger {
+  __typename
   id
   createdAt
   createdBy {
@@ -243,17 +230,13 @@ fragment Trigger on Trigger {
   description
   enabled
   scope {
-    __typename
     ...ProjectScope
-    ...ArtifactPortfolioScope
-    ...ArtifactSequenceScope
+    ...ArtifactCollectionScope
   }
   event: triggeringCondition {
-    __typename
     ...FilterEventTriggeringCondition
   }
   action: triggeredAction {
-    __typename
     ...QueueJobAction
     ...NotificationAction
     ...WebhookAction
@@ -261,6 +244,7 @@ fragment Trigger on Trigger {
 }
 
 fragment UserInfo on User {
+  __typename
   id
   username
 }
@@ -291,13 +275,7 @@ mutation CreateFilterTrigger($params: CreateFilterTriggerInput!) {
   }
 }
 
-fragment ArtifactPortfolioScope on ArtifactPortfolio {
-  __typename
-  id
-  name
-}
-
-fragment ArtifactSequenceScope on ArtifactSequence {
+fragment ArtifactCollectionScope on ArtifactCollection {
   __typename
   id
   name
@@ -312,6 +290,7 @@ fragment CreateFilterTriggerResult on CreateFilterTriggerPayload {
 }
 
 fragment FilterEventTriggeringCondition on FilterEventTriggeringCondition {
+  __typename
   eventType
   filter
 }
@@ -341,6 +320,7 @@ fragment QueueJobAction on QueueJobTriggeredAction {
 }
 
 fragment RunQueue on RunQueue {
+  __typename
   id
   name
 }
@@ -353,6 +333,7 @@ fragment SlackIntegration on SlackIntegration {
 }
 
 fragment Trigger on Trigger {
+  __typename
   id
   createdAt
   createdBy {
@@ -363,17 +344,13 @@ fragment Trigger on Trigger {
   description
   enabled
   scope {
-    __typename
     ...ProjectScope
-    ...ArtifactPortfolioScope
-    ...ArtifactSequenceScope
+    ...ArtifactCollectionScope
   }
   event: triggeringCondition {
-    __typename
     ...FilterEventTriggeringCondition
   }
   action: triggeredAction {
-    __typename
     ...QueueJobAction
     ...NotificationAction
     ...WebhookAction
@@ -381,6 +358,7 @@ fragment Trigger on Trigger {
 }
 
 fragment UserInfo on User {
+  __typename
   id
   username
 }
@@ -411,19 +389,14 @@ mutation UpdateFilterTrigger($params: UpdateFilterTriggerInput!) {
   }
 }
 
-fragment ArtifactPortfolioScope on ArtifactPortfolio {
-  __typename
-  id
-  name
-}
-
-fragment ArtifactSequenceScope on ArtifactSequence {
+fragment ArtifactCollectionScope on ArtifactCollection {
   __typename
   id
   name
 }
 
 fragment FilterEventTriggeringCondition on FilterEventTriggeringCondition {
+  __typename
   eventType
   filter
 }
@@ -453,6 +426,7 @@ fragment QueueJobAction on QueueJobTriggeredAction {
 }
 
 fragment RunQueue on RunQueue {
+  __typename
   id
   name
 }
@@ -465,6 +439,7 @@ fragment SlackIntegration on SlackIntegration {
 }
 
 fragment Trigger on Trigger {
+  __typename
   id
   createdAt
   createdBy {
@@ -475,17 +450,13 @@ fragment Trigger on Trigger {
   description
   enabled
   scope {
-    __typename
     ...ProjectScope
-    ...ArtifactPortfolioScope
-    ...ArtifactSequenceScope
+    ...ArtifactCollectionScope
   }
   event: triggeringCondition {
-    __typename
     ...FilterEventTriggeringCondition
   }
   action: triggeredAction {
-    __typename
     ...QueueJobAction
     ...NotificationAction
     ...WebhookAction
@@ -501,6 +472,7 @@ fragment UpdateFilterTriggerResult on UpdateFilterTriggerPayload {
 }
 
 fragment UserInfo on User {
+  __typename
   id
   username
 }
@@ -538,21 +510,23 @@ fragment DeleteTriggerResult on DeleteTriggerPayload {
 }
 """
 
-SLACK_INTEGRATIONS_FOR_ENTITY_GQL = """
-query SlackIntegrationsForEntity($entityName: String!, $cursor: String, $perPage: Int) {
+SLACK_INTEGRATIONS_IN_ENTITY_GQL = """
+query SlackIntegrationsInEntity($entityName: String!, $cursor: String, $perPage: Int) {
   entity(name: $entityName) {
     integrations(after: $cursor, first: $perPage) {
-      ...PaginatedIntegrations
+      ...PaginatedSlackIntegrations
     }
   }
 }
 
 fragment PageInfo on PageInfo {
+  __typename
   endCursor
   hasNextPage
 }
 
-fragment PaginatedIntegrations on IntegrationConnection {
+fragment PaginatedSlackIntegrations on IntegrationConnection {
+  __typename
   pageInfo {
     ...PageInfo
   }

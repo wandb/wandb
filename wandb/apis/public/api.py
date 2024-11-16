@@ -14,10 +14,12 @@ For more on using the Public API, check out [our guide](https://docs.wandb.com/g
 import json
 import logging
 import os
-import urllib
-from typing import Any, Dict, List, Optional
+import urllib.parse
+from http import HTTPStatus
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 import requests
+from pydantic import ValidationError
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
@@ -28,6 +30,26 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.utils import PathType, parse_org_from_registry_path
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
+from wandb.sdk.automations._generated import (
+    CREATE_FILTER_TRIGGER_GQL,
+    DELETE_TRIGGER_GQL,
+    SLACK_INTEGRATIONS_IN_ENTITY_GQL,
+    TRIGGERS_IN_ENTITY_PROJECTS_GQL,
+    TRIGGERS_IN_PROJECTS_GQL,
+    CreateFilterTrigger,
+    DeleteTrigger,
+    DeleteTriggerResult,
+    SlackIntegration,
+    SlackIntegrationsInEntity,
+    TriggersInEntityProjects,
+    TriggersInProjects,
+)
+from wandb.sdk.automations._utils import prepare_create_automation_input
+from wandb.sdk.automations.automations import (
+    Automation,
+    EventAndActionInput,
+    NewAutomation,
+)
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
@@ -794,6 +816,7 @@ class Api:
             entity = InternalApi()._resolve_org_entity_name(
                 entity=settings_entity, organization=org
             )
+
         return public.Project(self.client, entity, name, {})
 
     def reports(
@@ -1381,3 +1404,217 @@ class Api:
             return True
         except wandb.errors.CommError:
             return False
+
+    def slack_integration(
+        self, entity: str, per_page: Optional[int] = None
+    ) -> "SlackIntegration":
+        """Get the Slack integration for an entity, if given, or the user's default entity."""
+        gql_query = gql(SLACK_INTEGRATIONS_IN_ENTITY_GQL)
+        gql_variables = {"entityName": entity, "cursor": None, "perPage": per_page}
+
+        data = self.client.execute(gql_query, variable_values=gql_variables)
+
+        try:
+            page = SlackIntegrationsInEntity.model_validate(data).entity.integrations
+            results = [SlackIntegration.model_validate(e.node) for e in page.edges]
+        except (ValidationError, AttributeError) as e:
+            raise ValueError(f"Unable to parse response: {data!r}") from e
+
+        try:
+            [result] = results
+        except ValueError:
+            if results:
+                msg = f"Found multiple ({len(results)}) Slack integrations for {entity!r}: {results!r}"
+            else:
+                msg = f"No Slack integration found for: {entity!r}"
+                # msg += f"\nA team admin for {entity!r} can set one up at: https://wandb.ai/{entity}/settings"
+            raise ValueError(msg)
+        else:
+            return result
+
+    def automation(
+        self,
+        *,
+        entity: Optional[str] = None,
+        name: Optional[str] = None,
+        created_by: Optional[str] = None,
+    ) -> Automation:
+        """Return the only Automation matching the given parameters, if possible.
+
+        Raises:
+            ValueError: If 0 or multiple Automations match the search criteria
+        """
+        params = locals()
+        params = {k: v for k, v in params.items() if (v is not None) and (k != "self")}
+        matches = list(
+            self.automations(entity=entity, name=name, created_by=created_by)
+        )
+
+        try:
+            [only_match] = matches
+        except ValueError:
+            if matches:
+                raise ValueError(
+                    f"Multiple ({len(matches)}) automations matching: {params!r}"
+                )
+            raise ValueError(f"No automation found matching: {params!r}")
+        else:
+            return only_match
+
+    def automations(
+        self,
+        *,
+        entity: Optional[str] = None,
+        name: Optional[str] = None,
+        created_by: Optional[str] = None,
+        per_page: Optional[int] = None,
+    ) -> list[Automation]:
+        """Return all Automations, filtering by the given search criteria if any."""
+
+        # Crude client-side filtering
+        # TODO: we should handle this in the backend instead
+        def _should_keep(obj: Automation) -> bool:
+            return ((name is None) or (obj.name == name)) and (
+                (created_by is None) or (obj.created_by.username == created_by)
+            )
+
+        if entity is None:
+            iter_results = self._triggers_in_user_projects(per_page=per_page)
+        else:
+            iter_results = self._triggers_in_entity(entity, per_page=per_page)
+
+        return list(filter(_should_keep, iter_results))
+
+    def _triggers_in_user_projects(
+        self, per_page: Optional[int] = None
+    ) -> Iterator[Automation]:
+        gql_query = gql(TRIGGERS_IN_PROJECTS_GQL)
+
+        cursor: Optional[str] = None
+        has_next_page = True
+
+        while has_next_page:
+            gql_variables = {"cursor": cursor, "perPage": per_page}
+            data = self.client.execute(gql_query, variable_values=gql_variables)
+
+            try:
+                projects = TriggersInProjects.model_validate(data).viewer.projects
+                edges = projects.edges
+                page_info = projects.page_info
+            except (ValidationError, AttributeError) as e:
+                raise ValueError(f"Unexpected response data: {data!r}") from e
+
+            for edge in edges:
+                for trigger in edge.node.triggers:
+                    yield Automation.model_validate(trigger)
+
+            has_next_page = page_info.has_next_page
+            cursor = page_info.end_cursor
+
+    def _triggers_in_entity(
+        self, entity: str, per_page: Optional[int] = None
+    ) -> Iterator[Automation]:
+        gql_query = gql(TRIGGERS_IN_ENTITY_PROJECTS_GQL)
+
+        cursor: Optional[str] = None
+        has_next_page = True
+
+        while has_next_page:
+            gql_variables = {
+                "entityName": entity,
+                "cursor": cursor,
+                "perPage": per_page,
+            }
+            data = self.client.execute(gql_query, variable_values=gql_variables)
+
+            try:
+                projects = TriggersInEntityProjects.model_validate(data).entity.projects
+                edges = projects.edges
+                page_info = projects.page_info
+            except (ValidationError, AttributeError) as e:
+                raise ValueError(f"Unexpected response data: {data!r}") from e
+
+            for edge in edges:
+                for trigger in edge.node.triggers:
+                    yield Automation.model_validate(trigger)
+
+            has_next_page = page_info.has_next_page
+            cursor = page_info.end_cursor
+
+    def create_automation(
+        self,
+        obj: Union[NewAutomation, EventAndActionInput],
+        *,
+        name: str,
+        description: Optional[str] = None,
+        enabled: bool = True,
+        fetch_existing: bool = False,
+    ) -> Automation:
+        """Create a new automation."""
+        if isinstance(obj, NewAutomation):
+            obj_ = obj.model_copy(
+                update=dict(name=name, description=description, enabled=enabled)
+            )
+        elif isinstance(obj, tuple):
+            event, action = obj
+            obj_ = NewAutomation(
+                name=name,
+                description=description,
+                enabled=enabled,
+                scope=event.scope,
+                event=event,
+                action=action,
+            )
+        else:
+            raise TypeError(
+                f"Unable to create automation from {type(obj).__qualname__!r} object: {obj!r}"
+            )
+
+        params = prepare_create_automation_input(obj_).model_dump()
+
+        gql_mutation = gql(CREATE_FILTER_TRIGGER_GQL)
+        gql_variables = {"params": params}
+
+        try:
+            data = self.client.execute(gql_mutation, variable_values=gql_variables)
+        except requests.HTTPError as e:
+            status = HTTPStatus(e.response.status_code)
+            if status is HTTPStatus.CONFLICT:  # 409
+                if fetch_existing:
+                    wandb.termlog(
+                        f"An automation {obj_.name!r} already exists.  Skipping creation and fetching existing..."
+                    )
+                    return self.automation(name=name)
+                else:
+                    wandb.termerror(f"An automation {obj_.name!r} already exists.")
+            else:
+                # Not a (known) recoverable HTTP error
+                wandb.termerror(f"Got response status {status!r}: {e.response.text!r}")
+            raise e
+
+        try:
+            result = CreateFilterTrigger.model_validate(data).create_filter_trigger
+            return Automation.model_validate(result.trigger)
+        except (ValidationError, AttributeError) as e:
+            raise ValueError(f"Unexpected response data: {data!r}") from e
+
+    def delete_automation(self, obj: Union[str, Automation]) -> DeleteTriggerResult:
+        """Delete an automation."""
+        gql_mutation = gql(DELETE_TRIGGER_GQL)
+        gql_variables = {"id": _resolve_automation_id(obj)}
+
+        data = self.client.execute(gql_mutation, variable_values=gql_variables)
+
+        try:
+            result = DeleteTrigger.model_validate(data).delete_trigger
+            return DeleteTriggerResult.model_validate(result)
+        except (ValidationError, AttributeError) as e:
+            raise ValueError(f"Unexpected response data: {data!r}") from e
+
+
+def _resolve_automation_id(obj) -> str:
+    if isinstance(obj, Automation):
+        return obj.id
+    if isinstance(obj, str):
+        return obj
+    raise TypeError(f"Cannot parse automation ID from type: {type(obj).__qualname__!r}")
