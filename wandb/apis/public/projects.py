@@ -1,5 +1,8 @@
 """Public API: projects."""
 
+from contextlib import suppress
+
+from requests import HTTPError
 from wandb_gql import gql
 
 from wandb.apis import public
@@ -152,3 +155,27 @@ class Project(Attrs):
             )
             for e in ret["project"]["sweeps"]["edges"]
         ]
+
+    @property
+    def id(self) -> str:
+        # NOTE: This is a workaround to ensure that the project ID can be
+        #  retrieved on-demand, even if not set by default on instantiation.
+        #  Necessary if using this project to define the scope of a new automation.
+        with suppress(LookupError):
+            return self._attrs["id"]
+
+        query = gql(
+            """
+            query ProjectID($projectName: String!, $entityName: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    id
+                }
+            }
+            """
+        )
+        variable_values = {"projectName": self.name, "entityName": self.entity}
+        try:
+            data = self.client.execute(query, variable_values)
+            return data["project"]["id"]
+        except (HTTPError, LookupError, TypeError) as e:
+            raise ValueError(f"Unable to fetch project ID: {variable_values!r}") from e
