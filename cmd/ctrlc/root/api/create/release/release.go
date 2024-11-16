@@ -3,6 +3,7 @@ package release
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/MakeNowJust/heredoc/v2"
@@ -14,7 +15,7 @@ import (
 
 func NewReleaseCmd() *cobra.Command {
 	var versionFlag string
-	var deploymentID string
+	var deploymentID []string
 	var metadata map[string]string
 	var configArray map[string]string
 	var links map[string]string
@@ -58,25 +59,29 @@ func NewReleaseCmd() *cobra.Command {
 			}
 
 			config := cliutil.ConvertConfigArrayToNestedMap(configArray)
-			resp, err := client.CreateRelease(cmd.Context(), api.CreateReleaseJSONRequestBody{
-				Version:      versionFlag,
-				DeploymentId: deploymentID,
-				Metadata:     &metadata,
-				CreatedAt:    parsedTime,
-				Config:       &config,
-				Name:         &name,
-			})
-			if err != nil {
-				return fmt.Errorf("failed to create release: %w", err)
+			var response *http.Response
+			for _, id := range deploymentID {
+				resp, err := client.CreateRelease(cmd.Context(), api.CreateReleaseJSONRequestBody{
+					Version:      versionFlag,
+					DeploymentId: id,
+					Metadata:     &metadata,
+					CreatedAt:    parsedTime,
+					Config:       &config,
+					Name:         &name,
+				})
+				if err != nil {
+					return fmt.Errorf("failed to create release: %w", err)
+				}
+				response = resp
 			}
 
-			return cliutil.HandleOutput(cmd, resp)
+			return cliutil.HandleOutput(cmd, response)
 		},
 	}
 
 	// Add flags
 	cmd.Flags().StringVar(&versionFlag, "version", "", "Version of the release (required)")
-	cmd.Flags().StringVar(&deploymentID, "deployment", "", "ID of the deployment (required)")
+	cmd.Flags().StringArrayVar(&deploymentID, "deployment", []string{}, "IDs of the deployments (required, supports multiple)")
 	cmd.Flags().StringToStringVar(&metadata, "metadata", make(map[string]string), "Metadata key-value pairs (e.g. --metadata key=value)")
 	cmd.Flags().StringToStringVar(&configArray, "config", make(map[string]string), "Config key-value pairs with nested values (can be specified multiple times)")
 	cmd.Flags().StringToStringVar(&links, "link", make(map[string]string), "Links key-value pairs (can be specified multiple times)")
