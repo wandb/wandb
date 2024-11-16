@@ -182,17 +182,13 @@ def test_minmax_validation():
         api.api._validate_config_and_fill_distribution(sweep_config)
 
 
-def test_add_run_to_existing_sweep(user, relay_server):
-    # Test that updating settings with sweep_id includes it in upsertBucket mutation
-
-    with relay_server() as relay:
-        sweep_id = wandb.sweep(SWEEP_CONFIG_GRID, entity=user)
-        run = wandb.init(settings={"sweep_id": sweep_id})
+def test_add_run_to_existing_sweep(wandb_backend_spy, user):
+    sweep_id = wandb.sweep(SWEEP_CONFIG_GRID, entity=user)
+    with wandb.init(entity=user, settings={"sweep_id": sweep_id}) as run:
         run.log({"x": 1})
-        run.finish()
 
-    run_attrs = relay.context.get_run_attrs(run.id)
-    assert sweep_id == run_attrs.sweep_name
+    with wandb_backend_spy.freeze() as snapshot:
+        assert snapshot.sweep_name(run_id=run.id) == sweep_id
 
 
 def test_nones_validation():
