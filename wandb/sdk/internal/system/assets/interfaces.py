@@ -118,14 +118,10 @@ class MetricsMonitor:
         self.sampling_interval: float = float(
             max(
                 0.1,
-                settings._stats_sample_rate_seconds,
+                settings.x_stats_sampling_interval,
             )
         )  # seconds
-        # The number of samples to aggregate (e.g. average or compute max/min etc.)
-        # before publishing; defaults to 15; valid range: [1:30]
-        self.samples_to_aggregate: int = min(
-            30, max(1, settings._stats_samples_to_average)
-        )
+        self.samples_to_aggregate = 1
 
     def monitor(self) -> None:
         """Poll the Asset metrics."""
