@@ -62,6 +62,15 @@ func NewAgent(serverURL, agentName string, opts ...func(*Agent)) *Agent {
 	for _, opt := range opts {
 		opt(agent)
 	}
+
+	// Print agent headers for debugging
+	for key, values := range agent.headers {
+		if key != "X-Api-Key" {
+			for _, value := range values {
+				log.Printf("Header %s: %s", key, value)
+			}
+		}
+	}
 	return agent
 }
 

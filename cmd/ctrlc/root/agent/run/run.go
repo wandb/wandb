@@ -22,9 +22,6 @@ func NewAgentRunCmd() *cobra.Command {
 		Short: "Run the agent",
 		Long:  `Run the agent to establish connection with the proxy.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			agentName = strings.Trim(agentName, "\"")
-			workspace = strings.Trim(workspace, "\"")
-
 			proxyAddr := viper.GetString("url")
 			proxyAddr = strings.TrimPrefix(proxyAddr, "https://")
 			proxyAddr = strings.TrimPrefix(proxyAddr, "http://")
