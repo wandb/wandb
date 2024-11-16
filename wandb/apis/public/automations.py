@@ -64,6 +64,6 @@ class Automations(Paginator["Automation"]):
 
         page = self.last_response
         return [
-            Automation.model_validate_json(obj.model_dump_json())
+            Automation.model_validate(obj)
             for obj in chain.from_iterable(edge.node.triggers for edge in page.edges)
         ]

@@ -15,14 +15,18 @@ import json
 import logging
 import os
 import urllib
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional
+from http import HTTPStatus
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Literal, Optional, Union
 
 import requests
+from pydantic import ValidationError
+from typing_extensions import Unpack
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
 import wandb
 from wandb import env, util
+from wandb._iterutils import one
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
@@ -30,6 +34,7 @@ from wandb.apis.public.registries.registries_search import Registries
 from wandb.apis.public.utils import (
     PathType,
     fetch_org_from_settings_or_entity,
+    gql_compat,
     parse_org_from_registry_path,
 )
 from wandb.proto.wandb_deprecated import Deprecated
@@ -43,7 +48,16 @@ from wandb.sdk.lib.deprecate import deprecate
 from wandb.sdk.lib.gql_request import GraphQLSession
 
 if TYPE_CHECKING:
-    from wandb.automations import Integration, SlackIntegration, WebhookIntegration
+    from wandb.automations import (
+        ActionType,
+        Automation,
+        EventType,
+        Integration,
+        NewAutomation,
+        SlackIntegration,
+        WebhookIntegration,
+    )
+    from wandb.automations._utils import CreateAutomationKwargs
 
 logger = logging.getLogger(__name__)
 
@@ -1535,15 +1549,14 @@ class Api:
                 fetch integrations.  If not provided, the user's default entity
                 will be used.
             per_page (int, optional): Number of integrations to fetch per page.
-                Defaults to 50.
+                Defaults to 50.  Usually there is no reason to change this.
 
         Yields:
             Iterator[SlackIntegration | WebhookIntegration]: An iterator of any supported integrations.
         """
         from wandb.apis.public.integrations import Integrations
 
-        entity = entity or self.default_entity
-        params = {"entityName": entity, "includeWebhook": True, "includeSlack": True}
+        params = {"entityName": entity or self.default_entity}
         return Integrations(client=self.client, variables=params, per_page=per_page)
 
     def webhook_integrations(
@@ -1556,7 +1569,7 @@ class Api:
                 fetch integrations.  If not provided, the user's default entity
                 will be used.
             per_page (int, optional): Number of integrations to fetch per page.
-                Defaults to 50.
+                Defaults to 50.  Usually there is no reason to change this.
 
         Yields:
             Iterator[WebhookIntegration]: An iterator of webhook integrations.
@@ -1582,14 +1595,13 @@ class Api:
         """
         from wandb.apis.public.integrations import WebhookIntegrations
 
-        entity = entity or self.default_entity
-        params = {"entityName": entity, "includeWebhook": True}
+        params = {"entityName": entity or self.default_entity}
         return WebhookIntegrations(
             client=self.client, variables=params, per_page=per_page
         )
 
     def slack_integrations(
-        self, entity: Optional[str] = None, *, per_page: int = 50
+        self, *, entity: Optional[str] = None, per_page: int = 50
     ) -> Iterator["SlackIntegration"]:
         """Return an iterator of Slack integrations for an entity.
 
@@ -1598,7 +1610,7 @@ class Api:
                 fetch integrations.  If not provided, the user's default entity
                 will be used.
             per_page (int, optional): Number of integrations to fetch per page.
-                Defaults to 50.
+                Defaults to 50.  Usually there is no reason to change this.
 
         Yields:
             Iterator[SlackIntegration]: An iterator of Slack integrations.
@@ -1624,8 +1636,276 @@ class Api:
         """
         from wandb.apis.public.integrations import SlackIntegrations
 
-        entity = entity or self.default_entity
-        params = {"entityName": entity, "includeSlack": True}
+        params = {"entityName": entity or self.default_entity}
         return SlackIntegrations(
             client=self.client, variables=params, per_page=per_page
         )
+
+    def _supports_automation(
+        self,
+        *,
+        event: Optional["EventType"] = None,
+        action: Optional["ActionType"] = None,
+    ) -> bool:
+        """Returns whether the server recognizes the automation event and/or action."""
+        from wandb.automations._utils import (
+            ALWAYS_SUPPORTED_ACTIONS,
+            ALWAYS_SUPPORTED_EVENTS,
+        )
+
+        server_features = InternalApi()._server_features()
+        return bool(
+            (
+                (event is None)
+                or (event in ALWAYS_SUPPORTED_EVENTS)
+                or server_features.get(f"AUTOMATION_EVENT_{event.value}")
+            )
+            and (
+                (action is None)
+                or (action in ALWAYS_SUPPORTED_ACTIONS)
+                or server_features.get(f"AUTOMATION_ACTION_{action.value}")
+            )
+        )
+
+    def automation(
+        self,
+        name: str,
+        *,
+        entity: Optional[str] = None,
+    ) -> "Automation":
+        """Return the Automation that matches the given parameters, if exactly one match is found.
+
+        Args:
+            name (str): The name of the automation to fetch.
+            entity (str, optional): The entity to fetch the automation for.
+
+        Raises:
+            ValueError: If zero or multiple Automations match the search criteria.
+
+        Examples:
+            Get an existing automation named "my-automation":
+
+            ```python
+            import wandb
+
+            api = wandb.Api()
+            automation = api.automation(name="my-automation")
+            ```
+
+            Get an existing automation named "other-automation", from the entity "my-team":
+
+            ```python
+            automation = api.automation(name="other-automation", entity="my-team")
+            ```
+        """
+        return one(
+            self.automations(entity=entity, name=name),
+            too_short=ValueError("No automations found"),
+            too_long=ValueError("Multiple automations found"),
+        )
+
+    def automations(
+        self,
+        entity: Optional[str] = None,
+        *,
+        name: Optional[str] = None,
+        per_page: int = 50,
+    ) -> Iterator["Automation"]:
+        """Return an iterator over all Automations that match the given parameters.
+
+        If no parameters are provided, the returned iterator will contain all
+        Automations that the user has access to.
+
+        Args:
+            entity (str, optional): The entity to fetch the automations for.
+            name (str, optional): The name of the automation to fetch.
+            per_page (int, optional): The number of automations to fetch per page.
+                Defaults to 50.  Usually there is no reason to change this.
+
+        Returns:
+            A list of automations.
+
+        Examples:
+            Fetch all existing automations for the entity "my-team":
+
+            ```python
+            import wandb
+
+            api = wandb.Api()
+            automations = api.automations(entity="my-team")
+            ```
+        """
+        from wandb.apis.public.automations import Automations
+        from wandb.automations._generated import (
+            GET_TRIGGERS_BY_ENTITY_GQL,
+            GET_TRIGGERS_GQL,
+            NoOpActionFields,
+        )
+
+        # For now, we need to use different queries depending on whether entity is given
+        variables = {"entityName": entity}
+        if entity is None:
+            gql_str = GET_TRIGGERS_GQL  # Automations for viewer
+        else:
+            gql_str = GET_TRIGGERS_BY_ENTITY_GQL  # Automations for entity
+
+        # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
+        omit_fragments = set()
+        if not InternalApi()._server_features().get("AUTOMATION_ACTION_NO_OP"):
+            omit_fragments.add(NoOpActionFields.__name__)
+
+        query = gql_compat(gql_str, omit_fragments=omit_fragments)
+        iterator = Automations(
+            client=self.client, variables=variables, per_page=per_page, _query=query
+        )
+
+        # FIXME: this is crude, move this client-side filtering logic into backend
+        if name is not None:
+            iterator = filter(lambda x: x.name == name, iterator)
+        yield from iterator
+
+    def create_automation(
+        self,
+        obj: "NewAutomation",
+        *,
+        fetch_existing: bool = False,
+        **kwargs: Unpack["CreateAutomationKwargs"],
+    ) -> "Automation":
+        """Create a new Automation.
+
+        Args:
+            obj:
+                The automation to create.
+            fetch_existing (bool):
+                If True, and a conflicting automation already exists, attempt
+                to fetch the existing automation instead of raising an error.
+            **kwargs:
+                Any additional values to assign to the automation before
+                creating it.  If given, these will override any values that may
+                already be set on the automation:
+                - `name`: The name of the automation.
+                - `description`: The description of the automation.
+                - `enabled`: Whether the automation is enabled.
+                - `scope`: The scope of the automation.
+                - `event`: The event that triggers the automation.
+                - `action`: The action that is triggered by the automation.
+
+        Returns:
+            The saved Automation.
+
+        Examples:
+            Create a new automation named "my-automation" that sends a Slack notification
+            when a run within a specific project logs a metric exceeding a custom threshold:
+
+            ```python
+            import wandb
+            from wandb.automations import OnRunMetric, RunEvent, SendNotification
+
+            api = wandb.Api()
+
+            project = api.project("my-project", entity="my-team")
+
+            # Use the first Slack integration for the team
+            slack_integration = next(api.slack_integrations(entity="my-team"))
+
+            triggering_event = OnRunMetric(
+                scope=project,
+                filter=RunEvent.metric("custom-metric") > 10,
+            )
+            triggered_action = SendNotification.from_integration(slack_integration)
+
+            automation = api.create_automation(
+                triggering_event >> triggered_action,
+                name="my-automation",
+                description="Send a Slack message whenever 'custom-metric' exceeds 10.",
+            )
+            ```
+        """
+        from wandb.automations import ActionType, Automation
+        from wandb.automations._generated import (
+            CREATE_FILTER_TRIGGER_GQL,
+            CreateFilterTrigger,
+            NoOpActionFields,
+        )
+        from wandb.automations._utils import prepare_to_create
+
+        gql_input = prepare_to_create(obj, **kwargs)
+
+        if not self._supports_automation(
+            event=(event := gql_input.triggering_event_type),
+            action=(action := gql_input.triggered_action_type),
+        ):
+            raise ValueError(
+                f"Automation event or action ({event!r} -> {action!r}) "
+                "is not supported on this wandb server version. "
+                "Please upgrade your server version, or contact support at "
+                "support@wandb.com."
+            )
+
+        # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
+        omit_fragments = set()
+        if not self._supports_automation(action=ActionType.NO_OP):
+            omit_fragments.add(NoOpActionFields.__name__)
+
+        mutation = gql_compat(CREATE_FILTER_TRIGGER_GQL, omit_fragments=omit_fragments)
+        variables = {"params": gql_input.model_dump(exclude_none=True)}
+
+        name = gql_input.name
+        try:
+            data = self.client.execute(mutation, variable_values=variables)
+        except requests.HTTPError as e:
+            status = HTTPStatus(e.response.status_code)
+            if status is HTTPStatus.CONFLICT:  # 409
+                if fetch_existing:
+                    wandb.termlog(f"Automation {name!r} exists. Fetching it instead.")
+                    return self.automation(name=name)
+
+                raise ValueError(
+                    f"Automation {name!r} exists. Unable to create another with the same name."
+                )
+            raise e
+
+        try:
+            result = CreateFilterTrigger.model_validate(data).result
+        except ValidationError as e:
+            msg = f"Invalid response while creating automation {name!r}"
+            raise RuntimeError(msg) from e
+
+        if (result is None) or (result.trigger is None):
+            msg = f"Empty response while creating automation {name!r}"
+            raise RuntimeError(msg)
+
+        return Automation.model_validate(result.trigger)
+
+    def delete_automation(self, obj: Union["Automation", str]) -> Literal[True]:
+        """Delete an automation.
+
+        Args:
+            obj (Automation | str): The automation to delete, or its ID.
+
+        Returns:
+            True if the automation was deleted successfully.
+        """
+        from wandb.automations._generated import DELETE_TRIGGER_GQL, DeleteTrigger
+        from wandb.automations._utils import extract_id
+
+        id_ = extract_id(obj)
+        mutation = gql(DELETE_TRIGGER_GQL)
+        variables = {"id": id_}
+
+        data = self.client.execute(mutation, variable_values=variables)
+
+        try:
+            result = DeleteTrigger.model_validate(data).result
+        except ValidationError as e:
+            msg = f"Invalid response while deleting automation {id_!r}"
+            raise RuntimeError(msg) from e
+
+        if result is None:
+            msg = f"Empty response while deleting automation {id_!r}"
+            raise RuntimeError(msg)
+
+        if not result.success:
+            raise RuntimeError(f"Failed to delete automation: {id_!r}")
+
+        return result.success
