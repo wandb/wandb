@@ -11,7 +11,6 @@ import wandb.apis.public
 import wandb.util
 from wandb import Api
 from wandb.old.summary import Summary
-from wandb.sdk.lib import runid
 
 
 @pytest.mark.parametrize(
