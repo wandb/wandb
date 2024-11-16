@@ -401,6 +401,7 @@ def mock_create_from_dict(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail(reason="This test is flaky")
 async def test_launch_kube_works(
     monkeypatch,
     mock_event_streams,

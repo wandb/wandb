@@ -50,7 +50,7 @@ class ProgressPrinter:
         progress_text_area: p.DynamicText | None,
         settings: wandb.Settings | None,
     ) -> None:
-        self._show_operation_stats = settings and settings._show_operation_stats
+        self._show_operation_stats = settings and settings.x_show_operation_stats
         self._printer = printer
         self._progress_text_area = progress_text_area
         self._tick = 0

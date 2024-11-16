@@ -128,13 +128,13 @@ def test_login_host_trailing_slash_fix_invalid(runner, dummy_api_key, local_sett
     "host, error",
     [
         ("https://app.wandb.ai", "did you mean https://api.wandb.ai"),
-        ("ftp://google.com", "URL must start with `http(s)://`"),
+        ("ftp://google.com", "URL scheme should be 'http' or 'https'"),
     ],
 )
 def test_login_bad_host(runner, host, error, local_settings):
     with runner.isolated_filesystem():
         result = runner.invoke(cli.login, ["--host", host])
-        assert error in result.output
+        assert error in str(result.exception)
         assert result.exit_code != 0
 
 
