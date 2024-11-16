@@ -13,7 +13,7 @@ import nox
 
 nox.options.default_venv_backend = "uv"
 
-_SUPPORTED_PYTHONS = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+_SUPPORTED_PYTHONS = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
 # Directories in which to create temporary per-session directories
 # containing test results and pytest/Go coverage.
@@ -113,10 +113,11 @@ def run_pytest(
     # Print 20 slowest tests.
     pytest_opts.append(f"--durations={opts.get('durations', 20)}")
 
-    # Track and report memory usage with memray.
-    pytest_opts.append("--memray")
-    # Show the 5 tests that allocate most memory.
-    pytest_opts.append("--most-allocations=5")
+    if platform.system() != "Windows":  # memray is not supported on Windows.
+        # Track and report memory usage with memray.
+        pytest_opts.append("--memray")
+        # Show the 5 tests that allocate most memory.
+        pytest_opts.append("--most-allocations=5")
 
     # Output test results for tooling.
     junitxml = _NOX_PYTEST_RESULTS_DIR / session_file_name / "junit.xml"

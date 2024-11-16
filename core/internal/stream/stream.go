@@ -219,7 +219,7 @@ func NewStream(
 			Settings:          s.settings,
 			FwdChan:           make(chan runwork.Work, BufferSize),
 			OutChan:           make(chan *spb.Result, BufferSize),
-			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.runWork),
+			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings, s.runWork),
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
 			Mailbox:           mailbox,
