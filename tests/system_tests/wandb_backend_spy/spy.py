@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-import dataclasses
 import json
 import threading
 from typing import Any, Iterator
@@ -18,7 +17,6 @@ class WandbBackendSpy:
         self._lock = threading.Lock()
         self._runs: dict[str, _RunData] = {}
         self._gql_stubs: list[gql_match.GQLStub] = []
-        self._filestream_stubs: list[_FileStreamResponse] = []
 
     @contextlib.contextmanager
     def freeze(self) -> Iterator[WandbBackendSnapshot]:
@@ -66,69 +64,27 @@ class WandbBackendSpy:
         with self._lock:
             self._gql_stubs.append((match, respond))
 
-    def stub_filestream(
-        self,
-        body: str | dict[str, Any],
-        *,
-        status: int,
-        n_times: int = 1,
-    ) -> None:
-        """Stub the FileStream endpoint.
-
-        The next `n_times` requests to FileStream are intercepted and return
-        the given status and body. Unlike `stub_gql`, this does not allow
-        selecting specific requests to intercept.
-
-        Later calls to `stub_filestream` take precedence.
-
-        Args:
-            body: The request body. If a dict, it is converted to JSON.
-            status: The HTTP status code to return.
-            n_times: The number of requests to intercept.
-        """
-        if not isinstance(body, str):
-            body = json.dumps(body)
-
-        with self._lock:
-            self._filestream_stubs.extend(
-                [_FileStreamResponse(status=status, body=body)] * n_times
-            )
-
     def intercept_graphql(self, request_raw: bytes) -> fastapi.Response | None:
         """Intercept a GraphQL request to produce a fake response."""
         with self._lock:
-            stubs = self._gql_stubs
-        if not stubs:
-            return None
-
-        request = json.loads(request_raw)
-        query = request.get("query", "")
-        variables = request.get("variables", {})
-
-        for matcher, responder in reversed(stubs):
-            if not matcher.matches(query, variables):
-                continue
-
-            response = responder.respond(query, variables)
-            if not response:
-                continue
-
-            return response
-
-        return None
-
-    def intercept_filestream(self) -> fastapi.Response | None:
-        """Intercept a FileStream request to produce a fake response."""
-        with self._lock:
-            stubs = self._filestream_stubs
-            if not stubs:
+            if not self._gql_stubs:
                 return None
-            stub = stubs.pop()
 
-        return fastapi.Response(
-            status_code=stub.status,
-            content=stub.body,
-        )
+            request = json.loads(request_raw)
+            query = request.get("query", "")
+            variables = request.get("variables", {})
+
+            for matcher, responder in reversed(self._gql_stubs):
+                if not matcher.matches(query, variables):
+                    continue
+
+                response = responder.respond(query, variables)
+                if not response:
+                    continue
+
+                return response
+
+            return None
 
     def post_graphql(
         self,
@@ -459,11 +415,3 @@ class _RunData:
         self._remote: str | None = None
         self._commit: str | None = None
         self._sweep_name: str | None = None
-
-
-@dataclasses.dataclass(frozen=True)
-class _FileStreamResponse:
-    """A response to a FileStream request."""
-
-    status: int
-    body: str
