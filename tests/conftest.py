@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import platform
 import shutil
 import time
 import unittest.mock
@@ -37,6 +38,9 @@ from wandb.sdk.lib.paths import StrPath  # noqa: E402
 
 @pytest.fixture
 def disable_memray(pytestconfig):
+    if platform.system() == "Windows":
+        # noop on Windows
+        return
     """Disables the memray plugin for the duration of the test."""
     memray_plugin = pytestconfig.pluginmanager.get_plugin("memray_manager")
     pytestconfig.pluginmanager.unregister(memray_plugin)
