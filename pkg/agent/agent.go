@@ -187,6 +187,7 @@ func (a *Agent) heartbeatRoutine() {
 	for {
 		select {
 		case <-ticker.C:
+			log.Printf("Sending heartbeat to proxy")
 			heartbeat := payloads.AgentHeartbeatJson{
 				Type:      payloads.AgentHeartbeatJsonTypeClientHeartbeat,
 				Timestamp: []time.Time{time.Now()}[0],
