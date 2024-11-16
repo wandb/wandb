@@ -23,7 +23,6 @@ def test_ignores_malformed_response(wandb_backend_spy):
     wandb_backend_spy.stub_filestream(
         "malformed response",
         status=200,
-        body="malformed response",
     )
 
     with wandb.init() as run:
