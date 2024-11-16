@@ -45,7 +45,7 @@ message RunMoment {
 //
 // Next ID: 181
 message Settings {
-  reserved 6, 12, 36, 43, 44, 45, 50, 51, 94, 136, 137;
+  reserved 3, 6, 12, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137;
 
   // The W&B API key.
   //
@@ -89,29 +89,23 @@ message Settings {
   // The start time of the run in seconds since the Unix epoch.
   google.protobuf.DoubleValue x_start_time = 41;
 
+  // The root directory that will be used to derive other paths.
+  // Such as the wandb directory, and the run directory.
+  //
+  // By default, this is the current working directory.
+  google.protobuf.StringValue root_dir = 105;
+
   // The directory for storing log files.
   google.protobuf.StringValue log_dir = 85;
 
   // The path to the file to use for internal logs.
   google.protobuf.StringValue log_internal = 86;
 
-  // Defines the type of console capture to be applied. Possible values are:
-  //
-  // "off" - Disables console capture.
-  //
-  // "redirect" - Redirects low-level file descriptors for capturing output.
-  //
-  // "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
-  // mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
-  //
-  // "wrap_raw" - Same as "wrap" but captures raw output directly instead of
-  // through an emulator.
-  //
-  // "wrap_emu" - Same as "wrap" but captures output through an emulator.
-  google.protobuf.StringValue console = 60;
-
   // Absolute path to the local directory where the run's files are stored.
   google.protobuf.StringValue files_dir = 70;
+
+  // Internal override setting for the computed files_dir
+  google.protobuf.StringValue x_files_dir = 180;
 
   // Unix glob patterns relative to `files_dir` to not upload.
   ListStringValue ignore_globs = 78;
@@ -183,6 +177,56 @@ message Settings {
   // Path to the script that created the run, if available.
   google.protobuf.StringValue program = 95;
 
+  // The relative path from the root repository directory to the script that
+  // created the run.
+  //
+  // If the script is not in the root repository directory, this will be the
+  // relative path from the current working directory to the script.
+  //
+  // For example, if the script is /home/user/project/example.py, and the root
+  // repository directory is /home/user/project, then the relative path is
+  // example.py.
+  //
+  // If couldn't find the relative path, this will be an empty string.
+  google.protobuf.StringValue program_relpath = 96;
+
+  // The relative path from the current working directory to the code path.
+  //
+  // For example, if the code path is /home/user/project/example.py, and the
+  // current working directory is /home/user/project, then the code path local
+  // is example.py.
+  //
+  // If couldn't find the relative path, this will be an empty string.
+  google.protobuf.StringValue _code_path_local = 163;
+
+  // The absolute path from the root repository directory to the script that
+  // created the run.
+  //
+  // Root repository directory is defined as the directory containing the
+  // .git directory, if it exists. Otherwise, it's the current working directory.
+  google.protobuf.StringValue program_abspath = 159;
+
+  // The arguments passed to the script that created the run, if available.
+  ListStringValue _args = 1;
+
+  // The operating system of the machine running the script.
+  google.protobuf.StringValue _os = 32;
+
+  // The Docker image used to execute the script.
+  google.protobuf.StringValue docker = 67;
+
+  // The executable used to execute the script.
+  google.protobuf.StringValue x_executable = 13;
+
+  // The Python version used to execute the script.
+  google.protobuf.StringValue _python = 34;
+
+  // The Colab URL, if available.
+  google.protobuf.StringValue colab_url = 160;
+
+  // The name of the host processor the run is running on.
+  google.protobuf.StringValue host = 77;
+
   // The W&B user name.
   google.protobuf.StringValue username = 141;
 
@@ -216,8 +260,45 @@ message Settings {
   // The W&B sweep URL.
   google.protobuf.StringValue sweep_url = 131;
 
-  // Disable check for latest version of wandb, from PyPI.
+  // Whether to disable check for latest version of wandb, from pypi.
   google.protobuf.BoolValue x_disable_update_check = 165;
+
+  // Whether to disable metadata collection.
+  google.protobuf.BoolValue x_disable_meta = 7;
+
+  // Whether to save the code used to create the run.
+  google.protobuf.BoolValue save_code = 115;
+
+  // Whether to disable git capture and diff generation.
+  google.protobuf.BoolValue disable_git = 63;
+
+  // Whether to disable machine info collection, such as hostname and hardware
+  // specs.
+  google.protobuf.BoolValue x_disable_machine_info = 158;
+
+  // Whether to disable system metrics collection.
+  google.protobuf.BoolValue x_disable_stats = 10;
+
+  // The size of the buffer for system metrics.
+  google.protobuf.Int32Value x_stats_buffer_size = 161;
+
+  // The sampling interval for system metrics.
+  google.protobuf.DoubleValue x_stats_sampling_interval = 174;
+
+  // The PID to monitor for system metrics.
+  google.protobuf.Int32Value x_stats_pid = 42;
+
+  // The disk paths to monitor for system metrics.
+  ListStringValue x_stats_disk_paths = 146;
+
+  // The path to the Neuron monitor config file.
+  google.protobuf.StringValue x_stats_neuron_monitor_config_path = 46;
+
+  // The OpenMetrics endpoints to monitor.
+  MapStringKeyStringValue x_stats_open_metrics_endpoints = 47;
+
+  // The OpenMetrics filters for the endpoints.
+  OpenMetricsFilters x_stats_open_metrics_filters = 48;
 
   // Explicitly require wandb-core to not be used.
   google.protobuf.BoolValue x_require_legacy_service = 173;
@@ -227,23 +308,35 @@ message Settings {
   // Remove after the feature is rolled out.
   google.protobuf.BoolValue x_show_operation_stats = 176;
 
+  // Flag to allow table artifacts to be synced in offline mode.
+  //
+  // By default, true, to revert to old behavior, set this to False.
+  google.protobuf.BoolValue allow_offline_artifacts = 177;
+
+  // Defines the type of console capture to be applied. Possible values are:
+  //
+  // "off" - Disables console capture.
+  //
+  // "redirect" - Redirects low-level file descriptors for capturing output.
+  //
+  // "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
+  // mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
+  //
+  // "wrap_raw" - Same as "wrap" but captures raw output directly instead of
+  // through an emulator.
+  //
+  // "wrap_emu" - Same as "wrap" but captures output through an emulator.
+  google.protobuf.StringValue console = 60;
+
   // Whether to sync TensorBoard logs to W&B.
   google.protobuf.BoolValue sync_tensorboard = 179;
 
-  // Internal override setting for the computed files_dir
-  google.protobuf.StringValue x_files_dir = 180;
-
-  // The arguments passed to the script that created the run, if available.
-  ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.BoolValue x_cli_only_mode = 4;
   google.protobuf.BoolValue _colab = 5;
-  google.protobuf.BoolValue x_disable_meta = 7;
   google.protobuf.BoolValue x_disable_service = 8;
   google.protobuf.BoolValue x_disable_setproctitle = 9;
-  google.protobuf.BoolValue x_disable_stats = 10;
   google.protobuf.BoolValue x_disable_viewer = 11;
-  google.protobuf.StringValue x_executable = 13;
   google.protobuf.BoolValue x_flow_control_custom = 16;
   google.protobuf.BoolValue x_flow_control_disabled = 17;
   google.protobuf.DoubleValue x_internal_check_process = 18;
@@ -258,22 +351,12 @@ message Settings {
   google.protobuf.Int32Value x_network_buffer = 27;
   google.protobuf.BoolValue _noop = 28;
   google.protobuf.BoolValue _notebook = 29;
-  // The operating system of the machine running the script.
-  google.protobuf.StringValue _os = 32;
   google.protobuf.StringValue _platform = 33;
-  google.protobuf.StringValue _python = 34;
   google.protobuf.StringValue x_runqueue_item_id = 35;
   google.protobuf.BoolValue x_save_requirements = 37;
   google.protobuf.StringValue x_service_transport = 38;
   google.protobuf.DoubleValue x_service_wait = 39;
   google.protobuf.StringValue _start_datetime = 40;
-  google.protobuf.Int32Value x_stats_pid = 42;
-  google.protobuf.DoubleValue x_stats_sampling_interval = 174;
-  google.protobuf.StringValue x_stats_neuron_monitor_config_path = 46;
-  MapStringKeyStringValue x_stats_open_metrics_endpoints = 47;
-  OpenMetricsFilters x_stats_open_metrics_filters = 48;
-  ListStringValue x_stats_disk_paths = 146;
-  google.protobuf.Int32Value x_stats_buffer_size = 161;
   google.protobuf.StringValue _tmp_code_dir = 49;
   google.protobuf.BoolValue _windows = 52;
   google.protobuf.BoolValue allow_val_change = 53;
@@ -283,18 +366,14 @@ message Settings {
   ListStringValue config_paths = 59;
   google.protobuf.StringValue deployment = 61;
   google.protobuf.BoolValue disable_code = 62;
-  google.protobuf.BoolValue disable_git = 63;
   google.protobuf.BoolValue disable_hints = 64;
   google.protobuf.BoolValue disabled = 66;
-  // The Docker image used to execute the script.
-  google.protobuf.StringValue docker = 67;
   google.protobuf.BoolValue force = 71;
   google.protobuf.StringValue git_commit = 72;
   google.protobuf.StringValue git_remote = 73;
   google.protobuf.StringValue git_remote_url = 74;
   google.protobuf.StringValue git_root = 75;
   google.protobuf.Int32Value heartbeat_seconds = 76;
-  google.protobuf.StringValue host = 77;
   google.protobuf.DoubleValue init_timeout = 79;
   google.protobuf.BoolValue is_local = 80;
   google.protobuf.StringValue job_source = 81;
@@ -307,29 +386,12 @@ message Settings {
   google.protobuf.DoubleValue login_timeout = 90;
   google.protobuf.StringValue mode = 92;
   google.protobuf.StringValue notebook_name = 93;
-  // The relative path from the root repository directory to the script that
-  // created the run.
-  //
-  // If the script is not in the root repository directory, this will be the
-  // relative path from the current working directory to the script.
-  //
-  // For example, if the script is /home/user/project/example.py, and the root
-  // repository directory is /home/user/project, then the relative path is
-  // example.py.
-  //
-  // If couldn't find the relative path, this will be an empty string.
-  google.protobuf.StringValue program_relpath = 96;
   google.protobuf.StringValue project_url = 98;
   google.protobuf.BoolValue quiet = 99;
   google.protobuf.BoolValue reinit = 100;
   google.protobuf.BoolValue relogin = 101;
   google.protobuf.StringValue resume_fname = 103;
   google.protobuf.BoolValue resumed = 104;
-  // The root directory that will be used to derive other paths.
-  // Such as the wandb directory, and the run directory.
-  //
-  // By default, this is the current working directory.
-  google.protobuf.StringValue root_dir = 105;
   google.protobuf.StringValue run_group = 106;
   google.protobuf.StringValue run_job_type = 108;
   google.protobuf.StringValue run_mode = 109;
@@ -337,7 +399,6 @@ message Settings {
   google.protobuf.StringValue run_notes = 111;
   ListStringValue run_tags = 112;
   google.protobuf.BoolValue sagemaker_disable = 114;
-  google.protobuf.BoolValue save_code = 115;
   google.protobuf.StringValue settings_system = 116;
   google.protobuf.StringValue settings_workspace = 117;
   google.protobuf.BoolValue show_colors = 118;
@@ -363,26 +424,5 @@ message Settings {
   google.protobuf.StringValue x_jupyter_name = 143;
   google.protobuf.StringValue x_jupyter_path = 144;
   google.protobuf.StringValue job_name = 145;
-  google.protobuf.BoolValue x_disable_machine_info = 158;
-  // The absolute path from the root repository directory to the script that
-  // created the run.
-  //
-  // Root repository directory is defined as the directory containing the
-  // .git directory, if it exists. Otherwise, it's the current working directory.
-  google.protobuf.StringValue program_abspath = 159;
-  // The Colab URL, if available.
-  google.protobuf.StringValue colab_url = 160;
-  // The relative path from the current working directory to the code path.
-  //
-  // For example, if the code path is /home/user/project/example.py, and the
-  // current working directory is /home/user/project, then the code path local
-  // is example.py.
-  //
-  // If couldn't find the relative path, this will be an empty string.
-  google.protobuf.StringValue _code_path_local = 163;
   google.protobuf.BoolValue console_multipart = 166;
-  // Flag to allow table artifacts to be synced in offline mode.
-  //
-  // By default, true, to revert to old behavior, set this to False.
-  google.protobuf.BoolValue allow_offline_artifacts = 177;
 }

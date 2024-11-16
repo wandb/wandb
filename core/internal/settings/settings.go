@@ -353,25 +353,20 @@ func (s *Settings) GetForkFrom() *spb.RunMoment {
 	return s.Proto.ForkFrom
 }
 
-// The W&B sweep URL.
-func (s *Settings) GetSweepURL() string {
-	return s.Proto.SweepUrl.GetValue()
-}
-
 // Whether to create a job artifact for W&B Launch.
 func (s *Settings) IsJobCreationDisabled() bool {
 	return s.Proto.DisableJobCreation.GetValue() || s.Proto.XDisableMachineInfo.GetValue()
+}
+
+// The W&B sweep URL.
+func (s *Settings) GetSweepURL() string {
+	return s.Proto.SweepUrl.GetValue()
 }
 
 // Checks whether console capture is enabled. If it is, stdout and stderr
 // will be captured and sent to W&B.
 func (s *Settings) IsConsoleCaptureEnabled() bool {
 	return s.Proto.Console.GetValue() != "off"
-}
-
-// Whether to disable system metrics collection.
-func (s *Settings) IsDisableStats() bool {
-	return s.Proto.XDisableStats.GetValue()
 }
 
 // Whether to disable metadata collection.
@@ -389,9 +384,50 @@ func (s *Settings) IsDisableGit() bool {
 	return s.Proto.DisableGit.GetValue()
 }
 
-// Whether to disable machine info collection, such as hostname and hardware specs.
-func (s *Settings) GetDisableMachineInfo() bool {
+// Whether to disable machine info collection, such as hostname and hardware
+// spec.
+func (s *Settings) IsDisableMachineInfo() bool {
 	return s.Proto.XDisableMachineInfo.GetValue()
+}
+
+// Whether to disable system metrics collection.
+func (s *Settings) IsDisableStats() bool {
+	return s.Proto.XDisableStats.GetValue()
+}
+
+// The size of the buffer for system metrics.
+func (s *Settings) GetStatsBufferSize() int32 {
+	return s.Proto.XStatsBufferSize.GetValue()
+}
+
+// The sampling interval for system metrics.
+func (s *Settings) GetStatsSamplingInterval() float64 {
+	return s.Proto.XStatsSamplingInterval.GetValue()
+}
+
+// The PID to monitor for system metrics.
+func (s *Settings) GetStatsPid() int32 {
+	return s.Proto.XStatsPid.GetValue()
+}
+
+// The disk paths to monitor for system metrics.
+func (s *Settings) GetStatsDiskPaths() []string {
+	return s.Proto.XStatsDiskPaths.GetValue()
+}
+
+// The path to the Neuron monitor config file.
+func (s *Settings) GetStatsNeuronMonitorConfigPath() string {
+	return s.Proto.XStatsNeuronMonitorConfigPath.GetValue()
+}
+
+// The OpenMetrics endpoints to monitor.
+func (s *Settings) GetStatsOpenMetricsEndpoints() map[string]string {
+	return s.Proto.XStatsOpenMetricsEndpoints.GetValue()
+}
+
+// The OpenMetrics filters for the endpoints.
+func (s *Settings) GetStatsOpenMetricsFilters() *spb.OpenMetricsFilters {
+	return s.Proto.XStatsOpenMetricsFilters
 }
 
 // Update methods.
