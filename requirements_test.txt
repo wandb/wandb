@@ -6,6 +6,7 @@ pytest-split~=0.8.2
 pytest-mock~=3.11
 pytest-timeout~=2.3
 pytest-flakefinder~=1.1
+pytest-memray~=1.7; sys_platform != 'win32'
 pyfakefs~=5.7
 parameterized~=0.9.0
 

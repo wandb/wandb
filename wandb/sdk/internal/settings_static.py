@@ -1,12 +1,11 @@
-from dataclasses import fields
-from typing import Any, Iterable, Sequence, Tuple
+from typing import Any, Iterable
 
 from wandb.proto import wandb_settings_pb2
 from wandb.sdk.lib import RunMoment
-from wandb.sdk.wandb_settings import SettingsData
+from wandb.sdk.wandb_settings import Settings
 
 
-class SettingsStatic(SettingsData):
+class SettingsStatic(Settings):
     """A readonly object that wraps a protobuf Settings message.
 
     Implements the mapping protocol, so you can access settings as
@@ -19,8 +18,7 @@ class SettingsStatic(SettingsData):
 
     def _from_proto(self, proto: wandb_settings_pb2.Settings) -> None:
         forks_specified: list[str] = []
-        for field in fields(SettingsData):
-            key = field.name
+        for key in Settings.model_fields:
             value: Any = None
             if key == "_stats_open_metrics_filters":
                 # todo: it's an underscored field, refactor into
@@ -52,10 +50,6 @@ class SettingsStatic(SettingsData):
             else:
                 if proto.HasField(key):  # type: ignore [arg-type]
                     value = getattr(proto, key).value
-                    if field.type == Sequence[str]:
-                        value = list(value)
-                    elif field.type == Tuple[str]:
-                        value = tuple(value)
                 else:
                     value = None
             object.__setattr__(self, key, value)
