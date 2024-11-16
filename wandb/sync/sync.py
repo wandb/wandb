@@ -183,8 +183,7 @@ class SyncThread(threading.Thread):
         settings = wandb.Settings(
             root_dir=self._tmp_dir.name,
             run_id=proto_run.run_id,
-            _start_datetime=datetime.datetime.now(),
-            _start_time=time.time(),
+            x_start_time=time.time(),
         )
 
         settings_static = SettingsStatic(settings.to_proto())

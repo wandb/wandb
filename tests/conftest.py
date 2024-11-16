@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+import platform
 import shutil
+import time
 import unittest.mock
 from pathlib import Path
 from queue import Queue
@@ -32,6 +34,19 @@ from wandb.sdk.lib.paths import StrPath  # noqa: E402
 # --------------------------------
 # Global pytest configuration
 # --------------------------------
+
+
+@pytest.fixture
+def disable_memray(pytestconfig):
+    """Disables the memray plugin for the duration of the test."""
+    if platform.system() == "Windows":
+        # noop on Windows
+        yield
+    else:
+        memray_plugin = pytestconfig.pluginmanager.get_plugin("memray_manager")
+        pytestconfig.pluginmanager.unregister(memray_plugin)
+        yield
+        pytestconfig.pluginmanager.register(memray_plugin, "memray_manager")
 
 
 @pytest.fixture(autouse=True)
@@ -408,10 +423,10 @@ def test_settings():
             save_code=False,
         )
         if isinstance(extra_settings, dict):
-            settings.update(extra_settings, source=wandb.sdk.wandb_settings.Source.BASE)
+            settings.update_from_dict(extra_settings)
         elif isinstance(extra_settings, wandb.Settings):
-            settings.update(extra_settings)
-        settings._set_run_start_time()
+            settings.update_from_settings(extra_settings)
+        settings.x_start_time = time.time()
         return settings
 
     yield update_test_settings
@@ -425,7 +440,7 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
         kwargs_settings = kwargs.pop("settings", dict())
         kwargs_settings = {
             "run_id": runid.generate_id(),
-            **kwargs_settings,
+            **dict(kwargs_settings),
         }
         run = wandb.wandb_sdk.wandb_run.Run(
             settings=test_settings(kwargs_settings), **kwargs

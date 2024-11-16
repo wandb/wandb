@@ -1,7 +1,6 @@
 import json
 import os
 import pathlib
-import platform
 import re
 import subprocess
 import sys
@@ -191,8 +190,8 @@ def test_mocked_notebook_html_quiet(wandb_init, run_id, mocked_ipython):
     assert not any("Run history:" in html for html in displayed_html)
 
 
-def test_mocked_notebook_run_display(wandb_init, mocked_ipython):
-    with wandb_init() as run:
+def test_mocked_notebook_run_display(user, mocked_ipython):
+    with wandb.init() as run:
         run.display()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
@@ -200,19 +199,20 @@ def test_mocked_notebook_run_display(wandb_init, mocked_ipython):
     assert any("<iframe" in html for html in displayed_html)
 
 
-def test_mocked_notebook_magic(user, wandb_init, run_id, test_settings, mocked_ipython):
+def test_mocked_notebook_magic(user, run_id, mocked_ipython):
     magic = wandb.jupyter.WandBMagics(None)
+    s = wandb.Settings()
+    s.update_from_env_vars(os.environ)
     basic_settings = {
-        k: v
-        for k, v in dict(test_settings({"run_id": run_id})).items()
-        if k in ("base_url", "api_key", "run_id")
+        "api_key": user,
+        "base_url": s.base_url,
+        "run_id": run_id,
     }
     magic.wandb(
         "",
         """with wandb.init(settings=wandb.Settings(**{})):
         wandb.log({{"a": 1}})""".format(basic_settings),
     )
-    wandb.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
@@ -226,29 +226,7 @@ def test_mocked_notebook_magic(user, wandb_init, run_id, test_settings, mocked_i
     assert any(f"{run_uri}?jupyter=true" in html for html in displayed_html)
 
 
-@pytest.mark.flaky
-@pytest.mark.timeout(90)
-@pytest.mark.skipif(
-    platform.system() == "Windows", reason="This test is flaky on Windows"
-)
 def test_code_saving(notebook):
-    # TODO: make this test work with the unmock server
-    # TODO: this is awfully slow, we should likely run these in parallel
-    # with notebook("code_saving.ipynb") as nb:
-    #     nb.execute_all()
-    #     server_ctx = live_mock_server.get_ctx()
-    #     artifact_name = list(server_ctx["artifacts"].keys())[0]
-    #     print("Artifacts: ", server_ctx["artifacts"][artifact_name])
-    #     # We run 3 cells after calling wandb.init
-    #     valid = [3]
-    #     # TODO: (cvp) for reasons unclear this is flaky.  I've verified the artifacts
-    #     # are being logged from the sender thread.  This is either a race in the mock_server
-    #     # or a legit windows bug.
-    #     if platform.system() == "Windows":
-    #         valid.append(1)  # See WB-6964 for info when hack was extended
-    #         valid.append(2)
-    #     assert len(server_ctx["artifacts"][artifact_name]) in valid
-
     with notebook("code_saving.ipynb", save_code=False) as nb:
         nb.execute_all()
         assert "Failed to detect the name of this notebook" in nb.all_output_text()
@@ -265,7 +243,7 @@ def test_notebook_creates_artifact_job(notebook):
         nb.execute_all()
         output = nb.cell_output_html(2)
     # get the run id from the url in the output
-    regex_string = r'http:\/\/localhost:8080\/[^\/]+\/[^\/]+\/runs\/([^\'"]+)'
+    regex_string = r'http:\/\/localhost:\d+\/[^\/]+\/[^\/]+\/runs\/([^\'"]+)'
     run_id = re.search(regex_string, str(output)).group(1)
 
     api = wandb.Api()
@@ -284,7 +262,7 @@ def test_notebook_creates_repo_job(notebook):
         nb.execute_all()
         output = nb.cell_output_html(2)
     # get the run id from the url in the output
-    regex_string = r'http:\/\/localhost:8080\/[^\/]+\/[^\/]+\/runs\/([^\'"]+)'
+    regex_string = r'http:\/\/localhost:\d+\/[^\/]+\/[^\/]+\/runs\/([^\'"]+)'
     run_id = re.search(regex_string, str(output)).group(1)
 
     api = wandb.Api()
