@@ -235,7 +235,7 @@ class OpenMetrics:
         self.shutdown_event = shutdown_event
 
         self.metrics: List[Metric] = [
-            OpenMetricsMetric(name, url, settings._stats_open_metrics_filters)
+            OpenMetricsMetric(name, url, settings.x_stats_open_metrics_filters)
         ]
 
         self.metrics_monitor: MetricsMonitor = MetricsMonitor(

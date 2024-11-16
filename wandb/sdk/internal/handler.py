@@ -692,9 +692,14 @@ class HandleManager:
             self._settings,
             self._interface,
         )
-        if not self._settings._disable_stats:
+        if not (
+            self._settings.x_disable_stats or self._settings.x_disable_machine_info
+        ):
             self._system_monitor.start()
-        if not self._settings._disable_meta and not run_start.run.resumed:
+        if (
+            not (self._settings.x_disable_meta or self._settings.x_disable_machine_info)
+            and not run_start.run.resumed
+        ):
             self._system_monitor.probe(publish=True)
 
         self._tb_watcher = tb_watcher.TBWatcher(
