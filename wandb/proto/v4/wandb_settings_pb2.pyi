@@ -178,10 +178,11 @@ class Settings(google.protobuf.message.Message):
     PROJECT_FIELD_NUMBER: builtins.int
     ENTITY_FIELD_NUMBER: builtins.int
     X_START_TIME_FIELD_NUMBER: builtins.int
+    ROOT_DIR_FIELD_NUMBER: builtins.int
     LOG_DIR_FIELD_NUMBER: builtins.int
     LOG_INTERNAL_FIELD_NUMBER: builtins.int
-    CONSOLE_FIELD_NUMBER: builtins.int
     FILES_DIR_FIELD_NUMBER: builtins.int
+    X_FILES_DIR_FIELD_NUMBER: builtins.int
     IGNORE_GLOBS_FIELD_NUMBER: builtins.int
     BASE_URL_FIELD_NUMBER: builtins.int
     X_FILE_STREAM_MAX_BYTES_FIELD_NUMBER: builtins.int
@@ -204,6 +205,16 @@ class Settings(google.protobuf.message.Message):
     HTTPS_PROXY_FIELD_NUMBER: builtins.int
     X_PROXIES_FIELD_NUMBER: builtins.int
     PROGRAM_FIELD_NUMBER: builtins.int
+    PROGRAM_RELPATH_FIELD_NUMBER: builtins.int
+    _CODE_PATH_LOCAL_FIELD_NUMBER: builtins.int
+    PROGRAM_ABSPATH_FIELD_NUMBER: builtins.int
+    _ARGS_FIELD_NUMBER: builtins.int
+    _OS_FIELD_NUMBER: builtins.int
+    DOCKER_FIELD_NUMBER: builtins.int
+    X_EXECUTABLE_FIELD_NUMBER: builtins.int
+    _PYTHON_FIELD_NUMBER: builtins.int
+    COLAB_URL_FIELD_NUMBER: builtins.int
+    HOST_FIELD_NUMBER: builtins.int
     USERNAME_FIELD_NUMBER: builtins.int
     EMAIL_FIELD_NUMBER: builtins.int
     RESUME_FIELD_NUMBER: builtins.int
@@ -212,20 +223,29 @@ class Settings(google.protobuf.message.Message):
     DISABLE_JOB_CREATION_FIELD_NUMBER: builtins.int
     SWEEP_URL_FIELD_NUMBER: builtins.int
     X_DISABLE_UPDATE_CHECK_FIELD_NUMBER: builtins.int
+    X_DISABLE_META_FIELD_NUMBER: builtins.int
+    SAVE_CODE_FIELD_NUMBER: builtins.int
+    DISABLE_GIT_FIELD_NUMBER: builtins.int
+    X_DISABLE_MACHINE_INFO_FIELD_NUMBER: builtins.int
+    X_DISABLE_STATS_FIELD_NUMBER: builtins.int
+    X_STATS_BUFFER_SIZE_FIELD_NUMBER: builtins.int
+    X_STATS_SAMPLING_INTERVAL_FIELD_NUMBER: builtins.int
+    X_STATS_PID_FIELD_NUMBER: builtins.int
+    X_STATS_DISK_PATHS_FIELD_NUMBER: builtins.int
+    X_STATS_NEURON_MONITOR_CONFIG_PATH_FIELD_NUMBER: builtins.int
+    X_STATS_OPEN_METRICS_ENDPOINTS_FIELD_NUMBER: builtins.int
+    X_STATS_OPEN_METRICS_FILTERS_FIELD_NUMBER: builtins.int
     X_REQUIRE_LEGACY_SERVICE_FIELD_NUMBER: builtins.int
     X_SHOW_OPERATION_STATS_FIELD_NUMBER: builtins.int
+    ALLOW_OFFLINE_ARTIFACTS_FIELD_NUMBER: builtins.int
+    CONSOLE_FIELD_NUMBER: builtins.int
     SYNC_TENSORBOARD_FIELD_NUMBER: builtins.int
-    X_FILES_DIR_FIELD_NUMBER: builtins.int
-    _ARGS_FIELD_NUMBER: builtins.int
     _AWS_LAMBDA_FIELD_NUMBER: builtins.int
     X_CLI_ONLY_MODE_FIELD_NUMBER: builtins.int
     _COLAB_FIELD_NUMBER: builtins.int
-    X_DISABLE_META_FIELD_NUMBER: builtins.int
     X_DISABLE_SERVICE_FIELD_NUMBER: builtins.int
     X_DISABLE_SETPROCTITLE_FIELD_NUMBER: builtins.int
-    X_DISABLE_STATS_FIELD_NUMBER: builtins.int
     X_DISABLE_VIEWER_FIELD_NUMBER: builtins.int
-    X_EXECUTABLE_FIELD_NUMBER: builtins.int
     X_FLOW_CONTROL_CUSTOM_FIELD_NUMBER: builtins.int
     X_FLOW_CONTROL_DISABLED_FIELD_NUMBER: builtins.int
     X_INTERNAL_CHECK_PROCESS_FIELD_NUMBER: builtins.int
@@ -240,21 +260,12 @@ class Settings(google.protobuf.message.Message):
     X_NETWORK_BUFFER_FIELD_NUMBER: builtins.int
     _NOOP_FIELD_NUMBER: builtins.int
     _NOTEBOOK_FIELD_NUMBER: builtins.int
-    _OS_FIELD_NUMBER: builtins.int
     _PLATFORM_FIELD_NUMBER: builtins.int
-    _PYTHON_FIELD_NUMBER: builtins.int
     X_RUNQUEUE_ITEM_ID_FIELD_NUMBER: builtins.int
     X_SAVE_REQUIREMENTS_FIELD_NUMBER: builtins.int
     X_SERVICE_TRANSPORT_FIELD_NUMBER: builtins.int
     X_SERVICE_WAIT_FIELD_NUMBER: builtins.int
     _START_DATETIME_FIELD_NUMBER: builtins.int
-    X_STATS_PID_FIELD_NUMBER: builtins.int
-    X_STATS_SAMPLING_INTERVAL_FIELD_NUMBER: builtins.int
-    X_STATS_NEURON_MONITOR_CONFIG_PATH_FIELD_NUMBER: builtins.int
-    X_STATS_OPEN_METRICS_ENDPOINTS_FIELD_NUMBER: builtins.int
-    X_STATS_OPEN_METRICS_FILTERS_FIELD_NUMBER: builtins.int
-    X_STATS_DISK_PATHS_FIELD_NUMBER: builtins.int
-    X_STATS_BUFFER_SIZE_FIELD_NUMBER: builtins.int
     _TMP_CODE_DIR_FIELD_NUMBER: builtins.int
     _WINDOWS_FIELD_NUMBER: builtins.int
     ALLOW_VAL_CHANGE_FIELD_NUMBER: builtins.int
@@ -264,17 +275,14 @@ class Settings(google.protobuf.message.Message):
     CONFIG_PATHS_FIELD_NUMBER: builtins.int
     DEPLOYMENT_FIELD_NUMBER: builtins.int
     DISABLE_CODE_FIELD_NUMBER: builtins.int
-    DISABLE_GIT_FIELD_NUMBER: builtins.int
     DISABLE_HINTS_FIELD_NUMBER: builtins.int
     DISABLED_FIELD_NUMBER: builtins.int
-    DOCKER_FIELD_NUMBER: builtins.int
     FORCE_FIELD_NUMBER: builtins.int
     GIT_COMMIT_FIELD_NUMBER: builtins.int
     GIT_REMOTE_FIELD_NUMBER: builtins.int
     GIT_REMOTE_URL_FIELD_NUMBER: builtins.int
     GIT_ROOT_FIELD_NUMBER: builtins.int
     HEARTBEAT_SECONDS_FIELD_NUMBER: builtins.int
-    HOST_FIELD_NUMBER: builtins.int
     INIT_TIMEOUT_FIELD_NUMBER: builtins.int
     IS_LOCAL_FIELD_NUMBER: builtins.int
     JOB_SOURCE_FIELD_NUMBER: builtins.int
@@ -287,14 +295,12 @@ class Settings(google.protobuf.message.Message):
     LOGIN_TIMEOUT_FIELD_NUMBER: builtins.int
     MODE_FIELD_NUMBER: builtins.int
     NOTEBOOK_NAME_FIELD_NUMBER: builtins.int
-    PROGRAM_RELPATH_FIELD_NUMBER: builtins.int
     PROJECT_URL_FIELD_NUMBER: builtins.int
     QUIET_FIELD_NUMBER: builtins.int
     REINIT_FIELD_NUMBER: builtins.int
     RELOGIN_FIELD_NUMBER: builtins.int
     RESUME_FNAME_FIELD_NUMBER: builtins.int
     RESUMED_FIELD_NUMBER: builtins.int
-    ROOT_DIR_FIELD_NUMBER: builtins.int
     RUN_GROUP_FIELD_NUMBER: builtins.int
     RUN_JOB_TYPE_FIELD_NUMBER: builtins.int
     RUN_MODE_FIELD_NUMBER: builtins.int
@@ -302,7 +308,6 @@ class Settings(google.protobuf.message.Message):
     RUN_NOTES_FIELD_NUMBER: builtins.int
     RUN_TAGS_FIELD_NUMBER: builtins.int
     SAGEMAKER_DISABLE_FIELD_NUMBER: builtins.int
-    SAVE_CODE_FIELD_NUMBER: builtins.int
     SETTINGS_SYSTEM_FIELD_NUMBER: builtins.int
     SETTINGS_WORKSPACE_FIELD_NUMBER: builtins.int
     SHOW_COLORS_FIELD_NUMBER: builtins.int
@@ -328,12 +333,7 @@ class Settings(google.protobuf.message.Message):
     X_JUPYTER_NAME_FIELD_NUMBER: builtins.int
     X_JUPYTER_PATH_FIELD_NUMBER: builtins.int
     JOB_NAME_FIELD_NUMBER: builtins.int
-    X_DISABLE_MACHINE_INFO_FIELD_NUMBER: builtins.int
-    PROGRAM_ABSPATH_FIELD_NUMBER: builtins.int
-    COLAB_URL_FIELD_NUMBER: builtins.int
-    _CODE_PATH_LOCAL_FIELD_NUMBER: builtins.int
     CONSOLE_MULTIPART_FIELD_NUMBER: builtins.int
-    ALLOW_OFFLINE_ARTIFACTS_FIELD_NUMBER: builtins.int
     @property
     def api_key(self) -> google.protobuf.wrappers_pb2.StringValue:
         """The W&B API key.
@@ -380,30 +380,24 @@ class Settings(google.protobuf.message.Message):
     def x_start_time(self) -> google.protobuf.wrappers_pb2.DoubleValue:
         """The start time of the run in seconds since the Unix epoch."""
     @property
+    def root_dir(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The root directory that will be used to derive other paths.
+        Such as the wandb directory, and the run directory.
+
+        By default, this is the current working directory.
+        """
+    @property
     def log_dir(self) -> google.protobuf.wrappers_pb2.StringValue:
         """The directory for storing log files."""
     @property
     def log_internal(self) -> google.protobuf.wrappers_pb2.StringValue:
         """The path to the file to use for internal logs."""
     @property
-    def console(self) -> google.protobuf.wrappers_pb2.StringValue:
-        """Defines the type of console capture to be applied. Possible values are:
-
-        "off" - Disables console capture.
-
-        "redirect" - Redirects low-level file descriptors for capturing output.
-
-        "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
-        mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
-
-        "wrap_raw" - Same as "wrap" but captures raw output directly instead of
-        through an emulator.
-
-        "wrap_emu" - Same as "wrap" but captures output through an emulator.
-        """
-    @property
     def files_dir(self) -> google.protobuf.wrappers_pb2.StringValue:
         """Absolute path to the local directory where the run's files are stored."""
+    @property
+    def x_files_dir(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """Internal override setting for the computed files_dir"""
     @property
     def ignore_globs(self) -> global___ListStringValue:
         """Unix glob patterns relative to `files_dir` to not upload."""
@@ -489,6 +483,59 @@ class Settings(google.protobuf.message.Message):
     def program(self) -> google.protobuf.wrappers_pb2.StringValue:
         """Path to the script that created the run, if available."""
     @property
+    def program_relpath(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The relative path from the root repository directory to the script that
+        created the run.
+
+        If the script is not in the root repository directory, this will be the
+        relative path from the current working directory to the script.
+
+        For example, if the script is /home/user/project/example.py, and the root
+        repository directory is /home/user/project, then the relative path is
+        example.py.
+
+        If couldn't find the relative path, this will be an empty string.
+        """
+    @property
+    def _code_path_local(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The relative path from the current working directory to the code path.
+
+        For example, if the code path is /home/user/project/example.py, and the
+        current working directory is /home/user/project, then the code path local
+        is example.py.
+
+        If couldn't find the relative path, this will be an empty string.
+        """
+    @property
+    def program_abspath(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The absolute path from the root repository directory to the script that
+        created the run.
+
+        Root repository directory is defined as the directory containing the
+        .git directory, if it exists. Otherwise, it's the current working directory.
+        """
+    @property
+    def _args(self) -> global___ListStringValue:
+        """The arguments passed to the script that created the run, if available."""
+    @property
+    def _os(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The operating system of the machine running the script."""
+    @property
+    def docker(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The Docker image used to execute the script."""
+    @property
+    def x_executable(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The executable used to execute the script."""
+    @property
+    def _python(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The Python version used to execute the script."""
+    @property
+    def colab_url(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The Colab URL, if available."""
+    @property
+    def host(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The name of the host processor the run is running on."""
+    @property
     def username(self) -> google.protobuf.wrappers_pb2.StringValue:
         """The W&B user name."""
     @property
@@ -524,7 +571,45 @@ class Settings(google.protobuf.message.Message):
         """The W&B sweep URL."""
     @property
     def x_disable_update_check(self) -> google.protobuf.wrappers_pb2.BoolValue:
-        """Disable check for latest version of wandb, from PyPI."""
+        """Whether to disable check for latest version of wandb, from pypi."""
+    @property
+    def x_disable_meta(self) -> google.protobuf.wrappers_pb2.BoolValue:
+        """Whether to disable metadata collection."""
+    @property
+    def save_code(self) -> google.protobuf.wrappers_pb2.BoolValue:
+        """Whether to save the code used to create the run."""
+    @property
+    def disable_git(self) -> google.protobuf.wrappers_pb2.BoolValue:
+        """Whether to disable git capture and diff generation."""
+    @property
+    def x_disable_machine_info(self) -> google.protobuf.wrappers_pb2.BoolValue:
+        """Whether to disable machine info collection, such as hostname and hardware
+        specs.
+        """
+    @property
+    def x_disable_stats(self) -> google.protobuf.wrappers_pb2.BoolValue:
+        """Whether to disable system metrics collection."""
+    @property
+    def x_stats_buffer_size(self) -> google.protobuf.wrappers_pb2.Int32Value:
+        """The size of the buffer for system metrics."""
+    @property
+    def x_stats_sampling_interval(self) -> google.protobuf.wrappers_pb2.DoubleValue:
+        """The sampling interval for system metrics."""
+    @property
+    def x_stats_pid(self) -> google.protobuf.wrappers_pb2.Int32Value:
+        """The PID to monitor for system metrics."""
+    @property
+    def x_stats_disk_paths(self) -> global___ListStringValue:
+        """The disk paths to monitor for system metrics."""
+    @property
+    def x_stats_neuron_monitor_config_path(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The path to the Neuron monitor config file."""
+    @property
+    def x_stats_open_metrics_endpoints(self) -> global___MapStringKeyStringValue:
+        """The OpenMetrics endpoints to monitor."""
+    @property
+    def x_stats_open_metrics_filters(self) -> global___OpenMetricsFilters:
+        """The OpenMetrics filters for the endpoints."""
     @property
     def x_require_legacy_service(self) -> google.protobuf.wrappers_pb2.BoolValue:
         """Explicitly require wandb-core to not be used."""
@@ -535,14 +620,30 @@ class Settings(google.protobuf.message.Message):
         Remove after the feature is rolled out.
         """
     @property
+    def allow_offline_artifacts(self) -> google.protobuf.wrappers_pb2.BoolValue:
+        """Flag to allow table artifacts to be synced in offline mode.
+
+        By default, true, to revert to old behavior, set this to False.
+        """
+    @property
+    def console(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """Defines the type of console capture to be applied. Possible values are:
+
+        "off" - Disables console capture.
+
+        "redirect" - Redirects low-level file descriptors for capturing output.
+
+        "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
+        mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
+
+        "wrap_raw" - Same as "wrap" but captures raw output directly instead of
+        through an emulator.
+
+        "wrap_emu" - Same as "wrap" but captures output through an emulator.
+        """
+    @property
     def sync_tensorboard(self) -> google.protobuf.wrappers_pb2.BoolValue:
         """Whether to sync TensorBoard logs to W&B."""
-    @property
-    def x_files_dir(self) -> google.protobuf.wrappers_pb2.StringValue:
-        """Internal override setting for the computed files_dir"""
-    @property
-    def _args(self) -> global___ListStringValue:
-        """The arguments passed to the script that created the run, if available."""
     @property
     def _aws_lambda(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
@@ -550,17 +651,11 @@ class Settings(google.protobuf.message.Message):
     @property
     def _colab(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
-    def x_disable_meta(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
-    @property
     def x_disable_service(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
     def x_disable_setproctitle(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
-    def x_disable_stats(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
-    @property
     def x_disable_viewer(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
-    @property
-    def x_executable(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def x_flow_control_custom(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
@@ -590,12 +685,7 @@ class Settings(google.protobuf.message.Message):
     @property
     def _notebook(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
-    def _os(self) -> google.protobuf.wrappers_pb2.StringValue:
-        """The operating system of the machine running the script."""
-    @property
     def _platform(self) -> google.protobuf.wrappers_pb2.StringValue: ...
-    @property
-    def _python(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def x_runqueue_item_id(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
@@ -606,20 +696,6 @@ class Settings(google.protobuf.message.Message):
     def x_service_wait(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
     @property
     def _start_datetime(self) -> google.protobuf.wrappers_pb2.StringValue: ...
-    @property
-    def x_stats_pid(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
-    @property
-    def x_stats_sampling_interval(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
-    @property
-    def x_stats_neuron_monitor_config_path(self) -> google.protobuf.wrappers_pb2.StringValue: ...
-    @property
-    def x_stats_open_metrics_endpoints(self) -> global___MapStringKeyStringValue: ...
-    @property
-    def x_stats_open_metrics_filters(self) -> global___OpenMetricsFilters: ...
-    @property
-    def x_stats_disk_paths(self) -> global___ListStringValue: ...
-    @property
-    def x_stats_buffer_size(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
     @property
     def _tmp_code_dir(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
@@ -639,14 +715,9 @@ class Settings(google.protobuf.message.Message):
     @property
     def disable_code(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
-    def disable_git(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
-    @property
     def disable_hints(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
     def disabled(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
-    @property
-    def docker(self) -> google.protobuf.wrappers_pb2.StringValue:
-        """The Docker image used to execute the script."""
     @property
     def force(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
@@ -659,8 +730,6 @@ class Settings(google.protobuf.message.Message):
     def git_root(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def heartbeat_seconds(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
-    @property
-    def host(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def init_timeout(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
     @property
@@ -686,20 +755,6 @@ class Settings(google.protobuf.message.Message):
     @property
     def notebook_name(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
-    def program_relpath(self) -> google.protobuf.wrappers_pb2.StringValue:
-        """The relative path from the root repository directory to the script that
-        created the run.
-
-        If the script is not in the root repository directory, this will be the
-        relative path from the current working directory to the script.
-
-        For example, if the script is /home/user/project/example.py, and the root
-        repository directory is /home/user/project, then the relative path is
-        example.py.
-
-        If couldn't find the relative path, this will be an empty string.
-        """
-    @property
     def project_url(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def quiet(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
@@ -711,13 +766,6 @@ class Settings(google.protobuf.message.Message):
     def resume_fname(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def resumed(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
-    @property
-    def root_dir(self) -> google.protobuf.wrappers_pb2.StringValue:
-        """The root directory that will be used to derive other paths.
-        Such as the wandb directory, and the run directory.
-
-        By default, this is the current working directory.
-        """
     @property
     def run_group(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
@@ -732,8 +780,6 @@ class Settings(google.protobuf.message.Message):
     def run_tags(self) -> global___ListStringValue: ...
     @property
     def sagemaker_disable(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
-    @property
-    def save_code(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
     def settings_system(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
@@ -785,36 +831,7 @@ class Settings(google.protobuf.message.Message):
     @property
     def job_name(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
-    def x_disable_machine_info(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
-    @property
-    def program_abspath(self) -> google.protobuf.wrappers_pb2.StringValue:
-        """The absolute path from the root repository directory to the script that
-        created the run.
-
-        Root repository directory is defined as the directory containing the
-        .git directory, if it exists. Otherwise, it's the current working directory.
-        """
-    @property
-    def colab_url(self) -> google.protobuf.wrappers_pb2.StringValue:
-        """The Colab URL, if available."""
-    @property
-    def _code_path_local(self) -> google.protobuf.wrappers_pb2.StringValue:
-        """The relative path from the current working directory to the code path.
-
-        For example, if the code path is /home/user/project/example.py, and the
-        current working directory is /home/user/project, then the code path local
-        is example.py.
-
-        If couldn't find the relative path, this will be an empty string.
-        """
-    @property
     def console_multipart(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
-    @property
-    def allow_offline_artifacts(self) -> google.protobuf.wrappers_pb2.BoolValue:
-        """Flag to allow table artifacts to be synced in offline mode.
-
-        By default, true, to revert to old behavior, set this to False.
-        """
     def __init__(
         self,
         *,
@@ -830,10 +847,11 @@ class Settings(google.protobuf.message.Message):
         project: google.protobuf.wrappers_pb2.StringValue | None = ...,
         entity: google.protobuf.wrappers_pb2.StringValue | None = ...,
         x_start_time: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
+        root_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         log_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         log_internal: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        console: google.protobuf.wrappers_pb2.StringValue | None = ...,
         files_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        x_files_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         ignore_globs: global___ListStringValue | None = ...,
         base_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
         x_file_stream_max_bytes: google.protobuf.wrappers_pb2.Int32Value | None = ...,
@@ -856,6 +874,16 @@ class Settings(google.protobuf.message.Message):
         https_proxy: google.protobuf.wrappers_pb2.StringValue | None = ...,
         x_proxies: global___MapStringKeyStringValue | None = ...,
         program: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        program_relpath: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        _code_path_local: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        program_abspath: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        _args: global___ListStringValue | None = ...,
+        _os: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        docker: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        x_executable: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        _python: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        colab_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        host: google.protobuf.wrappers_pb2.StringValue | None = ...,
         username: google.protobuf.wrappers_pb2.StringValue | None = ...,
         email: google.protobuf.wrappers_pb2.StringValue | None = ...,
         resume: google.protobuf.wrappers_pb2.StringValue | None = ...,
@@ -864,20 +892,29 @@ class Settings(google.protobuf.message.Message):
         disable_job_creation: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         sweep_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
         x_disable_update_check: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        x_disable_meta: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        save_code: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        disable_git: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        x_disable_machine_info: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        x_disable_stats: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        x_stats_buffer_size: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        x_stats_sampling_interval: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
+        x_stats_pid: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        x_stats_disk_paths: global___ListStringValue | None = ...,
+        x_stats_neuron_monitor_config_path: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        x_stats_open_metrics_endpoints: global___MapStringKeyStringValue | None = ...,
+        x_stats_open_metrics_filters: global___OpenMetricsFilters | None = ...,
         x_require_legacy_service: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         x_show_operation_stats: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        allow_offline_artifacts: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        console: google.protobuf.wrappers_pb2.StringValue | None = ...,
         sync_tensorboard: google.protobuf.wrappers_pb2.BoolValue | None = ...,
-        x_files_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        _args: global___ListStringValue | None = ...,
         _aws_lambda: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         x_cli_only_mode: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _colab: google.protobuf.wrappers_pb2.BoolValue | None = ...,
-        x_disable_meta: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         x_disable_service: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         x_disable_setproctitle: google.protobuf.wrappers_pb2.BoolValue | None = ...,
-        x_disable_stats: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         x_disable_viewer: google.protobuf.wrappers_pb2.BoolValue | None = ...,
-        x_executable: google.protobuf.wrappers_pb2.StringValue | None = ...,
         x_flow_control_custom: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         x_flow_control_disabled: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         x_internal_check_process: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
@@ -892,21 +929,12 @@ class Settings(google.protobuf.message.Message):
         x_network_buffer: google.protobuf.wrappers_pb2.Int32Value | None = ...,
         _noop: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _notebook: google.protobuf.wrappers_pb2.BoolValue | None = ...,
-        _os: google.protobuf.wrappers_pb2.StringValue | None = ...,
         _platform: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        _python: google.protobuf.wrappers_pb2.StringValue | None = ...,
         x_runqueue_item_id: google.protobuf.wrappers_pb2.StringValue | None = ...,
         x_save_requirements: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         x_service_transport: google.protobuf.wrappers_pb2.StringValue | None = ...,
         x_service_wait: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
         _start_datetime: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        x_stats_pid: google.protobuf.wrappers_pb2.Int32Value | None = ...,
-        x_stats_sampling_interval: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
-        x_stats_neuron_monitor_config_path: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        x_stats_open_metrics_endpoints: global___MapStringKeyStringValue | None = ...,
-        x_stats_open_metrics_filters: global___OpenMetricsFilters | None = ...,
-        x_stats_disk_paths: global___ListStringValue | None = ...,
-        x_stats_buffer_size: google.protobuf.wrappers_pb2.Int32Value | None = ...,
         _tmp_code_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         _windows: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         allow_val_change: google.protobuf.wrappers_pb2.BoolValue | None = ...,
@@ -916,17 +944,14 @@ class Settings(google.protobuf.message.Message):
         config_paths: global___ListStringValue | None = ...,
         deployment: google.protobuf.wrappers_pb2.StringValue | None = ...,
         disable_code: google.protobuf.wrappers_pb2.BoolValue | None = ...,
-        disable_git: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         disable_hints: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         disabled: google.protobuf.wrappers_pb2.BoolValue | None = ...,
-        docker: google.protobuf.wrappers_pb2.StringValue | None = ...,
         force: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         git_commit: google.protobuf.wrappers_pb2.StringValue | None = ...,
         git_remote: google.protobuf.wrappers_pb2.StringValue | None = ...,
         git_remote_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
         git_root: google.protobuf.wrappers_pb2.StringValue | None = ...,
         heartbeat_seconds: google.protobuf.wrappers_pb2.Int32Value | None = ...,
-        host: google.protobuf.wrappers_pb2.StringValue | None = ...,
         init_timeout: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
         is_local: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         job_source: google.protobuf.wrappers_pb2.StringValue | None = ...,
@@ -939,14 +964,12 @@ class Settings(google.protobuf.message.Message):
         login_timeout: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
         mode: google.protobuf.wrappers_pb2.StringValue | None = ...,
         notebook_name: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        program_relpath: google.protobuf.wrappers_pb2.StringValue | None = ...,
         project_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
         quiet: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         reinit: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         relogin: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         resume_fname: google.protobuf.wrappers_pb2.StringValue | None = ...,
         resumed: google.protobuf.wrappers_pb2.BoolValue | None = ...,
-        root_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         run_group: google.protobuf.wrappers_pb2.StringValue | None = ...,
         run_job_type: google.protobuf.wrappers_pb2.StringValue | None = ...,
         run_mode: google.protobuf.wrappers_pb2.StringValue | None = ...,
@@ -954,7 +977,6 @@ class Settings(google.protobuf.message.Message):
         run_notes: google.protobuf.wrappers_pb2.StringValue | None = ...,
         run_tags: global___ListStringValue | None = ...,
         sagemaker_disable: google.protobuf.wrappers_pb2.BoolValue | None = ...,
-        save_code: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         settings_system: google.protobuf.wrappers_pb2.StringValue | None = ...,
         settings_workspace: google.protobuf.wrappers_pb2.StringValue | None = ...,
         show_colors: google.protobuf.wrappers_pb2.BoolValue | None = ...,
@@ -980,12 +1002,7 @@ class Settings(google.protobuf.message.Message):
         x_jupyter_name: google.protobuf.wrappers_pb2.StringValue | None = ...,
         x_jupyter_path: google.protobuf.wrappers_pb2.StringValue | None = ...,
         job_name: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        x_disable_machine_info: google.protobuf.wrappers_pb2.BoolValue | None = ...,
-        program_abspath: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        colab_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        _code_path_local: google.protobuf.wrappers_pb2.StringValue | None = ...,
         console_multipart: google.protobuf.wrappers_pb2.BoolValue | None = ...,
-        allow_offline_artifacts: google.protobuf.wrappers_pb2.BoolValue | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_args", b"_args", "_aws_lambda", b"_aws_lambda", "_code_path_local", b"_code_path_local", "_colab", b"_colab", "_ipython", b"_ipython", "_jupyter", b"_jupyter", "_kaggle", b"_kaggle", "_noop", b"_noop", "_notebook", b"_notebook", "_offline", b"_offline", "_os", b"_os", "_platform", b"_platform", "_python", b"_python", "_shared", b"_shared", "_start_datetime", b"_start_datetime", "_tmp_code_dir", b"_tmp_code_dir", "_windows", b"_windows", "allow_offline_artifacts", b"allow_offline_artifacts", "allow_val_change", b"allow_val_change", "anonymous", b"anonymous", "api_key", b"api_key", "azure_account_url_to_access_key", b"azure_account_url_to_access_key", "base_url", b"base_url", "code_dir", b"code_dir", "colab_url", b"colab_url", "config_paths", b"config_paths", "console", b"console", "console_multipart", b"console_multipart", "credentials_file", b"credentials_file", "deployment", b"deployment", "disable_code", b"disable_code", "disable_git", b"disable_git", "disable_hints", b"disable_hints", "disable_job_creation", b"disable_job_creation", "disabled", b"disabled", "docker", b"docker", "email", b"email", "entity", b"entity", "files_dir", b"files_dir", "force", b"force", "fork_from", b"fork_from", "git_commit", b"git_commit", "git_remote", b"git_remote", "git_remote_url", b"git_remote_url", "git_root", b"git_root", "heartbeat_seconds", b"heartbeat_seconds", "host", b"host", "http_proxy", b"http_proxy", "https_proxy", b"https_proxy", "identity_token_file", b"identity_token_file", "ignore_globs", b"ignore_globs", "init_timeout", b"init_timeout", "is_local", b"is_local", "job_name", b"job_name", "job_source", b"job_source", "label_disable", b"label_disable", "launch", b"launch", "launch_config_path", b"launch_config_path", "log_dir", b"log_dir", "log_internal", b"log_internal", "log_symlink_internal", b"log_symlink_internal", "log_symlink_user", b"log_symlink_user", "log_user", b"log_user", "login_timeout", b"login_timeout", "mode", b"mode", "notebook_name", b"notebook_name", "program", b"program", "program_abspath", b"program_abspath", "program_relpath", b"program_relpath", "project", b"project", "project_url", b"project_url", "quiet", b"quiet", "reinit", b"reinit", "relogin", b"relogin", "resume", b"resume", "resume_fname", b"resume_fname", "resume_from", b"resume_from", "resumed", b"resumed", "root_dir", b"root_dir", "run_group", b"run_group", "run_id", b"run_id", "run_job_type", b"run_job_type", "run_mode", b"run_mode", "run_name", b"run_name", "run_notes", b"run_notes", "run_tags", b"run_tags", "run_url", b"run_url", "sagemaker_disable", b"sagemaker_disable", "save_code", b"save_code", "settings_system", b"settings_system", "settings_workspace", b"settings_workspace", "show_colors", b"show_colors", "show_emoji", b"show_emoji", "show_errors", b"show_errors", "show_info", b"show_info", "show_warnings", b"show_warnings", "silent", b"silent", "start_method", b"start_method", "strict", b"strict", "summary_errors", b"summary_errors", "summary_timeout", b"summary_timeout", "summary_warnings", b"summary_warnings", "sweep_id", b"sweep_id", "sweep_param_path", b"sweep_param_path", "sweep_url", b"sweep_url", "symlink", b"symlink", "sync_dir", b"sync_dir", "sync_file", b"sync_file", "sync_symlink_latest", b"sync_symlink_latest", "sync_tensorboard", b"sync_tensorboard", "table_raise_on_max_row_limit_exceeded", b"table_raise_on_max_row_limit_exceeded", "timespec", b"timespec", "tmp_dir", b"tmp_dir", "username", b"username", "wandb_dir", b"wandb_dir", "x_cli_only_mode", b"x_cli_only_mode", "x_disable_machine_info", b"x_disable_machine_info", "x_disable_meta", b"x_disable_meta", "x_disable_service", b"x_disable_service", "x_disable_setproctitle", b"x_disable_setproctitle", "x_disable_stats", b"x_disable_stats", "x_disable_update_check", b"x_disable_update_check", "x_disable_viewer", b"x_disable_viewer", "x_executable", b"x_executable", "x_extra_http_headers", b"x_extra_http_headers", "x_file_stream_max_bytes", b"x_file_stream_max_bytes", "x_file_stream_max_line_bytes", b"x_file_stream_max_line_bytes", "x_file_stream_retry_max", b"x_file_stream_retry_max", "x_file_stream_retry_wait_max_seconds", b"x_file_stream_retry_wait_max_seconds", "x_file_stream_retry_wait_min_seconds", b"x_file_stream_retry_wait_min_seconds", "x_file_stream_timeout_seconds", b"x_file_stream_timeout_seconds", "x_file_stream_transmit_interval", b"x_file_stream_transmit_interval", "x_file_transfer_retry_max", b"x_file_transfer_retry_max", "x_file_transfer_retry_wait_max_seconds", b"x_file_transfer_retry_wait_max_seconds", "x_file_transfer_retry_wait_min_seconds", b"x_file_transfer_retry_wait_min_seconds", "x_file_transfer_timeout_seconds", b"x_file_transfer_timeout_seconds", "x_files_dir", b"x_files_dir", "x_flow_control_custom", b"x_flow_control_custom", "x_flow_control_disabled", b"x_flow_control_disabled", "x_graphql_retry_max", b"x_graphql_retry_max", "x_graphql_retry_wait_max_seconds", b"x_graphql_retry_wait_max_seconds", "x_graphql_retry_wait_min_seconds", b"x_graphql_retry_wait_min_seconds", "x_graphql_timeout_seconds", b"x_graphql_timeout_seconds", "x_internal_check_process", b"x_internal_check_process", "x_internal_queue_timeout", b"x_internal_queue_timeout", "x_jupyter_name", b"x_jupyter_name", "x_jupyter_path", b"x_jupyter_path", "x_jupyter_root", b"x_jupyter_root", "x_live_policy_rate_limit", b"x_live_policy_rate_limit", "x_live_policy_wait_time", b"x_live_policy_wait_time", "x_log_level", b"x_log_level", "x_network_buffer", b"x_network_buffer", "x_proxies", b"x_proxies", "x_require_legacy_service", b"x_require_legacy_service", "x_runqueue_item_id", b"x_runqueue_item_id", "x_save_requirements", b"x_save_requirements", "x_service_transport", b"x_service_transport", "x_service_wait", b"x_service_wait", "x_show_operation_stats", b"x_show_operation_stats", "x_start_time", b"x_start_time", "x_stats_buffer_size", b"x_stats_buffer_size", "x_stats_disk_paths", b"x_stats_disk_paths", "x_stats_neuron_monitor_config_path", b"x_stats_neuron_monitor_config_path", "x_stats_open_metrics_endpoints", b"x_stats_open_metrics_endpoints", "x_stats_open_metrics_filters", b"x_stats_open_metrics_filters", "x_stats_pid", b"x_stats_pid", "x_stats_sampling_interval", b"x_stats_sampling_interval", "x_sync", b"x_sync"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["_args", b"_args", "_aws_lambda", b"_aws_lambda", "_code_path_local", b"_code_path_local", "_colab", b"_colab", "_ipython", b"_ipython", "_jupyter", b"_jupyter", "_kaggle", b"_kaggle", "_noop", b"_noop", "_notebook", b"_notebook", "_offline", b"_offline", "_os", b"_os", "_platform", b"_platform", "_python", b"_python", "_shared", b"_shared", "_start_datetime", b"_start_datetime", "_tmp_code_dir", b"_tmp_code_dir", "_windows", b"_windows", "allow_offline_artifacts", b"allow_offline_artifacts", "allow_val_change", b"allow_val_change", "anonymous", b"anonymous", "api_key", b"api_key", "azure_account_url_to_access_key", b"azure_account_url_to_access_key", "base_url", b"base_url", "code_dir", b"code_dir", "colab_url", b"colab_url", "config_paths", b"config_paths", "console", b"console", "console_multipart", b"console_multipart", "credentials_file", b"credentials_file", "deployment", b"deployment", "disable_code", b"disable_code", "disable_git", b"disable_git", "disable_hints", b"disable_hints", "disable_job_creation", b"disable_job_creation", "disabled", b"disabled", "docker", b"docker", "email", b"email", "entity", b"entity", "files_dir", b"files_dir", "force", b"force", "fork_from", b"fork_from", "git_commit", b"git_commit", "git_remote", b"git_remote", "git_remote_url", b"git_remote_url", "git_root", b"git_root", "heartbeat_seconds", b"heartbeat_seconds", "host", b"host", "http_proxy", b"http_proxy", "https_proxy", b"https_proxy", "identity_token_file", b"identity_token_file", "ignore_globs", b"ignore_globs", "init_timeout", b"init_timeout", "is_local", b"is_local", "job_name", b"job_name", "job_source", b"job_source", "label_disable", b"label_disable", "launch", b"launch", "launch_config_path", b"launch_config_path", "log_dir", b"log_dir", "log_internal", b"log_internal", "log_symlink_internal", b"log_symlink_internal", "log_symlink_user", b"log_symlink_user", "log_user", b"log_user", "login_timeout", b"login_timeout", "mode", b"mode", "notebook_name", b"notebook_name", "program", b"program", "program_abspath", b"program_abspath", "program_relpath", b"program_relpath", "project", b"project", "project_url", b"project_url", "quiet", b"quiet", "reinit", b"reinit", "relogin", b"relogin", "resume", b"resume", "resume_fname", b"resume_fname", "resume_from", b"resume_from", "resumed", b"resumed", "root_dir", b"root_dir", "run_group", b"run_group", "run_id", b"run_id", "run_job_type", b"run_job_type", "run_mode", b"run_mode", "run_name", b"run_name", "run_notes", b"run_notes", "run_tags", b"run_tags", "run_url", b"run_url", "sagemaker_disable", b"sagemaker_disable", "save_code", b"save_code", "settings_system", b"settings_system", "settings_workspace", b"settings_workspace", "show_colors", b"show_colors", "show_emoji", b"show_emoji", "show_errors", b"show_errors", "show_info", b"show_info", "show_warnings", b"show_warnings", "silent", b"silent", "start_method", b"start_method", "strict", b"strict", "summary_errors", b"summary_errors", "summary_timeout", b"summary_timeout", "summary_warnings", b"summary_warnings", "sweep_id", b"sweep_id", "sweep_param_path", b"sweep_param_path", "sweep_url", b"sweep_url", "symlink", b"symlink", "sync_dir", b"sync_dir", "sync_file", b"sync_file", "sync_symlink_latest", b"sync_symlink_latest", "sync_tensorboard", b"sync_tensorboard", "table_raise_on_max_row_limit_exceeded", b"table_raise_on_max_row_limit_exceeded", "timespec", b"timespec", "tmp_dir", b"tmp_dir", "username", b"username", "wandb_dir", b"wandb_dir", "x_cli_only_mode", b"x_cli_only_mode", "x_disable_machine_info", b"x_disable_machine_info", "x_disable_meta", b"x_disable_meta", "x_disable_service", b"x_disable_service", "x_disable_setproctitle", b"x_disable_setproctitle", "x_disable_stats", b"x_disable_stats", "x_disable_update_check", b"x_disable_update_check", "x_disable_viewer", b"x_disable_viewer", "x_executable", b"x_executable", "x_extra_http_headers", b"x_extra_http_headers", "x_file_stream_max_bytes", b"x_file_stream_max_bytes", "x_file_stream_max_line_bytes", b"x_file_stream_max_line_bytes", "x_file_stream_retry_max", b"x_file_stream_retry_max", "x_file_stream_retry_wait_max_seconds", b"x_file_stream_retry_wait_max_seconds", "x_file_stream_retry_wait_min_seconds", b"x_file_stream_retry_wait_min_seconds", "x_file_stream_timeout_seconds", b"x_file_stream_timeout_seconds", "x_file_stream_transmit_interval", b"x_file_stream_transmit_interval", "x_file_transfer_retry_max", b"x_file_transfer_retry_max", "x_file_transfer_retry_wait_max_seconds", b"x_file_transfer_retry_wait_max_seconds", "x_file_transfer_retry_wait_min_seconds", b"x_file_transfer_retry_wait_min_seconds", "x_file_transfer_timeout_seconds", b"x_file_transfer_timeout_seconds", "x_files_dir", b"x_files_dir", "x_flow_control_custom", b"x_flow_control_custom", "x_flow_control_disabled", b"x_flow_control_disabled", "x_graphql_retry_max", b"x_graphql_retry_max", "x_graphql_retry_wait_max_seconds", b"x_graphql_retry_wait_max_seconds", "x_graphql_retry_wait_min_seconds", b"x_graphql_retry_wait_min_seconds", "x_graphql_timeout_seconds", b"x_graphql_timeout_seconds", "x_internal_check_process", b"x_internal_check_process", "x_internal_queue_timeout", b"x_internal_queue_timeout", "x_jupyter_name", b"x_jupyter_name", "x_jupyter_path", b"x_jupyter_path", "x_jupyter_root", b"x_jupyter_root", "x_live_policy_rate_limit", b"x_live_policy_rate_limit", "x_live_policy_wait_time", b"x_live_policy_wait_time", "x_log_level", b"x_log_level", "x_network_buffer", b"x_network_buffer", "x_proxies", b"x_proxies", "x_require_legacy_service", b"x_require_legacy_service", "x_runqueue_item_id", b"x_runqueue_item_id", "x_save_requirements", b"x_save_requirements", "x_service_transport", b"x_service_transport", "x_service_wait", b"x_service_wait", "x_show_operation_stats", b"x_show_operation_stats", "x_start_time", b"x_start_time", "x_stats_buffer_size", b"x_stats_buffer_size", "x_stats_disk_paths", b"x_stats_disk_paths", "x_stats_neuron_monitor_config_path", b"x_stats_neuron_monitor_config_path", "x_stats_open_metrics_endpoints", b"x_stats_open_metrics_endpoints", "x_stats_open_metrics_filters", b"x_stats_open_metrics_filters", "x_stats_pid", b"x_stats_pid", "x_stats_sampling_interval", b"x_stats_sampling_interval", "x_sync", b"x_sync"]) -> None: ...

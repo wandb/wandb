@@ -16,6 +16,11 @@ from datetime import datetime
 from typing import Any, Sequence
 from urllib.parse import quote, unquote, urlencode
 
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
+
 if sys.version_info >= (3, 8):
     from typing import Literal
 else:
@@ -332,7 +337,7 @@ class Settings(BaseModel, validate_assignment=True):
         return new_values
 
     @model_validator(mode="after")
-    def validate_mutual_exclusion_of_branching_args(self):
+    def validate_mutual_exclusion_of_branching_args(self) -> Self:
         if (
             sum(
                 o is not None
@@ -348,6 +353,7 @@ class Settings(BaseModel, validate_assignment=True):
                 "`fork_from`, `resume`, or `resume_from` are mutually exclusive. "
                 "Please specify only one of them."
             )
+        return self
 
     # Field validators.
 
