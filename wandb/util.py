@@ -1945,8 +1945,8 @@ def get_core_path() -> str:
     if not bin_path.exists():
         raise WandbCoreNotAvailableError(
             f"File not found: {bin_path}."
-            "Please contact support at support@wandb.com."
-            f"Your platform is: {platform.platform()}."
+            " Please contact support at support@wandb.com."
+            f" Your platform is: {platform.platform()}."
         )
 
     return str(bin_path)
