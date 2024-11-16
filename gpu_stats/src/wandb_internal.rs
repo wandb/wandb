@@ -2851,6 +2851,12 @@ pub enum ServerFeature {
     ArtifactCollectionMembershipFileDownloadHandler = 6,
     /// Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
     UseArtifactWithEntityAndProjectInformation = 7,
+    /// Indicates that the server supports automation event RUN_METRIC.
+    AutomationEventRunMetric = 8,
+    /// Indicates that the server supports automation event RUN_METRIC_CHANGE.
+    AutomationEventRunMetricChange = 9,
+    /// Indicates that the server supports automation action NO_OP.
+    AutomationActionNoOp = 10,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2873,6 +2879,9 @@ impl ServerFeature {
             Self::UseArtifactWithEntityAndProjectInformation => {
                 "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION"
             }
+            Self::AutomationEventRunMetric => "AUTOMATION_EVENT_RUN_METRIC",
+            Self::AutomationEventRunMetricChange => "AUTOMATION_EVENT_RUN_METRIC_CHANGE",
+            Self::AutomationActionNoOp => "AUTOMATION_ACTION_NO_OP",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2892,6 +2901,11 @@ impl ServerFeature {
             "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION" => {
                 Some(Self::UseArtifactWithEntityAndProjectInformation)
             }
+            "AUTOMATION_EVENT_RUN_METRIC" => Some(Self::AutomationEventRunMetric),
+            "AUTOMATION_EVENT_RUN_METRIC_CHANGE" => {
+                Some(Self::AutomationEventRunMetricChange)
+            }
+            "AUTOMATION_ACTION_NO_OP" => Some(Self::AutomationActionNoOp),
             _ => None,
         }
     }

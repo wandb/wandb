@@ -10,6 +10,7 @@ from pydantic import Field
 from typing_extensions import Self, TypeAlias, get_args
 
 from wandb._pydantic import (
+    GQLBase,
     SerializedToJson,
     field_validator,
     model_validator,
@@ -90,7 +91,11 @@ SavedActionTypes: tuple[type, ...] = get_args(SavedAction)
 
 # ------------------------------------------------------------------------------
 # Input types: for creating or updating automations
-class DoNotification(NotificationActionInput):
+class _BaseActionInput(GQLBase):
+    action_type: ActionType
+
+
+class DoNotification(_BaseActionInput, NotificationActionInput):
     """Schema for defining a triggered notification action."""
 
     action_type: Literal[ActionType.NOTIFICATION] = ActionType.NOTIFICATION
@@ -141,7 +146,7 @@ class DoNotification(NotificationActionInput):
         )
 
 
-class DoWebhook(GenericWebhookActionInput):
+class DoWebhook(_BaseActionInput, GenericWebhookActionInput):
     """Schema for defining a triggered webhook action."""
 
     action_type: Literal[ActionType.GENERIC_WEBHOOK] = ActionType.GENERIC_WEBHOOK
@@ -174,7 +179,7 @@ class DoWebhook(GenericWebhookActionInput):
         return cls(integration_id=integration.id, request_payload=request_payload)
 
 
-class DoNothing(NoOpTriggeredActionInput):
+class DoNothing(_BaseActionInput, NoOpTriggeredActionInput):
     """Schema for defining a triggered no-op action."""
 
     action_type: Literal[ActionType.NO_OP] = ActionType.NO_OP

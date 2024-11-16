@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 # for type annotations
 Scalar = Union[StrictStr, StrictInt, StrictFloat, StrictBool]
 # for runtime type checks
-ScalarTypes = get_args(Scalar)
+ScalarTypes = (str, int, float, bool)
 
 # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
 RichReprResult: TypeAlias = Iterable[

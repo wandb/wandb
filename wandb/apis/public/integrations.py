@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 from typing_extensions import override
@@ -58,8 +58,8 @@ class Integrations(Paginator["Integration"]):
         except (LookupError, AttributeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
 
-    def convert_objects(self) -> Iterable[Integration]:
-        """Parse the page data into a list of Integrations."""
+    def convert_objects(self) -> list[Integration]:
+        """Parse the page data into a list of integrations."""
         from wandb.automations.integrations import _IntegrationEdge
 
         page = self.last_response
@@ -81,7 +81,7 @@ class WebhookIntegrations(Paginator["WebhookIntegration"]):
 
     @property
     def more(self) -> bool:
-        """Whether there are more Integrations to fetch."""
+        """Whether there are more webhook integrations to fetch."""
         if self.last_response is None:
             return True
         return self.last_response.page_info.has_next_page
@@ -111,8 +111,8 @@ class WebhookIntegrations(Paginator["WebhookIntegration"]):
         except (LookupError, AttributeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
 
-    def convert_objects(self) -> Iterable[WebhookIntegration]:
-        """Parse the page data into a list of Integrations."""
+    def convert_objects(self) -> list[WebhookIntegration]:
+        """Parse the page data into a list of webhook integrations."""
         from wandb.automations import WebhookIntegration
 
         page = self.last_response
@@ -132,7 +132,7 @@ class SlackIntegrations(Paginator["SlackIntegration"]):
 
     @property
     def more(self) -> bool:
-        """Whether there are more Integrations to fetch."""
+        """Whether there are more Slack integrations to fetch."""
         if self.last_response is None:
             return True
         return self.last_response.page_info.has_next_page
@@ -161,7 +161,7 @@ class SlackIntegrations(Paginator["SlackIntegration"]):
             raise ValueError("Unexpected response data") from e
 
     def convert_objects(self) -> list[SlackIntegration]:
-        """Parse the page data into a list of Integrations."""
+        """Parse the page data into a list of Slack integrations."""
         from wandb.automations import SlackIntegration
 
         page = self.last_response

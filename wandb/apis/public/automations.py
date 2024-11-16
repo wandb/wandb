@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from itertools import chain
-from typing import TYPE_CHECKING, Any, Iterable, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
 from pydantic import ValidationError
 from typing_extensions import override
@@ -58,12 +58,12 @@ class Automations(Paginator["Automation"]):
         except (LookupError, AttributeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
 
-    def convert_objects(self) -> Iterable[Automation]:
+    def convert_objects(self) -> list[Automation]:
         """Parse the page data into a list of objects."""
         from wandb.automations import Automation
 
         page = self.last_response
         return [
-            Automation.model_validate_json(obj.model_dump_json())
+            Automation.model_validate(obj)
             for obj in chain.from_iterable(edge.node.triggers for edge in page.edges)
         ]

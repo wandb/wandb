@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import Field
+from typing_extensions import Unpack
 
-from wandb._pydantic import Base, GQLId
+from wandb._pydantic import Base, GQLId, model_validator
 
 from ._generated import TriggerFields, UserFields
 from .actions import InputAction, SavedAction
@@ -15,7 +16,9 @@ from .events import InputEvent, SavedEvent
 from .scopes import InputScope, SavedScope
 
 if TYPE_CHECKING:
-    pass
+    from wandb import Api
+
+    from ._utils import AutomationParams
 
 
 # ------------------------------------------------------------------------------
@@ -32,8 +35,9 @@ class Automation(TriggerFields):
     name: str
     description: Optional[str]
 
-    scope: SavedScope = Field(discriminator="typename__")
     event: SavedEvent
+    scope: SavedScope = Field(discriminator="typename__")
+
     action: SavedAction = Field(discriminator="typename__", alias="triggeredAction")
 
     enabled: bool
@@ -56,15 +60,15 @@ class Automation(TriggerFields):
 
     #     return (api or Api()).update_automation(self, **updates)
 
-    # def delete(self, api: Api | None = None) -> DeleteTriggerResult:
-    #     """Delete this automation from the server.
+    def delete(self, api: Api | None = None) -> bool:
+        """Delete this automation from the server.
 
-    #     Args:
-    #         api: The API instance to use.  If not provided, the default API instance is used.
-    #     """
-    #     from wandb import Api
+        Args:
+            api: The API instance to use.  If not provided, the default API instance is used.
+        """
+        from wandb import Api
 
-    #     return (api or Api()).delete_automation(self)
+        return (api or Api()).delete_automation(self)
 
 
 class NewAutomation(Base):
@@ -74,27 +78,42 @@ class NewAutomation(Base):
     description: Optional[str] = None
     enabled: bool = True
 
-    scope: Optional[InputScope] = Field(discriminator="typename__", default=None)
-    event: Optional[InputEvent] = Field(discriminator="event_type", default=None)
+    event: Optional[InputEvent] = None
+    scope: Optional[InputScope] = None
+
     action: Optional[InputAction] = Field(discriminator="action_type", default=None)
 
-    # def save(
-    #     self, api: Api | None = None, **updates: Unpack[AutomationParams]
-    # ) -> Automation:
-    #     """Create this automation by saving it to the server.
+    @model_validator(mode="before")
+    @classmethod
+    def _set_scope_from_event(cls, v: Any) -> Any:
+        # If scope wasn't set but the event was, assign its scope to the automation
+        # handle either dict or object inputs
+        if isinstance(v, dict):
+            if (not v.get("scope")) and (event := v.get("event")):
+                v["scope"] = event["scope"] if isinstance(event, dict) else event.scope
 
-    #     Args:
-    #         api: The API instance to use.  If not provided, the default API instance is used.
-    #         updates:
-    #             Any final updates to apply to the automation before
-    #             saving it.  These override previously-set values, if any.
+        elif (not v.scope) and v.event:
+            v.scope = v.event.scope
 
-    #     Returns:
-    #         The created automation.
-    #     """
-    #     from wandb import Api
+        return v
 
-    #     return (api or Api()).create_automation(self, **updates)
+    def save(
+        self, api: Api | None = None, **updates: Unpack[AutomationParams]
+    ) -> Automation:
+        """Create this automation by saving it to the server.
+
+        Args:
+            api: The API instance to use.  If not provided, the default API instance is used.
+            updates:
+                Any final updates to apply to the automation before
+                saving it.  These override previously-set values, if any.
+
+        Returns:
+            The created automation.
+        """
+        from wandb import Api
+
+        return (api or Api()).create_automation(self, **updates)
 
 
 class PreparedAutomation(NewAutomation):
@@ -104,6 +123,7 @@ class PreparedAutomation(NewAutomation):
     description: Optional[str] = None
     enabled: bool = True
 
-    scope: InputScope
     event: InputEvent
+    scope: InputScope
+
     action: InputAction

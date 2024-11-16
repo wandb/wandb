@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 from pydantic import Field
-from typing_extensions import Self, TypeAlias, get_args
+from typing_extensions import Annotated, Self, TypeAlias, get_args
 
 from wandb._pydantic import (
     GQLBase,
@@ -113,6 +113,8 @@ SavedRunMetricFilter: TypeAlias = RunMetricFilter
 class SavedEvent(FilterEventFields):  # from `FilterEventTriggeringCondition`
     """A more introspection-friendly representation of a triggering event from a saved automation."""
 
+    event_type: EventType
+
     # We override the type of the `filter` field since the original GraphQL
     # schema (and generated class) defines it as a JSONString (str), but we
     # have more specific expectations for the structure of the JSON data.
@@ -196,14 +198,17 @@ class OnRunMetric(_BaseEventInput):
 
 
 # for type annotations
-InputEvent = Union[
-    OnLinkArtifact,
-    OnAddArtifactAlias,
-    OnCreateArtifact,
-    OnRunMetric,
+InputEvent = Annotated[
+    Union[
+        OnLinkArtifact,
+        OnAddArtifactAlias,
+        OnCreateArtifact,
+        OnRunMetric,
+    ],
+    Field(discriminator="event_type"),
 ]
 # for runtime type checks
-InputEventTypes: tuple[type, ...] = get_args(InputEvent)
+InputEventTypes: tuple[type, ...] = get_args(get_args(InputEvent)[0])
 
 
 # ----------------------------------------------------------------------------

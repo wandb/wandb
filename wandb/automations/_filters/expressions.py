@@ -145,7 +145,7 @@ class FilterExpr(CompatBaseModel, SupportsLogicalOpSyntax):
     op: Op
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({self.field!s}={self.op!r})"
+        return f"{type(self).__name__}({self.field!s}: {self.op!r})"
 
     def __rich_repr__(self) -> RichReprResult:  # type: ignore[override]
         # https://rich.readthedocs.io/en/stable/pretty.html
@@ -172,8 +172,7 @@ class FilterExpr(CompatBaseModel, SupportsLogicalOpSyntax):
         """Return a MongoDB dict representation of the expression."""
         from pydantic_core import to_jsonable_python  # Only valid in pydantic v2
 
-        op_dict = to_jsonable_python(self.op, by_alias=True, round_trip=True)
-        return {self.field: op_dict}
+        return {self.field: to_jsonable_python(self.op, by_alias=True, round_trip=True)}
 
 
 MongoLikeFilter: TypeAlias = Union[Op, FilterExpr]

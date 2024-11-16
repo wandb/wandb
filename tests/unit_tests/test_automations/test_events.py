@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from hypothesis import given
 from hypothesis.strategies import integers, sampled_from
-from pytest import raises
+from pytest import mark, raises
 from wandb.apis.public import ArtifactCollection, Project
 from wandb.automations.events import (
     Agg,
@@ -20,14 +20,31 @@ from wandb.automations.events import (
 from ._strategies import ints_or_floats, printable_text
 
 
-def test_declarative_run_filter():
-    run_filter = RunEvent.name.contains("my-run")
-    assert run_filter.model_dump() == {"display_name": {"$contains": "my-run"}}
+@mark.parametrize(
+    ("expr", "expected"),
+    (
+        [RunEvent.name.contains("my-run"), {"display_name": {"$contains": "my-run"}}],
+        [RunEvent.name == "my-run", {"display_name": {"$eq": "my-run"}}],
+        [RunEvent.name.eq("my-run"), {"display_name": {"$eq": "my-run"}}],
+        [RunEvent.name != "my-run", {"display_name": {"$ne": "my-run"}}],
+        [RunEvent.name.ne("my-run"), {"display_name": {"$ne": "my-run"}}],
+        [RunEvent.name >= "my-run", {"display_name": {"$gte": "my-run"}}],
+        [RunEvent.name.gte("my-run"), {"display_name": {"$gte": "my-run"}}],
+        [RunEvent.name <= "my-run", {"display_name": {"$lte": "my-run"}}],
+        [RunEvent.name.lte("my-run"), {"display_name": {"$lte": "my-run"}}],
+        [RunEvent.name > "my-run", {"display_name": {"$gt": "my-run"}}],
+        [RunEvent.name.gt("my-run"), {"display_name": {"$gt": "my-run"}}],
+        [RunEvent.name < "my-run", {"display_name": {"$lt": "my-run"}}],
+        [RunEvent.name.lt("my-run"), {"display_name": {"$lt": "my-run"}}],
+    ),
+)
+def test_declarative_run_filter(expr, expected):
+    assert expr.model_dump() == expected
 
 
 def test_declarative_artifact_filter():
-    artifact_filter = ArtifactEvent.alias.matches_regex("prod-.*")
-    assert artifact_filter.model_dump() == {"alias": {"$regex": "prod-.*"}}
+    expr = ArtifactEvent.alias.matches_regex("prod-.*")
+    assert expr.model_dump() == {"alias": {"$regex": "prod-.*"}}
 
 
 @given(

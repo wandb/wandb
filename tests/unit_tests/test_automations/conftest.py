@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from wandb.automations.actions import InputAction
     from wandb.automations.events import InputEvent
 
+
 # default Hypothesis settings
 settings.register_profile("default", max_examples=100)
 settings.load_profile("default")
@@ -104,6 +105,7 @@ def project(session_mocker: MockerFixture) -> Project:
     return mock_project
 
 
+# ---------------------------------------------------------------------------
 # Exclude deprecated scope/event/action types from those expected to be exposed for valid behavior
 def valid_scopes() -> list[ScopeType]:
     from wandb.automations import ScopeType
@@ -219,7 +221,7 @@ def on_run_metric(scope: ScopableWandbType) -> OnRunMetric:
 
 
 @fixture
-def event(request: FixtureRequest, event_type: EventType) -> InputEvent:
+def input_event(request: FixtureRequest, event_type: EventType) -> InputEvent:
     """An event object for defining a **new** automation."""
     from wandb.automations import EventType
 
@@ -264,7 +266,7 @@ def do_nothing() -> DoNothing:
 
 
 @fixture
-def action(request: FixtureRequest, action_type: ActionType) -> InputAction:
+def input_action(request: FixtureRequest, action_type: ActionType) -> InputAction:
     """An action object for defining a **new** automation."""
     from wandb.automations import ActionType
 

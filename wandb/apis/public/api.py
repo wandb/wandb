@@ -15,14 +15,18 @@ import json
 import logging
 import os
 import urllib
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional
+from http import HTTPStatus
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Literal, Optional, Union
 
 import requests
+from pydantic import ValidationError
+from typing_extensions import Unpack
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
 import wandb
 from wandb import env, util
+from wandb._iterutils import one
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
@@ -30,6 +34,7 @@ from wandb.apis.public.registries import Registries
 from wandb.apis.public.utils import (
     PathType,
     fetch_org_from_settings_or_entity,
+    gql_compat,
     parse_org_from_registry_path,
 )
 from wandb.proto.wandb_internal_pb2 import ServerFeature
@@ -42,7 +47,16 @@ from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.gql_request import GraphQLSession
 
 if TYPE_CHECKING:
-    from wandb.automations import Integration, SlackIntegration, WebhookIntegration
+    from wandb.automations import (
+        ActionType,
+        Automation,
+        EventType,
+        Integration,
+        NewAutomation,
+        SlackIntegration,
+        WebhookIntegration,
+    )
+    from wandb.automations._utils import AutomationParams
 
 logger = logging.getLogger(__name__)
 
@@ -1628,3 +1642,212 @@ class Api:
         return SlackIntegrations(
             client=self.client, variables=params, per_page=per_page
         )
+
+    def _supports_automation(
+        self,
+        *,
+        event: Optional["EventType"] = None,
+        action: Optional["ActionType"] = None,
+    ) -> bool:
+        """Returns whether the server recognizes the automation event and/or action."""
+        from wandb.automations._utils import (
+            ALWAYS_SUPPORTED_ACTIONS,
+            ALWAYS_SUPPORTED_EVENTS,
+        )
+
+        _api = InternalApi()
+        return bool(
+            (
+                (event is None)
+                or (event in ALWAYS_SUPPORTED_EVENTS)
+                or _api._server_features().get(f"AUTOMATION_EVENT_{event.value}")
+            )
+            and (
+                (action is None)
+                or (action in ALWAYS_SUPPORTED_ACTIONS)
+                or _api._server_features().get(f"AUTOMATION_ACTION_{action.value}")
+            )
+        )
+
+    def automation(
+        self,
+        *,
+        entity: Optional[str] = None,
+        name: Optional[str] = None,
+    ) -> "Automation":
+        """Return the only Automation matching the given parameters, if possible.
+
+        Args:
+            entity (str, optional): The entity to fetch the automation for.
+            name (str, optional): The name of the automation to fetch.
+
+        Raises:
+            ValueError: If zero or multiple Automations match the search criteria.
+        """
+        return one(
+            self.automations(entity=entity, name=name),
+            too_short=ValueError("No automations found"),
+            too_long=ValueError("Multiple automations found"),
+        )
+
+    def automations(
+        self,
+        entity: Optional[str] = None,
+        *,
+        name: Optional[str] = None,
+        per_page: int = 50,
+    ) -> Iterator["Automation"]:
+        """Return all Automations, filtering by the given search criteria if any.
+
+        Args:
+            entity (str, optional): The entity to fetch the automations for.
+            name (str, optional): The name of the automation to fetch.
+            per_page (int, optional): The number of automations to fetch per page.  Defaults to 50.
+
+        Returns:
+            A list of automations.
+        """
+        from wandb.apis.public.automations import Automations
+        from wandb.automations._generated import (
+            GET_TRIGGERS_BY_ENTITY_GQL,
+            GET_TRIGGERS_GQL,
+            NoOpActionFields,
+        )
+
+        # For now, we need to use different queries depending on whether entity is given
+        if entity is None:
+            gql_str = GET_TRIGGERS_GQL  # Automations for viewer
+            variables = {}
+        else:
+            gql_str = GET_TRIGGERS_BY_ENTITY_GQL  # Automations for entity
+            variables = {"entityName": entity}
+
+        # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
+        omit_fragments = set()
+        if not InternalApi()._server_features().get("AUTOMATION_ACTION_NO_OP"):
+            omit_fragments.add(NoOpActionFields.__name__)
+
+        query = gql_compat(gql_str, omit_fragments=omit_fragments)
+        iterator = Automations(
+            client=self.client, variables=variables, per_page=per_page, _query=query
+        )
+
+        # FIXME: this is crude, move this client-side filtering logic into backend
+        if name is not None:
+            iterator = filter(lambda x: x.name == name, iterator)
+        yield from iterator
+
+    def create_automation(
+        self,
+        obj: "NewAutomation",
+        *,
+        fetch_existing: bool = False,
+        **updates: Unpack["AutomationParams"],
+    ) -> "Automation":
+        """Create a new Automation.
+
+        Args:
+            obj:
+                The automation to create.
+            fetch_existing (bool):
+                If True, and a conflicting automation already exists, attempt
+                to fetch the existing automation instead of raising an error.
+            updates:
+                Any final updates to apply to the new automation before
+                creating it.  These override previously-set values, if any.
+
+        Returns:
+            The created automation after it has been saved to the server.
+        """
+        from wandb.automations import ActionType, Automation
+        from wandb.automations._generated import (
+            CREATE_FILTER_TRIGGER_GQL,
+            CreateFilterTrigger,
+            NoOpActionFields,
+        )
+        from wandb.automations._utils import prepare_create_input
+
+        gql_input = prepare_create_input(obj, **updates)
+
+        if not self._supports_automation(
+            event=(event := gql_input.triggering_event_type),
+            action=(action := gql_input.triggered_action_type),
+        ):
+            raise ValueError(
+                f"Automation event or action ({event.value} -> {action.value}) "
+                "is not supported on this wandb server version. "
+                "Please upgrade your server version, or contact support at "
+                "support@wandb.com."
+            )
+
+        # keep the name on hand, if needed later to report on
+        # and/or recover from a conflicting automation
+        name = gql_input.name
+
+        # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
+        omit_fragments = set()
+        if not self._supports_automation(action=ActionType.NO_OP):
+            omit_fragments.add(NoOpActionFields.__name__)
+
+        mutation = gql_compat(CREATE_FILTER_TRIGGER_GQL, omit_fragments=omit_fragments)
+
+        variables = {"params": gql_input.model_dump(exclude_none=True)}
+
+        try:
+            data = self.client.execute(mutation, variable_values=variables)
+        except requests.HTTPError as e:
+            status = HTTPStatus(e.response.status_code)
+            if status is HTTPStatus.CONFLICT:  # 409
+                if fetch_existing:
+                    wandb.termlog(f"Automation {name!r} exists. Fetching it instead.")
+                    return self.automation(name=name)
+
+                raise ValueError(
+                    f"Automation {name!r} exists. Unable to create another with the same name."
+                )
+            raise e
+
+        try:
+            result = CreateFilterTrigger.model_validate(data).create_filter_trigger
+        except ValidationError as e:
+            msg = f"Invalid response while creating automation {name!r}"
+            raise RuntimeError(msg) from e
+
+        if (result is None) or (result.trigger is None):
+            msg = f"Empty response while creating automation {name!r}"
+            raise RuntimeError(msg)
+
+        return Automation.model_validate(result.trigger)
+
+    def delete_automation(self, obj: Union[str, "Automation"]) -> Literal[True]:
+        """Delete an automation.
+
+        Args:
+            obj (str | Automation): The automation to delete, or its ID.
+
+        Returns:
+            True if the automation was deleted successfully.
+        """
+        from wandb.automations._generated import DELETE_TRIGGER_GQL, DeleteTrigger
+        from wandb.automations._utils import extract_id
+
+        id_ = extract_id(obj)
+        mutation = gql(DELETE_TRIGGER_GQL)
+        variables = {"id": id_}
+
+        data = self.client.execute(mutation, variable_values=variables)
+
+        try:
+            result = DeleteTrigger.model_validate(data).delete_trigger
+        except ValidationError as e:
+            msg = f"Invalid response while deleting automation {id_!r}"
+            raise RuntimeError(msg) from e
+
+        if result is None:
+            msg = f"Empty response while deleting automation {id_!r}"
+            raise RuntimeError(msg)
+
+        if not result.success:
+            raise RuntimeError(f"Failed to delete automation: {id_!r}")
+
+        return result.success
