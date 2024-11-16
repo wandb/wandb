@@ -19,6 +19,8 @@ from .fragments import (
     ArtifactSequenceScopeFields,
     CreateFilterTriggerResult,
     DeleteTriggerResult,
+    EnumInfo,
+    EnumInfoEnumValues,
     FilterEventFields,
     GenericWebhookActionFields,
     GenericWebhookActionFieldsIntegrationGenericWebhookIntegration,
@@ -88,12 +90,14 @@ from .operations import (
     GET_TRIGGERS_GQL,
     INTEGRATIONS_BY_ENTITY_GQL,
     SLACK_INTEGRATIONS_BY_ENTITY_GQL,
+    SUPPORTED_ACTION_AND_EVENT_TYPES_GQL,
     UPDATE_FILTER_TRIGGER_GQL,
 )
 from .slack_integrations_by_entity import (
     SlackIntegrationsByEntity,
     SlackIntegrationsByEntityEntity,
 )
+from .supported_action_and_event_types import SupportedActionAndEventTypes
 from .update_filter_trigger import UpdateFilterTrigger
 
 __all__ = [
@@ -105,11 +109,13 @@ __all__ = [
     "GET_TRIGGERS_GQL",
     "INTEGRATIONS_BY_ENTITY_GQL",
     "SLACK_INTEGRATIONS_BY_ENTITY_GQL",
+    "SUPPORTED_ACTION_AND_EVENT_TYPES_GQL",
     "UPDATE_FILTER_TRIGGER_GQL",
     "GetTriggers",
     "GetTriggersSearchScope",
     "GetTriggersByEntity",
     "GetTriggersByEntitySearchScope",
+    "SupportedActionAndEventTypes",
     "CreateFilterTrigger",
     "UpdateFilterTrigger",
     "DeleteTrigger",
@@ -135,6 +141,8 @@ __all__ = [
     "ArtifactSequenceScopeFields",
     "CreateFilterTriggerResult",
     "DeleteTriggerResult",
+    "EnumInfo",
+    "EnumInfoEnumValues",
     "FilterEventFields",
     "GenericWebhookActionFields",
     "GenericWebhookActionFieldsIntegrationGenericWebhookIntegration",

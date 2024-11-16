@@ -15,16 +15,22 @@ import json
 import logging
 import os
 import urllib.parse
-from typing import Any, Dict, Iterator, List, Optional, Union
+from dataclasses import dataclass
+from http import HTTPStatus
+from typing import Any, Dict, Iterator, List, Optional, Set, Union
 
 import requests
+from pydantic import ValidationError
+from typing_extensions import Unpack
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
 import wandb
 from wandb import env, util
+from wandb._iterutils import one
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
+from wandb.apis.public.automations import AutomationsByEntity, AutomationsForViewer
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.integrations import (
     Integrations,
@@ -39,6 +45,22 @@ from wandb.apis.public.utils import (
     fetch_org_from_settings_or_entity,
     parse_org_from_registry_path,
 )
+from wandb.automations import (
+    ActionType,
+    Automation,
+    EventType,
+    NewAutomation,
+    PreparedAutomation,
+)
+from wandb.automations._generated import (
+    CREATE_FILTER_TRIGGER_GQL,
+    DELETE_TRIGGER_GQL,
+    CreateFilterTrigger,
+    CreateFilterTriggerInput,
+    DeleteTrigger,
+    DeleteTriggerResult,
+)
+from wandb.automations._utils import AutomationParams, prepare_create_input
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -1594,3 +1616,253 @@ class Api:
             },
             per_page=per_page,
         )
+
+    def automation(
+        self,
+        *,
+        entity: Optional[str] = None,
+        name: Optional[str] = None,
+        created_by: Optional[str] = None,
+    ) -> Automation:
+        """Return the only Automation matching the given parameters, if possible.
+
+        Args:
+            entity (str, optional): The entity to fetch the automation for.
+            name (str, optional): The name of the automation to fetch.
+            created_by (str, optional): The username of the user who created the automation.
+
+        Raises:
+            ValueError: If zero or multiple Automations match the search criteria.
+        """
+        results = self.automations(entity=entity, name=name, created_by=created_by)
+        return one(
+            results,
+            too_short=ValueError("No automations found"),
+            too_long=ValueError("Multiple automations found"),
+        )
+
+    def automations(
+        self,
+        entity: Optional[str] = None,
+        *,
+        name: Optional[str] = None,
+        created_by: Optional[str] = None,
+        per_page: int = 50,
+    ) -> Iterator[Automation]:
+        """Return all Automations, filtering by the given search criteria if any.
+
+        Args:
+            entity (str, optional): The entity to fetch the automations for.
+            name (str, optional): The name of the automation to fetch.
+            created_by (str, optional): The username of the user who created the automation.
+            per_page (int, optional): The number of automations to fetch per page.  Defaults to 50.
+
+        Returns:
+            A list of automations.
+        """
+
+        # Crude client-side filtering
+        # TODO: we should handle this in the backend instead
+        def _should_keep(obj: Automation) -> bool:
+            return ((name is None) or (obj.name == name)) and (
+                (created_by is None) or (obj.created_by.username == created_by)
+            )
+
+        # For now, we need to use different queries depending on whether entity is given
+        if entity is None:
+            paginator = AutomationsForViewer(
+                client=self.client, variables={}, per_page=per_page
+            )
+        else:
+            paginator = AutomationsByEntity(
+                client=self.client, variables={"entityName": entity}, per_page=per_page
+            )
+
+        yield from filter(_should_keep, paginator)
+
+    # Automation event/action types that should be supported by all servers
+    _SAFE_EVENT_TYPES: Set[str] = {
+        EventType.ADD_ARTIFACT_ALIAS.value,
+        EventType.CREATE_ARTIFACT.value,
+        EventType.LINK_MODEL.value,
+    }
+    _SAFE_ACTION_TYPES: Set[str] = {
+        ActionType.QUEUE_JOB.value,
+        ActionType.NOTIFICATION.value,
+        ActionType.GENERIC_WEBHOOK.value,
+    }
+
+    def _supported_automation_types(self) -> "_SupportedAutomationTypes":
+        """Return the set of automation event and action types that the server supports."""
+        # query = gql(SUPPORTED_ACTION_AND_EVENT_TYPES_GQL)
+        # data = self.client.execute(query)
+
+        # event_type_info = EnumInfo.model_validate(data["eventTypeInfo"])
+        # action_type_info = EnumInfo.model_validate(data["actionTypeInfo"])
+
+        # return _SupportedAutomationTypes(
+        #     event_types={v.name for v in event_type_info.enum_values},
+        #     action_types={v.name for v in action_type_info.enum_values},
+        # )
+
+        event_prefix = "AUTOMATION_EVENT_"
+        action_prefix = "AUTOMATION_ACTION_"
+
+        # TODO: clean this up
+        supported_features = InternalApi()._server_features()
+
+        # supported_features = self.client.server_features
+
+        return _SupportedAutomationTypes(
+            event_types=set(
+                name[len(event_prefix) :]
+                for name, enabled in supported_features.items()
+                if enabled and name.startswith(event_prefix)
+            ),
+            action_types=set(
+                name[len(action_prefix) :]
+                for name, enabled in supported_features.items()
+                if enabled and name.startswith(action_prefix)
+            ),
+        )
+
+    def _check_server_support_for_automation(
+        self, obj: CreateFilterTriggerInput
+    ) -> None:
+        event_name: str = obj.triggering_event_type.value
+        action_name: str = obj.triggered_action_type.value
+
+        # supported_features = self.client.server_features
+
+        internal_api = InternalApi()
+
+        if not (
+            (event_name in self._SAFE_EVENT_TYPES)
+            or internal_api._check_server_feature_with_fallback(
+                ServerFeature.Value(f"AUTOMATION_EVENT_{event_name!s}")
+                # f"AUTOMATION_EVENT_{event_name!s}"
+            )
+        ):
+            raise ValueError(
+                f"Server does not support automation event: {event_name!r}"
+            )
+
+        if not (
+            (action_name in self._SAFE_ACTION_TYPES)
+            or internal_api._check_server_feature_with_fallback(
+                ServerFeature.Value(f"AUTOMATION_ACTION_{action_name!s}")
+                # f"AUTOMATION_ACTION_{action_name!s}"
+            )
+        ):
+            raise ValueError(
+                f"Server does not support automation action: {action_name!r}"
+            )
+
+        # supported = self._supported_automation_types()
+        # if event_name not in supported.event_types:
+        #     raise ValueError(
+        #         f"Server does not support automation event: {event_name!r}"
+        #     )
+        # if action_name not in supported.action_types:
+        #     raise ValueError(
+        #         f"Server does not support automation action: {action_name!r}"
+        #     )
+
+    def create_automation(
+        self,
+        obj: Union[NewAutomation, PreparedAutomation],
+        *,
+        fetch_existing: bool = False,
+        **updates: Unpack[AutomationParams],
+    ) -> Automation:
+        """Create a new Automation.
+
+        Args:
+            obj:
+                The automation to create.
+            fetch_existing (bool):
+                If True, and a conflicting automation already exists, attempt
+                to fetch the existing automation instead of raising an error.
+            updates:
+                Any final updates to apply to the new automation before
+                creating it.  These override previously-set values, if any.
+
+        Returns:
+            The created automation after it has been saved to the server.
+        """
+        gql_input = prepare_create_input(obj, **updates)
+
+        self._check_server_support_for_automation(gql_input)
+
+        # keep the name on hand, if needed later to report on
+        # and/or recover from a conflicting automation
+        name = gql_input.name
+
+        mutation = gql(CREATE_FILTER_TRIGGER_GQL)
+        variables = {"params": gql_input.model_dump(exclude_none=True)}
+
+        try:
+            data = self.client.execute(mutation, variable_values=variables)
+        except requests.HTTPError as e:
+            status = HTTPStatus(e.response.status_code)
+            if status is HTTPStatus.CONFLICT:  # 409
+                if fetch_existing:
+                    wandb.termlog(
+                        f"An automation {name!r} already exists.  Skipping creation and fetching existing..."
+                    )
+                    return self.automation(name=name)
+                else:
+                    wandb.termerror(f"An automation {name!r} already exists.")
+
+            # Not a (known) recoverable HTTP error
+            wandb.termerror(f"Got response status {status!r}: {e.response.text!r}")
+            raise e
+
+        try:
+            result = CreateFilterTrigger.model_validate(data).create_filter_trigger
+            return Automation.model_validate_json(result.trigger.model_dump_json())
+        except AttributeError as e:
+            # This should not happen on a 200 response, but if it does, it means
+            # one of the top-level fields was None.  Showing the response data in
+            # full is unlikely to add much noise, so we may as well.
+            msg = f"Unexpected response while creating automation {name!r}: {data!r}"
+            raise ValueError(msg) from e
+        except ValidationError as e:
+            # Omit the response data, it's likely to add unhelpful noise
+            msg = f"Unexpected response while creating automation {name!r}"
+            raise ValueError(msg) from e
+
+    def delete_automation(self, obj: Union[str, Automation]) -> DeleteTriggerResult:
+        """Delete an automation.
+
+        Args:
+            obj (str | Automation): The automation to delete, or its ID.
+
+        Returns:
+            The result of the deletion.
+        """
+        id_ = obj.id if isinstance(obj, Automation) else obj
+        mutation = gql(DELETE_TRIGGER_GQL)
+        variables = {"id": id_}
+
+        data = self.client.execute(mutation, variable_values=variables)
+
+        try:
+            result = DeleteTrigger.model_validate(data).delete_trigger
+            return DeleteTriggerResult.model_validate_json(result.model_dump_json())
+        except AttributeError as e:
+            # This should not happen on a 200 response, but if it does, it means
+            # one of the top-level fields was None.  Showing the response data in
+            # full is unlikely to add much noise, so we may as well.
+            msg = f"Unexpected response while deleting automation {id_!r}: {data!r}"
+            raise ValueError(msg) from e
+        except ValidationError as e:
+            # Omit the response data, it's likely to add unhelpful noise
+            msg = f"Unexpected response while deleting automation {id_!r}"
+            raise ValueError(msg) from e
+
+
+@dataclass
+class _SupportedAutomationTypes:
+    event_types: Set[str]
+    action_types: Set[str]
