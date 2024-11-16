@@ -35,6 +35,14 @@ class DeleteTriggerResult(GQLBase):
     success: bool
 
 
+class EnumInfo(GQLBase):
+    enum_values: list[EnumInfoEnumValues] | None = Field(alias="enumValues")
+
+
+class EnumInfoEnumValues(GQLBase):
+    name: str
+
+
 class FilterEventFields(GQLBase):
     typename__: Typename[str]
     event_type: EventTriggeringConditionType = Field(alias="eventType")
@@ -308,6 +316,7 @@ ArtifactPortfolioScopeFields.model_rebuild()
 ArtifactSequenceScopeFields.model_rebuild()
 CreateFilterTriggerResult.model_rebuild()
 DeleteTriggerResult.model_rebuild()
+EnumInfo.model_rebuild()
 FilterEventFields.model_rebuild()
 GenericWebhookActionFields.model_rebuild()
 GenericWebhookIntegrationConnectionFields.model_rebuild()
