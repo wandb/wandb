@@ -71,6 +71,7 @@ fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
 }
 fragment NoOpActionFields on NoOpTriggeredAction {
     __typename
+    noOp  # GraphQL doesn't support empty objects, so this should be an ignored placeholder field
 }
 
 # ------------------------------------------------------------------------------
@@ -157,6 +158,21 @@ query GetTriggersByEntity (
 }
 
 # ------------------------------------------------------------------------------
+
+# Necessary to ensure compatibility with older server versions.
+# These are used to check if the server supports specific action and event types.
+fragment EnumInfo on __Type {
+    enumValues {name}
+}
+query SupportedActionAndEventTypes {
+    eventTypeInfo: __type(name: "EventTriggeringConditionType") {
+        ...EnumInfo
+    }
+    actionTypeInfo: __type(name: "TriggeredActionType") {
+        ...EnumInfo
+    }
+}
+
 fragment CreateFilterTriggerResult on CreateFilterTriggerPayload {
     __typename
     trigger {...TriggerFields}
