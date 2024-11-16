@@ -15,9 +15,11 @@ import json
 import logging
 import os
 import urllib
-from typing import Any, Dict, List, Optional
+from itertools import chain
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Union
 
 import requests
+from pydantic import ValidationError
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
@@ -28,12 +30,47 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.utils import PathType, parse_org_from_registry_path
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
+from wandb.sdk.automations._generated.create_filter_trigger import CreateFilterTrigger
+from wandb.sdk.automations._generated.operations import (
+    CREATE_FILTER_TRIGGER_GQL,
+    DELETE_TRIGGER_GQL,
+    SLACK_INTEGRATIONS_FOR_TEAM_GQL,
+    SLACK_INTEGRATIONS_FOR_USER_GQL,
+    TRIGGERS_IN_USER_ORG_ENTITY_GQL,
+    TRIGGERS_IN_USER_TEAMS_GQL,
+)
+from wandb.sdk.automations._generated.slack_integrations_for_team import (
+    SlackIntegrationsForTeam,
+)
+from wandb.sdk.automations._generated.slack_integrations_for_user import (
+    SlackIntegrationsForUser,
+)
+from wandb.sdk.automations._generated.triggers_in_user_org_entity import (
+    TriggersInUserOrgEntity,
+)
+from wandb.sdk.automations._generated.triggers_in_user_teams import TriggersInUserTeams
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import retry, runid
 from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.gql_request import GraphQLSession
+
+if TYPE_CHECKING:
+    from wandb.sdk.automations._generated.enums import (
+        EventTriggeringConditionType,
+        TriggeredActionType,
+        TriggerScopeType,
+    )
+    from wandb.sdk.automations._generated.fragments import (
+        DeleteTriggerResult,
+        SlackIntegration,
+    )
+    from wandb.sdk.automations.automations import (
+        Automation,
+        EventAndActionInput,
+        NewAutomation,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -794,6 +831,7 @@ class Api:
             entity = InternalApi()._resolve_org_entity_name(
                 entity=settings_entity, organization=org
             )
+
         return public.Project(self.client, entity, name, {})
 
     def reports(
@@ -1381,3 +1419,303 @@ class Api:
             return True
         except wandb.errors.CommError:
             return False
+
+    def _team_slack_integration(
+        self, entity: Optional[str] = None
+    ) -> "SlackIntegration":
+        """Get the Slack integration for an entity, if given, or the user's default entity."""
+        from wandb.sdk.automations._generated.fragments import SlackIntegration
+
+        gql_query = gql(SLACK_INTEGRATIONS_FOR_TEAM_GQL)
+        gql_variables = {"entityName": entity}
+        data = self.client.execute(gql_query, variable_values=gql_variables)
+
+        try:
+            result = SlackIntegrationsForTeam.model_validate(data)
+        except ValidationError as e:
+            raise ValueError(f"Unexpected response data: {data!r}") from e
+
+        try:
+            edges = result.entity.integrations.edges
+        except AttributeError:
+            raise ValueError(
+                f"Unable to parse Slack integrations for entity {entity!r} from response: {result!r}"
+            )
+        else:
+            # Dump and revalidate to ensure the correct pydantic type names
+            nodes = (edge.node for edge in edges)
+            integrations = [SlackIntegration.model_validate(node) for node in nodes]
+
+        try:
+            [only_integration] = integrations
+        except ValueError:
+            if integrations:
+                raise ValueError(
+                    f"Found multiple ({len(integrations)}) Slack integrations for team {entity!r}: {integrations!r}"
+                )
+            else:
+                raise ValueError(
+                    f"No Slack integration found!  A team admin for {entity!r} can set one up at: https://wandb.ai/{entity}/settings"
+                )
+        else:
+            return only_integration
+
+    def _user_slack_integration(self) -> "SlackIntegration":
+        """Get the user's own personal W&B Slack integration."""
+        gql_query = gql(SLACK_INTEGRATIONS_FOR_USER_GQL)
+        data = self.client.execute(gql_query)
+
+        try:
+            result = SlackIntegrationsForUser.model_validate(data)
+        except ValidationError as e:
+            raise ValueError(f"Unexpected response data: {data!r}") from e
+
+        try:
+            edges = result.viewer.user_entity.integrations.edges
+        except AttributeError:
+            raise ValueError(
+                f"Unable to parse Slack integrations for user from response: {result!r}"
+            )
+        else:
+            # Dump and revalidate to ensure the correct pydantic type names
+            nodes = (edge.node for edge in edges)
+            integrations = [
+                SlackIntegration.model_validate(node.model_dump()) for node in nodes
+            ]
+
+        try:
+            [only_integration] = integrations
+        except ValueError:
+            if integrations:
+                raise ValueError(
+                    f"Found multiple ({len(integrations)}) Slack integrations: {integrations!r}"
+                )
+            else:
+                raise ValueError(
+                    "No Slack integration found!  You can set one up for your W&B user at: https://wandb.ai/settings"
+                )
+        else:
+            return only_integration
+
+    def automation(
+        self,
+        *,
+        entity: Optional[str] = None,
+        name: Optional[str] = None,
+        event: Union[str, "EventTriggeringConditionType", None] = None,
+        action: Union[str, "TriggeredActionType", None] = None,
+        scope: Union[str, "TriggerScopeType", None] = None,
+        user: Optional[str] = None,
+    ) -> "Automation":
+        """Return the only Automation matching the given parameters, if possible.
+
+        Raises:
+            ValueError: If 0 or multiple Automations match the search criteria
+        """
+        params = locals()
+        params_set = {
+            k: v for k, v in params.items() if (v is not None) and (k != "self")
+        }
+        matches = self.automations(
+            entity=entity, name=name, event=event, action=action, scope=scope, user=user
+        )
+
+        try:
+            [only_match] = matches
+        except ValueError:
+            if matches:
+                raise ValueError(
+                    f"Multiple ({len(matches)}) automations matching: {params_set!r}"
+                )
+            raise ValueError(f"No automation found matching: {params_set!r}")
+        else:
+            return only_match
+
+    def automations(
+        self,
+        *,
+        entity: Optional[str] = None,
+        name: Optional[str] = None,
+        event: Union[str, "EventTriggeringConditionType", None] = None,
+        action: Union[str, "TriggeredActionType", None] = None,
+        scope: Union[str, "TriggerScopeType", None] = None,
+        user: Optional[str] = None,
+    ) -> list["Automation"]:
+        """Return all Automations, filtering by the given search criteria if any."""
+        from wandb.sdk.automations import Automation
+        from wandb.sdk.automations._utils import ACTION_TYPE_MAP, SCOPE_TYPE_MAP
+
+        scope_type = TriggerScopeType(scope) if scope else None
+        event_type = EventTriggeringConditionType(event) if event else None
+        action_type = TriggeredActionType(action) if action else None
+
+        # Crude client-side filtering
+        # TODO: we should handle this in the backend instead
+        def _should_keep(obj: Automation) -> bool:
+            return (
+                ((name is None) or (obj.name == name))
+                and ((user is None) or (obj.created_by.username == user))
+                and (
+                    (scope_type is None)
+                    or (SCOPE_TYPE_MAP.get(obj.scope.typename__) is scope_type)
+                )
+                and ((event_type is None) or (obj.event.event_type is event_type))
+                and (
+                    (action_type is None)
+                    or (ACTION_TYPE_MAP.get(obj.action.typename__) is action_type)
+                )
+            )
+
+        iter_results = chain(
+            self._triggers_in_user_org_entity(entity=entity),
+            self._triggers_in_user_teams(entity=entity),
+        )
+        return list(filter(_should_keep, iter_results))
+
+    def _triggers_in_user_org_entity(
+        self, entity: Optional[str] = None
+    ) -> Iterator["Automation"]:
+        from wandb.sdk.automations import Automation
+
+        gql_query = gql(TRIGGERS_IN_USER_ORG_ENTITY_GQL)
+        gql_variables = {"entityName": entity}
+        data = self.client.execute(gql_query, variable_values=gql_variables)
+
+        result = TriggersInUserOrgEntity.model_validate(data)
+        try:
+            organizations = result.viewer.organizations
+        except AttributeError:  # If any of the fields are null
+            organizations = []
+
+        entities = (
+            org_entity for org in organizations if (org_entity := org.org_entity)
+        )
+        edges = chain.from_iterable(ent.projects.edges for ent in entities)
+        projects = (edge.node for edge in edges)
+        triggers = chain.from_iterable(proj.triggers for proj in projects)
+        yield from (
+            Automation.model_validate(trigger.model_dump(exclude={"typename__"}))
+            for trigger in triggers
+        )
+
+    def _triggers_in_user_teams(
+        self, entity: Optional[str] = None
+    ) -> Iterator["Automation"]:
+        from wandb.sdk.automations import Automation
+
+        gql_query = gql(TRIGGERS_IN_USER_TEAMS_GQL)
+        gql_variables = {"entityName": entity}
+        data = self.client.execute(gql_query, variable_values=gql_variables)
+
+        try:
+            result = TriggersInUserTeams.model_validate(data)
+        except ValidationError as e:
+            raise ValueError(f"Unexpected response data: {data!r}") from e
+
+        try:
+            organizations = result.viewer.organizations
+        except AttributeError:  # If any of the fields are null
+            organizations = []
+
+        entities = chain.from_iterable(org.teams for org in organizations)
+        edges = chain.from_iterable(ent.projects.edges for ent in entities)
+        projects = (edge.node for edge in edges)
+        triggers = chain.from_iterable(proj.triggers for proj in projects)
+        yield from (
+            Automation.model_validate(trigger.model_dump(exclude={"typename__"}))
+            for trigger in triggers
+        )
+
+    def create_automation(
+        self,
+        automation_or_pair: Union["NewAutomation", "EventAndActionInput"],
+        *,
+        name: str,
+        description: Optional[str] = None,
+        enabled: bool = True,
+    ) -> "Automation":
+        """Create a new automation."""
+        from wandb.sdk.automations import Automation, NewAutomation
+        from wandb.sdk.automations._utils import prepare_create_automation_input
+
+        if isinstance(automation_or_pair, NewAutomation):
+            new_obj = automation_or_pair
+        elif isinstance(automation_or_pair, tuple):
+            event, action = automation_or_pair
+            new_obj = NewAutomation(
+                name=name,
+                description=description,
+                enabled=enabled,
+                scope=event.scope,
+                event=event,
+                action=action,
+            )
+        else:
+            raise TypeError(
+                f"Unable to prepare type {type(automation_or_pair).__qualname__!r} to create automation"
+            )
+
+        prepared_input = prepare_create_automation_input(new_obj)
+        params = prepared_input.model_dump(by_alias=True, mode="json", round_trip=True)
+        # TODO: reconfigure base class to serialize properly by default
+
+        gql_mutation = gql(CREATE_FILTER_TRIGGER_GQL)
+        gql_variables = {"params": params}
+
+        try:
+            data = self.client.execute(gql_mutation, variable_values=gql_variables)
+        except requests.HTTPError as e:
+            status = e.response.status_code
+            if status == 409:  # Conflict
+                wandb.termlog(
+                    f"An automation {new_obj.name!r} already exists.  Skipping creation..."
+                )
+                return self.automation(name=name)
+            else:
+                # Not a (known) recoverable HTTP error
+                wandb.termerror(f"Got response status {status!r}: {e.response.text!r}")
+                raise e
+
+        try:
+            result = CreateFilterTrigger.model_validate(data)
+        except ValidationError as e:
+            raise ValueError(f"Unexpected response data: {data!r}") from e
+
+        try:
+            trigger = result.create_filter_trigger.trigger
+        except AttributeError:  # If any of the fields are null
+            raise ValueError(f"Unable to parse create automation response: {result!r}")
+        else:
+            return Automation.model_validate(trigger.model_dump(exclude={"typename__"}))
+
+    # TODO: Replace DeleteTriggerResult with more clearly-named class+attributes for consistency/clarity
+    def delete_automation(self, obj: Union[str, "Automation"]) -> "DeleteTriggerResult":
+        """Delete an automation."""
+        from wandb.sdk.automations._generated.delete_trigger import (
+            DeleteTrigger,
+            DeleteTriggerResult,
+        )
+
+        gql_mutation = gql(DELETE_TRIGGER_GQL)
+        gql_variables = {"id": _resolve_automation_id(obj)}
+        data = self.client.execute(gql_mutation, variable_values=gql_variables)
+
+        try:
+            result = DeleteTrigger.model_validate(data)
+        except ValidationError as e:
+            raise ValueError(f"Unexpected response data: {data!r}") from e
+
+        if outcome := result.delete_trigger:
+            return DeleteTriggerResult.model_validate(outcome.model_dump())
+
+        raise ValueError(f"Unable to parse delete automation response: {result!r}")
+
+
+def _resolve_automation_id(obj) -> str:
+    from wandb.sdk.automations import Automation
+
+    if isinstance(obj, Automation):
+        return obj.id
+    if isinstance(obj, str):
+        return obj
+    raise TypeError(f"Cannot parse automation ID from type: {type(obj).__qualname__!r}")

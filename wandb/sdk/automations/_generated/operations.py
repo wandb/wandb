@@ -441,12 +441,17 @@ fragment PaginatedIntegrations on IntegrationConnection {
   edges {
     cursor
     node {
-      ... on Integration {
-        __typename
-        id
-      }
+      __typename
+      ...SlackIntegration
     }
   }
+}
+
+fragment SlackIntegration on SlackIntegration {
+  __typename
+  id
+  teamName
+  channelName
 }
 """
 
@@ -471,11 +476,16 @@ fragment PaginatedIntegrations on IntegrationConnection {
   edges {
     cursor
     node {
-      ... on Integration {
-        __typename
-        id
-      }
+      __typename
+      ...SlackIntegration
     }
   }
+}
+
+fragment SlackIntegration on SlackIntegration {
+  __typename
+  id
+  teamName
+  channelName
 }
 """

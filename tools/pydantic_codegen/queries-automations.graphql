@@ -164,6 +164,7 @@ fragment PaginatedIntegrations on IntegrationConnection {
     edges {
         cursor
         node {
+            __typename
             ...SlackIntegration
         }
     }

@@ -83,7 +83,7 @@ class PaginatedIntegrationsEdges(BaseModel):
     node: (
         Annotated[
             PaginatedIntegrationsEdgesNodeIntegration
-            | PaginatedIntegrationsEdgesNodeIntegration,
+            | PaginatedIntegrationsEdgesNodeSlackIntegration,
             Field(discriminator="typename__"),
         ]
         | None
@@ -92,12 +92,8 @@ class PaginatedIntegrationsEdges(BaseModel):
 
 class PaginatedIntegrationsEdgesNodeIntegration(BaseModel):
     typename__: Literal[
-        "GenericWebhookIntegration",
-        "GitHubOAuthIntegration",
-        "Integration",
-        "SlackIntegration",
+        "GenericWebhookIntegration", "GitHubOAuthIntegration", "Integration"
     ] = Field(alias="__typename")
-    id: str
 
 
 class PaginatedProjectTriggers(BaseModel):
@@ -228,6 +224,10 @@ class QueueJobActionQueue(RunQueue):
 
 
 class NotificationActionIntegrationSlackIntegration(SlackIntegration):
+    typename__: Literal["SlackIntegration"] = Field(alias="__typename")
+
+
+class PaginatedIntegrationsEdgesNodeSlackIntegration(SlackIntegration):
     typename__: Literal["SlackIntegration"] = Field(alias="__typename")
 
 
