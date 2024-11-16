@@ -5,19 +5,19 @@ package payloads
 import "encoding/json"
 import "fmt"
 import "reflect"
-import "time"
+
 
 type AgentHeartbeatJson struct {
 	// Timestamp of the heartbeat
-	Timestamp time.Time `json:"timestamp" yaml:"timestamp" mapstructure:"timestamp"`
+	Timestamp string `json:"timestamp" yaml:"timestamp" mapstructure:"timestamp"`
 
-	// Type of payload - must be client.heartbeat
+	// Type of payload - must be agent.heartbeat
 	Type AgentHeartbeatJsonType `json:"type" yaml:"type" mapstructure:"type"`
 }
 
 type AgentHeartbeatJsonType string
 
-const AgentHeartbeatJsonTypeClientHeartbeat AgentHeartbeatJsonType = "client.heartbeat"
+const AgentHeartbeatJsonTypeAgentHeartbeat AgentHeartbeatJsonType = "agent.heartbeat"
 
 var enumValues_AgentHeartbeatJsonType = []interface{}{
 	"agent.heartbeat",
