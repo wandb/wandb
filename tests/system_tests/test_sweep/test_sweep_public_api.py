@@ -49,21 +49,23 @@ query Sweep($project: String, $entity: String, $name: String!) {
     ids=["test grid", "test grid nested", "test bayes", "test random"],
 )
 def test_sweep_api_expected_run_count(
-    user, wandb_init, relay_server, sweep_config, expected_run_count
+    use_local_wandb_backend,
+    user,
+    sweep_config,
+    expected_run_count,
 ):
+    _ = use_local_wandb_backend
     _project = "test"
-    with relay_server() as relay:
-        run = wandb_init(entity=user, project=_project)
+    with wandb.init(entity=user, project=_project) as run:
         run_id = run.id
         run.log({"x": 1})
         run.finish()
         sweep_id = wandb.sweep(
-            sweep_config, entity=user, project=_project, prior_runs=[run_id]
+            sweep_config,
+            entity=user,
+            project=_project,
+            prior_runs=[run_id],
         )
-
-    for comm in relay.context.raw_data:
-        q = comm["request"].get("query")
-        print(q)
 
     api = Api()
     sweep = Sweep.get(api.client, user, _project, sweep_id, query=SWEEP_QUERY)
@@ -74,12 +76,13 @@ def test_sweep_api_expected_run_count(
 
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
-def test_sweep_api(user, relay_server, sweep_config):
+def test_sweep_api(use_local_wandb_backend, user, sweep_config):
+    _ = use_local_wandb_backend
     _project = "test"
-    with relay_server():
-        sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
-    print(f"sweep_id{sweep_id}")
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+
     sweep = Api().sweep(f"{user}/{_project}/sweeps/{sweep_id}")
+
     assert sweep.entity == user
     assert f"{user}/{_project}/sweeps/{sweep_id}" in sweep.url
     assert sweep.state == "PENDING"
