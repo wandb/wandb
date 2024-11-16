@@ -75,7 +75,7 @@ def wandb_internal(
     # Let's make sure we don't modify settings so use a static object
     _settings = settings
     if _settings.log_internal:
-        configure_logging(_settings.log_internal, _settings._log_level)
+        configure_logging(_settings.log_internal, _settings.x_log_level)
 
     user_pid = user_pid or os.getppid()
     pid = os.getpid()
@@ -169,7 +169,7 @@ def wandb_internal(
             traceback.print_exception(*exc_info)
             wandb._sentry.exception(exc_info)
             wandb.termerror("Internal wandb error: file data was not synced")
-            if not settings._disable_service:
+            if not settings.x_disable_service:
                 # TODO: We can make this more graceful by returning an error to streams.py
                 # and potentially just fail the one stream.
                 os._exit(-1)
@@ -380,7 +380,7 @@ class ProcessCheck:
         self.settings = settings
         self.pid = user_pid
         self.check_process_last = None
-        self.check_process_interval = settings._internal_check_process
+        self.check_process_interval = settings.x_internal_check_process
 
     def is_dead(self) -> bool:
         if not self.check_process_interval or not self.pid:

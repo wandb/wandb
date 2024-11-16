@@ -75,8 +75,8 @@ def test_configure_job_builder_for_partial():
     assert isinstance(builder, JobBuilder)
     assert builder._config == {}
     assert builder._summary == {}
-    assert builder._settings.get("files_dir") == dir
-    assert builder._settings.get("job_source") == job_source
+    assert builder._settings.files_dir == dir
+    assert builder._settings.job_source == job_source
 
 
 def test_make_code_artifact_name():
