@@ -107,7 +107,7 @@ fragment TriggerFields on Trigger {
         ...QueueJobActionFields
         ...NotificationActionFields
         ...GenericWebhookActionFields
-        ...NoOpActionFields
+        ...NoOpActionFields @include(if: $supportsNoOp)
     }
 }
 
@@ -137,6 +137,7 @@ fragment ProjectConnectionFields on ProjectConnection {
 query GetTriggers (
     $cursor: String,
     $perPage: Int,
+    $supportsNoOp: Boolean = true,
 ) {
     searchScope: viewer {
         projects(after: $cursor, first: $perPage) {
@@ -148,6 +149,7 @@ query GetTriggersByEntity (
     $entityName: String!,
     $cursor: String,
     $perPage: Int,
+    $supportsNoOp: Boolean = true,
 ) {
     searchScope: entity (name: $entityName) {
         projects(after: $cursor, first: $perPage) {
@@ -157,12 +159,29 @@ query GetTriggersByEntity (
 }
 
 # ------------------------------------------------------------------------------
+
+# # Necessary to ensure compatibility with older server versions.
+# # These are used to check if the server supports specific action and event types.
+# fragment EnumInfoFields on __Type {
+#     kind
+#     name
+#     enumValues {name}
+# }
+# query SupportedActionAndEventTypes {
+#     actionTypeInfo: __type(name: "TriggeredActionType") {
+#         ...EnumInfoFields
+#     }
+#     eventTypeInfo: __type(name: "EventTriggeringConditionType") {
+#         ...EnumInfoFields
+#     }
+# }
+
 fragment CreateFilterTriggerResult on CreateFilterTriggerPayload {
     __typename
     trigger {...TriggerFields}
     clientMutationId
 }
-mutation CreateFilterTrigger($params: CreateFilterTriggerInput!) {
+mutation CreateFilterTrigger($params: CreateFilterTriggerInput!, $supportsNoOp: Boolean = true) {
     createFilterTrigger(input: $params) {
         ...CreateFilterTriggerResult
     }
@@ -173,7 +192,7 @@ fragment UpdateFilterTriggerResult on UpdateFilterTriggerPayload {
     trigger {...TriggerFields}
     clientMutationId
 }
-mutation UpdateFilterTrigger($params: UpdateFilterTriggerInput!) {
+mutation UpdateFilterTrigger($params: UpdateFilterTriggerInput!, $supportsNoOp: Boolean = true) {
     updateFilterTrigger(input: $params) {
         ...UpdateFilterTriggerResult
     }

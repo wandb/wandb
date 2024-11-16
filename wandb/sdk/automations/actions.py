@@ -105,6 +105,21 @@ class DoNotification(NotificationActionInput, _ActionInput):
             integration_id=integration.id, title=title, message=text, severity=level
         )
 
+    @classmethod
+    def for_team(
+        cls,
+        entity: str,
+        *,
+        title: str = "",
+        text: str = "",
+        level: AlertSeverity | str = AlertSeverity.INFO,
+    ) -> Self:
+        """Define a notification action that sends to the team's existing (Slack) integration."""
+        from wandb.apis.public.api import Api
+
+        integration = Api().slack_integration(entity)
+        return cls.from_integration(integration, title=title, text=text, level=level)
+
 
 # Annotations for GenericWebhookActionInput params
 _WebhookPayloadT = Annotated[
