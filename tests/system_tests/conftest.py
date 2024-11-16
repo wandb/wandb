@@ -697,7 +697,6 @@ def wandb_init(user, test_settings, request):
         group: Optional[str] = None,
         name: Optional[str] = None,
         notes: Optional[str] = None,
-        magic: Union[dict, str, bool] = None,
         config_exclude_keys: Optional[List[str]] = None,
         config_include_keys: Optional[List[str]] = None,
         anonymous: Optional[str] = None,

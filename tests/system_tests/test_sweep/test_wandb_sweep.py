@@ -194,9 +194,7 @@ def test_minmax_validation():
 
 def test_add_run_to_existing_sweep(wandb_backend_spy, user):
     sweep_id = wandb.sweep(SWEEP_CONFIG_GRID, entity=user)
-    settings = wandb.Settings()
-    settings.update({"sweep_id": sweep_id})
-    with wandb.init(entity=user, settings=settings) as run:
+    with wandb.init(entity=user, settings={"sweep_id": sweep_id}) as run:
         run.log({"x": 1})
 
     with wandb_backend_spy.freeze() as snapshot:

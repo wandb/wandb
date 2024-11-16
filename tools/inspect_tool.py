@@ -38,7 +38,6 @@ def inspect_wandb_transaction_log(wandb_file: str, pause: bool = False) -> None:
         print(f".wandb file is empty ({e}), skipping: {wandb_file}")
         return
 
-    # save exit for final send
     while True:
         data = _robust_scan(ds)
         if data is None:
