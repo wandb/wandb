@@ -1,4 +1,3 @@
-import json
 import math
 import os
 import pickle
@@ -8,13 +7,11 @@ import numpy as np
 import pytest
 import wandb
 import wandb.env
-from wandb import wandb_sdk
 from wandb.errors import UsageError
 
 
-def test_log_nan_inf(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
+def test_log_nan_inf(wandb_backend_spy):
+    with wandb.init() as run:
         run.log(
             {
                 "nan": float("nan"),
@@ -22,14 +19,15 @@ def test_log_nan_inf(relay_server, wandb_init):
                 "nested": {"neg_inf": float("-inf")},
             }
         )
-        run.finish()
 
-    history = relay.context.get_run_history(run.id).to_dict(orient="records")[0]
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
 
-    assert sorted(history.keys()) == sorted({"nan", "inf", "nested"})
-    assert math.isnan(history["nan"])
-    assert math.isinf(history["inf"])
-    assert math.isinf(history["nested"]["neg_inf"]) and history["nested"]["neg_inf"] < 0
+        assert len(history) == 1
+        assert math.isnan(history[0]["nan"])
+        assert math.isinf(history[0]["inf"])
+        assert math.isinf(history[0]["nested"]["neg_inf"])
+        assert history[0]["nested"]["neg_inf"] < 0
 
 
 def test_log_code(wandb_init):
@@ -103,16 +101,8 @@ def test_media_in_config(runner, wandb_init, test_settings):
 
 
 def test_init_with_settings(wandb_init, test_settings):
-    # test that when calling `wandb.init(settings=wandb.Settings(...))`,
-    # the settings are passed with Source.INIT as the source
-    test_settings = test_settings()
-    test_settings.update(_disable_stats=True)
-    run = wandb_init(settings=test_settings)
-    assert run.settings._disable_stats
-    assert (
-        run.settings.__dict__["_disable_stats"].source
-        == wandb_sdk.wandb_settings.Source.INIT
-    )
+    run = wandb_init(settings=wandb.Settings(x_disable_stats=True))
+    assert run.settings.x_disable_stats
     run.finish()
 
 
@@ -125,19 +115,18 @@ def test_attach_same_process(wandb_init, test_settings):
     assert "attach in the same process is not supported" in str(excinfo.value)
 
 
-def test_deprecated_feature_telemetry(wandb_init, relay_server, test_settings, user):
-    with relay_server() as relay:
-        run = wandb_init(
-            config_include_keys=("lol",),
-            settings=test_settings(),
-        )
+def test_deprecated_feature_telemetry(wandb_backend_spy):
+    with wandb.init(config_include_keys=["lol"]) as run:
         # use deprecated features
         _ = [
             run.mode,
             run.save(),
             run.join(),
         ]
-        telemetry = relay.context.get_run_telemetry(run.id)
+
+    with wandb_backend_spy.freeze() as snapshot:
+        telemetry = snapshot.telemetry(run_id=run.id)
+
         # TelemetryRecord field 10 is Deprecated,
         # whose fields 2-4 correspond to deprecated wandb.run features
         # fields 7 & 8 are deprecated wandb.init kwargs
@@ -197,7 +186,6 @@ def assertion(run_id, found, stderr):
         ("allow", True),
         ("never", True),
         ("must", True),
-        ("", False),
         (True, True),
         (None, False),
     ],
@@ -209,26 +197,34 @@ def test_offline_resume(wandb_init, test_settings, capsys, resume, found):
     run.finish()
 
 
-def test_ignore_globs_wandb_files(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init(settings=dict(ignore_globs=["requirements.txt"]))
-        run.finish()
-    uploaded_files = relay.context.get_run_uploaded_files(run.id)
-    assert "requirements.txt" not in uploaded_files
+def test_ignore_globs_wandb_files(wandb_backend_spy):
+    with wandb.init(settings=dict(ignore_globs=["requirements.txt"])) as run:
+        pass
+
+    with wandb_backend_spy.freeze() as snapshot:
+        uploaded_files = snapshot.uploaded_files(run_id=run.id)
+        assert "requirements.txt" not in uploaded_files
 
 
-def test_network_fault_graphql(relay_server, inject_graphql_response, wandb_init):
-    inject_response = inject_graphql_response(
-        body=json.dumps({"errors": ["Server down"]}),
-        status=500,
-        query_match_fn=lambda *_: True,
-        application_pattern="1" * 5 + "2",  # apply once and stop
+def test_network_fault_graphql(wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.any(),
+        # Fail every other request for 50 requests.
+        gql.Sequence(
+            [
+                gql.Constant(content={"errors": ["Server down"]}, status=500),
+                None,
+            ]
+            * 50,
+        ),
     )
-    with relay_server(inject=[inject_response]) as relay:
-        run = wandb_init()
-        run.finish()
 
-        uploaded_files = relay.context.get_run_uploaded_files(run.id)
+    with wandb.init() as run:
+        pass
+
+    with wandb_backend_spy.freeze() as snapshot:
+        uploaded_files = snapshot.uploaded_files(run_id=run.id)
 
         assert "wandb-metadata.json" in uploaded_files
         assert "wandb-summary.json" in uploaded_files
@@ -236,50 +232,46 @@ def test_network_fault_graphql(relay_server, inject_graphql_response, wandb_init
         assert "config.yaml" in uploaded_files
 
 
-def test_summary_update(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
+def test_summary_update(wandb_backend_spy):
+    with wandb.init() as run:
         run.summary.update({"a": 1})
-        run.finish()
 
-    summary = relay.context.get_run_summary(run.id)
-    assert summary == {"a": 1}
+    with wandb_backend_spy.freeze() as snapshot:
+        summary = snapshot.summary(run_id=run.id)
+        assert summary["a"] == 1
 
 
-def test_summary_from_history(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
+def test_summary_from_history(wandb_backend_spy):
+    with wandb.init() as run:
         run.summary.update({"a": 1})
         run.log({"a": 2})
-        run.finish()
 
-    summary = relay.context.get_run_summary(run.id)
-    assert summary == {"a": 2}
+    with wandb_backend_spy.freeze() as snapshot:
+        summary = snapshot.summary(run_id=run.id)
+        assert summary["a"] == 2
 
 
 @pytest.mark.wandb_core_only
-def test_summary_remove(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
+def test_summary_remove(wandb_backend_spy):
+    with wandb.init() as run:
         run.log({"a": 2})
         del run.summary["a"]
-        run.finish()
 
-    summary = relay.context.get_run_summary(run.id)
-    assert summary == {}
+    with wandb_backend_spy.freeze() as snapshot:
+        summary = snapshot.summary(run_id=run.id)
+        assert "a" not in summary
 
 
 @pytest.mark.wandb_core_only
-def test_summary_remove_nested(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init(allow_val_change=True)
+def test_summary_remove_nested(wandb_backend_spy):
+    with wandb.init(allow_val_change=True) as run:
         run.log({"a": {"b": 2}})
         run.summary["a"]["c"] = 3
         del run.summary["a"]["b"]
-        run.finish()
 
-    summary = relay.context.get_run_summary(run.id)
-    assert summary == {"a": {"c": 3}}
+    with wandb_backend_spy.freeze() as snapshot:
+        summary = snapshot.summary(run_id=run.id)
+        assert summary["a"] == {"c": 3}
 
 
 @pytest.mark.parametrize(

@@ -76,7 +76,7 @@ class _Service:
             ServiceStartProcessError: If the service process exits unexpectedly.
 
         """
-        time_max = time.monotonic() + self._settings._service_wait
+        time_max = time.monotonic() + self._settings.x_service_wait
         while time.monotonic() < time_max:
             if proc and proc.poll():
                 # process finished
@@ -120,7 +120,7 @@ class _Service:
             return
         raise ServiceStartTimeoutError(
             "Timed out waiting for wandb service to start after "
-            f"{self._settings._service_wait} seconds. "
+            f"{self._settings.x_service_wait} seconds. "
             "Try increasing the timeout with the `_service_wait` setting."
         )
 
@@ -143,7 +143,7 @@ class _Service:
         with tempfile.TemporaryDirectory() as tmpdir:
             fname = os.path.join(tmpdir, f"port-{pid}.txt")
 
-            executable = self._settings._executable
+            executable = self._settings.x_executable
             exec_cmd_list = [executable, "-m"]
 
             service_args = []
@@ -212,7 +212,7 @@ class _Service:
 
             try:
                 internal_proc = subprocess.Popen(
-                    exec_cmd_list + service_args,
+                    exec_cmd_list + service_args,  # type: ignore[arg-type]
                     env=os.environ,
                     **kwargs,
                 )

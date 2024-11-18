@@ -88,7 +88,7 @@ class FlowControl:
             or _threshold_bytes_mid == 0
             or _threshold_bytes_low == 0
         ):
-            threshold = settings._network_buffer or DEFAULT_THRESHOLD
+            threshold = settings.x_network_buffer or DEFAULT_THRESHOLD
             _threshold_bytes_high = threshold
             _threshold_bytes_mid = threshold // 2
             _threshold_bytes_low = threshold // 4
