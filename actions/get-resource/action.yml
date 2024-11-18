@@ -8,7 +8,7 @@ inputs:
     default: "latest"
   repo:
     description: "GitHub repository containing the binary (format: owner/repo)"
-    required: true
+    required: false
     default: "ctrlplanedev/cli"
   url:
     description: "URL of the ctrlplane instance"
@@ -34,4 +34,5 @@ runs:
         echo "resource=$RESOURCE" >> $GITHUB_OUTPUT
         echo "$RESOURCE" | jq -r 'paths(scalars) as $p | [ ( [ $p[] | tostring ] | join("_") ), ( getpath($p) | tostring ) ] | join("=")' | while read -r line; do
           echo "$line" >> $GITHUB_OUTPUT
+          echo "$line"
         done
