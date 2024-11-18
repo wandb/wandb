@@ -1058,7 +1058,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 	program := s.settings.GetProgram()
 
 	var host string
-	if !s.settings.GetDisableMachineInfo() {
+	if !s.settings.IsDisableMachineInfo() {
 		host = run.Host
 	}
 
