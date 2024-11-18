@@ -21,4 +21,3 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Fix `ultralytics` reporting if there are no positive examples in a validation batch. (@Jamil in https://github.com/wandb/wandb/pull/8870)
-
