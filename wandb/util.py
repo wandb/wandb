@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import colorsys
 import contextlib
 import dataclasses
@@ -51,7 +53,6 @@ from typing import (
     Union,
 )
 
-import requests
 import yaml
 
 import wandb
@@ -70,6 +71,7 @@ from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
     import packaging.version  # type: ignore[import-not-found]
+    import requests
 
     import wandb.sdk.internal.settings_static
     import wandb.sdk.wandb_settings
@@ -251,7 +253,7 @@ def get_module(
         raise wandb.Error(required)
 
 
-def get_optional_module(name) -> Optional["importlib.ModuleInterface"]:  # type: ignore
+def get_optional_module(name) -> Optional[importlib.ModuleInterface]:  # type: ignore
     return get_module(name)
 
 
@@ -345,7 +347,7 @@ def make_tarfile(
     custom_filter: Optional[Callable] = None,
 ) -> None:
     # Helper for filtering out modification timestamps
-    def _filter_timestamps(tar_info: "tarfile.TarInfo") -> Optional["tarfile.TarInfo"]:
+    def _filter_timestamps(tar_info: tarfile.TarInfo) -> Optional[tarfile.TarInfo]:
         tar_info.mtime = 0
         return tar_info if custom_filter is None else custom_filter(tar_info)
 
@@ -844,6 +846,8 @@ def make_safe_for_json(obj: Any) -> Any:
 
 
 def no_retry_4xx(e: Exception) -> bool:
+    import requests
+
     if not isinstance(e, requests.HTTPError):
         return True
     assert e.response is not None
@@ -871,6 +875,8 @@ def parse_backend_error_messages(response: requests.Response) -> List[str]:
 
 
 def no_retry_auth(e: Any) -> bool:
+    import requests
+
     if hasattr(e, "exception"):
         e = e.exception
     if not isinstance(e, requests.HTTPError):
@@ -928,6 +934,8 @@ def check_retry_conflict(e: Any) -> Optional[bool]:
         False - Should not retry this operation
         None - No decision, let someone else decide
     """
+    import requests
+
     if hasattr(e, "exception"):
         e = e.exception
     if isinstance(e, requests.HTTPError) and e.response is not None:
@@ -944,6 +952,8 @@ def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
         False - Should not retry this operation
         None - No decision, let someone else decide
     """
+    import requests
+
     if hasattr(e, "exception"):
         e = e.exception
     if isinstance(e, requests.HTTPError) and e.response is not None:
@@ -1115,6 +1125,8 @@ def image_id_from_k8s() -> Optional[str]:
         fieldRef:
           fieldPath: metadata.namespace
     """
+    import requests
+
     token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
     if not os.path.exists(token_path):
@@ -1178,7 +1190,7 @@ def async_call(
     """
     q: queue.Queue = queue.Queue()
 
-    def wrapped_target(q: "queue.Queue", *args: Any, **kwargs: Any) -> Any:
+    def wrapped_target(q: queue.Queue, *args: Any, **kwargs: Any) -> Any:
         try:
             q.put(target(*args, **kwargs))
         except Exception as e:
@@ -1186,7 +1198,7 @@ def async_call(
 
     def wrapper(
         *args: Any, **kwargs: Any
-    ) -> Union[Tuple[Exception, "threading.Thread"], Tuple[None, "threading.Thread"]]:
+    ) -> Union[Tuple[Exception, threading.Thread], Tuple[None, threading.Thread]]:
         thread = threading.Thread(
             target=wrapped_target, args=(q,) + args, kwargs=kwargs
         )
@@ -1204,7 +1216,7 @@ def async_call(
 
 
 def read_many_from_queue(
-    q: "queue.Queue", max_items: int, queue_timeout: Union[int, float]
+    q: queue.Queue, max_items: int, queue_timeout: Union[int, float]
 ) -> list:
     try:
         item = q.get(True, queue_timeout)
@@ -1312,6 +1324,8 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
 def download_file_from_url(
     dest_path: str, source_url: str, api_key: Optional[str] = None
 ) -> None:
+    import requests
+
     auth = None
     if not _thread_local_api_settings.cookies:
         auth = ("api", api_key or "")
@@ -1333,6 +1347,8 @@ def download_file_from_url(
 
 
 def download_file_into_memory(source_url: str, api_key: Optional[str] = None) -> bytes:
+    import requests
+
     auth = None
     if not _thread_local_api_settings.cookies:
         auth = ("api", api_key or "")
@@ -1442,7 +1458,7 @@ class ImportMetaHook:
 
     def find_module(
         self, fullname: str, path: Optional[str] = None
-    ) -> Optional["ImportMetaHook"]:
+    ) -> Optional[ImportMetaHook]:
         if fullname in self.on_import:
             return self
         return None
@@ -1568,7 +1584,7 @@ def _is_py_requirements_or_dockerfile(path: str) -> bool:
     )
 
 
-def artifact_to_json(artifact: "Artifact") -> Dict[str, Any]:
+def artifact_to_json(artifact: Artifact) -> Dict[str, Any]:
     return {
         "_type": "artifactVersion",
         "_version": "v0",
@@ -1903,7 +1919,7 @@ def working_set() -> Iterable[InstalledDistribution]:
             pass
 
 
-def parse_version(version: str) -> "packaging.version.Version":
+def parse_version(version: str) -> packaging.version.Version:
     """Parse a version string into a version object.
 
     This function is a wrapper around the `packaging.version.parse` function, which
@@ -1945,8 +1961,8 @@ def get_core_path() -> str:
     if not bin_path.exists():
         raise WandbCoreNotAvailableError(
             f"File not found: {bin_path}."
-            "Please contact support at support@wandb.com."
-            f"Your platform is: {platform.platform()}."
+            " Please contact support at support@wandb.com."
+            f" Your platform is: {platform.platform()}."
         )
 
     return str(bin_path)
