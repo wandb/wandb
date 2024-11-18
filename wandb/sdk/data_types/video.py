@@ -49,7 +49,7 @@ def write_gif_with_image_io(
 class Video(BatchableMedia):
     """Format a video for logging to W&B.
 
-    Arguments:
+    Args:
         data_or_path: (numpy array, string, io)
             Video can be initialized with a path to a file or an io object.
             The format must be "gif", "mp4", "webm" or "ogg".

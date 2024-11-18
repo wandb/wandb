@@ -23,6 +23,17 @@ func AddRule(name string, ruleFunc RuleFunc) {
 	specifiedRules = append(specifiedRules, Rule{Name: name, RuleFunc: ruleFunc})
 }
 
+func RemoveRule(name string) {
+	var result []Rule // nolint:prealloc // using initialized with len(rules) produces a race condition
+	for _, r := range specifiedRules {
+		if r.Name == name {
+			continue
+		}
+		result = append(result, r)
+	}
+	specifiedRules = result
+}
+
 func Validate(schema *Schema, doc *QueryDocument, rules ...Rule) gqlerror.List {
 	if rules == nil {
 		rules = specifiedRules

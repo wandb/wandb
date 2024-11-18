@@ -40,9 +40,14 @@ def test_build_repo_job(runner, api):
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
 
+        kwargs = {
+            "x_files_dir": "./",
+            "disable_job_creation": False,
+            "_jupyter": False,
+        }
         settings = SettingsStatic(
             make_proto_settings(
-                **{"files_dir": "./", "disable_job_creation": False, "_jupyter": False}
+                **kwargs,
             )
         )
         job_builder = JobBuilder(settings)
@@ -86,23 +91,26 @@ def test_build_repo_notebook_job(runner, tmp_path, api, mocker):
         return orig_os_path_exists(path)
 
     mocker.patch("os.path.exists", side_effect=exists)
+    # patch in_jupyter to return True
+    mocker.patch("wandb.sdk.lib.ipython.in_jupyter", return_value=True)
     with runner.isolated_filesystem():
         with open("requirements.txt", "w") as f:
             f.write("numpy==1.19.0")
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
+
+        kwargs = {
+            "x_files_dir": "./",
+            "disable_job_creation": False,
+            "x_jupyter_root": str(tmp_path),
+        }
         settings = SettingsStatic(
             make_proto_settings(
-                **{
-                    "files_dir": "./",
-                    "disable_job_creation": False,
-                    "_jupyter": True,
-                    "_jupyter_root": str(tmp_path),
-                }
+                **kwargs,
             )
         )
-        job_builder = JobBuilder(settings)
+        job_builder = JobBuilder(settings, True)
         artifact = job_builder.build(api)
         assert artifact is not None
         assert artifact.name == make_artifact_name_safe(
@@ -127,9 +135,15 @@ def test_build_artifact_job(runner, api):
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
+
+        kwargs = {
+            "x_files_dir": "./",
+            "disable_job_creation": False,
+            "_jupyter": False,
+        }
         settings = SettingsStatic(
             make_proto_settings(
-                **{"files_dir": "./", "disable_job_creation": False, "_jupyter": False}
+                **kwargs,
             )
         )
         job_builder = JobBuilder(settings)
@@ -160,20 +174,22 @@ def test_build_artifact_notebook_job(runner, tmp_path, mocker, api):
         return orig_os_path_exists(path)
 
     mocker.patch("os.path.exists", side_effect=exists)
+    # patch in_jupyter to return True
+    mocker.patch("wandb.sdk.lib.ipython.in_jupyter", return_value=True)
     with runner.isolated_filesystem():
         with open("requirements.txt", "w") as f:
             f.write("numpy==1.19.0")
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
+        kwargs = {
+            "x_files_dir": "./",
+            "disable_job_creation": False,
+            "x_jupyter_root": str(tmp_path),
+        }
         settings = SettingsStatic(
             make_proto_settings(
-                **{
-                    "files_dir": "./",
-                    "disable_job_creation": False,
-                    "_jupyter": True,
-                    "_jupyter_root": str(tmp_path),
-                }
+                **kwargs,
             )
         )
         job_builder = JobBuilder(settings)
@@ -192,6 +208,7 @@ def test_build_artifact_notebook_job(runner, tmp_path, mocker, api):
 
 @pytest.mark.parametrize("verbose", [True, False])
 def test_build_artifact_notebook_job_no_program(
+    mocker,
     runner,
     tmp_path,
     capfd,
@@ -205,20 +222,23 @@ def test_build_artifact_notebook_job_no_program(
     }
     artifact_name = str_of_length(129)
 
+    # patch in_jupyter to return True
+    mocker.patch("wandb.sdk.lib.ipython.in_jupyter", return_value=True)
+
     with runner.isolated_filesystem():
         with open("requirements.txt", "w") as f:
             f.write("numpy==1.19.0")
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
+        kwargs = {
+            "x_files_dir": "./",
+            "disable_job_creation": False,
+            "x_jupyter_root": str(tmp_path),
+        }
         settings = SettingsStatic(
             make_proto_settings(
-                **{
-                    "files_dir": "./",
-                    "disable_job_creation": False,
-                    "_jupyter": True,
-                    "_jupyter_root": str(tmp_path),
-                }
+                **kwargs,
             )
         )
         job_builder = JobBuilder(settings, verbose)
@@ -239,25 +259,30 @@ def test_build_artifact_notebook_job_no_program(
 
 @pytest.mark.parametrize("verbose", [True, False])
 def test_build_artifact_notebook_job_no_metadata(
+    mocker,
     runner,
     tmp_path,
     capfd,
     verbose,
     api,
 ):
+    # patch in_jupyter to return True
+    mocker.patch("wandb.sdk.lib.ipython.in_jupyter", return_value=True)
+
     artifact_name = str_of_length(129)
     with runner.isolated_filesystem():
         with open("requirements.txt", "w") as f:
             f.write("numpy==1.19.0")
             f.write("wandb")
+
+        kwargs = {
+            "x_files_dir": "./",
+            "disable_job_creation": False,
+            "x_jupyter_root": str(tmp_path),
+        }
         settings = SettingsStatic(
             make_proto_settings(
-                **{
-                    "files_dir": "./",
-                    "disable_job_creation": False,
-                    "_jupyter": True,
-                    "_jupyter_root": str(tmp_path),
-                }
+                **kwargs,
             )
         )
         job_builder = JobBuilder(settings, verbose)
@@ -278,6 +303,7 @@ def test_build_artifact_notebook_job_no_metadata(
 
 @pytest.mark.parametrize("verbose", [True, False])
 def test_build_artifact_notebook_job_no_program_metadata(
+    mocker,
     runner,
     tmp_path,
     capfd,
@@ -288,6 +314,9 @@ def test_build_artifact_notebook_job_no_program_metadata(
         "args": ["--test", "test"],
         "python": "3.7",
     }
+    # patch in_jupyter to return True
+    mocker.patch("wandb.sdk.lib.ipython.in_jupyter", return_value=True)
+
     artifact_name = str_of_length(129)
     with runner.isolated_filesystem():
         with open("requirements.txt", "w") as f:
@@ -295,14 +324,14 @@ def test_build_artifact_notebook_job_no_program_metadata(
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
+        kwargs = {
+            "x_files_dir": "./",
+            "disable_job_creation": False,
+            "x_jupyter_root": str(tmp_path),
+        }
         settings = SettingsStatic(
             make_proto_settings(
-                **{
-                    "files_dir": "./",
-                    "disable_job_creation": False,
-                    "_jupyter": True,
-                    "_jupyter_root": str(tmp_path),
-                }
+                **kwargs,
             )
         )
         job_builder = JobBuilder(settings, verbose)
@@ -335,9 +364,14 @@ def test_build_image_job(runner, api):
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
+        kwargs = {
+            "x_files_dir": "./",
+            "disable_job_creation": False,
+            "_jupyter": False,
+        }
         settings = SettingsStatic(
             make_proto_settings(
-                **{"files_dir": "./", "disable_job_creation": False, "_jupyter": False}
+                **kwargs,
             )
         )
         job_builder = JobBuilder(settings)
@@ -350,9 +384,11 @@ def test_build_image_job(runner, api):
 
 
 def test_set_disabled():
-    settings = SettingsStatic(
-        make_proto_settings(**{"files_dir": "./", "disable_job_creation": False})
-    )
+    kwargs = {
+        "x_files_dir": "./",
+        "disable_job_creation": False,
+    }
+    settings = SettingsStatic(make_proto_settings(**kwargs))
 
     job_builder = JobBuilder(settings)
     job_builder.disable = "testtest"
@@ -360,9 +396,11 @@ def test_set_disabled():
 
 
 def test_no_metadata_file(runner, api):
-    settings = SettingsStatic(
-        make_proto_settings(**{"files_dir": "./", "disable_job_creation": False})
-    )
+    kwargs = {
+        "x_files_dir": "./",
+        "disable_job_creation": False,
+    }
+    settings = SettingsStatic(make_proto_settings(**kwargs))
     job_builder = JobBuilder(settings)
     artifact = job_builder.build(api)
     assert artifact is None

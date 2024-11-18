@@ -30,7 +30,8 @@ import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
-from wandb.integration.magic import magic_install
+from wandb.errors.links import url_registry
+from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch._launch_add import _launch_add
@@ -38,7 +39,6 @@ from wandb.sdk.launch.errors import ExecutionError, LaunchError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import filesystem
-from wandb.sdk.lib.wburls import wburls
 from wandb.sync import SyncManager, get_run_from_path, get_runs
 
 from .beta import beta
@@ -128,7 +128,7 @@ def _get_cling_api(reset=None):
     if _api is None:
         # TODO(jhr): make a settings object that is better for non runs.
         # only override the necessary setting
-        wandb.setup(settings=dict(_cli_only_mode=True))
+        wandb.setup(settings=wandb.Settings(x_cli_only_mode=True))
         _api = InternalApi()
     return _api
 
@@ -237,15 +237,18 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
         relogin = True
 
     login_settings = dict(
-        _cli_only_mode=True,
-        _disable_viewer=relogin and not verify,
+        x_cli_only_mode=True,
+        x_disable_viewer=relogin and not verify,
         anonymous=anon_mode,
+        base_url=host,
     )
-    if host is not None:
-        login_settings["base_url"] = host
 
     try:
-        wandb.setup(settings=login_settings)
+        wandb.setup(
+            settings=wandb.Settings(
+                **{k: v for k, v in login_settings.items() if v is not None}
+            )
+        )
     except TypeError as e:
         wandb.termerror(str(e))
         sys.exit(1)
@@ -1172,7 +1175,7 @@ def launch_sweep(
     wandb.termlog(f"Scheduler added to launch queue ({queue})")
 
 
-@cli.command(help=f"Launch or queue a W&B Job. See {wburls.get('cli_launch')}")
+@cli.command(help=f"Launch or queue a W&B Job. See {url_registry.url('wandb-launch')}")
 @click.option(
     "--uri",
     "-u",
@@ -1566,7 +1569,6 @@ def launch(
     "queues",
     default=None,
     multiple=True,
-    metavar="<queue(s)>",
     help="The name of a queue for the agent to watch. Multiple -q flags supported.",
 )
 @click.option(
@@ -2391,6 +2393,15 @@ def get(path, root, type):
             artifact_name = artifact_parts[0]
         else:
             version = "latest"
+        if is_artifact_registry_project(project):
+            organization = path.split("/")[0] if path.count("/") == 2 else ""
+            # set entity to match the settings since in above code it was potentially set to an org
+            settings_entity = public_api.settings["entity"] or public_api.default_entity
+            # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
+            # we need to fetch the org entity to for the user behind the scenes.
+            entity = InternalApi()._resolve_org_entity_name(
+                entity=settings_entity, organization=organization
+            )
         full_path = f"{entity}/{project}/{artifact_name}:{version}"
         wandb.termlog(
             "Downloading {type} artifact {full_path}".format(
@@ -2645,44 +2656,6 @@ Run `git clone {}` and restore from there or pass the --no-git flag.""".format(r
         ctx.invoke(docker, docker_run_args=[image], cmd=cmd)
 
     return commit, json_config, patch_content, repo, metadata
-
-
-@cli.command(context_settings=CONTEXT, help="Run any script with wandb", hidden=True)
-@click.pass_context
-@click.argument("program")
-@click.argument("args", nargs=-1)
-@display_error
-def magic(ctx, program, args):
-    def magic_run(cmd, globals, locals):
-        try:
-            exec(cmd, globals, locals)
-        finally:
-            pass
-
-    sys.argv[:] = args
-    sys.argv.insert(0, program)
-    sys.path.insert(0, os.path.dirname(program))
-    try:
-        with open(program, "rb") as fp:
-            code = compile(fp.read(), program, "exec")
-    except OSError:
-        click.echo(
-            click.style("Could not launch program: {}".format(program), fg="red")
-        )
-        sys.exit(1)
-    globs = {
-        "__file__": program,
-        "__name__": "__main__",
-        "__package__": None,
-        "wandb_magic_install": magic_install,
-    }
-    prep = """
-import __main__
-__main__.__file__ = "{}"
-wandb_magic_install()
-""".format(program)
-    magic_run(prep, globs, None)
-    magic_run(code, globs, None)
 
 
 @cli.command("online", help="Enable W&B sync")

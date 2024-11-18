@@ -1057,6 +1057,11 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 
 	program := s.settings.GetProgram()
 
+	var host string
+	if !s.settings.IsDisableMachineInfo() {
+		host = run.Host
+	}
+
 	data, err := gql.UpsertBucket(
 		ctx,                                // ctx
 		s.graphqlClient,                    // client
@@ -1070,7 +1075,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 		nullify.NilIfZero(run.Notes),       // notes
 		nullify.NilIfZero(commit),          // commit
 		&configStr,                         // config
-		nullify.NilIfZero(run.Host),        // host
+		nullify.NilIfZero(host),            // host
 		nil,                                // debug
 		nullify.NilIfZero(program),         // program
 		nullify.NilIfZero(repo),            // repo
@@ -1447,8 +1452,7 @@ func (s *Sender) sendRequestRunFinishWithoutExit(record *spb.Record, _ *spb.RunF
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
 func (s *Sender) sendExit(record *spb.Record) {
 	if s.exitRecord != nil {
-		s.logger.CaptureError(
-			errors.New("sender: received Exit record more than once, ignoring"))
+		s.logger.Warn("sender: received Exit record more than once, ignoring")
 		return
 	}
 

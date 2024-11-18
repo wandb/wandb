@@ -11,80 +11,98 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-var ValuesOfCorrectTypeRule = Rule{
-	Name: "ValuesOfCorrectType",
-	RuleFunc: func(observers *Events, addError AddErrFunc) {
-		observers.OnValue(func(walker *Walker, value *ast.Value) {
-			if value.Definition == nil || value.ExpectedType == nil {
+func ruleFuncValuesOfCorrectType(observers *Events, addError AddErrFunc, disableSuggestion bool) {
+	observers.OnValue(func(walker *Walker, value *ast.Value) {
+		if value.Definition == nil || value.ExpectedType == nil {
+			return
+		}
+
+		if value.Kind == ast.NullValue && value.ExpectedType.NonNull {
+			addError(
+				Message(`Expected value of type "%s", found %s.`, value.ExpectedType.String(), value.String()),
+				At(value.Position),
+			)
+		}
+
+		if value.Definition.Kind == ast.Scalar {
+			// Skip custom validating scalars
+			if !value.Definition.OneOf("Int", "Float", "String", "Boolean", "ID") {
+				return
+			}
+		}
+
+		var possibleEnums []string
+		if value.Definition.Kind == ast.Enum {
+			for _, val := range value.Definition.EnumValues {
+				possibleEnums = append(possibleEnums, val.Name)
+			}
+		}
+
+		rawVal, err := value.Value(nil)
+		if err != nil {
+			unexpectedTypeMessage(addError, value)
+		}
+
+		switch value.Kind {
+		case ast.NullValue:
+			return
+		case ast.ListValue:
+			if value.ExpectedType.Elem == nil {
+				unexpectedTypeMessage(addError, value)
 				return
 			}
 
-			if value.Kind == ast.NullValue && value.ExpectedType.NonNull {
-				addError(
-					Message(`Expected value of type "%s", found %s.`, value.ExpectedType.String(), value.String()),
-					At(value.Position),
-				)
-			}
-
-			if value.Definition.Kind == ast.Scalar {
-				// Skip custom validating scalars
-				if !value.Definition.OneOf("Int", "Float", "String", "Boolean", "ID") {
-					return
-				}
-			}
-
-			var possibleEnums []string
-			if value.Definition.Kind == ast.Enum {
-				for _, val := range value.Definition.EnumValues {
-					possibleEnums = append(possibleEnums, val.Name)
-				}
-			}
-
-			rawVal, err := value.Value(nil)
-			if err != nil {
+		case ast.IntValue:
+			if !value.Definition.OneOf("Int", "Float", "ID") {
 				unexpectedTypeMessage(addError, value)
 			}
 
-			switch value.Kind {
-			case ast.NullValue:
-				return
-			case ast.ListValue:
-				if value.ExpectedType.Elem == nil {
-					unexpectedTypeMessage(addError, value)
-					return
-				}
+		case ast.FloatValue:
+			if !value.Definition.OneOf("Float") {
+				unexpectedTypeMessage(addError, value)
+			}
 
-			case ast.IntValue:
-				if !value.Definition.OneOf("Int", "Float", "ID") {
-					unexpectedTypeMessage(addError, value)
-				}
-
-			case ast.FloatValue:
-				if !value.Definition.OneOf("Float") {
-					unexpectedTypeMessage(addError, value)
-				}
-
-			case ast.StringValue, ast.BlockValue:
-				if value.Definition.Kind == ast.Enum {
+		case ast.StringValue, ast.BlockValue:
+			if value.Definition.Kind == ast.Enum {
+				if disableSuggestion {
+					addError(
+						Message(`Enum "%s" cannot represent non-enum value: %s.`, value.ExpectedType.String(), value.String()),
+						At(value.Position),
+					)
+				} else {
 					rawValStr := fmt.Sprint(rawVal)
 					addError(
 						Message(`Enum "%s" cannot represent non-enum value: %s.`, value.ExpectedType.String(), value.String()),
 						SuggestListQuoted("Did you mean the enum value", rawValStr, possibleEnums),
 						At(value.Position),
 					)
-				} else if !value.Definition.OneOf("String", "ID") {
-					unexpectedTypeMessage(addError, value)
 				}
+			} else if !value.Definition.OneOf("String", "ID") {
+				unexpectedTypeMessage(addError, value)
+			}
 
-			case ast.EnumValue:
-				if value.Definition.Kind != ast.Enum {
+		case ast.EnumValue:
+			if value.Definition.Kind != ast.Enum {
+				if disableSuggestion {
+					addError(
+						unexpectedTypeMessageOnly(value),
+						At(value.Position),
+					)
+				} else {
 					rawValStr := fmt.Sprint(rawVal)
 					addError(
 						unexpectedTypeMessageOnly(value),
 						SuggestListUnquoted("Did you mean the enum value", rawValStr, possibleEnums),
 						At(value.Position),
 					)
-				} else if value.Definition.EnumValues.ForName(value.Raw) == nil {
+				}
+			} else if value.Definition.EnumValues.ForName(value.Raw) == nil {
+				if disableSuggestion {
+					addError(
+						Message(`Value "%s" does not exist in "%s" enum.`, value.String(), value.ExpectedType.String()),
+						At(value.Position),
+					)
+				} else {
 					rawValStr := fmt.Sprint(rawVal)
 					addError(
 						Message(`Value "%s" does not exist in "%s" enum.`, value.String(), value.ExpectedType.String()),
@@ -92,29 +110,36 @@ var ValuesOfCorrectTypeRule = Rule{
 						At(value.Position),
 					)
 				}
+			}
 
-			case ast.BooleanValue:
-				if !value.Definition.OneOf("Boolean") {
-					unexpectedTypeMessage(addError, value)
-				}
+		case ast.BooleanValue:
+			if !value.Definition.OneOf("Boolean") {
+				unexpectedTypeMessage(addError, value)
+			}
 
-			case ast.ObjectValue:
+		case ast.ObjectValue:
 
-				for _, field := range value.Definition.Fields {
-					if field.Type.NonNull {
-						fieldValue := value.Children.ForName(field.Name)
-						if fieldValue == nil && field.DefaultValue == nil {
-							addError(
-								Message(`Field "%s.%s" of required type "%s" was not provided.`, value.Definition.Name, field.Name, field.Type.String()),
-								At(value.Position),
-							)
-							continue
-						}
+			for _, field := range value.Definition.Fields {
+				if field.Type.NonNull {
+					fieldValue := value.Children.ForName(field.Name)
+					if fieldValue == nil && field.DefaultValue == nil {
+						addError(
+							Message(`Field "%s.%s" of required type "%s" was not provided.`, value.Definition.Name, field.Name, field.Type.String()),
+							At(value.Position),
+						)
+						continue
 					}
 				}
+			}
 
-				for _, fieldValue := range value.Children {
-					if value.Definition.Fields.ForName(fieldValue.Name) == nil {
+			for _, fieldValue := range value.Children {
+				if value.Definition.Fields.ForName(fieldValue.Name) == nil {
+					if disableSuggestion {
+						addError(
+							Message(`Field "%s" is not defined by type "%s".`, fieldValue.Name, value.Definition.Name),
+							At(fieldValue.Position),
+						)
+					} else {
 						var suggestions []string
 						for _, fieldValue := range value.Definition.Fields {
 							suggestions = append(suggestions, fieldValue.Name)
@@ -127,14 +152,28 @@ var ValuesOfCorrectTypeRule = Rule{
 						)
 					}
 				}
-
-			case ast.Variable:
-				return
-
-			default:
-				panic(fmt.Errorf("unhandled %T", value))
 			}
-		})
+
+		case ast.Variable:
+			return
+
+		default:
+			panic(fmt.Errorf("unhandled %T", value))
+		}
+	})
+}
+
+var ValuesOfCorrectTypeRule = Rule{
+	Name: "ValuesOfCorrectType",
+	RuleFunc: func(observers *Events, addError AddErrFunc) {
+		ruleFuncValuesOfCorrectType(observers, addError, false)
+	},
+}
+
+var ValuesOfCorrectTypeRuleWithoutSuggestions = Rule{
+	Name: "ValuesOfCorrectTypeWithoutSuggestions",
+	RuleFunc: func(observers *Events, addError AddErrFunc) {
+		ruleFuncValuesOfCorrectType(observers, addError, true)
 	},
 }
 

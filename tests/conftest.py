@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+import platform
 import shutil
+import time
 import unittest.mock
 from pathlib import Path
 from queue import Queue
@@ -32,6 +34,19 @@ from wandb.sdk.lib.paths import StrPath  # noqa: E402
 # --------------------------------
 # Global pytest configuration
 # --------------------------------
+
+
+@pytest.fixture
+def disable_memray(pytestconfig):
+    """Disables the memray plugin for the duration of the test."""
+    if platform.system() == "Windows":
+        # noop on Windows
+        yield
+    else:
+        memray_plugin = pytestconfig.pluginmanager.get_plugin("memray_manager")
+        pytestconfig.pluginmanager.unregister(memray_plugin)
+        yield
+        pytestconfig.pluginmanager.register(memray_plugin, "memray_manager")
 
 
 @pytest.fixture(autouse=True)
@@ -97,15 +112,19 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
 
 @pytest.fixture(scope="session")
-def assets_path() -> Generator[Callable, None, None]:
-    def assets_path_fn(path: Path) -> Path:
-        return Path(__file__).resolve().parent / "assets" / path
+def assets_path() -> Generator[Callable[[StrPath], Path], None, None]:
+    assets_dir = Path(__file__).resolve().parent / "assets"
+
+    def assets_path_fn(path: StrPath) -> Path:
+        return assets_dir / path
 
     yield assets_path_fn
 
 
 @pytest.fixture
-def copy_asset(assets_path) -> Generator[Callable, None, None]:
+def copy_asset(
+    assets_path,
+) -> Generator[Callable[[StrPath, StrPath | None], Path], None, None]:
     def copy_asset_fn(path: StrPath, dst: StrPath | None = None) -> Path:
         src = assets_path(path)
         if src.is_file():
@@ -363,7 +382,7 @@ def clean_up():
 
 
 @pytest.fixture
-def api():
+def api() -> wandb.PublicApi:
     return Api()
 
 
@@ -404,10 +423,10 @@ def test_settings():
             save_code=False,
         )
         if isinstance(extra_settings, dict):
-            settings.update(extra_settings, source=wandb.sdk.wandb_settings.Source.BASE)
+            settings.update_from_dict(extra_settings)
         elif isinstance(extra_settings, wandb.Settings):
-            settings.update(extra_settings)
-        settings._set_run_start_time()
+            settings.update_from_settings(extra_settings)
+        settings.x_start_time = time.time()
         return settings
 
     yield update_test_settings
@@ -420,10 +439,8 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
     def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> wandb.sdk.wandb_run.Run:
         kwargs_settings = kwargs.pop("settings", dict())
         kwargs_settings = {
-            **{
-                "run_id": runid.generate_id(),
-            },
-            **kwargs_settings,
+            "run_id": runid.generate_id(),
+            **dict(kwargs_settings),
         }
         run = wandb.wandb_sdk.wandb_run.Run(
             settings=test_settings(kwargs_settings), **kwargs

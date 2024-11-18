@@ -82,9 +82,10 @@ T = TypeVar("T")
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
+LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
+
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
-RE_WINFNAMES = re.compile(r'[<>:"\\?*]')
 
 # From https://docs.docker.com/engine/reference/commandline/tag/
 # "Name components may contain lowercase letters, digits and separators.
@@ -101,35 +102,6 @@ if IS_GIT:
     SENTRY_ENV = "development"
 else:
     SENTRY_ENV = "production"
-
-
-PLATFORM_WINDOWS = "windows"
-PLATFORM_LINUX = "linux"
-PLATFORM_BSD = "bsd"
-PLATFORM_DARWIN = "darwin"
-PLATFORM_UNKNOWN = "unknown"
-
-LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
-
-
-def get_platform_name() -> str:
-    if sys.platform.startswith("win"):
-        return PLATFORM_WINDOWS
-    elif sys.platform.startswith("darwin"):
-        return PLATFORM_DARWIN
-    elif sys.platform.startswith("linux"):
-        return PLATFORM_LINUX
-    elif sys.platform.startswith(
-        (
-            "dragonfly",
-            "freebsd",
-            "netbsd",
-            "openbsd",
-        )
-    ):
-        return PLATFORM_BSD
-    else:
-        return PLATFORM_UNKNOWN
 
 
 POW_10_BYTES = [
@@ -989,7 +961,7 @@ def make_check_retry_fn(
 ) -> CheckRetryFnType:
     """Return a check_retry_fn which can be used by lib.Retry().
 
-    Arguments:
+    Args:
         fallback_fn: Use this function if check_fn didn't decide if a retry should happen.
         check_fn: Function which returns bool if retry should happen or None if unsure.
         check_timedelta: Optional retry timeout if we check_fn matches the exception
@@ -1011,7 +983,7 @@ def make_check_retry_fn(
 def find_runner(program: str) -> Union[None, list, List[str]]:
     """Return a command that will run program.
 
-    Arguments:
+    Args:
         program: The string name of the program to try to run.
 
     Returns:
@@ -1316,7 +1288,7 @@ def prompt_choices(
 def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
     """Infer the type of data based on the shape of the tensors.
 
-    Arguments:
+    Args:
         shape (Sequence[int]): The shape of the data
         risky(bool): some guesses are more likely to be wrong.
     """
@@ -1594,10 +1566,6 @@ def _is_py_requirements_or_dockerfile(path: str) -> bool:
         or file.startswith("Dockerfile")
         or file == "requirements.txt"
     )
-
-
-def check_windows_valid_filename(path: Union[int, str]) -> bool:
-    return not bool(re.search(RE_WINFNAMES, path))  # type: ignore
 
 
 def artifact_to_json(artifact: "Artifact") -> Dict[str, Any]:
@@ -1976,9 +1944,9 @@ def get_core_path() -> str:
     bin_path = pathlib.Path(__file__).parent / "bin" / "wandb-core"
     if not bin_path.exists():
         raise WandbCoreNotAvailableError(
-            f"Looks like wandb-core is not compiled for your system ({platform.platform()}):"
-            " Please contact support at support@wandb.com to request `wandb-core`"
-            " support for your system."
+            f"File not found: {bin_path}."
+            " Please contact support at support@wandb.com."
+            f" Your platform is: {platform.platform()}."
         )
 
     return str(bin_path)

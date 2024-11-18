@@ -243,7 +243,7 @@ class S3Handler(StorageHandler):
     ) -> ArtifactManifestEntry:
         """Create an ArtifactManifestEntry from an S3 object.
 
-        Arguments:
+        Args:
             obj: The S3 object
             path: The S3-style path (e.g.: "s3://bucket/file.txt")
             name: The user assigned name, or None if not specified
