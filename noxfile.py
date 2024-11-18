@@ -348,6 +348,12 @@ def graphql_codegen_schema_change(session: nox.Session) -> None:
     )
 
 
+@nox.session(python="3.10", name="graphql-codegen-python")
+def graphql_codegen_python(session: nox.Session) -> None:
+    """Runs GraphQL codegen to generate python code."""
+    session.run("./tools/pydantic_codegen/generate-graphql-python.sh")
+
+
 @nox.session(python=False, name="local-testcontainer-registry")
 def local_testcontainer_registry(session: nox.Session) -> None:
     """Ensure we collect and store the latest local-testcontainer in the registry.
