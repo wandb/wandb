@@ -4,7 +4,8 @@ description: Installs the Ctrlplane CLI binary from a GitHub repository
 inputs:
   version:
     description: "Version of the binary to install"
-    required: true
+    required: false
+    default: "latest"
   repo:
     description: "GitHub repository containing the binary (format: owner/repo)"
     required: true
@@ -32,7 +33,14 @@ runs:
 
         BINARY_NAME="ctrlc_${OS}_${ARCH}"
         echo "BINARY_NAME: $BINARY_NAME"
-        DOWNLOAD_URL="https://github.com/${{ inputs.repo }}/releases/download/${{ inputs.version }}/$BINARY_NAME.tar.gz"
+
+        if [ "${{ inputs.version }}" = "latest" ]; then
+          VERSION=$(curl -s https://api.github.com/repos/${{ inputs.repo }}/releases/latest | jq -r .tag_name)
+        else
+          VERSION=${{ inputs.version }}
+        fi
+
+        DOWNLOAD_URL="https://github.com/${{ inputs.repo }}/releases/download/${VERSION}/$BINARY_NAME.tar.gz"
         echo "DOWNLOAD_URL: $DOWNLOAD_URL"
 
         curl -L $DOWNLOAD_URL -o binary.tar.gz

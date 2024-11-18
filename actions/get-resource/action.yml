@@ -1,0 +1,37 @@
+name: Install Ctrlplane CLI
+description: Installs the Ctrlplane CLI binary from a GitHub repository
+
+inputs:
+  version:
+    description: "Version of the binary to install"
+    required: false
+    default: "latest"
+  repo:
+    description: "GitHub repository containing the binary (format: owner/repo)"
+    required: true
+    default: "ctrlplanedev/cli"
+  url:
+    description: "URL of the ctrlplane instance"
+    required: false
+  api_key:
+    description: "API key for the ctrlplane instance"
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - uses: ../../action.yml
+      with:
+        version: ${{ inputs.version }}
+        repo: ${{ inputs.repo }}
+        url: ${{ inputs.url }}
+        api_key: ${{ inputs.api_key }}
+
+    - name: Get resource
+      shell: bash
+      run: |
+        RESOURCE=$(ctrlc get resource --id ${{ inputs.resource_id }})
+        echo "resource=$RESOURCE" >> $GITHUB_OUTPUT
+        echo "$RESOURCE" | jq -r 'paths(scalars) as $p | [ ( [ $p[] | tostring ] | join("_") ), ( getpath($p) | tostring ) ] | join("=")' | while read -r line; do
+          echo "$line" >> $GITHUB_OUTPUT
+        done

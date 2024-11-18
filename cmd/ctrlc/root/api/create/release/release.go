@@ -28,10 +28,13 @@ func NewReleaseCmd() *cobra.Command {
 		Long:  `Create a new release with the specified version and configuration.`,
 		Example: heredoc.Doc(`
 			# Create a new release
-			$ ctrlc create release --version v1.0.0
+			$ ctrlc create release --version v1.0.0 --deployment 1234567890
 
 			# Create a new release using Go template syntax
-			$ ctrlc create release --version v1.0.0 --template='{{.status.phase}}'
+			$ ctrlc create release --version v1.0.0 --deployment 1234567890 --template='{{.status.phase}}'
+
+			# Create a new release for multiple deployments
+			$ ctrlc create release --version v1.0.0 --deployment 1234567890 --deployment 0987654321
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			apiURL := viper.GetString("url")
@@ -80,13 +83,13 @@ func NewReleaseCmd() *cobra.Command {
 	}
 
 	// Add flags
-	cmd.Flags().StringVar(&versionFlag, "version", "", "Version of the release (required)")
-	cmd.Flags().StringArrayVar(&deploymentID, "deployment", []string{}, "IDs of the deployments (required, supports multiple)")
-	cmd.Flags().StringToStringVar(&metadata, "metadata", make(map[string]string), "Metadata key-value pairs (e.g. --metadata key=value)")
-	cmd.Flags().StringToStringVar(&configArray, "config", make(map[string]string), "Config key-value pairs with nested values (can be specified multiple times)")
-	cmd.Flags().StringToStringVar(&links, "link", make(map[string]string), "Links key-value pairs (can be specified multiple times)")
-	cmd.Flags().StringVar(&createdAt, "created-at", "", "Created at timestamp (e.g. --created-at 2024-01-01T00:00:00Z) for the release channel")
-	cmd.Flags().StringVar(&name, "name", "", "Name of the release channel")
+	cmd.Flags().StringVarP(&versionFlag, "version", "v", "", "Version of the release (required)")
+	cmd.Flags().StringArrayVarP(&deploymentID, "deployment", "d", []string{}, "IDs of the deployments (required, supports multiple)")
+	cmd.Flags().StringToStringVarP(&metadata, "metadata", "m", make(map[string]string), "Metadata key-value pairs (e.g. --metadata key=value)")
+	cmd.Flags().StringToStringVarP(&configArray, "config", "c", make(map[string]string), "Config key-value pairs with nested values (can be specified multiple times)")
+	cmd.Flags().StringToStringVarP(&links, "link", "l", make(map[string]string), "Links key-value pairs (can be specified multiple times)")
+	cmd.Flags().StringVarP(&createdAt, "created-at", "t", "", "Created at timestamp (e.g. --created-at 2024-01-01T00:00:00Z) for the release channel")
+	cmd.Flags().StringVarP(&name, "name", "n", "", "Name of the release channel")
 
 	cmd.MarkFlagRequired("version")
 	cmd.MarkFlagRequired("deployment-id")

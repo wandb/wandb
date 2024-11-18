@@ -71,7 +71,7 @@ func NewAgentRunCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&agentName, "name", "n", "", "Name for this agent")
 	cmd.Flags().StringVarP(&workspace, "workspace", "w", "", "Workspace for this agent")
-	cmd.Flags().StringToStringVar(&metadata, "metadata", make(map[string]string), "Metadata key-value pairs (e.g. --metadata key=value)")
+	cmd.Flags().StringToStringVarP(&metadata, "metadata", "m", make(map[string]string), "Metadata key-value pairs (e.g. --metadata key=value)")
 	cmd.Flags().BoolVar(&insecure, "insecure", false, "Allow insecure connections (a.k use ws://)")
 	cmd.Flags().StringArrayVarP(&associatedResources, "associated-resource", "r", []string{}, "Resource ID or Identifier to associate this agent with")
 
