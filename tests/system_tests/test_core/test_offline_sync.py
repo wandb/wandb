@@ -24,7 +24,7 @@ def test_sync_with_tensorboard(wandb_backend_spy, runner, copy_asset):
 
 
 @pytest.mark.parametrize("mark_synced", [True, False])
-def test_beta_sync(runner, mark_synced):
+def test_beta_sync(user, runner, mark_synced):
     _ = pytest.importorskip("wandb_core")
 
     os.makedirs(".wandb", exist_ok=True)
@@ -46,7 +46,7 @@ def test_beta_sync(runner, mark_synced):
         assert not os.path.exists(f"{run.settings.sync_file}.synced")
 
 
-def test_beta_sync_two_runs(test_settings, runner):
+def test_beta_sync_two_runs(user, test_settings, runner):
     _ = pytest.importorskip("wandb_core")
     os.makedirs(".wandb", exist_ok=True)
     run = wandb.init(settings=test_settings({"mode": "offline"}))

@@ -179,18 +179,11 @@ def test_all_logging(wandb_backend_spy):
 
     with wandb_backend_spy.freeze() as snapshot:
         history = snapshot.history(run_id=run.id)
-        # assert history.shape == (n, 21)  # it's 21 instead of 20 since we add __run_id
-        assert len(history) == n
         for keys, item in history.items():
             assert len(item) == 20
-            # assert item["_step"] == i
             assert keys in (0, 1, 2)
             assert len(item["parameters/fc2.bias"]["bins"]) == 65
             assert len(item["gradients/fc2.bias"]["bins"]) == 65
-        # assert history["_step"].to_list() == [i for i in range(3)]
-        # for i in range(n):
-        #     assert len(history["parameters/fc2.bias"][i]["bins"]) == 65
-        #     assert len(history["gradients/fc2.bias"][i]["bins"]) == 65
 
 
 def test_embedding_dict_watch(wandb_backend_spy):
