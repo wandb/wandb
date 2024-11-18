@@ -16,6 +16,10 @@ inputs:
   api_key:
     description: "API key for the ctrlplane instance"
     required: false
+  required_outputs:
+    description: "Required outputs"
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -27,12 +31,23 @@ runs:
         url: ${{ inputs.url }}
         api_key: ${{ inputs.api_key }}
 
-    - name: Get resource
+    - name: Set Object Outputs from resource
       shell: bash
       run: |
         RESOURCE=$(ctrlc get resource --id ${{ inputs.resource_id }})
-        echo "resource=$RESOURCE" >> $GITHUB_OUTPUT
+
+        echo "resource=$RESOURCE" >> "$GITHUB_OUTPUT"
+
+        # Extract flattened key-value pairs and write to output
         echo "$RESOURCE" | jq -r 'paths(scalars) as $p | [ ( [ $p[] | tostring ] | join("_") ), ( getpath($p) | tostring ) ] | join("=")' | while read -r line; do
-          echo "$line" >> $GITHUB_OUTPUT
-          echo "$line"
+            echo "$line" >> "$GITHUB_OUTPUT"
+            echo "$line"
+        done
+
+        for output in $required_outputs; do
+            echo "Checking for output: $output"
+            if ! grep -q "^$output=" $GITHUB_OUTPUT; then
+                echo "Required output \"$output\" not found in outputs."
+                exit 1
+            fi
         done
