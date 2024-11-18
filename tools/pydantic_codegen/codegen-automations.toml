@@ -1,0 +1,22 @@
+[tool.ariadne-codegen]
+schema_path="core/api/graphql/schemas/schema-latest.graphql"
+queries_path="tools/pydantic_codegen/queries-automations.graphql"
+
+target_package_name="_generated"
+target_package_path="wandb/sdk/automations/"
+
+include_all_inputs=false  # Only generate input types needed for queries
+include_all_enums=false  # Only generate enums needed for queries
+
+plugins = [
+    "ariadne_codegen.contrib.shorter_results.ShorterResultsPlugin",
+    "ariadne_codegen.contrib.extract_operations.ExtractOperationsPlugin",
+    "ariadne_codegen.contrib.no_reimports.NoReimportsPlugin",
+    "pydantic_codegen.plugin.WandbCodegenPlugin",
+]
+
+[tool.ariadne-codegen.scalars.JSONString]
+type = "pydantic.Json"
+
+[tool.ariadne-codegen.scalars.DateTime]
+type = "datetime.datetime"

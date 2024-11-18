@@ -109,6 +109,9 @@ models = ["cloudpickle"]
 perf = ["orjson"]
 importers = ["polars<=1.2.1", "rich", "filelock", "mlflow", "tenacity"]
 workspaces = ["wandb-workspaces"]
+automations = [
+    "pydantic>=2.6,<3",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -229,6 +232,11 @@ ignore-decorators = [
 
 "landfill/**" = ["F405", "N806", "D415"]
 
+# Ignore errors on generated code or the scripts/plugins that generate it.
+"!wandb/sdk/automations/_generated/**" = ["UP"]  # ...thouogh ensure modern syntax conventions are enforced
+"wandb/sdk/automations/_generated/**" = ["N8"]
+"tools/**" = ["N802"]
+
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
@@ -262,6 +270,7 @@ module = [
     "wandb.sdk.integration_utils.*",
     "wandb.plot.*",
     "wandb.old.*",
+    "wandb.*._generated.*",
 ]
 ignore_errors = true
 
@@ -295,6 +304,23 @@ strict_equality = true
 implicit_reexport = false
 
 # More wandb/ modules can be added in a similar manner as overrides
+
+# wandb/sdk/automations.*
+[[tool.mypy.overrides]]
+module = "wandb.sdk.automations.*"
+
+follow_imports = "silent"
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+warn_unused_ignores = true
+warn_return_any = true
+no_implicit_reexport = true
+strict_equality = true
 
 # External libraries
 [[tool.mypy.overrides]]
