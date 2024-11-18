@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import colorsys
 import contextlib
 import dataclasses
@@ -53,6 +51,7 @@ from typing import (
     Union,
 )
 
+import requests
 import yaml
 
 import wandb
@@ -71,7 +70,6 @@ from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
     import packaging.version  # type: ignore[import-not-found]
-    import requests
 
     import wandb.sdk.internal.settings_static
     import wandb.sdk.wandb_settings
@@ -846,8 +844,6 @@ def make_safe_for_json(obj: Any) -> Any:
 
 
 def no_retry_4xx(e: Exception) -> bool:
-    import requests
-
     if not isinstance(e, requests.HTTPError):
         return True
     assert e.response is not None
@@ -875,8 +871,6 @@ def parse_backend_error_messages(response: requests.Response) -> List[str]:
 
 
 def no_retry_auth(e: Any) -> bool:
-    import requests
-
     if hasattr(e, "exception"):
         e = e.exception
     if not isinstance(e, requests.HTTPError):
@@ -934,8 +928,6 @@ def check_retry_conflict(e: Any) -> Optional[bool]:
         False - Should not retry this operation
         None - No decision, let someone else decide
     """
-    import requests
-
     if hasattr(e, "exception"):
         e = e.exception
     if isinstance(e, requests.HTTPError) and e.response is not None:
@@ -952,8 +944,6 @@ def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
         False - Should not retry this operation
         None - No decision, let someone else decide
     """
-    import requests
-
     if hasattr(e, "exception"):
         e = e.exception
     if isinstance(e, requests.HTTPError) and e.response is not None:
@@ -1125,8 +1115,6 @@ def image_id_from_k8s() -> Optional[str]:
         fieldRef:
           fieldPath: metadata.namespace
     """
-    import requests
-
     token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
     if not os.path.exists(token_path):
@@ -1324,8 +1312,6 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
 def download_file_from_url(
     dest_path: str, source_url: str, api_key: Optional[str] = None
 ) -> None:
-    import requests
-
     auth = None
     if not _thread_local_api_settings.cookies:
         auth = ("api", api_key or "")
@@ -1347,8 +1333,6 @@ def download_file_from_url(
 
 
 def download_file_into_memory(source_url: str, api_key: Optional[str] = None) -> bytes:
-    import requests
-
     auth = None
     if not _thread_local_api_settings.cookies:
         auth = ("api", api_key or "")
@@ -1961,8 +1945,8 @@ def get_core_path() -> str:
     if not bin_path.exists():
         raise WandbCoreNotAvailableError(
             f"File not found: {bin_path}."
-            " Please contact support at support@wandb.com."
-            f" Your platform is: {platform.platform()}."
+            "Please contact support at support@wandb.com."
+            f"Your platform is: {platform.platform()}."
         )
 
     return str(bin_path)
