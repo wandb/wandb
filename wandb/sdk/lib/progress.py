@@ -189,8 +189,7 @@ class _DynamicOperationStatsPrinter:
             total_operations += stats.total_operations
 
         if self._ops_shown < total_operations:
-            # NOTE: In Python 3.8, we'd use a chained comparison here.
-            if 1 <= self._max_lines and self._max_lines <= len(self._lines):
+            if 1 <= self._max_lines <= len(self._lines):
                 self._lines.pop()
 
             remaining = total_operations - self._ops_shown

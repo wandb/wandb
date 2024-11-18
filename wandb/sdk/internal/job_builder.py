@@ -5,7 +5,18 @@ import logging
 import os
 import re
 import sys
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    TypedDict,
+    Union,
+)
 
 import wandb
 from wandb.sdk.artifacts.artifact import Artifact
@@ -15,11 +26,6 @@ from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNA
 from wandb.util import make_artifact_name_safe
 
 from .settings_static import SettingsStatic
-
-if sys.version_info >= (3, 8):
-    from typing import Literal, TypedDict
-else:
-    from typing_extensions import Literal, TypedDict
 
 _logger = logging.getLogger(__name__)
 

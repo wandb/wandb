@@ -1,14 +1,9 @@
 import copy
 import json
-import sys
 import threading
 import time
+from typing import get_args
 from unittest import mock
-
-if sys.version_info >= (3, 8):
-    from typing import get_args
-else:
-    from typing_extensions import get_args
 
 import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic

@@ -13,7 +13,7 @@ import nox
 
 nox.options.default_venv_backend = "uv"
 
-_SUPPORTED_PYTHONS = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+_SUPPORTED_PYTHONS = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
 # Directories in which to create temporary per-session directories
 # containing test results and pytest/Go coverage.
@@ -497,7 +497,6 @@ def proto_python(session: nox.Session, pb: int) -> None:
     The pb argument is the major version of the protobuf package to use.
 
     Tested with Python 3.10 on a Mac with an M1 chip.
-    Absolutely does not work with Python 3.7.
     """
     _generate_proto_python(session, pb=pb)
 
@@ -795,9 +794,8 @@ def importer_tests(session: nox.Session, importer: str):
         session.install(".[workspaces]", "pydantic>=2")
     elif importer == "mlflow":
         session.install("pydantic<2")
-    if session.python != "3.7":
-        session.install("polyfactory")
     session.install(
+        "polyfactory",
         "polars<=1.2.1",
         "rich",
         "filelock",
