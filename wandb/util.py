@@ -228,7 +228,7 @@ def import_module_lazy(name: str) -> types.ModuleType:
 
 def get_module(
     name: str,
-    required: Optional[Union[str, bool]] = None,
+    required: str | bool | None = None,
     lazy: bool = True,
 ) -> Any:
     """Return module or None. Absolute import is required.
@@ -253,7 +253,7 @@ def get_module(
         raise wandb.Error(required)
 
 
-def get_optional_module(name) -> Optional[importlib.ModuleInterface]:  # type: ignore
+def get_optional_module(name) -> importlib.ModuleInterface | None:  # type: ignore
     return get_module(name)
 
 
@@ -323,7 +323,7 @@ def local_file_uri_to_path(uri: str) -> str:
     return urllib.request.url2pathname(path)
 
 
-def get_local_path_or_none(path_or_uri: str) -> Optional[str]:
+def get_local_path_or_none(path_or_uri: str) -> str | None:
     """Return path if local, None otherwise.
 
     Return None if the argument is a local path (not a scheme or file:///). Otherwise
@@ -344,10 +344,10 @@ def make_tarfile(
     output_filename: str,
     source_dir: str,
     archive_name: str,
-    custom_filter: Optional[Callable] = None,
+    custom_filter: Callable | None = None,
 ) -> None:
     # Helper for filtering out modification timestamps
-    def _filter_timestamps(tar_info: tarfile.TarInfo) -> Optional[tarfile.TarInfo]:
+    def _filter_timestamps(tar_info: tarfile.TarInfo) -> tarfile.TarInfo | None:
         tar_info.mtime = 0
         return tar_info if custom_filter is None else custom_filter(tar_info)
 
@@ -398,7 +398,7 @@ def is_jax_tensor_typename(typename: str) -> bool:
     return typename.startswith("jaxlib.") and "Array" in typename
 
 
-def get_jax_tensor(obj: Any) -> Optional[Any]:
+def get_jax_tensor(obj: Any) -> Any | None:
     import jax  # type: ignore
 
     return jax.device_get(obj)
@@ -519,9 +519,9 @@ def _numpy_generic_convert(obj: Any) -> Any:
 
 
 def _sanitize_numpy_keys(
-    d: Dict,
-    visited: Optional[Dict[int, Dict]] = None,
-) -> Tuple[Dict, bool]:
+    d: dict,
+    visited: dict[int, dict] | None = None,
+) -> tuple[dict, bool]:
     """Returns a dictionary where all NumPy keys are converted.
 
     Args:
@@ -531,7 +531,7 @@ def _sanitize_numpy_keys(
         A sanitized dictionary, and a boolean indicating whether anything was
         changed.
     """
-    out: Dict[Any, Any] = dict()
+    out: dict[Any, Any] = dict()
     converted = False
 
     # Work with recursive dictionaries: if a dictionary has already been
@@ -557,7 +557,7 @@ def _sanitize_numpy_keys(
 
 def json_friendly(  # noqa: C901
     obj: Any,
-) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:
+) -> tuple[Any, bool] | tuple[None | str | float] | bool:
     """Convert an object into something that's more becoming of JSON."""
     converted = True
     typename = get_full_typename(obj)
@@ -627,7 +627,7 @@ def json_friendly(  # noqa: C901
 
 def json_friendly_val(val: Any) -> Any:
     """Make any value (including dict, slice, sequence, dataclass) JSON friendly."""
-    converted: Union[dict, list]
+    converted: dict | list
     if isinstance(val, dict):
         converted = {}
         for key, value in val.items():
@@ -674,14 +674,14 @@ def convert_plots(obj: Any) -> Any:
         return obj
 
 
-def maybe_compress_history(obj: Any) -> Tuple[Any, bool]:
+def maybe_compress_history(obj: Any) -> tuple[Any, bool]:
     if np and isinstance(obj, np.ndarray) and obj.size > 32:
         return wandb.Histogram(obj, num_bins=32).to_json(), True
     else:
         return obj, False
 
 
-def maybe_compress_summary(obj: Any, h5_typename: str) -> Tuple[Any, bool]:
+def maybe_compress_summary(obj: Any, h5_typename: str) -> tuple[Any, bool]:
     if np and isinstance(obj, np.ndarray) and obj.size > 32:
         return (
             {
@@ -817,8 +817,8 @@ def json_dumps_safer_history(obj: Any, **kwargs: Any) -> str:
 
 
 def make_json_if_not_number(
-    v: Union[int, float, str, Mapping, Sequence],
-) -> Union[int, float, str]:
+    v: int | float | str | Mapping | Sequence,
+) -> int | float | str:
     """If v is not a basic type convert it to json."""
     if isinstance(v, (float, int)):
         return v
@@ -857,7 +857,7 @@ def no_retry_4xx(e: Exception) -> bool:
     raise UsageError(body["errors"][0]["message"])
 
 
-def parse_backend_error_messages(response: requests.Response) -> List[str]:
+def parse_backend_error_messages(response: requests.Response) -> list[str]:
     errors: List[str] = []
     try:
         data = response.json()
@@ -926,7 +926,7 @@ def no_retry_auth(e: Any) -> bool:
     return False
 
 
-def check_retry_conflict(e: Any) -> Optional[bool]:
+def check_retry_conflict(e: Any) -> bool | None:
     """Check if the exception is a conflict type so it can be retried.
 
     Returns:
@@ -944,7 +944,7 @@ def check_retry_conflict(e: Any) -> Optional[bool]:
     return None
 
 
-def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
+def check_retry_conflict_or_gone(e: Any) -> bool | None:
     """Check if the exception is a conflict or gone type, so it can be retried or not.
 
     Returns:
@@ -966,8 +966,8 @@ def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
 
 def make_check_retry_fn(
     fallback_retry_fn: CheckRetryFnType,
-    check_fn: Callable[[Exception], Optional[bool]],
-    check_timedelta: Optional[timedelta] = None,
+    check_fn: Callable[[Exception], bool | None],
+    check_timedelta: timedelta | None = None,
 ) -> CheckRetryFnType:
     """Return a check_retry_fn which can be used by lib.Retry().
 
@@ -977,7 +977,7 @@ def make_check_retry_fn(
         check_timedelta: Optional retry timeout if we check_fn matches the exception
     """
 
-    def check_retry_fn(e: Exception) -> Union[bool, timedelta]:
+    def check_retry_fn(e: Exception) -> bool | timedelta:
         check = check_fn(e)
         if check is None:
             return fallback_retry_fn(e)
@@ -990,7 +990,7 @@ def make_check_retry_fn(
     return check_retry_fn
 
 
-def find_runner(program: str) -> Union[None, list, List[str]]:
+def find_runner(program: str) -> None | list | list[str]:
     """Return a command that will run program.
 
     Args:
