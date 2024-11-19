@@ -100,6 +100,7 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     ):
         settings.job_source = "artifact"
         settings.launch = True
+        settings.disable_job_creation = False
 
         run2 = wandb_init(settings=settings, config={"input1": 1})
         run2.log({"x": 2})
@@ -179,6 +180,8 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
     ):
         settings.job_source = "repo"
         settings.launch = True
+        settings.disable_job_creation = False
+
         run2 = wandb_init(settings=settings, config={"input1": 1})
         run2.log({"x": 2})
         run2.finish()

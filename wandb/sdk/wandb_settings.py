@@ -103,7 +103,7 @@ class Settings(BaseModel, validate_assignment=True):
     # Whether to disable capturing the git state.
     disable_git: bool = False
     # Whether to disable the creation of a job artifact for W&B Launch.
-    disable_job_creation: bool = False
+    disable_job_creation: bool = True
     # The Docker image used to execute the script.
     docker: str | None = None
     # The email address of the user.
