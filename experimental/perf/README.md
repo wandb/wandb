@@ -23,4 +23,4 @@ Once you are logged into your container
 
 ## Pushing load test results to W&B
 After you have some test runs, you can push the test results to W&B for easier visualization
-1. python ./push_perf_results_helper.py -f test_result_directory -n some_meaning_test_name
+1. python ./push_perf_results_helper.py -f test_result_directory -n some_meaningful_test_name
