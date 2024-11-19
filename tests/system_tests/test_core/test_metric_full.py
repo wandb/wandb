@@ -135,8 +135,8 @@ def _gen_metric_sync_step(run):
     # run.finish()
 
 
-def test_metric_no_sync_step(wandb_backend_spy, wandb_init):
-    with wandb_init() as run:
+def test_metric_no_sync_step(wandb_backend_spy):
+    with wandb.init() as run:
         run.define_metric(
             "val",
             summary="min",
@@ -161,8 +161,8 @@ def test_metric_no_sync_step(wandb_backend_spy, wandb_init):
         assert metrics and len(metrics) == 2
 
 
-def test_metric_sync_step(wandb_backend_spy, wandb_init):
-    with wandb_init() as run:
+def test_metric_sync_step(wandb_backend_spy):
+    with wandb.init() as run:
         run.define_metric("val", summary="min", step_metric="mystep", step_sync=True)
         _gen_metric_sync_step(run)
 
@@ -184,8 +184,8 @@ def test_metric_sync_step(wandb_backend_spy, wandb_init):
         assert telemetry and 7 in telemetry.get("3", [])
 
 
-def test_metric_mult(wandb_backend_spy, wandb_init):
-    with wandb_init() as run:
+def test_metric_mult(wandb_backend_spy):
+    with wandb.init() as run:
         run.define_metric("mystep", hidden=True)
         run.define_metric("*", step_metric="mystep")
         _gen_metric_sync_step(run)
@@ -195,8 +195,8 @@ def test_metric_mult(wandb_backend_spy, wandb_init):
         assert metrics and len(metrics) == 3
 
 
-def test_metric_goal(wandb_backend_spy, wandb_init):
-    with wandb_init() as run:
+def test_metric_goal(wandb_backend_spy):
+    with wandb.init() as run:
         run.define_metric("mystep", hidden=True)
         run.define_metric("*", step_metric="mystep", goal="maximize")
         _gen_metric_sync_step(run)
@@ -283,8 +283,8 @@ def test_metric_nested_min(wandb_backend_spy):
         assert summary["this"] == {"that": {"min": 2}}
 
 
-def test_metric_nested_mult(wandb_backend_spy, wandb_init):
-    with wandb_init() as run:
+def test_metric_nested_mult(wandb_backend_spy):
+    with wandb.init() as run:
         run.define_metric("this.that", summary="min,max")
         run.log(dict(this=dict(that=3)))
         run.log(dict(this=dict(that=2)))
@@ -299,9 +299,9 @@ def test_metric_nested_mult(wandb_backend_spy, wandb_init):
         assert metrics[0] == {"1": "this.that", "7": [1, 2], "6": [3]}
 
 
-def test_metric_dotted(wandb_backend_spy, wandb_init):
+def test_metric_dotted(wandb_backend_spy):
     """Escape dots in metric definitions."""
-    with wandb_init() as run:
+    with wandb.init() as run:
         run.define_metric("test\\this\\.that", summary="min")
         run.log({"test\\this.that": 3})
         run.log({"test\\this.that": 2})
@@ -316,13 +316,12 @@ def test_metric_dotted(wandb_backend_spy, wandb_init):
         assert metrics[0] == {"1": "test\\this\\.that", "7": [1], "6": [3]}
 
 
-def test_metric_nested_glob(wandb_backend_spy, wandb_init):
-    with wandb_init() as run:
+def test_metric_nested_glob(wandb_backend_spy):
+    with wandb.init() as run:
         run.define_metric("*", summary="min,max")
         run.log(dict(this=dict(that=3)))
         run.log(dict(this=dict(that=2)))
         run.log(dict(this=dict(that=4)))
-        run.finish()
 
     with wandb_backend_spy.freeze() as snapshot:
         summary = snapshot.summary(run_id=run.id)
