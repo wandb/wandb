@@ -12,10 +12,10 @@ All the performance test and setup files for the SDK are inside the experimental
 4. Start a container
    docker run perfimage
 5. Log into the container
-   docker ssh exec -it container_id /bin/bash 
+   docker ssh exec -it container_id /bin/bash
 
 ## Starting a load test
-Once you are logged into your container 
+Once you are logged into your container
 1. export WANDB_API_KEY=<your key>
 2. cd /opt/ns/scripts
 3. ./run_load_test.sh -t bench_log | bench_log_scale_step | bench_log_scale_metric
@@ -24,5 +24,3 @@ Once you are logged into your container
 ## Pushing load test results to W&B
 After you have some test runs, you can push the test results to W&B for easier visualization
 1. python ./push_perf_results_helper.py -f test_result_directory -n some_meaning_test_name
-
-

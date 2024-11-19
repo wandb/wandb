@@ -1,10 +1,14 @@
-from helper import generate_random_dict
 import argparse
 from datetime import datetime
+
+from helper import generate_random_dict
+
 import wandb
+
 
 def measure_time(func):
     """Decorator to measure and return execution time of a function."""
+
     def wrapper(*args, **kwargs):
         start_time = datetime.now()
         result = func(*args, **kwargs)
@@ -12,7 +16,9 @@ def measure_time(func):
         elapsed_time = end_time - start_time
         print(f"{func.__name__}() time: {elapsed_time.total_seconds()}")
         return result, elapsed_time.total_seconds()
+
     return wrapper
+
 
 @measure_time
 def init_wandb(run_id, args):
@@ -25,19 +31,22 @@ def init_wandb(run_id, args):
             "steps": {args.steps},
             "metric_count": {args.metric_count},
             "metric_key_size": {args.metric_key_size},
-        }
+        },
     )
+
 
 @measure_time
 def log_metrics(steps, payload):
     """Log simulated accuracy and loss metrics to W&B."""
-    for step in range(steps):
+    for _ in range(steps):
         wandb.log(payload)
+
 
 @measure_time
 def finish_wandb():
     """Mark W&B run as finished."""
     wandb.finish()
+
 
 def run_experiment(args):
     """Run the training experiment, measuring initialization, logging, and finishing times."""
@@ -76,12 +85,23 @@ def run_experiment(args):
     total_time = total_end_time - total_start_time
     print(f"\nTotal training time: {total_time.total_seconds()}")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-l", "--loop", type=int, help="training run count", default=5)
-    parser.add_argument("-s", "--steps", type=int, help="step count in each run", default=10)
-    parser.add_argument("-n", "--metric_count", type=int, help="number of metrics to log", default=100)
-    parser.add_argument("-m", "--metric_key_size", type=int, help="size of metric names in the log payload", default=10)
+    parser.add_argument(
+        "-s", "--steps", type=int, help="step count in each run", default=10
+    )
+    parser.add_argument(
+        "-n", "--metric_count", type=int, help="number of metrics to log", default=100
+    )
+    parser.add_argument(
+        "-m",
+        "--metric_key_size",
+        type=int,
+        help="size of metric names in the log payload",
+        default=10,
+    )
 
     args = parser.parse_args()
     run_experiment(args)

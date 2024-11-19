@@ -19,7 +19,7 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
 RUN apt-get update && apt-get upgrade -y \
     && apt-get install -y git gcc python3-dev \
     && apt-get -qy autoremove \
-    && apt-get clean && rm -r /var/lib/apt/lists/* 
+    && apt-get clean && rm -r /var/lib/apt/lists/*
 
 RUN apt-get update && apt-get install vim -y \
     && apt-get install sysstat -y \

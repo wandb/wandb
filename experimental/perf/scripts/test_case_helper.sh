@@ -19,7 +19,7 @@ bench_log() {
 
     echo "Starting metrics capture for loop $loop, step $step..."
     capture_metrics "$log_folder"
-    python testfiles/bench_run_log.py -l "$loop" -s "$step" > "$log_folder/perftest.log" || error_exit "Performance test failed"    
+    python testfiles/bench_run_log.py -l "$loop" -s "$step" > "$log_folder/perftest.log" || error_exit "Performance test failed"
     $SCRIPT_DIR/process_sar_helper.sh "$log_folder" >> "$log_folder/perftest.log"
 }
 

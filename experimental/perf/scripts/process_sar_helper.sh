@@ -82,7 +82,7 @@ if [ -f $log_dir/network.dev.log ]; then
 
 else
     echo "WARNING! $log_dir/network.dev.log not found."
-fi   
+fi
 
 # process disk (vda|sda) device
 if [ -f $log_dir/disk.log ]; then
@@ -109,7 +109,4 @@ if [ -f $log_dir/disk.log ]; then
 
 else
     echo "WARNING! $log_dir/disk.log not found."
-fi   
-
-
-
+fi

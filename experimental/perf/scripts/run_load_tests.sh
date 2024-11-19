@@ -74,5 +74,3 @@ TOTAL_TIME=$((END_TIME - START_TIME))
 
 echo "Test completed in ${TOTAL_TIME}s."
 echo "Logs saved to $SCRIPT_DIR/$LOG_FOLDER"
-
-
