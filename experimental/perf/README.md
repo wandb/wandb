@@ -6,7 +6,7 @@ All the performance test and setup files for the SDK are inside the experimental
 
 ## Setting up a perf container
 1. Go to your wandb repo
-2. Go to experimenta/perf
+2. Go to experimental/perf
 3. Build the docker image
    docker build -t perfimage .
 4. Start a container
