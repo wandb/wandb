@@ -20,6 +20,11 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Sequence
 
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
+
 import wandb
 import wandb.env
 from wandb import trigger
@@ -575,11 +580,31 @@ class _WandbInit:
         ):
             setattr(drun, symbol, lambda *_, **__: None)  # type: ignore
 
-        class MockArtifact:
-            def __getattr__(self, _):
-                return lambda *args, **kwargs: None
+        class _ChainableNoOp:
+            """An object that allows chaining arbitrary attributes and method calls."""
 
-        drun.log_artifact = lambda *_, **__: MockArtifact()
+            def __getattr__(self, _: str) -> Self:
+                return self
+
+            def __call__(self, *_: Any, **__: Any) -> Self:
+                return self
+
+        class _ChainableNoOpField:
+            # This is used to chain arbitrary attributes and method calls.
+            # For example, `run.log_artifact().state` will work in disabled mode.
+            def __init__(self) -> None:
+                self._value = None
+
+            def __set__(self, instance: Any, value: Any) -> None:
+                self._value = value
+
+            def __get__(self, instance: Any, owner: type) -> Any:
+                return _ChainableNoOp() if (self._value is None) else self._value
+
+            def __call__(self, *args: Any, **kwargs: Any) -> _ChainableNoOp:
+                return _ChainableNoOp()
+
+        drun.log_artifact = _ChainableNoOpField()
         # attributes
         drun._backend = None
         drun._step = 0
