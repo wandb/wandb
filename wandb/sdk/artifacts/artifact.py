@@ -465,6 +465,16 @@ class Artifact:
         return self._version
 
     @property
+    def url(self):
+        """
+        Constructs the URL of the artifact.
+        
+        Returns:
+            str: The URL of the artifact.
+        """
+        return f"{wandb.api.app_url}/{self._entity}/{self._project}/artifacts/{self._type}/{self._name}"
+    
+    @property
     @ensure_logged
     def collection(self) -> ArtifactCollection:
         """The collection this artifact was retrieved from.
