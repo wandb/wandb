@@ -13,18 +13,13 @@ import socket
 import sys
 import tempfile
 from datetime import datetime
-from typing import Any, Sequence
+from typing import Any, Literal, Sequence
 from urllib.parse import quote, unquote, urlencode
 
 if sys.version_info >= (3, 11):
     from typing import Self
 else:
     from typing_extensions import Self
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
 from pydantic import (
@@ -108,7 +103,7 @@ class Settings(BaseModel, validate_assignment=True):
     # Whether to disable capturing the git state.
     disable_git: bool = False
     # Whether to disable the creation of a job artifact for W&B Launch.
-    disable_job_creation: bool = False
+    disable_job_creation: bool = True
     # The Docker image used to execute the script.
     docker: str | None = None
     # The email address of the user.
@@ -311,7 +306,11 @@ class Settings(BaseModel, validate_assignment=True):
         None
     )
     # System paths to monitor for disk usage.
-    x_stats_disk_paths: Sequence[str] | None = None
+    x_stats_disk_paths: Sequence[str] | None = Field(
+        default_factory=lambda: ("/", "/System/Volumes/Data")
+        if platform.system() == "Darwin"
+        else ("/",)
+    )
     # Number of system metric samples to buffer in memory in the wandb-core process.
     # Can be accessed via run._system_metrics.
     x_stats_buffer_size: int = 0

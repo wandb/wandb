@@ -1879,14 +1879,8 @@ class InstalledDistribution:
 
 
 def working_set() -> Iterable[InstalledDistribution]:
-    """Return the working set of installed distributions.
-
-    Uses importlib.metadata in Python versions above 3.7, and importlib_metadata otherwise.
-    """
-    try:
-        from importlib.metadata import distributions
-    except ImportError:
-        from importlib_metadata import distributions  # type: ignore
+    """Return the working set of installed distributions."""
+    from importlib.metadata import distributions
 
     for d in distributions():
         try:

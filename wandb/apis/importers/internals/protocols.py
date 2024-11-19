@@ -1,13 +1,17 @@
 import logging
-import sys
-from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Literal,
+    Optional,
+    Protocol,
+    Tuple,
+    runtime_checkable,
+)
 
 from wandb.sdk.artifacts.artifact import Artifact
-
-if sys.version_info >= (3, 8):
-    from typing import Protocol, runtime_checkable
-else:
-    from typing_extensions import Protocol, runtime_checkable
 
 logger = logging.getLogger("import_logger")
 
