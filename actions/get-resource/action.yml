@@ -24,7 +24,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: ../../action.yml
+    - uses: ctrlplanedev/cli@main
       with:
         version: ${{ inputs.version }}
         repo: ${{ inputs.repo }}
