@@ -159,15 +159,22 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 }
 
 // makeStatsRecord constructs a StatsRecord protobuf message from the provided stats map and timestamp.
-func makeStatsRecord(stats map[string]any, timeStamp *timestamppb.Timestamp) *spb.Record {
+func (sm *SystemMonitor) makeStatsRecord(stats map[string]any, timeStamp *timestamppb.Timestamp) *spb.Record {
 	statsItems := make([]*spb.StatsItem, 0, len(stats))
 	for k, v := range stats {
 		jsonData, err := json.Marshal(v)
 		if err != nil {
 			continue
 		}
+		key := k
+		// Label for custom grouping of stats, e.g. per node in a multi-node run.
+		// if label := sm.settings.XLabel.GetValue(); label != "" {
+		// 	// Prefixing with "openmetrics" is a hack to hook into the existing aggregation
+		// 	// logic on the frontend that was designed for OpenMetrics data.
+		// 	key = fmt.Sprintf("%s/label:%s", k, label)
+		// }
 		statsItems = append(statsItems, &spb.StatsItem{
-			Key:       k,
+			Key:       key,
 			ValueJson: string(jsonData),
 		})
 	}
@@ -342,7 +349,7 @@ func (sm *SystemMonitor) monitorAsset(asset Asset) {
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
 				runwork.WorkFromRecord(
-					makeStatsRecord(metrics, ts),
+					sm.makeStatsRecord(metrics, ts),
 				),
 			)
 		}
