@@ -65,7 +65,7 @@ def log_to_wandb(project_name, root_log_dir, run_name):
         project_name (str): Name of the W&B project.
         log_dir (str): Directory containing performance test logs.
     """
-    wandb.init(project=project_name, name=run_name, job_type="performance_test")
+    run = wandb.init(project=project_name, name=run_name, job_type="performance_test")
 
     print("inside log_to_wandb")
     # Loop through each log file in the directory
@@ -77,7 +77,7 @@ def log_to_wandb(project_name, root_log_dir, run_name):
         metrics = parse_log(log_path)
 
         # Log metrics to W&B
-        wandb.log(
+        run.log(
             {
                 "steps_per_run": metrics["steps_per_run"],
                 "metrics_per_step": metrics["metrics_per_step"],
@@ -86,7 +86,7 @@ def log_to_wandb(project_name, root_log_dir, run_name):
             }
         )
 
-    wandb.finish()
+    run.finish()
 
 
 # Example usage
