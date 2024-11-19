@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import sys
 import traceback
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -74,8 +73,7 @@ _logger = logging.getLogger(__name__)
 def create_named_task(name: str, coro: Any, *args: Any, **kwargs: Any) -> asyncio.Task:
     """Create a named task."""
     task = asyncio.create_task(coro(*args, **kwargs))
-    if sys.version_info >= (3, 8):
-        task.set_name(name)
+    task.set_name(name)
     task.add_done_callback(_log_err_task_callback)
     return task
 
@@ -87,7 +85,7 @@ def _log_err_task_callback(task: asyncio.Task) -> None:
         if isinstance(exec, asyncio.CancelledError):
             wandb.termlog(f"Task {task.get_name()} was cancelled")
             return
-        name = str(task) if sys.version_info < (3, 8) else task.get_name()
+        name = task.get_name()
         wandb.termerror(f"Exception in task {name}")
         tb = exec.__traceback__
         tb_str = "".join(traceback.format_tb(tb))
