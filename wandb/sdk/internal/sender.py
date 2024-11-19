@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import queue
-import sys
 import threading
 import time
 import traceback
@@ -19,6 +18,7 @@ from typing import (
     Dict,
     Generator,
     List,
+    Literal,
     Optional,
     Tuple,
     Type,
@@ -56,11 +56,6 @@ from wandb.sdk.lib import (
 )
 from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (

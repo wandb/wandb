@@ -6,17 +6,11 @@ import os
 import pathlib
 import shutil
 import subprocess
-import sys
 import tempfile
 import threading
 import time
 from collections import deque
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
-
-if sys.version_info >= (3, 8):
-    from typing import Final
-else:
-    from typing_extensions import Final
+from typing import TYPE_CHECKING, Any, Dict, Final, List, Optional, Tuple, Union
 
 from wandb.sdk.lib import telemetry
 

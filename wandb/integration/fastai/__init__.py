@@ -39,12 +39,7 @@ Examples:
 import random
 import sys
 from pathlib import Path
-from typing import Any, Optional
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
+from typing import Any, Literal, Optional
 
 import fastai
 from fastai.callbacks import TrackerCallback
