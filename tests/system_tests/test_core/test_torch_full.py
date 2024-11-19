@@ -156,55 +156,55 @@ def conv3x3(in_channels, out_channels, **kwargs):
 
 # TODO(jhr): does not work with --flake-finder
 @pytest.mark.xfail(reason="TODO: fix this test")
-def test_all_logging(relay_server, wandb_init):
+def test_all_logging(wandb_backend_spy):
     pytest.importorskip("torch")
     n = 3
-    with relay_server() as relay:
-        run = wandb_init()
-        net = ConvNet()
-        run.watch(
-            net,
-            log="all",
-            log_freq=1,
-        )
-        for _ in range(n):
-            output = net(
-                dummy_torch_tensor(
-                    (32, 1, 28, 28),
-                )
+    run = wandb.init()
+    net = ConvNet()
+    run.watch(
+        net,
+        log="all",
+        log_freq=1,
+    )
+    for _ in range(n):
+        output = net(
+            dummy_torch_tensor(
+                (32, 1, 28, 28),
             )
-            grads = torch.ones(32, 10)
-            output.backward(grads)
-            run.log({"a": 2})
-        run.finish()
+        )
+        grads = torch.ones(32, 10)
+        output.backward(grads)
+        run.log({"a": 2})
+    run.finish()
 
-    history = relay.context.get_run_history(run.id, include_private=True)
-    assert history.shape == (n, 21)  # it's 21 instead of 20 since we add __run_id
-    assert history["_step"].to_list() == [i for i in range(3)]
-    for i in range(n):
-        assert len(history["parameters/fc2.bias"][i]["bins"]) == 65
-        assert len(history["gradients/fc2.bias"][i]["bins"]) == 65
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        for keys, item in history.items():
+            assert len(item) == 20
+            assert keys in (0, 1, 2)
+            assert len(item["parameters/fc2.bias"]["bins"]) == 65
+            assert len(item["gradients/fc2.bias"]["bins"]) == 65
 
 
-def test_embedding_dict_watch(relay_server, wandb_init):
+def test_embedding_dict_watch(wandb_backend_spy):
     pytest.importorskip("torch")
-    with relay_server() as relay:
-        run = wandb_init()
-        model = EmbModelWrapper()
-        run.watch(model, log_freq=1, idx=0)
-        opt = torch.optim.Adam(params=model.parameters())
-        inp = torch.randint(16, [8, 5])
-        out = model(inp)
-        out = (out["key"]["emb1"]).sum(-1)
-        loss = F.mse_loss(out, inp.float())
-        loss.backward()
-        opt.step()
-        run.log({"loss": loss})
-        run.finish()
+    run = wandb.init()
+    model = EmbModelWrapper()
+    run.watch(model, log_freq=1, idx=0)
+    opt = torch.optim.Adam(params=model.parameters())
+    inp = torch.randint(16, [8, 5])
+    out = model(inp)
+    out = (out["key"]["emb1"]).sum(-1)
+    loss = F.mse_loss(out, inp.float())
+    loss.backward()
+    opt.step()
+    run.log({"loss": loss})
+    run.finish()
 
-    history = relay.context.get_run_history(run.id)
-    assert len(history["gradients/emb.emb1.weight"][0]["bins"]) == 65
-    assert history["gradients/emb.emb1.weight"][0]["_type"] == "histogram"
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert len(history[0]["gradients/emb.emb1.weight"]["bins"]) == 65
+        assert history[0]["gradients/emb.emb1.weight"]["_type"] == "histogram"
 
 
 @pytest.mark.timeout(120)

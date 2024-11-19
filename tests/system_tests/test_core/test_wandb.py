@@ -327,24 +327,29 @@ def test_run_url(wandb_init):
 # ----------------------------------
 
 
-def test_log_step(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
-        run.log({"acc": 1}, step=5, commit=True)
-        run.finish()
-    assert relay.context.history["_step"][0] == 5
+def test_log_step(wandb_backend_spy):
+    run = wandb.init()
+    run.log({"acc": 1}, step=5, commit=True)
+    run.finish()
+
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert len(history) == 1
+        assert history[0]["_step"] == 5
 
 
-def test_log_custom_chart(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
-        my_custom_chart = wandb.plot_table(
-            "test_spec", wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"]), {}, {}
-        )
-        run.log({"my_custom_chart": my_custom_chart})
-        run.finish()
+def test_log_custom_chart(wandb_backend_spy):
+    run = wandb.init()
+    my_custom_chart = wandb.plot_table(
+        "test_spec", wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"]), {}, {}
+    )
+    run.log({"my_custom_chart": my_custom_chart})
+    run.finish()
 
-    assert relay.context.history["my_custom_chart_table"][0]
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert len(history) == 1
+        assert history[0]["my_custom_chart_table"]
 
 
 def test_log_silent(wandb_init, capsys):
@@ -356,80 +361,93 @@ def test_log_silent(wandb_init, capsys):
     assert "wandb: " not in err
 
 
-def test_log_multiple_cases_example(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
-        run.log(dict(n=1))
-        run.log(dict(n=11), commit=False)
-        run.log(dict(n=2), step=100)
-        run.log(dict(n=3), step=100)
-        run.log(dict(n=8), step=101)
-        run.log(dict(n=5), step=102)
-        run.log(dict(cool=2), step=2)
-        run.log(dict(cool=2), step=4)
-        run.finish()
+def test_log_multiple_cases_example(wandb_backend_spy):
+    run = wandb.init()
+    run.log(dict(n=1))
+    run.log(dict(n=11), commit=False)
+    run.log(dict(n=2), step=100)
+    run.log(dict(n=3), step=100)
+    run.log(dict(n=8), step=101)
+    run.log(dict(n=5), step=102)
+    run.log(dict(cool=2), step=2)
+    run.log(dict(cool=2), step=4)
+    run.finish()
 
-    assert relay.context.history["n"].tolist() == [1, 11, 3, 8, 5]
-    assert relay.context.history["_step"].tolist() == [0, 1, 100, 101, 102]
-
-
-def test_log_step_uncommitted(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
-        run.log(dict(cool=2), step=2, commit=False)
-        run.log(dict(cool=2), step=4)
-        run.finish()
-
-    assert len(relay.context.history) == 2
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert [value["n"] for value in history.values()] == [1, 11, 3, 8, 5]
+        assert [value["_step"] for value in history.values()] == [0, 1, 100, 101, 102]
 
 
-def test_log_step_committed(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
-        run.log(dict(cool=2), step=2)
-        run.log(dict(cool=2), step=4, commit=True)
-        run.finish()
+def test_log_step_uncommitted(wandb_backend_spy):
+    run = wandb.init()
+    run.log(dict(cool=2), step=2, commit=False)
+    run.log(dict(cool=2), step=4)
+    run.finish()
 
-    assert len(relay.context.history) == 2
-
-
-def test_log_step_committed_same(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
-        run.log(dict(cool=2), step=1)
-        run.log(dict(cool=2), step=4)
-        run.log(dict(bad=3), step=4, commit=True)
-        run.finish()
-
-    history = relay.context.get_run_history(run.id)
-    assert len(history) == 2
-    assert history.cool[1] == 2
-    assert history.bad[1] == 3
-    assert len(history.columns) == 2
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert len(history) == 2
 
 
-def test_log_step_committed_same_dropped(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
-        run.log(dict(cool=2), step=1)
-        run.log(dict(cool=2), step=4, commit=True)
-        run.log(dict(bad=3), step=4, commit=True)
-        run.finish()
+def test_log_step_committed(wandb_backend_spy):
+    run = wandb.init()
+    run.log(dict(cool=2), step=2)
+    run.log(dict(cool=2), step=4, commit=True)
+    run.finish()
 
-    history = relay.context.get_run_history(run.id)
-    assert len(history) == 2
-    assert history["cool"][1] == 2
-    # filter all the columns that don't start with `_`
-    assert len(history.columns) == 1
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert len(history) == 2
 
 
-def test_log_empty_string(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
-        run.log(dict(cool=""))
-        run.finish()
+def test_log_step_committed_same(wandb_backend_spy):
+    run = wandb.init()
+    run.log(dict(cool=2), step=1)
+    run.log(dict(cool=2), step=4)
+    run.log(dict(bad=3), step=4, commit=True)
+    run.finish()
 
-    assert relay.context.history["cool"][0] == ""
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+
+        assert len(history) == 2
+        assert history[0]["cool"] == 2
+
+        assert history[1]["bad"] == 3
+        assert history[1]["cool"] == 2
+
+
+def test_log_step_committed_same_dropped(wandb_backend_spy):
+    run = wandb.init()
+    run.log(dict(cool=2), step=1)
+    run.log(dict(cool=2), step=4, commit=True)
+    run.log(dict(bad=3), step=4, commit=True)
+    run.finish()
+
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert len(history) == 2
+        assert history[0]["_step"] == 1
+        assert history[0]["cool"] == 2
+
+        assert history[1]["_step"] == 4
+        assert "bad" not in history[1]
+
+        # filter all the columns that don't start with `_`
+        for value in history.values():
+            items = [k for k in value.keys() if not k.startswith("_")]
+            assert len(items) == 1
+
+
+def test_log_empty_string(wandb_backend_spy):
+    run = wandb.init()
+    run.log(dict(cool=""))
+    run.finish()
+
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert history[0]["cool"] == ""
 
 
 # ----------------------------------
