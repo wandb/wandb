@@ -306,7 +306,11 @@ class Settings(BaseModel, validate_assignment=True):
         None
     )
     # System paths to monitor for disk usage.
-    x_stats_disk_paths: Sequence[str] | None = None
+    x_stats_disk_paths: Sequence[str] | None = Field(
+        default_factory=lambda: ("/", "/System/Volumes/Data")
+        if platform.system() == "Darwin"
+        else ("/",)
+    )
     # Number of system metric samples to buffer in memory in the wandb-core process.
     # Can be accessed via run._system_metrics.
     x_stats_buffer_size: int = 0
