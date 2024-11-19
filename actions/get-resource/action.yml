@@ -31,7 +31,7 @@ runs:
         url: ${{ inputs.url }}
         api_key: ${{ inputs.api_key }}
 
-    - name: Set Object Outputs from resource
+    - name: Set Object Outputs
       shell: bash
       run: |
         RESOURCE=$(ctrlc get resource --id ${{ inputs.resource_id }})
