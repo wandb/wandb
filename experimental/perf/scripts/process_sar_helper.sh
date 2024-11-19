@@ -87,7 +87,7 @@ fi
 # process disk (vda|sda) device
 if [ -f $log_dir/disk.log ]; then
     device=`grep Average $log_dir/disk.log | grep -E "sda|vda" | awk '{ print $NF }'`
-    echo "process_sar_helper.sh: Parsing disk IO metrics with: $device"
+    #echo "process_sar_helper.sh: Parsing disk IO metrics with: $device"
     grep $device $log_dir/disk.log > $log_dir/disk.$device.log
 
     device_values=`grep Average $log_dir/disk.$device.log | tail -n 1`
