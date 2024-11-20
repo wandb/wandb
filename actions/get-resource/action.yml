@@ -10,6 +10,9 @@ inputs:
     description: "GitHub repository containing the binary (format: owner/repo)"
     required: false
     default: "ctrlplanedev/cli"
+  resource_id:
+    description: "ID of the resource to get"
+    required: true
   url:
     description: "URL of the ctrlplane instance"
     required: false
@@ -34,7 +37,7 @@ runs:
     - name: Set Object Outputs
       shell: bash
       run: |
-        RESOURCE=$(ctrlc get resource --id ${{ inputs.resource_id }})
+        RESOURCE=$(ctrlc api get resource --id ${{ inputs.resource_id }})
 
         echo "resource=$RESOURCE" >> "$GITHUB_OUTPUT"
 
