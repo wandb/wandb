@@ -17,6 +17,12 @@ const (
 	AlertSeverityError AlertSeverity = "ERROR"
 )
 
+var AllAlertSeverity = []AlertSeverity{
+	AlertSeverityInfo,
+	AlertSeverityWarn,
+	AlertSeverityError,
+}
+
 type ArtifactAliasInput struct {
 	ArtifactCollectionName string `json:"artifactCollectionName"`
 	Alias                  string `json:"alias"`
@@ -33,6 +39,10 @@ type ArtifactDigestAlgorithm string
 const (
 	ArtifactDigestAlgorithmManifestMd5 ArtifactDigestAlgorithm = "MANIFEST_MD5"
 )
+
+var AllArtifactDigestAlgorithm = []ArtifactDigestAlgorithm{
+	ArtifactDigestAlgorithmManifestMd5,
+}
 
 // ArtifactFileURLsArtifact includes the requested fields of the GraphQL type Artifact.
 type ArtifactFileURLsArtifact struct {
@@ -257,6 +267,12 @@ const (
 	ArtifactManifestTypeIncremental ArtifactManifestType = "INCREMENTAL"
 )
 
+var AllArtifactManifestType = []ArtifactManifestType{
+	ArtifactManifestTypeFull,
+	ArtifactManifestTypePatch,
+	ArtifactManifestTypeIncremental,
+}
+
 type ArtifactState string
 
 const (
@@ -265,12 +281,23 @@ const (
 	ArtifactStateDeleted   ArtifactState = "DELETED"
 )
 
+var AllArtifactState = []ArtifactState{
+	ArtifactStatePending,
+	ArtifactStateCommitted,
+	ArtifactStateDeleted,
+}
+
 type ArtifactStorageLayout string
 
 const (
 	ArtifactStorageLayoutV1 ArtifactStorageLayout = "V1"
 	ArtifactStorageLayoutV2 ArtifactStorageLayout = "V2"
 )
+
+var AllArtifactStorageLayout = []ArtifactStorageLayout{
+	ArtifactStorageLayoutV1,
+	ArtifactStorageLayoutV2,
+}
 
 // ClientIDMappingClientIDMapping includes the requested fields of the GraphQL type ClientIDMapping.
 type ClientIDMappingClientIDMapping struct {
@@ -329,6 +356,10 @@ type CompleteMultipartAction string
 const (
 	CompleteMultipartActionComplete CompleteMultipartAction = "Complete"
 )
+
+var AllCompleteMultipartAction = []CompleteMultipartAction{
+	CompleteMultipartActionComplete,
+}
 
 // CompleteMultipartUploadArtifactCompleteMultipartUploadArtifactCompleteMultipartUploadArtifactPayload includes the requested fields of the GraphQL type CompleteMultipartUploadArtifactPayload.
 type CompleteMultipartUploadArtifactCompleteMultipartUploadArtifactCompleteMultipartUploadArtifactPayload struct {
@@ -1950,7 +1981,7 @@ func (v *__UseArtifactInput) GetRunName() string { return v.RunName }
 // GetArtifactID returns __UseArtifactInput.ArtifactID, and is useful for accessing the field via an interface.
 func (v *__UseArtifactInput) GetArtifactID() string { return v.ArtifactID }
 
-// The query or mutation executed by ArtifactFileURLs.
+// The query executed by ArtifactFileURLs.
 const ArtifactFileURLs_Operation = `
 query ArtifactFileURLs ($id: ID!, $cursor: String, $perPage: Int) {
 	artifact(id: $id) {
@@ -1976,7 +2007,7 @@ func ArtifactFileURLs(
 	id string,
 	cursor *string,
 	perPage *int,
-) (*ArtifactFileURLsResponse, error) {
+) (data_ *ArtifactFileURLsResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "ArtifactFileURLs",
 		Query:  ArtifactFileURLs_Operation,
@@ -1986,10 +2017,9 @@ func ArtifactFileURLs(
 			PerPage: perPage,
 		},
 	}
-	var err_ error
 
-	var data_ ArtifactFileURLsResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &ArtifactFileURLsResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -1997,10 +2027,10 @@ func ArtifactFileURLs(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by ArtifactFileURLsByManifestEntries.
+// The query executed by ArtifactFileURLsByManifestEntries.
 const ArtifactFileURLsByManifestEntries_Operation = `
 query ArtifactFileURLsByManifestEntries ($id: ID!, $entries: [ArtifactManifestEntryInput!], $storageLayout: String!, $manifestVersion: String!, $storageRegion: String) {
 	artifact(id: $id) {
@@ -2028,7 +2058,7 @@ func ArtifactFileURLsByManifestEntries(
 	storageLayout string,
 	manifestVersion string,
 	storageRegion *string,
-) (*ArtifactFileURLsByManifestEntriesResponse, error) {
+) (data_ *ArtifactFileURLsByManifestEntriesResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "ArtifactFileURLsByManifestEntries",
 		Query:  ArtifactFileURLsByManifestEntries_Operation,
@@ -2040,10 +2070,9 @@ func ArtifactFileURLsByManifestEntries(
 			StorageRegion:   storageRegion,
 		},
 	}
-	var err_ error
 
-	var data_ ArtifactFileURLsByManifestEntriesResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &ArtifactFileURLsByManifestEntriesResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2051,10 +2080,10 @@ func ArtifactFileURLsByManifestEntries(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by ArtifactManifest.
+// The query executed by ArtifactManifest.
 const ArtifactManifest_Operation = `
 query ArtifactManifest ($artifact_id: ID!) {
 	artifact(id: $artifact_id) {
@@ -2071,7 +2100,7 @@ func ArtifactManifest(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	artifact_id string,
-) (*ArtifactManifestResponse, error) {
+) (data_ *ArtifactManifestResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "ArtifactManifest",
 		Query:  ArtifactManifest_Operation,
@@ -2079,10 +2108,9 @@ func ArtifactManifest(
 			Artifact_id: artifact_id,
 		},
 	}
-	var err_ error
 
-	var data_ ArtifactManifestResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &ArtifactManifestResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2090,10 +2118,10 @@ func ArtifactManifest(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by ClientIDMapping.
+// The query executed by ClientIDMapping.
 const ClientIDMapping_Operation = `
 query ClientIDMapping ($clientID: ID!) {
 	clientIDMapping(clientID: $clientID) {
@@ -2106,7 +2134,7 @@ func ClientIDMapping(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	clientID string,
-) (*ClientIDMappingResponse, error) {
+) (data_ *ClientIDMappingResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "ClientIDMapping",
 		Query:  ClientIDMapping_Operation,
@@ -2114,10 +2142,9 @@ func ClientIDMapping(
 			ClientID: clientID,
 		},
 	}
-	var err_ error
 
-	var data_ ClientIDMappingResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &ClientIDMappingResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2125,10 +2152,10 @@ func ClientIDMapping(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by CommitArtifact.
+// The mutation executed by CommitArtifact.
 const CommitArtifact_Operation = `
 mutation CommitArtifact ($artifactID: ID!) {
 	commitArtifact(input: {artifactID:$artifactID}) {
@@ -2144,7 +2171,7 @@ func CommitArtifact(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	artifactID string,
-) (*CommitArtifactResponse, error) {
+) (data_ *CommitArtifactResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "CommitArtifact",
 		Query:  CommitArtifact_Operation,
@@ -2152,10 +2179,9 @@ func CommitArtifact(
 			ArtifactID: artifactID,
 		},
 	}
-	var err_ error
 
-	var data_ CommitArtifactResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &CommitArtifactResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2163,10 +2189,10 @@ func CommitArtifact(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by CompleteMultipartUploadArtifact.
+// The mutation executed by CompleteMultipartUploadArtifact.
 const CompleteMultipartUploadArtifact_Operation = `
 mutation CompleteMultipartUploadArtifact ($completeMultipartAction: CompleteMultipartAction!, $completedParts: [UploadPartsInput!]!, $artifactID: ID!, $storagePath: String!, $uploadID: String!) {
 	completeMultipartUploadArtifact(input: {completeMultipartAction:$completeMultipartAction,completedParts:$completedParts,artifactID:$artifactID,storagePath:$storagePath,uploadID:$uploadID}) {
@@ -2183,7 +2209,7 @@ func CompleteMultipartUploadArtifact(
 	artifactID string,
 	storagePath string,
 	uploadID string,
-) (*CompleteMultipartUploadArtifactResponse, error) {
+) (data_ *CompleteMultipartUploadArtifactResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "CompleteMultipartUploadArtifact",
 		Query:  CompleteMultipartUploadArtifact_Operation,
@@ -2195,10 +2221,9 @@ func CompleteMultipartUploadArtifact(
 			UploadID:                uploadID,
 		},
 	}
-	var err_ error
 
-	var data_ CompleteMultipartUploadArtifactResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &CompleteMultipartUploadArtifactResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2206,10 +2231,10 @@ func CompleteMultipartUploadArtifact(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by CreateArtifact.
+// The mutation executed by CreateArtifact.
 const CreateArtifact_Operation = `
 mutation CreateArtifact ($input: CreateArtifactInput!) {
 	createArtifact(input: $input) {
@@ -2236,7 +2261,7 @@ func CreateArtifact(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	input CreateArtifactInput,
-) (*CreateArtifactResponse, error) {
+) (data_ *CreateArtifactResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "CreateArtifact",
 		Query:  CreateArtifact_Operation,
@@ -2244,10 +2269,9 @@ func CreateArtifact(
 			Input: input,
 		},
 	}
-	var err_ error
 
-	var data_ CreateArtifactResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &CreateArtifactResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2255,10 +2279,10 @@ func CreateArtifact(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by CreateArtifactFiles.
+// The mutation executed by CreateArtifactFiles.
 const CreateArtifactFiles_Operation = `
 mutation CreateArtifactFiles ($artifactFiles: [CreateArtifactFileSpecInput!]!, $storageLayout: ArtifactStorageLayout!) {
 	createArtifactFiles(input: {artifactFiles:$artifactFiles,storageLayout:$storageLayout}) {
@@ -2290,7 +2314,7 @@ func CreateArtifactFiles(
 	client_ graphql.Client,
 	artifactFiles []CreateArtifactFileSpecInput,
 	storageLayout ArtifactStorageLayout,
-) (*CreateArtifactFilesResponse, error) {
+) (data_ *CreateArtifactFilesResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "CreateArtifactFiles",
 		Query:  CreateArtifactFiles_Operation,
@@ -2299,10 +2323,9 @@ func CreateArtifactFiles(
 			StorageLayout: storageLayout,
 		},
 	}
-	var err_ error
 
-	var data_ CreateArtifactFilesResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &CreateArtifactFilesResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2310,10 +2333,10 @@ func CreateArtifactFiles(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by CreateArtifactManifest.
+// The mutation executed by CreateArtifactManifest.
 const CreateArtifactManifest_Operation = `
 mutation CreateArtifactManifest ($artifactID: ID!, $baseArtifactID: ID, $name: String!, $digest: String!, $entityName: String!, $projectName: String!, $runName: String!, $manifestType: ArtifactManifestType!, $includeUpload: Boolean!) {
 	createArtifactManifest(input: {artifactID:$artifactID,baseArtifactID:$baseArtifactID,name:$name,digest:$digest,entityName:$entityName,projectName:$projectName,runName:$runName,type:$manifestType}) {
@@ -2341,7 +2364,7 @@ func CreateArtifactManifest(
 	runName string,
 	manifestType ArtifactManifestType,
 	includeUpload bool,
-) (*CreateArtifactManifestResponse, error) {
+) (data_ *CreateArtifactManifestResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "CreateArtifactManifest",
 		Query:  CreateArtifactManifest_Operation,
@@ -2357,10 +2380,9 @@ func CreateArtifactManifest(
 			IncludeUpload:  includeUpload,
 		},
 	}
-	var err_ error
 
-	var data_ CreateArtifactManifestResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &CreateArtifactManifestResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2368,10 +2390,10 @@ func CreateArtifactManifest(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by CreateRunFiles.
+// The mutation executed by CreateRunFiles.
 const CreateRunFiles_Operation = `
 mutation CreateRunFiles ($entity: String!, $project: String!, $run: String!, $files: [String!]!) {
 	createRunFiles(input: {entityName:$entity,projectName:$project,runName:$run,files:$files}) {
@@ -2392,7 +2414,7 @@ func CreateRunFiles(
 	project string,
 	run string,
 	files []string,
-) (*CreateRunFilesResponse, error) {
+) (data_ *CreateRunFilesResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "CreateRunFiles",
 		Query:  CreateRunFiles_Operation,
@@ -2403,10 +2425,9 @@ func CreateRunFiles(
 			Files:   files,
 		},
 	}
-	var err_ error
 
-	var data_ CreateRunFilesResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &CreateRunFilesResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2414,10 +2435,10 @@ func CreateRunFiles(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by FetchOrgEntityFromEntity.
+// The query executed by FetchOrgEntityFromEntity.
 const FetchOrgEntityFromEntity_Operation = `
 query FetchOrgEntityFromEntity ($entityName: String!) {
 	entity(name: $entityName) {
@@ -2435,7 +2456,7 @@ func FetchOrgEntityFromEntity(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	entityName string,
-) (*FetchOrgEntityFromEntityResponse, error) {
+) (data_ *FetchOrgEntityFromEntityResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "FetchOrgEntityFromEntity",
 		Query:  FetchOrgEntityFromEntity_Operation,
@@ -2443,10 +2464,9 @@ func FetchOrgEntityFromEntity(
 			EntityName: entityName,
 		},
 	}
-	var err_ error
 
-	var data_ FetchOrgEntityFromEntityResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &FetchOrgEntityFromEntityResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2454,10 +2474,10 @@ func FetchOrgEntityFromEntity(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by InputFields.
+// The query executed by InputFields.
 const InputFields_Operation = `
 query InputFields ($typeName: String!) {
 	TypeInfo: __type(name: $typeName) {
@@ -2472,7 +2492,7 @@ func InputFields(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	typeName string,
-) (*InputFieldsResponse, error) {
+) (data_ *InputFieldsResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "InputFields",
 		Query:  InputFields_Operation,
@@ -2480,10 +2500,9 @@ func InputFields(
 			TypeName: typeName,
 		},
 	}
-	var err_ error
 
-	var data_ InputFieldsResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &InputFieldsResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2491,10 +2510,10 @@ func InputFields(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by LinkArtifact.
+// The mutation executed by LinkArtifact.
 const LinkArtifact_Operation = `
 mutation LinkArtifact ($artifactPortfolioName: String!, $entityName: String!, $projectName: String!, $aliases: [ArtifactAliasInput!], $clientId: ID, $artifactId: ID) {
 	linkArtifact(input: {artifactPortfolioName:$artifactPortfolioName,entityName:$entityName,projectName:$projectName,aliases:$aliases,artifactID:$artifactId,clientID:$clientId}) {
@@ -2512,7 +2531,7 @@ func LinkArtifact(
 	aliases []ArtifactAliasInput,
 	clientId *string,
 	artifactId *string,
-) (*LinkArtifactResponse, error) {
+) (data_ *LinkArtifactResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "LinkArtifact",
 		Query:  LinkArtifact_Operation,
@@ -2525,10 +2544,9 @@ func LinkArtifact(
 			ArtifactId:            artifactId,
 		},
 	}
-	var err_ error
 
-	var data_ LinkArtifactResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &LinkArtifactResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2536,10 +2554,10 @@ func LinkArtifact(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by NotifyScriptableRunAlert.
+// The mutation executed by NotifyScriptableRunAlert.
 const NotifyScriptableRunAlert_Operation = `
 mutation NotifyScriptableRunAlert ($entityName: String!, $projectName: String!, $runName: String!, $title: String!, $text: String!, $severity: AlertSeverity = INFO, $waitDuration: Duration) {
 	notifyScriptableRunAlert(input: {entityName:$entityName,projectName:$projectName,runName:$runName,title:$title,text:$text,severity:$severity,waitDuration:$waitDuration}) {
@@ -2558,7 +2576,7 @@ func NotifyScriptableRunAlert(
 	text string,
 	severity *AlertSeverity,
 	waitDuration *int64,
-) (*NotifyScriptableRunAlertResponse, error) {
+) (data_ *NotifyScriptableRunAlertResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "NotifyScriptableRunAlert",
 		Query:  NotifyScriptableRunAlert_Operation,
@@ -2572,10 +2590,9 @@ func NotifyScriptableRunAlert(
 			WaitDuration: waitDuration,
 		},
 	}
-	var err_ error
 
-	var data_ NotifyScriptableRunAlertResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &NotifyScriptableRunAlertResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2583,10 +2600,10 @@ func NotifyScriptableRunAlert(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by RewindRun.
+// The mutation executed by RewindRun.
 const RewindRun_Operation = `
 mutation RewindRun ($runName: String!, $entity: String, $project: String, $metricName: String!, $metricValue: Float!) {
 	rewindRun(input: {runName:$runName,entityName:$entity,projectName:$project,metricName:$metricName,metricValue:$metricValue}) {
@@ -2619,7 +2636,7 @@ func RewindRun(
 	project *string,
 	metricName string,
 	metricValue float64,
-) (*RewindRunResponse, error) {
+) (data_ *RewindRunResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "RewindRun",
 		Query:  RewindRun_Operation,
@@ -2631,10 +2648,9 @@ func RewindRun(
 			MetricValue: metricValue,
 		},
 	}
-	var err_ error
 
-	var data_ RewindRunResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &RewindRunResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2642,10 +2658,10 @@ func RewindRun(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by RunResumeStatus.
+// The query executed by RunResumeStatus.
 const RunResumeStatus_Operation = `
 query RunResumeStatus ($project: String, $entity: String, $name: String!) {
 	model(name: $project, entityName: $entity) {
@@ -2679,7 +2695,7 @@ func RunResumeStatus(
 	project *string,
 	entity *string,
 	name string,
-) (*RunResumeStatusResponse, error) {
+) (data_ *RunResumeStatusResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "RunResumeStatus",
 		Query:  RunResumeStatus_Operation,
@@ -2689,10 +2705,9 @@ func RunResumeStatus(
 			Name:    name,
 		},
 	}
-	var err_ error
 
-	var data_ RunResumeStatusResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &RunResumeStatusResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2700,10 +2715,10 @@ func RunResumeStatus(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by RunStoppedStatus.
+// The query executed by RunStoppedStatus.
 const RunStoppedStatus_Operation = `
 query RunStoppedStatus ($entityName: String, $projectName: String, $runId: String!) {
 	project(name: $projectName, entityName: $entityName) {
@@ -2720,7 +2735,7 @@ func RunStoppedStatus(
 	entityName *string,
 	projectName *string,
 	runId string,
-) (*RunStoppedStatusResponse, error) {
+) (data_ *RunStoppedStatusResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "RunStoppedStatus",
 		Query:  RunStoppedStatus_Operation,
@@ -2730,10 +2745,9 @@ func RunStoppedStatus(
 			RunId:       runId,
 		},
 	}
-	var err_ error
 
-	var data_ RunStoppedStatusResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &RunStoppedStatusResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2741,10 +2755,10 @@ func RunStoppedStatus(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by ServerFeaturesQuery.
+// The query executed by ServerFeaturesQuery.
 const ServerFeaturesQuery_Operation = `
 query ServerFeaturesQuery {
 	serverInfo {
@@ -2761,15 +2775,14 @@ query ServerFeaturesQuery {
 func ServerFeaturesQuery(
 	ctx_ context.Context,
 	client_ graphql.Client,
-) (*ServerFeaturesQueryResponse, error) {
+) (data_ *ServerFeaturesQueryResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "ServerFeaturesQuery",
 		Query:  ServerFeaturesQuery_Operation,
 	}
-	var err_ error
 
-	var data_ ServerFeaturesQueryResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &ServerFeaturesQueryResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2777,10 +2790,10 @@ func ServerFeaturesQuery(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by ServerInfo.
+// The query executed by ServerInfo.
 const ServerInfo_Operation = `
 query ServerInfo {
 	serverInfo {
@@ -2797,15 +2810,14 @@ query ServerInfo {
 func ServerInfo(
 	ctx_ context.Context,
 	client_ graphql.Client,
-) (*ServerInfoResponse, error) {
+) (data_ *ServerInfoResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "ServerInfo",
 		Query:  ServerInfo_Operation,
 	}
-	var err_ error
 
-	var data_ ServerInfoResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &ServerInfoResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2813,10 +2825,10 @@ func ServerInfo(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by TypeFields.
+// The query executed by TypeFields.
 const TypeFields_Operation = `
 query TypeFields ($typeName: String!) {
 	TypeInfo: __type(name: $typeName) {
@@ -2832,7 +2844,7 @@ func TypeFields(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	typeName string,
-) (*TypeFieldsResponse, error) {
+) (data_ *TypeFieldsResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "TypeFields",
 		Query:  TypeFields_Operation,
@@ -2840,10 +2852,9 @@ func TypeFields(
 			TypeName: typeName,
 		},
 	}
-	var err_ error
 
-	var data_ TypeFieldsResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &TypeFieldsResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2851,10 +2862,10 @@ func TypeFields(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by UpdateArtifact.
+// The mutation executed by UpdateArtifact.
 const UpdateArtifact_Operation = `
 mutation UpdateArtifact ($artifactID: ID!, $metadata: JSONString) {
 	updateArtifact(input: {artifactID:$artifactID,metadata:$metadata}) {
@@ -2870,7 +2881,7 @@ func UpdateArtifact(
 	client_ graphql.Client,
 	artifactID string,
 	metadata *string,
-) (*UpdateArtifactResponse, error) {
+) (data_ *UpdateArtifactResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "UpdateArtifact",
 		Query:  UpdateArtifact_Operation,
@@ -2879,10 +2890,9 @@ func UpdateArtifact(
 			Metadata:   metadata,
 		},
 	}
-	var err_ error
 
-	var data_ UpdateArtifactResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &UpdateArtifactResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2890,10 +2900,10 @@ func UpdateArtifact(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by UpdateArtifactManifest.
+// The mutation executed by UpdateArtifactManifest.
 const UpdateArtifactManifest_Operation = `
 mutation UpdateArtifactManifest ($artifactManifestID: ID!, $digest: String, $baseArtifactID: ID, $includeUpload: Boolean!) {
 	updateArtifactManifest(input: {artifactManifestID:$artifactManifestID,digest:$digest,baseArtifactID:$baseArtifactID}) {
@@ -2916,7 +2926,7 @@ func UpdateArtifactManifest(
 	digest *string,
 	baseArtifactID *string,
 	includeUpload bool,
-) (*UpdateArtifactManifestResponse, error) {
+) (data_ *UpdateArtifactManifestResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "UpdateArtifactManifest",
 		Query:  UpdateArtifactManifest_Operation,
@@ -2927,10 +2937,9 @@ func UpdateArtifactManifest(
 			IncludeUpload:      includeUpload,
 		},
 	}
-	var err_ error
 
-	var data_ UpdateArtifactManifestResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &UpdateArtifactManifestResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2938,10 +2947,10 @@ func UpdateArtifactManifest(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by UpsertBucket.
+// The mutation executed by UpsertBucket.
 const UpsertBucket_Operation = `
 mutation UpsertBucket ($id: String, $name: String, $project: String, $entity: String, $groupName: String, $description: String, $displayName: String, $notes: String, $commit: String, $config: JSONString, $host: String, $debug: Boolean, $program: String, $repo: String, $jobType: String, $state: String, $sweep: String, $tags: [String!], $summaryMetrics: JSONString) {
 	upsertBucket(input: {id:$id,name:$name,groupName:$groupName,modelName:$project,entityName:$entity,description:$description,displayName:$displayName,notes:$notes,config:$config,commit:$commit,host:$host,debug:$debug,jobProgram:$program,jobRepo:$repo,jobType:$jobType,state:$state,sweep:$sweep,tags:$tags,summaryMetrics:$summaryMetrics}) {
@@ -2989,7 +2998,7 @@ func UpsertBucket(
 	sweep *string,
 	tags []string,
 	summaryMetrics *string,
-) (*UpsertBucketResponse, error) {
+) (data_ *UpsertBucketResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "UpsertBucket",
 		Query:  UpsertBucket_Operation,
@@ -3015,10 +3024,9 @@ func UpsertBucket(
 			SummaryMetrics: summaryMetrics,
 		},
 	}
-	var err_ error
 
-	var data_ UpsertBucketResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &UpsertBucketResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -3026,10 +3034,10 @@ func UpsertBucket(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by UseArtifact.
+// The mutation executed by UseArtifact.
 const UseArtifact_Operation = `
 mutation UseArtifact ($entityName: String!, $projectName: String!, $runName: String!, $artifactID: ID!) {
 	useArtifact(input: {entityName:$entityName,projectName:$projectName,runName:$runName,artifactID:$artifactID}) {
@@ -3047,7 +3055,7 @@ func UseArtifact(
 	projectName string,
 	runName string,
 	artifactID string,
-) (*UseArtifactResponse, error) {
+) (data_ *UseArtifactResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "UseArtifact",
 		Query:  UseArtifact_Operation,
@@ -3058,10 +3066,9 @@ func UseArtifact(
 			ArtifactID:  artifactID,
 		},
 	}
-	var err_ error
 
-	var data_ UseArtifactResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &UseArtifactResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -3069,10 +3076,10 @@ func UseArtifact(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by Viewer.
+// The query executed by Viewer.
 const Viewer_Operation = `
 query Viewer {
 	viewer {
@@ -3093,15 +3100,14 @@ query Viewer {
 func Viewer(
 	ctx_ context.Context,
 	client_ graphql.Client,
-) (*ViewerResponse, error) {
+) (data_ *ViewerResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "Viewer",
 		Query:  Viewer_Operation,
 	}
-	var err_ error
 
-	var data_ ViewerResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &ViewerResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -3109,5 +3115,5 @@ func Viewer(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
