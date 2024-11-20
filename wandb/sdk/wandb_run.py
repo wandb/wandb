@@ -859,9 +859,7 @@ class Run:
         Display names are not guaranteed to be unique and may be descriptive.
         By default, they are randomly generated.
         """
-        if self._settings.run_name:
-            return self._settings.run_name
-        return None
+        return self._settings.run_name
 
     @name.setter
     @_run_decorator._noop_on_finish()
@@ -877,8 +875,8 @@ class Run:
     def notes(self) -> str | None:
         """Notes associated with the run, if there are any.
 
-        Notes can be a multiline string and can also use markdown and latex equations
-        inside `$$`, like `$x + 3$`.
+        Notes can be a multiline string and can also use markdown and latex
+        equations inside `$$`, like `$x + 3$`.
         """
         return self._settings.run_notes
 
@@ -908,14 +906,12 @@ class Run:
     @_run_decorator._attach
     def id(self) -> str:
         """Identifier for this run."""
-        if TYPE_CHECKING:
-            assert self._settings.run_id is not None
         return self._settings.run_id
 
     @property
     @_run_decorator._attach
     def sweep_id(self) -> str | None:
-        """ID of the sweep associated with the run, if there is one."""
+        """Identifier for the sweep associated with the run, if there is one."""
         return self._settings.sweep_id
 
     def _get_path(self) -> str:
@@ -970,14 +966,13 @@ class Run:
     @_run_decorator._attach
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
-        if hasattr(self, "_telemetry_obj"):
-            deprecate.deprecate(
-                field_name=deprecate.Deprecated.run__mode,
-                warning_message=(
-                    "The mode property of wandb.run is deprecated "
-                    "and will be removed in a future release."
-                ),
-            )
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__mode,
+            warning_message=(
+                "The mode property of wandb.run is deprecated "
+                "and will be removed in a future release."
+            ),
+        )
         return "dryrun" if self._settings._offline else "run"
 
     @property
@@ -1010,101 +1005,46 @@ class Run:
         return self._settings.run_job_type or ""
 
     def project_name(self) -> str:
-        # TODO: deprecate this in favor of project
-        return self._settings.project or ""
+        """Name of the W&B project associated with the run.
+
+        Note: this method is deprecated and will be removed in a future release.
+        Please use `run.project` instead.
+        """
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__project_name,
+            warning_message=(
+                "The project_name method is deprecated and will be removed in a"
+                " future release. Please use `run.project` instead."
+            ),
+        )
+        return self.project
 
     @property
     @_run_decorator._attach
     def project(self) -> str:
         """Name of the W&B project associated with the run."""
-        return self.project_name()
-
-    @_run_decorator._noop_on_finish()
-    @_run_decorator._attach
-    def log_code(
-        self,
-        root: str | None = ".",
-        name: str | None = None,
-        include_fn: Callable[[str, str], bool]
-        | Callable[[str], bool] = _is_py_requirements_or_dockerfile,
-        exclude_fn: Callable[[str, str], bool]
-        | Callable[[str], bool] = filenames.exclude_wandb_fn,
-    ) -> Artifact | None:
-        """Save the current state of your code to a W&B Artifact.
-
-        By default, it walks the current directory and logs all files that end with `.py`.
-
-        Args:
-            root: The relative (to `os.getcwd()`) or absolute path to recursively find code from.
-            name: (str, optional) The name of our code artifact. By default, we'll name
-                the artifact `source-$PROJECT_ID-$ENTRYPOINT_RELPATH`. There may be scenarios where you want
-                many runs to share the same artifact. Specifying name allows you to achieve that.
-            include_fn: A callable that accepts a file path and (optionally) root path and
-                returns True when it should be included and False otherwise. This
-                defaults to: `lambda path, root: path.endswith(".py")`
-            exclude_fn: A callable that accepts a file path and (optionally) root path and
-                returns `True` when it should be excluded and `False` otherwise. This
-                defaults to a function that excludes all files within `<root>/.wandb/`
-                and `<root>/wandb/` directories.
-
-        Examples:
-            Basic usage
-            ```python
-            run.log_code()
-            ```
-
-            Advanced usage
-            ```python
-            run.log_code(
-                "../",
-                include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"),
-                exclude_fn=lambda path, root: os.path.relpath(path, root).startswith("cache/"),
-            )
-            ```
-
-        Returns:
-            An `Artifact` object if code was logged
-        """
-        if name is None:
-            if self.settings._jupyter:
-                notebook_name = None
-                if self.settings.notebook_name:
-                    notebook_name = self.settings.notebook_name
-                elif self.settings.x_jupyter_path:
-                    if self.settings.x_jupyter_path.startswith("fileId="):
-                        notebook_name = self.settings.x_jupyter_name
-                    else:
-                        notebook_name = self.settings.x_jupyter_path
-                name_string = f"{self._settings.project}-{notebook_name}"
-            else:
-                name_string = (
-                    f"{self._settings.project}-{self._settings.program_relpath}"
-                )
-            name = wandb.util.make_artifact_name_safe(f"source-{name_string}")
-        art = wandb.Artifact(name, "code")
-        files_added = False
-        if root is not None:
-            root = os.path.abspath(root)
-            for file_path in filenames.filtered_dir(root, include_fn, exclude_fn):
-                files_added = True
-                save_name = os.path.relpath(file_path, root)
-                art.add_file(file_path, name=save_name)
-        # Add any manually staged files such as ipynb notebooks
-        for dirpath, _, files in os.walk(self._settings._tmp_code_dir):
-            for fname in files:
-                file_path = os.path.join(dirpath, fname)
-                save_name = os.path.relpath(file_path, self._settings._tmp_code_dir)
-                files_added = True
-                art.add_file(file_path, name=save_name)
-        if not files_added:
-            wandb.termwarn(
-                "No relevant files were detected in the specified directory. No code will be logged to your run."
-            )
-            return None
-
-        return self._log_artifact(art)
+        return self._settings.project or ""
 
     def get_project_url(self) -> str | None:
+        """Return the url for the W&B project associated with the run, if there is one.
+
+        Offline runs will not have a project url.
+
+        Note: this method is deprecated and will be removed in a future release.
+        Please use `run.project_url` instead.
+        """
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__get_project_url,
+            warning_message=(
+                "The get_project_url method is deprecated and will be removed in a"
+                " future release. Please use `run.project_url` instead."
+            ),
+        )
+        return self.project_url
+
+    @property
+    @_run_decorator._attach
+    def project_url(self) -> str | None:
         """Return the url for the W&B project associated with the run, if there is one.
 
         Offline runs will not have a project url.
@@ -1115,7 +1055,29 @@ class Run:
         return self._settings.project_url
 
     def get_sweep_url(self) -> str | None:
-        """Return the url for the sweep associated with the run, if there is one."""
+        """Return the url for the sweep associated with the run, if there is one.
+
+        Offline runs will not have a sweep url.
+
+        Note: this method is deprecated and will be removed in a future release.
+        Please use `run.sweep_url` instead.
+        """
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__get_sweep_url,
+            warning_message=(
+                "The get_sweep_url method is deprecated and will be removed in a"
+                " future release. Please use `run.sweep_url` instead."
+            ),
+        )
+        return self.sweep_url
+
+    @property
+    @_run_decorator._attach
+    def sweep_url(self) -> str | None:
+        """Return the url for the sweep associated with the run, if there is one.
+
+        Offline runs will not have a sweep url.
+        """
         if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
@@ -1125,17 +1087,30 @@ class Run:
         """Return the url for the W&B run, if there is one.
 
         Offline runs will not have a url.
+
+        Note: this method is deprecated and will be removed in a future release.
+        Please use `run.url` instead.
+        """
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__get_url,
+            warning_message=(
+                "The get_url method is deprecated and will be removed in a"
+                " future release. Please use `run.url` instead."
+            ),
+        )
+        return self.url
+
+    @property
+    @_run_decorator._attach
+    def url(self) -> str | None:
+        """The url for the W&B run, if there is one.
+
+        Offline runs will not have a url.
         """
         if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
         return self._settings.run_url
-
-    @property
-    @_run_decorator._attach
-    def url(self) -> str | None:
-        """The W&B url associated with the run."""
-        return self.get_url()
 
     @property
     @_run_decorator._attach
@@ -1547,6 +1522,91 @@ class Run:
         if value_extra != old_value:
             self._config["_wandb"][data_type][key] = value_extra
             self._config.persist()
+
+    @_run_decorator._noop_on_finish()
+    @_run_decorator._attach
+    def log_code(
+        self,
+        root: str | None = ".",
+        name: str | None = None,
+        include_fn: Callable[[str, str], bool]
+        | Callable[[str], bool] = _is_py_requirements_or_dockerfile,
+        exclude_fn: Callable[[str, str], bool]
+        | Callable[[str], bool] = filenames.exclude_wandb_fn,
+    ) -> Artifact | None:
+        """Save the current state of your code to a W&B Artifact.
+
+        By default, it walks the current directory and logs all files that end with `.py`.
+
+        Args:
+            root: The relative (to `os.getcwd()`) or absolute path to recursively find code from.
+            name: (str, optional) The name of our code artifact. By default, we'll name
+                the artifact `source-$PROJECT_ID-$ENTRYPOINT_RELPATH`. There may be scenarios where you want
+                many runs to share the same artifact. Specifying name allows you to achieve that.
+            include_fn: A callable that accepts a file path and (optionally) root path and
+                returns True when it should be included and False otherwise. This
+                defaults to: `lambda path, root: path.endswith(".py")`
+            exclude_fn: A callable that accepts a file path and (optionally) root path and
+                returns `True` when it should be excluded and `False` otherwise. This
+                defaults to a function that excludes all files within `<root>/.wandb/`
+                and `<root>/wandb/` directories.
+
+        Examples:
+            Basic usage
+            ```python
+            run.log_code()
+            ```
+
+            Advanced usage
+            ```python
+            run.log_code(
+                "../",
+                include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"),
+                exclude_fn=lambda path, root: os.path.relpath(path, root).startswith("cache/"),
+            )
+            ```
+
+        Returns:
+            An `Artifact` object if code was logged
+        """
+        if name is None:
+            if self.settings._jupyter:
+                notebook_name = None
+                if self.settings.notebook_name:
+                    notebook_name = self.settings.notebook_name
+                elif self.settings.x_jupyter_path:
+                    if self.settings.x_jupyter_path.startswith("fileId="):
+                        notebook_name = self.settings.x_jupyter_name
+                    else:
+                        notebook_name = self.settings.x_jupyter_path
+                name_string = f"{self._settings.project}-{notebook_name}"
+            else:
+                name_string = (
+                    f"{self._settings.project}-{self._settings.program_relpath}"
+                )
+            name = wandb.util.make_artifact_name_safe(f"source-{name_string}")
+        art = wandb.Artifact(name, "code")
+        files_added = False
+        if root is not None:
+            root = os.path.abspath(root)
+            for file_path in filenames.filtered_dir(root, include_fn, exclude_fn):
+                files_added = True
+                save_name = os.path.relpath(file_path, root)
+                art.add_file(file_path, name=save_name)
+        # Add any manually staged files such as ipynb notebooks
+        for dirpath, _, files in os.walk(self._settings._tmp_code_dir):
+            for fname in files:
+                file_path = os.path.join(dirpath, fname)
+                save_name = os.path.relpath(file_path, self._settings._tmp_code_dir)
+                files_added = True
+                art.add_file(file_path, name=save_name)
+        if not files_added:
+            wandb.termwarn(
+                "No relevant files were detected in the specified directory. No code will be logged to your run."
+            )
+            return None
+
+        return self._log_artifact(art)
 
     def _log(
         self,
