@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/create"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/delete"
@@ -19,11 +20,21 @@ func NewAPICmd() *cobra.Command {
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			apiURL := viper.GetString("url")
 			if apiURL == "" {
-				return fmt.Errorf("API URL is required. Set via --url flag or in config")
+				fmt.Fprintln(cmd.ErrOrStderr(), "API URL is required. Set via --url flag or in config")
+				os.Exit(1)
 			}
 			apiKey := viper.GetString("api-key")
 			if apiKey == "" {
-				return fmt.Errorf("API key is required. Set via --api-key flag or in config")
+				fmt.Fprintln(cmd.ErrOrStderr(), "API key is required. Set via --api-key flag or in config")
+				os.Exit(1)
+			}
+
+			templateFlag, _ := cmd.Flags().GetString("template")
+			formatFlag, _ := cmd.Flags().GetString("format")
+
+			if templateFlag != "" && formatFlag != "json" {
+				fmt.Fprintln(cmd.ErrOrStderr(), "--template and --format flags cannot be used together")
+				os.Exit(1)
 			}
 			return nil
 		},
@@ -32,7 +43,7 @@ func NewAPICmd() *cobra.Command {
 		},
 	}
 	cmd.PersistentFlags().String("template", "", "Template for output format. Accepts Go template format (e.g. --template='{{.status.phase}}')")
-	cmd.PersistentFlags().String("format", "json", "Output format. Accepts 'json' or 'yaml'")
+	cmd.PersistentFlags().String("format", "json", "Output format. Accepts 'json', 'yaml', or 'github-action'")
 
 	cmd.AddCommand(get.NewGetCmd())
 	cmd.AddCommand(create.NewCreateCmd())
