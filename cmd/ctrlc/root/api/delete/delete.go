@@ -1,6 +1,7 @@
 package delete
 
 import (
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/delete/environment"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/delete/resource"
 	"github.com/spf13/cobra"
 )
@@ -16,6 +17,7 @@ func NewDeleteCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(resource.NewDeleteResourceCmd())
+	cmd.AddCommand(environment.NewDeleteEnvironmentCmd())
 
 	return cmd
 }

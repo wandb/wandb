@@ -16,7 +16,7 @@ func NewAPICmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "api <action> <resource> [flags]",
 		Short: "API commands",
-		Long:  `Commands for interacting with the CtrlPlane API.`,
+		Long:  `Commands for interacting with the Ctrlplane API.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			apiURL := viper.GetString("url")
 			if apiURL == "" {
