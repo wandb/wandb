@@ -37,7 +37,12 @@ def test_resume_tags_add_after_resume(user, test_settings):
     run_id = run.id
     run.finish()
 
-    run = wandb.init(id=run_id, resume="must", project="tags", settings=test_settings())
+    run = wandb.init(
+        id=run_id,
+        resume="must",
+        project="tags",
+        settings=test_settings(),
+    )
     run.tags += ("tag7",)
     assert run.tags == ("tag7",)
     run.finish()
