@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/monitor/tpuproto"
 	"google.golang.org/grpc"
@@ -107,11 +108,16 @@ func TestTPUSample(t *testing.T) {
 	expectedMemoryUsageKey := "tpu.0.memoryUsage"
 	expectedDutyCycleKey := "tpu.0.dutyCycle"
 
-	if data[expectedMemoryUsageKey] != 50.0 {
-		t.Errorf("Expected memory usage 50.0, got %v", data[expectedMemoryUsageKey])
+	metrics := make(map[string]any)
+	for _, item := range data.Item {
+		metrics[item.Key], err = simplejsonext.UnmarshalString(item.ValueJson)
 	}
 
-	if data[expectedDutyCycleKey] != 75.0 {
-		t.Errorf("Expected duty cycle 75.0, got %v", data[expectedDutyCycleKey])
+	if metrics[expectedMemoryUsageKey] != 50.0 {
+		t.Errorf("Expected memory usage 50.0, got %v", metrics[expectedMemoryUsageKey])
+	}
+
+	if metrics[expectedDutyCycleKey] != 75.0 {
+		t.Errorf("Expected duty cycle 75.0, got %v", metrics[expectedDutyCycleKey])
 	}
 }
