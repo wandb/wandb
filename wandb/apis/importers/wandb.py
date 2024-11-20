@@ -1099,7 +1099,7 @@ class WandbImporter:
         force_retry_runs: bool = False,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
         start_date: Optional[str] = None,
-        art_migration_v2: bool = False
+        art_migration_v2: bool = True
     ):
         logger.info(f"START: Importing all, {runs=}, {artifacts=}, {reports=}")
         if runs:
