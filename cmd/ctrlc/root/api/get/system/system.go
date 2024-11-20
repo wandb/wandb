@@ -14,7 +14,7 @@ func NewGetSystemCmd() *cobra.Command {
 	var systemId string
 
 	cmd := &cobra.Command{
-		Use:   "resource [flags]",
+		Use:   "system [flags]",
 		Short: "Get a system",
 		Long:  `Get a system by specifying an ID.`,
 		Example: heredoc.Doc(`
