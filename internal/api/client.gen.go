@@ -378,6 +378,9 @@ type ClientInterface interface {
 	// GetSystem request
 	GetSystem(ctx context.Context, systemId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteEnvironmentByName request
+	DeleteEnvironmentByName(ctx context.Context, systemId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// UpsertResourceProvider request
 	UpsertResourceProvider(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -690,6 +693,18 @@ func (c *Client) UpdateResource(ctx context.Context, resourceId string, body Upd
 
 func (c *Client) GetSystem(ctx context.Context, systemId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetSystemRequest(c.Server, systemId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteEnvironmentByName(ctx context.Context, systemId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteEnvironmentByNameRequest(c.Server, systemId, name)
 	if err != nil {
 		return nil, err
 	}
@@ -1417,6 +1432,47 @@ func NewGetSystemRequest(server string, systemId string) (*http.Request, error) 
 	return req, nil
 }
 
+// NewDeleteEnvironmentByNameRequest generates requests for DeleteEnvironmentByName
+func NewDeleteEnvironmentByNameRequest(server string, systemId string, name string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "systemId", runtime.ParamLocationPath, systemId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/systems/%s/environments/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewUpsertResourceProviderRequest generates requests for UpsertResourceProvider
 func NewUpsertResourceProviderRequest(server string, workspaceId string, name string) (*http.Request, error) {
 	var err error
@@ -1652,6 +1708,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetSystemWithResponse request
 	GetSystemWithResponse(ctx context.Context, systemId string, reqEditors ...RequestEditorFn) (*GetSystemResponse, error)
+
+	// DeleteEnvironmentByNameWithResponse request
+	DeleteEnvironmentByNameWithResponse(ctx context.Context, systemId string, name string, reqEditors ...RequestEditorFn) (*DeleteEnvironmentByNameResponse, error)
 
 	// UpsertResourceProviderWithResponse request
 	UpsertResourceProviderWithResponse(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*UpsertResourceProviderResponse, error)
@@ -2301,6 +2360,27 @@ func (r GetSystemResponse) StatusCode() int {
 	return 0
 }
 
+type DeleteEnvironmentByNameResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteEnvironmentByNameResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteEnvironmentByNameResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type UpsertResourceProviderResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -2619,6 +2699,15 @@ func (c *ClientWithResponses) GetSystemWithResponse(ctx context.Context, systemI
 		return nil, err
 	}
 	return ParseGetSystemResponse(rsp)
+}
+
+// DeleteEnvironmentByNameWithResponse request returning *DeleteEnvironmentByNameResponse
+func (c *ClientWithResponses) DeleteEnvironmentByNameWithResponse(ctx context.Context, systemId string, name string, reqEditors ...RequestEditorFn) (*DeleteEnvironmentByNameResponse, error) {
+	rsp, err := c.DeleteEnvironmentByName(ctx, systemId, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteEnvironmentByNameResponse(rsp)
 }
 
 // UpsertResourceProviderWithResponse request returning *UpsertResourceProviderResponse
@@ -3419,6 +3508,22 @@ func ParseGetSystemResponse(rsp *http.Response) (*GetSystemResponse, error) {
 		}
 		response.JSON200 = &dest
 
+	}
+
+	return response, nil
+}
+
+// ParseDeleteEnvironmentByNameResponse parses an HTTP response from a DeleteEnvironmentByNameWithResponse call
+func ParseDeleteEnvironmentByNameResponse(rsp *http.Response) (*DeleteEnvironmentByNameResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteEnvironmentByNameResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
 	}
 
 	return response, nil
