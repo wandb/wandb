@@ -42,7 +42,7 @@ runs:
         echo "resource=$RESOURCE" >> "$GITHUB_OUTPUT"
 
         # Extract flattened key-value pairs and write to output
-        echo "$RESOURCE" | jq -r 'paths(scalars) as $p | [ ( [ $p[] | tostring ] | join("_") ), ( getpath($p) | tostring ) ] | join("=")' | while read -r line; do
+        echo "$RESOURCE" | jq -r 'paths(scalars) as $p | [ ( [ $p[] | tostring ] | join("_") | gsub("/"; "_") ), ( getpath($p) | tostring ) ] | join("=")' | while read -r line; do
             echo "$line" >> "$GITHUB_OUTPUT"
             echo "$line"
         done
