@@ -846,7 +846,7 @@ class _WandbInit:
             logger.info("run resumed")
             with telemetry.context(run=run) as tel:
                 tel.feature.resumed = run_result.run.resumed
-        run._set_run_obj(run_result.run)
+        run._update_from_run_obj(run_result.run)
 
         run._on_init()
 
@@ -975,7 +975,7 @@ def _attach(
     if attach_response.error and attach_response.error.message:
         raise UsageError(f"Failed to attach to run: {attach_response.error.message}")
 
-    run._set_run_obj(attach_response.run)
+    run._update_from_run_obj(attach_response.run)
     run._on_attach()
     return run
 
