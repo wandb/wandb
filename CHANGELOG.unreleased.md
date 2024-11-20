@@ -27,6 +27,15 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `wandb.init(dir=...)` now creates any nonexistent directories in `dir` if it has a parent directory that is writeable (@ringohoffman in https://github.com/wandb/wandb/pull/9545)
 - The server now supports fetching artifact files by providing additional collection information; updated the artifacts api to use the new endpoints instead (@ibindlish in https://github.com/wandb/wandb/pull/9551)
 
+### Deprecated
+
+- The following `wandb.Run` methods are deprecated in favor of properties and will be removed in a future release (@kptkin in https://github.com/wandb/wandb/pull/8925):
+    - `run.project_name()` is deprecated use instead `run.project`
+    - `run.get_url()` method is deprecated use instead `run.url`
+    - `run.get_project_url()` method is deprecated use instead `run.project_url`
+    - `run.get_sweep_url()` method is deprecated use instead `run.sweep_url`
+
+
 ### Fixed
 
 - Calling `wandb.init()` in a notebook finishes previous runs as previously documented (@timoffex in https://github.com/wandb/wandb/pull/9569)
