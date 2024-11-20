@@ -45,7 +45,7 @@ message RunMoment {
 //
 // Next ID: 181
 message Settings {
-  reserved 3, 6, 12, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137;
+  reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137;
 
   // The W&B API key.
   //
@@ -340,7 +340,6 @@ message Settings {
   google.protobuf.BoolValue x_flow_control_custom = 16;
   google.protobuf.BoolValue x_flow_control_disabled = 17;
   google.protobuf.DoubleValue x_internal_check_process = 18;
-  google.protobuf.DoubleValue x_internal_queue_timeout = 19;
   google.protobuf.BoolValue _ipython = 20;
   google.protobuf.BoolValue _jupyter = 21;
   google.protobuf.StringValue x_jupyter_root = 22;
