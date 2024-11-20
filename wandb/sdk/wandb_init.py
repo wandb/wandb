@@ -33,15 +33,7 @@ from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import (
-    SummaryDisabled,
-    filesystem,
-    ipython,
-    module,
-    printer,
-    reporting,
-    telemetry,
-)
+from .lib import SummaryDisabled, filesystem, ipython, module, printer, telemetry
 from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxProgress
 from .wandb_helper import parse_config
@@ -129,7 +121,6 @@ class _WandbInit:
 
         self._teardown_hooks: list[TeardownHook] = []
         self._wl: wandb_setup._WandbSetup | None = None
-        self._reporter: wandb.sdk.lib.reporting.Reporter | None = None
         self.notebook: wandb.jupyter.Notebook | None = None  # type: ignore
         self.printer = printer.new_printer()
 
@@ -210,8 +201,6 @@ class _WandbInit:
 
         # Apply settings from wandb.init() call
         settings.update_from_settings(init_settings)
-
-        self._reporter = reporting.setup_reporter(settings=settings)
 
         sagemaker_config: dict = (
             dict() if settings.sagemaker_disable else sagemaker.parse_sm_config()
@@ -617,7 +606,6 @@ class _WandbInit:
 
         assert self.settings is not None
         assert self._wl is not None
-        assert self._reporter is not None
 
         logger.info(
             f"wandb.init called with sweep_config: {self.sweep_config}\nconfig: {self.config}"
@@ -776,7 +764,6 @@ class _WandbInit:
 
         run._set_library(self._wl)
         run._set_backend(backend)
-        run._set_reporter(self._reporter)
         run._set_teardown_hooks(self._teardown_hooks)
 
         backend._hack_set_run(run)
@@ -899,8 +886,6 @@ class _WandbInit:
             run.use_artifact(job_artifact)
 
         self.backend = backend
-        assert self._reporter
-        self._reporter.set_context(run=run)
         run._on_start()
         logger.info("run started, returning control to user process")
         return run
