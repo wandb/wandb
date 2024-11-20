@@ -47,6 +47,10 @@ runs:
             echo "$line"
         done
 
+        # Print GITHUB_OUTPUT contents for debugging
+        echo "Contents of GITHUB_OUTPUT:"
+        cat "$GITHUB_OUTPUT"
+
         # Exit if no required outputs specified
         if [ -z "${{ inputs.required_outputs }}" ]; then
             echo "No required outputs specified."
