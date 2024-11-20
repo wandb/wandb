@@ -44,9 +44,9 @@ func NewReleaseChannelCmd() *cobra.Command {
 			}
 
 			resp, err := client.CreateReleaseChannel(cmd.Context(), api.CreateReleaseChannelJSONRequestBody{
-				Name:         name,
-				DeploymentId: deploymentID,
-				Description:  &description,
+				Name:          name,
+				DeploymentId:  deploymentID,
+				Description:   &description,
 				ReleaseFilter: releaseFilter,
 			})
 			if err != nil {

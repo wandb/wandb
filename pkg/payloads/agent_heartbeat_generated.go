@@ -6,7 +6,6 @@ import "encoding/json"
 import "fmt"
 import "reflect"
 
-
 type AgentHeartbeatJson struct {
 	// Timestamp of the heartbeat
 	Timestamp string `json:"timestamp" yaml:"timestamp" mapstructure:"timestamp"`

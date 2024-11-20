@@ -45,7 +45,7 @@ func NewDeleteEnvironmentCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("failed to delete environment API client: %w", err)
 			}
-			
+
 			if environmentId != "" {
 				resp, err := client.DeleteEnvironment(cmd.Context(), environmentId)
 				if err != nil {

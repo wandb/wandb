@@ -12,7 +12,6 @@ func WithHeader(key string, value string) func(*Agent) {
 	}
 }
 
-
 func WithAssociatedResources(resources []string) func(*Agent) {
 	return func(a *Agent) {
 		a.associatedResources = resources
