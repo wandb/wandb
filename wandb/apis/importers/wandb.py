@@ -1021,7 +1021,7 @@ class WandbImporter:
         incremental: bool = True,
         max_workers: Optional[int] = None,
         parallel: bool = True,
-        art_migration_v2: bool = False,
+        art_migration_v2: bool = True,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
     ):
         """Import all artifact sequences from `namespaces`.
