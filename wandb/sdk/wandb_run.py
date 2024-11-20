@@ -86,7 +86,6 @@ from .lib.exit_hooks import ExitHooks
 from .lib.gitlib import GitRepo
 from .lib.mailbox import MailboxError, MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.proto_util import message_to_dict
-from .lib.reporting import Reporter
 from .wandb_alerts import AlertLevel
 from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
@@ -625,7 +624,6 @@ class Run:
 
         self._printer = printer.new_printer()
         self._wl = None
-        self._reporter: Reporter | None = None
 
         self._entity = None
         self._project = None
@@ -1547,9 +1545,6 @@ class Run:
     ) -> None:
         self._internal_run_interface = interface
 
-    def _set_reporter(self, reporter: Reporter) -> None:
-        self._reporter = reporter
-
     def _set_teardown_hooks(self, hooks: list[TeardownHook]) -> None:
         self._teardown_hooks = hooks
 
@@ -2429,7 +2424,6 @@ class Run:
             final_summary=self._final_summary,
             poll_exit_response=self._poll_exit_response,
             internal_messages_response=self._internal_messages_response,
-            reporter=self._reporter,
             settings=self._settings,
             printer=self._printer,
         )
@@ -3843,7 +3837,6 @@ class Run:
         final_summary: GetSummaryResponse | None = None,
         poll_exit_response: PollExitResponse | None = None,
         internal_messages_response: InternalMessagesResponse | None = None,
-        reporter: Reporter | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
@@ -3869,9 +3862,6 @@ class Run:
             internal_messages_response=internal_messages_response,
             settings=settings,
             printer=printer,
-        )
-        Run._footer_reporter_warn_err(
-            reporter=reporter, settings=settings, printer=printer
         )
 
     @staticmethod
@@ -4030,33 +4020,6 @@ class Run:
             f"For more information, visit {url_registry.url('wandb-core')}",
             level="warn",
         )
-
-    @staticmethod
-    def _footer_reporter_warn_err(
-        reporter: Reporter | None = None,
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
-        if settings.quiet or settings.silent:
-            return
-
-        if not reporter:
-            return
-
-        warning_lines = reporter.warning_lines
-        if warning_lines:
-            warnings = ["Warnings:"] + [f"{line}" for line in warning_lines]
-            if len(warning_lines) < reporter.warning_count:
-                warnings.append("More warnings...")
-            printer.display(warnings)
-
-        error_lines = reporter.error_lines
-        if error_lines:
-            errors = ["Errors:"] + [f"{line}" for line in error_lines]
-            if len(error_lines) < reporter.error_count:
-                errors.append("More errors...")
-            printer.display(errors)
 
 
 # We define this outside of the run context to support restoring before init
