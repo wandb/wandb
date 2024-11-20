@@ -48,7 +48,7 @@ func HandleOutput(cmd *cobra.Command, resp *http.Response) error {
 			return fmt.Errorf("failed to marshal to YAML: %w", err)
 		}
 	case "github-action":
-		return handleGitHubActionOutput(result)
+		return handleGitHubActionOutput(cmd, result)
 	default:
 		output, err = json.MarshalIndent(result, "", "  ")
 		if err != nil {
@@ -60,7 +60,7 @@ func HandleOutput(cmd *cobra.Command, resp *http.Response) error {
 	return nil
 }
 
-func handleGitHubActionOutput(result map[string]interface{}) error {
+func handleGitHubActionOutput(cmd *cobra.Command, result map[string]interface{}) error {
 	writer, err := NewGitHubOutputWriter()
 	if err != nil {
 		return fmt.Errorf("failed to create GitHubOutputWriter: %w", err)
@@ -103,6 +103,7 @@ func handleGitHubActionOutput(result map[string]interface{}) error {
 				return nil
 			}
 
+			fmt.Fprintln(cmd.OutOrStdout(), prefix, "=", fmt.Sprintf("%v", val))
 			writer.Write(prefix, fmt.Sprintf("%v", val))
 		}
 		return nil
