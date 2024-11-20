@@ -16,11 +16,15 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const maxAzureWorkers int = 500
-const azureScheme string = "https"
+const (
+	maxAzureWorkers = 500
+	azureScheme     = "https"
+)
 
 type AzureClientsMap struct {
-	// clients is a map of account URLs to azblob.Client objects
+	// clients is a map of account URLs to azblob.Client objects. It's likely,
+	// but not guaranteed, that files in an artifact will share the same account
+	// URL, so we set up each account client once and reuse it when possible.
 	clients sync.Map
 
 	// once is a map of account URLs to sync.Once objects to ensure

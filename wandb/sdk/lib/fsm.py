@@ -31,12 +31,18 @@ Usage:
 import sys
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Callable, Dict, Generic, Optional, Sequence, Type, TypeVar, Union
-
-if sys.version_info >= (3, 8):
-    from typing import Protocol, runtime_checkable
-else:
-    from typing_extensions import Protocol, runtime_checkable
+from typing import (
+    Callable,
+    Dict,
+    Generic,
+    Optional,
+    Protocol,
+    Sequence,
+    Type,
+    TypeVar,
+    Union,
+    runtime_checkable,
+)
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias

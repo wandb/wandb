@@ -13,18 +13,15 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
-### Added
-
-- Added `create_and_run_agent` to `__all__` in `wandb/sdk/launch/__init__.py` to expose it as a public API (@marijncv in https://github.com/wandb/wandb/pull/8621)
-
 ### Changed
 
-- Tables logged in offline mode now have updated keys to artifact paths when syncing. To revert to old behavior, use setting `allow_offline_artifacts = False`. (@domphan-wandb in https://github.com/wandb/wandb/pull/8792)
+- Set default behavior to not create a W&B Job (@KyleGoyette in https://github.com/wandb/wandb/pull/8907)
 
-### Deprecated
+### Removed
 
-- The `quiet` argument to `wandb.run.finish()` is deprecated, use `wandb.Settings(quiet=...)` to set this instead. (@kptkin in https://github.com/wandb/wandb/pull/8794)
+- Remove `wandb.Run.plot_table` method. The functionality is still available and should be accessed using `wandb.plot_table`, which is now the recommended way to use this feature. (@kptkin in https://github.com/wandb/wandb/pull/8686)
+- Drop support for Python 3.7. (@kptkin in https://github.com/wandb/wandb/pull/8858)
 
 ### Fixed
 
-- Fix `api.artifact()` to correctly pass the `enable_tracking` argument to the `Artifact._from_name()` method (@ibindlish in https://github.com/wandb/wandb/pull/8803)
+- Fix `ultralytics` reporting if there are no positive examples in a validation batch. (@Jamil in https://github.com/wandb/wandb/pull/8870)

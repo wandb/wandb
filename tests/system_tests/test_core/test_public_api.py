@@ -11,7 +11,6 @@ import wandb.apis.public
 import wandb.util
 from wandb import Api
 from wandb.old.summary import Summary
-from wandb.sdk.lib import runid
 
 
 @pytest.mark.parametrize(
@@ -49,18 +48,6 @@ def test_project_to_html(user):
         assert "mock_entity/test/workspace?jupyter=true" in project.to_html()
 
 
-@pytest.mark.xfail(reason="TODO: fix this test")
-def test_run_from_tensorboard(runner, relay_server, user, api, copy_asset):
-    with relay_server() as relay, runner.isolated_filesystem():
-        tb_file_name = "events.out.tfevents.1585769947.cvp"
-        copy_asset(tb_file_name)
-        run_id = runid.generate_id()
-        api.sync_tensorboard(".", project="test", run_id=run_id)
-        uploaded_files = relay.context.get_run_uploaded_files(run_id)
-        assert uploaded_files[0].endswith(tb_file_name)
-        assert len(uploaded_files) == 17
-
-
 @pytest.mark.xfail(
     reason="there is no guarantee that the backend has processed the event"
 )
@@ -73,30 +60,32 @@ def test_run_metadata(wandb_init):
     assert len(metadata)
 
 
-@pytest.fixture(scope="function")
-def inject_run(user, inject_graphql_response):
+@pytest.fixture
+def stub_run_gql_once(user, wandb_backend_spy):
+    """Helper fixture for stubbing out the 'Run' GraphQL query response.
+
+    The fixture is a function that can be called to stub out the Run response.
+    It returns a `wandb_backend_spy.gql.Responder` instance that can be used to
+    assert on the interactions.
+    """
+    gql = wandb_backend_spy.gql
+
     def helper(
         id: str = user,
-        tags: Optional[List] = None,
-        run_name: str = "test",
-        state: str = "finished",
         config: Optional[Dict] = None,
-        group: str = "test",
-        user_name: str = "test",
         summary_metrics: Optional[Dict] = None,
-        system_metrics: Optional[Dict] = None,
     ):
         body = {
             "data": {
                 "project": {
                     "run": {
                         "id": id,
-                        "tags": tags or [],
-                        "name": run_name,
-                        "displayName": run_name,
-                        "state": state,
+                        "tags": [],
+                        "name": "test",
+                        "displayName": "test",
+                        "state": "finished",
                         "config": json.dumps(config or {}),
-                        "group": group,
+                        "group": "test",
                         "sweep_name": None,
                         "jobType": None,
                         "commit": None,
@@ -105,31 +94,34 @@ def inject_run(user, inject_graphql_response):
                         "heartbeatAt": "2023-11-05T17:46:36",
                         "description": "glamorous-frog-1",
                         "notes": None,
-                        "systemMetrics": json.dumps(system_metrics or {}),
+                        "systemMetrics": "{}",
                         "summaryMetrics": json.dumps(summary_metrics or {}),
                         "historyLineCount": 0,
                         "user": {
-                            "name": user_name,
-                            "username": user_name,
+                            "name": "test",
+                            "username": "test",
                         },
                     },
                 },
             },
         }
 
-        inject_response = inject_graphql_response(
-            body=json.dumps(body),
-            query_match_fn=lambda query, _: "query Run(" in query,
-            application_pattern="1",  # apply once and
+        responder = gql.once(content=body)
+        wandb_backend_spy.stub_gql(
+            gql.Matcher(operation="Run"),
+            responder,
         )
+        return responder
 
-        return inject_response
-
-    yield helper
+    return helper
 
 
 @pytest.fixture(scope="function")
-def inject_history(inject_graphql_response):
+def stub_run_full_history(wandb_backend_spy):
+    """Helper fixture for stubbing out RunFullHistory."""
+
+    gql = wandb_backend_spy.gql
+
     def helper(history: Optional[List] = None, events: Optional[List] = None):
         history = [json.dumps(h) for h in history or []]
         events = [json.dumps(e) for e in events or []]
@@ -144,15 +136,14 @@ def inject_history(inject_graphql_response):
             },
         }
 
-        inject_response = inject_graphql_response(
-            body=json.dumps(body),
-            query_match_fn=lambda query, _: "query RunFullHistory(" in query,
-            application_pattern="1",  # apply once and
+        responder = gql.Constant(content=body)
+        wandb_backend_spy.stub_gql(
+            gql.Matcher(operation="RunFullHistory"),
+            responder,
         )
+        return responder
 
-        return inject_response
-
-    yield helper
+    return helper
 
 
 @pytest.fixture(scope="function")
@@ -189,72 +180,77 @@ def inject_users(inject_graphql_response):
     yield helper
 
 
-def test_from_path(inject_run, relay_server):
-    inject_response = inject_run()
-    with relay_server(inject=[inject_response]):
-        api = Api()
-        run = api.from_path("test/test/test")
-        assert isinstance(run, wandb.apis.public.Run)
-        run = api.from_path("test/test/test")
-        assert isinstance(run, wandb.apis.public.Run)
+def test_from_path(stub_run_gql_once):
+    spy = stub_run_gql_once()
+    api = Api()
+
+    run1 = api.from_path("test/test/test")
+    run2 = api.from_path("test/test/test")
+
+    # Second call should be cached and not make a second query.
+    assert spy.total_calls == 1
+    assert isinstance(run1, wandb.apis.public.Run)
+    assert isinstance(run2, wandb.apis.public.Run)
 
 
-def test_display(inject_run, relay_server):
-    inject_response = inject_run()
-    with relay_server(inject=[inject_response]):
-        run = Api().from_path("test/test/test")
-        assert not run.display()
+def test_display(stub_run_gql_once):
+    stub_run_gql_once()
+
+    run = Api().from_path("test/test/test")
+
+    assert not run.display()
 
 
-def test_run_load(inject_run, relay_server):
+def test_run_load(stub_run_gql_once):
     summary_metrics = {"acc": 100, "loss": 0}
-    inject_response = inject_run(summary_metrics=summary_metrics)
-    with relay_server(inject=[inject_response]) as relay:
-        run = Api().run("test/test/test")
-        assert run.summary_metrics == summary_metrics
-        assert run.url == f"{relay.relay_url}/test/test/runs/test"
+    stub_run_gql_once(summary_metrics=summary_metrics)
+
+    run = Api().run("test/test/test")
+
+    assert run.summary_metrics == summary_metrics
+    assert run.url.endswith("/test/test/runs/test")
 
 
-def test_run_history(inject_run, inject_history, relay_server):
+def test_run_history(stub_run_gql_once, stub_run_full_history):
     history = [{"acc": 100, "loss": 0}]
-    inject_response = [inject_run(), inject_history(history=history)]
+    stub_run_gql_once()
+    stub_run_full_history(history=history)
 
-    with relay_server(inject=inject_response):
-        run = Api().run("test/test/test")
-        assert run.history(pandas=False)[0] == history[0]
+    run = Api().run("test/test/test")
+
+    assert run.history(pandas=False)[0] == history[0]
 
 
-def test_run_history_system(
-    inject_run,
-    inject_history,
-    relay_server,
-):
+def test_run_history_system(stub_run_gql_once, stub_run_full_history):
     events = [{"cpu": i * 10} for i in range(3)]
-    inject_response = [inject_run(), inject_history(events=events)]
-    with relay_server(inject=inject_response):
-        run = Api().run("test/test/test")
-        assert run.history(stream="system", pandas=False) == events
+    stub_run_gql_once()
+    stub_run_full_history(events=events)
+
+    run = Api().run("test/test/test")
+
+    assert run.history(stream="system", pandas=False) == events
 
 
-def test_run_config(inject_run, relay_server):
+def test_run_config(stub_run_gql_once):
     config = {"epochs": 10}
-    inject_response = [inject_run(config=config)]
+    stub_run_gql_once(config=config)
 
-    with relay_server(inject=inject_response):
-        run = Api().run("test/test/test")
-        assert run.config == config
+    run = Api().run("test/test/test")
+
+    assert run.config == config
 
 
-def test_run_history_keys(inject_run, inject_graphql_response, relay_server):
-    inject_response = [inject_run()]
+def test_run_history_keys(stub_run_gql_once, wandb_backend_spy):
+    stub_run_gql_once()
+    gql = wandb_backend_spy.gql
     history = [
         {"loss": 0, "acc": 100},
         {"loss": 1, "acc": 0},
     ]
-
-    inject_history = inject_graphql_response(
-        body=json.dumps(
-            {
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="RunSampledHistory"),
+        gql.once(
+            content={
                 "data": {
                     "project": {
                         "run": {
@@ -264,40 +260,29 @@ def test_run_history_keys(inject_run, inject_graphql_response, relay_server):
                 },
             }
         ),
-        query_match_fn=lambda query, _: "query RunSampledHistory(" in query,
-        application_pattern="1",  # apply once and
     )
-    inject_response.append(inject_history)
 
-    with relay_server(inject=inject_response):
-        run = Api().run("test/test/test")
-        assert run.history(keys=["acc", "loss"], pandas=False) == history
+    run = Api().run("test/test/test")
+
+    assert run.history(keys=["acc", "loss"], pandas=False) == history
 
 
-def test_run_history_keys_bad_arg(
-    inject_run,
-    relay_server,
-    capsys,
-):
-    inject_response = [inject_run()]
-    with relay_server(inject=inject_response):
-        run = Api().run("test/test/test")
+def test_run_history_keys_bad_arg(stub_run_gql_once, mock_wandb_log):
+    stub_run_gql_once()
 
-        run.history(keys="acc", pandas=False)
-        captured = capsys.readouterr()
-        assert "wandb: ERROR keys must be specified in a list\n" in captured.err
+    run = Api().run("test/test/test")
 
-        run.history(keys=[["acc"]], pandas=False)
-        captured = capsys.readouterr()
-        assert "wandb: ERROR keys argument must be a list of strings\n" in captured.err
+    run.history(keys="acc", pandas=False)
+    mock_wandb_log.errored("keys must be specified in a list")
 
-        run.scan_history(keys="acc")
-        captured = capsys.readouterr()
-        assert "wandb: ERROR keys must be specified in a list\n" in captured.err
+    run.history(keys=[["acc"]], pandas=False)
+    mock_wandb_log.errored("keys argument must be a list of strings")
 
-        run.scan_history(keys=[["acc"]])
-        captured = capsys.readouterr()
-        assert "wandb: ERROR keys argument must be a list of strings\n" in captured.err
+    run.scan_history(keys="acc")
+    mock_wandb_log.errored("keys must be specified in a list")
+
+    run.scan_history(keys=[["acc"]])
+    mock_wandb_log.errored("keys argument must be a list of strings")
 
 
 def test_run_summary(user, relay_server):
@@ -339,33 +324,35 @@ def test_run_update(user, relay_server, wandb_init):
         assert result["entity"] == seed_run.entity
 
 
-def test_run_delete(user, relay_server):
+def test_run_delete(wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    delete_spy = gql.Capture()
+    wandb_backend_spy.stub_gql(gql.Matcher(operation="DeleteRun"), delete_spy)
+
     seed_run = Api().create_run()
+    run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
 
-    with relay_server() as relay:
-        run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+    run.delete()
+    run.delete(delete_artifacts=True)
 
-        run.delete()
-        result = relay.context.get_run(run.storage_id)
-        assert result["deleteArtifacts"] is False
-
-        run.delete(delete_artifacts=True)
-        result = relay.context.get_run(run.storage_id)
-        assert result["deleteArtifacts"] is True
+    assert delete_spy.total_calls == 2
+    assert not delete_spy.requests[0].variables["deleteArtifacts"]
+    assert delete_spy.requests[1].variables["deleteArtifacts"]
 
 
 def test_run_file_direct(
     user,
-    relay_server,
-    inject_run,
-    inject_graphql_response,
+    stub_run_gql_once,
+    wandb_backend_spy,
 ):
     file_name = "weights.h5"
     direct_url = f"https://api.wandb.ai/storage?file={file_name}&direct=true"
-    inject_response = [inject_run()]
-    inject_run_files = inject_graphql_response(
-        body=json.dumps(
-            {
+    stub_run_gql_once()
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="RunFiles"),
+        gql.once(
+            content={
                 "data": {
                     "project": {
                         "run": {
@@ -385,67 +372,60 @@ def test_run_file_direct(
                 },
             }
         ),
-        query_match_fn=lambda query, _: "query RunFiles(" in query,
-        application_pattern="1",  # apply once and stop
     )
-    inject_response.append(inject_run_files)
 
-    with relay_server(inject=inject_response):
-        run = Api().run(f"{user}/test/test")
-        file = run.file(file_name)
-        assert file.direct_url == direct_url
+    run = Api().run(f"{user}/test/test")
+
+    file = run.file(file_name)
+    assert file.direct_url == direct_url
 
 
 # TODO: how to seed this run faster?
-def test_run_retry(
-    relay_server,
-    wandb_init,
-    inject_graphql_response,
-):
-    seed_run = wandb_init()
-    seed_run.log(dict(acc=100, loss=0))
-    seed_run.finish()
+def test_run_retry(wandb_backend_spy):
+    with wandb.init() as seed_run:
+        seed_run.log(dict(acc=100, loss=0))
 
-    inject_response = inject_graphql_response(
-        body=json.dumps({"errors": ["Server down"]}),
-        status=500,
-        query_match_fn=lambda *_: True,
-        application_pattern="112",  # apply once and stop
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.any(),
+        gql.once(content={"errors": ["Server down"]}, status=500),
     )
-    with relay_server(inject=[inject_response]):
-        run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
-        assert run.summary_metrics["acc"] == 100
-        assert run.summary_metrics["loss"] == 0
+
+    run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+
+    assert run.summary_metrics["acc"] == 100
+    assert run.summary_metrics["loss"] == 0
 
 
-def test_runs_from_path_index(user, inject_graphql_response, relay_server):
+def test_runs_from_path_index(wandb_backend_spy):
     num_runs = 4
-    body = {
-        "data": {
-            "project": {
-                "runCount": num_runs,
-                "runs": {
-                    "edges": [
-                        {
-                            "node": {"name": f"test_{i}", "sweepName": None},
-                        }
-                        for i in range(num_runs)
-                    ],
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="Runs"),
+        gql.once(
+            content={
+                "data": {
+                    "project": {
+                        "runCount": num_runs,
+                        "runs": {
+                            "edges": [
+                                {
+                                    "node": {"name": f"test_{i}", "sweepName": None},
+                                }
+                                for i in range(num_runs)
+                            ],
+                        },
+                    },
                 },
             },
-        },
-    }
-    inject_response = inject_graphql_response(
-        body=json.dumps(body),
-        query_match_fn=lambda query, _: "query Runs(" in query,
-        application_pattern="1",  # apply once and stop
+        ),
     )
 
-    with relay_server(inject=[inject_response]):
-        runs = Api().runs("test/test")
-        assert len(runs) == num_runs
-        assert runs[3]
-        assert len(runs.objects) == num_runs
+    runs = Api().runs("test/test")
+
+    assert len(runs) == num_runs
+    assert runs[3]
+    assert len(runs.objects) == num_runs
 
 
 def test_runs_from_path(user, inject_graphql_response, relay_server):
@@ -525,11 +505,13 @@ def test_projects(user, inject_graphql_response, relay_server):
         assert sum([1 for _ in projects]) == 2
 
 
-def test_delete_file(user, inject_run, inject_graphql_response, relay_server):
-    inject_response = [inject_run()]
-    inject_run_files = inject_graphql_response(
-        body=json.dumps(
-            {
+def test_delete_file(user, stub_run_gql_once, wandb_backend_spy):
+    stub_run_gql_once()
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="RunFiles"),
+        gql.once(
+            content={
                 "data": {
                     "project": {
                         "run": {
@@ -548,39 +530,36 @@ def test_delete_file(user, inject_run, inject_graphql_response, relay_server):
                 },
             }
         ),
-        query_match_fn=lambda query, _: "query RunFiles(" in query,
-        application_pattern="1",  # apply once and stop
     )
-    inject_response.append(inject_run_files)
-    inject_delete_files = inject_graphql_response(
-        body=json.dumps(
-            {"data": {"deleteFiles": {"success": True}}},
-        ),
-        query_match_fn=lambda query, _: "mutation deleteFiles(" in query,
-        application_pattern="1",  # apply once and stop
+    delete_spy = gql.once(content={"data": {"deleteFiles": {"success": True}}})
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="deleteFiles"),
+        delete_spy,
     )
-    inject_response.append(inject_delete_files)
-    with relay_server(inject=inject_response) as relay:
-        run = Api().run(f"{user}/test/test")
-        file = run.files()[0]
-        file.delete()
-        assert relay.context.raw_data[-1]["request"]["variables"] == {
-            "files": [file.id]
-        }
+
+    run = Api().run(f"{user}/test/test")
+    file = run.files()[0]
+    file.delete()
+
+    assert delete_spy.requests[0].variables == {"files": [file.id]}
 
 
-def test_nested_summary(user, relay_server, inject_run):
-    with relay_server(inject=[inject_run()]):
-        run = Api().run(f"{user}/test/test")
-        summary_dict = {"a": {"b": {"c": 0.9}}}
-        summary = Summary(run, summary_dict)
-        assert summary["a"]["b"]["c"] == 0.9
+def test_nested_summary(user, stub_run_gql_once):
+    stub_run_gql_once()
+
+    run = Api().run(f"{user}/test/test")
+
+    summary_dict = {"a": {"b": {"c": 0.9}}}
+    summary = Summary(run, summary_dict)
+    assert summary["a"]["b"]["c"] == 0.9
 
 
-def test_to_html(user, relay_server, inject_run):
-    with relay_server(inject=[inject_run()]):
-        run = Api().run("test/test")
-        assert f"{user}/test/runs/test?jupyter=true" in run.to_html()
+def test_to_html(user, stub_run_gql_once):
+    stub_run_gql_once()
+
+    run = Api().run("test/test")
+
+    assert f"{user}/test/runs/test?jupyter=true" in run.to_html()
 
 
 def test_query_team(user, api):
@@ -726,10 +705,12 @@ def test_query_user_multiple(relay_server, inject_users):
 
 
 def test_runs_histories(
-    inject_run, inject_history, inject_graphql_response, relay_server
+    stub_run_gql_once,
+    stub_run_full_history,
+    wandb_backend_spy,
 ):
     # Inject the dummy run data
-    inject_response = [inject_run(id="test_1")]
+    stub_run_gql_once(id="test_1")
 
     # Inject the dummy project and run data required by the Runs class
     body = {
@@ -764,14 +745,11 @@ def test_runs_histories(
             },
         },
     }
-
-    inject_project_runs_response = inject_graphql_response(
-        body=json.dumps(body),
-        query_match_fn=lambda query, _: "query Runs(" in query,
-        application_pattern="1",
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="Runs"),
+        gql.once(content=body),
     )
-
-    inject_response.append(inject_project_runs_response)
 
     # Inject dummy history data for the run
     history_run_1 = [
@@ -791,47 +769,41 @@ def test_runs_histories(
             "run_id": "test_1",
         },
     ]
+    stub_run_full_history(history=history_run_1)
 
-    inject_responses = [
-        inject_history(history=history_run_1),
-    ]
+    api = Api()
+    runs = api.runs("test/test")
 
-    inject_response.extend(inject_responses)
+    all_histories = runs.histories(samples=2, format="default")
+    assert len(all_histories) == 2
+    assert all_histories[0]["_step"] == 1
+    assert all_histories[0]["metric1"] == 0.1
+    assert all_histories[0]["metric2"] == 0.2
+    assert all_histories[0]["metric3"] == 0.3
+    assert all_histories[0]["system_metric1"] == 10
+    assert all_histories[1]["_step"] == 2
+    assert all_histories[1]["metric1"] == 0.4
+    assert all_histories[1]["metric2"] == 0.5
+    assert all_histories[1]["system_metric1"] == 20
 
-    with relay_server(inject=inject_response):
-        api = Api()
-        runs = api.runs("test/test")
+    all_histories_pandas = runs.histories(samples=2, format="pandas")
+    assert all_histories_pandas.shape == (2, 6)
+    assert "_step" in all_histories_pandas.columns
+    assert "metric1" in all_histories_pandas.columns
+    assert "metric2" in all_histories_pandas.columns
+    assert "metric3" in all_histories_pandas.columns
+    assert "system_metric1" in all_histories_pandas.columns
 
-        all_histories = runs.histories(samples=2, format="default")
-        assert len(all_histories) == 2
-        assert all_histories[0]["_step"] == 1
-        assert all_histories[0]["metric1"] == 0.1
-        assert all_histories[0]["metric2"] == 0.2
-        assert all_histories[0]["metric3"] == 0.3
-        assert all_histories[0]["system_metric1"] == 10
-        assert all_histories[1]["_step"] == 2
-        assert all_histories[1]["metric1"] == 0.4
-        assert all_histories[1]["metric2"] == 0.5
-        assert all_histories[1]["system_metric1"] == 20
-
-        all_histories_pandas = runs.histories(samples=2, format="pandas")
-        assert all_histories_pandas.shape == (2, 6)
-        assert "_step" in all_histories_pandas.columns
-        assert "metric1" in all_histories_pandas.columns
-        assert "metric2" in all_histories_pandas.columns
-        assert "metric3" in all_histories_pandas.columns
-        assert "system_metric1" in all_histories_pandas.columns
-
-        all_histories_polars = runs.histories(samples=2, format="polars")
-        assert all_histories_polars.shape == (2, 6)
-        assert "_step" in all_histories_polars.columns
-        assert "metric1" in all_histories_polars.columns
-        assert "metric2" in all_histories_polars.columns
-        assert "metric3" in all_histories_polars.columns
-        assert "system_metric1" in all_histories_polars.columns
+    all_histories_polars = runs.histories(samples=2, format="polars")
+    assert all_histories_polars.shape == (2, 6)
+    assert "_step" in all_histories_polars.columns
+    assert "metric1" in all_histories_polars.columns
+    assert "metric2" in all_histories_polars.columns
+    assert "metric3" in all_histories_polars.columns
+    assert "system_metric1" in all_histories_polars.columns
 
 
-def test_runs_histories_empty(inject_graphql_response, relay_server):
+def test_runs_histories_empty(wandb_backend_spy):
     # Inject the dummy project and run data required by the Runs class
     body = {
         "data": {
@@ -845,16 +817,15 @@ def test_runs_histories_empty(inject_graphql_response, relay_server):
         },
     }
 
-    inject_project_runs_response = inject_graphql_response(
-        body=json.dumps(body),
-        query_match_fn=lambda query, _: "query Runs(" in query,
-        application_pattern="1",
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="Runs"),
+        gql.once(content=body),
     )
 
-    with relay_server(inject=[inject_project_runs_response]):
-        api = Api()
-        runs = api.runs("test/test")
+    api = Api()
+    runs = api.runs("test/test")
 
-        assert not runs.histories(format="default")  # empty list
-        for format in ("pandas", "polars"):
-            assert runs.histories(samples=2, format=format).shape == (0, 0)
+    assert not runs.histories(format="default")  # empty list
+    for format in ("pandas", "polars"):
+        assert runs.histories(samples=2, format=format).shape == (0, 0)

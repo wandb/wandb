@@ -2,10 +2,7 @@ import threading
 import time
 from collections import deque
 from typing import TYPE_CHECKING, Any
-from unittest import mock
 
-import pytest
-import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import (
     CPU,
@@ -20,7 +17,7 @@ from wandb.sdk.internal.system.assets import (
 )
 from wandb.sdk.internal.system.assets.asset_registry import asset_registry
 from wandb.sdk.internal.system.assets.interfaces import MetricsMonitor
-from wandb.sdk.internal.system.system_monitor import AssetInterface, SystemMonitor
+from wandb.sdk.internal.system.system_monitor import AssetInterface
 
 if TYPE_CHECKING:
     from typing import Deque
@@ -166,48 +163,3 @@ def test_metrics_monitor(capsys, test_settings):
         assert metric_record == {mock_metric.name: 42}
 
     assert len(mock_metric.samples) == 0
-
-
-@pytest.mark.parametrize(
-    "join_assets,num_keys",
-    [(True, 2), (False, 1)],
-)
-def test_system_monitor(test_settings, join_assets, num_keys):
-    # - test compatibility mode where we join metrics from individual assets
-    #   before publishing them to the interface
-    # - test the future default mode where we publish metrics from individual assets
-    interface = AssetInterface()
-    settings = SettingsStatic(
-        test_settings(
-            dict(
-                _stats_sample_rate_seconds=0.1,
-                _stats_samples_to_average=2,
-                _stats_join_assets=join_assets,
-            )
-        ).to_proto()
-    )
-
-    # todo: refactor this ugliness into a factory
-    mock_assets = [MockAsset1, MockAsset2]
-
-    with mock.patch.object(
-        wandb.sdk.internal.system.assets.asset_registry,
-        "_registry",
-        mock_assets,
-    ):
-        system_monitor = SystemMonitor(
-            interface=interface,
-            settings=settings,
-        )
-        system_monitor.start()
-        time.sleep(1.5)
-        system_monitor.finish()
-
-    max_num_keys = 0
-    while not interface.metrics_queue.empty():
-        metric_record = interface.metrics_queue.get()
-        # it's tricky to get the timing right, so we are looking at the
-        # maximum number of keys we've seen in the queue as it should be == num_keys;
-        # sometimes, due to timing we might see less than num_keys
-        max_num_keys = max(max_num_keys, len(metric_record))
-    assert max_num_keys == num_keys

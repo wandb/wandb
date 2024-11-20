@@ -9,7 +9,7 @@ orbs:
 parameters:
   go_version:
     type: string
-    default: "1.23.2"
+    default: "1.23.3"
   server_image:
     type: string
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
@@ -317,7 +317,8 @@ jobs:
             - connect-to-local-testcontainer
       - when:
           condition:
-            equal: ["local-testcontainer-importers", <<parameters.executor_name>>]
+            equal:
+              ["local-testcontainer-importers", <<parameters.executor_name>>]
           steps:
             - local-wandb-server-deps
             - connect-to-local-testcontainer
@@ -553,7 +554,10 @@ workflows:
           matrix:
             parameters:
               python: ["3.12"]
-              server_image: ["us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer"]
+              server_image:
+                [
+                  "us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer",
+                ]
               server_image_tag: ["0.48.0"]
 
       - nox-tests-linux:
@@ -616,10 +620,11 @@ workflows:
           parallelism: 1
           executor_name: local-testcontainer-importers
           python: "3.9"
-      - nox-tests-linux:
-          name: system-tests-linux-importers-mlflow
-          session: importer_tests-3.9(importer='mlflow')
-          codecov_flags: system
-          parallelism: 1
-          executor_name: local-testcontainer-importers
-          python: "3.9"
+      # FIXME: mlflow importer requires pydantic<2
+      # - nox-tests-linux:
+      #     name: system-tests-linux-importers-mlflow
+      #     session: importer_tests-3.9(importer='mlflow')
+      #     codecov_flags: system
+      #     parallelism: 1
+      #     executor_name: local-testcontainer-importers
+      #     python: "3.9"

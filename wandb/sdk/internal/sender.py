@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import queue
-import sys
 import threading
 import time
 import traceback
@@ -19,6 +18,7 @@ from typing import (
     Dict,
     Generator,
     List,
+    Literal,
     Optional,
     Tuple,
     Type,
@@ -56,11 +56,6 @@ from wandb.sdk.lib import (
 )
 from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
@@ -326,18 +321,19 @@ class SendManager:
     ) -> "SendManager":
         """Set up a standalone SendManager.
 
-        Currently, we're using this primarily for `sync.py`.
+        Exclusively used in `sync.py`.
         """
+        print(root_dir)
         files_dir = os.path.join(root_dir, "files")
         settings = wandb.Settings(
-            files_dir=files_dir,
+            x_files_dir=files_dir,
             root_dir=root_dir,
             # _start_time=0,
             resume=resume,
             # ignore_globs=(),
-            _sync=True,
+            x_sync=True,
             disable_job_creation=False,
-            _file_stream_timeout_seconds=0,
+            x_file_stream_timeout_seconds=0,
         )
         record_q: Queue[Record] = queue.Queue()
         result_q: Queue[Result] = queue.Queue()
@@ -440,7 +436,7 @@ class SendManager:
         #     state machine
         #   - skipping the exit record in `wandb sync` mode so that
         #     it is always executed as the last record
-        if not self._settings._offline and not self._settings._sync:
+        if not self._settings._offline and not self._settings.x_sync:
             assert record_num == self._send_record_num + 1
         self._send_record_num = record_num
 
@@ -914,7 +910,7 @@ class SendManager:
         # update telemetry
         if run.telemetry:
             self._telemetry_obj.MergeFrom(run.telemetry)
-        if self._settings._sync:
+        if self._settings.x_sync:
             self._telemetry_obj.feature.sync = True
 
         # build config dict
@@ -1124,7 +1120,7 @@ class SendManager:
             self._api,
             self._run.run_id,
             self._run.start_time.ToMicroseconds() / 1e6,
-            timeout=self._settings._file_stream_timeout_seconds,
+            timeout=self._settings.x_file_stream_timeout_seconds or 0,
             settings=self._api_settings,
         )
         # Ensure the streaming polices have the proper offsets

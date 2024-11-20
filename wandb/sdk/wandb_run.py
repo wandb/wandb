@@ -19,18 +19,15 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
+from functools import reduce
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Sequence, TextIO
-
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal
-else:
-    from typing import Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, Sequence, TextIO
 
 import requests
 
 import wandb
 import wandb.env
+import wandb.util
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
@@ -39,7 +36,7 @@ from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError, UnsupportedError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
-from wandb.plot import CustomChart, Visualize, plot_table
+from wandb.plot import CustomChart, Visualize
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
@@ -89,23 +86,18 @@ from .lib.exit_hooks import ExitHooks
 from .lib.gitlib import GitRepo
 from .lib.mailbox import MailboxError, MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.proto_util import message_to_dict
-from .lib.reporting import Reporter
 from .wandb_alerts import AlertLevel
 from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
 
 if TYPE_CHECKING:
-    if sys.version_info >= (3, 8):
-        from typing import TypedDict
-    else:
-        from typing_extensions import TypedDict
+    from typing import TypedDict
 
     import torch  # type: ignore [import-not-found]
 
     import wandb.apis.public
     import wandb.sdk.backend.backend
     import wandb.sdk.interface.interface_queue
-    from wandb.data_types import Table
     from wandb.proto.wandb_internal_pb2 import (
         GetSummaryResponse,
         InternalMessagesResponse,
@@ -440,7 +432,7 @@ class _run_decorator:  # noqa: N801
                     # - for fork case will use the settings of the parent process
                     # - only point of inconsistent behavior from forked and non-forked cases
                     settings = getattr(self, "_settings", None)
-                    if settings and settings["strict"]:
+                    if settings and settings.strict:
                         wandb.termerror(message, repeat=False)
                         raise UnsupportedError(
                             f"`{func.__name__}` does not support multiprocessing"
@@ -539,7 +531,6 @@ class Run:
     _sweep_id: str | None
 
     _run_obj: RunRecord | None
-    # Use string literal annotation because of type reference loop
     _backend: wandb.sdk.backend.backend.Backend | None
     _internal_run_interface: wandb.sdk.interface.interface_queue.InterfaceQueue | None
     _wl: _WandbSetup | None
@@ -633,7 +624,6 @@ class Run:
 
         self._printer = printer.new_printer()
         self._wl = None
-        self._reporter: Reporter | None = None
 
         self._entity = None
         self._project = None
@@ -749,7 +739,7 @@ class Run:
         self._attach_pid = os.getpid()
 
         # for now, use runid as attach id, this could/should be versioned in the future
-        if not self._settings._disable_service:
+        if not self._settings.x_disable_service:
             self._attach_id = self._settings.run_id
 
     def _set_iface_pid(self, iface_pid: int) -> None:
@@ -894,7 +884,7 @@ class Run:
     def __getstate__(self) -> Any:
         """Return run state as a custom pickle."""
         # We only pickle in service mode
-        if not self._settings or self._settings._disable_service:
+        if not self._settings or self._settings.x_disable_service:
             return
 
         _attach_id = self._attach_id
@@ -931,9 +921,7 @@ class Run:
     @_run_decorator._attach
     def settings(self) -> Settings:
         """A frozen copy of run's Settings object."""
-        cp = self._settings.copy()
-        cp.freeze()
-        return cp
+        return self._settings.model_copy(deep=True)
 
     @property
     @_run_decorator._attach
@@ -1191,11 +1179,11 @@ class Run:
                 notebook_name = None
                 if self.settings.notebook_name:
                     notebook_name = self.settings.notebook_name
-                elif self.settings._jupyter_path:
-                    if self.settings._jupyter_path.startswith("fileId="):
-                        notebook_name = self.settings._jupyter_name
+                elif self.settings.x_jupyter_path:
+                    if self.settings.x_jupyter_path.startswith("fileId="):
+                        notebook_name = self.settings.x_jupyter_name
                     else:
-                        notebook_name = self.settings._jupyter_path
+                        notebook_name = self.settings.x_jupyter_path
                 name_string = f"{self._project}-{notebook_name}"
             else:
                 name_string = f"{self._project}-{self._settings.program_relpath}"
@@ -1557,9 +1545,6 @@ class Run:
     ) -> None:
         self._internal_run_interface = interface
 
-    def _set_reporter(self, reporter: Reporter) -> None:
-        self._reporter = reporter
-
     def _set_teardown_hooks(self, hooks: list[TeardownHook]) -> None:
         self._teardown_hooks = hooks
 
@@ -1589,8 +1574,31 @@ class Run:
         self._step = self._get_starting_step()
 
         # update settings from run_obj
-        self._settings._apply_run_start(message_to_dict(self._run_obj))
-        self._update_settings(self._settings)
+        run_start_settings = message_to_dict(self._run_obj)
+        param_map = {
+            "run_id": "run_id",
+            "entity": "entity",
+            "project": "project",
+            "run_group": "run_group",
+            "job_type": "run_job_type",
+            "display_name": "run_name",
+            "notes": "run_notes",
+            "tags": "run_tags",
+            "sweep_id": "sweep_id",
+            "host": "host",
+            "resumed": "resumed",
+            "git.remote_url": "git_remote_url",
+            "git.commit": "git_commit",
+        }
+        run_settings = {
+            name: reduce(lambda d, k: d.get(k, {}), attr.split("."), run_start_settings)
+            for attr, name in param_map.items()
+        }
+        run_settings = {key: value for key, value in run_settings.items() if value}
+
+        if run_settings:
+            self._settings.update_from_dict(run_settings)
+            self._update_settings(self._settings)
 
         wandb._sentry.configure_scope(
             process_context="user",
@@ -2034,7 +2042,7 @@ class Run:
         policy: PolicyName,
     ) -> list[str]:
         # Can't use is_relative_to() because that's added in Python 3.9,
-        # but we support down to Python 3.7.
+        # but we support down to Python 3.8.
         if not str(glob_path).startswith(str(base_path)):
             raise ValueError("Glob may not walk above the base path")
 
@@ -2078,12 +2086,7 @@ class Run:
             target_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Delete the symlink if it exists.
-            try:
-                target_path.unlink()
-            except FileNotFoundError:
-                # In Python 3.8, we would pass missing_ok=True, but as of now
-                # we support down to Python 3.7.
-                pass
+            target_path.unlink(missing_ok=True)
 
             target_path.symlink_to(source_path)
 
@@ -2189,7 +2192,7 @@ class Run:
             #
             # TODO: Why not do this in _atexit_cleanup()?
             service = self._wl and self._wl.service
-            if service:
+            if service and self._run_id:
                 service.inform_finish(run_id=self._run_id)
 
         finally:
@@ -2234,31 +2237,6 @@ class Run:
             sync_time=sync_time,
         )
 
-    @staticmethod
-    def plot_table(
-        vega_spec_name: str,
-        data_table: Table,
-        fields: dict[str, Any],
-        string_fields: dict[str, Any] | None = None,
-        split_table: bool = False,
-    ) -> CustomChart:
-        """Create a custom plot on a table.
-
-        Args:
-            vega_spec_name: the name of the spec for the plot
-            data_table: a wandb.Table object containing the data to
-                be used on the visualization
-            fields: a dict mapping from table keys to fields that the custom
-                visualization needs
-            string_fields: a dict that provides values for any string constants
-                the custom visualization needs
-            split_table: a boolean that indicates whether the table should be in
-                a separate section in the UI
-        """
-        return plot_table(
-            vega_spec_name, data_table, fields, string_fields or {}, split_table
-        )
-
     def _add_panel(
         self, visualize_key: str, panel_type: str, panel_config: dict
     ) -> None:
@@ -2278,7 +2256,6 @@ class Run:
             use_artifact=self.use_artifact,
             log_artifact=self.log_artifact,
             define_metric=self.define_metric,
-            plot_table=self.plot_table,
             alert=self.alert,
             watch=self.watch,
             unwatch=self.unwatch,
@@ -2298,7 +2275,7 @@ class Run:
             console = self._settings.console
         # only use raw for service to minimize potential changes
         if console == "wrap":
-            if not self._settings._disable_service:
+            if not self._settings.x_disable_service:
                 console = "wrap_raw"
             else:
                 console = "wrap_emu"
@@ -2447,7 +2424,6 @@ class Run:
             final_summary=self._final_summary,
             poll_exit_response=self._poll_exit_response,
             internal_messages_response=self._internal_messages_response,
-            reporter=self._reporter,
             settings=self._settings,
             printer=self._printer,
         )
@@ -2486,7 +2462,7 @@ class Run:
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
 
-        if self._settings._save_requirements:
+        if self._settings.x_save_requirements:
             if self._backend and self._backend.interface:
                 from wandb.util import working_set
 
@@ -2530,6 +2506,8 @@ class Run:
 
         import_telemetry_set = telemetry.list_telemetry_imports()
         import_hook_fn = functools.partial(_telemetry_import_hook, self)
+        if not self._run_id:
+            return
         for module_name in import_telemetry_set:
             register_post_import_hook(
                 import_hook_fn,
@@ -2722,7 +2700,8 @@ class Run:
         if self._run_status_checker:
             self._run_status_checker.join()
 
-        self._unregister_telemetry_import_hooks(self._run_id)
+        if self._run_id:
+            self._unregister_telemetry_import_hooks(self._run_id)
 
     @staticmethod
     def _unregister_telemetry_import_hooks(run_id: str) -> None:
@@ -2875,7 +2854,7 @@ class Run:
     def watch(
         self,
         models: torch.nn.Module | Sequence[torch.nn.Module],
-        criterion: torch.F | None = None,
+        criterion: torch.F | None = None,  # type: ignore
         log: Literal["gradients", "parameters", "all"] | None = "gradients",
         log_freq: int = 1000,
         idx: int | None = None,
@@ -3355,7 +3334,7 @@ class Run:
         return artifact
 
     def _public_api(self, overrides: dict[str, str] | None = None) -> PublicApi:
-        overrides = {"run": self._run_id}
+        overrides = {"run": self._run_id}  # type: ignore
         if not (self._settings._offline or self._run_obj is None):
             overrides["entity"] = self._run_obj.entity
             overrides["project"] = self._run_obj.project
@@ -3693,9 +3672,10 @@ class Run:
         Returns:
             A dictionary of system metrics.
         """
+        from wandb.proto import wandb_internal_pb2
 
         def pb_to_dict(
-            system_metrics_pb: wandb.proto.wandb_internal_pb2.GetSystemMetricsResponse,
+            system_metrics_pb: wandb_internal_pb2.GetSystemMetricsResponse,
         ) -> dict[str, list[tuple[datetime, float]]]:
             res = {}
 
@@ -3857,7 +3837,6 @@ class Run:
         final_summary: GetSummaryResponse | None = None,
         poll_exit_response: PollExitResponse | None = None,
         internal_messages_response: InternalMessagesResponse | None = None,
-        reporter: Reporter | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
@@ -3883,9 +3862,6 @@ class Run:
             internal_messages_response=internal_messages_response,
             settings=settings,
             printer=printer,
-        )
-        Run._footer_reporter_warn_err(
-            reporter=reporter, settings=settings, printer=printer
         )
 
     @staticmethod
@@ -4035,7 +4011,7 @@ class Run:
         printer: printer.Printer,
     ) -> None:
         """Prints a message advertising the upcoming core release."""
-        if settings.quiet or not settings._require_legacy_service:
+        if settings.quiet or not settings.x_require_legacy_service:
             return
 
         printer.display(
@@ -4044,33 +4020,6 @@ class Run:
             f"For more information, visit {url_registry.url('wandb-core')}",
             level="warn",
         )
-
-    @staticmethod
-    def _footer_reporter_warn_err(
-        reporter: Reporter | None = None,
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
-        if settings.quiet or settings.silent:
-            return
-
-        if not reporter:
-            return
-
-        warning_lines = reporter.warning_lines
-        if warning_lines:
-            warnings = ["Warnings:"] + [f"{line}" for line in warning_lines]
-            if len(warning_lines) < reporter.warning_count:
-                warnings.append("More warnings...")
-            printer.display(warnings)
-
-        error_lines = reporter.error_lines
-        if error_lines:
-            errors = ["Errors:"] + [f"{line}" for line in error_lines]
-            if len(error_lines) < reporter.error_count:
-                errors.append("More errors...")
-            printer.display(errors)
 
 
 # We define this outside of the run context to support restoring before init

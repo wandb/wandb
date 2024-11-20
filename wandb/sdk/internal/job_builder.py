@@ -5,7 +5,18 @@ import logging
 import os
 import re
 import sys
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    TypedDict,
+    Union,
+)
 
 import wandb
 from wandb.sdk.artifacts.artifact import Artifact
@@ -15,11 +26,6 @@ from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNA
 from wandb.util import make_artifact_name_safe
 
 from .settings_static import SettingsStatic
-
-if sys.version_info >= (3, 8):
-    from typing import Literal, TypedDict
-else:
-    from typing_extensions import Literal, TypedDict
 
 _logger = logging.getLogger(__name__)
 
@@ -152,7 +158,7 @@ class JobBuilder:
         self._logged_code_artifact = None
         self._job_seq_id = None
         self._job_version_alias = None
-        self._disable = settings.disable_job_creation
+        self._disable = settings.disable_job_creation or settings.x_disable_machine_info
         self._partial_source_id = None
         self._aliases = []
         self._source_type: Optional[Literal["repo", "artifact", "image"]] = (
@@ -228,16 +234,16 @@ class JobBuilder:
             ):
                 return None, None
 
-            if root is None or self._settings._jupyter_root is None:
+            if root is None or self._settings.x_jupyter_root is None:
                 _logger.info("target path does not exist, exiting")
                 return None, None
-            assert self._settings._jupyter_root is not None
+            assert self._settings.x_jupyter_root is not None
             # git notebooks set the root to the git root,
             # jupyter_root contains the path where the jupyter notebook was started
             # program_relpath contains the path from jupyter_root to the file
             # full program path here is actually the relpath from the program to the git root
             full_program_path = os.path.join(
-                os.path.relpath(str(self._settings._jupyter_root), root),
+                os.path.relpath(str(self._settings.x_jupyter_root), root),
                 program_relpath,
             )
             full_program_path = os.path.normpath(full_program_path)
@@ -476,7 +482,8 @@ class JobBuilder:
         # can't build a job without a python version
         if runtime is None:
             self._log_if_verbose(
-                "No python version found in metadata, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
+                "No python version found in metadata, not creating job artifact. "
+                "See https://docs.wandb.ai/guides/launch/create-job",
                 "warn",
             )
             return None
@@ -505,7 +512,8 @@ class JobBuilder:
         program_relpath = self._get_program_relpath(source_type, metadata)
         if not self._partial and source_type != "image" and not program_relpath:
             self._log_if_verbose(
-                "No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
+                "No program path found, not creating job artifact. "
+                "See https://docs.wandb.ai/guides/launch/create-job",
                 "warn",
             )
             return None

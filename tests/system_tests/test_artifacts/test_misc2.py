@@ -6,26 +6,18 @@ import wandb
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
 
 
-def test_artifact_log_with_network_error(
-    user, relay_server, inject_graphql_response, tokenized_circular_pattern
-):
-    create_artifact_response = inject_graphql_response(
-        # request
-        query_match_fn=lambda query, variables: query.startswith(
-            "mutation CreateArtifact("
+def test_artifact_log_with_network_error(wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="CreateArtifact"),
+        gql.once(
+            content=None,
+            status=500,
         ),
-        application_pattern=(
-            tokenized_circular_pattern.APPLY_TOKEN
-            + tokenized_circular_pattern.STOP_TOKEN
-        ),
-        # response
-        status=500,
-        body="transient error",
     )
-    with relay_server(inject=[create_artifact_response]):
-        with wandb.init() as run:
-            artifact = wandb.Artifact("table-example", "dataset")
-            run.log_artifact(artifact)
+    with wandb.init() as run:
+        artifact = wandb.Artifact("table-example", "dataset")
+        run.log_artifact(artifact)
 
 
 def test_artifact_references_internal(user):
@@ -194,13 +186,20 @@ def test_reference_download(user):
             assert entry.ref_target()
 
 
-def test_communicate_artifact(user, relay_server, publish_util, mock_run):
-    with relay_server() as relay:
-        run = mock_run()
-        artifact = wandb.Artifact("comms_test_PENDING", "dataset")
-        artifact_publish = dict(run=run, artifact=artifact, aliases=["latest"])
-        publish_util(run, artifacts=[artifact_publish])
-        assert len(relay.context[run.id]["create_artifact"]) == 1
+def test_communicate_artifact(wandb_backend_spy, publish_util, mock_run):
+    gql = wandb_backend_spy.gql
+    responder = gql.Constant(content=None, status=200)
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="CreateArtifact"),
+        responder,
+    )
+
+    run = mock_run()
+    artifact = wandb.Artifact("comms_test_PENDING", "dataset")
+    artifact_publish = dict(run=run, artifact=artifact, aliases=["latest"])
+    publish_util(run, artifacts=[artifact_publish])
+
+    assert responder.total_calls == 1
 
 
 def _create_artifact_and_set_metadata(metadata):

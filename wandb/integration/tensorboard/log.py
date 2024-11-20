@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import wandb
 import wandb.util
-from wandb.plot import plot_table
 from wandb.sdk.lib import telemetry
 
 if TYPE_CHECKING:
@@ -200,7 +199,7 @@ def tf_summary_to_dict(  # noqa: C901
                 data_table = wandb.Table(data=data, columns=["recall", "precision"])
                 name = namespaced_tag(value.tag, namespace)
 
-                values[name] = plot_table(
+                values[name] = wandb.plot_table(
                     "wandb/line/v0",
                     data_table,
                     {"x": "recall", "y": "precision"},

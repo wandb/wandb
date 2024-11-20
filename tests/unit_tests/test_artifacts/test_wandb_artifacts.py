@@ -18,14 +18,9 @@ from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 
 if TYPE_CHECKING:
-    import sys
+    from typing import Protocol
 
     from wandb.sdk.internal.internal_api import CreateArtifactFileSpecInput
-
-    if sys.version_info >= (3, 8):
-        from typing import Protocol
-    else:
-        from typing_extensions import Protocol
 
     class StoreFileFixture(Protocol):
         def __call__(

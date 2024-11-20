@@ -12,6 +12,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/settings"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -58,7 +59,7 @@ type SystemMonitor struct {
 	buffer *Buffer
 
 	// settings is the settings for the system monitor
-	settings *spb.Settings
+	settings *settings.Settings
 
 	// The interval at which metrics are sampled
 	samplingInterval time.Duration
@@ -72,7 +73,7 @@ type SystemMonitor struct {
 // It sets up assets based on provided settings and configures the metrics buffer.
 func NewSystemMonitor(
 	logger *observability.CoreLogger,
-	settings *spb.Settings,
+	settings *settings.Settings,
 	extraWork runwork.ExtraWork,
 ) *SystemMonitor {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -86,7 +87,7 @@ func NewSystemMonitor(
 		samplingInterval: defaultSamplingInterval,
 	}
 
-	bufferSize := settings.XStatsBufferSize.GetValue()
+	bufferSize := settings.GetStatsBufferSize()
 	// Initialize the buffer if a buffer size is provided.
 	// A positive buffer size N indicates that only the last N samples will be kept in memory.
 	// A value of -1 indicates that all sampled metrics will be kept in memory.
@@ -94,13 +95,13 @@ func NewSystemMonitor(
 		sm.buffer = NewBuffer(bufferSize)
 	}
 
-	if si := settings.XStatsSamplingInterval; si != nil {
-		sm.samplingInterval = time.Duration(si.GetValue() * float64(time.Second))
+	if si := settings.GetStatsSamplingInterval(); si != 0 {
+		sm.samplingInterval = time.Duration(si * float64(time.Second))
 	}
 	sm.logger.Debug(fmt.Sprintf("monitor: sampling interval: %v", sm.samplingInterval))
 
 	// Early return if stats collection is disabled
-	if settings.XDisableStats.GetValue() {
+	if settings.IsDisableStats() {
 		return sm
 	}
 
@@ -111,11 +112,11 @@ func NewSystemMonitor(
 }
 
 // initializeAssets sets up the assets to be monitored based on the provided settings.
-func (sm *SystemMonitor) InitializeAssets(settings *spb.Settings) {
-	pid := settings.XStatsPid.GetValue()
-	diskPaths := settings.XStatsDiskPaths.GetValue()
-	samplingInterval := settings.XStatsSamplingInterval.GetValue()
-	neuronMonitorConfigPath := settings.XStatsNeuronMonitorConfigPath.GetValue()
+func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
+	pid := settings.GetStatsPid()
+	diskPaths := settings.GetStatsDiskPaths()
+	samplingInterval := settings.GetStatsSamplingInterval()
+	neuronMonitorConfigPath := settings.GetStatsNeuronMonitorConfigPath()
 
 	// assets to be monitored.
 	if cpu := NewCPU(pid); cpu != nil {
@@ -147,9 +148,9 @@ func (sm *SystemMonitor) InitializeAssets(settings *spb.Settings) {
 	}
 
 	// OpenMetrics endpoints to monitor.
-	if endpoints := settings.XStatsOpenMetricsEndpoints.GetValue(); endpoints != nil {
+	if endpoints := settings.GetStatsOpenMetricsEndpoints(); endpoints != nil {
 		for name, url := range endpoints {
-			filters := settings.XStatsOpenMetricsFilters
+			filters := settings.GetStatsOpenMetricsFilters()
 			if om := NewOpenMetrics(sm.logger, name, url, filters, nil); om != nil {
 				sm.assets = append(sm.assets, om)
 			}

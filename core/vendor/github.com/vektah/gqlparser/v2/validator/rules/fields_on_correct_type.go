@@ -11,27 +11,40 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-var FieldsOnCorrectTypeRule = Rule{
-	Name: "FieldsOnCorrectType",
-	RuleFunc: func(observers *Events, addError AddErrFunc) {
-		observers.OnField(func(walker *Walker, field *ast.Field) {
-			if field.ObjectDefinition == nil || field.Definition != nil {
-				return
-			}
+func ruleFuncFieldsOnCorrectType(observers *Events, addError AddErrFunc, disableSuggestion bool) {
+	observers.OnField(func(walker *Walker, field *ast.Field) {
+		if field.ObjectDefinition == nil || field.Definition != nil {
+			return
+		}
 
-			message := fmt.Sprintf(`Cannot query field "%s" on type "%s".`, field.Name, field.ObjectDefinition.Name)
+		message := fmt.Sprintf(`Cannot query field "%s" on type "%s".`, field.Name, field.ObjectDefinition.Name)
 
+		if !disableSuggestion {
 			if suggestedTypeNames := getSuggestedTypeNames(walker, field.ObjectDefinition, field.Name); suggestedTypeNames != nil {
 				message += " Did you mean to use an inline fragment on " + QuotedOrList(suggestedTypeNames...) + "?"
 			} else if suggestedFieldNames := getSuggestedFieldNames(field.ObjectDefinition, field.Name); suggestedFieldNames != nil {
 				message += " Did you mean " + QuotedOrList(suggestedFieldNames...) + "?"
 			}
+		}
 
-			addError(
-				Message("%s", message),
-				At(field.Position),
-			)
-		})
+		addError(
+			Message("%s", message),
+			At(field.Position),
+		)
+	})
+}
+
+var FieldsOnCorrectTypeRule = Rule{
+	Name: "FieldsOnCorrectType",
+	RuleFunc: func(observers *Events, addError AddErrFunc) {
+		ruleFuncFieldsOnCorrectType(observers, addError, false)
+	},
+}
+
+var FieldsOnCorrectTypeRuleWithoutSuggestions = Rule{
+	Name: "FieldsOnCorrectTypeWithoutSuggestions",
+	RuleFunc: func(observers *Events, addError AddErrFunc) {
+		ruleFuncFieldsOnCorrectType(observers, addError, true)
 	},
 }
 

@@ -63,7 +63,7 @@ class WriteManager:
         self._telemetry_obj = tpb.TelemetryRecord()
         self._telemetry_overflow = False
         self._use_flow_control = not (
-            self._settings._flow_control_disabled or self._settings._offline
+            self._settings.x_flow_control_disabled or self._settings._offline
         )
 
     def open(self) -> None:
