@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This file is a helper who invokes the actual python test cases. 
+# This file is a helper who invokes the actual python test cases.
 # It is sourced by run_load_tests.sh
 
 SCRIPT_DIR=$(dirname "$0")
@@ -31,7 +31,7 @@ bench_log() {
         mv $results_file $log_folder/
 
         wait # wait for background sar process to finish
-        
+
         $SCRIPT_DIR/process_sar_helper.sh -d "$log_folder" -o $metrics_file >> "$log_folder/perftest.log"
     done
 }

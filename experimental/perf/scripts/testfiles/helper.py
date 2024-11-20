@@ -1,7 +1,7 @@
 import json
+import os
 import random
 import string
-import os
 
 
 def generate_random_dict(num_fields: int, field_size: int) -> dict:
@@ -26,8 +26,7 @@ def generate_random_dict(num_fields: int, field_size: int) -> dict:
 
 
 def append_to_json(file_path: str, key: str, value):
-    """
-    Appends a key-value pair to a JSON file. Creates the file if it doesn't exist.
+    """Appends a key-value pair to a JSON file. Creates the file if it doesn't exist.
 
     Args:
         file_path (str): Path to the JSON file.
@@ -38,7 +37,7 @@ def append_to_json(file_path: str, key: str, value):
 
     # Check if the file exists and is not empty
     if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-        with open(file_path, "r") as file:
+        with open(file_path) as file:
             try:
                 data = json.load(file)
             except json.JSONDecodeError:

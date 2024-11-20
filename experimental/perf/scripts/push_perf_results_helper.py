@@ -2,12 +2,13 @@ import argparse
 import json
 import os
 import re
+
 import wandb
 
 
 # Load JSON data from files
 def load_json(filename: str) -> dict:
-    with open(filename, "r") as f:
+    with open(filename) as f:
         return json.load(f)
 
 

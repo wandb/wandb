@@ -1,8 +1,10 @@
 import argparse
 import json
-import wandb
 from datetime import datetime
+
 from helper import generate_random_dict
+
+import wandb
 
 
 def measure_time(func):

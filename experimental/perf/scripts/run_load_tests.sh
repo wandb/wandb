@@ -6,7 +6,7 @@ print_help() {
     echo "  -t test case to run (required) "
     echo "     bench_log [optional] -f '<num_of_test_runs> <num_of_logging_steps_per_run>'"
     echo "       e.g run_load_tests.sh -t bench_log -f '4 10000'"
-    echo "     bench_log_scale_step [optional] -f 'a list of steps'" 
+    echo "     bench_log_scale_step [optional] -f 'a list of steps'"
     echo "       e.g run_load_tests.sh -t bench_log_scale_step -f '1000 2000 4000 8000 16000'"
     echo "     bench_log_scale_metric [optional] -f 'a list of metric counts'"
     echo "       e.g run_load_tests.sh -t bench_log_scale_metric -f '100 200 400 800 1600'"
