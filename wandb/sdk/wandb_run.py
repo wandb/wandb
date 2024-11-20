@@ -15,7 +15,6 @@ import threading
 import time
 import traceback
 import warnings
-from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
@@ -520,7 +519,7 @@ class Run:
 
     _backend: wandb.sdk.backend.backend.Backend | None
     _internal_run_interface: wandb.sdk.interface.interface_queue.InterfaceQueue | None
-    _wl: _WandbSetup | None
+    _library: _WandbSetup | None
 
     _out_redir: redirect.RedirectBase | None
     _err_redir: redirect.RedirectBase | None
@@ -616,7 +615,7 @@ class Run:
 
         self._backend = None
         self._internal_run_interface = None
-        self._wl = None
+        self._library = None
 
         self._hooks = None
         self._teardown_hooks = []
@@ -1280,21 +1279,12 @@ class Run:
                 f"Cannot call _config_artifact_callback on type {type(val)}"
             )
 
-    def _set_config_wandb(self, key: str, val: Any) -> None:
-        self._config_callback(key=("_wandb", key), val=val)
-
     @_run_decorator._noop_on_finish()
     def _summary_update_callback(self, summary_record: SummaryRecord) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_summary = True
         if self._backend and self._backend.interface:
             self._backend.interface.publish_summary(summary_record)
-
-    def _on_progress_get_summary(self, handle: MailboxProgress) -> None:
-        pass
-        # TODO(jhr): enable printing for get_summary in later mailbox dev phase
-        # line = "Waiting for run.summary data..."
-        # self._printer.display(line)
 
     def _summary_get_current_summary_callback(self) -> dict[str, Any]:
         if self._is_finished:
@@ -1306,7 +1296,6 @@ class Run:
         handle = self._backend.interface.deliver_get_summary()
         result = handle.wait(
             timeout=self._settings.summary_timeout,
-            on_progress=self._on_progress_get_summary,
         )
         if not result:
             return {}
@@ -1351,29 +1340,6 @@ class Run:
                 data[v.spec.table_key] = v.table
         return data
 
-    def _partial_history_callback(
-        self,
-        data: dict[str, Any],
-        step: int | None = None,
-        commit: bool | None = None,
-    ) -> None:
-        if not (self._backend and self._backend.interface):
-            return
-
-        data = data.copy()  # avoid modifying the original data
-
-        # Serialize custom charts before publishing
-        data = self._serialize_custom_charts(data)
-
-        not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
-        self._backend.interface.publish_partial_history(
-            data,
-            user_step=self._step,
-            step=step,
-            flush=commit,
-            publish_step=not_using_tensorboard,
-        )
-
     def _console_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
         if self._backend and self._backend.interface:
@@ -1402,10 +1368,13 @@ class Run:
             self._backend.interface.publish_tbdata(logdir, save, root_logdir)
 
     def _set_library(self, library: _WandbSetup) -> None:
-        self._wl = library
+        self._library = library
 
     def _set_backend(self, backend: wandb.sdk.backend.backend.Backend) -> None:
         self._backend = backend
+
+    def _set_teardown_hooks(self, hooks: list[TeardownHook]) -> None:
+        self._teardown_hooks = hooks
 
     def _set_internal_run_interface(
         self,
@@ -1413,10 +1382,7 @@ class Run:
     ) -> None:
         self._internal_run_interface = interface
 
-    def _set_teardown_hooks(self, hooks: list[TeardownHook]) -> None:
-        self._teardown_hooks = hooks
-
-    def _set_run_obj(self, run_obj: RunRecord) -> None:  # noqa: C901
+    def _update_from_run_obj(self, run_obj: RunRecord) -> None:  # noqa: C901
         if run_obj.starting_step:
             self._starting_step = run_obj.starting_step
             self._step = run_obj.starting_step
@@ -1432,6 +1398,7 @@ class Run:
                 del c_dict["_wandb"]
             # We update the config object here without triggering the callback
             self._config._update(c_dict, allow_val_change=True, ignore_locked=True)
+
         # Update the summary, this will trigger an un-needed graphql request :(
         if run_obj.summary:
             summary_dict = {}
@@ -1614,13 +1581,22 @@ class Run:
         step: int | None = None,
         commit: bool | None = None,
     ) -> None:
-        if not isinstance(data, Mapping):
-            raise ValueError("wandb.log must be passed a dictionary")
-
         if any(not isinstance(key, str) for key in data.keys()):
             raise ValueError("Key values passed to `wandb.log` must be strings.")
 
-        self._partial_history_callback(data, step, commit)
+        # Publish partial history
+        if self._backend and self._backend.interface:
+            data = data.copy()  # avoid modifying the original data
+            self._backend.interface.publish_partial_history(
+                data=self._serialize_custom_charts(
+                    data
+                ),  # Serialize custom charts before publishing
+                user_step=self._step,
+                step=step,
+                flush=commit,
+                publish_step=len(wandb.patched["tensorboard"])
+                == 0,  # Only publish step if not using tensorboard
+            )
 
         if step is not None:
             if os.getpid() != self._init_pid or self._is_attached:
@@ -2139,8 +2115,8 @@ class Run:
         # TODO: It's not clear how _global_run_stack could have length other
         # than 1 at this point in the code. If you're reading this, consider
         # refactoring this thing.
-        if self._wl and len(self._wl._global_run_stack) > 0:
-            self._wl._global_run_stack.pop()
+        if self._library and len(self._library._global_run_stack) > 0:
+            self._library._global_run_stack.pop()
 
         # Run hooks that need to happen before the last messages to the
         # internal service, like Jupyter hooks.
@@ -2165,7 +2141,7 @@ class Run:
             # Inform the service that we're done sending messages for this run.
             #
             # TODO: Why not do this in _atexit_cleanup()?
-            service = self._wl and self._wl.service
+            service = self._library and self._library.service
             if service and self._settings.run_id:
                 service.inform_finish(run_id=self._settings.run_id)
 
@@ -2406,7 +2382,7 @@ class Run:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
 
-        service = self._wl and self._wl.service
+        service = self._library and self._library.service
         if not service:
             self._hooks.hook()
             # NB: manager will perform atexit hook like behavior for outstanding runs
@@ -2421,8 +2397,7 @@ class Run:
             self._output_writer = None
 
     def _on_init(self) -> None:
-        if self._settings._offline:
-            return
+        pass
 
     def _on_start(self) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
