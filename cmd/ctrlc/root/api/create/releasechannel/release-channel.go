@@ -1,6 +1,7 @@
 package releasechannel
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc/v2"
@@ -14,6 +15,7 @@ func NewReleaseChannelCmd() *cobra.Command {
 	var name string
 	var deploymentID string
 	var description string
+	var filter string
 
 	cmd := &cobra.Command{
 		Use:   "release-channel [flags]",
@@ -34,10 +36,18 @@ func NewReleaseChannelCmd() *cobra.Command {
 				return fmt.Errorf("failed to create API client: %w", err)
 			}
 
+			releaseFilter := make(map[string]interface{})
+			if filter != "" {
+				if err := json.Unmarshal([]byte(filter), &releaseFilter); err != nil {
+					return fmt.Errorf("failed to parse release filter JSON: %w", err)
+				}
+			}
+
 			resp, err := client.CreateReleaseChannel(cmd.Context(), api.CreateReleaseChannelJSONRequestBody{
 				Name:         name,
 				DeploymentId: deploymentID,
 				Description:  &description,
+				ReleaseFilter: releaseFilter,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to create release channel: %w", err)
@@ -50,6 +60,7 @@ func NewReleaseChannelCmd() *cobra.Command {
 	// Add flags
 	cmd.Flags().StringVar(&name, "name", "", "Name of the release channel (required)")
 	cmd.Flags().StringVar(&deploymentID, "deployment", "", "ID of the deployment (required)")
+	cmd.Flags().StringVar(&filter, "filter", "", "JSON string containing release filter criteria")
 	cmd.Flags().StringVar(&description, "description", "", "Description of the release channel")
 	cmd.MarkFlagRequired("name")
 	cmd.MarkFlagRequired("deployment-id")
