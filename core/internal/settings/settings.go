@@ -430,6 +430,10 @@ func (s *Settings) GetStatsOpenMetricsFilters() *spb.OpenMetricsFilters {
 	return s.Proto.XStatsOpenMetricsFilters
 }
 
+func (s *Settings) GetLabel() string {
+	return s.Proto.XLabel.GetValue()
+}
+
 // Update methods.
 //
 // These are used to update the settings in the proto.

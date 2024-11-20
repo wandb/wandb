@@ -168,11 +168,9 @@ func (sm *SystemMonitor) makeStatsRecord(stats map[string]any, timeStamp *timest
 		}
 		key := k
 		// Label for custom grouping of stats, e.g. per node in a multi-node run.
-		// if label := sm.settings.XLabel.GetValue(); label != "" {
-		// 	// Prefixing with "openmetrics" is a hack to hook into the existing aggregation
-		// 	// logic on the frontend that was designed for OpenMetrics data.
-		// 	key = fmt.Sprintf("%s/label:%s", k, label)
-		// }
+		if label := sm.settings.GetLabel(); label != "" {
+			key = fmt.Sprintf("%s/label:%s", k, label)
+		}
 		statsItems = append(statsItems, &spb.StatsItem{
 			Key:       key,
 			ValueJson: string(jsonData),
