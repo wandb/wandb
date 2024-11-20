@@ -880,9 +880,7 @@ class Run:
         Display names are not guaranteed to be unique and may be descriptive.
         By default, they are randomly generated.
         """
-        if self._settings.run_name:
-            return self._settings.run_name
-        return None
+        return self._settings.run_name
 
     @name.setter
     @_log_to_run
@@ -900,8 +898,8 @@ class Run:
     def notes(self) -> str | None:
         """Notes associated with the run, if there are any.
 
-        Notes can be a multiline string and can also use markdown and latex equations
-        inside `$$`, like `$x + 3$`.
+        Notes can be a multiline string and can also use markdown and latex
+        equations inside `$$`, like `$x + 3$`.
         """
         return self._settings.run_notes
 
@@ -935,15 +933,14 @@ class Run:
     @_run_decorator._attach
     def id(self) -> str:
         """Identifier for this run."""
-        if TYPE_CHECKING:
-            assert self._settings.run_id is not None
+        assert self._settings.run_id is not None
         return self._settings.run_id
 
     @property
     @_log_to_run
     @_run_decorator._attach
     def sweep_id(self) -> str | None:
-        """ID of the sweep associated with the run, if there is one."""
+        """Identifier for the sweep associated with the run, if there is one."""
         return self._settings.sweep_id
 
     def _get_path(self) -> str:
@@ -1004,14 +1001,13 @@ class Run:
     @_run_decorator._attach
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
-        if hasattr(self, "_telemetry_obj"):
-            deprecate.deprecate(
-                field_name=deprecate.Deprecated.run__mode,
-                warning_message=(
-                    "The mode property of wandb.run is deprecated "
-                    "and will be removed in a future release."
-                ),
-            )
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__mode,
+            warning_message=(
+                "The mode property of wandb.run is deprecated "
+                "and will be removed in a future release."
+            ),
+        )
         return "dryrun" if self._settings._offline else "run"
 
     @property
@@ -1048,15 +1044,58 @@ class Run:
         return self._settings.run_job_type or ""
 
     def project_name(self) -> str:
-        # TODO: deprecate this in favor of project
-        return self._settings.project or ""
+        """Name of the W&B project associated with the run.
+
+        Note: this method is deprecated and will be removed in a future release.
+        Please use `run.project` instead.
+        """
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__project_name,
+            warning_message=(
+                "The project_name method is deprecated and will be removed in a"
+                " future release. Please use `run.project` instead."
+            ),
+        )
+        return self.project
 
     @property
     @_log_to_run
     @_run_decorator._attach
     def project(self) -> str:
         """Name of the W&B project associated with the run."""
-        return self.project_name()
+        assert self._settings.project is not None
+        return self._settings.project
+
+    @_log_to_run
+    def get_project_url(self) -> str | None:
+        """URL of the W&B project associated with the run, if there is one.
+
+        Offline runs do not have a project URL.
+
+        Note: this method is deprecated and will be removed in a future release.
+        Please use `run.project_url` instead.
+        """
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__get_project_url,
+            warning_message=(
+                "The get_project_url method is deprecated and will be removed in a"
+                " future release. Please use `run.project_url` instead."
+            ),
+        )
+        return self.project_url
+
+    @property
+    @_log_to_run
+    @_run_decorator._attach
+    def project_url(self) -> str | None:
+        """URL of the W&B project associated with the run, if there is one.
+
+        Offline runs do not have a project URL.
+        """
+        if self._settings._offline:
+            wandb.termwarn("URL not available in offline run")
+            return None
+        return self._settings.project_url
 
     @_run_decorator._noop_on_finish()
     @_log_to_run
@@ -1147,19 +1186,30 @@ class Run:
         return self._log_artifact(art)
 
     @_log_to_run
-    def get_project_url(self) -> str | None:
-        """Return the url for the W&B project associated with the run, if there is one.
-
-        Offline runs will not have a project url.
-        """
-        if self._settings._offline:
-            wandb.termwarn("URL not available in offline run")
-            return None
-        return self._settings.project_url
-
-    @_log_to_run
     def get_sweep_url(self) -> str | None:
-        """Return the url for the sweep associated with the run, if there is one."""
+        """The URL of the sweep associated with the run, if there is one.
+
+        Offline runs do not have a sweep URL.
+
+        Note: this method is deprecated and will be removed in a future release.
+        Please use `run.sweep_url` instead.
+        """
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__get_sweep_url,
+            warning_message=(
+                "The get_sweep_url method is deprecated and will be removed in a"
+                " future release. Please use `run.sweep_url` instead."
+            ),
+        )
+        return self.sweep_url
+
+    @property
+    @_run_decorator._attach
+    def sweep_url(self) -> str | None:
+        """URL of the sweep associated with the run, if there is one.
+
+        Offline runs do not have a sweep URL.
+        """
         if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
@@ -1167,7 +1217,27 @@ class Run:
 
     @_log_to_run
     def get_url(self) -> str | None:
-        """Return the url for the W&B run, if there is one.
+        """URL of the W&B run, if there is one.
+
+        Offline runs do not have a URL.
+
+        Note: this method is deprecated and will be removed in a future release.
+        Please use `run.url` instead.
+        """
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__get_url,
+            warning_message=(
+                "The get_url method is deprecated and will be removed in a"
+                " future release. Please use `run.url` instead."
+            ),
+        )
+        return self.url
+
+    @property
+    @_log_to_run
+    @_run_decorator._attach
+    def url(self) -> str | None:
+        """The url for the W&B run, if there is one.
 
         Offline runs will not have a url.
         """
@@ -1175,13 +1245,6 @@ class Run:
             wandb.termwarn("URL not available in offline run")
             return None
         return self._settings.run_url
-
-    @property
-    @_log_to_run
-    @_run_decorator._attach
-    def url(self) -> str | None:
-        """The W&B url associated with the run."""
-        return self.get_url()
 
     @property
     @_log_to_run

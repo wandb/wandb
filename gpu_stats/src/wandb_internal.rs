@@ -598,6 +598,18 @@ pub struct Deprecated {
     /// reinit setting set to a boolean value
     #[prost(bool, tag = "20")]
     pub run_reinit_bool: bool,
+    /// wandb.run.get_url() called
+    #[prost(bool, tag = "21")]
+    pub run_get_url: bool,
+    /// wandb.run.project_name() called
+    #[prost(bool, tag = "22")]
+    pub run_project_name: bool,
+    /// wandb.run.get_project_url() called
+    #[prost(bool, tag = "23")]
+    pub run_get_project_url: bool,
+    /// wandb.run.get_sweep_url() called
+    #[prost(bool, tag = "24")]
+    pub run_get_sweep_url: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {
