@@ -47,12 +47,19 @@ runs:
             echo "$line"
         done
 
-        echo "${{ inputs.required_outputs }}" | while read -r output; do
-            if [ ! -z "$output" ]; then
-                echo "Checking for output: $output"
-                if ! grep -q "^$output=" $GITHUB_OUTPUT; then
-                    echo "Required output \"$output\" not found in outputs."
-                    exit 1
-                fi
-            fi
+        # Exit if no required outputs specified
+        if [ -z "${{ inputs.required_outputs }}" ]; then
+            echo "No required outputs specified."
+            exit 0
+        fi
+
+        for output in ${{ inputs.required_outputs }}; do
+          if [ -z "$output" ]; then
+            continue
+          fi
+          echo "Checking for output: $output"
+          if ! grep -q "^$output=" "$GITHUB_OUTPUT"; then
+              echo "Required output \"$output\" not found in outputs."
+              exit 1
+          fi
         done
