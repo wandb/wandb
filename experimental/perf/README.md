@@ -17,6 +17,7 @@ All the performance test and setup files for the SDK are inside the experimental
 ## Starting a load test
 Once you are logged into your container
 1. export WANDB_API_KEY=<your key>
+2. export WANDB_BASE_URL=<your W&B server URL>
 2. cd /opt/ns/scripts
 3. ./run_load_test.sh -t bench_log | bench_log_scale_step | bench_log_scale_metric
 4. The test results are saved locally on the same directory
