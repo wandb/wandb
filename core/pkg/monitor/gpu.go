@@ -125,7 +125,12 @@ func (g *GPU) Sample() (*spb.StatsRecord, error) {
 		return nil, err
 	}
 
-	return stats.GetStats(), nil
+	metrics := stats.GetStats()
+	if len(metrics.Item) == 0 {
+		return nil, nil
+	}
+
+	return metrics, nil
 }
 
 // Probe returns metadata about the GPU.

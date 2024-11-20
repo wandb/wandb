@@ -20,6 +20,7 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 
 	row["_wandb"] = true
 	timestamp := u.Record.GetTimestamp()
+
 	row["_timestamp"] = float64(timestamp.Seconds) + float64(timestamp.Nanos)/1e9
 	row["_runtime"] = timestamp.AsTime().Sub(u.StartTime).Seconds()
 
