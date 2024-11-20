@@ -528,8 +528,19 @@ class _WandbInit:
         The returned Run object has all expected attributes and methods, but they are
         no-op versions that don't perform any actual logging or communication.
         """
+        run_id = runid.generate_id()
         drun = Run(
-            settings=Settings(mode="disabled", x_files_dir=tempfile.gettempdir())
+            settings=Settings(
+                mode="disabled",
+                x_files_dir=tempfile.gettempdir(),
+                run_id=run_id,
+                run_tags=tuple(),
+                run_notes=None,
+                run_group=None,
+                run_name=f"dummy-{run_id}",
+                project="dummy",
+                entity="dummy",
+            )
         )
         # config and summary objects
         drun._config = wandb.sdk.wandb_config.Config()
@@ -564,20 +575,15 @@ class _WandbInit:
             "_finish",
         ):
             setattr(drun, symbol, lambda *_, **__: None)  # type: ignore
+
         # attributes
-        drun._backend = None
-        drun._step = 0
-        drun._attach_id = None
-        drun._run_obj = None
-        drun._run_id = runid.generate_id()
-        drun._name = "dummy-" + drun.id
-        drun._project = "dummy"
-        drun._entity = "dummy"
-        drun._tags = tuple()
-        drun._notes = None
-        drun._group = None
         drun._start_time = time.time()
         drun._starting_step = 0
+        drun._step = 0
+        drun._attach_id = None
+        drun._backend = None
+
+        # set the disabled run as the global run
         module.set_global(
             run=drun,
             config=drun.config,
@@ -855,9 +861,8 @@ class _WandbInit:
             )
 
         assert backend.interface
-        assert run._run_obj
 
-        run_start_handle = backend.interface.deliver_run_start(run._run_obj)
+        run_start_handle = backend.interface.deliver_run_start(run)
         # TODO: add progress to let user know we are doing something
         run_start_result = run_start_handle.wait(timeout=30)
         if run_start_result is None:
