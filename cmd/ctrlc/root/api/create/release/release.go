@@ -92,7 +92,7 @@ func NewCreateReleaseCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&name, "name", "n", "", "Name of the release channel")
 
 	cmd.MarkFlagRequired("version")
-	cmd.MarkFlagRequired("deployment-id")
+	cmd.MarkFlagRequired("deployment")
 
 	return cmd
 }
