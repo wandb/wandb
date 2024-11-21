@@ -114,11 +114,11 @@ func TestTPUSample(t *testing.T) {
 	}
 	fmt.Println(metrics)
 
-	if metrics[expectedMemoryUsageKey].(int64) != 50 {
-		t.Errorf("Expected memory usage 50.0, got %v", metrics[expectedMemoryUsageKey])
+	if metrics[expectedMemoryUsageKey].(int64) != int64(50) {
+		t.Errorf("Expected memory usage 50, got %v", metrics[expectedMemoryUsageKey])
 	}
 
-	if metrics[expectedDutyCycleKey].(int64) != 75 {
-		t.Errorf("Expected duty cycle 75.0, got %v", metrics[expectedDutyCycleKey])
+	if metrics[expectedDutyCycleKey].(int64) != int64(75) {
+		t.Errorf("Expected duty cycle 75, got %v", metrics[expectedDutyCycleKey])
 	}
 }
