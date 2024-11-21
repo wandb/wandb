@@ -47,20 +47,21 @@ def write_gif_with_image_io(
 
 
 def resolve_moviepy():
-    """Resolve the correct moviepy module based on installed version."""
+    """Resolve the correct moviepy module dynamically using util.get_module."""
     try:
-        import moviepy
-
-        version = tuple(map(int, moviepy.__version__.split(".")))
-        if version < (2, 0):
-            from moviepy.editor import ImageSequenceClip  # type: ignore
-        else:
-            from moviepy import ImageSequenceClip  # type: ignore
-        return ImageSequenceClip
-    except ImportError:
-        raise ImportError(
-            'wandb.Video requires moviepy. Install it with "pip install wandb[media]"'
+        # Attempt to load moviepy.editor for MoviePy < 2.0
+        mpy = util.get_module(
+            "moviepy.editor",
+            required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
         )
+        return mpy.ImageSequenceClip
+    except ImportError:
+        # Fallback to moviepy for MoviePy >= 2.0
+        mpy = util.get_module(
+            "moviepy",
+            required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
+        )
+        return mpy.ImageSequenceClip
 
 
 class Video(BatchableMedia):
