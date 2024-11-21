@@ -181,6 +181,7 @@ func NewSender(
 		EnableCapture:     params.Settings.IsConsoleCaptureEnabled(),
 		Logger:            params.Logger,
 		FileStreamOrNil:   params.FileStream,
+		Label:             params.Settings.GetLabel(),
 	}
 	// TODO: In a distributed setting, only the primary node uploads the console log file.
 	if params.Settings.IsPrimaryNode() {
@@ -222,7 +223,6 @@ func NewSender(
 			summaryDebouncerBurstSize,
 			params.Logger,
 		),
-
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
 
