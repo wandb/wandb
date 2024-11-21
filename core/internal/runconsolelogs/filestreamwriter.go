@@ -25,7 +25,7 @@ func (w *filestreamWriter) SendChanged(
 
 		if line.StreamLabel != "" {
 			return fmt.Sprintf(
-				"%s%s %s %s",
+				"%s%s [%s] %s",
 				line.StreamPrefix,
 				timestamp,
 				line.StreamLabel,

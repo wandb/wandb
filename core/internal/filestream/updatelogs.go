@@ -1,8 +1,6 @@
 package filestream
 
-import (
-	"github.com/wandb/wandb/core/internal/sparselist"
-)
+import "github.com/wandb/wandb/core/internal/sparselist"
 
 // LogsUpdate is new lines in a run's console output.
 type LogsUpdate struct {
