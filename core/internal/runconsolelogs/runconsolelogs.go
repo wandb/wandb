@@ -136,11 +136,11 @@ func New(params Params) *Sender {
 
 	return &Sender{
 		stdoutTerm: terminalemulator.NewTerminal(
-			model.LineSupplier(params.Label),
+			model.LineSupplier("", params.Label),
 			maxTerminalLines,
 		),
 		stderrTerm: terminalemulator.NewTerminal(
-			model.LineSupplier(fmt.Sprintf("ERROR %s", params.Label)),
+			model.LineSupplier("ERROR ", params.Label),
 			maxTerminalLineLength,
 		),
 
