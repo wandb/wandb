@@ -273,6 +273,10 @@ class Settings(BaseModel, validate_assignment=True):
     x_jupyter_name: str | None = None
     x_jupyter_path: str | None = None
     x_jupyter_root: str | None = None
+    # Label to assign to system metrics and console logs collected for the run
+    # to group by on the frontend. Can be used to distinguish data from different
+    # nodes in a distributed training job.
+    x_label: str | None = None
     x_live_policy_rate_limit: int | None = None
     x_live_policy_wait_time: int | None = None
     x_log_level: int = logging.INFO

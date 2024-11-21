@@ -43,7 +43,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 181
+// Next ID: 182
 message Settings {
   reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137;
 
@@ -299,6 +299,11 @@ message Settings {
 
   // The OpenMetrics filters for the endpoints.
   OpenMetricsFilters x_stats_open_metrics_filters = 48;
+
+  // Label to assign to system metrics and console logs collected for the run
+  // to group by on the frontend. Can be used to distinguish data from different
+  // nodes in a distributed training job.
+  google.protobuf.StringValue x_label = 181;
 
   // Explicitly require wandb-core to not be used.
   google.protobuf.BoolValue x_require_legacy_service = 173;
