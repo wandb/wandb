@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewReleaseCmd() *cobra.Command {
+func NewCreateReleaseCmd() *cobra.Command {
 	var versionFlag string
 	var deploymentID []string
 	var metadata map[string]string

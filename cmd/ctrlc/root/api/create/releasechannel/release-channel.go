@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewReleaseChannelCmd() *cobra.Command {
+func NewCreateReleaseChannelCmd() *cobra.Command {
 	var name string
 	var deploymentID string
 	var description string

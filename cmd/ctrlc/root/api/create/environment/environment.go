@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewEnvironmentCmd() *cobra.Command {
+func NewCreateEnvironmentCmd() *cobra.Command {
 	var nameFlag string
 	var releaseChannels []string
 	var expiresIn string

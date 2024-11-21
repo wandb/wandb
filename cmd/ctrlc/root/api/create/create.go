@@ -17,9 +17,9 @@ func NewCreateCmd() *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(release.NewReleaseCmd())
-	cmd.AddCommand(releasechannel.NewReleaseChannelCmd())
-	cmd.AddCommand(environment.NewEnvironmentCmd())
+	cmd.AddCommand(release.NewCreateReleaseCmd())
+	cmd.AddCommand(releasechannel.NewCreateReleaseChannelCmd())
+	cmd.AddCommand(environment.NewCreateEnvironmentCmd())
 
 	return cmd
 }

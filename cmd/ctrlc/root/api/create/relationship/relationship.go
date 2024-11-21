@@ -4,7 +4,9 @@ import (
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc/v2"
+	"github.com/ctrlplanedev/cli/internal/api"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func NewCreateRelationshipCmd() *cobra.Command {
@@ -40,8 +42,15 @@ func NewCreateRelationshipCmd() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// apiURL := viper.GetString("url")
-			// apiKey := viper.GetString("api-key")
+			apiURL := viper.GetString("url")
+			apiKey := viper.GetString("api-key")
+
+			_, err := api.NewAPIKeyClientWithResponses(apiURL, apiKey)
+			if err != nil {
+				return fmt.Errorf("failed to create relationship API client: %w", err)
+			}
+
+			
 
 			// return cliutil.HandleOutput(cmd, response)
 			return nil
