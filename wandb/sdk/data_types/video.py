@@ -55,13 +55,18 @@ def resolve_moviepy():
             required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
         )
         return mpy.ImageSequenceClip
-    except ImportError:
+    except ModuleNotFoundError:
         # Fallback to moviepy for MoviePy >= 2.0
-        mpy = util.get_module(
-            "moviepy",
-            required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
-        )
-        return mpy.ImageSequenceClip
+        try:
+            mpy = util.get_module(
+                "moviepy",
+                required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
+            )
+            return mpy.ImageSequenceClip
+        except ModuleNotFoundError:
+            raise wandb.Error(
+                'wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"'
+            )
 
 
 class Video(BatchableMedia):
