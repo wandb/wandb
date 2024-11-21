@@ -53,9 +53,9 @@ def resolve_moviepy():
 
         version = tuple(map(int, moviepy.__version__.split(".")))
         if version < (2, 0):
-            from moviepy.editor import ImageSequenceClip
+            from moviepy.editor import ImageSequenceClip  # type: ignore
         else:
-            from moviepy import ImageSequenceClip
+            from moviepy import ImageSequenceClip  # type: ignore
         return ImageSequenceClip
     except ImportError:
         raise ImportError(
