@@ -169,7 +169,7 @@ func (sm *SystemMonitor) makeStatsRecord(stats map[string]any, timeStamp *timest
 		key := k
 		// Label for custom grouping of stats, e.g. per node in a multi-node run.
 		if label := sm.settings.GetLabel(); label != "" {
-			key = fmt.Sprintf("%s/label:%s", k, label)
+			key = fmt.Sprintf("%s/l:%s", k, label)
 		}
 		statsItems = append(statsItems, &spb.StatsItem{
 			Key:       key,
