@@ -46,29 +46,6 @@ def write_gif_with_image_io(
     writer.close()
 
 
-def resolve_moviepy():
-    """Resolve the correct moviepy module dynamically using util.get_module."""
-    try:
-        # Attempt to load moviepy.editor for MoviePy < 2.0
-        mpy = util.get_module(
-            "moviepy.editor",
-            required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
-        )
-        return mpy.ImageSequenceClip
-    except ModuleNotFoundError:
-        # Fallback to moviepy for MoviePy >= 2.0
-        try:
-            mpy = util.get_module(
-                "moviepy",
-                required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
-            )
-            return mpy.ImageSequenceClip
-        except ModuleNotFoundError:
-            raise wandb.Error(
-                'wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"'
-            )
-
-
 class Video(BatchableMedia):
     """Format a video for logging to W&B.
 
@@ -161,14 +138,32 @@ class Video(BatchableMedia):
             self.encode(fps=fps)
 
     def encode(self, fps: int = 4) -> None:
-        # Dynamically resolve the correct import
-        ImageSequenceClip = resolve_moviepy()
+        # Try to import ImageSequenceClip from the appropriate MoviePy module
+        mpy = None
+        try:
+            # Attempt to load moviepy.editor for MoviePy < 2.0
+            mpy = util.get_module(
+                "moviepy.editor",
+                required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
+            )
+        except wandb.Error:
+            # Fallback to moviepy for MoviePy >= 2.0
+            mpy = util.get_module(
+                "moviepy",
+                required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
+            )
+        
+        # Use the resolved module
+        if not hasattr(mpy, "ImageSequenceClip"):
+            raise wandb.Error(
+                'wandb.Video requires a compatible version of moviepy. Ensure "moviepy" is installed correctly.'
+            )
         
         tensor = self._prepare_video(self.data)
         _, self._height, self._width, self._channels = tensor.shape  # type: ignore
 
         # encode sequence of images into gif string
-        clip = ImageSequenceClip(list(tensor), fps=fps)
+        clip = mpy.ImageSequenceClip(list(tensor), fps=fps)
 
         filename = os.path.join(
             MEDIA_TMP.name, runid.generate_id() + "." + self._format
