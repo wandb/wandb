@@ -55,7 +55,7 @@ func (am *AzureClientsMap[T]) GetClient(key string) (T, error) {
 	var zero T
 	client, ok := am.clients.Load(key)
 	if !ok {
-		return zero, fmt.Errorf("client not found") 
+		return zero, fmt.Errorf("client not found")
 	}
 	accountClient, ok := client.(T)
 	if !ok {
@@ -143,6 +143,7 @@ func NewAzureFileTransfer(
 		ctx:               ctx,
 		clients:           clients,
 		containerClients:  NewAzureClientsMap[*container.Client](),
+		blobClient:        blobClient,
 	}
 }
 

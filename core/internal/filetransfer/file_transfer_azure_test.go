@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -35,28 +36,28 @@ type mockAzureBlob struct {
 }
 
 var azureFile1v0 = mockAzureBlob{
-	"https://account.blob.core.windows.net/container/file1.txt",
-	"container",
-	"file1.txt",
-	"0",
-	"0",
-	[]byte("v0"),
+	Reference: "https://account.blob.core.windows.net/container/file1.txt",
+	Container: "container",
+	Name:      "file1.txt",
+	VersionId: "0",
+	ETag:      "0",
+	Content:   []byte("v0"),
 }
 var azureFile1Latest = mockAzureBlob{
-	"https://account.blob.core.windows.net/container/file1.txt",
-	"container",
-	"file1.txt",
-	"latest",
-	"1",
-	[]byte("v1"),
+	Reference: "https://account.blob.core.windows.net/container/file1.txt",
+	Container: "container",
+	Name:      "file1.txt",
+	VersionId: "latest",
+	ETag:      "1",
+	Content:   []byte("v1"),
 }
 var azureFile2 = mockAzureBlob{
-	"https://account.blob.core.windows.net/container/file2.txt",
-	"container",
-	"file2.txt",
-	"latest",
-	"file2 etag",
-	[]byte("file2 content"),
+	Reference: "https://account.blob.core.windows.net/container/file2.txt",
+	Container: "container",
+	Name:      "file2.txt",
+	VersionId: "latest",
+	ETag:      "file2 etag",
+	Content:   []byte("file2 content"),
 }
 
 var mockAzureBlobs = []mockAzureBlob{azureFile1v0, azureFile1Latest, azureFile2}
@@ -70,7 +71,7 @@ func (m mockAzureBlobClient) DownloadFile(ctx context.Context, destination *os.F
 }
 
 func (m mockAzureBlobClient) GetProperties(ctx context.Context, options *blob.GetPropertiesOptions) (blob.GetPropertiesResponse, error) {
-	etag := azcore.ETag(fmt.Sprintf("\"%s\"", m.blob.ETag))
+	etag := azcore.ETag(fmt.Sprintf("%q", m.blob.ETag))
 	return blob.GetPropertiesResponse{
 		ETag: &etag,
 	}, nil
@@ -130,7 +131,8 @@ func mockSetupAccountClient(_ string, _ *azidentity.DefaultAzureCredential) (fil
 
 func TestAzureFileTransfer_Download(t *testing.T) {
 	accountClients := filetransfer.NewAzureClientsMap[filetransfer.AzureAccountClient]()
-	accountClients.LoadOrStore("https://account.blob.core.windows.net", mockSetupAccountClient)
+	_, err := accountClients.LoadOrStore("https://account.blob.core.windows.net", mockSetupAccountClient)
+	assert.NoError(t, err)
 
 	ftFile1 := filetransfer.NewAzureFileTransfer(
 		accountClients,
@@ -240,13 +242,13 @@ func TestAzureFileTransfer_Download(t *testing.T) {
 		Digest:       "https://account.blob.core.windows.net/container/",
 		Size:         100,
 	}
-	path1 := "test/file1.txt"
-	path2 := "test/file2.txt"
+	path1 := filepath.Join(task.PathOrPrefix, "file1.txt")
+	path2 := filepath.Join(task.PathOrPrefix, "file2.txt")
 	defer os.Remove(path1)
 	defer os.Remove(path2)
 
 	// Performing the download
-	err := ftFile1.Download(task)
+	err = ftFile1.Download(task)
 	assert.NoError(t, err)
 
 	// Read the downloaded file1
