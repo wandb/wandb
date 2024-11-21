@@ -65,7 +65,7 @@ func TestTrainiumSample(t *testing.T) {
 
 	metrics := make(map[string]any)
 	for _, item := range sample.Item {
-		metrics[item.Key], err = simplejsonext.UnmarshalString(item.ValueJson)
+		metrics[item.Key], _ = simplejsonext.UnmarshalString(item.ValueJson)
 	}
 
 	// Check for some expected keys and values
