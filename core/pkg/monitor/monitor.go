@@ -310,7 +310,7 @@ func (sm *SystemMonitor) monitorAsset(asset Asset) {
 				return
 			}
 
-			if metrics == nil {
+			if metrics == nil || len(metrics.Item) == 0 {
 				continue // nothing to do
 			}
 
