@@ -159,15 +159,19 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 }
 
 // marshal constructs a StatsRecord protobuf message from the provided stats map and timestamp.
-func marshal(stats map[string]any, timeStamp *timestamppb.Timestamp) *spb.StatsRecord {
+func marshal(
+	stats map[string]any,
+	timeStamp *timestamppb.Timestamp,
+) *spb.StatsRecord {
 	statsItems := make([]*spb.StatsItem, 0, len(stats))
 	for k, v := range stats {
 		jsonData, err := simplejsonext.Marshal(v)
 		if err != nil {
 			continue
 		}
+		key := k
 		statsItems = append(statsItems, &spb.StatsItem{
-			Key:       k,
+			Key:       key,
 			ValueJson: string(jsonData),
 		})
 	}
@@ -317,6 +321,13 @@ func (sm *SystemMonitor) monitorAsset(asset Asset) {
 			// Push metrics to the buffer
 			sm.buffer.Push(metrics)
 
+			// Label for custom grouping of stats, e.g. per node in a multi-node run.
+			if label := sm.settings.GetLabel(); label != "" {
+				for _, item := range metrics.Item {
+					item.Key = fmt.Sprintf("%s/l:%s", item.Key, label)
+				}
+			}
+
 			// publish metrics
 			record := &spb.Record{
 				RecordType: &spb.Record_Stats{
@@ -326,9 +337,7 @@ func (sm *SystemMonitor) monitorAsset(asset Asset) {
 			}
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				runwork.WorkFromRecord(
-					record,
-				),
+				runwork.WorkFromRecord(record),
 			)
 		}
 	}
