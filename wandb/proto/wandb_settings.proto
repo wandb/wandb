@@ -43,7 +43,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 182
+// Next ID: 183
 message Settings {
   reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137;
 
@@ -312,6 +312,12 @@ message Settings {
   //
   // Remove after the feature is rolled out.
   google.protobuf.BoolValue x_show_operation_stats = 176;
+
+  // Determines whether to save internal wandb files and metadata.
+  //
+  // In a distributed setting, this is useful for avoiding file overwrites on secondary nodes
+  // when only system metrics and logs are needed, as the primary node handles the main logging.
+  google.protobuf.BoolValue x_primary_node = 182;
 
   // Flag to allow table artifacts to be synced in offline mode.
   //
