@@ -175,6 +175,18 @@ func NewSender(
 		outputFileName = *path
 	}
 
+	consoleLogsSenderParams := runconsolelogs.Params{
+		ConsoleOutputFile: outputFileName,
+		FilesDir:          params.Settings.GetFilesDir(),
+		EnableCapture:     params.Settings.IsConsoleCaptureEnabled(),
+		Logger:            params.Logger,
+		FileStreamOrNil:   params.FileStream,
+	}
+	// TODO: In a distributed setting, only the primary node uploads the console log file.
+	if params.Settings.IsPrimaryNode() {
+		consoleLogsSenderParams.RunfilesUploaderOrNil = params.RunfilesUploader
+	}
+
 	s := &Sender{
 		runWork:             runWork,
 		runConfig:           runconfig.New(),
@@ -211,14 +223,7 @@ func NewSender(
 			params.Logger,
 		),
 
-		consoleLogsSender: runconsolelogs.New(runconsolelogs.Params{
-			ConsoleOutputFile:     outputFileName,
-			FilesDir:              params.Settings.GetFilesDir(),
-			EnableCapture:         params.Settings.IsConsoleCaptureEnabled(),
-			Logger:                params.Logger,
-			RunfilesUploaderOrNil: params.RunfilesUploader,
-			FileStreamOrNil:       params.FileStream,
-		}),
+		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
 
 	backendOrNil := params.Backend
@@ -1261,6 +1266,10 @@ func (s *Sender) uploadSummaryFile() {
 		return
 	}
 
+	if !s.settings.IsPrimaryNode() {
+		return
+	}
+
 	summary, err := s.runSummary.Serialize()
 	if err != nil {
 		s.logger.CaptureError(
@@ -1284,6 +1293,10 @@ func (s *Sender) uploadConfigFile() {
 	}
 
 	if !s.startState.Initialized {
+		return
+	}
+
+	if !s.settings.IsPrimaryNode() {
 		return
 	}
 

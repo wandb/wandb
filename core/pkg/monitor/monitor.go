@@ -343,7 +343,7 @@ func (sm *SystemMonitor) monitorAsset(asset Asset) {
 				sm.ctx.Done(),
 				runwork.WorkFromRecord(
 					makeStatsRecord(metrics, ts),
-				),
+			),
 			)
 		}
 	}
