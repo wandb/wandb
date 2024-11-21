@@ -1818,14 +1818,12 @@ type CreateEnvironmentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Environment *struct {
-			Description    *string                 `json:"description"`
-			ExpiresAt      *time.Time              `json:"expiresAt"`
-			Id             string                  `json:"id"`
-			Name           string                  `json:"name"`
-			ResourceFilter *map[string]interface{} `json:"resourceFilter,omitempty"`
-			SystemId       string                  `json:"systemId"`
-		} `json:"environment,omitempty"`
+		Description    *string                 `json:"description"`
+		ExpiresAt      *time.Time              `json:"expiresAt"`
+		Id             string                  `json:"id"`
+		Name           string                  `json:"name"`
+		ResourceFilter *map[string]interface{} `json:"resourceFilter,omitempty"`
+		SystemId       string                  `json:"systemId"`
 	}
 	JSON409 *struct {
 		Error *string `json:"error,omitempty"`
@@ -2909,14 +2907,12 @@ func ParseCreateEnvironmentResponse(rsp *http.Response) (*CreateEnvironmentRespo
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Environment *struct {
-				Description    *string                 `json:"description"`
-				ExpiresAt      *time.Time              `json:"expiresAt"`
-				Id             string                  `json:"id"`
-				Name           string                  `json:"name"`
-				ResourceFilter *map[string]interface{} `json:"resourceFilter,omitempty"`
-				SystemId       string                  `json:"systemId"`
-			} `json:"environment,omitempty"`
+			Description    *string                 `json:"description"`
+			ExpiresAt      *time.Time              `json:"expiresAt"`
+			Id             string                  `json:"id"`
+			Name           string                  `json:"name"`
+			ResourceFilter *map[string]interface{} `json:"resourceFilter,omitempty"`
+			SystemId       string                  `json:"systemId"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
