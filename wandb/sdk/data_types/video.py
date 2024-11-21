@@ -45,10 +45,12 @@ def write_gif_with_image_io(
 
     writer.close()
 
+
 def resolve_moviepy():
     """Resolve the correct moviepy module based on installed version."""
     try:
         import moviepy
+
         version = tuple(map(int, moviepy.__version__.split(".")))
         if version < (2, 0):
             from moviepy.editor import ImageSequenceClip
