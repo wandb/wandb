@@ -103,14 +103,13 @@ func TestTPUSample(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Sample() error = %v", err)
 	}
-	fmt.Println(data)
 
 	expectedMemoryUsageKey := "tpu.0.memoryUsage"
 	expectedDutyCycleKey := "tpu.0.dutyCycle"
 
 	metrics := make(map[string]any)
 	for _, item := range data.Item {
-		metrics[item.Key], err = simplejsonext.UnmarshalString(item.ValueJson)
+		metrics[item.Key], _ = simplejsonext.UnmarshalString(item.ValueJson)
 	}
 	fmt.Println(metrics)
 
