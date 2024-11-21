@@ -6,12 +6,6 @@ import re
 import wandb
 
 
-# Load JSON data from files
-def load_json(filename: str) -> dict:
-    with open(filename) as f:
-        return json.load(f)
-
-
 def log_to_wandb(args: argparse) -> None:
     # Initialize a W&B run
     run = wandb.init(project=args.project, name=args.run, job_type="performance_test")
@@ -26,8 +20,9 @@ def log_to_wandb(args: argparse) -> None:
     for dir in sorted_dirs:
         # Load the list of json files and combine them into one dictionary to send
         for f in args.list.split(","):
-            json_data = load_json(os.path.join(root_log_dir, dir, f))
-            final_data.update(json_data)
+            with open(os.path.join(root_log_dir, dir, f)) as f:
+                json_data = json.load(f)
+                final_data.update(json_data)
 
         run.log(final_data)
 

@@ -6,6 +6,7 @@ print_help() {
     echo "This script parses the raw system metric logs captured by \"sar\" such as CPU, memory, disk, network, etc."
     echo "\"sar\" is a utility from the sysstat package available on most Linux distros, and is used in this performance setup."
     echo "  -d directory of sar files "
+    echo "  -o output json file"
     echo "  -h print help menu "
     echo
     echo "Example: ./process_sar_helper.sh -d <your_log_folder> -o metrics.json"
