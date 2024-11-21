@@ -45,6 +45,21 @@ def write_gif_with_image_io(
 
     writer.close()
 
+def resolve_moviepy():
+    """Resolve the correct moviepy module based on installed version."""
+    try:
+        import moviepy
+        version = tuple(map(int, moviepy.__version__.split(".")))
+        if version < (2, 0):
+            from moviepy.editor import ImageSequenceClip
+        else:
+            from moviepy import ImageSequenceClip
+        return ImageSequenceClip
+    except ImportError:
+        raise ImportError(
+            'wandb.Video requires moviepy. Install it with "pip install wandb[media]"'
+        )
+
 
 class Video(BatchableMedia):
     """Format a video for logging to W&B.
@@ -82,6 +97,7 @@ class Video(BatchableMedia):
     EXTS = ("gif", "mp4", "webm", "ogg")
     _width: Optional[int]
     _height: Optional[int]
+    _ImageSequenceClip = resolve_moviepy()  # resolve the correct import
 
     def __init__(
         self,
@@ -138,15 +154,11 @@ class Video(BatchableMedia):
             self.encode(fps=fps)
 
     def encode(self, fps: int = 4) -> None:
-        mpy = util.get_module(
-            "moviepy.editor",
-            required='wandb.Video requires moviepy when passing raw data.  Install with "pip install wandb[media]"',
-        )
         tensor = self._prepare_video(self.data)
         _, self._height, self._width, self._channels = tensor.shape  # type: ignore
 
         # encode sequence of images into gif string
-        clip = mpy.ImageSequenceClip(list(tensor), fps=fps)
+        clip = self._ImageSequenceClip(list(tensor), fps=fps)
 
         filename = os.path.join(
             MEDIA_TMP.name, runid.generate_id() + "." + self._format
