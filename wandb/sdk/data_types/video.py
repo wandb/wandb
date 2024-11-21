@@ -100,7 +100,6 @@ class Video(BatchableMedia):
     EXTS = ("gif", "mp4", "webm", "ogg")
     _width: Optional[int]
     _height: Optional[int]
-    _ImageSequenceClip = resolve_moviepy()  # resolve the correct import
 
     def __init__(
         self,
@@ -157,11 +156,14 @@ class Video(BatchableMedia):
             self.encode(fps=fps)
 
     def encode(self, fps: int = 4) -> None:
+        # Dynamically resolve the correct import
+        ImageSequenceClip = resolve_moviepy()
+        
         tensor = self._prepare_video(self.data)
         _, self._height, self._width, self._channels = tensor.shape  # type: ignore
 
         # encode sequence of images into gif string
-        clip = self._ImageSequenceClip(list(tensor), fps=fps)
+        clip = ImageSequenceClip(list(tensor), fps=fps)
 
         filename = os.path.join(
             MEDIA_TMP.name, runid.generate_id() + "." + self._format
