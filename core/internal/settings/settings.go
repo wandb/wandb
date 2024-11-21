@@ -395,6 +395,10 @@ func (s *Settings) IsDisableStats() bool {
 	return s.Proto.XDisableStats.GetValue()
 }
 
+func (s *Settings) IsPrimaryNode() bool {
+	return s.Proto.XPrimaryNode.GetValue()
+}
+
 // The size of the buffer for system metrics.
 func (s *Settings) GetStatsBufferSize() int32 {
 	return s.Proto.XStatsBufferSize.GetValue()
