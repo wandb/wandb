@@ -103,7 +103,7 @@ class Settings(BaseModel, validate_assignment=True):
     # Whether to disable capturing the git state.
     disable_git: bool = False
     # Whether to disable the creation of a job artifact for W&B Launch.
-    disable_job_creation: bool = False
+    disable_job_creation: bool = True
     # The Docker image used to execute the script.
     docker: str | None = None
     # The email address of the user.
@@ -270,7 +270,6 @@ class Settings(BaseModel, validate_assignment=True):
     x_graphql_retry_wait_max_seconds: float | None = None
     x_graphql_timeout_seconds: float | None = None
     x_internal_check_process: float = 8.0
-    x_internal_queue_timeout: float = 2.0
     x_jupyter_name: str | None = None
     x_jupyter_path: str | None = None
     x_jupyter_root: str | None = None
