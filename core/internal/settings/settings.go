@@ -430,6 +430,7 @@ func (s *Settings) GetStatsOpenMetricsFilters() *spb.OpenMetricsFilters {
 	return s.Proto.XStatsOpenMetricsFilters
 }
 
+// The label for the run namespacing for console output and system metrics.
 func (s *Settings) GetLabel() string {
 	return s.Proto.XLabel.GetValue()
 }

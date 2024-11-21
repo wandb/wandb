@@ -218,6 +218,7 @@ func NewSender(
 			Logger:                params.Logger,
 			RunfilesUploaderOrNil: params.RunfilesUploader,
 			FileStreamOrNil:       params.FileStream,
+			Label:                 params.Settings.GetLabel(),
 		}),
 	}
 
