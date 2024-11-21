@@ -546,6 +546,9 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 }
 
 func (h *Handler) handleRequestPythonPackages(_ *spb.Record, request *spb.PythonPackagesRequest) {
+	if !h.settings.IsPrimaryNode() {
+		return
+	}
 	// write all requirements to a file
 	// send the file as a Files record
 	filename := filepath.Join(h.settings.GetFilesDir(), RequirementsFileName)
@@ -585,6 +588,10 @@ func (h *Handler) handleRequestPythonPackages(_ *spb.Record, request *spb.Python
 }
 
 func (h *Handler) handleCodeSave() {
+	if !h.settings.IsPrimaryNode() {
+		return
+	}
+
 	programRelative := h.settings.GetProgramRelativePath()
 	if programRelative == "" {
 		h.logger.Warn("handleCodeSave: program relative path is empty")
@@ -624,7 +631,7 @@ func (h *Handler) handleCodeSave() {
 
 func (h *Handler) handlePatchSave() {
 	// capture git state
-	if h.settings.IsDisableGit() || h.settings.IsDisableMachineInfo() {
+	if h.settings.IsDisableGit() || h.settings.IsDisableMachineInfo() || !h.settings.IsPrimaryNode() {
 		return
 	}
 
@@ -670,9 +677,7 @@ func (h *Handler) handlePatchSave() {
 }
 
 func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
-	// TODO: Sending metadata as a request for now, eventually this should be turned into
-	//  a record and stored in the transaction log
-	if h.settings.IsDisableMeta() || h.settings.IsDisableMachineInfo() {
+	if h.settings.IsDisableMeta() || h.settings.IsDisableMachineInfo() || !h.settings.IsPrimaryNode() {
 		return
 	}
 
