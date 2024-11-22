@@ -2131,7 +2131,12 @@ class Run:
 
     @_run_decorator._noop
     @_run_decorator._attach
-    def finish(self, exit_code: int | None = None, quiet: bool | None = None) -> None:
+    def finish(
+        self,
+        exit_code: int | None = None,
+        quiet: bool | None = None,
+        mark_finished: bool = True,
+    ) -> None:
         """Mark a run as finished, and finish uploading all data.
 
         This is used when creating multiple runs in the same process. We automatically
@@ -2149,11 +2154,12 @@ class Run:
                     "use `wandb.Settings(quiet=...)` to set this instead."
                 ),
             )
-        return self._finish(exit_code)
+        return self._finish(exit_code, mark_finished=mark_finished)
 
     def _finish(
         self,
         exit_code: int | None = None,
+        mark_finished: bool = True,
     ) -> None:
         logger.info(f"finishing run {self._get_path()}")
         with telemetry.context(run=self) as tel:
@@ -2179,7 +2185,7 @@ class Run:
         self._is_finished = True
 
         try:
-            self._atexit_cleanup(exit_code=exit_code)
+            self._atexit_cleanup(exit_code=exit_code, mark_finished=mark_finished)
 
             # Run hooks that should happen after the last messages to the
             # internal service, like detaching the logger.
@@ -2384,7 +2390,9 @@ class Run:
             self._err_redir.uninstall()
         logger.info("restore done")
 
-    def _atexit_cleanup(self, exit_code: int | None = None) -> None:
+    def _atexit_cleanup(
+        self, exit_code: int | None = None, mark_finished: bool = True
+    ) -> None:
         if self._backend is None:
             logger.warning("process exited without backend configured")
             return
@@ -2406,7 +2414,7 @@ class Run:
                 os.remove(self._settings.resume_fname)
 
         try:
-            self._on_finish()
+            self._on_finish(mark_finished=mark_finished)
 
         except KeyboardInterrupt:
             if not wandb.wandb_agent._is_running():  # type: ignore
@@ -2638,7 +2646,7 @@ class Run:
 
         progress_printer.update([result.response.poll_exit_response])
 
-    def _on_finish(self) -> None:
+    def _on_finish(self, mark_finished: bool = True) -> None:
         trigger.call("on_finished")
 
         if self._run_status_checker is not None:
@@ -2648,7 +2656,11 @@ class Run:
 
         assert self._backend and self._backend.interface
 
-        exit_handle = self._backend.interface.deliver_exit(self._exit_code)
+        if mark_finished:
+            exit_handle = self._backend.interface.deliver_exit(self._exit_code)
+        else:
+            exit_handle = self._backend.interface.deliver_finish_without_exit()
+
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
         with progress.progress_printer(
