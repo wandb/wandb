@@ -3,20 +3,22 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any, Mapping
+from typing import Any, Mapping, Union
 
 from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-from pydantic_core import to_json, to_jsonable_python
-from typing_extensions import dataclass_transform, override
+from typing_extensions import TypeAlias, dataclass_transform, override
 
-from wandb._pydantic import IS_PYDANTIC_V2, field_validator, model_validator
-from wandb._pydantic.base import CompatBaseModel
+from wandb._pydantic import (
+    IS_PYDANTIC_V2,
+    CompatBaseModel,
+    field_validator,
+    model_validator,
+    to_json,
+)
 
 from .operators import (
     KEY_TO_OP,
-    AnyOp,
-    BaseOp,
     Contains,
     Eq,
     Exists,
@@ -27,6 +29,8 @@ from .operators import (
     Lte,
     Ne,
     NotIn,
+    Op,
+    OpTypes,
     Regex,
     RichReprResult,
     Scalar,
@@ -132,7 +136,7 @@ class FilterExpr(CompatBaseModel, SupportsLogicalOpSyntax):
     )
 
     field: FilterField
-    op: AnyOp
+    op: Op
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.field!s}={self.op!r})"
@@ -142,14 +146,12 @@ class FilterExpr(CompatBaseModel, SupportsLogicalOpSyntax):
         yield self.field, self.op
 
     @field_validator("field", mode="before")
-    @classmethod
     def _validate_field(cls, v: Any) -> Any:
         return FilterField(v) if isinstance(v, str) else v
 
     @field_validator("op")
-    @classmethod
     def _validate_op(cls, v: Any) -> Any:
-        if isinstance(v, BaseOp):
+        if isinstance(v, OpTypes):
             return v
 
         if (
@@ -184,17 +186,20 @@ class FilterExpr(CompatBaseModel, SupportsLogicalOpSyntax):
         @model_serializer(mode="plain")
         def _serialize(self) -> dict[str, Any]:
             """Return a MongoDB dict representation of the expression."""
+            from pydantic_core import to_jsonable_python  # Only valid in pydantic v2
+
             op_dict = to_jsonable_python(self.op, by_alias=True, round_trip=True)
             return {self.field.name: op_dict}
     else:
         # Pydantic V1 workaround -- both model_dump/model_dump_json need to be patched
         @override
-        def model_dump(self, **_: Any) -> dict[str, Any]:
-            """Return a MongoDB dict representation of the expression."""
-            op_dict = self.op.model_dump() if isinstance(self.op, BaseOp) else self.op
-            return {self.field.name: op_dict}
+        def model_dump(self, **kws: Any) -> dict[str, Any]:
+            opdict = self.op if isinstance(self.op, dict) else self.op.model_dump(**kws)
+            return {self.field.name: opdict}
 
         @override
         def model_dump_json(self, **kwargs: Any) -> str:
-            """Return a MongoDB JSON string representation of the expression."""
-            return to_json(self.model_dump(**kwargs)).decode("utf8")
+            return to_json(self.model_dump(**kwargs))
+
+
+MongoOpOrFilter: TypeAlias = Union[Op, FilterExpr]
