@@ -154,26 +154,8 @@ func setupBlobClient(
 	return client, nil
 }
 
-// SetupContainerClient sets up the Azure container client.
-func (ft *AzureFileTransfer) SetupContainerClient(containerName string) {
-	onceVal, _ := ft.containerClients.once.LoadOrStore(containerName, &sync.Once{})
-	once := onceVal.(*sync.Once)
-	once.Do(func() {
-		cred, err := azidentity.NewDefaultAzureCredential(nil)
-		if err != nil {
-			ft.logger.Error("Unable to create Azure credential", "err", err)
-			return
-		}
-		client, err := container.NewClient(containerName, cred, nil)
-		if err != nil {
-			ft.logger.Error("Unable to create Azure client", "err", err)
-			return
-		}
-		ft.containerClients.clients.Store(containerName, client)
-	})
-}
-
-// Upload uploads a file to the server.
+// Upload uploads a file to the server. This method is not yet implemented, but
+// is required for the FileTransfer interface.
 func (ft *AzureFileTransfer) Upload(task *ReferenceArtifactUploadTask) error {
 	ft.logger.Debug("Azure file transfer: uploading file", "path", task.PathOrPrefix)
 
@@ -218,7 +200,7 @@ func (ft *AzureFileTransfer) Download(task *ReferenceArtifactDownloadTask) error
 
 	var blobNames []string
 	if task.HasSingleFile() {
-		blobName, versionId, err := ft.getBlobName(blobInfo, task)
+		blobName, versionId, err := ft.getBlob(blobInfo, task)
 		if err != nil {
 			return ft.formatDownloadError(
 				"error getting correct blob name and version",
@@ -255,9 +237,9 @@ func (ft *AzureFileTransfer) Download(task *ReferenceArtifactDownloadTask) error
 	return nil
 }
 
-// getBlobName tries to get the blob name and version ID that matches the
+// getBlob tries to get the blob name and version ID that matches the
 // expected digest for the given task.
-func (ft *AzureFileTransfer) getBlobName(
+func (ft *AzureFileTransfer) getBlob(
 	blobInfo ParsedBlobInfo,
 	task *ReferenceArtifactDownloadTask,
 ) (string, string, error) {
@@ -265,27 +247,29 @@ func (ft *AzureFileTransfer) getBlobName(
 	if err != nil {
 		return "", "", err
 	}
-	properties, err := blobClient.GetProperties(ft.ctx, nil)
+	matches, err := ft.checkVersionIDMatches(blobClient, task.Digest)
 	if err != nil {
 		return "", "", err
 	}
 
-	// If the etag does not match the expected digest, try to find the correct blob version
-	if properties.ETag != nil && strings.Trim(string(*properties.ETag), "\"") != task.Digest {
-		if task.VersionId != nil {
-			return "", "", fmt.Errorf(
-				"digest/etag mismatch: etag %s does not match expected digest %s",
-				*properties.ETag,
-				task.Digest,
-			)
-		}
-		blobName, versionId, err := ft.getCorrectBlobVersion(blobInfo, task)
-		if err != nil {
-			return "", "", err
-		}
-		return blobName, versionId, nil
+	if matches {
+		return blobInfo.BlobPrefix, "", nil
 	}
-	return blobInfo.BlobPrefix, "", nil
+
+	// If the version ID is specified but the etag does not match, return an error
+	if task.VersionId != nil {
+		return "", "", fmt.Errorf(
+			"digest/etag mismatch: etag does not match expected digest %s",
+			task.Digest,
+		)
+	}
+
+	// Otherwise, find the correct blob version
+	blobName, versionId, err := ft.getCorrectBlobVersion(blobInfo, task)
+	if err != nil {
+		return "", "", err
+	}
+	return blobName, versionId, nil
 }
 
 // getCorrectBlobVersion finds the correct blob version that matches the
@@ -300,6 +284,7 @@ func (ft *AzureFileTransfer) getCorrectBlobVersion(
 		return "", "", err
 	}
 
+	// Get all of the possible versions of the blob to check the digest against
 	pager := containerClient.NewListBlobsFlatPager(&container.ListBlobsFlatOptions{
 		Prefix: &blobInfo.BlobPrefix,
 		Include: container.ListBlobsInclude{
@@ -319,12 +304,11 @@ func (ft *AzureFileTransfer) getCorrectBlobVersion(
 			if err != nil {
 				return "", "", err
 			}
-			properties, err := blobClient.GetProperties(ft.ctx, nil)
+			matches, err := ft.checkVersionIDMatches(blobClient, task.Digest)
 			if err != nil {
 				return "", "", err
 			}
-			if properties.ETag != nil &&
-				strings.Trim(string(*properties.ETag), "\"") == task.Digest {
+			if matches {
 				return *blob.Name, *blob.VersionID, nil
 			}
 		}
@@ -336,17 +320,38 @@ func (ft *AzureFileTransfer) getCorrectBlobVersion(
 	)
 }
 
-// listBlobs lists all the blobs in the container with the given prefix.
-func (ft *AzureFileTransfer) listBlobsWithPrefix(blobInfo ParsedBlobInfo) ([]string, error) {
+// checkVersionIDMatches checks if the etag of the given blob matches the expected digest.
+func (ft *AzureFileTransfer) checkVersionIDMatches(
+	client *blob.Client,
+	digest string,
+) (bool, error) {
+	properties, err := client.GetProperties(ft.ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	if properties.ETag != nil &&
+		strings.Trim(string(*properties.ETag), "\"") == digest {
+		return true, nil
+	}
+	return false, nil
+}
+
+// listBlobsWithPrefix lists all the blobs in the container with the given prefix.
+func (ft *AzureFileTransfer) listBlobsWithPrefix(
+	blobInfo ParsedBlobInfo,
+) ([]string, error) {
 	client, err := ft.clients.GetClient(blobInfo.AccountUrl)
 	if err != nil {
 		return nil, err
 	}
 
 	// List the blobs in the container
-	pager := client.NewListBlobsFlatPager(blobInfo.Container, &azblob.ListBlobsFlatOptions{
-		Prefix: &blobInfo.BlobPrefix,
-	})
+	pager := client.NewListBlobsFlatPager(
+		blobInfo.Container,
+		&azblob.ListBlobsFlatOptions{
+			Prefix: &blobInfo.BlobPrefix,
+		},
+	)
 
 	blobNames := []string{}
 	for pager.More() {
