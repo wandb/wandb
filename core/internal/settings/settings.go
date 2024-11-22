@@ -395,6 +395,10 @@ func (s *Settings) IsDisableStats() bool {
 	return s.Proto.XDisableStats.GetValue()
 }
 
+func (s *Settings) IsPrimaryNode() bool {
+	return s.Proto.XPrimaryNode.GetValue()
+}
+
 // The size of the buffer for system metrics.
 func (s *Settings) GetStatsBufferSize() int32 {
 	return s.Proto.XStatsBufferSize.GetValue()
@@ -428,6 +432,11 @@ func (s *Settings) GetStatsOpenMetricsEndpoints() map[string]string {
 // The OpenMetrics filters for the endpoints.
 func (s *Settings) GetStatsOpenMetricsFilters() *spb.OpenMetricsFilters {
 	return s.Proto.XStatsOpenMetricsFilters
+}
+
+// The label for the run namespacing for console output and system metrics.
+func (s *Settings) GetLabel() string {
+	return s.Proto.XLabel.GetValue()
 }
 
 // Update methods.

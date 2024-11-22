@@ -273,10 +273,18 @@ class Settings(BaseModel, validate_assignment=True):
     x_jupyter_name: str | None = None
     x_jupyter_path: str | None = None
     x_jupyter_root: str | None = None
+    # Label to assign to system metrics and console logs collected for the run
+    # to group by on the frontend. Can be used to distinguish data from different
+    # nodes in a distributed training job.
+    x_label: str | None = None
     x_live_policy_rate_limit: int | None = None
     x_live_policy_wait_time: int | None = None
     x_log_level: int = logging.INFO
     x_network_buffer: int | None = None
+    # Determines whether to save internal wandb files and metadata.
+    # In a distributed setting, this is useful for avoiding file overwrites on secondary nodes
+    # when only system metrics and logs are needed, as the primary node handles the main logging.
+    x_primary_node: bool = True
     # [deprecated, use http(s)_proxy] custom proxy servers for the requests to W&B
     # [scheme -> url].
     x_proxies: dict[str, str] | None = None
