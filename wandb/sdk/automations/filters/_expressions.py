@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Iterable
-from typing import Any, Dict, Iterator, Mapping, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterator, Mapping, Union, overload
 
 from pydantic import (
     BaseModel,
@@ -44,6 +44,9 @@ if sys.version_info >= (3, 12):
     from typing import Annotated
 else:
     from typing_extensions import Annotated
+
+if TYPE_CHECKING:
+    from wandb.sdk.automations.events import MetricFilter, RunMetricFilter
 
 
 # ------------------------------------------------------------------------------
@@ -112,7 +115,19 @@ class FilterExpr(BaseModel):
     def __repr_args__(self) -> _repr.ReprArgs:
         yield self.field, self.op
 
-    def __and__(self, other: Any) -> And:
+    @overload
+    def __and__(self, other: MetricFilter) -> RunMetricFilter: ...
+    @overload
+    def __and__(self, other: Any) -> And: ...
+
+    def __and__(self, other: Any) -> And | RunMetricFilter:
+        from wandb.sdk.automations.events import MetricFilter
+
+        # Special handling for `run_filter & metric_filter`
+        if isinstance(other, MetricFilter):
+            return other.__and__(self)
+
+        # Default implementation
         return And(inner=[self, other])
 
     def __or__(self, other: Any) -> Or:

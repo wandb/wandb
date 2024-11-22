@@ -53,6 +53,7 @@ SYMBOLS_ROOT_SDK = {
     "load_ipython_extension",
     "require",
     "profiler",
+    "automations",
 }
 
 # Look into these and see what we can remove / hide
