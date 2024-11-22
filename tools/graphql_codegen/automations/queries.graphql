@@ -160,7 +160,6 @@ query GetTriggersByEntity (
 fragment CreateFilterTriggerResult on CreateFilterTriggerPayload {
     __typename
     trigger {...TriggerFields}
-    clientMutationId
 }
 mutation CreateFilterTrigger($params: CreateFilterTriggerInput!) {
     createFilterTrigger(input: $params) {
@@ -171,7 +170,6 @@ mutation CreateFilterTrigger($params: CreateFilterTriggerInput!) {
 fragment UpdateFilterTriggerResult on UpdateFilterTriggerPayload {
     __typename
     trigger {...TriggerFields}
-    clientMutationId
 }
 mutation UpdateFilterTrigger($params: UpdateFilterTriggerInput!) {
     updateFilterTrigger(input: $params) {
@@ -182,7 +180,6 @@ mutation UpdateFilterTrigger($params: UpdateFilterTriggerInput!) {
 fragment DeleteTriggerResult on DeleteTriggerPayload {
     __typename
     success
-    clientMutationId
 }
 mutation DeleteTrigger($id: ID!) {
     deleteTrigger(input: {triggerID: $id}) {
