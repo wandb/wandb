@@ -16,6 +16,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - Set default behavior to not create a W&B Job (@KyleGoyette in https://github.com/wandb/wandb/pull/8907)
+- Improved error message for failing tensorboard.patch() calls to show the option to call tensorboard.unpatch() first (@daniel-bogdoll in https://github.com/wandb/wandb/pull/8938) 
+
 
 ### Removed
 
