@@ -13,6 +13,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Added
+
+- Add mark_finished flag to control run state on finish(). (@kptkin and @dmitryduev in https://github.com/wandb/wandb/pull/8934)
+
 ### Changed
 
 - Set default behavior to not create a W&B Job (@KyleGoyette in https://github.com/wandb/wandb/pull/8907)
