@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -10,6 +9,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -32,7 +32,7 @@ const (
 // Asset defines the interface for system assets to be monitored.
 type Asset interface {
 	Name() string
-	Sample() (map[string]any, error)
+	Sample() (*spb.StatsRecord, error)
 	IsAvailable() bool
 	Probe() *spb.MetadataRequest
 }
@@ -158,47 +158,28 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 	}
 }
 
-// makeStatsRecord constructs a StatsRecord protobuf message from the provided stats map and timestamp.
-func (sm *SystemMonitor) makeStatsRecord(stats map[string]any, timeStamp *timestamppb.Timestamp) *spb.Record {
+// marshal constructs a StatsRecord protobuf message from the provided stats map and timestamp.
+func marshal(
+	stats map[string]any,
+	timeStamp *timestamppb.Timestamp,
+) *spb.StatsRecord {
 	statsItems := make([]*spb.StatsItem, 0, len(stats))
 	for k, v := range stats {
-		jsonData, err := json.Marshal(v)
+		jsonData, err := simplejsonext.Marshal(v)
 		if err != nil {
 			continue
 		}
 		key := k
-		// Label for custom grouping of stats, e.g. per node in a multi-node run.
-		if label := sm.settings.GetLabel(); label != "" {
-			key = fmt.Sprintf("%s/l:%s", k, label)
-		}
 		statsItems = append(statsItems, &spb.StatsItem{
 			Key:       key,
 			ValueJson: string(jsonData),
 		})
 	}
 
-	return &spb.Record{
-		RecordType: &spb.Record_Stats{
-			Stats: &spb.StatsRecord{
-				StatsType: spb.StatsRecord_SYSTEM,
-				Timestamp: timeStamp,
-				Item:      statsItems,
-			},
-		},
-		Control: &spb.Control{AlwaysSend: true},
-	}
-}
-
-// makeMetadataRecord constructs a MetadataRecord protobuf message from the provided MetadataRequest.
-func makeMetadataRecord(metadata *spb.MetadataRequest) *spb.Record {
-	return &spb.Record{
-		RecordType: &spb.Record_Request{
-			Request: &spb.Request{
-				RequestType: &spb.Request_Metadata{
-					Metadata: metadata,
-				},
-			},
-		},
+	return &spb.StatsRecord{
+		StatsType: spb.StatsRecord_SYSTEM,
+		Timestamp: timeStamp,
+		Item:      statsItems,
 	}
 }
 
@@ -208,7 +189,7 @@ func (sm *SystemMonitor) GetState() int32 {
 }
 
 // probe gathers system information from all assets and merges their metadata.
-func (sm *SystemMonitor) probe() *spb.MetadataRequest {
+func (sm *SystemMonitor) probe() *spb.Record {
 	defer func() {
 		if err := recover(); err != nil {
 			sm.logger.CaptureError(
@@ -224,7 +205,16 @@ func (sm *SystemMonitor) probe() *spb.MetadataRequest {
 			proto.Merge(&systemInfo, probeResponse)
 		}
 	}
-	return &systemInfo
+
+	return &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_Metadata{
+					Metadata: &systemInfo,
+				},
+			},
+		},
+	}
 }
 
 // Start begins the monitoring process for all assets and probes system information.
@@ -240,23 +230,20 @@ func (sm *SystemMonitor) Start() {
 	}
 
 	sm.logger.Info("Starting system monitor")
-	// start monitoring the assets
+	// Start collecting metrics for all assets.
 	for _, asset := range sm.assets {
 		sm.wg.Add(1)
 		go sm.monitorAsset(asset)
 	}
 
-	// probe the asset information
+	// Probe the asset information.
 	go func() {
-		systemInfo := sm.probe()
-		if systemInfo != nil {
-			sm.extraWork.AddWorkOrCancel(
-				sm.ctx.Done(),
-				runwork.WorkFromRecord(
-					makeMetadataRecord(systemInfo),
-				),
-			)
-		}
+		sm.extraWork.AddWorkOrCancel(
+			sm.ctx.Done(),
+			runwork.WorkFromRecord(
+				sm.probe(),
+			),
+		)
 	}()
 }
 
@@ -315,8 +302,6 @@ func (sm *SystemMonitor) monitorAsset(asset Asset) {
 				continue // Skip work when not running
 			}
 
-			// NOTE: the pattern in Sample is to capture whatever metrics are available,
-			// accumulate errors along the way, and log them here.
 			metrics, err := asset.Sample()
 			if err != nil {
 				sm.logger.CaptureError(
@@ -329,26 +314,30 @@ func (sm *SystemMonitor) monitorAsset(asset Asset) {
 				return
 			}
 
-			if len(metrics) == 0 {
+			if metrics == nil || len(metrics.Item) == 0 {
 				continue // nothing to do
 			}
-			ts := timestamppb.Now()
 
 			// Push metrics to the buffer
-			if sm.buffer != nil {
-				for k, v := range metrics {
-					if v, ok := v.(float64); ok {
-						sm.buffer.Push(k, ts, v)
-					}
+			sm.buffer.Push(metrics)
+
+			// Label for custom grouping of stats, e.g. per node in a multi-node run.
+			if label := sm.settings.GetLabel(); label != "" {
+				for _, item := range metrics.Item {
+					item.Key = fmt.Sprintf("%s/l:%s", item.Key, label)
 				}
 			}
 
 			// publish metrics
+			record := &spb.Record{
+				RecordType: &spb.Record_Stats{
+					Stats: metrics,
+				},
+				Control: &spb.Control{AlwaysSend: true},
+			}
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				runwork.WorkFromRecord(
-					sm.makeStatsRecord(metrics, ts),
-				),
+				runwork.WorkFromRecord(record),
 			)
 		}
 	}
