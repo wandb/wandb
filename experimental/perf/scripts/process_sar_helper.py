@@ -38,8 +38,7 @@ def find_max(file_path: str, field: int) -> float:
 
 
 def process_sar_files(log_dir: str, json_output_file: str):
-    """Given a folder of sar output files, it process the metrics and
-    computes the average and max values and write them to a json file.
+    """Process the sar files and write the summary to a json file.
 
     Args:
         log_dir (str): Path to the folder of sar log files.

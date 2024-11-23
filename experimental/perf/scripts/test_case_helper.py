@@ -5,9 +5,9 @@ from helper import capture_sar_metrics
 from process_sar_helper import process_sar_files
 
 
-def bench_log(root_folder: str, loop: int, step: int):
-    for l in range(loop):
-        log_folder = os.path.join(root_folder, f"loop{l}_step{step}")
+def bench_log(root_folder: str, loop_count: int, step: int):
+    for loop in range(loop_count):
+        log_folder = os.path.join(root_folder, f"loop{loop}_step{step}")
         os.makedirs(log_folder, exist_ok=True)
         capture_sar_metrics(log_folder)
         run_experiment(1, step, output_file=f"{log_folder}/results.json")
