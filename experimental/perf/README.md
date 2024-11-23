@@ -20,9 +20,9 @@ Once you are logged into your container
    export WANDB_API_KEY=<your key>
    export WANDB_BASE_URL=<your W&B server URL>
 2. cd /opt/ns/scripts
-3. ./run_load_test.sh -t bench_log (or bench_log_scale_step, bench_log_scale_metric)
+3. python run_load_test.py -t bench_log (or bench_log_scale_step, bench_log_scale_metric)
 4. The test results are saved locally on the same directory
 
 ## Pushing performance test results and metrics to W&B
 After you have a test run, you can optional push the results to W&B for easier visualization
-1. python ./push_perf_results_helper.py -f test_result_directory -n some_meaningful_test_name -p your_project_name
+1. python push_perf_results_helper.py -f test_result_directory -n some_meaningful_test_name -p your_project_name

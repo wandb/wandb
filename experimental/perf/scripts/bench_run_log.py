@@ -15,23 +15,22 @@ def measure_time(func):
         result = func(*args, **kwargs)
         end_time = datetime.now()
         elapsed_time = end_time - start_time
-        # print(f"{func.__name__}() time: {elapsed_time.total_seconds()}")
         return result, round(elapsed_time.total_seconds(), 2)
 
     return wrapper
 
 
 @measure_time
-def init_wandb(run_id: str, args: argparse):
+def init_wandb(run_id: str, loop_count:int, step_count:int, metric_count:int, metric_key_size:int):
     """Initialize a new W&B run."""
     wandb.init(
         project="perf-test",
-        name=f"perf_run{run_id}_steps{args.steps}_metriccount{args.metric_count}",
+        name=f"perf_run{run_id}_steps{step_count}_metriccount{metric_count}",
         config={
-            "loop": {args.loop},
-            "steps": {args.steps},
-            "metric_count": {args.metric_count},
-            "metric_key_size": {args.metric_key_size},
+            "loop": {loop_count},
+            "steps": {step_count},
+            "metric_count": {metric_count},
+            "metric_key_size": {metric_key_size},
         },
     )
 
@@ -49,36 +48,36 @@ def finish_wandb():
     wandb.finish()
 
 
-def run_experiment(args: argparse):
+def run_experiment(loop_count=5, step_count=10, metric_count=100, metric_key_size=10, output_file="results.json"):
     """Run the training experiment, measuring initialization, logging, and finishing times."""
     start_time_str = datetime.now().strftime("%m%d%YT%H%M%S")
 
     result_data = {}
-    result_data["iteration_count"] = int(args.loop)
-    result_data["step_count"] = int(args.steps)
-    result_data["metric_count"] = int(args.metric_count)
-    result_data["metric_key_size"] = int(args.metric_key_size)
+    result_data["iteration_count"] = loop_count
+    result_data["step_count"] = step_count
+    result_data["metric_count"] = metric_count
+    result_data["metric_key_size"] = metric_key_size
 
     print("##############################################################")
-    print(f"# of training runs: {args.loop}")
-    print(f"# of steps in each run: {args.steps}")
-    print(f"# of metrics in each step: {args.metric_count}")
-    print(f"metric key size: {args.metric_key_size}")
+    print(f"# of training runs: {loop_count}")
+    print(f"# of steps in each run: {step_count}")
+    print(f"# of metrics in each step: {metric_count}")
+    print(f"metric key size: {metric_key_size}")
     print(f"Test start time: {start_time_str}")
 
-    payload = generate_random_dict(args.metric_count, args.metric_key_size)
+    payload = generate_random_dict(metric_count, metric_key_size)
     total_start_time = datetime.now()
 
-    for run in range(args.loop):
+    for run in range(loop_count):
         run_id = f"{start_time_str}_{run}"
         print(f"\n--- Run {run + 1} ---")
 
         # Initialize W&B
-        _, init_time = init_wandb(run_id, args)
+        _, init_time = init_wandb(run_id, loop_count, step_count, metric_count, metric_key_size)
         result_data["init_time"] = init_time
 
         # Log the test metrics
-        _, log_time = log_metrics(args.steps, payload)
+        _, log_time = log_metrics(step_count, payload)
         result_data["log_time"] = log_time
 
         # Finish W&B run
@@ -90,7 +89,7 @@ def run_experiment(args: argparse):
         result_data["sdk_run_time"] = run_time
 
         # write the result data to a json file
-        with open(args.outfile, "w") as file:
+        with open(output_file, "w") as file:
             json.dump(result_data, file, indent=4)
 
         print(json.dumps(result_data, indent=4))
@@ -132,4 +131,4 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    run_experiment(args)
+    run_experiment(args.loop, args.steps, args.metric_count, args.metric_key_size, args.outfile)
