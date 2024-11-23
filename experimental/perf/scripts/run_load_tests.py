@@ -1,7 +1,8 @@
-import os
 import argparse
 import datetime
+import os
 import time
+
 import test_case_helper
 
 
@@ -10,7 +11,7 @@ def print_help():
         """
 Usage: python run_load_tests.py -t <test case> [options]
   -t test case to run (required)
-     bench_log 
+     bench_log
      bench_log_scale_step
      bench_log_scale_metric
   -k Wandb API key (optional)
