@@ -44,9 +44,11 @@ def capture_sar_metrics(log_dir: str, iteration: int = 8):
     processes = []
     for log_file, command in commands.items():
         log_path = f"{log_dir}/{log_file}"
-        process = subprocess.Popen(command, stdout=open(log_path, "w"), stderr=subprocess.PIPE)
+        process = subprocess.Popen(
+            command, stdout=open(log_path, "w"), stderr=subprocess.PIPE
+        )
         processes.append(process)
 
     # Wait for all subprocesses to complete
-    #for process in processes:
+    # for process in processes:
     #    process.wait()

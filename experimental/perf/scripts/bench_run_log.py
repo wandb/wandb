@@ -21,7 +21,13 @@ def measure_time(func):
 
 
 @measure_time
-def init_wandb(run_id: str, loop_count:int, step_count:int, metric_count:int, metric_key_size:int):
+def init_wandb(
+    run_id: str,
+    loop_count: int,
+    step_count: int,
+    metric_count: int,
+    metric_key_size: int,
+):
     """Initialize a new W&B run."""
     wandb.init(
         project="perf-test",
@@ -48,7 +54,13 @@ def finish_wandb():
     wandb.finish()
 
 
-def run_experiment(loop_count=5, step_count=10, metric_count=100, metric_key_size=10, output_file="results.json"):
+def run_experiment(
+    loop_count=5,
+    step_count=10,
+    metric_count=100,
+    metric_key_size=10,
+    output_file="results.json",
+):
     """Run the training experiment, measuring initialization, logging, and finishing times."""
     start_time_str = datetime.now().strftime("%m%d%YT%H%M%S")
 
@@ -73,7 +85,9 @@ def run_experiment(loop_count=5, step_count=10, metric_count=100, metric_key_siz
         print(f"\n--- Run {run + 1} ---")
 
         # Initialize W&B
-        _, init_time = init_wandb(run_id, loop_count, step_count, metric_count, metric_key_size)
+        _, init_time = init_wandb(
+            run_id, loop_count, step_count, metric_count, metric_key_size
+        )
         result_data["init_time"] = init_time
 
         # Log the test metrics
@@ -131,4 +145,6 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    run_experiment(args.loop, args.steps, args.metric_count, args.metric_key_size, args.outfile)
+    run_experiment(
+        args.loop, args.steps, args.metric_count, args.metric_key_size, args.outfile
+    )

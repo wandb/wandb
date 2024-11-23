@@ -3,6 +3,7 @@ import json
 import argparse
 import subprocess
 
+
 def find_max(file_path: str, field: int) -> float:
     """
     Finds the maximum value in the N-th field of a log file.
@@ -15,11 +16,15 @@ def find_max(file_path: str, field: int) -> float:
         float: The maximum value in the specified column.
     """
     max_value = 0.0
-    
-    with open(file_path, 'r') as file:
+
+    with open(file_path, "r") as file:
         for line in file:
             # Skip header lines
-            if line.strip() == "" or line.startswith("Linux") or line.startswith("Average:"):
+            if (
+                line.strip() == ""
+                or line.startswith("Linux")
+                or line.startswith("Average:")
+            ):
                 continue
 
             # Split the line into columns
@@ -32,9 +37,10 @@ def find_max(file_path: str, field: int) -> float:
 
     return max_value
 
+
 def process_sar_files(log_dir: str, json_output_file: str):
     """
-    Given a folder of sar output files, it process the metrics and 
+    Given a folder of sar output files, it process the metrics and
     computes the average and max values and write them to a json file.
 
     Args:
@@ -107,9 +113,15 @@ def process_sar_files(log_dir: str, json_output_file: str):
                     json_data[f"avg_{dev}_txkBps"] = float(last_line[5])
                     json_data[f"avg_{dev}_ifutil"] = float(last_line[9])
 
-                    json_data[f"max_{dev}_rxkBps"] = find_max(network_dev_specific_log, 4)
-                    json_data[f"max_{dev}_txkBps"] = find_max(network_dev_specific_log, 5)
-                    json_data[f"max_{dev}_ifutil"] = find_max(network_dev_specific_log, 9)
+                    json_data[f"max_{dev}_rxkBps"] = find_max(
+                        network_dev_specific_log, 4
+                    )
+                    json_data[f"max_{dev}_txkBps"] = find_max(
+                        network_dev_specific_log, 5
+                    )
+                    json_data[f"max_{dev}_ifutil"] = find_max(
+                        network_dev_specific_log, 9
+                    )
         else:
             print(f"WARNING: {result}")
     else:
@@ -135,12 +147,24 @@ def process_sar_files(log_dir: str, json_output_file: str):
                     json_data[f"avg_disk_{dev}_await"] = float(last_line[7])
                     json_data[f"avg_disk_{dev}_util"] = float(last_line[8])
 
-                    json_data[f"max_disk_{dev}_tps"] = find_max(disk_dev_specific_log, 1)
-                    json_data[f"max_disk_{dev}_rkBp"] = find_max(disk_dev_specific_log, 2)
-                    json_data[f"max_disk_{dev}_wkBps"] = find_max(disk_dev_specific_log, 3)
-                    json_data[f"max_disk_{dev}_aqu_sz"] = find_max(disk_dev_specific_log, 6)
-                    json_data[f"max_disk_{dev}_await"] = find_max(disk_dev_specific_log, 7)
-                    json_data[f"max_disk_{dev}_util"] = find_max(disk_dev_specific_log, 8)
+                    json_data[f"max_disk_{dev}_tps"] = find_max(
+                        disk_dev_specific_log, 1
+                    )
+                    json_data[f"max_disk_{dev}_rkBp"] = find_max(
+                        disk_dev_specific_log, 2
+                    )
+                    json_data[f"max_disk_{dev}_wkBps"] = find_max(
+                        disk_dev_specific_log, 3
+                    )
+                    json_data[f"max_disk_{dev}_aqu_sz"] = find_max(
+                        disk_dev_specific_log, 6
+                    )
+                    json_data[f"max_disk_{dev}_await"] = find_max(
+                        disk_dev_specific_log, 7
+                    )
+                    json_data[f"max_disk_{dev}_util"] = find_max(
+                        disk_dev_specific_log, 8
+                    )
         else:
             print(f"WARNING: {result}")
     else:
@@ -155,8 +179,12 @@ def process_sar_files(log_dir: str, json_output_file: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-d", "--directory", type=str, required=True, help="Directory of SAR logs")
-    parser.add_argument("-o", "--output", type=str, required=True, help="Output JSON file")
+    parser.add_argument(
+        "-d", "--directory", type=str, required=True, help="Directory of SAR logs"
+    )
+    parser.add_argument(
+        "-o", "--output", type=str, required=True, help="Output JSON file"
+    )
     args = parser.parse_args()
 
     if not os.path.isdir(args.directory):
