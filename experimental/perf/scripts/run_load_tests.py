@@ -76,16 +76,13 @@ def main():
     log_folder = datetime.datetime.now().strftime("%m%d%YT%H%M%S")
     os.makedirs(log_folder, exist_ok=True)
 
-    # Start time for performance measurement
     start_time = time.time()
 
     # Run the specified test case
     run_test_case(testcase, log_folder)
 
-    # End time and calculate test duration
     end_time = time.time()
     total_time = end_time - start_time
-
     print(f"Test completed in {total_time:.2f}s.")
     print(f"Logs saved to {os.getcwd()}/{log_folder}")
 
