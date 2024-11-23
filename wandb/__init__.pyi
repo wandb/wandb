@@ -422,7 +422,11 @@ def init(
     """
     ...
 
-def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
+def finish(
+    exit_code: int | None = None,
+    quiet: bool | None = None,
+    mark_finished: bool = True,
+) -> None:
     """Finish a run and upload any remaining data.
 
     Marks the completion of a W&B run and ensures all data is synced to the server.
