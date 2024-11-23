@@ -2137,14 +2137,27 @@ class Run:
         quiet: bool | None = None,
         mark_finished: bool = True,
     ) -> None:
-        """Mark a run as finished, and finish uploading all data.
+        """Finish a run and upload any remaining data.
 
-        This is used when creating multiple runs in the same process. We automatically
-        call this method when your script exits or if you use the run context manager.
+        Marks the completion of a W&B run and ensures all data is synced to the server.
+        The run's final state is determined by its exit conditions and sync status.
+
+        Run States:
+        - Running: Active run that is logging data and/or sending heartbeats.
+        - Crashed: Run that stopped sending heartbeats unexpectedly.
+        - Finished: Run completed successfully (`exit_code=0`) with all data synced.
+        - Failed: Run completed with errors (`exit_code!=0`).
+
+        In distributed training scenarios, you can use `mark_finished=False` when logging from
+        multiple processes to let the main process control the run's final state.
 
         Args:
-            exit_code: Set to something other than 0 to mark a run as failed
-            quiet: Deprecated, use `wandb.Settings(quiet=...)` to set this instead.
+            exit_code: Integer indicating the run's exit status. Use 0 for success,
+                any other value marks the run as failed.
+            quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
+            mark_finished: If False, prevents marking the run as finished on the server.
+                Useful in distributed training when the main process should
+                control the run state.
         """
         if quiet is not None:
             deprecate.deprecate(
@@ -4098,15 +4111,32 @@ except AttributeError:
     pass
 
 
-def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
-    """Mark a run as finished, and finish uploading all data.
+def finish(
+    exit_code: int | None = None,
+    quiet: bool | None = None,
+    mark_finished: bool = True,
+) -> None:
+    """Finish a run and upload any remaining data.
 
-    This is used when creating multiple runs in the same process.
-    We automatically call this method when your script exits.
+    Marks the completion of a W&B run and ensures all data is synced to the server.
+    The run's final state is determined by its exit conditions and sync status.
+
+    Run States:
+    - Running: Active run that is logging data and/or sending heartbeats.
+    - Crashed: Run that stopped sending heartbeats unexpectedly.
+    - Finished: Run completed successfully (`exit_code=0`) with all data synced.
+    - Failed: Run completed with errors (`exit_code!=0`).
+
+    In distributed training scenarios, you can use `mark_finished=False` when logging from
+    multiple processes to let the main process control the run's final state.
 
     Args:
-        exit_code: Set to something other than 0 to mark a run as failed
-        quiet: Deprecated, use `wandb.Settings(quiet=...)` to set this instead.
+        exit_code: Integer indicating the run's exit status. Use 0 for success,
+            any other value marks the run as failed.
+        quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
+        mark_finished: If False, prevents marking the run as finished on the server.
+            Useful in distributed training when the main process should
+            control the run state.
     """
     if wandb.run:
-        wandb.run.finish(exit_code=exit_code, quiet=quiet)
+        wandb.run.finish(exit_code=exit_code, quiet=quiet, mark_finished=mark_finished)
