@@ -1,12 +1,11 @@
-import os
-import json
 import argparse
+import json
+import os
 import subprocess
 
 
 def find_max(file_path: str, field: int) -> float:
-    """
-    Finds the maximum value in the N-th field of a log file.
+    """Finds the maximum value in the N-th field of a log file.
 
     Args:
         file_path (str): Path to the log file.
@@ -17,7 +16,7 @@ def find_max(file_path: str, field: int) -> float:
     """
     max_value = 0.0
 
-    with open(file_path, "r") as file:
+    with open(file_path) as file:
         for line in file:
             # Skip header lines
             if (
@@ -39,8 +38,7 @@ def find_max(file_path: str, field: int) -> float:
 
 
 def process_sar_files(log_dir: str, json_output_file: str):
-    """
-    Given a folder of sar output files, it process the metrics and
+    """Given a folder of sar output files, it process the metrics and
     computes the average and max values and write them to a json file.
 
     Args:
@@ -52,7 +50,7 @@ def process_sar_files(log_dir: str, json_output_file: str):
     # Process CPU logs
     cpu_log = os.path.join(log_dir, "cpu.log")
     if os.path.isfile(cpu_log):
-        with open(cpu_log, "r") as f:
+        with open(cpu_log) as f:
             lines = f.readlines()
             if len(lines) > 2:
                 cpu_values = lines[-1].split()
@@ -69,7 +67,7 @@ def process_sar_files(log_dir: str, json_output_file: str):
     # Process memory logs
     mem_log = os.path.join(log_dir, "mem.log")
     if os.path.isfile(mem_log):
-        with open(mem_log, "r") as f:
+        with open(mem_log) as f:
             lines = f.readlines()
             if len(lines) > 2:
                 mem_values = lines[-1].split()
@@ -84,7 +82,7 @@ def process_sar_files(log_dir: str, json_output_file: str):
     # Process network socket logs
     sock_log = os.path.join(log_dir, "network.sock.log")
     if os.path.isfile(sock_log):
-        with open(sock_log, "r") as f:
+        with open(sock_log) as f:
             lines = f.readlines()
             if len(lines) > 2:
                 socket_values = lines[-1].split()
@@ -105,7 +103,7 @@ def process_sar_files(log_dir: str, json_output_file: str):
         result = subprocess.run(command, shell=True)
 
         if result.returncode == 0:
-            with open(network_dev_specific_log, "r") as f:
+            with open(network_dev_specific_log) as f:
                 lines = f.readlines()
                 if len(lines) > 2:
                     last_line = lines[-1].split()
@@ -136,7 +134,7 @@ def process_sar_files(log_dir: str, json_output_file: str):
         result = subprocess.run(disk_cmd, shell=True)
 
         if result.returncode == 0:
-            with open(disk_dev_specific_log, "r") as f:
+            with open(disk_dev_specific_log) as f:
                 lines = f.readlines()
                 if len(lines) > 2:
                     last_line = lines[-1].split()

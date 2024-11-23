@@ -25,8 +25,7 @@ def generate_random_dict(num_fields: int, field_size: int) -> dict:
 
 
 def capture_sar_metrics(log_dir: str, iteration: int = 8):
-    """
-    Captures sar system metrics in the background and saves them to log files.
+    """Captures sar system metrics in the background and saves them to log files.
 
     Args:
         log_dir (str): Directory where the log files will be saved.
