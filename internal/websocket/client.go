@@ -1,9 +1,7 @@
 package websocket
 
 import (
-	"fmt"
-	"log"
-
+	"github.com/charmbracelet/log"
 	"github.com/ctrlplanedev/cli/internal/options"
 	"github.com/gorilla/websocket"
 )
@@ -54,14 +52,14 @@ func (c *Client) ReadPump() {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("error: %v", err)
+				log.Error("WebSocket read error", "error", err)
 			}
 			break
 		}
 
 		// Handle received message using the message handler
 		if err := c.messageHandler(message); err != nil {
-			log.Printf("error handling message: %v", err)
+			log.Error("Error handling message", "error", err)
 		}
 	}
 }
@@ -77,14 +75,14 @@ func (c *Client) WritePump() {
 		select {
 		case message, ok := <-c.send:
 			if !ok {
-				fmt.Println("WritePump channel closed")
+				log.Error("WritePump channel closed")
 				// Channel was closed
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
 
 			if err := c.conn.WriteMessage(websocket.BinaryMessage, message); err != nil {
-				fmt.Println("WritePump error sending message: " + err.Error())
+				log.Error("WritePump error sending message", "error", err)
 				return
 			}
 		}
@@ -98,7 +96,7 @@ func (c *Client) Send(message []byte) {
 		// Message sent successfully
 	default:
 		// Channel is full or closed, handle gracefully
-		log.Printf("Failed to send message: channel full or closed")
+		log.Error("Failed to send message", "error", "channel full or closed")
 		c.conn.Close()
 	}
 }

@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
+	"github.com/charmbracelet/log"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
@@ -40,7 +40,7 @@ func initConfig() {
 		// Find home directory.
 		home, err := homedir.Dir()
 		if err != nil {
-			fmt.Println(err)
+			log.Error("Can't find home directory", "error", err)
 			os.Exit(1)
 		}
 
@@ -51,7 +51,7 @@ func initConfig() {
 	}
 
 	if err := viper.ReadInConfig(); err != nil {
-		fmt.Println("Can't read config:", err)
+		log.Error("Can't read config", "error", err)
 		os.Exit(1)
 	}
 }

@@ -1,10 +1,10 @@
 package run
 
 import (
-	"log"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/ctrlplanedev/cli/pkg/agent"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -31,13 +31,13 @@ func NewAgentRunCmd() *cobra.Command {
 				proxyAddr = "wss://" + proxyAddr
 			}
 
-			log.Printf("Starting agent %q in workspace %q", agentName, workspace)
-			log.Printf("Connecting to proxy at %s", proxyAddr)
+			log.Info("Starting agent", "name", agentName, "workspace", workspace)
+			log.Info("Connecting to proxy", "address", proxyAddr)
 			if len(metadata) > 0 {
-				log.Printf("With metadata: %v", metadata)
+				log.Info("With metadata", "metadata", metadata)
 			}
 			if len(associatedResources) > 0 {
-				log.Printf("Associated with resources: %v", associatedResources)
+				log.Info("Associated with resources", "resources", associatedResources)
 			}
 
 			apiKey := viper.GetString("api-key")
@@ -58,7 +58,7 @@ func NewAgentRunCmd() *cobra.Command {
 					<-agent.StopSignal
 				}
 
-				log.Printf("Failed to connect: %v. Retrying in %v...", err, backoff)
+				log.Warn("Failed to connect", "error", err)
 				time.Sleep(backoff)
 				backoff *= 2
 				if backoff > maxBackoff {

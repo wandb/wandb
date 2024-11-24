@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc/v2"
+	"github.com/charmbracelet/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -49,7 +50,7 @@ func NewSetCmd() *cobra.Command {
 				return fmt.Errorf("failed to write config: %w", err)
 			}
 
-			fmt.Printf("Successfully set %s = %s\n", key, value)
+			log.Info("Successfully set", "key", key, "value", value)
 			return nil
 		},
 	}

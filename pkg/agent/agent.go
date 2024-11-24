@@ -3,13 +3,14 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+
 	"net/http"
 	"os"
 	"runtime"
 	"strconv"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/creack/pty"
 	"github.com/ctrlplanedev/cli/internal/options"
 	"github.com/ctrlplanedev/cli/internal/ptysession"
@@ -67,7 +68,7 @@ func NewAgent(serverURL, agentName string, opts ...func(*Agent)) *Agent {
 	for key, values := range agent.headers {
 		if key != "X-Api-Key" {
 			for _, value := range values {
-				log.Printf("Header %s: %s", key, value)
+				log.Debug("Header", "key", key, "value", value)
 			}
 		}
 	}
@@ -131,7 +132,7 @@ func (a *Agent) handleMessage(message []byte) error {
 		}
 
 		if session, exists := a.manager.GetSession(resize.SessionId); exists {
-			log.Printf("Resizing session %s to (%dx%d)", resize.SessionId, resize.Rows, resize.Cols)
+			log.Info("Resizing session", "id", resize.SessionId, "to", fmt.Sprintf("(%dx%d)", resize.Rows, resize.Cols))
 			session.SetSize(&pty.Winsize{
 				Rows: resize.Rows,
 				Cols: resize.Cols,
@@ -145,7 +146,7 @@ func (a *Agent) handleMessage(message []byte) error {
 }
 
 func (a *Agent) handleConnect() {
-	log.Printf("Agent %s connected to server", a.agentName)
+	log.Info("Agent connected to server", "name", a.agentName)
 
 	connectPayload := payloads.AgentConnectJson{
 		Type:                payloads.AgentConnectJsonTypeAgentConnect,
@@ -167,7 +168,7 @@ func (a *Agent) handleConnect() {
 
 	data, err := json.Marshal(connectPayload)
 	if err != nil {
-		log.Printf("Error marshaling connect payload: %v", err)
+		log.Error("Error marshaling connect payload", "error", err)
 		return
 	}
 
@@ -175,7 +176,7 @@ func (a *Agent) handleConnect() {
 }
 
 func (a *Agent) handleClose() {
-	log.Printf("Agent %s disconnected from server", a.agentName)
+	log.Info("Agent disconnected from server", "name", a.agentName)
 	a.Stop()
 	os.Exit(1)
 }
@@ -192,11 +193,11 @@ func (a *Agent) heartbeatRoutine() {
 				Timestamp: time.Now().Format(time.RFC3339),
 			}
 
-			log.Printf("Sending heartbeat to proxy: %+v", heartbeat)
+			log.Info("Sending heartbeat to proxy", "heartbeat", heartbeat)
 
 			data, err := json.Marshal(heartbeat)
 			if err != nil {
-				log.Printf("Error marshaling heartbeat: %v", err)
+				log.Error("Error marshaling heartbeat", "error", err)
 				continue
 			}
 
@@ -211,7 +212,7 @@ func (a *Agent) heartbeatRoutine() {
 func (a *Agent) Stop() {
 	// Clean up any active sessions
 	manager := ptysession.GetManager()
-	log.Printf("Stopping %d sessions", len(manager.ListSessions()))
+	log.Info("Stopping sessions", "count", len(manager.ListSessions()))
 	for _, id := range manager.ListSessions() {
 		if session, exists := manager.GetSession(id); exists {
 			session.CancelFunc()

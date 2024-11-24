@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+
 	"os"
 	"os/exec"
 	"os/user"
@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/creack/pty"
 	"github.com/ctrlplanedev/cli/internal/options"
 	"github.com/moby/term"
@@ -89,17 +90,17 @@ func StartSession(opts ...options.Option) (*Session, error) {
 	var err error
 
 	if config.username != "" {
-		log.Printf("Looking up user: %s", config.username)
+		log.Info("Looking up user", "username", config.username)
 		usr, err = user.Lookup(config.username)
 		if err != nil {
-			log.Printf("Failed to lookup user %s: %v", config.username, err)
+			log.Error("Failed to lookup user", "username", config.username, "error", err)
 			return nil, fmt.Errorf("failed to lookup user %s: %v", config.username, err)
 		}
 	} else {
-		log.Printf("Getting current user")
+		log.Info("Getting current user")
 		usr, err = user.Current()
 		if err != nil {
-			log.Printf("Failed to get current user: %v", err)
+			log.Error("Failed to get current user", "error", err)
 			return nil, fmt.Errorf("failed to get current user: %v", err)
 		}
 	}
@@ -115,15 +116,15 @@ func StartSession(opts ...options.Option) (*Session, error) {
 	// }
 
 	if config.shell == "" {
-		log.Printf("Getting shell for user %s", usr.Username)
+		log.Info("Getting shell for user", "username", usr.Username)
 		config.shell, err = getUserShell(usr.Username)
 		if err != nil {
-			log.Printf("Failed to get shell for user %s: %v", usr.Username, err)
+			log.Error("Failed to get shell for user", "username", usr.Username, "error", err)
 			return nil, fmt.Errorf("failed to get shell for user %s: %v", usr.Username, err)
 		}
 	}
 
-	log.Printf("Setting up environment for user %s with shell %s", usr.Username, config.shell)
+	log.Info("Setting up environment for user", "username", usr.Username, "shell", config.shell)
 	env := os.Environ()
 	env = append(env, "USER="+usr.Username)
 	env = append(env, "SHELL="+config.shell)
@@ -147,16 +148,16 @@ func StartSession(opts ...options.Option) (*Session, error) {
 	}
 
 	// Start the PTY session
-	log.Printf("Starting PTY session")
+	log.Info("Starting PTY session")
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
-		log.Printf("Failed to start PTY: %v", err)
+		log.Error("Failed to start PTY", "error", err)
 		return nil, fmt.Errorf("failed to start PTY: %v", err)
 	}
 
 	if config.size != nil {
 		if err := pty.Setsize(ptmx, config.size); err != nil {
-			log.Printf("Failed to set terminal size: %v", err)
+			log.Error("Failed to set terminal size", "error", err)
 			return nil, fmt.Errorf("failed to set terminal size: %v", err)
 		}
 	}
@@ -188,13 +189,13 @@ func StartSession(opts ...options.Option) (*Session, error) {
 
 func (s *Session) SetSize(size *pty.Winsize) error {
 	oldRows, oldCols, _ := pty.Getsize(s.Pty)
-	log.Printf("Resizing terminal from (%dx%d) to (%dx%d)", oldRows, oldCols, size.Rows, size.Cols)
+	log.Info("Resizing terminal", "from", fmt.Sprintf("(%dx%d)", oldRows, oldCols), "to", fmt.Sprintf("(%dx%d)", size.Rows, size.Cols))
 
 	if err := term.SetWinsize(s.Pty.Fd(), &term.Winsize{
 		Height: size.Rows,
 		Width:  size.Cols,
 	}); err != nil {
-		log.Printf("Failed to set terminal size: %v", err)
+		log.Error("Failed to set terminal size", "error", err)
 		return err
 	}
 	return nil
@@ -216,7 +217,7 @@ func (s *Session) HandleIO() {
 			n, err := s.Pty.Read(buf)
 			if err != nil {
 				if err != io.EOF {
-					log.Printf("PTY read error: %v", err)
+					log.Error("PTY read error", "error", err)
 				}
 				s.CancelFunc()
 				return
@@ -242,7 +243,7 @@ func (s *Session) HandleIO() {
 				s.LastActivity = time.Now()
 				_, err := s.Pty.Write(data)
 				if err != nil {
-					log.Printf("PTY write error: %v", err)
+					log.Error("PTY write error", "error", err)
 					s.CancelFunc()
 					return
 				}
@@ -258,5 +259,5 @@ func (s *Session) HandleIO() {
 	// Wait for the command to exit
 	s.Cmd.Wait()
 
-	log.Printf("Session for user %s ended", strconv.FormatUint(uint64(s.Cmd.SysProcAttr.Credential.Uid), 10))
+	log.Info("Session for user ended", "uid", strconv.FormatUint(uint64(s.Cmd.SysProcAttr.Credential.Uid), 10))
 }
