@@ -21,7 +21,7 @@ func NewCreateRelationshipCmd() *cobra.Command {
 		Long:  `Create a new relationship between a job and a resource.`,
 		Example: heredoc.Doc(`
 			# Create a new relationship between a job and a resource
-			$ ctrlc create relationship job-to-resource --job-id 123e4567-e89b-12d3-a456-426614174000 --resource-identifier my-resource
+			$ ctrlc create relationship job-to-resource --job 123e4567-e89b-12d3-a456-426614174000 --resource my-resource
 		`),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if jobId == "" {
