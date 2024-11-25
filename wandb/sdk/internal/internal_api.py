@@ -1135,12 +1135,19 @@ class Api:
             page_info = response["project"]["sweep"]["runs"]["pageInfo"]
             if not data:
                 data = response["project"]["sweep"]
-                data['runs'].pop('pageInfo')
+                data["runs"].pop("pageInfo")
             else:
-                data['runs']['edges'].extend(response['project']['sweep']['runs']['edges'])
+                data["runs"]["edges"].extend(
+                    response["project"]["sweep"]["runs"]["edges"]
+                )
             if not page_info["hasNextPage"]:
                 break
-            logger.info("Fetching more runs for sweep %s (got %d so far)", sweep, len(data["runs"]))
+            # log a message indicating that we are fetching more runs
+            logger.info(
+                "Fetching more runs for sweep %s (got %d so far)",
+                sweep,
+                len(data["runs"])
+            )
             cursorValue = page_info["endCursor"]
         if data:
             data["runs"] = self._flatten_edges(data["runs"])
