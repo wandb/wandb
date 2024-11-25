@@ -3,6 +3,8 @@ package jobtoresource
 import (
 	"fmt"
 
+	"github.com/charmbracelet/log"
+
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/ctrlplanedev/cli/internal/api"
 	"github.com/ctrlplanedev/cli/internal/cliutil"
@@ -25,11 +27,13 @@ func NewCreateRelationshipCmd() *cobra.Command {
 		`),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if jobId == "" {
-				return fmt.Errorf("job-id is required")
+				log.Error("job is required")
+				return fmt.Errorf("job is required")
 			}
 
 			if resourceIdentifier == "" {
-				return fmt.Errorf("resource-identifier is required")
+				log.Error("resource is required")
+				return fmt.Errorf("resource is required")
 			}
 
 			return nil
@@ -40,12 +44,14 @@ func NewCreateRelationshipCmd() *cobra.Command {
 
 			client, err := api.NewAPIKeyClientWithResponses(apiURL, apiKey)
 			if err != nil {
+				log.Error("failed to create relationship API client", "error", err)
 				return fmt.Errorf("failed to create relationship API client: %w", err)
 			}
 
 			jobIdUUID, err := uuid.Parse(jobId)
 			if err != nil {
-				return fmt.Errorf("failed to parse job-id: %w", err)
+				log.Error("failed to parse job id", "error", err)
+				return fmt.Errorf("failed to parse job id: %w", err)
 			}
 
 			resp, err := client.CreateJobToResourceRelationship(cmd.Context(), api.CreateJobToResourceRelationshipJSONRequestBody{
@@ -53,7 +59,8 @@ func NewCreateRelationshipCmd() *cobra.Command {
 				ResourceIdentifier: resourceIdentifier,
 			})
 			if err != nil {
-				return fmt.Errorf("failed to create job-to-resource relationship: %w", err)
+				log.Error("failed to create job to resource relationship", "error", err)
+				return fmt.Errorf("failed to create job to resource relationship: %w", err)
 			}
 
 			return cliutil.HandleOutput(cmd, resp)
