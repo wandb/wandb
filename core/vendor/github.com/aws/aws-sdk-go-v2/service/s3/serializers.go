@@ -83,6 +83,11 @@ func awsRestxml_serializeOpHttpBindingsAbortMultipartUploadInput(v *AbortMultipa
 		encoder.SetHeader(locationName).String(*v.ExpectedBucketOwner)
 	}
 
+	if v.IfMatchInitiatedTime != nil {
+		locationName := "X-Amz-If-Match-Initiated-Time"
+		encoder.SetHeader(locationName).String(smithytime.FormatHTTPDate(*v.IfMatchInitiatedTime))
+	}
+
 	if v.Key == nil || len(*v.Key) == 0 {
 		return &smithy.SerializationError{Err: fmt.Errorf("input member Key must not be empty")}
 	}
@@ -1896,6 +1901,21 @@ func awsRestxml_serializeOpHttpBindingsDeleteObjectInput(v *DeleteObjectInput, e
 	if v.ExpectedBucketOwner != nil {
 		locationName := "X-Amz-Expected-Bucket-Owner"
 		encoder.SetHeader(locationName).String(*v.ExpectedBucketOwner)
+	}
+
+	if v.IfMatch != nil {
+		locationName := "If-Match"
+		encoder.SetHeader(locationName).String(*v.IfMatch)
+	}
+
+	if v.IfMatchLastModifiedTime != nil {
+		locationName := "X-Amz-If-Match-Last-Modified-Time"
+		encoder.SetHeader(locationName).String(smithytime.FormatHTTPDate(*v.IfMatchLastModifiedTime))
+	}
+
+	if v.IfMatchSize != nil {
+		locationName := "X-Amz-If-Match-Size"
+		encoder.SetHeader(locationName).Long(*v.IfMatchSize)
 	}
 
 	if v.Key == nil || len(*v.Key) == 0 {
@@ -7637,6 +7657,11 @@ func awsRestxml_serializeOpHttpBindingsPutObjectInput(v *PutObjectInput, encoder
 		encoder.SetHeader(locationName).String(*v.WebsiteRedirectLocation)
 	}
 
+	if v.WriteOffsetBytes != nil {
+		locationName := "X-Amz-Write-Offset-Bytes"
+		encoder.SetHeader(locationName).Long(*v.WriteOffsetBytes)
+	}
+
 	return nil
 }
 
@@ -11740,6 +11765,17 @@ func awsRestxml_serializeDocumentNotificationConfigurationFilter(v *types.Notifi
 
 func awsRestxml_serializeDocumentObjectIdentifier(v *types.ObjectIdentifier, value smithyxml.Value) error {
 	defer value.Close()
+	if v.ETag != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
+			Name: smithyxml.Name{
+				Local: "ETag",
+			},
+			Attr: rootAttr,
+		}
+		el := value.MemberElement(root)
+		el.String(*v.ETag)
+	}
 	if v.Key != nil {
 		rootAttr := []smithyxml.Attr{}
 		root := smithyxml.StartElement{
@@ -11750,6 +11786,28 @@ func awsRestxml_serializeDocumentObjectIdentifier(v *types.ObjectIdentifier, val
 		}
 		el := value.MemberElement(root)
 		el.String(*v.Key)
+	}
+	if v.LastModifiedTime != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
+			Name: smithyxml.Name{
+				Local: "LastModifiedTime",
+			},
+			Attr: rootAttr,
+		}
+		el := value.MemberElement(root)
+		el.String(smithytime.FormatHTTPDate(*v.LastModifiedTime))
+	}
+	if v.Size != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
+			Name: smithyxml.Name{
+				Local: "Size",
+			},
+			Attr: rootAttr,
+		}
+		el := value.MemberElement(root)
+		el.Long(*v.Size)
 	}
 	if v.VersionId != nil {
 		rootAttr := []smithyxml.Attr{}

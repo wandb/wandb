@@ -1,3 +1,7 @@
+# v1.68.0 (2024-11-21)
+
+* **Feature**: Add support for conditional deletes for the S3 DeleteObject and DeleteObjects APIs. Add support for write offset bytes option used to append to objects with the S3 PutObject API.
+
 # v1.67.1 (2024-11-18)
 
 * **Dependency Update**: Update to smithy-go v1.22.1.

@@ -593,6 +593,14 @@ type PutObjectInput struct {
 	// [Object Key and Metadata]: https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingMetadata.html
 	WebsiteRedirectLocation *string
 
+	//  Specifies the offset for appending data to existing objects in bytes. The
+	// offset must be equal to the size of the existing object being appended to. If no
+	// object exists, setting this header to 0 will create a new object.
+	//
+	// This functionality is only supported for objects in the Amazon S3 Express One
+	// Zone storage class in directory buckets.
+	WriteOffsetBytes *int64
+
 	noSmithyDocumentSerde
 }
 
@@ -707,6 +715,13 @@ type PutObjectOutput struct {
 	// The server-side encryption algorithm used when you store this object in Amazon
 	// S3.
 	ServerSideEncryption types.ServerSideEncryption
+
+	//  The size of the object in bytes. This will only be present if you append to an
+	// object.
+	//
+	// This functionality is only supported for objects in the Amazon S3 Express One
+	// Zone storage class in directory buckets.
+	Size *int64
 
 	// Version ID of the object.
 	//
