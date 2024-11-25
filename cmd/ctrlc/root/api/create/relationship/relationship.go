@@ -1,72 +1,23 @@
 package relationship
 
 import (
-	"fmt"
-
-	"github.com/MakeNowJust/heredoc/v2"
-	"github.com/ctrlplanedev/cli/internal/api"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/create/relationship/jobtoresource"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/create/relationship/resourcetoresource"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
-func NewCreateRelationshipCmd() *cobra.Command {
-	var fromId string
-	var toId string
-	var fromType string
-	var toType string
-
+func NewRelationshipCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "relationship [flags]",
-		Short: "Create a new relationship",
-		Long:  `Create a new relationship between two entities.`,
-		Example: heredoc.Doc(`
-
-		`),
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			if fromType != "deployment" && fromType != "resource" {
-				return fmt.Errorf("from-type must be either 'deployment' or 'resource', got %s", fromType)
-			}
-
-			if toType != "deployment" && toType != "resource" {
-				return fmt.Errorf("to-type must be either 'deployment' or 'resource', got %s", toType)
-			}
-
-			if fromId == toId && fromType == toType {
-				return fmt.Errorf("from and to cannot be the same")
-			}
-
-			if fromType == "deployment" && toType == "deployment" {
-				return fmt.Errorf("cannot create relationship between two deployments")
-			}
-
-			return nil
-		},
+		Use:   "relationship <command>",
+		Short: "Create a relationship",
+		Long:  `Create a relationship between two entities.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			apiURL := viper.GetString("url")
-			apiKey := viper.GetString("api-key")
-
-			_, err := api.NewAPIKeyClientWithResponses(apiURL, apiKey)
-			if err != nil {
-				return fmt.Errorf("failed to create relationship API client: %w", err)
-			}
-
-			
-
-			// return cliutil.HandleOutput(cmd, response)
-			return nil
+			return cmd.Help()
 		},
 	}
 
-	// Add flags
-	cmd.Flags().StringVarP(&fromId, "from", "f", "", "ID of the source resource (required)")
-	cmd.Flags().StringVarP(&toId, "to", "t", "", "ID of the target resource (required)")
-	cmd.Flags().StringVarP(&fromType, "from-type", "F", "", "Type of the source resource (must be 'deployment' or 'resource') (required)")
-	cmd.Flags().StringVarP(&toType, "to-type", "T", "", "Type of the target resource (must be 'deployment' or 'resource') (required)")
-
-	cmd.MarkFlagRequired("from")
-	cmd.MarkFlagRequired("to")
-	cmd.MarkFlagRequired("from-type")
-	cmd.MarkFlagRequired("to-type")
+	cmd.AddCommand(resourcetoresource.NewCreateRelationshipCmd())
+	cmd.AddCommand(jobtoresource.NewCreateRelationshipCmd())
 
 	return cmd
 }

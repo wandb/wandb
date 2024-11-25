@@ -68,6 +68,30 @@ type UpdateJobJSONBody struct {
 	Status     *string `json:"status,omitempty"`
 }
 
+// CreateJobToResourceRelationshipJSONBody defines parameters for CreateJobToResourceRelationship.
+type CreateJobToResourceRelationshipJSONBody struct {
+	// JobId Unique identifier of the job
+	JobId openapi_types.UUID `json:"jobId"`
+
+	// ResourceIdentifier Unique identifier of the resource
+	ResourceIdentifier string `json:"resourceIdentifier"`
+}
+
+// CreateResourceToResourceRelationshipJSONBody defines parameters for CreateResourceToResourceRelationship.
+type CreateResourceToResourceRelationshipJSONBody struct {
+	// FromIdentifier The identifier of the resource to connect
+	FromIdentifier string `json:"fromIdentifier"`
+
+	// ToIdentifier The identifier of the resource to connect to
+	ToIdentifier string `json:"toIdentifier"`
+
+	// Type The type of relationship
+	Type string `json:"type"`
+
+	// WorkspaceId The workspace ID
+	WorkspaceId openapi_types.UUID `json:"workspaceId"`
+}
+
 // CreateReleaseChannelJSONBody defines parameters for CreateReleaseChannel.
 type CreateReleaseChannelJSONBody struct {
 	DeploymentId  string                 `json:"deploymentId"`
@@ -131,6 +155,12 @@ type UpdateJobAgentJSONRequestBody UpdateJobAgentJSONBody
 
 // UpdateJobJSONRequestBody defines body for UpdateJob for application/json ContentType.
 type UpdateJobJSONRequestBody UpdateJobJSONBody
+
+// CreateJobToResourceRelationshipJSONRequestBody defines body for CreateJobToResourceRelationship for application/json ContentType.
+type CreateJobToResourceRelationshipJSONRequestBody CreateJobToResourceRelationshipJSONBody
+
+// CreateResourceToResourceRelationshipJSONRequestBody defines body for CreateResourceToResourceRelationship for application/json ContentType.
+type CreateResourceToResourceRelationshipJSONRequestBody CreateResourceToResourceRelationshipJSONBody
 
 // CreateReleaseChannelJSONRequestBody defines body for CreateReleaseChannel for application/json ContentType.
 type CreateReleaseChannelJSONRequestBody CreateReleaseChannelJSONBody
@@ -347,6 +377,16 @@ type ClientInterface interface {
 	// AcknowledgeJob request
 	AcknowledgeJob(ctx context.Context, jobId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CreateJobToResourceRelationshipWithBody request with any body
+	CreateJobToResourceRelationshipWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateJobToResourceRelationship(ctx context.Context, body CreateJobToResourceRelationshipJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateResourceToResourceRelationshipWithBody request with any body
+	CreateResourceToResourceRelationshipWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateResourceToResourceRelationship(ctx context.Context, body CreateResourceToResourceRelationshipJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreateReleaseChannelWithBody request with any body
 	CreateReleaseChannelWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -552,6 +592,54 @@ func (c *Client) UpdateJob(ctx context.Context, jobId string, body UpdateJobJSON
 
 func (c *Client) AcknowledgeJob(ctx context.Context, jobId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewAcknowledgeJobRequest(c.Server, jobId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateJobToResourceRelationshipWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateJobToResourceRelationshipRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateJobToResourceRelationship(ctx context.Context, body CreateJobToResourceRelationshipJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateJobToResourceRelationshipRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateResourceToResourceRelationshipWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateResourceToResourceRelationshipRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateResourceToResourceRelationship(ctx context.Context, body CreateResourceToResourceRelationshipJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateResourceToResourceRelationshipRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1172,6 +1260,86 @@ func NewAcknowledgeJobRequest(server string, jobId string) (*http.Request, error
 	return req, nil
 }
 
+// NewCreateJobToResourceRelationshipRequest calls the generic CreateJobToResourceRelationship builder with application/json body
+func NewCreateJobToResourceRelationshipRequest(server string, body CreateJobToResourceRelationshipJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateJobToResourceRelationshipRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateJobToResourceRelationshipRequestWithBody generates requests for CreateJobToResourceRelationship with any type of body
+func NewCreateJobToResourceRelationshipRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/relationship/job-to-resource")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCreateResourceToResourceRelationshipRequest calls the generic CreateResourceToResourceRelationship builder with application/json body
+func NewCreateResourceToResourceRelationshipRequest(server string, body CreateResourceToResourceRelationshipJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateResourceToResourceRelationshipRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateResourceToResourceRelationshipRequestWithBody generates requests for CreateResourceToResourceRelationship with any type of body
+func NewCreateResourceToResourceRelationshipRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/relationship/resource-to-resource")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewCreateReleaseChannelRequest calls the generic CreateReleaseChannel builder with application/json body
 func NewCreateReleaseChannelRequest(server string, body CreateReleaseChannelJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -1734,6 +1902,16 @@ type ClientWithResponsesInterface interface {
 	// AcknowledgeJobWithResponse request
 	AcknowledgeJobWithResponse(ctx context.Context, jobId string, reqEditors ...RequestEditorFn) (*AcknowledgeJobResponse, error)
 
+	// CreateJobToResourceRelationshipWithBodyWithResponse request with any body
+	CreateJobToResourceRelationshipWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateJobToResourceRelationshipResponse, error)
+
+	CreateJobToResourceRelationshipWithResponse(ctx context.Context, body CreateJobToResourceRelationshipJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateJobToResourceRelationshipResponse, error)
+
+	// CreateResourceToResourceRelationshipWithBodyWithResponse request with any body
+	CreateResourceToResourceRelationshipWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateResourceToResourceRelationshipResponse, error)
+
+	CreateResourceToResourceRelationshipWithResponse(ctx context.Context, body CreateResourceToResourceRelationshipJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateResourceToResourceRelationshipResponse, error)
+
 	// CreateReleaseChannelWithBodyWithResponse request with any body
 	CreateReleaseChannelWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateReleaseChannelResponse, error)
 
@@ -2178,6 +2356,78 @@ func (r AcknowledgeJobResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r AcknowledgeJobResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateJobToResourceRelationshipResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON400 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+	JSON404 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+	JSON409 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+	JSON500 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateJobToResourceRelationshipResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateJobToResourceRelationshipResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateResourceToResourceRelationshipResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON400 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+	JSON404 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+	JSON409 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+	JSON500 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateResourceToResourceRelationshipResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateResourceToResourceRelationshipResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2686,6 +2936,40 @@ func (c *ClientWithResponses) AcknowledgeJobWithResponse(ctx context.Context, jo
 		return nil, err
 	}
 	return ParseAcknowledgeJobResponse(rsp)
+}
+
+// CreateJobToResourceRelationshipWithBodyWithResponse request with arbitrary body returning *CreateJobToResourceRelationshipResponse
+func (c *ClientWithResponses) CreateJobToResourceRelationshipWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateJobToResourceRelationshipResponse, error) {
+	rsp, err := c.CreateJobToResourceRelationshipWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateJobToResourceRelationshipResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateJobToResourceRelationshipWithResponse(ctx context.Context, body CreateJobToResourceRelationshipJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateJobToResourceRelationshipResponse, error) {
+	rsp, err := c.CreateJobToResourceRelationship(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateJobToResourceRelationshipResponse(rsp)
+}
+
+// CreateResourceToResourceRelationshipWithBodyWithResponse request with arbitrary body returning *CreateResourceToResourceRelationshipResponse
+func (c *ClientWithResponses) CreateResourceToResourceRelationshipWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateResourceToResourceRelationshipResponse, error) {
+	rsp, err := c.CreateResourceToResourceRelationshipWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateResourceToResourceRelationshipResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateResourceToResourceRelationshipWithResponse(ctx context.Context, body CreateResourceToResourceRelationshipJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateResourceToResourceRelationshipResponse, error) {
+	rsp, err := c.CreateResourceToResourceRelationship(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateResourceToResourceRelationshipResponse(rsp)
 }
 
 // CreateReleaseChannelWithBodyWithResponse request with arbitrary body returning *CreateReleaseChannelResponse
@@ -3322,6 +3606,134 @@ func ParseAcknowledgeJobResponse(rsp *http.Response) (*AcknowledgeJobResponse, e
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateJobToResourceRelationshipResponse parses an HTTP response from a CreateJobToResourceRelationshipWithResponse call
+func ParseCreateJobToResourceRelationshipResponse(rsp *http.Response) (*CreateJobToResourceRelationshipResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateJobToResourceRelationshipResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateResourceToResourceRelationshipResponse parses an HTTP response from a CreateResourceToResourceRelationshipWithResponse call
+func ParseCreateResourceToResourceRelationshipResponse(rsp *http.Response) (*CreateResourceToResourceRelationshipResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateResourceToResourceRelationshipResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
