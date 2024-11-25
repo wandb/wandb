@@ -14,6 +14,7 @@ import (
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/common/expfmt"
 )
@@ -210,7 +211,7 @@ func (o *OpenMetrics) ShouldCaptureMetric(metricName string, metricLabels map[st
 }
 
 // Sample fetches and processes metrics from the OpenMetrics endpoint.
-func (o *OpenMetrics) Sample() (map[string]any, error) {
+func (o *OpenMetrics) Sample() (*spb.StatsRecord, error) {
 	resp, err := o.client.Get(o.url)
 	if err != nil {
 		return nil, err
@@ -232,7 +233,7 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 		return nil, err
 	}
 
-	result := make(map[string]any)
+	metrics := make(map[string]any)
 
 	for name, mf := range metricFamilies {
 		for _, m := range mf.Metric {
@@ -273,11 +274,15 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 			// for the metric based on its labels. the openmetrics prefix is stripped off
 			// and not displayed in the frontend.
 			key := fmt.Sprintf("openmetrics.%s.%s.%d", o.Name(), name, index)
-			result[key] = value
+			metrics[key] = value
 		}
 	}
 
-	return result, nil
+	if len(metrics) == 0 {
+		return nil, nil
+	}
+
+	return marshal(metrics, timestamppb.Now()), nil
 }
 
 // generateLabelHash creates a hash of the label map for consistent indexing.

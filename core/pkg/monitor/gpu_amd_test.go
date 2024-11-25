@@ -124,7 +124,7 @@ func TestGPUAMD_SampleStats(t *testing.T) {
 		gpu.GetROCMSMIStatsFunc = tc.mockFunc
 		metrics, err := gpu.Sample()
 		assert.Nil(t, err)
-		assert.Len(t, metrics, tc.expectedLen)
+		assert.Len(t, metrics.Item, tc.expectedLen)
 	}
 }
 
