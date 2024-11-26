@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/version"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -22,7 +23,7 @@ func makeHandler(
 		commit,
 		stream.HandlerParams{
 			Logger:          observability.NewNoOpLogger(),
-			Settings:        &spb.Settings{},
+			Settings:        settings.From(&spb.Settings{}),
 			FwdChan:         fwdChan,
 			OutChan:         outChan,
 			TerminalPrinter: observability.NewPrinter(),

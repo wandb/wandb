@@ -11,7 +11,7 @@ import unittest.mock
 import urllib.parse
 from collections.abc import Sequence
 from contextlib import contextmanager
-from typing import Any, Dict, Generator, Iterable, Iterator, List, Optional, Union
+from typing import Any, Dict, Generator, Iterator, List, Literal, Optional, Union
 
 import pytest
 import requests
@@ -26,11 +26,6 @@ from .relay import (
     TokenizedCircularPattern,
 )
 from .wandb_backend_spy import WandbBackendProxy, WandbBackendSpy, spy_proxy
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 
 class ConsoleFormatter:
@@ -314,11 +309,11 @@ def _start_backend(
         st = start_send_thread(ism)
         if initial_run:
             handle = _internal_sender.deliver_run(run)
-            result = handle.wait(timeout=5)
+            result = handle.wait(timeout=60)
             run_result = result.run_result
             if initial_start:
                 handle = _internal_sender.deliver_run_start(run_result.run)
-                handle.wait(timeout=5)
+                handle.wait(timeout=60)
         return ht, wt, st
 
     yield start_backend_func
@@ -332,7 +327,7 @@ def _stop_backend(
     def stop_backend_func(threads=None):
         threads = threads or ()
         handle = _internal_sender.deliver_exit(0)
-        record = handle.wait(timeout=30)
+        record = handle.wait(timeout=60)
         assert record
 
         _internal_sender.join()
@@ -431,61 +426,50 @@ class LocalWandbBackendAddress:
 
 
 @pytest.fixture(scope="session")
-def local_wandb_backend(worker_id: str) -> Iterable[LocalWandbBackendAddress]:
+def local_wandb_backend() -> LocalWandbBackendAddress:
     """Fixture that starts up or connects to the local-testcontainer.
 
     This does not patch WANDB_BASE_URL! Use `use_local_wandb_backend` instead.
     """
-    yield from _local_wandb_backend(
-        worker_id=worker_id,
-        name="wandb-local-testcontainer",
-    )
+    return _local_wandb_backend(name="wandb-local-testcontainer")
 
 
 @pytest.fixture(scope="session")
-def local_wandb_backend_importers(
-    worker_id: str,
-) -> Iterable[LocalWandbBackendAddress]:
+def local_wandb_backend_importers() -> LocalWandbBackendAddress:
     """Fixture that starts up or connects to a second local-testcontainer.
 
     This is used by importer tests, to move data between two backends.
     """
-    yield from _local_wandb_backend(
-        worker_id=worker_id,
-        name="wandb-local-testcontainer-importers",
-    )
+    return _local_wandb_backend(name="wandb-local-testcontainer-importers")
 
 
-def _local_wandb_backend(
-    worker_id: str,
-    name: str,
-) -> Iterable[LocalWandbBackendAddress]:
+def _local_wandb_backend(name: str) -> LocalWandbBackendAddress:
     repo_root = pathlib.Path(__file__).parent.parent.parent
     tool_file = repo_root / "tools" / "local_wandb_server.py"
-    session_id = f"pytest:{worker_id}"
 
-    output_str = subprocess.check_output(
-        ["python", tool_file, "start", session_id, f"--name={name}"]
+    result = subprocess.run(
+        [
+            "python",
+            tool_file,
+            "connect",
+            f"--name={name}",
+        ],
+        stdout=subprocess.PIPE,
     )
 
-    try:
-        output = json.loads(output_str)
-        address = LocalWandbBackendAddress(
-            _host="localhost",
-            _base_port=int(output["base_port"]),
-            _fixture_port=int(output["fixture_port"]),
+    if result.returncode != 0:
+        raise AssertionError(
+            "`python tools/local_wandb_server.py connect` failed. See stderr."
+            " Did you run `python tools/local_wandb_server.py start`?"
         )
-        yield address
-    finally:
-        subprocess.check_call(
-            [
-                "python",
-                tool_file,
-                "release",
-                session_id,
-                f"--name={name}",
-            ]
-        )
+
+    output = json.loads(result.stdout)
+    address = LocalWandbBackendAddress(
+        _host="localhost",
+        _base_port=int(output["base_port"]),
+        _fixture_port=int(output["fixture_port"]),
+    )
+    return address
 
 
 @pytest.fixture(scope="function")
@@ -708,7 +692,6 @@ def wandb_init(user, test_settings, request):
         group: Optional[str] = None,
         name: Optional[str] = None,
         notes: Optional[str] = None,
-        magic: Union[dict, str, bool] = None,
         config_exclude_keys: Optional[List[str]] = None,
         config_include_keys: Optional[List[str]] = None,
         anonymous: Optional[str] = None,
@@ -759,58 +742,6 @@ def server_context(local_wandb_backend: LocalWandbBackendAddress):
             return self.api.run(run.path)
 
     yield ServerContext()
-
-
-# Injected responses
-@pytest.fixture(scope="function")
-def inject_file_stream_response(local_wandb_backend, user):
-    def helper(
-        run,
-        body: Union[str, Exception] = "{}",
-        status: int = 200,
-        application_pattern: str = "1",
-    ) -> InjectedResponse:
-        if status > 299:
-            message = body if isinstance(body, str) else "::".join(body.args)
-            body = DeliberateHTTPError(status_code=status, message=message)
-        return InjectedResponse(
-            method="POST",
-            url=(
-                urllib.parse.urljoin(
-                    local_wandb_backend.base_url,
-                    f"/files/{user}/{run.project or 'uncategorized'}/{run.id}/file_stream",
-                )
-            ),
-            body=body,
-            status=status,
-            application_pattern=TokenizedCircularPattern(application_pattern),
-        )
-
-    yield helper
-
-
-@pytest.fixture(scope="function")
-def inject_file_stream_connection_reset(local_wandb_backend, user):
-    def helper(
-        run,
-        body: Union[str, Exception] = "{}",
-        status: int = 200,
-        application_pattern: str = "1",
-    ) -> InjectedResponse:
-        return InjectedResponse(
-            method="POST",
-            url=(
-                urllib.parse.urljoin(
-                    local_wandb_backend.base_url,
-                    f"/files/{user}/{run.project or 'uncategorized'}/{run.id}/file_stream",
-                )
-            ),
-            application_pattern=TokenizedCircularPattern(application_pattern),
-            body=body or ConnectionResetError("Connection reset by peer"),
-            status=status,
-        )
-
-    yield helper
 
 
 @pytest.fixture(scope="function")

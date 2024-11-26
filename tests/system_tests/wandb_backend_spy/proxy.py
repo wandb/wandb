@@ -5,7 +5,6 @@ import contextlib
 import socket
 import threading
 import time
-import traceback
 from typing import Iterator
 
 import fastapi
@@ -35,13 +34,13 @@ def spy_proxy(
 
     http_client = httpx.AsyncClient()
     port = _get_free_port()
-    spy = WandbBackendProxy(
+    proxy = WandbBackendProxy(
         client=http_client,
         target_host=target_host,
         target_port=target_port,
         local_port=port,
     )
-    server = uvicorn.Server(uvicorn.Config(spy._to_fast_api(), port=port))
+    server = uvicorn.Server(uvicorn.Config(proxy._to_fast_api(), port=port))
 
     proxy_thread = threading.Thread(
         target=asyncio.run,
@@ -51,7 +50,7 @@ def spy_proxy(
     _wait_for_server(server)
 
     try:
-        yield spy
+        yield proxy
     finally:
         try:
             server.should_exit = True
@@ -181,15 +180,19 @@ class WandbBackendProxy:
 
     async def _post_graphql(self, request: fastapi.Request) -> fastapi.Response:
         """Handle a GraphQL request and maybe relay it to the backend."""
-        with _continue_on_failure():
-            body = await request.body()
-            with self._lock:
-                if self._spy:
-                    response = self._spy.post_graphql(body)
-                    if response:
-                        return response
+        with self._lock:
+            spy = self._spy
 
-        return await self._relay(request)
+        response = None
+        if spy:
+            response = spy.intercept_graphql(await request.body())
+        if not response:
+            response = await self._relay(request)
+
+        if spy:
+            spy.post_graphql(await request.body(), response.body)
+
+        return response
 
     async def _post_file_stream(
         self,
@@ -200,26 +203,22 @@ class WandbBackendProxy:
         run_id: str,
     ) -> fastapi.Response:
         """Handle a FileStream request and maybe relay it to the backend."""
-        with _continue_on_failure():
-            body = await request.body()
-            with self._lock:
-                if self._spy:
-                    response = self._spy.post_file_stream(
-                        body,
-                        entity=entity,
-                        project=project,
-                        run_id=run_id,
-                    )
-                    if response:
-                        return response
+        with self._lock:
+            spy = self._spy
 
-        return await self._relay(request)
+        response = None
+        if spy:
+            response = spy.intercept_filestream()
+        if not response:
+            response = await self._relay(request)
 
+        if spy:
+            spy.post_file_stream(
+                await request.body(),
+                response.body,
+                entity=entity,
+                project=project,
+                run_id=run_id,
+            )
 
-@contextlib.contextmanager
-def _continue_on_failure() -> Iterator[None]:
-    """A context manager that prints a traceback and continues on error."""
-    try:
-        yield
-    except Exception as e:
-        traceback.print_exception(e)
+        return response

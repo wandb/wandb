@@ -112,7 +112,10 @@ func (r *RunParams) Proto() *spb.RunRecord {
 	if len(r.Config) > 0 {
 		config := spb.ConfigRecord{}
 		for key, value := range r.Config {
-			valueJson, _ := simplejsonext.MarshalToString(value)
+			// The client expects the config value to be a map with a "value" key.
+			// TODO: Remove this once the old service is deprecated.
+			valueModified := map[string]any{"value": value}
+			valueJson, _ := simplejsonext.MarshalToString(valueModified)
 			config.Update = append(config.Update, &spb.ConfigItem{
 				Key:       key,
 				ValueJson: valueJson,

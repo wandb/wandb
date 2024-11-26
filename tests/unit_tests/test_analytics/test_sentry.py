@@ -104,7 +104,6 @@ def test_wandb_sentry_init_after_client_init(relay: MetricRelayServer):
         project_id="123456",
         public_key="WANDB_SENTRY_PUBLIC_KEY",
         tags={
-            "platform": wandb.util.get_platform_name(),
             "entity": "tag",
             "python_runtime": "python",
         },
@@ -174,7 +173,6 @@ def test_wandb_sentry_init_after_client_write(relay: MetricRelayServer):
         project_id="123456",
         public_key="WANDB_SENTRY_PUBLIC_KEY",
         tags={
-            "platform": wandb.util.get_platform_name(),
             "entity": "tag",
             "python_runtime": "python",
         },
@@ -245,7 +243,6 @@ def test_wandb_sentry_initialized_first(relay: MetricRelayServer):
         project_id="123456",
         public_key="WANDB_SENTRY_PUBLIC_KEY",
         tags={
-            "platform": wandb.util.get_platform_name(),
             "entity": "tag",
             "python_runtime": "python",
         },
@@ -316,7 +313,6 @@ def test_wandb_sentry_write_first(relay: MetricRelayServer):
             project_id="123456",
             public_key="WANDB_SENTRY_PUBLIC_KEY",
             tags={
-                "platform": wandb.util.get_platform_name(),
                 "entity": "tag",
                 "python_runtime": "python",
             },
@@ -326,7 +322,6 @@ def test_wandb_sentry_write_first(relay: MetricRelayServer):
             project_id="123456",
             public_key="WANDB_SENTRY_PUBLIC_KEY",
             tags={
-                "platform": wandb.util.get_platform_name(),
                 "entity": "tag",
                 "python_runtime": "python",
             },
@@ -409,7 +404,6 @@ def test_wandb_sentry_exception(relay: MetricRelayServer):
         public_key="WANDB_SENTRY_PUBLIC_KEY",
         is_error=True,
         tags={
-            "platform": wandb.util.get_platform_name(),
             "entity": "tag",
             "python_runtime": "python",
         },
@@ -485,7 +479,6 @@ def test_repeated_messages_does_not_call_sentry(relay: MetricRelayServer):
         project_id="123456",
         public_key="WANDB_SENTRY_PUBLIC_KEY",
         tags={
-            "platform": wandb.util.get_platform_name(),
             "entity": "tag",
             "python_runtime": "python",
         },

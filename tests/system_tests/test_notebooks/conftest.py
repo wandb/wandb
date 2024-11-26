@@ -2,10 +2,12 @@ import io
 import os
 import pathlib
 import shutil
+import sys
 from contextlib import contextmanager
-from typing import Any, Dict, List
+from typing import Any, Dict, Generator, List
 from unittest.mock import MagicMock, patch
 
+import filelock
 import nbformat
 import pytest
 import wandb
@@ -13,6 +15,17 @@ import wandb.util
 from nbclient import NotebookClient
 from nbclient.client import CellExecutionError
 from wandb.sdk.lib.ipython import PythonType
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
+
+
+_NOTEBOOK_LOCKFILE = os.path.join(
+    os.path.dirname(__file__),
+    ".test_notebooks.lock",
+)
 
 # wandb.jupyter is lazy loaded, so we need to force it to load
 # before we can monkeypatch it
@@ -127,6 +140,25 @@ class WandbNotebookClient(NotebookClient):
             text.write(self.cell_output_text(i))
         return text.getvalue()
 
+    @override
+    @contextmanager
+    def setup_kernel(self, **kwargs: Any) -> Generator[None, None, None]:
+        # Work around https://github.com/jupyter/jupyter_client/issues/487
+        # by preventing multiple processes from starting up a Jupyter kernel
+        # at the same time.
+        open_client_lock = filelock.FileLock(_NOTEBOOK_LOCKFILE)
+        open_client_lock.acquire()
+        unlocked = False
+
+        try:
+            with super().setup_kernel(**kwargs):
+                open_client_lock.release()
+                unlocked = True
+                yield
+        finally:
+            if not unlocked:
+                open_client_lock.release()
+
 
 @pytest.fixture
 def run_id() -> str:
@@ -190,15 +222,8 @@ def notebook(user, run_id, assets_path):
         nb.cells.insert(0, nbformat.v4.new_code_cell(setup_cell.getvalue()))
 
         client = WandbNotebookClient(nb, kernel_name=kernel_name)
-        try:
-            with client.setup_kernel(**kwargs):
-                yield client
-        finally:
-            pass
-            # with open(os.path.join(os.getcwd(), "notebook.log"), "w") as f:
-            #     f.write(client.all_output_text())
-            # wandb.termlog("Find debug logs at: %s" % os.getcwd())
-            # wandb.termlog(client.all_output_text())
+        with client.setup_kernel(**kwargs):
+            yield client
 
     notebook_loader.base_url = wandb_env.get("WANDB_BASE_URL")
 

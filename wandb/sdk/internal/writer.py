@@ -7,7 +7,7 @@ from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
 from ..interface.interface_queue import InterfaceQueue
-from ..lib import proto_util, telemetry, tracelog
+from ..lib import proto_util, telemetry
 from . import context, datastore, flow_control
 from .settings_static import SettingsStatic
 
@@ -63,7 +63,7 @@ class WriteManager:
         self._telemetry_obj = tpb.TelemetryRecord()
         self._telemetry_overflow = False
         self._use_flow_control = not (
-            self._settings._flow_control_disabled or self._settings._offline
+            self._settings.x_flow_control_disabled or self._settings._offline
         )
 
     def open(self) -> None:
@@ -79,7 +79,6 @@ class WriteManager:
 
     def _forward_record(self, record: "pb.Record") -> None:
         self._context_keeper.add_from_record(record)
-        tracelog.log_message_queue(record, self._sender_q)
         self._sender_q.put(record)
 
     def _send_mark(self) -> None:
@@ -191,7 +190,6 @@ class WriteManager:
         #     self._sender_cancel_set.add(cancel_id)
 
     def _respond_result(self, result: "pb.Result") -> None:
-        tracelog.log_message_queue(result, self._result_q)
         self._result_q.put(result)
 
     def finish(self) -> None:

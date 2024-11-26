@@ -78,7 +78,7 @@ def test_agent_config_ignore(wandb_init):
     assert sweep_configs[0] == {"a": 1, "extra": 2}
 
 
-def test_agent_ignore_project_entity_run_id(wandb_init, user):
+def test_agent_ignore_project_entity_run_id(user):
     sweep_entities = []
     sweep_projects = []
     sweep_run_ids = []
@@ -88,7 +88,7 @@ def test_agent_ignore_project_entity_run_id(wandb_init, user):
     public_api.create_project(project_name, user)
 
     def train():
-        run = wandb_init(entity="ign", project="ignored", id="also_ignored")
+        run = wandb.init(entity="ign", project="ignored", id="also_ignored")
         sweep_projects.append(run.project)
         sweep_entities.append(run.entity)
         sweep_run_ids.append(run.id)

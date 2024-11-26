@@ -54,6 +54,7 @@ __all__ = (
     "watch",
     "unwatch",
     "plot",
+    "plot_table",
 )
 
 import os
@@ -98,9 +99,10 @@ from wandb.wandb_controller import _WandbController
 if TYPE_CHECKING:
     import torch  # type: ignore [import-not-found]
 
-    from wandb.plot.viz import CustomChart
+    import wandb
+    from wandb.plot import CustomChart
 
-__version__: str = "0.18.6.dev1"
+__version__: str = "0.18.8.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -113,12 +115,12 @@ api: InternalApi
 patched: Dict[str, List[Callable]]
 
 def setup(
-    settings: Optional[Settings] = None,
+    settings: Settings | None = None,
 ) -> Optional[_WandbSetup]:
     """<sdk/wandb_setup.py::setup>"""
     ...
 
-def teardown(exit_code: Optional[int] = None) -> None:
+def teardown(exit_code: int | None = None) -> None:
     """<sdk/wandb_setup.py::teardown>"""
     ...
 
@@ -129,11 +131,10 @@ def init(
     project: str | None = None,
     entity: str | None = None,
     reinit: bool | None = None,
-    tags: Sequence | None = None,
+    tags: Sequence[str] | None = None,
     group: str | None = None,
     name: str | None = None,
     notes: str | None = None,
-    magic: dict | str | bool | None = None,
     config_exclude_keys: list[str] | None = None,
     config_include_keys: list[str] | None = None,
     anonymous: str | None = None,
@@ -267,12 +268,12 @@ def link_model(
 
 def plot_table(
     vega_spec_name: str,
-    data_table: Table,
+    data_table: wandb.Table,
     fields: dict[str, Any],
     string_fields: dict[str, Any] | None = None,
     split_table: bool = False,
 ) -> CustomChart:
-    """<sdk/wandb_run.py::Run::plot_table>"""
+    """<plot/custom_chart.py::plot_table>"""
     ...
 
 def watch(

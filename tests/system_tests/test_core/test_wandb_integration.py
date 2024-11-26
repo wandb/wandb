@@ -10,7 +10,6 @@ Be sure to use `test_settings` or an isolated directory
 import importlib
 import os
 import shutil
-import time
 from unittest import mock
 
 import pytest
@@ -167,32 +166,12 @@ def test_dir_on_init_dir(wandb_init):
     assert os.path.isdir(custom_dir_path), f"Expected directory at {custom_dir_path}"
 
 
-def test_end_to_end_preempting(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init(settings=dict(console="off"))
+def test_mark_preempting(wandb_backend_spy):
+    with wandb.init() as run:
         run.mark_preempting()
 
-        # poll for message arrival
-        for _ in range(3):
-            preempting = relay.context.entries[run.id].get("preempting")
-            if preempting:
-                break
-            time.sleep(1)
-        assert any(preempting)
-        run.finish()
-
-
-def test_end_to_end_preempting_via_module_func(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init(settings=dict(console="off"))
-        run.log({"a": 1})
-        run.mark_preempting()
-
-        # poll for message arrival
-        for _ in range(3):
-            preempting = relay.context.entries[run.id].get("preempting")
-            if preempting:
-                break
-            time.sleep(1)
-        assert any(preempting)
-        run.finish()
+    # `mark_preempting` is expected to update the run ASAP, but to avoid
+    # sleeping in the test, we just check whether the message was ever sent
+    # after waiting for the run to flush.
+    with wandb_backend_spy.freeze() as snapshot:
+        assert snapshot.was_ever_preempting(run_id=run.id)

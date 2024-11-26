@@ -12,22 +12,13 @@ import os
 import re
 import shutil
 import stat
-import sys
 import tempfile
 import time
 from copy import copy
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
-from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Sequence, Type, cast
-
-from wandb.sdk.artifacts.storage_handlers.gcs_handler import _GCSIsADirectoryError
-
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal
-else:
-    from typing import Literal
-
+from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Literal, Sequence, Type, cast
 from urllib.parse import urlparse
 
 import requests
@@ -41,7 +32,6 @@ from wandb.errors.term import termerror, termlog, termwarn
 from wandb.sdk.artifacts._validators import (
     ensure_logged,
     ensure_not_finalized,
-    is_artifact_registry_project,
     validate_aliases,
     validate_tags,
 )
@@ -56,6 +46,7 @@ from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError, WaitTimeoutError
 from wandb.sdk.artifacts.staging import get_staging_dir
+from wandb.sdk.artifacts.storage_handlers.gcs_handler import _GCSIsADirectoryError
 from wandb.sdk.artifacts.storage_layout import StorageLayout
 from wandb.sdk.artifacts.storage_policies import WANDB_STORAGE_POLICY
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
@@ -229,11 +220,11 @@ class Artifact:
     @classmethod
     def _from_name(
         cls,
+        *,
         entity: str,
         project: str,
         name: str,
         client: RetryingClient,
-        organization: str = "",
         enable_tracking: bool = False,
     ) -> Artifact:
         server_supports_enabling_artifact_usage_tracking = (
@@ -260,29 +251,6 @@ class Artifact:
             {_gql_artifact_fragment()}
             """
         )
-        # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
-        # we need to fetch the org entity to for the user behind the scenes.
-        if is_artifact_registry_project(project):
-            try:
-                entity = InternalApi()._resolve_org_entity_name(entity, organization)
-            except ValueError as entity_error:
-                if not organization or organization == entity:
-                    wandb.termerror(str(entity_error))
-                    raise
-
-                # Try to resolve the organization using an org entity.
-                try:
-                    entity = InternalApi()._resolve_org_entity_name(
-                        organization, organization
-                    )
-                except ValueError as org_error:
-                    wandb.termerror(
-                        f"Error resolving organization of entity: {entity!r}. Failed with error: {entity_error!r}."
-                    )
-                    wandb.termerror(
-                        f"Defaulted to use {organization!r} as an org entity to resolve organization. Failed with error: {org_error!r}."
-                    )
-                    raise
         query_variable_values: dict[str, Any] = {
             "entityName": entity,
             "projectName": project,

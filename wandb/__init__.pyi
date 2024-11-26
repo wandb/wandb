@@ -54,6 +54,7 @@ __all__ = (
     "watch",
     "unwatch",
     "plot",
+    "plot_table",
 )
 
 import os
@@ -98,9 +99,10 @@ from wandb.wandb_controller import _WandbController
 if TYPE_CHECKING:
     import torch  # type: ignore [import-not-found]
 
-    from wandb.plot.viz import CustomChart
+    import wandb
+    from wandb.plot import CustomChart
 
-__version__: str = "0.18.6.dev1"
+__version__: str = "0.18.8.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -113,7 +115,7 @@ api: InternalApi
 patched: Dict[str, List[Callable]]
 
 def setup(
-    settings: Optional[Settings] = None,
+    settings: Settings | None = None,
 ) -> Optional[_WandbSetup]:
     """Prepares W&B for use in the current process and its children.
 
@@ -129,8 +131,8 @@ def setup(
     See also `wandb.teardown()`.
 
     Args:
-        settings (Optional[Union[Dict[str, Any], wandb.Settings]]): Configuration settings
-            to apply globally. These can be overridden by subsequent `wandb.init()` calls.
+        settings: Configuration settings to apply globally. These can be
+            overridden by subsequent `wandb.init()` calls.
 
     Example:
         ```python
@@ -172,7 +174,7 @@ def setup(
     """
     ...
 
-def teardown(exit_code: Optional[int] = None) -> None:
+def teardown(exit_code: int | None = None) -> None:
     """Waits for wandb to finish and frees resources.
 
     Completes any runs that were not explicitly finished
@@ -192,11 +194,10 @@ def init(
     project: str | None = None,
     entity: str | None = None,
     reinit: bool | None = None,
-    tags: Sequence | None = None,
+    tags: Sequence[str] | None = None,
     group: str | None = None,
     name: str | None = None,
     notes: str | None = None,
-    magic: dict | str | bool | None = None,
     config_exclude_keys: list[str] | None = None,
     config_include_keys: list[str] | None = None,
     anonymous: str | None = None,
@@ -335,10 +336,6 @@ def init(
             for more.
         reinit: (bool, optional) Allow multiple `wandb.init()` calls in the same
             process. (default: `False`)
-        magic: (bool, dict, or str, optional) The bool controls whether we try to
-            auto-instrument your script, capturing basic details of your run
-            without you having to add more wandb code. (default: `False`)
-            You can also pass a dict, json string, or yaml filename.
         config_exclude_keys: (list, optional) string keys to exclude from
             `wandb.config`.
         config_include_keys: (list, optional) string keys to include in
@@ -433,7 +430,7 @@ def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
 
     Args:
         exit_code: Set to something other than 0 to mark a run as failed
-        quiet: Set to true to minimize log output
+        quiet: Deprecated, use `wandb.Settings(quiet=...)` to set this instead.
     """
     ...
 
@@ -1107,23 +1104,37 @@ def link_model(
 
 def plot_table(
     vega_spec_name: str,
-    data_table: Table,
+    data_table: wandb.Table,
     fields: dict[str, Any],
     string_fields: dict[str, Any] | None = None,
     split_table: bool = False,
 ) -> CustomChart:
-    """Create a custom plot on a table.
+    """Creates a custom charts using a Vega-Lite specification and a `wandb.Table`.
+
+    This function creates a custom chart based on a Vega-Lite specification and
+    a data table represented by a `wandb.Table` object. The specification needs
+    to be predefined and stored in the W&B backend. The function returns a custom
+    chart object that can be logged to W&B using `wandb.log()`.
 
     Args:
-        vega_spec_name: the name of the spec for the plot
-        data_table: a wandb.Table object containing the data to
-            be used on the visualization
-        fields: a dict mapping from table keys to fields that the custom
-            visualization needs
-        string_fields: a dict that provides values for any string constants
-            the custom visualization needs
-        split_table: a boolean that indicates whether the table should be in
-            a separate section in the UI
+        vega_spec_name (str): The name or identifier of the Vega-Lite spec
+            that defines the visualization structure.
+        data_table (wandb.Table): A `wandb.Table` object containing the data to be
+            visualized.
+        fields (dict[str, Any]): A mapping between the fields in the Vega-Lite spec and the
+            corresponding columns in the data table to be visualized.
+        string_fields (dict[str, Any] | None): A dictionary for providing values for any string constants
+            required by the custom visualization.
+        split_table (bool): Whether the table should be split into a separate section
+            in the W&B UI. If `True`, the table will be displayed in a section named
+            "Custom Chart Tables". Default is `False`.
+
+    Returns:
+        CustomChart: A custom chart object that can be logged to W&B. To log the
+            chart, pass it to `wandb.log()`.
+
+    Raises:
+        wandb.Error: If `data_table` is not a `wandb.Table` object.
     """
     ...
 

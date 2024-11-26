@@ -1,7 +1,5 @@
-import os
 import platform
 import queue
-import subprocess
 import unittest.mock
 
 import pytest
@@ -60,45 +58,6 @@ def send_manager(
     yield send_manager_helper
 
 
-def test_meta_probe(
-    relay_server, meta, mock_run, send_manager, record_q, user, monkeypatch
-):
-    orig_exists = os.path.exists
-    orig_call = subprocess.call
-    monkeypatch.setattr(
-        os.path,
-        "exists",
-        lambda path: True if "conda-meta" in path else orig_exists(path),
-    )
-    monkeypatch.setattr(
-        subprocess,
-        "call",
-        lambda cmd, **kwargs: kwargs["stdout"].write("CONDA YAML")
-        if "conda" in cmd
-        else orig_call(cmd, **kwargs),
-    )
-    with open("README", "w") as f:
-        f.write("Testing")
-    with relay_server() as relay:
-        run = mock_run(use_magic_mock=True, settings={"save_code": True})
-        meta = meta(run.settings)
-        sm = send_manager(run, meta)
-        data = meta.probe()
-        meta.publish(data)
-        sm.send(record_q.get())
-        sm.finish()
-
-    uploaded_files = relay.context.get_run_uploaded_files(run.id)
-    assert sorted(uploaded_files) == sorted(
-        [
-            "wandb-metadata.json",
-            "config.yaml",
-            "diff.patch",
-            "conda-environment.yaml",
-        ]
-    )
-
-
 def test_executable_outside_cwd(meta, test_settings):
     meta = meta(test_settings(dict(program="asdf.py")))
     data = meta.probe()
@@ -137,7 +96,7 @@ def test_jupyter_name(meta, test_settings, mocked_ipython):
 
 def test_jupyter_path(meta, test_settings, mocked_ipython, git_repo):
     # not actually how jupyter setup works but just to test the meta paths
-    meta = meta(test_settings(dict(_jupyter_path="dummy/path")))
+    meta = meta(test_settings(dict(x_jupyter_path="dummy/path")))
     data = meta.probe()
     assert data["program"] == "dummy/path"
     assert data.get("root") is not None

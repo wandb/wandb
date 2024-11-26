@@ -1,3 +1,16 @@
+# v1.67.1 (2024-11-18)
+
+* **Dependency Update**: Update to smithy-go v1.22.1.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.67.0 (2024-11-14)
+
+* **Feature**: This release updates the ListBuckets API Reference documentation in support of the new 10,000 general purpose bucket default quota on all AWS accounts. To increase your bucket quota from 10,000 to up to 1 million buckets, simply request a quota increase via Service Quotas.
+
+# v1.66.3 (2024-11-06)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.66.2 (2024-10-28)
 
 * **Dependency Update**: Updated to the latest SDK module versions

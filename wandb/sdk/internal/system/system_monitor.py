@@ -60,18 +60,11 @@ class SystemMonitor:
 
         # compute the global publishing interval if _stats_join_assets is requested
         sampling_interval: float = float(
-            max(
-                0.1,
-                self.settings._stats_sample_rate_seconds,
-            )
+            max(0.1, self.settings.x_stats_sampling_interval)
         )  # seconds
-        # The number of samples to aggregate (e.g. average or compute max/min etc.)
-        # before publishing; defaults to 15; valid range: [1:30]
-        samples_to_aggregate: int = min(
-            30, max(1, self.settings._stats_samples_to_average)
-        )
+        samples_to_aggregate: int = 1
         self.publishing_interval: float = sampling_interval * samples_to_aggregate
-        self.join_assets: bool = self.settings._stats_join_assets
+        self.join_assets: bool = False
 
         self.backend_interface = interface
         self.asset_interface: Optional[AssetInterface] = (
@@ -90,7 +83,7 @@ class SystemMonitor:
         )
 
         self.buffer: Dict[str, Deque[Tuple[float, float]]] = defaultdict(
-            lambda: deque([], maxlen=self.settings._stats_buffer_size)
+            lambda: deque([], maxlen=self.settings.x_stats_buffer_size)
         )
 
     def _get_assets(self) -> List["Asset"]:
@@ -104,7 +97,7 @@ class SystemMonitor:
         ]
 
     def _get_open_metrics_assets(self) -> List["Asset"]:
-        open_metrics_endpoints = self.settings._stats_open_metrics_endpoints
+        open_metrics_endpoints = self.settings.x_stats_open_metrics_endpoints
         if not open_metrics_endpoints:
             return []
 

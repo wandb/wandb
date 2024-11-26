@@ -10,7 +10,6 @@ from typing import Optional
 
 import wandb
 
-from ..lib import tracelog
 from . import _startup_debug, port_file
 from .server_sock import SocketServer
 from .streams import StreamMux
@@ -69,21 +68,14 @@ class WandbServer:
         if self._sock_server:
             self._sock_server.stop()
 
-    def _setup_tracelog(self) -> None:
-        # TODO: remove this temporary hack, need to find a better way to pass settings
-        # to the server.  for now lets just look at the environment variable we need
-        tracelog_mode = os.environ.get("WANDB_TRACELOG")
-        if tracelog_mode:
-            tracelog.enable(tracelog_mode)
-
     def _startup_debug_print(self, message: str) -> None:
         if not self._startup_debug_enabled:
             return
         _startup_debug.print_message(message)
 
     def _setup_proctitle(self, sock_port: Optional[int]) -> None:
-        # TODO: similar to _setup_tracelog, the internal_process should have
-        # a better way to have access to settings.
+        # TODO: the internal_process should have a better way to have access to
+        # settings.
         disable_setproctitle = os.environ.get("WANDB__DISABLE_SETPROCTITLE")
         if disable_setproctitle:
             return
@@ -103,7 +95,6 @@ class WandbServer:
             self._startup_debug_print("after_setproctitle")
 
     def serve(self) -> None:
-        self._setup_tracelog()
         mux = StreamMux()
         self._startup_debug_print("before_network")
         sock_port = self._start_sock(mux=mux)

@@ -1,16 +1,10 @@
 import logging
 import re
-import sys
 import threading
 from collections import defaultdict, deque
 from functools import lru_cache
 from types import ModuleType
-from typing import TYPE_CHECKING, Dict, List, Mapping, Sequence, Tuple, Union
-
-if sys.version_info >= (3, 8):
-    from typing import Final
-else:
-    from typing_extensions import Final
+from typing import TYPE_CHECKING, Dict, Final, List, Mapping, Sequence, Tuple, Union
 
 import requests
 import requests.adapters
@@ -235,7 +229,7 @@ class OpenMetrics:
         self.shutdown_event = shutdown_event
 
         self.metrics: List[Metric] = [
-            OpenMetricsMetric(name, url, settings._stats_open_metrics_filters)
+            OpenMetricsMetric(name, url, settings.x_stats_open_metrics_filters)
         ]
 
         self.metrics_monitor: MetricsMonitor = MetricsMonitor(
