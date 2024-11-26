@@ -30,88 +30,79 @@ def test_log_nan_inf(wandb_backend_spy):
         assert history[0]["nested"]["neg_inf"] < 0
 
 
-def test_log_code(wandb_init):
-    run = wandb_init(mode="offline")
-    with open("test.py", "w") as f:
-        f.write('print("test")')
-    with open("big_file.h5", "w") as f:
-        f.write("Not that big")
-    art = run.log_code()
-    assert sorted(art.manifest.entries.keys()) == ["test.py"]
-    run.finish()
+def test_log_code(user):
+    with wandb.init(mode="offline") as run:
+        with open("test.py", "w") as f:
+            f.write('print("test")')
+        with open("big_file.h5", "w") as f:
+            f.write("Not that big")
+        art = run.log_code()
+        assert sorted(art.manifest.entries.keys()) == ["test.py"]
 
 
-def test_log_code_include(wandb_init):
-    run = wandb_init(mode="offline")
+def test_log_code_include(user):
+    with wandb.init(mode="offline") as run:
+        with open("test.py", "w") as f:
+            f.write('print("test")')
+        with open("test.cc", "w") as f:
+            f.write("Not that big")
 
-    with open("test.py", "w") as f:
-        f.write('print("test")')
-    with open("test.cc", "w") as f:
-        f.write("Not that big")
-
-    art = run.log_code(include_fn=lambda p: p.endswith((".py", ".cc")))
-    assert sorted(art.manifest.entries.keys()) == ["test.cc", "test.py"]
-
-    run.finish()
+        art = run.log_code(include_fn=lambda p: p.endswith((".py", ".cc")))
+        assert sorted(art.manifest.entries.keys()) == ["test.cc", "test.py"]
 
 
-def test_log_code_custom_root(wandb_init):
-    run = wandb_init(mode="offline")
-    with open("test.py", "w") as f:
-        f.write('print("test")')
-    os.mkdir("custom")
-    os.chdir("custom")
-    with open("test.py", "w") as f:
-        f.write('print("test")')
-    art = run.log_code(root="../")
-    assert sorted(art.manifest.entries.keys()) == ["custom/test.py", "test.py"]
-    run.finish()
+def test_log_code_custom_root(user):
+    with wandb.init(mode="offline") as run:
+        with open("test.py", "w") as f:
+            f.write('print("test")')
+        os.mkdir("custom")
+        os.chdir("custom")
+        with open("test.py", "w") as f:
+            f.write('print("test")')
+        art = run.log_code(root="../")
+        assert sorted(art.manifest.entries.keys()) == ["custom/test.py", "test.py"]
 
 
 @pytest.mark.parametrize("project_name", ["test:?", "test" * 33])
-def test_invalid_project_name(wandb_init, project_name):
+def test_invalid_project_name(user, project_name):
     with pytest.raises(UsageError) as e:
-        wandb_init(project=project_name)
-        assert 'Invalid project name "{project_name}"' in str(e.value)
+        wandb.init(project=project_name)
+        assert f'Invalid project name "{project_name}"' in str(e.value)
 
 
-def test_resume_must_failure(wandb_init):
+def test_resume_must_failure(user):
     with pytest.raises(wandb.UsageError):
-        wandb_init(reinit=True, resume="must")
+        wandb.init(reinit=True, resume="must")
 
 
-def test_unlogged_artifact_in_config(wandb_init, test_settings):
-    run = wandb_init(settings=test_settings())
-    artifact = wandb.Artifact("my-arti", type="dataset")
-    with pytest.raises(Exception) as e_info:
-        run.config.dataset = artifact
-        assert (
-            str(e_info.value)
-            == "Cannot json encode artifact before it has been logged or in offline mode."
-        )
-    run.finish()
+def test_unlogged_artifact_in_config(user, test_settings):
+    with wandb.init(settings=test_settings()) as run:
+        artifact = wandb.Artifact("my-arti", type="dataset")
+        with pytest.raises(Exception) as e_info:
+            run.config.dataset = artifact
+            assert (
+                str(e_info.value)
+                == "Cannot json encode artifact before it has been logged or in offline mode."
+            )
 
 
-def test_media_in_config(runner, wandb_init, test_settings):
-    with runner.isolated_filesystem():
-        run = wandb_init(settings=test_settings())
+def test_media_in_config(user, test_settings):
+    pytest.importorskip("pillow")
+    with wandb.init(settings=test_settings()) as run:
         with pytest.raises(ValueError):
             run.config["image"] = wandb.Image(np.random.randint(0, 255, (100, 100, 3)))
-        run.finish()
 
 
-def test_init_with_settings(wandb_init, test_settings):
-    run = wandb_init(settings=wandb.Settings(x_disable_stats=True))
-    assert run.settings.x_disable_stats
-    run.finish()
+def test_init_with_settings(user, test_settings):
+    with wandb.init(settings=wandb.Settings(x_disable_stats=True)) as run:
+        assert run.settings.x_disable_stats
 
 
-def test_attach_same_process(wandb_init, test_settings):
+def test_attach_same_process(user, test_settings):
     with pytest.raises(RuntimeError) as excinfo:
-        run = wandb_init(settings=test_settings())
-        new_run = pickle.loads(pickle.dumps(run))
-        new_run.log({"a": 2})
-    run.finish()
+        with wandb.init(settings=test_settings()) as run:
+            new_run = pickle.loads(pickle.dumps(run))
+            new_run.log({"a": 2})
     assert "attach in the same process is not supported" in str(excinfo.value)
 
 
@@ -139,7 +130,7 @@ def test_deprecated_feature_telemetry(wandb_backend_spy):
         )
 
 
-def test_except_hook(wandb_init, test_settings):
+def test_except_hook(user, test_settings):
     # Test to make sure we respect excepthooks by 3rd parties like pdb
     errs = []
 
@@ -154,21 +145,19 @@ def test_except_hook(wandb_init, test_settings):
 
     raise_(Exception("Before wandb.init()"))
 
-    run = wandb_init(mode="offline", settings=test_settings())
+    with wandb.init(mode="offline", settings=test_settings()):
+        old_stderr_write = sys.stderr.write
+        stderr = []
+        sys.stderr.write = stderr.append
 
-    old_stderr_write = sys.stderr.write
-    stderr = []
-    sys.stderr.write = stderr.append
+        raise_(Exception("After wandb.init()"))
 
-    raise_(Exception("After wandb.init()"))
+        assert errs == ["Before wandb.init()", "After wandb.init()"]
 
-    assert errs == ["Before wandb.init()", "After wandb.init()"]
+        # make sure wandb prints the traceback
+        assert "".join(stderr) == "Exception: After wandb.init()\n"
 
-    # make sure wandb prints the traceback
-    assert "".join(stderr) == "Exception: After wandb.init()\n"
-
-    sys.stderr.write = old_stderr_write
-    run.finish()
+        sys.stderr.write = old_stderr_write
 
 
 def assertion(run_id, found, stderr):
@@ -190,11 +179,10 @@ def assertion(run_id, found, stderr):
         (None, False),
     ],
 )
-def test_offline_resume(wandb_init, test_settings, capsys, resume, found):
-    run = wandb_init(mode="offline", resume=resume, settings=test_settings())
-    captured = capsys.readouterr()
-    assert assertion(run.id, found, captured.err)
-    run.finish()
+def test_offline_resume(user, test_settings, capsys, resume, found):
+    with wandb.init(mode="offline", resume=resume, settings=test_settings()) as run:
+        captured = capsys.readouterr()
+        assert assertion(run.id, found, captured.err)
 
 
 def test_ignore_globs_wandb_files(wandb_backend_spy):
@@ -291,8 +279,8 @@ def test_summary_remove_nested(wandb_backend_spy):
         ("finish_artifact", ["test"]),
     ],
 )
-def test_error_when_using_methods_of_finished_run(wandb_init, method, args):
-    run = wandb_init()
+def test_error_when_using_methods_of_finished_run(user, method, args):
+    run = wandb.init()
     run.finish()
 
     with pytest.raises(wandb.errors.UsageError):
@@ -309,8 +297,8 @@ def test_error_when_using_methods_of_finished_run(wandb_init, method, args):
         ("tags", "test"),
     ],
 )
-def test_error_when_using_attributes_of_finished_run(wandb_init, attribute, value):
-    run = wandb_init()
+def test_error_when_using_attributes_of_finished_run(user, attribute, value):
+    run = wandb.init()
     run.finish()
 
     with pytest.raises(wandb.errors.UsageError):

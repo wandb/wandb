@@ -97,8 +97,8 @@ func TestDCGM(t *testing.T) {
 	assert.NotEmpty(t, result)
 
 	// Check if the keys in the result match the expected format
-	for key := range result {
-		assert.Regexp(t, `^openmetrics\.dcgm\.(DCGM_FI_DEV_MEM_COPY_UTIL|DCGM_FI_DEV_GPU_TEMP|DCGM_FI_DEV_POWER_USAGE)\.\d+$`, key)
+	for _, item := range result.Item {
+		assert.Regexp(t, `^openmetrics\.dcgm\.(DCGM_FI_DEV_MEM_COPY_UTIL|DCGM_FI_DEV_GPU_TEMP|DCGM_FI_DEV_POWER_USAGE)\.\d+$`, item.Key)
 	}
 }
 
@@ -244,7 +244,7 @@ func TestIntermittentFailure(t *testing.T) {
 		if err != nil {
 			t.Logf("Sample %d failed: %v", i, err)
 		} else {
-			t.Logf("Sample %d succeeded with %d metrics", i, len(result))
+			t.Logf("Sample %d succeeded with %d metrics", i, len(result.Item))
 			assert.NotEmpty(t, result)
 		}
 	}
