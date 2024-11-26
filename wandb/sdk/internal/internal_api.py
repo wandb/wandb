@@ -1146,7 +1146,7 @@ class Api:
             logger.info(
                 "Fetching more runs for sweep %s (got %d so far)",
                 sweep,
-                len(data["runs"])
+                len(data["runs"]),
             )
             cursor_value = page_info["endCursor"]
         if data:
