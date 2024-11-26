@@ -153,12 +153,6 @@ class Video(BatchableMedia):
                 required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
             )
 
-        # Use the resolved module
-        if not hasattr(mpy, "ImageSequenceClip"):
-            raise wandb.Error(
-                'wandb.Video requires a compatible version of moviepy. Ensure "moviepy" is installed correctly.'
-            )
-
         tensor = self._prepare_video(self.data)
         _, self._height, self._width, self._channels = tensor.shape  # type: ignore
 
