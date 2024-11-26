@@ -1070,7 +1070,7 @@ class Api:
         """
         query = gql(
             """
-        query SweepWithRuns($entity: String, $project: String, $sweep: String!, $specs: [JSONString!]!) {
+            query SweepWithRuns($entity: String, $project: String, $sweep: String!, $specs: [JSONString!]!, $cursorValue: String) {
             project(name: $project, entityName: $entity) {
                 sweep(sweepName: $sweep) {
                     id
@@ -1086,9 +1086,15 @@ class Api:
                     bestLoss
                     controller
                     scheduler
-                    runs {
-                        edges {
-                            node {
+                    runs (after: $cursorValue) {
+                        pageInfo {
+                            hasNextPage
+                            hasPreviousPage
+                            startCursor
+                            endCursor
+                        }
+                        edges  {
+                            node  {
                                 name
                                 state
                                 config
@@ -1108,20 +1114,41 @@ class Api:
         }
         """
         )
-        entity = entity or self.settings("entity")
-        project = project or self.settings("project")
-        response = self.gql(
-            query,
-            variable_values={
-                "entity": entity,
-                "project": project,
-                "sweep": sweep,
-                "specs": specs,
-            },
-        )
-        if response["project"] is None or response["project"]["sweep"] is None:
-            raise ValueError(f"Sweep {entity}/{project}/{sweep} not found")
-        data: Dict[str, Any] = response["project"]["sweep"]
+        data: Dict[str, Any] = dict()
+        cursor_value = None
+
+        while True:
+            entity = entity or self.settings("entity")
+            project = project or self.settings("project")
+            response = self.gql(
+                query,
+                variable_values={
+                    "entity": entity,
+                    "project": project,
+                    "sweep": sweep,
+                    "specs": specs,
+                    "cursorValue": cursor_value,
+                },
+            )
+            if response["project"] is None or response["project"]["sweep"] is None:
+                raise ValueError(f"Sweep {entity}/{project}/{sweep} not found")
+            page_info = response["project"]["sweep"]["runs"]["pageInfo"]
+            if not data:
+                data = response["project"]["sweep"]
+                data["runs"].pop("pageInfo")
+            else:
+                data["runs"]["edges"].extend(
+                    response["project"]["sweep"]["runs"]["edges"]
+                )
+            if not page_info["hasNextPage"]:
+                break
+            # log a message indicating that we are fetching more runs
+            logger.info(
+                "Fetching more runs for sweep %s (got %d so far)",
+                sweep,
+                len(data["runs"]),
+            )
+            cursor_value = page_info["endCursor"]
         if data:
             data["runs"] = self._flatten_edges(data["runs"])
         return data
