@@ -1115,7 +1115,7 @@ class Api:
         """
         )
         data: Dict[str, Any] = dict()
-        cursorValue = None
+        cursor_value = None
 
         while True:
             entity = entity or self.settings("entity")
@@ -1127,7 +1127,7 @@ class Api:
                     "project": project,
                     "sweep": sweep,
                     "specs": specs,
-                    "cursorValue": cursorValue,
+                    "cursorValue": cursor_value,
                 },
             )
             if response["project"] is None or response["project"]["sweep"] is None:
@@ -1148,7 +1148,7 @@ class Api:
                 sweep,
                 len(data["runs"])
             )
-            cursorValue = page_info["endCursor"]
+            cursor_value = page_info["endCursor"]
         if data:
             data["runs"] = self._flatten_edges(data["runs"])
         return data
