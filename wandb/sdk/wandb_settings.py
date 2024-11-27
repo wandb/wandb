@@ -312,6 +312,8 @@ class Settings(BaseModel, validate_assignment=True):
     x_stats_open_metrics_filters: dict[str, dict[str, str]] | Sequence[str] | None = (
         None
     )
+    # HTTP headers to add to OpenMetrics requests.
+    x_stats_open_metrics_http_headers: dict[str, str] | None = None
     # System paths to monitor for disk usage.
     x_stats_disk_paths: Sequence[str] | None = Field(
         default_factory=lambda: ("/", "/System/Volumes/Data")
@@ -323,6 +325,9 @@ class Settings(BaseModel, validate_assignment=True):
     x_stats_buffer_size: int = 0
     # Flag to indicate whether we are syncing a run from the transaction log.
     x_sync: bool = False
+    # Controls whether this process can update the run's final state (finished/failed) on the server.
+    # Set to False in distributed training when only the main process should determine the final state.
+    x_update_finish_state: bool = True
 
     # Model validator to catch legacy settings.
     @model_validator(mode="before")
@@ -544,6 +549,13 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_open_metrics_filters", mode="before")
     @classmethod
     def validate_stats_open_metrics_filters(cls, value):
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
+    @field_validator("x_stats_open_metrics_http_headers", mode="before")
+    @classmethod
+    def validate_stats_open_metrics_http_headers(cls, value):
         if isinstance(value, str):
             return json.loads(value)
         return value
