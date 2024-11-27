@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 // DefaultTask is the default task to upload/download files
@@ -88,3 +89,12 @@ func (t *DefaultDownloadTask) String() string {
 	)
 }
 func (t *DefaultDownloadTask) SetError(err error) { t.Err = err }
+
+func (t *DefaultUploadTask) RequiresAzureUpload() bool {
+	for _, header := range t.Headers {
+		if strings.Contains(header, "x-ms-blob-type") {
+			return true
+		}
+	}
+	return false
+}
