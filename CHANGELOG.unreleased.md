@@ -25,4 +25,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Fix `ultralytics` reporting if there are no positive examples in a validation batch. (@Jamil in https://github.com/wandb/wandb/pull/8870)
+- Debug printing for hyperband stopping algorithm printed one char per line (@temporaer in https://github.com/wandb/wandb/pull/8955)
 - Include the missing `log_params` argument when calling lightgbm's `wandb_callback` function. (@i-aki-y https://github.com/wandb/wandb/pull/8943)
