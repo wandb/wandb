@@ -2135,7 +2135,6 @@ class Run:
         self,
         exit_code: int | None = None,
         quiet: bool | None = None,
-        mark_finished: bool = True,
     ) -> None:
         """Finish a run and upload any remaining data.
 
@@ -2148,16 +2147,10 @@ class Run:
         - Finished: Run completed successfully (`exit_code=0`) with all data synced.
         - Failed: Run completed with errors (`exit_code!=0`).
 
-        In distributed training scenarios, you can use `mark_finished=False` when logging from
-        multiple processes to let the main process control the run's final state.
-
         Args:
             exit_code: Integer indicating the run's exit status. Use 0 for success,
                 any other value marks the run as failed.
             quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
-            mark_finished: If False, prevents marking the run as finished on the server.
-                Useful in distributed training when the main process should
-                control the run state.
         """
         if quiet is not None:
             deprecate.deprecate(
@@ -2167,12 +2160,11 @@ class Run:
                     "use `wandb.Settings(quiet=...)` to set this instead."
                 ),
             )
-        return self._finish(exit_code, mark_finished=mark_finished)
+        return self._finish(exit_code)
 
     def _finish(
         self,
         exit_code: int | None = None,
-        mark_finished: bool = True,
     ) -> None:
         logger.info(f"finishing run {self._get_path()}")
         with telemetry.context(run=self) as tel:
@@ -2198,7 +2190,7 @@ class Run:
         self._is_finished = True
 
         try:
-            self._atexit_cleanup(exit_code=exit_code, mark_finished=mark_finished)
+            self._atexit_cleanup(exit_code=exit_code)
 
             # Run hooks that should happen after the last messages to the
             # internal service, like detaching the logger.
@@ -2403,9 +2395,7 @@ class Run:
             self._err_redir.uninstall()
         logger.info("restore done")
 
-    def _atexit_cleanup(
-        self, exit_code: int | None = None, mark_finished: bool = True
-    ) -> None:
+    def _atexit_cleanup(self, exit_code: int | None = None) -> None:
         if self._backend is None:
             logger.warning("process exited without backend configured")
             return
@@ -2427,7 +2417,7 @@ class Run:
                 os.remove(self._settings.resume_fname)
 
         try:
-            self._on_finish(mark_finished=mark_finished)
+            self._on_finish()
 
         except KeyboardInterrupt:
             if not wandb.wandb_agent._is_running():  # type: ignore
@@ -2659,7 +2649,7 @@ class Run:
 
         progress_printer.update([result.response.poll_exit_response])
 
-    def _on_finish(self, mark_finished: bool = True) -> None:
+    def _on_finish(self) -> None:
         trigger.call("on_finished")
 
         if self._run_status_checker is not None:
@@ -2669,7 +2659,7 @@ class Run:
 
         assert self._backend and self._backend.interface
 
-        if mark_finished:
+        if self._settings.x_update_finish_state:
             exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         else:
             exit_handle = self._backend.interface.deliver_finish_without_exit()
@@ -4114,7 +4104,6 @@ except AttributeError:
 def finish(
     exit_code: int | None = None,
     quiet: bool | None = None,
-    mark_finished: bool = True,
 ) -> None:
     """Finish a run and upload any remaining data.
 
@@ -4127,16 +4116,10 @@ def finish(
     - Finished: Run completed successfully (`exit_code=0`) with all data synced.
     - Failed: Run completed with errors (`exit_code!=0`).
 
-    In distributed training scenarios, you can use `mark_finished=False` when logging from
-    multiple processes to let the main process control the run's final state.
-
     Args:
         exit_code: Integer indicating the run's exit status. Use 0 for success,
             any other value marks the run as failed.
         quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
-        mark_finished: If False, prevents marking the run as finished on the server.
-            Useful in distributed training when the main process should
-            control the run state.
     """
     if wandb.run:
-        wandb.run.finish(exit_code=exit_code, quiet=quiet, mark_finished=mark_finished)
+        wandb.run.finish(exit_code=exit_code, quiet=quiet)
