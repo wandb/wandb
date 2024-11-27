@@ -182,7 +182,7 @@ def wandb_callback(log_params: bool = True, define_metric: bool = True) -> Calla
         )
         ```
     """
-    return _WandbCallback(define_metric)
+    return _WandbCallback(log_params, define_metric)
 
 
 def log_summary(
