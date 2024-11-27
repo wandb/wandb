@@ -434,6 +434,11 @@ func (s *Settings) GetStatsOpenMetricsFilters() *spb.OpenMetricsFilters {
 	return s.Proto.XStatsOpenMetricsFilters
 }
 
+// Headers to add to OpenMetrics HTTP requests.
+func (s *Settings) GetStatsOpenMetricsHeaders() map[string]string {
+	return s.Proto.XStatsOpenMetricsHttpHeaders.GetValue()
+}
+
 // The label for the run namespacing for console output and system metrics.
 func (s *Settings) GetLabel() string {
 	return s.Proto.XLabel.GetValue()

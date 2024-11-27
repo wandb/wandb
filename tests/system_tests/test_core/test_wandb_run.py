@@ -306,3 +306,18 @@ def test_error_when_using_attributes_of_finished_run(user, attribute, value):
             setattr(getattr(run, attribute), *value)
         else:
             setattr(run, attribute, value)
+
+
+@pytest.mark.wandb_core_only
+@pytest.mark.parametrize(
+    "update_finish_state",
+    [True, False],
+)
+def test_update_finish_state(wandb_backend_spy, update_finish_state):
+    with wandb.init(
+        settings=wandb.Settings(x_update_finish_state=update_finish_state)
+    ) as run:
+        pass
+
+    with wandb_backend_spy.freeze() as snapshot:
+        assert snapshot.completed(run_id=run.id) is update_finish_state

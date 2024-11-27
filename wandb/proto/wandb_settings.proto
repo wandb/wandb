@@ -43,7 +43,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 183
+// Next ID: 185
 message Settings {
   reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137;
 
@@ -300,6 +300,9 @@ message Settings {
   // The OpenMetrics filters for the endpoints.
   OpenMetricsFilters x_stats_open_metrics_filters = 48;
 
+  // HTTP headers to add to OpenMetrics requests.
+  MapStringKeyStringValue x_stats_open_metrics_http_headers = 184;
+
   // Label to assign to system metrics and console logs collected for the run
   // to group by on the frontend. Can be used to distinguish data from different
   // nodes in a distributed training job.
@@ -318,6 +321,11 @@ message Settings {
   // In a distributed setting, this is useful for avoiding file overwrites on secondary nodes
   // when only system metrics and logs are needed, as the primary node handles the main logging.
   google.protobuf.BoolValue x_primary_node = 182;
+
+  // Controls whether this process can update the run's final state (finished/failed) on the server.
+  //
+  // Set to False in distributed training when only the main process should determine the final state.
+  google.protobuf.BoolValue x_update_finish_state = 183;
 
   // Flag to allow table artifacts to be synced in offline mode.
   //
