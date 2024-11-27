@@ -4,6 +4,7 @@ import (
 	"context"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"github.com/wandb/wandb/experimental/client-go/internal/uuid"
 	"github.com/wandb/wandb/experimental/client-go/pkg/opts/runopts"
 	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
 )
@@ -37,7 +38,7 @@ func (m *Manager) NewRun(runParams *runopts.RunParams) *Run {
 	if runParams.RunID != nil {
 		runSettings.SetRunID(*runParams.RunID)
 	} else if runSettings.RunId == nil {
-		runSettings.SetRunID(GenerateUniqueID(8))
+		runSettings.SetRunID(uuid.GenerateUniqueID(8))
 	}
 	run := NewRun(m.ctx, runSettings.Settings, conn, runParams)
 	return run

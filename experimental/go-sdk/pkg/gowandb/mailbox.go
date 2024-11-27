@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"github.com/wandb/wandb/experimental/client-go/internal/uuid"
 )
 
 type MailboxHandle struct {
@@ -31,7 +32,7 @@ func (mbh *MailboxHandle) wait() *spb.Result {
 }
 
 func (mb *Mailbox) Deliver(rec *spb.Record) *MailboxHandle {
-	uuid := "core:" + GenerateUniqueID(12)
+	uuid := "core:" + uuid.GenerateUniqueID(12)
 	rec.Control = &spb.Control{MailboxSlot: uuid}
 	handle := NewMailboxHandle()
 	mb.handles[uuid] = handle
