@@ -154,7 +154,10 @@ def init(
     """<sdk/wandb_init.py::init>"""
     ...
 
-def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
+def finish(
+    exit_code: int | None = None,
+    quiet: bool | None = None,
+) -> None:
     """<sdk/wandb_run.py::finish>"""
     ...
 
