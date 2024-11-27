@@ -553,6 +553,13 @@ class Settings(BaseModel, validate_assignment=True):
             return json.loads(value)
         return value
 
+    @field_validator("x_stats_open_metrics_http_headers", mode="before")
+    @classmethod
+    def validate_stats_open_metrics_http_headers(cls, value):
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
     @field_validator("sweep_id", mode="after")
     @classmethod
     def validate_sweep_id(cls, value):
