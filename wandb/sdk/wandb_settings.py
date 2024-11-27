@@ -323,6 +323,9 @@ class Settings(BaseModel, validate_assignment=True):
     x_stats_buffer_size: int = 0
     # Flag to indicate whether we are syncing a run from the transaction log.
     x_sync: bool = False
+    # Controls whether this process can update the run's final state (finished/failed) on the server.
+    # Set to False in distributed training when only the main process should determine the final state.
+    x_update_finish_state: bool = True
 
     # Model validator to catch legacy settings.
     @model_validator(mode="before")
