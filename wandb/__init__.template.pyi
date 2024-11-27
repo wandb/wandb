@@ -72,7 +72,8 @@ from typing import (
 
 import wandb.plot as plot
 from wandb.analytics import Sentry
-from wandb.apis import InternalApi, PublicApi
+from wandb.apis import InternalApi
+from wandb.apis import PublicApi as Api
 from wandb.data_types import (
     Audio,
     Graph,
@@ -107,7 +108,6 @@ __version__: str = "0.18.8.dev1"
 run: Run | None
 config: wandb_config.Config
 summary: wandb_summary.Summary
-Api: type[PublicApi]
 
 # private attributes
 _sentry: Sentry
