@@ -198,8 +198,12 @@ class WandbBackendSpy:
         with self._lock:
             run = self._runs.setdefault(run_id, _RunData())
 
+            print(request)
+
             run._was_ever_preempting |= request.get("preempting", False)
             run._uploaded_files |= set(request.get("uploaded", []))
+            run._completed = request.get("complete", False)
+            run._exit_code = request.get("exitcode")
 
             for file_name, file_data in request.get("files", {}).items():
                 file = run._file_stream_files.setdefault(file_name, {})
@@ -440,6 +444,11 @@ class WandbBackendSnapshot:
         spy = self._assert_valid()
         return spy._runs[run_id]._was_ever_preempting
 
+    def completed(self, *, run_id: str) -> bool:
+        """Returns whether the run was marked as completed."""
+        spy = self._assert_valid()
+        return spy._runs[run_id]._completed
+
     def _assert_valid(self) -> WandbBackendSpy:
         """Raise an error if we're not inside freeze()."""
         if not self._spy:
@@ -459,6 +468,8 @@ class _RunData:
         self._remote: str | None = None
         self._commit: str | None = None
         self._sweep_name: str | None = None
+        self._completed = False
+        self._exit_code: int | None = None
 
 
 @dataclasses.dataclass(frozen=True)
