@@ -25,4 +25,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Fix `ultralytics` reporting if there are no positive examples in a validation batch. (@Jamil in https://github.com/wandb/wandb/pull/8870)
-- Fix `log_params` of lightgbm's `wandb_callback()` is not working. (@i-aki-y https://github.com/wandb/wandb/pull/8943)
+- Include the missing `log_params` argument when calling lightgbm's `wandb_callback` function. (@i-aki-y https://github.com/wandb/wandb/pull/8943)
