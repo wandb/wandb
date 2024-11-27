@@ -35,6 +35,9 @@ type RunLogsLine struct {
 
 	// Timestamp is the time this line was created.
 	Timestamp time.Time
+
+	// StreamLabel is the label for the stream prefix.
+	StreamLabel string
 }
 
 // Clone returns a deep copy of the line.
@@ -42,6 +45,7 @@ func (l *RunLogsLine) Clone() *RunLogsLine {
 	return &RunLogsLine{
 		LineContent:  l.LineContent.Clone(),
 		StreamPrefix: l.StreamPrefix,
+		StreamLabel:  l.StreamLabel,
 		Timestamp:    l.Timestamp,
 	}
 }
@@ -50,14 +54,18 @@ func (l *RunLogsLine) Clone() *RunLogsLine {
 //
 // The stream prefix should either be "" for stdout or "ERROR " for stderr.
 // This is parsed by the W&B frontend, unfortunately.
-func (o *RunLogsChangeModel) LineSupplier(streamPrefix string) *RunLogsLineSupplier {
-	return &RunLogsLineSupplier{streamPrefix: streamPrefix, output: o}
+//
+// The stream label is used to prefix the stream prefix. It is used to add a
+// namespace to the console output. Provided by the user.
+func (o *RunLogsChangeModel) LineSupplier(streamPrefix, streamLabel string) *RunLogsLineSupplier {
+	return &RunLogsLineSupplier{streamPrefix: streamPrefix, streamLabel: streamLabel, output: o}
 }
 
 // NextLine allocates a new line in the output buffer.
-func (o *RunLogsChangeModel) NextLine(streamPrefix string) RunLogsLineRef {
+func (o *RunLogsChangeModel) NextLine(streamPrefix, streamLabel string) RunLogsLineRef {
 	line := &RunLogsLine{}
 	line.StreamPrefix = streamPrefix
+	line.StreamLabel = streamLabel
 	line.MaxLength = o.maxLineLength
 	line.Timestamp = o.getNow()
 
@@ -78,11 +86,12 @@ func (o *RunLogsChangeModel) NextLine(streamPrefix string) RunLogsLineRef {
 // output buffer.
 type RunLogsLineSupplier struct {
 	streamPrefix string
+	streamLabel  string
 	output       *RunLogsChangeModel
 }
 
 func (s *RunLogsLineSupplier) NextLine() terminalemulator.Line {
-	return s.output.NextLine(s.streamPrefix)
+	return s.output.NextLine(s.streamPrefix, s.streamLabel)
 }
 
 // RunLogsLineRef is a reference to a console logs line.
