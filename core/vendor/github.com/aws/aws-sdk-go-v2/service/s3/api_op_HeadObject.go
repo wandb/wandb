@@ -105,7 +105,7 @@ import (
 //   - If the specified version is a delete marker, the response returns a 405
 //     Method Not Allowed error and the Last-Modified: timestamp response header.
 //
-//   - Directory buckets - Delete marker is not supported by directory buckets.
+//   - Directory buckets - Delete marker is not supported for directory buckets.
 //
 //   - Directory buckets - S3 Versioning isn't enabled and supported for directory
 //     buckets. For this API operation, only the null value of the version ID is

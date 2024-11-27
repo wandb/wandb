@@ -2168,6 +2168,9 @@ type LifecycleExpiration struct {
 
 	// Indicates at what date the object is to be moved or deleted. The date value
 	// must conform to the ISO 8601 format. The time is always midnight UTC.
+	//
+	// This parameter applies to general purpose buckets only. It is not supported for
+	// directory bucket lifecycle configurations.
 	Date *time.Time
 
 	// Indicates the lifetime, in days, of the objects that are subject to the rule.
@@ -2178,6 +2181,9 @@ type LifecycleExpiration struct {
 	// versions. If set to true, the delete marker will be expired; if set to false the
 	// policy takes no action. This cannot be specified with Days or Date in a
 	// Lifecycle Expiration Policy.
+	//
+	// This parameter applies to general purpose buckets only. It is not supported for
+	// directory bucket lifecycle configurations.
 	ExpiredObjectDeleteMarker *bool
 
 	noSmithyDocumentSerde
@@ -2210,6 +2216,8 @@ type LifecycleRule struct {
 	// The Filter is used to identify objects that a Lifecycle Rule applies to. A
 	// Filter must have exactly one of Prefix , Tag , or And specified. Filter is
 	// required if the LifecycleRule does not contain a Prefix element.
+	//
+	// Tag filters are not supported for directory buckets.
 	Filter *LifecycleRuleFilter
 
 	// Unique identifier for the rule. The value cannot be longer than 255 characters.
@@ -2220,13 +2228,19 @@ type LifecycleRule struct {
 	// configuration action on a bucket that has versioning enabled (or suspended) to
 	// request that Amazon S3 delete noncurrent object versions at a specific period in
 	// the object's lifetime.
+	//
+	// This parameter applies to general purpose buckets only. It is not supported for
+	// directory bucket lifecycle configurations.
 	NoncurrentVersionExpiration *NoncurrentVersionExpiration
 
-	//  Specifies the transition rule for the lifecycle rule that describes when
+	// Specifies the transition rule for the lifecycle rule that describes when
 	// noncurrent objects transition to a specific storage class. If your bucket is
 	// versioning-enabled (or versioning is suspended), you can set this action to
 	// request that Amazon S3 transition noncurrent object versions to a specific
 	// storage class at a set period in the object's lifetime.
+	//
+	// This parameter applies to general purpose buckets only. It is not supported for
+	// directory bucket lifecycle configurations.
 	NoncurrentVersionTransitions []NoncurrentVersionTransition
 
 	// Prefix identifying one or more objects to which the rule applies. This is no
@@ -2241,6 +2255,9 @@ type LifecycleRule struct {
 	Prefix *string
 
 	// Specifies when an Amazon S3 object transitions to a specified storage class.
+	//
+	// This parameter applies to general purpose buckets only. It is not supported for
+	// directory bucket lifecycle configurations.
 	Transitions []Transition
 
 	noSmithyDocumentSerde
@@ -2293,6 +2310,9 @@ type LifecycleRuleFilter struct {
 	Prefix *string
 
 	// This tag must exist in the object's tag set in order for the rule to apply.
+	//
+	// This parameter applies to general purpose buckets only. It is not supported for
+	// directory bucket lifecycle configurations.
 	Tag *Tag
 
 	noSmithyDocumentSerde
@@ -2521,12 +2541,18 @@ type MultipartUpload struct {
 // configuration action on a bucket that has versioning enabled (or suspended) to
 // request that Amazon S3 delete noncurrent object versions at a specific period in
 // the object's lifetime.
+//
+// This parameter applies to general purpose buckets only. It is not supported for
+// directory bucket lifecycle configurations.
 type NoncurrentVersionExpiration struct {
 
 	// Specifies how many noncurrent versions Amazon S3 will retain. You can specify
 	// up to 100 noncurrent versions to retain. Amazon S3 will permanently delete any
 	// additional noncurrent versions beyond the specified number to retain. For more
 	// information about noncurrent versions, see [Lifecycle configuration elements]in the Amazon S3 User Guide.
+	//
+	// This parameter applies to general purpose buckets only. It is not supported for
+	// directory bucket lifecycle configurations.
 	//
 	// [Lifecycle configuration elements]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/intro-lifecycle-rules.html
 	NewerNoncurrentVersions *int32
@@ -2535,6 +2561,9 @@ type NoncurrentVersionExpiration struct {
 	// perform the associated action. The value must be a non-zero positive integer.
 	// For information about the noncurrent days calculations, see [How Amazon S3 Calculates When an Object Became Noncurrent]in the Amazon S3
 	// User Guide.
+	//
+	// This parameter applies to general purpose buckets only. It is not supported for
+	// directory bucket lifecycle configurations.
 	//
 	// [How Amazon S3 Calculates When an Object Became Noncurrent]: https://docs.aws.amazon.com/AmazonS3/latest/dev/intro-lifecycle-rules.html#non-current-days-calculations
 	NoncurrentDays *int32
@@ -2682,6 +2711,26 @@ type ObjectIdentifier struct {
 	//
 	// This member is required.
 	Key *string
+
+	// An entity tag (ETag) is an identifier assigned by a web server to a specific
+	// version of a resource found at a URL. This header field makes the request method
+	// conditional on ETags .
+	//
+	// Entity tags (ETags) for S3 Express One Zone are random alphanumeric strings
+	// unique to the object.
+	ETag *string
+
+	// If present, the objects are deleted only if its modification times matches the
+	// provided Timestamp .
+	//
+	// This functionality is only supported for directory buckets.
+	LastModifiedTime *time.Time
+
+	// If present, the objects are deleted only if its size matches the provided size
+	// in bytes.
+	//
+	// This functionality is only supported for directory buckets.
+	Size *int64
 
 	// Version ID for the specific version of the object to delete.
 	//
