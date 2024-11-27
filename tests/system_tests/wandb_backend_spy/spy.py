@@ -198,8 +198,6 @@ class WandbBackendSpy:
         with self._lock:
             run = self._runs.setdefault(run_id, _RunData())
 
-            print(request)
-
             run._was_ever_preempting |= request.get("preempting", False)
             run._uploaded_files |= set(request.get("uploaded", []))
             run._completed = request.get("complete", False)
