@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -260,14 +261,36 @@ func (ft *DefaultFileTransfer) UploadAzure(task *DefaultUploadTask, requestBody 
 		}
 	}
 
-	_, err = blobClient.UploadStream(context.Background(), requestBody, &uploadOptions)
+	resp, err := blobClient.UploadStream(context.Background(), requestBody, &uploadOptions)
 	if err != nil {
 		return nil, err
 	}
 	return &http.Response{
 		StatusCode: 200,
 		Status:     "OK",
+		Header:     getHeadersFromResponse(resp),
 	}, nil
+}
+
+func getHeadersFromResponse(resp blockblob.UploadStreamResponse) http.Header {
+	header := http.Header{}
+	if resp.ETag != nil {
+		header.Set("ETag", string(*resp.ETag))
+	}
+	if resp.ClientRequestID != nil {
+		header.Set("Client-Request-ID", *resp.ClientRequestID)
+	}
+	if resp.RequestID != nil {
+		header.Set("Request-ID", *resp.RequestID)
+	}
+	if resp.Date != nil {
+		header.Set("Date", resp.Date.Format(time.UnixDate))
+	}
+	if resp.LastModified != nil {
+		header.Set("Last-Modified", resp.LastModified.Format(time.UnixDate))
+	}
+	header.Set("Content-MD5", base64.StdEncoding.EncodeToString(resp.ContentMD5))
+	return header
 }
 
 type ProgressReader struct {
