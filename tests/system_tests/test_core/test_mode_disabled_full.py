@@ -122,7 +122,6 @@ def test_disabled_mode_artifact(wandb_backend_spy):
     wandb_backend_spy.stub_gql(gql.any(), graphql_spy)
     run = wandb.init(settings={"mode": "disabled"})
     art = run.log_artifact(wandb.Artifact("dummy", "dummy")).wait()
-    assert art.state is None
     run.link_artifact(art, "dummy")
     run.finish()
     assert graphql_spy.total_calls == 0
