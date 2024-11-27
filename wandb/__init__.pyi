@@ -425,7 +425,6 @@ def init(
 def finish(
     exit_code: int | None = None,
     quiet: bool | None = None,
-    mark_finished: bool = True,
 ) -> None:
     """Finish a run and upload any remaining data.
 
@@ -438,16 +437,10 @@ def finish(
     - Finished: Run completed successfully (`exit_code=0`) with all data synced.
     - Failed: Run completed with errors (`exit_code!=0`).
 
-    In distributed training scenarios, you can use `mark_finished=False` when logging from
-    multiple processes to let the main process control the run's final state.
-
     Args:
         exit_code: Integer indicating the run's exit status. Use 0 for success,
             any other value marks the run as failed.
         quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
-        mark_finished: If False, prevents marking the run as finished on the server.
-            Useful in distributed training when the main process should
-            control the run state.
     """
     ...
 
