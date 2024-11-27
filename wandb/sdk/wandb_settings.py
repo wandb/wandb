@@ -312,6 +312,8 @@ class Settings(BaseModel, validate_assignment=True):
     x_stats_open_metrics_filters: dict[str, dict[str, str]] | Sequence[str] | None = (
         None
     )
+    # HTTP headers to add to OpenMetrics requests.
+    x_stats_open_metrics_http_headers: dict[str, str] | None = None
     # System paths to monitor for disk usage.
     x_stats_disk_paths: Sequence[str] | None = Field(
         default_factory=lambda: ("/", "/System/Volumes/Data")
@@ -547,6 +549,13 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_open_metrics_filters", mode="before")
     @classmethod
     def validate_stats_open_metrics_filters(cls, value):
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
+    @field_validator("x_stats_open_metrics_http_headers", mode="before")
+    @classmethod
+    def validate_stats_open_metrics_http_headers(cls, value):
         if isinstance(value, str):
             return json.loads(value)
         return value
