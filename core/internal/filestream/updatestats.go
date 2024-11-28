@@ -2,29 +2,33 @@ package filestream
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/wandb/simplejsonext"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// StatsUpdate contains system metrics during the run, e.g. memory usage.
+// StatsUpdate contains system metrics collected at a point in time.
 type StatsUpdate struct {
 	StartTime time.Time
 	Record    *spb.StatsRecord
 }
 
 func (u *StatsUpdate) Apply(ctx UpdateContext) error {
-	// todo: there is a lot of unnecessary overhead here,
-	//  we should prepare all the data in the system monitor
-	//  and then send it in one record
 	row := make(map[string]interface{})
+
 	row["_wandb"] = true
-	timestamp := float64(u.Record.GetTimestamp().Seconds) + float64(u.Record.GetTimestamp().Nanos)/1e9
-	row["_timestamp"] = timestamp
-	row["_runtime"] = u.Record.Timestamp.AsTime().Sub(u.StartTime).Seconds()
+	timestamp := u.Record.GetTimestamp()
+
+	row["_timestamp"] = float64(timestamp.Seconds) + float64(timestamp.Nanos)/1e9
+	row["_runtime"] = timestamp.AsTime().Sub(u.StartTime).Seconds()
 
 	for _, item := range u.Record.Item {
+		// skip underscored keys
+		if strings.HasPrefix(item.Key, "_") {
+			continue
+		}
 		val, err := simplejsonext.UnmarshalString(item.ValueJson)
 		if err != nil {
 			ctx.Logger.CaptureError(

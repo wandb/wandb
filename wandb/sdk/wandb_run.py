@@ -21,12 +21,7 @@ from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 from functools import reduce
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Sequence, TextIO
-
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal
-else:
-    from typing import Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, Sequence, TextIO
 
 import requests
 
@@ -91,16 +86,12 @@ from .lib.exit_hooks import ExitHooks
 from .lib.gitlib import GitRepo
 from .lib.mailbox import MailboxError, MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.proto_util import message_to_dict
-from .lib.reporting import Reporter
 from .wandb_alerts import AlertLevel
 from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
 
 if TYPE_CHECKING:
-    if sys.version_info >= (3, 8):
-        from typing import TypedDict
-    else:
-        from typing_extensions import TypedDict
+    from typing import TypedDict
 
     import torch  # type: ignore [import-not-found]
 
@@ -633,7 +624,6 @@ class Run:
 
         self._printer = printer.new_printer()
         self._wl = None
-        self._reporter: Reporter | None = None
 
         self._entity = None
         self._project = None
@@ -1555,9 +1545,6 @@ class Run:
     ) -> None:
         self._internal_run_interface = interface
 
-    def _set_reporter(self, reporter: Reporter) -> None:
-        self._reporter = reporter
-
     def _set_teardown_hooks(self, hooks: list[TeardownHook]) -> None:
         self._teardown_hooks = hooks
 
@@ -2055,7 +2042,7 @@ class Run:
         policy: PolicyName,
     ) -> list[str]:
         # Can't use is_relative_to() because that's added in Python 3.9,
-        # but we support down to Python 3.7.
+        # but we support down to Python 3.8.
         if not str(glob_path).startswith(str(base_path)):
             raise ValueError("Glob may not walk above the base path")
 
@@ -2099,12 +2086,7 @@ class Run:
             target_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Delete the symlink if it exists.
-            try:
-                target_path.unlink()
-            except FileNotFoundError:
-                # In Python 3.8, we would pass missing_ok=True, but as of now
-                # we support down to Python 3.7.
-                pass
+            target_path.unlink(missing_ok=True)
 
             target_path.symlink_to(source_path)
 
@@ -2149,15 +2131,26 @@ class Run:
 
     @_run_decorator._noop
     @_run_decorator._attach
-    def finish(self, exit_code: int | None = None, quiet: bool | None = None) -> None:
-        """Mark a run as finished, and finish uploading all data.
+    def finish(
+        self,
+        exit_code: int | None = None,
+        quiet: bool | None = None,
+    ) -> None:
+        """Finish a run and upload any remaining data.
 
-        This is used when creating multiple runs in the same process. We automatically
-        call this method when your script exits or if you use the run context manager.
+        Marks the completion of a W&B run and ensures all data is synced to the server.
+        The run's final state is determined by its exit conditions and sync status.
+
+        Run States:
+        - Running: Active run that is logging data and/or sending heartbeats.
+        - Crashed: Run that stopped sending heartbeats unexpectedly.
+        - Finished: Run completed successfully (`exit_code=0`) with all data synced.
+        - Failed: Run completed with errors (`exit_code!=0`).
 
         Args:
-            exit_code: Set to something other than 0 to mark a run as failed
-            quiet: Deprecated, use `wandb.Settings(quiet=...)` to set this instead.
+            exit_code: Integer indicating the run's exit status. Use 0 for success,
+                any other value marks the run as failed.
+            quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
         """
         if quiet is not None:
             deprecate.deprecate(
@@ -2442,7 +2435,6 @@ class Run:
             final_summary=self._final_summary,
             poll_exit_response=self._poll_exit_response,
             internal_messages_response=self._internal_messages_response,
-            reporter=self._reporter,
             settings=self._settings,
             printer=self._printer,
         )
@@ -2667,7 +2659,11 @@ class Run:
 
         assert self._backend and self._backend.interface
 
-        exit_handle = self._backend.interface.deliver_exit(self._exit_code)
+        if self._settings.x_update_finish_state:
+            exit_handle = self._backend.interface.deliver_exit(self._exit_code)
+        else:
+            exit_handle = self._backend.interface.deliver_finish_without_exit()
+
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
         with progress.progress_printer(
@@ -3856,7 +3852,6 @@ class Run:
         final_summary: GetSummaryResponse | None = None,
         poll_exit_response: PollExitResponse | None = None,
         internal_messages_response: InternalMessagesResponse | None = None,
-        reporter: Reporter | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
@@ -3882,9 +3877,6 @@ class Run:
             internal_messages_response=internal_messages_response,
             settings=settings,
             printer=printer,
-        )
-        Run._footer_reporter_warn_err(
-            reporter=reporter, settings=settings, printer=printer
         )
 
     @staticmethod
@@ -4044,33 +4036,6 @@ class Run:
             level="warn",
         )
 
-    @staticmethod
-    def _footer_reporter_warn_err(
-        reporter: Reporter | None = None,
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
-        if settings.quiet or settings.silent:
-            return
-
-        if not reporter:
-            return
-
-        warning_lines = reporter.warning_lines
-        if warning_lines:
-            warnings = ["Warnings:"] + [f"{line}" for line in warning_lines]
-            if len(warning_lines) < reporter.warning_count:
-                warnings.append("More warnings...")
-            printer.display(warnings)
-
-        error_lines = reporter.error_lines
-        if error_lines:
-            errors = ["Errors:"] + [f"{line}" for line in error_lines]
-            if len(error_lines) < reporter.error_count:
-                errors.append("More errors...")
-            printer.display(errors)
-
 
 # We define this outside of the run context to support restoring before init
 def restore(
@@ -4136,15 +4101,25 @@ except AttributeError:
     pass
 
 
-def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
-    """Mark a run as finished, and finish uploading all data.
+def finish(
+    exit_code: int | None = None,
+    quiet: bool | None = None,
+) -> None:
+    """Finish a run and upload any remaining data.
 
-    This is used when creating multiple runs in the same process.
-    We automatically call this method when your script exits.
+    Marks the completion of a W&B run and ensures all data is synced to the server.
+    The run's final state is determined by its exit conditions and sync status.
+
+    Run States:
+    - Running: Active run that is logging data and/or sending heartbeats.
+    - Crashed: Run that stopped sending heartbeats unexpectedly.
+    - Finished: Run completed successfully (`exit_code=0`) with all data synced.
+    - Failed: Run completed with errors (`exit_code!=0`).
 
     Args:
-        exit_code: Set to something other than 0 to mark a run as failed
-        quiet: Deprecated, use `wandb.Settings(quiet=...)` to set this instead.
+        exit_code: Integer indicating the run's exit status. Use 0 for success,
+            any other value marks the run as failed.
+        quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code, quiet=quiet)
