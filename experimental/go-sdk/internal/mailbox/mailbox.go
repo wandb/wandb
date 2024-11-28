@@ -1,4 +1,4 @@
-package gowandb
+package mailbox
 
 import (
 	"strings"
@@ -26,7 +26,7 @@ func NewMailboxHandle() *MailboxHandle {
 	return mbh
 }
 
-func (mbh *MailboxHandle) wait() *spb.Result {
+func (mbh *MailboxHandle) Wait() *spb.Result {
 	got := <-mbh.responseChan
 	return got
 }

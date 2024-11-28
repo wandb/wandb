@@ -108,12 +108,12 @@ func (r *Run) init() {
 		ServerRequestType: &spb.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
 	}
 
-	handle := r.conn.Mbox.Deliver(&record)
+	handle := r.conn.Mailbox.Deliver(&record)
 	err = r.conn.Send(&serverRecord)
 	if err != nil {
 		return
 	}
-	result := handle.wait()
+	result := handle.Wait()
 	r.run = result.GetRunResult().GetRun()
 	PrintHeadFoot(r.run, r.settings, false)
 }
@@ -144,12 +144,12 @@ func (r *Run) start() {
 		ServerRequestType: &spb.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
 	}
 
-	handle := r.conn.Mbox.Deliver(&record)
+	handle := r.conn.Mailbox.Deliver(&record)
 	err = r.conn.Send(&serverRecord)
 	if err != nil {
 		return
 	}
-	handle.wait()
+	handle.Wait()
 }
 
 func (r *Run) logCommit(data map[string]interface{}) {
@@ -216,12 +216,12 @@ func (r *Run) sendExit() {
 	serverRecord := spb.ServerRequest{
 		ServerRequestType: &spb.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
 	}
-	handle := r.conn.Mbox.Deliver(&record)
+	handle := r.conn.Mailbox.Deliver(&record)
 	err := r.conn.Send(&serverRecord)
 	if err != nil {
 		return
 	}
-	handle.wait()
+	handle.Wait()
 }
 
 func (r *Run) sendShutdown() {
@@ -237,12 +237,12 @@ func (r *Run) sendShutdown() {
 	serverRecord := spb.ServerRequest{
 		ServerRequestType: &spb.ServerRequest_RecordCommunicate{RecordCommunicate: record},
 	}
-	handle := r.conn.Mbox.Deliver(record)
+	handle := r.conn.Mailbox.Deliver(record)
 	err := r.conn.Send(&serverRecord)
 	if err != nil {
 		return
 	}
-	handle.wait()
+	handle.Wait()
 }
 
 func (r *Run) sendInformFinish() {
