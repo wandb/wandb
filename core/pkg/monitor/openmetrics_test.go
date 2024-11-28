@@ -73,7 +73,7 @@ func TestDCGMNotAvailable(t *testing.T) {
 
 			logger := observability.NewNoOpLogger()
 			retryClient := newRetryableHTTPClient()
-			om := monitor.NewOpenMetrics(logger, "test", server.URL, nil, retryClient)
+			om := monitor.NewOpenMetrics(logger, "test", server.URL, nil /* filters */, nil /* headers */, retryClient)
 			assert.False(t, om.IsAvailable())
 		})
 	}
@@ -88,7 +88,7 @@ func TestDCGM(t *testing.T) {
 	defer server.Close()
 
 	logger := observability.NewNoOpLogger()
-	om := monitor.NewOpenMetrics(logger, "dcgm", server.URL, nil, nil)
+	om := monitor.NewOpenMetrics(logger, "dcgm", server.URL, nil /* filters */, nil /* headers */, nil /* client */)
 
 	assert.True(t, om.IsAvailable())
 
@@ -209,7 +209,7 @@ func TestMetricFilters(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("Case %d", i), func(t *testing.T) {
-			om := monitor.NewOpenMetrics(logger, tc.endpointName, "http://localhost:9400", nil, nil)
+			om := monitor.NewOpenMetrics(logger, tc.endpointName, "http://localhost:9400", nil /* filters */, nil /* headers */, nil /* client */)
 			om.SetFilters(tc.filters)
 			result := om.ShouldCaptureMetric(tc.metricName, tc.metricLabels)
 			assert.Equal(t, tc.shouldCapture, result)
@@ -236,7 +236,7 @@ func TestIntermittentFailure(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	retryClient := newRetryableHTTPClient()
 	retryClient.RetryMax = 1
-	om := monitor.NewOpenMetrics(logger, "intermittent", server.URL, nil, retryClient)
+	om := monitor.NewOpenMetrics(logger, "intermittent", server.URL, nil /* filters */, nil /* headers */, retryClient)
 
 	// Run multiple samples to test intermittent behavior
 	for i := 0; i < 2; i++ {
@@ -258,7 +258,7 @@ func TestIntermittentFailure(t *testing.T) {
 
 func TestCache(t *testing.T) {
 	logger := observability.NewNoOpLogger()
-	om := monitor.NewOpenMetrics(logger, "dcgm", "http://localhost:9400", nil, nil)
+	om := monitor.NewOpenMetrics(logger, "dcgm", "http://localhost:9400", nil /* filters */, nil /* headers */, nil /* client */)
 
 	filters := []monitor.Filter{
 		{
@@ -284,4 +284,28 @@ func TestCache(t *testing.T) {
 	// check that metricName+hash is in the cache
 	_, ok = om.Cache().Get(metricName + hash)
 	assert.True(t, ok)
+}
+
+func TestOpenMetricsHeaders(t *testing.T) {
+	var receivedToken string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedToken = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte(randomMetrics()))
+		assert.NoError(t, err)
+	}))
+	defer server.Close()
+
+	logger := observability.NewNoOpLogger()
+	headers := map[string]string{
+		"Authorization": "Bearer test-token-123",
+	}
+
+	om := monitor.NewOpenMetrics(logger, "test", server.URL, nil /* filters */, headers, nil /* client */)
+
+	result, err := om.Sample()
+	assert.NoError(t, err)
+	assert.NotEmpty(t, result)
+	assert.Equal(t, "Bearer test-token-123", receivedToken, "Expected Authorization header to be sent with request")
 }

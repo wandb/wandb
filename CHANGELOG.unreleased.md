@@ -2,12 +2,12 @@
 
 Add here any changes made in a PR that are relevant to end users. Allowed sections:
 
-* Added - for new features.
-* Changed  - for changes in existing functionality.
-* Deprecated - for soon-to-be removed features.
-* Removed - for now removed features.
-* Fixed - for any bug fixes.
-* Security -  in case of vulnerabilities.
+- Added - for new features.
+- Changed - for changes in existing functionality.
+- Deprecated - for soon-to-be removed features.
+- Removed - for now removed features.
+- Fixed - for any bug fixes.
+- Security - in case of vulnerabilities.
 
 Section headings should be at level 3 (e.g. `### Added`).
 
@@ -25,3 +25,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Fix `ultralytics` reporting if there are no positive examples in a validation batch. (@Jamil in https://github.com/wandb/wandb/pull/8870)
+- Debug printing for hyperband stopping algorithm printed one char per line (@temporaer in https://github.com/wandb/wandb/pull/8955)
+- Include the missing `log_params` argument when calling lightgbm's `wandb_callback` function. (@i-aki-y https://github.com/wandb/wandb/pull/8943)
