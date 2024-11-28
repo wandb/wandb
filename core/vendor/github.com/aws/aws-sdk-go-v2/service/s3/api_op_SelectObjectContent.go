@@ -14,7 +14,7 @@ import (
 	"sync"
 )
 
-// This operation is not supported by directory buckets.
+// This operation is not supported for directory buckets.
 //
 // This action filters the contents of an Amazon S3 object based on a simple
 // structured query language (SQL) statement. In the request, along with the SQL
