@@ -531,12 +531,7 @@ class Artifact:
     def type(self) -> str:
         """The artifact's type. Common types include `dataset` or `model`."""
         return self._type
-
-    @property
-    def description(self) -> str | None:
-        """A description of the artifact."""
-        return self._description
-
+    
     @property
     def url(self):
         """
@@ -557,6 +552,11 @@ class Artifact:
                 return f"{self._client.app_url}{self._entity}/registry/model?selectionPath={self._entity}%2F{self._project}%2F{self.collection.name}&view=membership&version={self._version}"
             else:
                 return f"{self._client.app_url}/{self._entity}/{self._project}/artifacts/{self._type}/{self._name}"
+
+    @property
+    def description(self) -> str | None:
+        """A description of the artifact."""
+        return self._description
 
     @description.setter
     def description(self, description: str | None) -> None:
