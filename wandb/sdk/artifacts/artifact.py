@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
 from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Literal, Sequence, Type, cast
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import requests
 
@@ -541,7 +541,7 @@ class Artifact:
             str: The URL of the artifact.
         """
         if self.collection.is_sequence():
-            return f"{self._client.app_url}{self._entity}/{self._project}/artifacts/{self._type}/{self._name}"
+            return f"{self._client.app_url}{self._entity}/{self._project}/artifacts/{quote(self._type)}/{quote(self.collection.name)}/{self._version}"
         else:
             if self._project.startswith("wandb-registry-"):
                 org = InternalApi()._fetch_orgs_and_org_entities_from_entity(
@@ -551,7 +551,7 @@ class Artifact:
             elif self._type == "model" or self._project == "model-registry":
                 return f"{self._client.app_url}{self._entity}/registry/model?selectionPath={self._entity}%2F{self._project}%2F{self.collection.name}&view=membership&version={self._version}"
             else:
-                return f"{self._client.app_url}/{self._entity}/{self._project}/artifacts/{self._type}/{self._name}"
+                return f"{self._client.app_url}{self._entity}/{self._project}/artifacts/{quote(self._type)}/{quote(self.collection.name)}/{self._version}"
 
     @property
     def description(self) -> str | None:
