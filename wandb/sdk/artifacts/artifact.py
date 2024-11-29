@@ -546,7 +546,7 @@ class Artifact:
             str: The URL of the artifact.
         """
         if self.collection.is_sequence():
-            return f"{self._client.app_url}/{self._entity}/{self._project}/artifacts/{self._type}/{self._name}"
+            return f"{self._client.app_url}{self._entity}/{self._project}/artifacts/{self._type}/{self._name}"
         else:
             if self._project.startswith("wandb-registry-"):
                 org = InternalApi()._fetch_orgs_and_org_entities_from_entity(
