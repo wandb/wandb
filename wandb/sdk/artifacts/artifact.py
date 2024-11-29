@@ -549,8 +549,10 @@ class Artifact:
             return f"{self._client.app_url}/{self._entity}/{self._project}/artifacts/{self._type}/{self._name}"
         else:
             if self._project.startswith("wandb-registry-"):
-                org = InternalApi()._fetch_orgs_and_org_entities_from_entity(self._entity)[0]
-                return f"{self._client.app_url}orgs/{org.display_name}/registry/{self._type}?selectionPath={self._entity}%2F{self._project}%2F{self._name.split(':')[0]}&view=membership&version={self._version}"
+                org = InternalApi()._fetch_orgs_and_org_entities_from_entity(
+                    self._entity
+                )[0]
+                return f"{self._client.app_url}orgs/{org.display_name}/registry/{self._type}?selectionPath={self._entity}%2F{self._project}%2F{self.collection.name}&view=membership&version={self._version}"
             elif self._type == "model" or self._project == "model-registry":
                 return f"{self._client.app_url}/"
             else:
