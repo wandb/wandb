@@ -556,7 +556,7 @@ class Artifact:
             elif self._type == "model" or self._project == "model-registry":
                 return f"{self._client.app_url}{self._entity}/registry/model?selectionPath={self._entity}%2F{self._project}%2F{self.collection.name}&view=membership&version={self._version}"
             else:
-                return f"{self._client.app_url}/"
+                return f"{self._client.app_url}/{self._entity}/{self._project}/artifacts/{self._type}/{self._name}"
 
     @description.setter
     def description(self, description: str | None) -> None:
