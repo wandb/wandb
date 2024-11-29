@@ -531,7 +531,7 @@ class Artifact:
     def type(self) -> str:
         """The artifact's type. Common types include `dataset` or `model`."""
         return self._type
-    
+
     @property
     def url(self):
         """
