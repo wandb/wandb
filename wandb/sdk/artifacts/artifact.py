@@ -536,6 +536,24 @@ class Artifact:
     def description(self) -> str | None:
         """A description of the artifact."""
         return self._description
+    
+    @property
+    def url(self):
+        """
+        Constructs the URL of the artifact.
+
+        Returns:
+            str: The URL of the artifact.
+        """
+        if self.collection.is_sequence():
+            return f"{self._client.app_url}/{self._entity}/{self._project}/artifacts/{self._type}/{self._name}"
+        else:
+            if self._project.startswith("wandb-registry-"):
+                return f"{self._client.app_url}/"
+            elif self._type == "model" or self._project == "model-registry":
+                return f"{self._client.app_url}/"
+            else:
+                return f"{self._client.app_url}/"
 
     @description.setter
     def description(self, description: str | None) -> None:
