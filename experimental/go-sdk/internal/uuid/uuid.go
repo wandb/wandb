@@ -1,4 +1,4 @@
-package gowandb
+package uuid
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 )
+
+const lowercaseAlphanumericChars = "abcdefghijklmnopqrstuvwxyz0123456789"
 
 // GenerateUniqueID generates a random string of the given length using only lowercase alphanumeric characters.
 func GenerateUniqueID(length int) string {
