@@ -14,6 +14,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const (
+	messageSize    = 1024 * 1024            // 1MB message size
+	maxMessageSize = 2 * 1024 * 1024 * 1024 // 2GB max message size
+)
+
 // Connection is a connection to the server.
 type Connection struct {
 	// ctx is the context for the run
@@ -63,9 +68,10 @@ func (c *Connection) Send(msg proto.Message) error {
 }
 
 func (c *Connection) Recv() {
+
 	scanner := bufio.NewScanner(c.Conn)
-	tokenizer := &server.Tokenizer{}
-	scanner.Split(tokenizer.Split)
+	scanner.Buffer(make([]byte, messageSize), maxMessageSize)
+	scanner.Split(ScanWBRecords)
 	for scanner.Scan() {
 		msg := &spb.ServerResponse{}
 		err := proto.Unmarshal(scanner.Bytes(), msg)
