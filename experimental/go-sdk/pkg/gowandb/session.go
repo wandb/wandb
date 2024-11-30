@@ -9,7 +9,7 @@ import (
 	"github.com/wandb/wandb/experimental/client-go/internal/execbin"
 	"github.com/wandb/wandb/experimental/client-go/internal/launcher"
 	"github.com/wandb/wandb/experimental/client-go/internal/uuid"
-	"github.com/wandb/wandb/experimental/client-go/pkg/opts/runopts"
+	"github.com/wandb/wandb/experimental/client-go/pkg/runconfig"
 	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
 )
 
@@ -79,24 +79,20 @@ func (s *Session) Close() {
 	}
 }
 
-func (s *Session) NewRun(opts ...runopts.RunOption) (*Run, error) {
-	runParams := &runopts.RunParams{}
-	for _, opt := range opts {
-		opt(runParams)
-	}
-
+func (s *Session) NewRun(settings *settings.SettingsWrap, config *runconfig.Config) (*Run, error) {
 	// make a copy of the base manager settings
 	runSettings := s.settings.Copy()
-	if runParams.RunID != nil {
-		runSettings.SetRunID(*runParams.RunID)
+	if settings.RunId != nil {
+		runSettings.SetRunID(settings.RunId.GetValue())
 	} else if runSettings.RunId == nil {
 		runSettings.SetRunID(uuid.GenerateUniqueID(8))
 	}
 
-	conn := s.connect()
-	run := NewRun(s.ctx, runSettings.Settings, conn, runParams)
-	run.setup()
-	run.init()
-	run.start()
+	run := NewRun(s.ctx, RunParams{
+		Settings: runSettings,
+		Config:   config,
+		Conn:     s.connect(),
+	})
+	run.Start()
 	return run, nil
 }

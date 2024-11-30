@@ -21,10 +21,10 @@ func main() {
 	}
 	defer wandb.Close()
 
-	run, err := wandb.NewRun()
+	run, err := wandb.NewRun(nil, nil)
 	if err != nil {
 		panic(err)
 	}
-	run.Log(gowandb.History{"acc": 1.0})
+	run.Log(gowandb.History{"acc": 1.0}, true)
 	run.Finish()
 }

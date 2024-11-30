@@ -2,7 +2,6 @@ package gowandb
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,307 +10,173 @@ import (
 	"sync"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/experimental/client-go/internal/connection"
-	"github.com/wandb/wandb/experimental/client-go/pkg/opts/runopts"
+	"github.com/wandb/wandb/experimental/client-go/internal/interfaces"
 	"github.com/wandb/wandb/experimental/client-go/pkg/runconfig"
+	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
 )
 
-type Settings map[string]interface{}
-
-type Run struct {
-	// ctx is the context for the run
-	ctx            context.Context
-	settings       *spb.Settings
-	config         *runconfig.Config
-	conn           *connection.Connection
-	wg             sync.WaitGroup
-	run            *spb.RunRecord
-	params         *runopts.RunParams
-	partialHistory History
-}
-
-// NewRun creates a new run with the given settings and responders.
-func NewRun(ctx context.Context, settings *spb.Settings, conn *connection.Connection, runParams *runopts.RunParams) *Run {
-	run := &Run{
-		ctx:      ctx,
-		settings: settings,
-		conn:     conn,
-		wg:       sync.WaitGroup{},
-		config:   runParams.Config,
-		params:   runParams,
-	}
-	run.resetPartialHistory()
-	return run
-}
-
-func (r *Run) setup() {
-	err := os.MkdirAll(r.settings.GetLogDir().GetValue(), os.ModePerm)
-	if err != nil {
-		slog.Error("error creating log dir", "err", err)
-	}
-	err = os.MkdirAll(r.settings.GetFilesDir().GetValue(), os.ModePerm)
-	if err != nil {
-		slog.Error("error creating files dir", "err", err)
-	}
-	r.wg.Add(1)
-	go func() {
-		r.conn.Recv()
-		r.wg.Done()
-	}()
-}
-
-func (r *Run) init() {
-	serverRecord := spb.ServerRequest{
-		ServerRequestType: &spb.ServerRequest_InformInit{InformInit: &spb.ServerInformInitRequest{
-			Settings: r.settings,
-			XInfo:    &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
-		}},
-	}
-	err := r.conn.Send(&serverRecord)
-	if err != nil {
-		return
-	}
-
-	config := &spb.ConfigRecord{}
-	if r.config == nil {
-		r.config = &runconfig.Config{}
-	}
-	for key, value := range *r.config {
-		data, err := json.Marshal(value)
-		if err != nil {
-			panic(err)
-		}
-		config.Update = append(config.Update, &spb.ConfigItem{
-			Key:       key,
-			ValueJson: string(data),
-		})
-	}
-	var DisplayName string
-	if r.params.Name != nil {
-		DisplayName = *r.params.Name
-	}
-	runRecord := spb.Record_Run{Run: &spb.RunRecord{
-		RunId:       r.settings.GetRunId().GetValue(),
-		DisplayName: DisplayName,
-		Config:      config,
-		Telemetry:   r.params.Telemetry,
-		XInfo:       &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
-	}}
-	if r.params.Project != nil {
-		runRecord.Run.Project = *r.params.Project
-	}
-	record := spb.Record{
-		RecordType: &runRecord,
-		XInfo:      &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
-	}
-	serverRecord = spb.ServerRequest{
-		ServerRequestType: &spb.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
-	}
-
-	handle := r.conn.Mailbox.Deliver(&record)
-	err = r.conn.Send(&serverRecord)
-	if err != nil {
-		return
-	}
-	result := handle.Wait()
-	r.run = result.GetRunResult().GetRun()
-	PrintHeadFoot(r.run, r.settings, false)
-}
-
-func (r *Run) start() {
-	serverRecord := spb.ServerRequest{
-		ServerRequestType: &spb.ServerRequest_InformStart{InformStart: &spb.ServerInformStartRequest{
-			Settings: r.settings,
-			XInfo:    &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
-		}},
-	}
-	err := r.conn.Send(&serverRecord)
-	if err != nil {
-		return
-	}
-
-	request := spb.Request{RequestType: &spb.Request_RunStart{
-		RunStart: &spb.RunStartRequest{Run: &spb.RunRecord{
-			RunId: r.settings.GetRunId().GetValue(),
-		}}}}
-	record := spb.Record{
-		RecordType: &spb.Record_Request{Request: &request},
-		Control:    &spb.Control{Local: true},
-		XInfo:      &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
-	}
-
-	serverRecord = spb.ServerRequest{
-		ServerRequestType: &spb.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
-	}
-
-	handle := r.conn.Mailbox.Deliver(&record)
-	err = r.conn.Send(&serverRecord)
-	if err != nil {
-		return
-	}
-	handle.Wait()
-}
-
-func (r *Run) logCommit(data map[string]interface{}) {
-	history := spb.PartialHistoryRequest{}
-	for key, value := range data {
-		// strValue := strconv.FormatFloat(value, 'f', -1, 64)
-		data, err := json.Marshal(value)
-		if err != nil {
-			panic(err)
-		}
-		history.Item = append(history.Item, &spb.HistoryItem{
-			Key:       key,
-			ValueJson: string(data),
-		})
-	}
-	request := spb.Request{
-		RequestType: &spb.Request_PartialHistory{PartialHistory: &history},
-	}
-	record := spb.Record{
-		RecordType: &spb.Record_Request{Request: &request},
-		Control:    &spb.Control{Local: true},
-		XInfo:      &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
-	}
-
-	serverRecord := spb.ServerRequest{
-		ServerRequestType: &spb.ServerRequest_RecordPublish{RecordPublish: &record},
-	}
-
-	err := r.conn.Send(&serverRecord)
-	if err != nil {
-		return
-	}
-}
-
-func (r *Run) resetPartialHistory() {
-	r.partialHistory = make(map[string]interface{})
-}
-
-func (r *Run) LogPartial(data map[string]interface{}, commit bool) {
-	for k, v := range data {
-		r.partialHistory[k] = v
-	}
-	if commit {
-		r.LogPartialCommit()
-	}
-}
-
-func (r *Run) LogPartialCommit() {
-	r.logCommit(r.partialHistory)
-	r.resetPartialHistory()
-}
-
-func (r *Run) Log(data map[string]interface{}) {
-	r.LogPartial(data, true)
-}
-
-func (r *Run) sendExit() {
-	record := spb.Record{
-		RecordType: &spb.Record_Exit{
-			Exit: &spb.RunExitRecord{
-				ExitCode: 0, XInfo: &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()}}},
-		XInfo: &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
-	}
-	serverRecord := spb.ServerRequest{
-		ServerRequestType: &spb.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
-	}
-	handle := r.conn.Mailbox.Deliver(&record)
-	err := r.conn.Send(&serverRecord)
-	if err != nil {
-		return
-	}
-	handle.Wait()
-}
-
-func (r *Run) sendShutdown() {
-	record := &spb.Record{
-		RecordType: &spb.Record_Request{
-			Request: &spb.Request{
-				RequestType: &spb.Request_Shutdown{
-					Shutdown: &spb.ShutdownRequest{},
-				},
-			}},
-		Control: &spb.Control{AlwaysSend: true, ReqResp: true},
-	}
-	serverRecord := spb.ServerRequest{
-		ServerRequestType: &spb.ServerRequest_RecordCommunicate{RecordCommunicate: record},
-	}
-	handle := r.conn.Mailbox.Deliver(record)
-	err := r.conn.Send(&serverRecord)
-	if err != nil {
-		return
-	}
-	handle.Wait()
-}
-
-func (r *Run) sendInformFinish() {
-	serverRecord := spb.ServerRequest{
-		ServerRequestType: &spb.ServerRequest_InformFinish{InformFinish: &spb.ServerInformFinishRequest{
-			XInfo: &spb.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
-		}},
-	}
-	err := r.conn.Send(&serverRecord)
-	if err != nil {
-		return
-	}
-}
-
-func (r *Run) Finish() {
-	r.sendExit()
-	r.sendShutdown()
-	r.sendInformFinish()
-
-	r.conn.Close()
-	r.wg.Wait()
-	PrintHeadFoot(r.run, r.settings, true)
-}
+type Color string
 
 const (
 	resetFormat = "\033[0m"
 
-	colorBrightBlue = "\033[1;34m"
-
-	colorBlue = "\033[34m"
-
-	colorYellow = "\033[33m"
-
-	colorBrightMagenta = "\033[1;35m"
+	BrightBlue    Color = "\033[1;34m"
+	Blue          Color = "\033[34m"
+	Yellow        Color = "\033[33m"
+	BrightMagenta Color = "\033[1;35m"
 )
 
-func format(str string, color string) string {
-	return fmt.Sprintf("%v%v%v", color, str, resetFormat)
+func format(text string, color Color) string {
+	return fmt.Sprintf("%v%v%v", color, text, resetFormat)
 }
 
-// This is used by the go wandb client to print the header and footer of the run
-func PrintHeadFoot(run *spb.RunRecord, settings *spb.Settings, footer bool) {
-	if run == nil {
+type RunParams struct {
+	Conn      *connection.Connection
+	Config    *runconfig.Config
+	Settings  *settings.SettingsWrap
+	Telemetry *spb.TelemetryRecord
+}
+type Run struct {
+	// ctx is the context for the run
+	ctx            context.Context
+	settings       *settings.SettingsWrap
+	config         *runconfig.Config
+	conn           *connection.Connection
+	sock           *interfaces.SockInterface
+	wg             sync.WaitGroup
+	partialHistory History
+	telemetry      *spb.TelemetryRecord
+}
+
+// NewRun creates a new run with the given settings and responders.
+func NewRun(ctx context.Context, params RunParams) *Run {
+	if params.Config == nil {
+		params.Config = &runconfig.Config{}
+	}
+
+	run := &Run{
+		ctx:      ctx,
+		settings: params.Settings,
+		conn:     params.Conn,
+		sock: &interfaces.SockInterface{
+			Conn:     params.Conn,
+			StreamId: params.Settings.GetRunId().GetValue(),
+		},
+		wg:             sync.WaitGroup{},
+		config:         params.Config,
+		telemetry:      params.Telemetry,
+		partialHistory: make(History),
+	}
+	return run
+}
+
+func (r *Run) Start() {
+	if err := os.MkdirAll(r.settings.GetLogDir().GetValue(), os.ModePerm); err != nil {
+		slog.Error("error creating log dir", "err", err)
+	}
+	if err := os.MkdirAll(r.settings.GetFilesDir().GetValue(), os.ModePerm); err != nil {
+		slog.Error("error creating files dir", "err", err)
+	}
+
+	r.sock.Start()
+
+	if err := r.sock.InformInit(r.settings); err != nil {
+		slog.Error("error informing init", "err", err)
 		return
 	}
 
-	appURL := strings.Replace(settings.GetBaseUrl().GetValue(), "//api.", "//", 1)
-	url := fmt.Sprintf("%v/%v/%v/runs/%v", appURL, run.Entity, run.Project, run.RunId)
+	handle, err := r.sock.DeliverRunRecord(r.settings, r.config, r.telemetry)
+	if err != nil {
+		slog.Error("error delivering run record", "err", err)
+		return
+	}
+	result := handle.Wait()
+	r.settings.Entity = wrapperspb.String(result.GetRunResult().GetRun().GetEntity())
+	r.settings.RunName = wrapperspb.String(result.GetRunResult().GetRun().GetDisplayName())
+	if err := r.sock.InformStart(r.settings); err != nil {
+		slog.Error("error informing start", "err", err)
+		return
+	}
 
-	fmt.Printf("%v: 🚀 View run %v at: %v\n",
-		format("wandb", colorBrightBlue),
-		format(run.DisplayName, colorYellow),
-		format(url, colorBlue),
+	handle, err = r.sock.DeliverRunStartRequest(r.settings)
+	if err != nil {
+		slog.Error("error delivering run start request", "err", err)
+		return
+	}
+	handle.Wait()
+
+	r.printRunURL()
+}
+
+func (r *Run) Log(data map[string]interface{}, commit bool) {
+	for k, v := range data {
+		r.partialHistory[k] = v
+	}
+	if !commit {
+		return
+	}
+
+	if err := r.sock.PublishPartialHistory(r.partialHistory); err != nil {
+		slog.Error("error publishing partial history", "err", err)
+	}
+	r.partialHistory = make(History)
+}
+
+func (r *Run) Finish() {
+	handle, err := r.sock.DeliverExitRecord()
+	if err != nil {
+		slog.Error("error delivering exit record", "err", err)
+		return
+	}
+	handle.Wait()
+
+	handle, err = r.sock.DeliverShutdownRequest()
+	if err != nil {
+		slog.Error("error delivering shutdown request", "err", err)
+		return
+	}
+	handle.Wait()
+	if err := r.sock.InformFinish(); err != nil {
+		slog.Error("error informing finish", "err", err)
+		return
+	}
+	r.sock.Close()
+	r.printRunURL()
+	r.printLogDir()
+}
+
+func (r *Run) printRunURL() {
+	url := fmt.Sprintf("%v/%v/%v/runs/%v",
+		strings.Replace(r.settings.GetBaseUrl().GetValue(), "//api.", "//", 1),
+		r.settings.GetEntity().GetValue(),
+		r.settings.GetProject().GetValue(),
+		r.settings.GetRunId().GetValue(),
 	)
 
-	if footer {
-		currentDir, err := os.Getwd()
-		if err != nil {
-			return
-		}
-		logDir := settings.GetLogDir().GetValue()
-		relLogDir, err := filepath.Rel(currentDir, logDir)
-		if err != nil {
-			return
-		}
-		fmt.Printf("%v: Find logs at: %v\n",
-			format("wandb", colorBrightBlue),
-			format(relLogDir, colorBrightMagenta),
-		)
+	fmt.Printf("%v: 🚀 View run %v at: %v\n",
+		format("wandb", BrightBlue),
+		format(r.settings.GetRunName().GetValue(), Yellow),
+		format(url, Blue),
+	)
+}
+
+func (r *Run) printLogDir() {
+
+	logDir := r.settings.GetLogDir().GetValue()
+	if cwd, err := os.Getwd(); err != nil {
+		slog.Error("error getting current directory", "err", err)
+	} else if relLogDir, err := filepath.Rel(cwd, logDir); err != nil {
+		slog.Error("error getting relative log directory", "err", err)
+	} else {
+		logDir = relLogDir
 	}
+
+	fmt.Printf("%v: Find logs at: %v\n",
+		format("wandb", BrightBlue),
+		format(logDir, BrightMagenta),
+	)
+
 }

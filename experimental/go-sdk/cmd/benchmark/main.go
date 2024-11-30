@@ -63,7 +63,7 @@ func (b *Bench) RunWorkers() {
 }
 
 func (b *Bench) Worker() {
-	run, err := b.wandb.NewRun()
+	run, err := b.wandb.NewRun(nil, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -74,7 +74,7 @@ func (b *Bench) Worker() {
 	}
 
 	for i := 0; i < *b.opts.numHistory; i++ {
-		run.Log(data)
+		run.Log(data, true)
 	}
 	run.Finish()
 }
