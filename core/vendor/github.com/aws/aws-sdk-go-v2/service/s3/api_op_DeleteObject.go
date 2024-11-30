@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
+	"time"
 )
 
 // Removes an object from a bucket. The behavior depends on the bucket's
@@ -141,6 +142,38 @@ type DeleteObjectInput struct {
 	// does not match the actual owner of the bucket, the request fails with the HTTP
 	// status code 403 Forbidden (access denied).
 	ExpectedBucketOwner *string
+
+	// The If-Match header field makes the request method conditional on ETags. If the
+	// ETag value does not match, the operation returns a 412 Precondition Failed
+	// error. If the ETag matches or if the object doesn't exist, the operation will
+	// return a 204 Success (No Content) response .
+	//
+	// For more information about conditional requests, see [RFC 7232].
+	//
+	// This functionality is only supported for directory buckets.
+	//
+	// [RFC 7232]: https://docs.aws.amazon.com/https:/tools.ietf.org/html/rfc7232
+	IfMatch *string
+
+	// If present, the object is deleted only if its modification times matches the
+	// provided Timestamp . If the Timestamp values do not match, the operation
+	// returns a 412 Precondition Failed error. If the Timestamp matches or if the
+	// object doesn’t exist, the operation returns a 204 Success (No Content) response.
+	//
+	// This functionality is only supported for directory buckets.
+	IfMatchLastModifiedTime *time.Time
+
+	// If present, the object is deleted only if its size matches the provided size in
+	// bytes. If the Size value does not match, the operation returns a 412
+	// Precondition Failed error. If the Size matches or if the object doesn’t exist,
+	// the operation returns a 204 Success (No Content) response.
+	//
+	// This functionality is only supported for directory buckets.
+	//
+	// You can use the If-Match , x-amz-if-match-last-modified-time and
+	// x-amz-if-match-size conditional headers in conjunction with each-other or
+	// individually.
+	IfMatchSize *int64
 
 	// The concatenation of the authentication device's serial number, a space, and
 	// the value that is displayed on your authentication device. Required to
