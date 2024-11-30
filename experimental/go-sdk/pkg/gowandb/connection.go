@@ -8,6 +8,7 @@ import (
 
 	"github.com/wandb/wandb/core/pkg/server"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"github.com/wandb/wandb/experimental/client-go/internal/mailbox"
 
 	"net"
 
@@ -26,7 +27,7 @@ type Connection struct {
 
 	// Conn is the connection to the server
 	net.Conn
-	Mbox *Mailbox
+	Mailbox *mailbox.Mailbox
 }
 
 // NewConnection creates a new connection to the server.
@@ -36,11 +37,11 @@ func NewConnection(ctx context.Context, addr string) (*Connection, error) {
 		err = fmt.Errorf("error connecting to server: %w", err)
 		return nil, err
 	}
-	mbox := NewMailbox()
+	mbox := mailbox.NewMailbox()
 	connection := &Connection{
-		ctx:  ctx,
-		Conn: conn,
-		Mbox: mbox,
+		ctx:     ctx,
+		Conn:    conn,
+		Mailbox: mbox,
 	}
 	return connection, nil
 }
@@ -80,7 +81,7 @@ func (c *Connection) Recv() {
 		}
 		switch x := msg.ServerResponseType.(type) {
 		case *spb.ServerResponse_ResultCommunicate:
-			c.Mbox.Respond(x.ResultCommunicate)
+			c.Mailbox.Respond(x.ResultCommunicate)
 		default:
 		}
 	}
