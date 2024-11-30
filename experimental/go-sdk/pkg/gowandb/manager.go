@@ -4,6 +4,7 @@ import (
 	"context"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"github.com/wandb/wandb/experimental/client-go/internal/connection"
 	"github.com/wandb/wandb/experimental/client-go/internal/uuid"
 	"github.com/wandb/wandb/experimental/client-go/pkg/opts/runopts"
 	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
@@ -44,8 +45,8 @@ func (m *Manager) NewRun(runParams *runopts.RunParams) *Run {
 	return run
 }
 
-func (m *Manager) Connect(ctx context.Context) *Connection {
-	conn, err := NewConnection(ctx, m.addr)
+func (m *Manager) Connect(ctx context.Context) *connection.Connection {
+	conn, err := connection.NewConnection(ctx, m.addr)
 	// slog.Info("Connecting to server", "conn", conn.Conn.RemoteAddr().String())
 	if err != nil {
 		panic(err)
