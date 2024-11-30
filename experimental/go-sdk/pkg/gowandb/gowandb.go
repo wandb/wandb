@@ -2,15 +2,22 @@
 package gowandb
 
 import (
-	"github.com/wandb/wandb/experimental/client-go/pkg/opts/sessionopts"
+	"context"
+
+	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
 )
 
 type History map[string]interface{}
 
-func NewSession(opts ...sessionopts.SessionOption) (*Session, error) {
-	session := &Session{}
-	for _, opt := range opts {
-		opt(&session.SessionParams)
+func NewSession(params SessionParams) (*Session, error) {
+	if params.Settings == nil {
+		params.Settings = settings.NewSettings()
+	}
+	session := &Session{
+		ctx:        context.Background(),
+		coreBinary: params.CoreBinary,
+		address:    params.Address,
+		settings:   params.Settings,
 	}
 	session.start()
 	return session, nil
