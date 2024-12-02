@@ -7,6 +7,7 @@ from setup_helper import capture_sar_metrics
 
 def bench_log(root_folder: str, loop_count: int, step: int):
     """Runs a set of load tests with the same parameter.
+
     The goal is to measure the performance of a baseline test with reliable
     and repeatable averages and max computed.
     """
@@ -19,6 +20,7 @@ def bench_log(root_folder: str, loop_count: int, step: int):
 
 def bench_log_scale_step(root_folder: str, list_of_steps: list[int]):
     """Runs a set of load tests with increasing # of steps.
+
     The goal is to measure the performance impact of runs with more steps.
     """
     loop = 1
@@ -30,6 +32,7 @@ def bench_log_scale_step(root_folder: str, list_of_steps: list[int]):
 
 def bench_log_scale_metric(root_folder: str, list_of_metric_count: list[int]):
     """Runs a set of load tests with increasing # of metrics per step.
+
     The goal is to measure the performance impact of more metrics logged per step.
     """
     loop = 1
@@ -40,7 +43,8 @@ def bench_log_scale_metric(root_folder: str, list_of_metric_count: list[int]):
 
 
 def run_experiment_helper(loop, step, mc, root_folder, output_file="results.json"):
-    """A helper to
+    """A helper to do the standard perf test setup.
+
     1) create a folder for this particular load test iteration
     2) start capturing resource metrics
     3) run the actual load tests

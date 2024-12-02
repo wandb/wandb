@@ -13,6 +13,7 @@ def generate_random_dict(num_fields: int, field_size: int) -> dict:
     Returns:
         str: A JSON-like string with the specified structure.
     """
+
     def random_key():
         # Generate a random key with a length "field_size"  characters
         return "".join(

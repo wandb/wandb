@@ -20,7 +20,7 @@ def log_to_wandb(args: argparse) -> None:
     for dir in sorted_dirs:
         file_names = []
         # Either load the specific files from user inputs, or load *.json
-        if args.list != None:
+        if args.list is not None:
             file_names = args.list.split(",")
 
         else:
