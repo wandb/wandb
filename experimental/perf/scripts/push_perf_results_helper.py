@@ -14,7 +14,7 @@ def log_to_wandb(args: argparse) -> None:
     root_log_dir = args.folder
     dirs = os.listdir(root_log_dir)
 
-    # Sort the directories based on the last numerical value found
+    # Sort the directories based on the last numerical value found which is the sort_key
     sorted_dirs = sorted(dirs, key=lambda d: int(re.findall(r"\d+", d)[-1]))
     final_data = {}
     for dir in sorted_dirs:

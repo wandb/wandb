@@ -80,33 +80,35 @@ def run_experiment(
     payload = generate_random_dict(metric_count, metric_key_size)
     total_start_time = datetime.now()
 
-    for run in range(loop_count):
-        run_id = f"{start_time_str}_{run}"
-        print(f"\n--- Run {run + 1} ---")
+    run_id = f"{start_time_str}"
 
-        # Initialize W&B
-        _, init_time = init_wandb(
-            run_id, loop_count, step_count, metric_count, metric_key_size
-        )
-        result_data["init_time"] = init_time
+    # Initialize W&B
+    _, init_time = init_wandb(
+        run_id, loop_count, step_count, metric_count, metric_key_size
+    )
+    result_data["init_time"] = init_time
 
-        # Log the test metrics
-        _, log_time = log_metrics(step_count, payload)
-        result_data["log_time"] = log_time
+    # Log the test metrics
+    _, log_time = log_metrics(step_count, payload)
+    result_data["log_time"] = log_time
 
-        # Finish W&B run
-        _, finish_time = finish_wandb()
-        result_data["finish_time"] = finish_time
+    # compute the log() throughput rps (request per sec)
+    log_rps = step_count // log_time
+    result_data["log_rps"] = log_rps
 
-        # Display experiment timing
-        run_time = init_time + log_time + finish_time
-        result_data["sdk_run_time"] = run_time
+    # Finish W&B run
+    _, finish_time = finish_wandb()
+    result_data["finish_time"] = finish_time
 
-        # write the result data to a json file
-        with open(output_file, "w") as file:
-            json.dump(result_data, file, indent=4)
+    # Display experiment timing
+    run_time = init_time + log_time + finish_time
+    result_data["sdk_run_time"] = run_time
 
-        print(json.dumps(result_data, indent=4))
+    # write the result data to a json file
+    with open(output_file, "w") as file:
+        json.dump(result_data, file, indent=4)
+
+    print(json.dumps(result_data, indent=4))
 
     total_end_time = datetime.now()
     total_time = total_end_time - total_start_time

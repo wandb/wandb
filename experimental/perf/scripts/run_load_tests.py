@@ -28,7 +28,7 @@ def run_test_case(test_case, log_folder):
         step_count = 10000
         print(
             f"Load testing SDK logging in {loop_count} iterations, "
-            + "each logging {step_count} steps, 100 metrics and metric key size of 10"
+            + f"each logging {step_count} steps, 100 metrics and metric key size of 10"
         )
         test_case_helper.bench_log(log_folder, loop_count, step_count)
 

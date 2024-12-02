@@ -13,9 +13,11 @@ def bench_log(root_folder: str, loop_count: int, step: int):
     """
     mc = 100
     step = 2000
+    sort_key = 1
 
-    for loop in range(loop_count):
-        run_experiment_helper(loop, step, mc, root_folder)
+    for loop in range(1, loop_count+1):
+        run_experiment_helper(loop, step, mc, root_folder, sort_key)
+        sort_key += 1
 
 
 def bench_log_scale_step(root_folder: str, list_of_steps: list[int]):
@@ -25,9 +27,11 @@ def bench_log_scale_step(root_folder: str, list_of_steps: list[int]):
     """
     loop = 1
     mc = 100
+    sort_key = 1
 
     for step in list_of_steps:
-        run_experiment_helper(loop, step, mc, root_folder)
+        run_experiment_helper(loop, step, mc, root_folder, sort_key)
+        sort_key += 1
 
 
 def bench_log_scale_metric(root_folder: str, list_of_metric_count: list[int]):
@@ -37,12 +41,13 @@ def bench_log_scale_metric(root_folder: str, list_of_metric_count: list[int]):
     """
     loop = 1
     step = 1000
-
+    sort_key = 1
     for mc in list_of_metric_count:
-        run_experiment_helper(loop, step, mc, root_folder)
+        run_experiment_helper(loop, step, mc, root_folder, sort_key)
+        sort_key += 1
 
 
-def run_experiment_helper(loop, step, mc, root_folder, output_file="results.json"):
+def run_experiment_helper(loop, step, mc, root_folder, sort_key, output_file="results.json"):
     """A helper to do the standard perf test setup.
 
     1) create a folder for this particular load test iteration
@@ -50,12 +55,12 @@ def run_experiment_helper(loop, step, mc, root_folder, output_file="results.json
     3) run the actual load tests
     4) end the resource metrics and compute the summary stats
     """
-    log_folder = os.path.join(root_folder, f"loop{loop}_step{step}_metriccount{mc}")
+    log_folder = os.path.join(root_folder, f"loop{loop}_step{step}_metriccount{mc}_{sort_key}")
 
     os.makedirs(log_folder, exist_ok=True)
 
     capture_sar_metrics(log_folder)
 
-    run_experiment(loop, step, mc, f"{log_folder}/{output_file}")
+    run_experiment(loop, step, mc, output_file=f"{log_folder}/{output_file}")
 
     process_sar_files(log_folder)
