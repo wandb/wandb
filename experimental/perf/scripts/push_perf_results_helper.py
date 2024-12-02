@@ -18,11 +18,20 @@ def log_to_wandb(args: argparse) -> None:
     sorted_dirs = sorted(dirs, key=lambda d: int(re.findall(r"\d+", d)[-1]))
     final_data = {}
     for dir in sorted_dirs:
-        # Load the list of json files and combine them into one dictionary to send
-        for f in args.list.split(","):
-            with open(os.path.join(root_log_dir, dir, f)) as f:
-                json_data = json.load(f)
-                final_data.update(json_data)
+        file_names = []
+        # Either load the specific files from user inputs, or load *.json
+        if args.list != None:
+            file_names = args.list.split(",")
+
+        else:
+            for file_name in os.listdir(os.path.join(root_log_dir, dir)):
+                if file_name.endswith(".json"):
+                    file_names.append(file_name)
+
+        for file_name in file_names:
+            print(f"logging data from {file_name} in {dir} ...")
+            with open(os.path.join(root_log_dir, dir, file_name)) as f:
+                final_data.update(json.load(f))
 
         run.log(final_data)
 
@@ -50,7 +59,6 @@ if __name__ == "__main__":
         type=str,
         help="comma separated list of json files with data to send to W&B",
         required=False,
-        default="results.json,metrics.json",
     )
 
     args = parser.parse_args()

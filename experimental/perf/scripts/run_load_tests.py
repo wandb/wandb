@@ -24,13 +24,29 @@ Example: python run_load_tests.py -t bench_log
 
 def run_test_case(test_case, log_folder):
     if test_case == "bench_log":
-        test_case_helper.bench_log(log_folder, 4, 10000)
+        loop_count = 4
+        step_count = 10000
+        print(
+            f"Load testing SDK logging in {loop_count} iterations, "
+            + "each logging {step_count} steps, 100 metrics and metric key size of 10"
+        )
+        test_case_helper.bench_log(log_folder, loop_count, step_count)
 
     elif test_case == "bench_log_scale_step":
-        test_case_helper.bench_log_scale_step(log_folder, [1000, 2000, 4000, 8000])
+        steps = [1000, 2000, 4000, 8000]
+        print(
+            f"Load testing SDK logging scaling through {steps} steps "
+            + "each logging 100 metrics with a metric key size of 10"
+        )
+        test_case_helper.bench_log_scale_step(log_folder, steps)
 
     elif test_case == "bench_log_scale_metric":
-        test_case_helper.bench_log_scale_metric(log_folder, [100, 200, 400, 800])
+        metrics = [100, 200, 400, 800]
+        print(
+            f"Load testing SDK logging scaling through {metrics} metrics, "
+            + "in each of the 1000 steps, and a metric key size of 10"
+        )
+        test_case_helper.bench_log_scale_metric(log_folder, metrics)
 
     else:
         print(f"ERROR: Unrecognized test case: {test_case}")

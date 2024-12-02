@@ -23,7 +23,8 @@ RUN apt-get update && apt-get upgrade -y \
 
 RUN apt-get update && apt-get install vim -y \
     && apt-get install sysstat -y \
-    && apt-get install jq -y
+    && apt-get install jq -y \
+    && apt-get install procps -y
 
 # Add build argument for wandb version
 ARG WANDB_VERSION=""

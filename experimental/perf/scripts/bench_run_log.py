@@ -93,6 +93,7 @@ def run_experiment(
         # Log the test metrics
         _, log_time = log_metrics(step_count, payload)
         result_data["log_time"] = log_time
+        result_data["log_time_rps"] = round(step_count / log_time, 1)  # throughput
 
         # Finish W&B run
         _, finish_time = finish_wandb()
@@ -100,7 +101,7 @@ def run_experiment(
 
         # Display experiment timing
         run_time = init_time + log_time + finish_time
-        result_data["sdk_run_time"] = run_time
+        result_data["sdk_run_time"] = round(run_time, 2)
 
         # write the result data to a json file
         with open(output_file, "w") as file:
@@ -119,7 +120,7 @@ if __name__ == "__main__":
         "-l", "--loop", type=int, help="number of runs to perform.", default=5
     )
     parser.add_argument(
-        "-s", "--steps", type=int, help="number of logging steps per run.", default=10
+        "-s", "--steps", type=int, help="number of logging steps per run.", default=1000
     )
     parser.add_argument(
         "-n",
