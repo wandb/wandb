@@ -1,4 +1,4 @@
-package gowandb
+package connection
 
 import (
 	"bytes"

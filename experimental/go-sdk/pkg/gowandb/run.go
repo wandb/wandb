@@ -12,6 +12,7 @@ import (
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 
+	"github.com/wandb/wandb/experimental/client-go/internal/connection"
 	"github.com/wandb/wandb/experimental/client-go/pkg/opts/runopts"
 	"github.com/wandb/wandb/experimental/client-go/pkg/runconfig"
 )
@@ -23,7 +24,7 @@ type Run struct {
 	ctx            context.Context
 	settings       *spb.Settings
 	config         *runconfig.Config
-	conn           *Connection
+	conn           *connection.Connection
 	wg             sync.WaitGroup
 	run            *spb.RunRecord
 	params         *runopts.RunParams
@@ -31,7 +32,7 @@ type Run struct {
 }
 
 // NewRun creates a new run with the given settings and responders.
-func NewRun(ctx context.Context, settings *spb.Settings, conn *Connection, runParams *runopts.RunParams) *Run {
+func NewRun(ctx context.Context, settings *spb.Settings, conn *connection.Connection, runParams *runopts.RunParams) *Run {
 	run := &Run{
 		ctx:      ctx,
 		settings: settings,
