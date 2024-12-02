@@ -885,6 +885,7 @@ class Settings(BaseModel, validate_assignment=True):
     def update_from_env_vars(self, environ: dict[str, Any]):
         """Update settings from environment variables."""
         env_prefix: str = "WANDB_"
+        private_env_prefix: str = env_prefix + "_"
         special_env_var_names = {
             "WANDB_DISABLE_SERVICE": "x_disable_service",
             "WANDB_SERVICE_TRANSPORT": "x_service_transport",
@@ -904,6 +905,8 @@ class Settings(BaseModel, validate_assignment=True):
 
             if setting in special_env_var_names:
                 key = special_env_var_names[setting]
+            elif setting.startswith(private_env_prefix):
+                key = "x_" + setting[len(private_env_prefix) :].lower()
             else:
                 # otherwise, strip the prefix and convert to lowercase
                 key = setting[len(env_prefix) :].lower()
