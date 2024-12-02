@@ -5,8 +5,7 @@ import subprocess
 
 
 def pre_process_network_sar_log(log_dir: str) -> str:
-    """
-    This helper function pre-processes the network.dev.log, we need to
+    """This helper function pre-processes the network.dev.log, we need to
     first parse out the metrics of the device we are interested in. i.e. eth0.
     """
     network_log = os.path.join(log_dir, "network.dev.log")
@@ -38,11 +37,9 @@ def pre_process_network_sar_log(log_dir: str) -> str:
 
 
 def pre_process_disk_sar_log(log_dir: str) -> str:
-    """
-    This helper function pre-processes the disk.log, we need to
+    """This helper function pre-processes the disk.log, we need to
     first parse out the metrics of the device we are interested in. i.e. sda or vda.
     """
-
     disk_log = os.path.join(log_dir, "disk.log")
     dev = None
 
@@ -86,11 +83,9 @@ def pre_process_disk_sar_log(log_dir: str) -> str:
 
 
 def process_sar_files(log_dir: str):
-    """
-    This function process all the sar log files in a given directory, compute
+    """This function process all the sar log files in a given directory, compute
     their avg and max values for each data field, and write them to <log>.json.
     """
-
     log_files = ["cpu.log", "mem.log", "network.sock.log", "paging.log"]
 
     pre_processed_network_log = pre_process_network_sar_log(log_dir)
@@ -111,7 +106,7 @@ def process_sar_files(log_dir: str):
 
 
 def compute_avg_and_max(input_file, output_file):
-    with open(input_file, "r") as file:
+    with open(input_file) as file:
         lines = file.readlines()
 
     # Extract headers and data
