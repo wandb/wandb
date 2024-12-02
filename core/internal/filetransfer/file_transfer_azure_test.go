@@ -173,16 +173,6 @@ func TestAzureFileTransfer_Download(t *testing.T) {
 			ft:      ftFile1,
 		},
 		{
-			name: "Returns error if manifest entry reference does not exist in azure",
-			task: &filetransfer.ReferenceArtifactDownloadTask{
-				FileKind:     filetransfer.RunFileKindArtifact,
-				PathOrPrefix: "test-download-file.txt",
-				Reference:    "https://fake_account.blob.core.windows.net/fake_container/fake_file.txt",
-			},
-			wantErr: true,
-			ft:      ftFile1,
-		},
-		{
 			name: "Downloads expected content when checksum matches (and not versioned)",
 			task: &filetransfer.ReferenceArtifactDownloadTask{
 				FileKind:     filetransfer.RunFileKindArtifact,

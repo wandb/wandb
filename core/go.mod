@@ -17,7 +17,7 @@ require (
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/prometheus/common v0.60.1
 	github.com/radovskyb/watcher v1.0.7
-	github.com/shirou/gopsutil/v4 v4.24.10
+	github.com/shirou/gopsutil/v4 v4.24.11
 	github.com/spf13/afero v1.11.0
 	github.com/stretchr/testify v1.10.0
 	github.com/wandb/simplejsonext v0.0.0-20240710214335-0cdf78d14700
