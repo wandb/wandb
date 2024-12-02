@@ -205,6 +205,7 @@ func (nc *Connection) processOutgoingData() {
 func (nc *Connection) processIncomingData() {
 
 	scanner := bufio.NewScanner(nc.conn)
+	// TODO: on 32-bit systems, we need to use a smaller buffer size
 	scanner.Buffer(make([]byte, messageSize), maxMessageSize)
 	scanner.Split(ScanWBRecords)
 

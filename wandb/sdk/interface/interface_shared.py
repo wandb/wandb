@@ -153,6 +153,7 @@ class InterfaceShared(InterfaceBase):
         get_system_metrics: Optional[pb.GetSystemMetricsRequest] = None,
         python_packages: Optional[pb.PythonPackagesRequest] = None,
         job_input: Optional[pb.JobInputRequest] = None,
+        run_finish_without_exit: Optional[pb.RunFinishWithoutExitRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -217,6 +218,8 @@ class InterfaceShared(InterfaceBase):
             request.python_packages.CopyFrom(python_packages)
         elif job_input:
             request.job_input.CopyFrom(job_input)
+        elif run_finish_without_exit:
+            request.run_finish_without_exit.CopyFrom(run_finish_without_exit)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -480,6 +483,12 @@ class InterfaceShared(InterfaceBase):
 
     def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
         record = self._make_request(poll_exit=poll_exit)
+        return self._deliver_record(record)
+
+    def _deliver_finish_without_exit(
+        self, run_finish_without_exit: pb.RunFinishWithoutExitRequest
+    ) -> MailboxHandle:
+        record = self._make_request(run_finish_without_exit=run_finish_without_exit)
         return self._deliver_record(record)
 
     def _deliver_stop_status(self, stop_status: pb.StopStatusRequest) -> MailboxHandle:

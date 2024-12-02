@@ -12,22 +12,13 @@ import os
 import re
 import shutil
 import stat
-import sys
 import tempfile
 import time
 from copy import copy
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
-from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Sequence, Type, cast
-
-from wandb.sdk.artifacts.storage_handlers.gcs_handler import _GCSIsADirectoryError
-
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal
-else:
-    from typing import Literal
-
+from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Literal, Sequence, Type, cast
 from urllib.parse import urlparse
 
 import requests
@@ -55,6 +46,7 @@ from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError, WaitTimeoutError
 from wandb.sdk.artifacts.staging import get_staging_dir
+from wandb.sdk.artifacts.storage_handlers.gcs_handler import _GCSIsADirectoryError
 from wandb.sdk.artifacts.storage_layout import StorageLayout
 from wandb.sdk.artifacts.storage_policies import WANDB_STORAGE_POLICY
 from wandb.sdk.artifacts.storage_policy import StoragePolicy

@@ -72,6 +72,7 @@ def test_repo_job_creation(user, wandb_init):
         program_relpath="./blah/test_program.py",
         git_remote_url="https://github.com/test/repo",
         git_commit="asdasdasdasd",
+        disable_job_creation=False,
     )
     with wandb_init(settings=settings) as run:
         run.log({"test": 1})
@@ -90,6 +91,7 @@ def test_artifact_job_creation(runner, user, wandb_init):
         settings = wandb.Settings(
             disable_git=True,
             program_relpath="./blah/test_program.py",
+            disable_job_creation=False,
         )
         run = wandb_init(settings=settings)
         run.log_code()
@@ -105,6 +107,7 @@ def test_artifact_job_creation(runner, user, wandb_init):
 def test_container_job_creation(test_settings, user):
     settings = test_settings()
     settings.disable_git = True
+    settings.disable_job_creation = False
     with mock.patch.dict("os.environ", WANDB_DOCKER="dummy-container:docker-tag"):
         run = wandb.init(settings=settings)
         run.finish()

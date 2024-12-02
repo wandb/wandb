@@ -6,14 +6,10 @@ import stat
 import sys
 import textwrap
 from functools import partial
-from typing import TYPE_CHECKING, Callable, Dict, Optional, Union
-from urllib.parse import urlparse
 
 # import Literal
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
+from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
+from urllib.parse import urlparse
 
 import click
 from requests.utils import NETRC_FILES, get_netrc_auth

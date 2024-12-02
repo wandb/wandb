@@ -19,7 +19,7 @@ class WBURL:
 class Registry:
     """A collection of URLs that can be associated with a name."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.urls: dict[str, WBURL] = {
             "wandb-launch": WBURL(
                 "https://wandb.me/launch",

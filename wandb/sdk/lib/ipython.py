@@ -1,12 +1,7 @@
 import logging
 import sys
 import warnings
-from typing import Optional
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
+from typing import Literal, Optional
 
 import wandb
 

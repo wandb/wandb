@@ -590,13 +590,11 @@ class _WandbController:
         stopper = self._custom_stopping or sweeps.stop_runs
         stop_runs = stopper(self._sweep_config, self._sweep_runs or [])
 
-        debug_lines = "\n".join(
-            [
-                " ".join([f"{k}={v}" for k, v in run.early_terminate_info.items()])
-                for run in stop_runs
-                if run.early_terminate_info is not None
-            ]
-        )
+        debug_lines = [
+            " ".join([f"{k}={v}" for k, v in run.early_terminate_info.items()])
+            for run in stop_runs
+            if run.early_terminate_info is not None
+        ]
         if debug_lines:
             self._log_debug += debug_lines
 

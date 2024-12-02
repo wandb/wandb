@@ -20,6 +20,11 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Sequence
 
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
+
 import wandb
 import wandb.env
 from wandb import trigger
@@ -33,15 +38,7 @@ from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import (
-    SummaryDisabled,
-    filesystem,
-    ipython,
-    module,
-    printer,
-    reporting,
-    telemetry,
-)
+from .lib import SummaryDisabled, filesystem, ipython, module, printer, telemetry
 from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxProgress
 from .wandb_helper import parse_config
@@ -129,7 +126,6 @@ class _WandbInit:
 
         self._teardown_hooks: list[TeardownHook] = []
         self._wl: wandb_setup._WandbSetup | None = None
-        self._reporter: wandb.sdk.lib.reporting.Reporter | None = None
         self.notebook: wandb.jupyter.Notebook | None = None  # type: ignore
         self.printer = printer.new_printer()
 
@@ -210,8 +206,6 @@ class _WandbInit:
 
         # Apply settings from wandb.init() call
         settings.update_from_settings(init_settings)
-
-        self._reporter = reporting.setup_reporter(settings=settings)
 
         sagemaker_config: dict = (
             dict() if settings.sagemaker_disable else sagemaker.parse_sm_config()
@@ -562,7 +556,6 @@ class _WandbInit:
             "link_artifact",
             "link_model",
             "use_artifact",
-            "log_artifact",
             "log_code",
             "log_model",
             "use_model",
@@ -575,6 +568,32 @@ class _WandbInit:
             "_finish",
         ):
             setattr(drun, symbol, lambda *_, **__: None)  # type: ignore
+
+        class _ChainableNoOp:
+            """An object that allows chaining arbitrary attributes and method calls."""
+
+            def __getattr__(self, _: str) -> Self:
+                return self
+
+            def __call__(self, *_: Any, **__: Any) -> Self:
+                return self
+
+        class _ChainableNoOpField:
+            # This is used to chain arbitrary attributes and method calls.
+            # For example, `run.log_artifact().state` will work in disabled mode.
+            def __init__(self) -> None:
+                self._value = None
+
+            def __set__(self, instance: Any, value: Any) -> None:
+                self._value = value
+
+            def __get__(self, instance: Any, owner: type) -> Any:
+                return _ChainableNoOp() if (self._value is None) else self._value
+
+            def __call__(self, *args: Any, **kwargs: Any) -> _ChainableNoOp:
+                return _ChainableNoOp()
+
+        drun.log_artifact = _ChainableNoOpField()
         # attributes
         drun._backend = None
         drun._step = 0
@@ -617,7 +636,6 @@ class _WandbInit:
 
         assert self.settings is not None
         assert self._wl is not None
-        assert self._reporter is not None
 
         logger.info(
             f"wandb.init called with sweep_config: {self.sweep_config}\nconfig: {self.config}"
@@ -776,7 +794,6 @@ class _WandbInit:
 
         run._set_library(self._wl)
         run._set_backend(backend)
-        run._set_reporter(self._reporter)
         run._set_teardown_hooks(self._teardown_hooks)
 
         backend._hack_set_run(run)
@@ -899,8 +916,6 @@ class _WandbInit:
             run.use_artifact(job_artifact)
 
         self.backend = backend
-        assert self._reporter
-        self._reporter.set_context(run=run)
         run._on_start()
         logger.info("run started, returning control to user process")
         return run

@@ -1,4 +1,3 @@
-import json
 import os
 from unittest import mock
 
@@ -318,36 +317,35 @@ def test_log_code_settings(user):
 
 
 @pytest.mark.parametrize("save_code", [True, False])
-def test_log_code_env(
-    user, test_settings, relay_server, inject_graphql_response, save_code
-):
+def test_log_code_env(wandb_backend_spy, save_code):
     # test for WB-7468
     with mock.patch.dict("os.environ", WANDB_SAVE_CODE=str(save_code).lower()):
         with open("test.py", "w") as f:
             f.write('print("test")')
 
         # simulate user turning on code saving in UI
-        server_info_response = inject_graphql_response(
-            # request
-            query_match_fn=lambda query, variables: query.startswith("query Viewer"),
-            # response
-            body=json.dumps(
-                {"data": {"viewer": {"flags": """{"code_saving_enabled": true}"""}}}
+        gql = wandb_backend_spy.gql
+        wandb_backend_spy.stub_gql(
+            gql.Matcher(operation="Viewer"),
+            gql.once(
+                content={
+                    "data": {"viewer": {"flags": """{"code_saving_enabled": true}"""}}
+                },
+                status=200,
             ),
         )
-        with relay_server(inject=[server_info_response]):
-            settings = wandb.Settings(save_code=None, code_dir=".")
-            with wandb.init(settings=settings) as run:
-                assert run._settings.save_code is save_code
+        settings = wandb.Settings(save_code=None, code_dir=".")
+        with wandb.init(settings=settings) as run:
+            assert run._settings.save_code is save_code
 
-            artifact_name = wandb.util.make_artifact_name_safe(
-                f"source-{run._project}-{run._settings.program_relpath}"
-            )
-            if save_code:
+        artifact_name = wandb.util.make_artifact_name_safe(
+            f"source-{run._project}-{run._settings.program_relpath}"
+        )
+        if save_code:
+            wandb.Api().artifact(f"{artifact_name}:v0")
+        else:
+            with pytest.raises(wandb.errors.CommError):
                 wandb.Api().artifact(f"{artifact_name}:v0")
-            else:
-                with pytest.raises(wandb.errors.CommError):
-                    wandb.Api().artifact(f"{artifact_name}:v0")
 
 
 @pytest.mark.xfail(reason="Backend race condition")

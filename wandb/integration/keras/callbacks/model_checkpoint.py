@@ -1,7 +1,6 @@
 import os
 import string
-import sys
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import tensorflow as tf  # type: ignore
 from tensorflow.keras import callbacks  # type: ignore
@@ -11,12 +10,6 @@ from wandb.sdk.lib import telemetry
 from wandb.sdk.lib.paths import StrPath
 
 from ..keras import patch_tf_keras
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
-
 
 Mode = Literal["auto", "min", "max"]
 SaveStrategy = Literal["epoch"]

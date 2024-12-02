@@ -57,63 +57,59 @@ def check_output_fn(capsys):
     yield check_fn
 
 
-def test_footer_private(wandb_init, check_output_fn):
-    run = wandb_init()
-    run.log(dict(_d=2))
-    run.log(dict(_b=2, _d=8))
-    run.log(dict(_a=1, _b=2))
-    run.log(dict(_a=3))
-    run.finish()
+def test_footer_private(user, check_output_fn):
+    with wandb.init() as run:
+        run.log(dict(_d=2))
+        run.log(dict(_b=2, _d=8))
+        run.log(dict(_a=1, _b=2))
+        run.log(dict(_a=3))
     check_output_fn(exp_summary=[], exp_history=[])
 
 
-def test_footer_normal(wandb_init, check_output_fn):
-    run = wandb_init()
-    run.log(dict(d=2))
-    run.log(dict(b="b", d=8))
-    run.log(dict(a=1, b="b"))
-    run.log(dict(a=3))
-    run.finish()
+def test_footer_normal(user, check_output_fn):
+    with wandb.init() as run:
+        run.log(dict(d=2))
+        run.log(dict(b="b", d=8))
+        run.log(dict(a=1, b="b"))
+        run.log(dict(a=3))
     check_output_fn(exp_summary=["a", "b", "d", "🚀", "⭐️"], exp_history=["a", "d"])
 
 
-def test_footer_summary(wandb_init, check_output_fn):
-    run = wandb_init()
-    run.log(dict(d="d"))
-    run.log(dict(b="b", d="d"))
-    run.log(dict(a="a", b="b"))
-    run.log(dict(a="a"))
-    run.finish()
+def test_footer_summary(user, check_output_fn):
+    with wandb.init() as run:
+        run.log(dict(d="d"))
+        run.log(dict(b="b", d="d"))
+        run.log(dict(a="a", b="b"))
+        run.log(dict(a="a"))
     check_output_fn(exp_summary=["a", "b", "d", "🚀", "⭐️"], exp_history=[])
 
 
-def test_footer_summary_array(wandb_init, check_output_fn):
-    run = wandb_init()
-    run.log(dict(d="d"))
-    run.log(dict(b="b", d="d"))
-    run.log(dict(a="a", b="b", skipthisbecausearray=[1, 2, 3]))
-    run.log(dict(a="a"))
-    run.finish()
+def test_footer_summary_array(user, check_output_fn):
+    with wandb.init() as run:
+        run.log(dict(d="d"))
+        run.log(dict(b="b", d="d"))
+        run.log(dict(a="a", b="b", skipthisbecausearray=[1, 2, 3]))
+        run.log(dict(a="a"))
     check_output_fn(exp_summary=["a", "b", "d", "🚀", "⭐️"], exp_history=[])
 
 
-def test_footer_summary_image(wandb_init, check_output_fn):
-    run = wandb_init()
-    run.log(dict(d="d"))
-    run.log(dict(b="b", d="d"))
-    run.log(dict(a="a", b="b"))
-    run.log(dict(a="a"))
-    run.summary["this-is-ignored"] = wandb.Image(np.random.rand(10, 10))
-    run.finish()
+def test_footer_summary_image(user, check_output_fn):
+    pytest.importorskip("pillow")
+
+    with wandb.init() as run:
+        run.log(dict(d="d"))
+        run.log(dict(b="b", d="d"))
+        run.log(dict(a="a", b="b"))
+        run.log(dict(a="a"))
+        run.summary["this-is-ignored"] = wandb.Image(np.random.rand(10, 10))
     check_output_fn(exp_summary=["a", "b", "d", "🚀", "⭐️"], exp_history=[])
 
 
-def test_footer_history(wandb_init, check_output_fn):
-    run = wandb_init()
-    run.define_metric("*", summary="none")
-    run.log(dict(d=2))
-    run.log(dict(b="b", d=8))
-    run.log(dict(a=1, b="b"))
-    run.log(dict(a=3))
-    run.finish()
+def test_footer_history(user, check_output_fn):
+    with wandb.init() as run:
+        run.define_metric("*", summary="none")
+        run.log(dict(d=2))
+        run.log(dict(b="b", d=8))
+        run.log(dict(a=1, b="b"))
+        run.log(dict(a=3))
     check_output_fn(exp_summary=[], exp_history=["a", "d", "🚀", "⭐️"])

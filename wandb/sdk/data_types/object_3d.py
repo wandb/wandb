@@ -2,23 +2,19 @@ import codecs
 import itertools
 import json
 import os
-import sys
 from typing import (
     TYPE_CHECKING,
     ClassVar,
+    Literal,
     Optional,
     Sequence,
     Set,
     TextIO,
     Tuple,
     Type,
+    TypedDict,
     Union,
 )
-
-if sys.version_info >= (3, 8):
-    from typing import Literal, TypedDict
-else:
-    from typing_extensions import Literal, TypedDict
 
 import wandb
 from wandb import util

@@ -31,7 +31,7 @@ func NewGPUNvidia(
 
 func (g *GPUNvidia) Name() string { return g.name }
 
-func (g *GPUNvidia) Sample() (map[string]any, error) { return nil, nil }
+func (g *GPUNvidia) Sample() (*spb.StatsRecord, error) { return nil, nil }
 
 func (g *GPUNvidia) IsAvailable() bool { return false }
 
@@ -54,7 +54,7 @@ func NewGPUAMD(logger *observability.CoreLogger) *GPUAMD {
 
 func (g *GPUAMD) Name() string { return g.name }
 
-func (g *GPUAMD) Sample() (map[string]any, error) { return nil, nil }
+func (g *GPUAMD) Sample() (*spb.StatsRecord, error) { return nil, nil }
 
 func (g *GPUAMD) IsAvailable() bool { return false }
 
@@ -88,7 +88,7 @@ func NewTrainium(
 
 func (t *Trainium) Name() string { return t.name }
 
-func (t *Trainium) Sample() (map[string]any, error) { return nil, nil }
+func (t *Trainium) Sample() (*spb.StatsRecord, error) { return nil, nil }
 
 func (t *Trainium) IsAvailable() bool { return false }
 
@@ -107,7 +107,7 @@ func NewTPU() *TPU {
 
 func (t *TPU) Name() string { return t.name }
 
-func (t *TPU) Sample() (map[string]any, error) { return nil, nil }
+func (t *TPU) Sample() (*spb.StatsRecord, error) { return nil, nil }
 
 func (t *TPU) IsAvailable() bool { return false }
 

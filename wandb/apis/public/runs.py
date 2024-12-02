@@ -2,16 +2,19 @@
 
 import json
 import os
-import sys
 import tempfile
 import time
 import urllib
-from typing import TYPE_CHECKING, Any, Collection, Dict, List, Mapping, Optional
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Collection,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+)
 
 from wandb_gql import gql
 

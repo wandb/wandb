@@ -6,15 +6,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runworktest"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func newTestSystemMonitor() *monitor.SystemMonitor {
-	settings := &spb.Settings{}
 	return monitor.NewSystemMonitor(
 		observability.NewNoOpLogger(),
-		settings,
+		settings.From(&spb.Settings{}),
 		runworktest.New(),
 	)
 }

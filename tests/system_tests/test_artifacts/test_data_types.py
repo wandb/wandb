@@ -1,5 +1,3 @@
-import json
-
 import matplotlib
 import numpy as np
 import pytest
@@ -69,56 +67,58 @@ def test_log_dataframe(user, test_settings):
 
 @pytest.mark.parametrize("max_cli_version", ["0.10.33", "0.11.0"])
 def test_reference_table_logging(
-    user, test_settings, relay_server, inject_graphql_response, max_cli_version
+    user, test_settings, wandb_backend_spy, max_cli_version
 ):
-    server_info_response = inject_graphql_response(
-        # request
-        query_match_fn=lambda query, variables: query.startswith("query ServerInfo"),
-        # response
-        body=json.dumps(
-            {
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="ServerInfo"),
+        gql.once(
+            content={
                 "data": {
                     "serverInfo": {
                         "cliVersionInfo": {"max_cli_version": max_cli_version}
                     }
                 }
-            }
+            },
+            status=200,
         ),
     )
-    with relay_server(inject=[server_info_response]):
-        run = wandb.init(settings=test_settings())
-        t = wandb.Table(
-            columns=["a"],
-            data=[[wandb.Image(np.ones(shape=(32, 32)))]],
-        )
-        run.log({"logged_table": t})
-        run.log({"logged_table": t})
-        run.finish()
+
+    run = wandb.init(settings=test_settings())
+    t = wandb.Table(
+        columns=["a"],
+        data=[[wandb.Image(np.ones(shape=(32, 32)))]],
+    )
+    run.log({"logged_table": t})
+    run.log({"logged_table": t})
+    run.finish()
 
 
-def test_reference_table_artifacts(
-    user, test_settings, relay_server, inject_graphql_response
-):
-    server_info_response = inject_graphql_response(
-        # request
-        query_match_fn=lambda query, variables: query.startswith("query ServerInfo"),
-        # response
-        body=json.dumps(
-            {"data": {"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.11.0"}}}}
+def test_reference_table_artifacts(user, test_settings, wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="ServerInfo"),
+        gql.once(
+            content={
+                "data": {
+                    "serverInfo": {"cliVersionInfo": {"max_cli_version": "0.11.0"}}
+                }
+            },
+            status=200,
         ),
     )
-    with relay_server(inject=[server_info_response]):
-        run = wandb.init(settings=test_settings())
-        t = wandb.Table(
-            columns=["a"],
-            data=[[wandb.Image(np.ones(shape=(32, 32)))]],
-        )
 
-        art = wandb.Artifact("A", "dataset")
-        art.add(t, "table")
-        run.log_artifact(art)
-        art = wandb.Artifact("A", "dataset")
-        art.add(t, "table")
-        run.log_artifact(art)
+    run = wandb.init(settings=test_settings())
+    t = wandb.Table(
+        columns=["a"],
+        data=[[wandb.Image(np.ones(shape=(32, 32)))]],
+    )
 
-        run.finish()
+    art = wandb.Artifact("A", "dataset")
+    art.add(t, "table")
+    run.log_artifact(art)
+    art = wandb.Artifact("A", "dataset")
+    art.add(t, "table")
+    run.log_artifact(art)
+
+    run.finish()

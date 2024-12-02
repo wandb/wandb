@@ -5,6 +5,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/shirou/gopsutil/v4/process"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -20,7 +21,7 @@ func NewMemory(pid int32) *Memory {
 
 func (m *Memory) Name() string { return m.name }
 
-func (m *Memory) Sample() (map[string]any, error) {
+func (m *Memory) Sample() (*spb.StatsRecord, error) {
 	metrics := make(map[string]any)
 	var errs []error
 
@@ -50,7 +51,11 @@ func (m *Memory) Sample() (map[string]any, error) {
 		}
 	}
 
-	return metrics, errors.Join(errs...)
+	if len(metrics) == 0 {
+		return nil, errors.Join(errs...)
+	}
+
+	return marshal(metrics, timestamppb.Now()), errors.Join(errs...)
 }
 
 func (m *Memory) IsAvailable() bool { return true }

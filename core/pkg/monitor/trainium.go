@@ -15,6 +15,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // NeuronMonitorConfig represents the configuration for the neuron-monitor command.
@@ -255,7 +256,7 @@ func (t *Trainium) isMatchingEntry(entry map[string]any) bool {
 // The stats are parsed into a TrainiumStats struct, flattened and returned as a map.
 //
 //gocyclo:ignore
-func (t *Trainium) Sample() (map[string]any, error) {
+func (t *Trainium) Sample() (*spb.StatsRecord, error) {
 	if !t.isRunning {
 		return nil, nil
 	}
@@ -372,7 +373,13 @@ func (t *Trainium) Sample() (map[string]any, error) {
 		NeuroncoreMemoryUsage:        neuroncoreMemoryUsage,
 	}
 
-	return t.flattenStats(stats), nil
+	metrics := t.flattenStats(stats)
+
+	if len(metrics) == 0 {
+		return nil, nil
+	}
+
+	return marshal(metrics, timestamppb.Now()), nil
 }
 
 // flattenStats recursively flattens the stats into a map.

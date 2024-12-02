@@ -51,13 +51,7 @@ model.learn(
 
 import logging
 import os
-import sys
-from typing import Optional
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
+from typing import Literal, Optional
 
 from stable_baselines3.common.callbacks import BaseCallback  # type: ignore
 

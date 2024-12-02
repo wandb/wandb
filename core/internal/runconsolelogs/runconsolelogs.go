@@ -67,6 +67,9 @@ type Params struct {
 	//
 	// It is used for testing.
 	GetNow func() time.Time
+
+	// Label is a prefix for the console output lines.
+	Label string
 }
 
 func New(params Params) *Sender {
@@ -133,11 +136,11 @@ func New(params Params) *Sender {
 
 	return &Sender{
 		stdoutTerm: terminalemulator.NewTerminal(
-			model.LineSupplier(""),
+			model.LineSupplier("", params.Label),
 			maxTerminalLines,
 		),
 		stderrTerm: terminalemulator.NewTerminal(
-			model.LineSupplier("ERROR "),
+			model.LineSupplier("ERROR ", params.Label),
 			maxTerminalLineLength,
 		),
 

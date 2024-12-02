@@ -4,6 +4,8 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/wandb/simplejsonext"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -53,8 +55,28 @@ func NewBuffer(maxSize int32) *Buffer {
 	}
 }
 
+// Push adds the metrics from a StatsRecord to the buffer.
+func (mb *Buffer) Push(metrics *spb.StatsRecord) {
+	if mb == nil {
+		return
+	}
+
+	for _, item := range metrics.Item {
+		k := item.Key
+		ts := metrics.Timestamp
+		v := item.ValueJson
+
+		// unmashal the value to a float64 and push it to the buffer
+		if v, err := simplejsonext.UnmarshalString(v); err == nil {
+			if v, ok := v.(float64); ok {
+				mb.push(k, ts, v)
+			}
+		}
+	}
+}
+
 // Push adds a new measurement to the buffer for the given metric name.
-func (mb *Buffer) Push(metricName string, timeStamp *timestamppb.Timestamp, metricValue float64) {
+func (mb *Buffer) push(metricName string, timeStamp *timestamppb.Timestamp, metricValue float64) {
 	mb.mutex.Lock()
 	defer mb.mutex.Unlock()
 	m, ok := mb.elements[metricName]

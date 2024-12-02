@@ -14,7 +14,6 @@ impl Settings {
         project: Option<String>,
         stats_pid: Option<i32>,
         stats_sample_rate_seconds: Option<f64>,
-        stats_samples_to_average: Option<i32>,
         sync_file: Option<String>,
         sync_dir: Option<String>,
     ) -> Settings {
@@ -25,11 +24,9 @@ impl Settings {
         proto.log_internal = log_internal.or(proto.log_internal);
         proto.mode = mode.or(proto.mode);
         proto.project = project.or(proto.project);
-        proto.stats_pid = stats_pid.or(proto.stats_pid);
-        proto.stats_sample_rate_seconds =
-            stats_sample_rate_seconds.or(proto.stats_sample_rate_seconds);
-        proto.stats_samples_to_average =
-            stats_samples_to_average.or(proto.stats_samples_to_average);
+        proto.x_stats_pid = stats_pid.or(proto.x_stats_pid);
+        proto.x_stats_sampling_interval =
+            stats_sample_rate_seconds.or(proto.x_stats_sampling_interval);
         proto.sync_file = sync_file.or(proto.sync_file);
         proto.sync_dir = sync_dir.or(proto.sync_dir);
 
@@ -95,9 +92,8 @@ impl Default for Settings {
                 mode: Some("online".to_string()),
                 offline: Some(false),
                 project: Some("uncategorized".to_string()),
-                stats_pid: Some(std::process::id() as i32),
-                stats_sample_rate_seconds: Some(5.0),
-                stats_samples_to_average: Some(1),
+                x_stats_pid: Some(std::process::id() as i32),
+                x_stats_sampling_interval: Some(10.0),
                 sync_file: Some("lol.wandb".to_string()),
                 sync_dir: Some(".wandb/None-None-None".to_string()),
                 run_url: Some("undefined".to_string()),

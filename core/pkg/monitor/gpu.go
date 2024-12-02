@@ -2,13 +2,11 @@ package monitor
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -120,28 +118,16 @@ func (g *GPU) IsAvailable() bool {
 
 // Sample returns GPU metrics such as power usage, temperature, and utilization.
 //
-// TODO: The metrics are collected from the gpu_stats binary via gRPC.
-// This function is a temporary adapter that adds extra ser/de ops.
-// Will refactor to use the protobuf message directly.
-func (g *GPU) Sample() (map[string]any, error) {
+// The metrics are collected from the gpu_stats binary via gRPC.
+func (g *GPU) Sample() (*spb.StatsRecord, error) {
 	stats, err := g.client.GetStats(context.Background(), &spb.GetStatsRequest{Pid: g.pid})
 	if err != nil {
 		return nil, err
 	}
 
-	// convert stats record into a map
-	metrics := make(map[string]any)
-	for _, item := range stats.GetStats().GetItem() {
-		var unmarshalled any
-		err = json.Unmarshal([]byte(item.ValueJson), &unmarshalled)
-		if err != nil {
-			continue
-		}
-		// skip underscored keys
-		if strings.HasPrefix(item.Key, "_") {
-			continue
-		}
-		metrics[item.Key] = unmarshalled
+	metrics := stats.GetStats()
+	if len(metrics.Item) == 0 {
+		return nil, nil
 	}
 
 	return metrics, nil

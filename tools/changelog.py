@@ -41,7 +41,6 @@ def _insert_changelog(*, version: str, changes: str):
         changelog_in = stack.enter_context(open("CHANGELOG.md"))
         changelog_out = stack.enter_context(open("CHANGELOG.md.tmp", "w"))
 
-        # NOTE: This syntax requires Python 3.8+.
         while line := changelog_in.readline():
             changelog_out.writelines([line])
 

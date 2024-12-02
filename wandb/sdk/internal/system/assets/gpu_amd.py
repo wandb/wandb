@@ -2,15 +2,9 @@ import json
 import logging
 import shutil
 import subprocess
-import sys
 import threading
 from collections import deque
-from typing import TYPE_CHECKING, Any, Dict, List, Union
-
-if sys.version_info >= (3, 8):
-    from typing import Final, Literal
-else:
-    from typing_extensions import Final, Literal
+from typing import TYPE_CHECKING, Any, Dict, Final, List, Literal, Union
 
 from wandb.sdk.lib import telemetry
 

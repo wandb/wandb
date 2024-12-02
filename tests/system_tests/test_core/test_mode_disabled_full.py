@@ -113,5 +113,15 @@ def test_disabled_no_activity(wandb_backend_spy):
         run.mark_preempting()
         run.to_html()
         run.display()
+    assert graphql_spy.total_calls == 0
 
+
+def test_disabled_mode_artifact(wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    graphql_spy = gql.Capture()
+    wandb_backend_spy.stub_gql(gql.any(), graphql_spy)
+    run = wandb.init(settings={"mode": "disabled"})
+    art = run.log_artifact(wandb.Artifact("dummy", "dummy")).wait()
+    run.link_artifact(art, "dummy")
+    run.finish()
     assert graphql_spy.total_calls == 0

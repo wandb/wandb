@@ -1,6 +1,6 @@
 [package]
 name = "gpu_stats"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 
 [dependencies]
@@ -23,6 +23,7 @@ tonic = "0.12.3"
 tonic-reflection = "0.12.3"
 tokio = { version = "1.40", features = ["full"] }
 tokio-stream = "0.1.0"
+chrono = "0.4"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.29", features = ["process"] }

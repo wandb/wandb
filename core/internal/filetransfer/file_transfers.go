@@ -25,6 +25,9 @@ type FileTransfers struct {
 
 	// S3 connects to AWS to upload/download files given their paths
 	S3 ReferenceArtifactFileTransfer
+
+	// Azure connects to Azure to upload/download files given their paths
+	Azure ReferenceArtifactFileTransfer
 }
 
 // NewFileTransfers creates a new fileTransfers
@@ -36,10 +39,12 @@ func NewFileTransfers(
 	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats)
 	gcsFileTransfer := NewGCSFileTransfer(nil, logger, fileTransferStats)
 	s3FileTransfer := NewS3FileTransfer(nil, logger, fileTransferStats)
+	azureFileTransfer := NewAzureFileTransfer(nil, logger, fileTransferStats, nil)
 
 	return &FileTransfers{
 		Default: defaultFileTransfer,
 		GCS:     gcsFileTransfer,
 		S3:      s3FileTransfer,
+		Azure:   azureFileTransfer,
 	}
 }

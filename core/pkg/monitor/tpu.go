@@ -13,6 +13,7 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/local"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // TPUMetricName represents a TPU metric name for querying on the gRPC server exposed by the TPU runtime.
@@ -107,7 +108,7 @@ func (t *TPU) SetClient(client RuntimeMetricServiceClient) {
 }
 
 // Sample returns TPU metrics such as memory usage in % and in bytes, and duty cycle.
-func (t *TPU) Sample() (map[string]any, error) {
+func (t *TPU) Sample() (*spb.StatsRecord, error) {
 	if t.client == nil || t.chip == nil {
 		return nil, nil
 	}
@@ -156,7 +157,7 @@ func (t *TPU) Sample() (map[string]any, error) {
 		dutyCyclesPerCore[chipID*int64(t.chip.DevicesPerChip)+1] = dutyCycle
 	}
 
-	data := make(map[string]any)
+	metrics := make(map[string]any)
 
 	for deviceID := int64(0); deviceID < int64(t.count); deviceID++ {
 		memoryUsage, ok := memoryUsages[deviceID]
@@ -181,12 +182,16 @@ func (t *TPU) Sample() (map[string]any, error) {
 		// Duty cycle [%]
 		dutyCycleKey := fmt.Sprintf("%s.%d.dutyCycle", t.Name(), deviceID)
 
-		data[memoryUsageKey] = float64(memoryUsage) / float64(totalMemory) * 100
-		data[memoryUsageBytesKey] = memoryUsage
-		data[dutyCycleKey] = dutyCycle
+		metrics[memoryUsageKey] = float64(memoryUsage) / float64(totalMemory) * 100
+		metrics[memoryUsageBytesKey] = memoryUsage
+		metrics[dutyCycleKey] = dutyCycle
 	}
 
-	return data, nil
+	if len(metrics) == 0 {
+		return nil, nil
+	}
+
+	return marshal(metrics, timestamppb.Now()), nil
 }
 
 func (t *TPU) IsAvailable() bool {

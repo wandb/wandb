@@ -2,7 +2,6 @@
 
 import ast
 import json
-import sys
 import urllib
 
 from wandb_gql import gql
@@ -228,22 +227,12 @@ class PythonMongoishQueryGenerator:
         ast.Not: "$not",
     }
 
-    if sys.version_info >= (3, 8):
-        AST_FIELDS = {
-            ast.Constant: "value",
-            ast.Name: "id",
-            ast.List: "elts",
-            ast.Tuple: "elts",
-        }
-    else:
-        AST_FIELDS = {
-            ast.Str: "s",
-            ast.Num: "n",
-            ast.Name: "id",
-            ast.List: "elts",
-            ast.Tuple: "elts",
-            ast.NameConstant: "value",
-        }
+    AST_FIELDS = {
+        ast.Constant: "value",
+        ast.Name: "id",
+        ast.List: "elts",
+        ast.Tuple: "elts",
+    }
 
     def __init__(self, run_set):
         self.run_set = run_set

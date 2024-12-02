@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/shirou/gopsutil/v4/disk"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -35,7 +36,7 @@ func NewDisk(diskPaths []string) *Disk {
 
 func (d *Disk) Name() string { return d.name }
 
-func (d *Disk) Sample() (map[string]any, error) {
+func (d *Disk) Sample() (*spb.StatsRecord, error) {
 
 	metrics := make(map[string]any)
 	var errs []error
@@ -65,7 +66,11 @@ func (d *Disk) Sample() (map[string]any, error) {
 		metrics["disk.out"] = float64(int(ioCounters["disk0"].WriteBytes)-d.writeInit) / 1024 / 1024
 	}
 
-	return metrics, errors.Join(errs...)
+	if len(metrics) == 0 {
+		return nil, errors.Join(errs...)
+	}
+
+	return marshal(metrics, timestamppb.Now()), errors.Join(errs...)
 }
 
 func (d *Disk) IsAvailable() bool { return true }

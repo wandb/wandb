@@ -13,18 +13,13 @@ import socket
 import sys
 import tempfile
 from datetime import datetime
-from typing import Any, Sequence
+from typing import Any, Literal, Sequence
 from urllib.parse import quote, unquote, urlencode
 
 if sys.version_info >= (3, 11):
     from typing import Self
 else:
     from typing_extensions import Self
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
 from pydantic import (
@@ -108,7 +103,7 @@ class Settings(BaseModel, validate_assignment=True):
     # Whether to disable capturing the git state.
     disable_git: bool = False
     # Whether to disable the creation of a job artifact for W&B Launch.
-    disable_job_creation: bool = False
+    disable_job_creation: bool = True
     # The Docker image used to execute the script.
     docker: str | None = None
     # The email address of the user.
@@ -275,14 +270,21 @@ class Settings(BaseModel, validate_assignment=True):
     x_graphql_retry_wait_max_seconds: float | None = None
     x_graphql_timeout_seconds: float | None = None
     x_internal_check_process: float = 8.0
-    x_internal_queue_timeout: float = 2.0
     x_jupyter_name: str | None = None
     x_jupyter_path: str | None = None
     x_jupyter_root: str | None = None
+    # Label to assign to system metrics and console logs collected for the run
+    # to group by on the frontend. Can be used to distinguish data from different
+    # nodes in a distributed training job.
+    x_label: str | None = None
     x_live_policy_rate_limit: int | None = None
     x_live_policy_wait_time: int | None = None
     x_log_level: int = logging.INFO
     x_network_buffer: int | None = None
+    # Determines whether to save internal wandb files and metadata.
+    # In a distributed setting, this is useful for avoiding file overwrites on secondary nodes
+    # when only system metrics and logs are needed, as the primary node handles the main logging.
+    x_primary_node: bool = True
     # [deprecated, use http(s)_proxy] custom proxy servers for the requests to W&B
     # [scheme -> url].
     x_proxies: dict[str, str] | None = None
@@ -310,13 +312,22 @@ class Settings(BaseModel, validate_assignment=True):
     x_stats_open_metrics_filters: dict[str, dict[str, str]] | Sequence[str] | None = (
         None
     )
+    # HTTP headers to add to OpenMetrics requests.
+    x_stats_open_metrics_http_headers: dict[str, str] | None = None
     # System paths to monitor for disk usage.
-    x_stats_disk_paths: Sequence[str] | None = None
+    x_stats_disk_paths: Sequence[str] | None = Field(
+        default_factory=lambda: ("/", "/System/Volumes/Data")
+        if platform.system() == "Darwin"
+        else ("/",)
+    )
     # Number of system metric samples to buffer in memory in the wandb-core process.
     # Can be accessed via run._system_metrics.
     x_stats_buffer_size: int = 0
     # Flag to indicate whether we are syncing a run from the transaction log.
     x_sync: bool = False
+    # Controls whether this process can update the run's final state (finished/failed) on the server.
+    # Set to False in distributed training when only the main process should determine the final state.
+    x_update_finish_state: bool = True
 
     # Model validator to catch legacy settings.
     @model_validator(mode="before")
@@ -538,6 +549,13 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_open_metrics_filters", mode="before")
     @classmethod
     def validate_stats_open_metrics_filters(cls, value):
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
+    @field_validator("x_stats_open_metrics_http_headers", mode="before")
+    @classmethod
+    def validate_stats_open_metrics_http_headers(cls, value):
         if isinstance(value, str):
             return json.loads(value)
         return value

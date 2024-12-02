@@ -14,6 +14,7 @@ import (
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/common/expfmt"
 )
@@ -83,6 +84,7 @@ type OpenMetrics struct {
 	name        string
 	url         string
 	filters     []Filter
+	headers     map[string]string
 	client      *retryablehttp.Client
 	logger      *observability.CoreLogger
 	labelMap    map[string]map[string]int    // metricName -> labelHash -> index
@@ -95,6 +97,7 @@ func NewOpenMetrics(
 	name string,
 	url string,
 	filters *spb.OpenMetricsFilters,
+	headers map[string]string,
 	retryClient *retryablehttp.Client,
 ) *OpenMetrics {
 	var client *retryablehttp.Client
@@ -136,6 +139,7 @@ func NewOpenMetrics(
 		name:        name,
 		url:         url,
 		filters:     processedFilters,
+		headers:     headers,
 		client:      client,
 		logger:      logger,
 		labelMap:    make(map[string]map[string]int),
@@ -210,8 +214,18 @@ func (o *OpenMetrics) ShouldCaptureMetric(metricName string, metricLabels map[st
 }
 
 // Sample fetches and processes metrics from the OpenMetrics endpoint.
-func (o *OpenMetrics) Sample() (map[string]any, error) {
-	resp, err := o.client.Get(o.url)
+func (o *OpenMetrics) Sample() (*spb.StatsRecord, error) {
+	req, err := retryablehttp.NewRequest("GET", o.url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add custom headers if provided
+	for key, value := range o.headers {
+		req.Header.Set(key, value)
+	}
+
+	resp, err := o.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +246,7 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 		return nil, err
 	}
 
-	result := make(map[string]any)
+	metrics := make(map[string]any)
 
 	for name, mf := range metricFamilies {
 		for _, m := range mf.Metric {
@@ -273,11 +287,15 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 			// for the metric based on its labels. the openmetrics prefix is stripped off
 			// and not displayed in the frontend.
 			key := fmt.Sprintf("openmetrics.%s.%s.%d", o.Name(), name, index)
-			result[key] = value
+			metrics[key] = value
 		}
 	}
 
-	return result, nil
+	if len(metrics) == 0 {
+		return nil, nil
+	}
+
+	return marshal(metrics, timestamppb.Now()), nil
 }
 
 // generateLabelHash creates a hash of the label map for consistent indexing.

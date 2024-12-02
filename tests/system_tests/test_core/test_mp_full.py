@@ -19,16 +19,16 @@ def train(run, add_val):
     time.sleep(1)
 
 
-def test_multiproc_default(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init()
-        train(run, 0)
-        run.finish()
+def test_multiproc_default(wandb_backend_spy):
+    run = wandb.init()
+    train(run, 0)
+    run.finish()
 
-    summary = relay.context.get_run_summary(run.id)
-    assert summary["val"] == 3
-    assert summary["val2"] == 1
-    assert summary["mystep"] == 3
+    with wandb_backend_spy.freeze() as snapshot:
+        summary = snapshot.summary(run_id=run.id)
+        assert summary["val"] == 3
+        assert summary["val2"] == 1
+        assert summary["mystep"] == 3
 
 
 @pytest.mark.timeout(300)

@@ -9,7 +9,7 @@ import os
 import subprocess
 import sys
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from dockerpycreds.utils import find_executable  # type: ignore
 
@@ -21,11 +21,6 @@ from .._project_spec import LaunchProject
 
 _logger = logging.getLogger(__name__)
 
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 State = Literal[
     "unknown",

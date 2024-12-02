@@ -2,7 +2,6 @@ import dataclasses
 import json
 import logging
 import socket
-import sys
 import threading
 import traceback
 import urllib.parse
@@ -15,8 +14,11 @@ from typing import (
     Dict,
     Iterable,
     List,
+    Literal,
     Mapping,
     Optional,
+    Protocol,
+    TypedDict,
     Union,
 )
 
@@ -27,16 +29,6 @@ import responses
 import wandb
 import wandb.util
 from wandb.sdk.lib.timer import Timer
-
-try:
-    from typing import Literal, TypedDict
-except ImportError:
-    from typing_extensions import Literal, TypedDict
-
-if sys.version_info >= (3, 8):
-    from typing import Protocol
-else:
-    from typing_extensions import Protocol
 
 if TYPE_CHECKING:
     from typing import Deque

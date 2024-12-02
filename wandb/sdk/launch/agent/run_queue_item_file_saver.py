@@ -1,15 +1,9 @@
 """Implementation of the run queue item file saver class."""
 
 import os
-import sys
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 import wandb
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 FileSubtypes = Literal["warning", "error"]
 
