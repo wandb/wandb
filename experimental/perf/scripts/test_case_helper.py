@@ -10,7 +10,6 @@ def bench_log(root_folder: str, loop_count: int, step: int):
     The goal is to measure the performance of a baseline test with reliable
     and repeatable averages and max computed.
     """
-
     mc = 100
     step = 2000
 
@@ -22,7 +21,6 @@ def bench_log_scale_step(root_folder: str, list_of_steps: list[int]):
     """Runs a set of load tests with increasing # of steps.
     The goal is to measure the performance impact of runs with more steps.
     """
-
     loop = 1
     mc = 100
 
@@ -48,7 +46,6 @@ def run_experiment_helper(loop, step, mc, root_folder, output_file="results.json
     3) run the actual load tests
     4) end the resource metrics and compute the summary stats
     """
-
     log_folder = os.path.join(root_folder, f"loop{loop}_step{step}_metriccount{mc}")
 
     os.makedirs(log_folder, exist_ok=True)
