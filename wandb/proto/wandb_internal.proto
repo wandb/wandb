@@ -1277,8 +1277,8 @@ message TPUInfo {
 message MetadataRequest {
   string os = 1;
   string python = 2;
-  google.protobuf.Timestamp heartbeatAt = 3;
-  google.protobuf.Timestamp startedAt = 4;
+  google.protobuf.Timestamp heartbeat_at = 3 [json_name = "heartbeatAt"];
+  google.protobuf.Timestamp started_at = 4 [json_name = "startedAt"];
   string docker = 5;
   string cuda = 6;
   repeated string args = 7;
