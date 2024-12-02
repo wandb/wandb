@@ -1402,7 +1402,7 @@ class Run:
                     key=v.spec.config_key,
                 )
             elif isinstance(v, dict):
-                # Recursively apply the visualization hack to nested dictionaries
+                # Recursively apply the serialization of custom charts to nested dictionaries
                 data[k] = self._serialize_custom_charts(v, key_prefix=key)
 
         for k in keys_to_replace:
