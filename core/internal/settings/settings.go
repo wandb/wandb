@@ -369,6 +369,16 @@ func (s *Settings) IsConsoleCaptureEnabled() bool {
 	return s.Proto.Console.GetValue() != "off"
 }
 
+// Whether to capture console logs in multipart format.
+//
+// This is used to make sure we don't overwrite the console log file if it
+// already exists.
+//
+// The format is: logs/<filename>_<timestamp>_<nanoseconds>.log
+func (s *Settings) IsConsoleMultipart() bool {
+	return s.Proto.ConsoleMultipart.GetValue()
+}
+
 // Whether to disable metadata collection.
 func (s *Settings) IsDisableMeta() bool {
 	return s.Proto.XDisableMeta.GetValue()
