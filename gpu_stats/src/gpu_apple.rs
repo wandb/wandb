@@ -438,7 +438,7 @@ impl ThreadSafeSampler {
         // Memory metrics
         add_optional_int(
             &mut result,
-            "memory.total".to_string(),
+            "_memory.total".to_string(),
             metrics.memory.ram_total,
         );
         add_optional_int(
@@ -446,15 +446,25 @@ impl ThreadSafeSampler {
             "memory.used".to_string(),
             metrics.memory.ram_usage,
         );
+        add_finite_float(
+            &mut result,
+            "memory.used_percent".to_string(),
+            (metrics.memory.ram_usage as f64 / metrics.memory.ram_total as f64) * 100.0,
+        );
         add_optional_int(
             &mut result,
-            "swap.total".to_string(),
+            "_swap.total".to_string(),
             metrics.memory.swap_total,
         );
         add_optional_int(
             &mut result,
             "swap.used".to_string(),
             metrics.memory.swap_usage,
+        );
+        add_finite_float(
+            &mut result,
+            "swap.used_percent".to_string(),
+            (metrics.memory.swap_usage as f64 / metrics.memory.swap_total as f64) * 100.0,
         );
 
         // CPU metrics
