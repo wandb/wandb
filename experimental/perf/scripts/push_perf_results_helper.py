@@ -3,7 +3,10 @@ import json
 import os
 import re
 
+from setup_helper import get_logger
 import wandb
+
+logger = get_logger(__name__)
 
 
 def log_to_wandb(args: argparse) -> None:
@@ -29,7 +32,7 @@ def log_to_wandb(args: argparse) -> None:
                     file_names.append(file_name)
 
         for file_name in file_names:
-            print(f"logging data from {file_name} in {dir} ...")
+            logger.info(f"logging data from {file_name} in {dir} ...")
             with open(os.path.join(root_log_dir, dir, file_name)) as f:
                 final_data.update(json.load(f))
 

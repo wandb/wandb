@@ -1,10 +1,11 @@
 import argparse
 import json
 from datetime import datetime
-
 from setup_helper import generate_random_dict
-
+from setup_helper import get_logger
 import wandb
+
+logger = get_logger(__name__)
 
 
 def measure_time(func):
@@ -70,12 +71,12 @@ def run_experiment(
     result_data["metric_count"] = metric_count
     result_data["metric_key_size"] = metric_key_size
 
-    print("##############################################################")
-    print(f"# of training runs: {loop_count}")
-    print(f"# of steps in each run: {step_count}")
-    print(f"# of metrics in each step: {metric_count}")
-    print(f"metric key size: {metric_key_size}")
-    print(f"Test start time: {start_time_str}")
+    logger.info("##############################################################")
+    logger.info(f"# of training runs: {loop_count}")
+    logger.info(f"# of steps in each run: {step_count}")
+    logger.info(f"# of metrics in each step: {metric_count}")
+    logger.info(f"metric key size: {metric_key_size}")
+    logger.info(f"Test start time: {start_time_str}")
 
     payload = generate_random_dict(metric_count, metric_key_size)
     total_start_time = datetime.now()
@@ -108,11 +109,11 @@ def run_experiment(
     with open(output_file, "w") as file:
         json.dump(result_data, file, indent=4)
 
-    print(json.dumps(result_data, indent=4))
+    logger.info(json.dumps(result_data, indent=4))
 
     total_end_time = datetime.now()
     total_time = total_end_time - total_start_time
-    print(f"\nTotal test duration: {total_time.total_seconds()}")
+    logger.info(f"\nTotal test duration: {total_time.total_seconds()}")
 
 
 if __name__ == "__main__":

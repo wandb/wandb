@@ -5,6 +5,10 @@ import time
 
 import test_case_helper
 
+from setup_helper import get_logger
+
+logger = get_logger(__name__)
+
 
 def print_help():
     print(
@@ -26,7 +30,7 @@ def run_test_case(test_case, log_folder):
     if test_case == "bench_log":
         loop_count = 4
         step_count = 10000
-        print(
+        logger.info(
             f"Load testing SDK logging in {loop_count} iterations, "
             + f"each logging {step_count} steps, 100 metrics and metric key size of 10"
         )
@@ -34,7 +38,7 @@ def run_test_case(test_case, log_folder):
 
     elif test_case == "bench_log_scale_step":
         steps = [1000, 2000, 4000, 8000]
-        print(
+        logger.info(
             f"Load testing SDK logging scaling through {steps} steps "
             + "each logging 100 metrics with a metric key size of 10"
         )
@@ -42,14 +46,14 @@ def run_test_case(test_case, log_folder):
 
     elif test_case == "bench_log_scale_metric":
         metrics = [100, 200, 400, 800]
-        print(
+        logger.info(
             f"Load testing SDK logging scaling through {metrics} metrics, "
             + "in each of the 1000 steps, and a metric key size of 10"
         )
         test_case_helper.bench_log_scale_metric(log_folder, metrics)
 
     else:
-        print(f"ERROR: Unrecognized test case: {test_case}")
+        logger.error(f"Unrecognized test case: {test_case}")
         exit(1)
 
 
@@ -75,14 +79,9 @@ def main():
     wandb_mode = args.wandb_mode
 
     if not testcase:
-        print("ERROR: Test case (-t) is required but not provided.")
+        logger.error("Test case (-t) is required but not provided.")
         print_help()
         exit(1)
-
-    if not wandb_api_key:
-        print(
-            "WARNING: WANDB_API_KEY not provided. Ensure it's set as an environment variable."
-        )
 
     # Set Wandb environment variables
     os.environ["WANDB_API_KEY"] = wandb_api_key if wandb_api_key else ""
@@ -99,8 +98,8 @@ def main():
 
     end_time = time.time()
     total_time = end_time - start_time
-    print(f"Test completed in {total_time:.2f}s.")
-    print(f"Logs saved to {os.getcwd()}/{log_folder}")
+    logger.info(f"Test completed in {total_time:.2f}s.")
+    logger.info(f"Logs saved to {os.getcwd()}/{log_folder}")
 
 
 if __name__ == "__main__":

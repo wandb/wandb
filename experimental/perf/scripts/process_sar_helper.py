@@ -1,38 +1,57 @@
 import argparse
 import json
-import os
 import subprocess
+from pathlib import Path
+from typing import List
+
+from setup_helper import get_logger
+
+logger = get_logger(__name__)
 
 
 def pre_process_network_sar_log(log_dir: str) -> str:
     """This helper function pre-processes the network.dev.log.
 
     Parse out the metrics of the device we are interested in. i.e. eth0.
-    """
-    network_log = os.path.join(log_dir, "network.dev.log")
 
-    if os.path.isfile(network_log):
-        dev = "eth0"
-        network_dev_specific_log = os.path.join(log_dir, f"network.dev.{dev}.log")
+    Args:
+        log_dir (str): The directory containing the log files.
+
+    Returns:
+        str: The name of the processed network log file, or an empty string if processing fails.
+    """
+    network_log = Path(log_dir) / "network.dev.log"
+
+    if network_log.is_file():
+        # get the network device name, always started with an "e"
+        grep_output = subprocess.run(
+            "ls /sys/class/net/ | grep ^e", shell=True, text=True, capture_output=True
+        )
+        dev = grep_output.stdout.strip()
+        network_dev_specific_log = Path(log_dir) / f"network.dev.{dev}.log"
 
         # add two blank lines at the top of the file to
         # match the format of other sar output log files
         for _ in range(2):
-            command = f"echo '' >> {network_dev_specific_log}"
-            result = subprocess.run(command, shell=True)
+            result = subprocess.run(
+                f"echo '' >> {network_dev_specific_log}", shell=True
+            )
 
         # grep and save the header line
-        command = f"grep IFACE {network_log} | head -n 1 >> {network_dev_specific_log}"
-        result = subprocess.run(command, shell=True)
+        result = subprocess.run(
+            f"grep IFACE {network_log} | head -n 1 >> {network_dev_specific_log}",
+            shell=True,
+        )
 
         # then grep for the rest of data
-        command = f"grep {dev} {network_log} >> {network_dev_specific_log}"
-        result = subprocess.run(command, shell=True)
+        result = subprocess.run(
+            f"grep {dev} {network_log} >> {network_dev_specific_log}", shell=True
+        )
 
         if result.returncode == 0:
             return f"network.dev.{dev}.log"
         else:
-            print(f"WARNING: {result}")
+            logger.warn(result)
 
     return ""
 
@@ -41,53 +60,68 @@ def pre_process_disk_sar_log(log_dir: str) -> str:
     """This function pre-processes the disk.log.
 
     Parse out the metrics of the device we are interested in. i.e. sda or vda.
-    """
-    disk_log = os.path.join(log_dir, "disk.log")
-    dev = None
 
-    if os.path.isfile(disk_log):
-        # check to see if the disk device is named sda or vda
-        disk_devices = ["sda", "vda"]
-        for device in disk_devices:
-            result = subprocess.run(f"grep {device} {disk_log} > /dev/null", shell=True)
-            if result.returncode == 0:
-                dev = device
-                break
-    else:
+    Args:
+        log_dir (str): The directory containing the log files.
+
+    Returns:
+        str: The name of the processed disk log file, or an empty string if processing fails.
+    """
+    disk_log = Path(log_dir) / "disk.log"
+    if not disk_log.is_file():
+        logger.error(f"{disk_log} not found!")
         return ""
 
-    if dev is not None:
-        disk_dev_specific_log = os.path.join(log_dir, f"disk.{dev}.log")
+    # Run the lsblk command to get the name and type of devices
+    lsblk_output = subprocess.check_output(
+        ["lsblk", "-d", "-n", "-o", "NAME,TYPE"], text=True
+    )
 
-        # add two blank lines at the top of the file to
-        # match the format of other sar output log files
-        for _ in range(2):
-            command = f"echo '' >> {disk_dev_specific_log}"
-            result = subprocess.run(command, shell=True)
+    # Filter for lines containing "disk" and extract the disk names
+    disk_names = [
+        line.split()[0] for line in lsblk_output.strip().split("\n") if "disk" in line
+    ]
+    logger.debug(f"Found disk devices: {disk_names}")
 
-        # grep and save the header line
-        command = f"grep DEV {disk_log} | head -n 1 | sed 's/DEV//' >> {disk_dev_specific_log}"
-        result = subprocess.run(command, shell=True)
+    if not disk_names or len(disk_names) == 0:
+        logger.error("Disk device not found!")
+        return ""
 
-        # then grep for the rest of the data
-        command = f"grep {dev} {disk_log} | sed 's/{dev}//' >> {disk_dev_specific_log}"
-        result = subprocess.run(command, shell=True)
+    dev = disk_names[0]
+    disk_dev_specific_log = Path(log_dir) / f"disk.{dev}.log"
 
-        if result.returncode == 0:
-            return f"disk.{dev}.log"
-        else:
-            print(f"WARNING: {result}")
+    # add two blank lines at the top of the file to
+    # match the format of other sar output log files
+    for _ in range(2):
+        result = subprocess.run(f"echo '' >> {disk_dev_specific_log}", shell=True)
 
+    # grep and save the header line
+    result = subprocess.run(
+        f"grep DEV {disk_log} | head -n 1 | sed 's/DEV//' >> {disk_dev_specific_log}",
+        shell=True,
+    )
+
+    # then grep for the rest of the data
+    result = subprocess.run(
+        f"grep {dev} {disk_log} | sed 's/{dev}//' >> {disk_dev_specific_log}",
+        shell=True,
+    )
+
+    if result.returncode == 0:
+        return f"disk.{dev}.log"
     else:
-        print(f"WARNING: Neither sda nor vda was found in {disk_log}")
+        logger.error(result)
 
     return ""
 
 
-def process_sar_files(log_dir: str):
+def process_sar_files(log_dir: str) -> None:
     """This function process all the sar log files in a given directory.
 
     Compute avg and max values for each data field, and write them to <log>.json.
+
+    Args:
+        log_dir (str): The directory containing the log files.
     """
     log_files = ["cpu.log", "mem.log", "network.sock.log", "paging.log"]
 
@@ -101,15 +135,22 @@ def process_sar_files(log_dir: str):
 
     # process all the sar log files
     for log_file in log_files:
-        log = os.path.join(log_dir, log_file)
-        if os.path.isfile(log):
-            compute_avg_and_max(log, os.path.join(log_dir, log_file + ".json"))
+        log = Path(log_dir) / log_file
+        if log.is_file():
+            compute_avg_and_max(log, log.with_suffix(".json"))
         else:
-            print(f"WARNING! {log} not found.")
+            logger.warning(f"{log} not found.")
 
 
-def compute_avg_and_max(input_file, output_file):
-    with open(input_file) as file:
+def compute_avg_and_max(input_file: Path, output_file: Path) -> None:
+    """Compute average and max values from the input file and write to a JSON file.
+
+    Args:
+        input_file (Path): The path to the input sar log file.
+        output_file (Path): The path to the output JSON file to save results.
+    """
+
+    with input_file.open() as file:
         lines = file.readlines()
 
     # Extract headers and data
@@ -141,10 +182,10 @@ def compute_avg_and_max(input_file, output_file):
     result = {**field_avg, **field_max}
 
     # Write to JSON file
-    with open(output_file, "w") as json_file:
+    with output_file.open("w") as json_file:
         json.dump(result, json_file, indent=4)
 
-    print(f"System metrics written to {output_file}")
+    logger.debug(f"System metrics written to {output_file}")
 
 
 if __name__ == "__main__":
@@ -154,11 +195,9 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    if not os.path.isdir(args.directory):
-        print(f"ERROR! Directory {args.directory} does not exist.")
+    log_directory = Path(args.directory)
+    if not log_directory.is_dir():
+        logger.error(f"Directory {args.directory} does not exist.")
         exit(1)
-
-    # stop any running sar processes
-    subprocess.run("killall sar", shell=True)
 
     process_sar_files(args.directory)
