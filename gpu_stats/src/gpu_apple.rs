@@ -567,12 +567,12 @@ impl ThreadSafeSampler {
         }
         if let Some(&value) = samples.get("_swap.total") {
             if let MetricValue::Int(swap_total) = value {
-                gpu_apple.swap_total_bytes = *swap_total as u32;
+                gpu_apple.swap_total_bytes = *swap_total as u64;
             }
         }
         if let Some(&value) = samples.get("_ram.total") {
             if let MetricValue::Int(ram_total) = value {
-                gpu_apple.ram_total_bytes = *ram_total as u32;
+                gpu_apple.ram_total_bytes = *ram_total as u64;
             }
         }
         MetadataRequest {
