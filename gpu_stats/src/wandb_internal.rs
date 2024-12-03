@@ -2572,6 +2572,10 @@ pub struct AppleInfo {
     pub gpu_cores: u32,
     #[prost(uint32, tag = "5")]
     pub memory_gb: u32,
+    #[prost(uint32, tag = "6")]
+    pub swap_total_bytes: u32,
+    #[prost(uint32, tag = "7")]
+    pub ram_total_bytes: u32,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GpuNvidiaInfo {
