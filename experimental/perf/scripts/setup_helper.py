@@ -4,6 +4,10 @@ import string
 import subprocess
 from pathlib import Path
 
+from setup_helper import get_logger
+
+logger = get_logger(__name__)
+
 
 def get_logger(name: str, log_file: str = "perf.log") -> logging.Logger:
     """Creates and configures a logger that writes to both screen and log file.
@@ -64,17 +68,19 @@ def generate_random_dict(num_fields: int, field_size: int) -> dict:
 
 """
 """
+
+
 def capture_sar_metrics(log_dir: str, iteration: int = 8):
     """Captures sar system metrics in the background and saves them to log files.
 
     This function starts the sar processes in the background in a fire-and-forget
     manner. This is because we want to support common scenarios where a load test
-    may finish earlier than the metrics capturing sub-processes. A few things to 
+    may finish earlier than the metrics capturing sub-processes. A few things to
     note:
 
     1) No need to wait for the subprocesses to finish.
     Because these processes will exit on their own regardless of the parent
-    process. There won't be any resource leaks. They are meant to be running in the 
+    process. There won't be any resource leaks. They are meant to be running in the
     background while the actual load testing runs on the main thread independently.
 
     2) Safe to have multiple runs
@@ -108,7 +114,6 @@ def capture_sar_metrics(log_dir: str, iteration: int = 8):
                 command, stdout=open(log_file_path, "w"), stderr=subprocess.PIPE
             )
         except Exception as e:
-            print(
-                f"Error starting subprocess {command} writing to {log_file_path}: {e}"
+            logger.error(
+                f"Error spawning subprocess {command} writing to {log_file_path}: {e}"
             )
-
