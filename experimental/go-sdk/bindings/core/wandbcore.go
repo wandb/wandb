@@ -16,7 +16,6 @@ import (
 	"github.com/wandb/wandb/experimental/client-go/internal/gowandb/internal_runopts"
 	"github.com/wandb/wandb/experimental/client-go/pkg/gowandb"
 	"github.com/wandb/wandb/experimental/client-go/pkg/opts/runopts"
-	"github.com/wandb/wandb/experimental/client-go/pkg/opts/sessionopts"
 	"github.com/wandb/wandb/experimental/client-go/pkg/runconfig"
 )
 
@@ -32,7 +31,9 @@ func wandbcoreSetup() {
 	}
 	var err error
 	wandbSession, err = gowandb.NewSession(
-		sessionopts.WithCoreBinary(coreBinary),
+		gowandb.SessionParams{
+			CoreBinary: coreBinary,
+		},
 	)
 	if err != nil {
 		panic(err)
