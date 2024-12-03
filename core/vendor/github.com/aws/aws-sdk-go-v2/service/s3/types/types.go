@@ -202,7 +202,8 @@ type Bucket struct {
 // [Directory buckets]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-buckets-overview.html
 type BucketInfo struct {
 
-	// The number of Availability Zone that's used for redundancy for the bucket.
+	// The number of Zone (Availability Zone or Local Zone) that's used for redundancy
+	// for the bucket.
 	DataRedundancy DataRedundancy
 
 	// The type of bucket.
@@ -570,9 +571,15 @@ type CreateBucketConfiguration struct {
 
 	// Specifies the location where the bucket will be created.
 	//
-	// For directory buckets, the location type is Availability Zone.
+	// Directory buckets - The location type is Availability Zone or Local Zone. When
+	// the location type is Local Zone, your Local Zone must be in opt-in status.
+	// Otherwise, you get an HTTP 400 Bad Request error with the error code Access
+	// denied . To learn more about opt-in Local Zones, see [Opt-in Dedicated Local Zones]in the Amazon S3 User
+	// Guide.
 	//
 	// This functionality is only supported by directory buckets.
+	//
+	// [Opt-in Dedicated Local Zones]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/opt-in-directory-bucket-lz.html
 	Location *LocationInfo
 
 	// Specifies the Region where the bucket will be created. You might choose a
@@ -2320,8 +2327,8 @@ type LifecycleRuleFilter struct {
 
 // Specifies the location where the bucket will be created.
 //
-// For directory buckets, the location type is Availability Zone. For more
-// information about directory buckets, see [Directory buckets]in the Amazon S3 User Guide.
+// For directory buckets, the location type is Availability Zone or Local Zone.
+// For more information about directory buckets, see [Directory buckets]in the Amazon S3 User Guide.
 //
 // This functionality is only supported by directory buckets.
 //
@@ -2330,9 +2337,9 @@ type LocationInfo struct {
 
 	// The name of the location where the bucket will be created.
 	//
-	// For directory buckets, the name of the location is the AZ ID of the
-	// Availability Zone where the bucket will be created. An example AZ ID value is
-	// usw2-az1 .
+	// For directory buckets, the name of the location is the Zone ID of the
+	// Availability Zone (AZ) or Local Zone (LZ) where the bucket will be created. An
+	// example AZ ID value is usw2-az1 .
 	Name *string
 
 	// The type of location where the bucket will be created.
@@ -3502,13 +3509,23 @@ type RestoreRequest struct {
 	// Describes the location where the restore job's output is stored.
 	OutputLocation *OutputLocation
 
+	// Amazon S3 Select is no longer available to new customers. Existing customers of
+	// Amazon S3 Select can continue to use the feature as usual. [Learn more]
+	//
 	// Describes the parameters for Select job types.
+	//
+	// [Learn more]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
 	SelectParameters *SelectParameters
 
 	// Retrieval tier at which the restore will be processed.
 	Tier Tier
 
+	// Amazon S3 Select is no longer available to new customers. Existing customers of
+	// Amazon S3 Select can continue to use the feature as usual. [Learn more]
+	//
 	// Type of restore request.
+	//
+	// [Learn more]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
 	Type RestoreRequestType
 
 	noSmithyDocumentSerde
@@ -3695,10 +3712,25 @@ type SelectObjectContentEventStreamMemberStats struct {
 
 func (*SelectObjectContentEventStreamMemberStats) isSelectObjectContentEventStream() {}
 
+// Amazon S3 Select is no longer available to new customers. Existing customers of
+// Amazon S3 Select can continue to use the feature as usual. [Learn more]
+//
 // Describes the parameters for Select job types.
+//
+// Learn [How to optimize querying your data in Amazon S3] using [Amazon Athena], [S3 Object Lambda], or client-side filtering.
+//
+// [Learn more]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
+// [How to optimize querying your data in Amazon S3]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
+// [Amazon Athena]: https://docs.aws.amazon.com/athena/latest/ug/what-is.html
+// [S3 Object Lambda]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/transforming-objects.html
 type SelectParameters struct {
 
+	// Amazon S3 Select is no longer available to new customers. Existing customers of
+	// Amazon S3 Select can continue to use the feature as usual. [Learn more]
+	//
 	// The expression that is used to query the object.
+	//
+	// [Learn more]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
 	//
 	// This member is required.
 	Expression *string
