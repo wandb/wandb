@@ -4,11 +4,6 @@ import string
 import subprocess
 from pathlib import Path
 
-from setup_helper import get_logger
-
-logger = get_logger(__name__)
-
-
 def get_logger(name: str, log_file: str = "perf.log") -> logging.Logger:
     """Creates and configures a logger that writes to both screen and log file.
 
@@ -114,6 +109,6 @@ def capture_sar_metrics(log_dir: str, iteration: int = 8):
                 command, stdout=open(log_file_path, "w"), stderr=subprocess.PIPE
             )
         except Exception as e:
-            logger.error(
+            print(
                 f"Error spawning subprocess {command} writing to {log_file_path}: {e}"
             )
