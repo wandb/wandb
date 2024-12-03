@@ -1,8 +1,9 @@
 import argparse
 import json
 from datetime import datetime
-from setup_helper import generate_random_dict
-from setup_helper import get_logger
+
+from setup_helper import generate_random_dict, get_logger
+
 import wandb
 
 logger = get_logger(__name__)

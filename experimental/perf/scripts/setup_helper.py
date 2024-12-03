@@ -1,7 +1,7 @@
+import logging
 import random
 import string
 import subprocess
-import logging
 from pathlib import Path
 
 
@@ -99,18 +99,18 @@ def capture_sar_metrics(log_dir: str, iteration: int = 8):
     """
     Notes about these background "sar" processes
 
-    We want to support common scenarios where a load test finishes sooner (e.g. in 5s) than the 
+    We want to support common scenarios where a load test finishes sooner (e.g. in 5s) than the
     metrics capturing sub-processes e.g they were set to run for 8s.
 
     1) No need to wait for them.
-    Because they will exit on their own, there is no resource leak. In fact, they are meant 
+    Because they will exit on their own, there is no resource leak. In fact, they are meant
     to be running in the background while the actual load testing runs on the main thread.
 
     2) Safe to have multiple runs
-    Because they write metrics to a different log directory each time, there is no conflict 
+    Because they write metrics to a different log directory each time, there is no conflict
     even if multiples of these subprocesses run in parallel.
-    
+
     3) No need to manage them
     These sub processes are explicitly allowed to outlive the parent process. Therefore,
-    there is no need to use a context manager to manage them. 
+    there is no need to use a context manager to manage them.
     """

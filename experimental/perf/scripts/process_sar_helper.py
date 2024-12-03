@@ -2,7 +2,6 @@ import argparse
 import json
 import subprocess
 from pathlib import Path
-from typing import List
 
 from setup_helper import get_logger
 
@@ -149,7 +148,6 @@ def compute_avg_and_max(input_file: Path, output_file: Path) -> None:
         input_file (Path): The path to the input sar log file.
         output_file (Path): The path to the output JSON file to save results.
     """
-
     with input_file.open() as file:
         lines = file.readlines()
 

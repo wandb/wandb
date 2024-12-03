@@ -4,7 +4,6 @@ import os
 import time
 
 import test_case_helper
-
 from setup_helper import get_logger
 
 logger = get_logger(__name__)
