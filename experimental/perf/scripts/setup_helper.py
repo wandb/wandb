@@ -62,12 +62,28 @@ def generate_random_dict(num_fields: int, field_size: int) -> dict:
     return {random_key(): random.randint(1, 10**6) for _ in range(num_fields)}
 
 
+"""
+"""
 def capture_sar_metrics(log_dir: str, iteration: int = 8):
     """Captures sar system metrics in the background and saves them to log files.
 
-    Once these sar background processes are started, they will stop and exit on
-    their own when they are done with the specified iterations (e.g. 8 means 8
-    seconds).
+    This function starts the sar processes in the background in a fire-and-forget
+    manner. This is because we want to support common scenarios where a load test
+    may finish earlier than the metrics capturing sub-processes. A few things to 
+    note:
+
+    1) No need to wait for the subprocesses to finish.
+    Because these processes will exit on their own regardless of the parent
+    process. There won't be any resource leaks. They are meant to be running in the 
+    background while the actual load testing runs on the main thread independently.
+
+    2) Safe to have multiple runs
+    Because they write metrics to a different log directory each time, there is no conflict
+    even if multiples of these processes run in parallel.
+
+    3) No need to manage them
+    These sub processes are explicitly allowed to outlive the parent process. Therefore,
+    there is no need to use a context manager to manage them.
 
     Args:
         log_dir (str): Directory where the log files will be saved.
@@ -96,21 +112,3 @@ def capture_sar_metrics(log_dir: str, iteration: int = 8):
                 f"Error starting subprocess {command} writing to {log_file_path}: {e}"
             )
 
-    """
-    Notes about these background "sar" processes
-
-    We want to support common scenarios where a load test finishes sooner (e.g. in 5s) than the
-    metrics capturing sub-processes e.g they were set to run for 8s.
-
-    1) No need to wait for them.
-    Because they will exit on their own, there is no resource leak. In fact, they are meant
-    to be running in the background while the actual load testing runs on the main thread.
-
-    2) Safe to have multiple runs
-    Because they write metrics to a different log directory each time, there is no conflict
-    even if multiples of these subprocesses run in parallel.
-
-    3) No need to manage them
-    These sub processes are explicitly allowed to outlive the parent process. Therefore,
-    there is no need to use a context manager to manage them.
-    """
