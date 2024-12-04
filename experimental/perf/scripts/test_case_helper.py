@@ -65,7 +65,7 @@ def run_experiment_helper(
     mc: int,
     root_folder: str,
     sort_key: int,
-    output_file="results.json",
+    output_file: str="results.json",
 ) -> None:
     """A helper to do the standard perf test setup.
 
