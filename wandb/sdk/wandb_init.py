@@ -182,13 +182,7 @@ class _WandbInit:
         """
         self.warn_env_vars_change_after_setup()
 
-        setup_settings = wandb.Settings(
-            mode=init_settings.mode or os.environ.get(wandb.env.MODE) or "online",
-            x_disable_service=init_settings.x_disable_service
-            or os.environ.get(wandb.env._DISABLE_SERVICE)
-            or False,
-        )
-        self._wl = wandb_setup.setup(settings=setup_settings)
+        self._wl = wandb_setup.setup()
 
         assert self._wl is not None
         _set_logger(self._wl._get_logger())
