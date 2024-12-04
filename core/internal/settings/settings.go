@@ -374,7 +374,7 @@ func (s *Settings) IsConsoleCaptureEnabled() bool {
 // This is used to make sure we don't overwrite the console log file if it
 // already exists.
 //
-// The format is: logs/<filename>_<timestamp>_<nanoseconds>.log
+// The format is: logs/output_<optional:Settings.Label>_<timestamp>_<nanoseconds>.log
 func (s *Settings) IsConsoleMultipart() bool {
 	return s.Proto.ConsoleMultipart.GetValue()
 }
