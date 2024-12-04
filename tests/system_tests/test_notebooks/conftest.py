@@ -98,7 +98,7 @@ class WandbNotebookClient(NotebookClient):
                 raise e
             for output in executed_cell["outputs"]:
                 if output["output_type"] == "error" and nb_cell_id != 0:
-                    print("Error in cell: %d" % nb_cell_id)
+                    print(f"Error in cell: {nb_cell_id}")
                     print("\n".join(output["traceback"]))
                     raise ValueError(output["evalue"])
             executed_cells.append(executed_cell)
