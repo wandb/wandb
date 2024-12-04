@@ -407,7 +407,7 @@ class _WandbInit:
             return
 
         pid = os.getpid()
-        tmp_name = os.path.join(base, "%s.%d" % (name, pid))
+        tmp_name = os.path.join(base, f"{name}.{pid}")
 
         if delete:
             try:

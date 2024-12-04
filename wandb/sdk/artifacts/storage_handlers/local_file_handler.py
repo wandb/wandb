@@ -95,8 +95,7 @@ class LocalFileHandler(StorageHandler):
             start_time = time.time()
             if checksum:
                 termlog(
-                    'Generating checksum for up to %i files in "%s"...\n'
-                    % (max_objects, local_path),
+                    f'Generating checksum for up to {max_objects} files in "{local_path}"... ',
                     newline=False,
                 )
             for root, _, files in os.walk(local_path):
@@ -104,8 +103,7 @@ class LocalFileHandler(StorageHandler):
                     i += 1
                     if i > max_objects:
                         raise ValueError(
-                            "Exceeded %i objects tracked, pass max_objects to add_reference"
-                            % max_objects
+                            f"Exceeded {max_objects} objects tracked, pass max_objects to add_reference"
                         )
                     physical_path = os.path.join(root, sub_path)
                     # TODO(spencerpearson): this is not a "logical path" in the sense that
