@@ -60,7 +60,7 @@ def run_experiment_helper(
     mc: int,
     root_folder: str,
     sort_key: int,
-    output_file: str="results.json",
+    output_file: str = "results.json",
 ) -> None:
     """A helper to do the standard perf test setup.
 
@@ -87,6 +87,6 @@ def run_experiment_helper(
 
     capture_sar_metrics(log_folder)
 
-    run_experiment(loop, step, mc, output_file=str(log_folder/output_file))
+    run_experiment(loop, step, mc, output_file=str(log_folder / output_file))
 
     process_sar_files(log_folder)
