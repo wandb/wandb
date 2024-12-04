@@ -91,15 +91,14 @@ def test_init_existing_login(runner, user):
 
 
 @pytest.mark.xfail(reason="This test is flakey on CI")
-def test_pull(runner, wandb_init):
+def test_pull(runner, user):
     with runner.isolated_filesystem():
         project_name = "test_pull"
         file_name = "weights.h5"
-        run = wandb_init(project=project_name)
-        with open(file_name, "w") as f:
-            f.write("WEIGHTS")
-        run.save(file_name)
-        run.finish()
+        with wandb.init(project=project_name) as run:
+            with open(file_name, "w") as f:
+                f.write("WEIGHTS")
+            run.save(file_name)
 
         # delete the file so that we can pull it and check that it is there
         os.remove(file_name)
