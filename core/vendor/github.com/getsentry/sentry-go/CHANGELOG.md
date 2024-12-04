@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.30.0
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.30.0.
+
+### Features
+
+- Add `sentryzerolog` integration ([#857](https://github.com/getsentry/sentry-go/pull/857))
+- Add `sentryslog` integration ([#865](https://github.com/getsentry/sentry-go/pull/865))
+- Always set Mechanism Type to generic ([#896](https://github.com/getsentry/sentry-go/pull/897))
+
+### Bug Fixes
+
+- Prevent panic in `fasthttp` and `fiber` integration in case a malformed URL has to be parsed ([#912](https://github.com/getsentry/sentry-go/pull/912))
+
+### Misc
+
+Drop support for Go 1.18, 1.19 and 1.20. The currently supported Go versions are the last 3 stable releases: 1.23, 1.22 and 1.21.
+
 ## 0.29.1
 
 The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.29.1.
@@ -8,6 +26,10 @@ The Sentry SDK team is happy to announce the immediate availability of Sentry Go
 
 - Correlate errors to the current trace ([#886](https://github.com/getsentry/sentry-go/pull/886))
 - Set the trace context when the transaction finishes ([#888](https://github.com/getsentry/sentry-go/pull/888))
+
+### Misc
+
+- Update the `sentrynegroni` integration to use the latest (v3.1.1) version of Negroni ([#885](https://github.com/getsentry/sentry-go/pull/885))
 
 ## 0.29.0
 
