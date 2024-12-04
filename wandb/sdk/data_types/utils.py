@@ -175,8 +175,7 @@ def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"
     items = seq
     if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):
         logging.warning(
-            "Only %i %s will be uploaded."
-            % (seq[0].MAX_ITEMS, seq[0].__class__.__name__)
+            f"Only {seq[0].MAX_ITEMS} {seq[0].__class__.__name__} will be uploaded."
         )
         items = seq[: seq[0].MAX_ITEMS]
     return items

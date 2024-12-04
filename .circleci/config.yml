@@ -386,6 +386,7 @@ jobs:
           command: choco install -y mingw --version 12.2 --allow-downgrade
 
       - install_go
+      - install_rust
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>

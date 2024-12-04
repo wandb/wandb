@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/experimental/client-go/pkg/gowandb"
-	"github.com/wandb/wandb/experimental/client-go/pkg/opts/sessionopts"
 	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
 )
 
@@ -32,17 +31,17 @@ func NewBench(benchOpts BenchOpts) *Bench {
 }
 
 func (b *Bench) Setup() {
-	opts := []sessionopts.SessionOption{}
+	params := gowandb.SessionParams{}
 	if *b.opts.port != 0 {
-		opts = append(opts, sessionopts.WithCoreAddress(fmt.Sprintf("%s:%d", *b.opts.host, *b.opts.port)))
+		params.Address = fmt.Sprintf("%s:%d", *b.opts.host, *b.opts.port)
 	}
 	if *b.opts.offline {
 		baseSettings := settings.NewSettings()
 		baseSettings.XOffline.Value = true
-		opts = append(opts, sessionopts.WithSettings(baseSettings))
+		params.Settings = baseSettings
 	}
 	var err error
-	b.wandb, err = gowandb.NewSession(opts...)
+	b.wandb, err = gowandb.NewSession(params)
 	if err != nil {
 		panic(err)
 	}
@@ -64,7 +63,7 @@ func (b *Bench) RunWorkers() {
 }
 
 func (b *Bench) Worker() {
-	run, err := b.wandb.NewRun()
+	run, err := b.wandb.NewRun(nil, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -75,7 +74,7 @@ func (b *Bench) Worker() {
 	}
 
 	for i := 0; i < *b.opts.numHistory; i++ {
-		run.Log(data)
+		run.Log(data, true)
 	}
 	run.Finish()
 }

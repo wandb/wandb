@@ -39,7 +39,6 @@ const (
 	DiffFileName         = "diff.patch"
 	RequirementsFileName = "requirements.txt"
 	ConfigFileName       = "config.yaml"
-	LatestOutputFileName = "output.log"
 )
 
 type HandlerParams struct {
