@@ -1,4 +1,4 @@
-FROM python:3.9-slim-bullseye
+FROM python:3.12-slim-bullseye
 LABEL maintainer='Weights & Biases <support@wandb.com>'
 
 # Install Go.
