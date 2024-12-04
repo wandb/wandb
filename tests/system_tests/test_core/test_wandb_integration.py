@@ -25,19 +25,19 @@ reload_fn = importlib.reload
 #  errors until we ensure we propagate the errors up.
 
 
-def test_resume_auto_success(wandb_init):
-    run = wandb_init(reinit=True, resume=True)
+def test_resume_auto_success(user):
+    run = wandb.init(reinit=True, resume=True)
     run.finish()
     assert not os.path.exists(run.settings.resume_fname)
 
 
-def test_include_exclude_config_keys(wandb_init):
+def test_include_exclude_config_keys(user):
     config = {
         "foo": 1,
         "bar": 2,
         "baz": 3,
     }
-    run = wandb_init(
+    run = wandb.init(
         reinit=True, resume=True, config=config, config_exclude_keys=("bar",)
     )
 
@@ -46,7 +46,7 @@ def test_include_exclude_config_keys(wandb_init):
     assert "bar" not in run.config
     run.finish()
 
-    run = wandb_init(
+    run = wandb.init(
         reinit=True, resume=True, config=config, config_include_keys=("bar",)
     )
 
@@ -59,7 +59,7 @@ def test_include_exclude_config_keys(wandb_init):
         wandb.errors.UsageError,
         match="Expected at most only one of exclude or include",
     ):
-        wandb_init(
+        wandb.init(
             reinit=True,
             resume=True,
             config=config,
@@ -96,7 +96,7 @@ def test_dir_on_import():
         ), f"Unexpected directory at {custom_env_path}"
 
 
-def test_dir_on_init(wandb_init):
+def test_dir_on_init(user):
     """Ensure that `wandb.init()` creates the proper directory and nothing else."""
     default_path = os.path.join(os.getcwd(), "wandb")
 
@@ -107,12 +107,12 @@ def test_dir_on_init(wandb_init):
         # Test for the base case
         reload_fn(wandb)
         _remove_dir_if_exists(default_path)
-        run = wandb_init()
+        run = wandb.init()
         run.finish()
         assert os.path.isdir(default_path), f"Expected directory at {default_path}"
 
 
-def test_dir_on_init_env(wandb_init):
+def test_dir_on_init_env(user):
     """Ensure that `wandb.init()` w/ env variable set creates the proper directory and nothing else."""
     default_path = os.path.join(os.getcwd(), "wandb")
     custom_env_path = os.path.join(os.getcwd(), "env_custom")
@@ -123,7 +123,7 @@ def test_dir_on_init_env(wandb_init):
             os.makedirs(custom_env_path)
         reload_fn(wandb)
         _remove_dir_if_exists(default_path)
-        run = wandb_init()
+        run = wandb.init()
         run.finish()
         assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
             default_path
@@ -133,7 +133,7 @@ def test_dir_on_init_env(wandb_init):
         )
         # And for the duplicate-run case
         _remove_dir_if_exists(default_path)
-        run = wandb_init()
+        run = wandb.init()
         run.finish()
         assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
             default_path
@@ -143,7 +143,7 @@ def test_dir_on_init_env(wandb_init):
         )
 
 
-def test_dir_on_init_dir(wandb_init):
+def test_dir_on_init_dir(user):
     """Ensure that `wandb.init(dir=DIR)` creates the proper directory and nothing else."""
     default_path = os.path.join(os.getcwd(), "wandb")
     dir_name = "dir_custom"
@@ -154,13 +154,13 @@ def test_dir_on_init_dir(wandb_init):
     _remove_dir_if_exists(default_path)
     if not os.path.isdir(custom_dir_path):
         os.makedirs(custom_dir_path)
-    run = wandb_init(dir="./" + dir_name)
+    run = wandb.init(dir="./" + dir_name)
     run.finish()
     assert not os.path.isdir(default_path), f"Unexpected directory at {default_path}"
     assert os.path.isdir(custom_dir_path), f"Expected directory at {custom_dir_path}"
     # And for the duplicate-run case
     _remove_dir_if_exists(default_path)
-    run = wandb_init(dir="./" + dir_name)
+    run = wandb.init(dir="./" + dir_name)
     run.finish()
     assert not os.path.isdir(default_path), f"Unexpected directory at {default_path}"
     assert os.path.isdir(custom_dir_path), f"Expected directory at {custom_dir_path}"
