@@ -100,7 +100,7 @@ def _watch(
         _global_watch_idx += 1
         if global_idx > 0:
             # TODO: this makes ugly chart names like gradients/graph_1conv1d.bias
-            prefix = "graph_%i" % global_idx
+            prefix = f"graph_{global_idx}"
 
         if log_parameters:
             run._torch.add_log_parameters_hook(

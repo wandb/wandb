@@ -347,6 +347,14 @@ message Settings {
   // "wrap_emu" - Same as "wrap" but captures output through an emulator.
   google.protobuf.StringValue console = 60;
 
+  // Whether to capture console logs in multipart format.
+  //
+  // This is used to make sure we don't overwrite the console log file if it
+  // already exists.
+  //
+  // The format is: logs/<filename>_<timestamp>_<nanoseconds>.log
+  google.protobuf.BoolValue console_multipart = 166;
+
   // Whether to sync TensorBoard logs to W&B.
   google.protobuf.BoolValue sync_tensorboard = 179;
 
@@ -442,5 +450,4 @@ message Settings {
   google.protobuf.StringValue x_jupyter_name = 143;
   google.protobuf.StringValue x_jupyter_path = 144;
   google.protobuf.StringValue job_name = 145;
-  google.protobuf.BoolValue console_multipart = 166;
 }
