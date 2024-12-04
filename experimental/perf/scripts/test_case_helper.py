@@ -5,7 +5,7 @@ from process_sar_helper import process_sar_files
 from setup_helper import capture_sar_metrics
 
 
-def bench_log(root_folder: str, loop_count: int, step=2000) -> None:
+def bench_log(root_folder: str, loop_count: int, step: int=2000) -> None:
     """Runs a set of load tests with the same parameter.
 
     The goal is to measure the performance of a baseline test with reliable
