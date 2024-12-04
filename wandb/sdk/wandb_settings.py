@@ -312,6 +312,8 @@ class Settings(BaseModel, validate_assignment=True):
     x_stats_open_metrics_filters: dict[str, dict[str, str]] | Sequence[str] | None = (
         None
     )
+    # HTTP headers to add to OpenMetrics requests.
+    x_stats_open_metrics_http_headers: dict[str, str] | None = None
     # System paths to monitor for disk usage.
     x_stats_disk_paths: Sequence[str] | None = Field(
         default_factory=lambda: ("/", "/System/Volumes/Data")
@@ -323,6 +325,9 @@ class Settings(BaseModel, validate_assignment=True):
     x_stats_buffer_size: int = 0
     # Flag to indicate whether we are syncing a run from the transaction log.
     x_sync: bool = False
+    # Controls whether this process can update the run's final state (finished/failed) on the server.
+    # Set to False in distributed training when only the main process should determine the final state.
+    x_update_finish_state: bool = True
 
     # Model validator to catch legacy settings.
     @model_validator(mode="before")
@@ -544,6 +549,13 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_open_metrics_filters", mode="before")
     @classmethod
     def validate_stats_open_metrics_filters(cls, value):
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
+    @field_validator("x_stats_open_metrics_http_headers", mode="before")
+    @classmethod
+    def validate_stats_open_metrics_http_headers(cls, value):
         if isinstance(value, str):
             return json.loads(value)
         return value
@@ -873,6 +885,7 @@ class Settings(BaseModel, validate_assignment=True):
     def update_from_env_vars(self, environ: dict[str, Any]):
         """Update settings from environment variables."""
         env_prefix: str = "WANDB_"
+        private_env_prefix: str = env_prefix + "_"
         special_env_var_names = {
             "WANDB_DISABLE_SERVICE": "x_disable_service",
             "WANDB_SERVICE_TRANSPORT": "x_service_transport",
@@ -892,6 +905,8 @@ class Settings(BaseModel, validate_assignment=True):
 
             if setting in special_env_var_names:
                 key = special_env_var_names[setting]
+            elif setting.startswith(private_env_prefix):
+                key = "x_" + setting[len(private_env_prefix) :].lower()
             else:
                 # otherwise, strip the prefix and convert to lowercase
                 key = setting[len(env_prefix) :].lower()

@@ -72,7 +72,8 @@ from typing import (
 
 import wandb.plot as plot
 from wandb.analytics import Sentry
-from wandb.apis import InternalApi, PublicApi
+from wandb.apis import InternalApi
+from wandb.apis import PublicApi as Api
 from wandb.data_types import (
     Audio,
     Graph,
@@ -107,7 +108,6 @@ __version__: str = "0.18.8.dev1"
 run: Run | None
 config: wandb_config.Config
 summary: wandb_summary.Summary
-Api: type[PublicApi]
 
 # private attributes
 _sentry: Sentry
@@ -422,15 +422,25 @@ def init(
     """
     ...
 
-def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
-    """Mark a run as finished, and finish uploading all data.
+def finish(
+    exit_code: int | None = None,
+    quiet: bool | None = None,
+) -> None:
+    """Finish a run and upload any remaining data.
 
-    This is used when creating multiple runs in the same process.
-    We automatically call this method when your script exits.
+    Marks the completion of a W&B run and ensures all data is synced to the server.
+    The run's final state is determined by its exit conditions and sync status.
+
+    Run States:
+    - Running: Active run that is logging data and/or sending heartbeats.
+    - Crashed: Run that stopped sending heartbeats unexpectedly.
+    - Finished: Run completed successfully (`exit_code=0`) with all data synced.
+    - Failed: Run completed with errors (`exit_code!=0`).
 
     Args:
-        exit_code: Set to something other than 0 to mark a run as failed
-        quiet: Deprecated, use `wandb.Settings(quiet=...)` to set this instead.
+        exit_code: Integer indicating the run's exit status. Use 0 for success,
+            any other value marks the run as failed.
+        quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
     """
     ...
 

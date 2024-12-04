@@ -950,6 +950,16 @@ class InterfaceBase:
     def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
         raise NotImplementedError
 
+    def deliver_finish_without_exit(self) -> MailboxHandle:
+        run_finish_without_exit = pb.RunFinishWithoutExitRequest()
+        return self._deliver_finish_without_exit(run_finish_without_exit)
+
+    @abstractmethod
+    def _deliver_finish_without_exit(
+        self, run_finish_without_exit: pb.RunFinishWithoutExitRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
     def deliver_request_sampled_history(self) -> MailboxHandle:
         sampled_history = pb.SampledHistoryRequest()
         return self._deliver_request_sampled_history(sampled_history)

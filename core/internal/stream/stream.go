@@ -7,14 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -235,20 +233,6 @@ func NewStream(
 		},
 	)
 
-	var outputFile *paths.RelativePath
-	if opts.Settings.Proto.GetConsoleMultipart().GetValue() {
-		// This is guaranteed not to fail.
-		outputFile, _ = paths.Relative(
-			filepath.Join(
-				"logs",
-				fmt.Sprintf(
-					"%s_output.log",
-					time.Now().Format("20060102_150405.000000"),
-				),
-			),
-		)
-	}
-
 	s.sender = NewSender(
 		s.runWork,
 		SenderParams{
@@ -267,7 +251,6 @@ func NewStream(
 			GraphqlClient:       graphqlClientOrNil,
 			OutChan:             make(chan *spb.Result, BufferSize),
 			Mailbox:             mailbox,
-			OutputFileName:      outputFile,
 		},
 	)
 

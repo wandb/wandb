@@ -490,8 +490,8 @@ class Notebook:
                 cells=cells,
                 metadata={
                     "kernelspec": {
-                        "display_name": "Python %i" % sys.version_info[0],
-                        "name": "python%i" % sys.version_info[0],
+                        "display_name": f"Python {sys.version_info[0]}",
+                        "name": f"python{sys.version_info[0]}",
                         "language": "python",
                     },
                     "language_info": language_info,

@@ -205,8 +205,8 @@ if "dev" in __version__:
     )
 
     # Enable new features in dev versions.
-    os.environ["WANDB__SHOW_OPERATION_STATS"] = os.environ.get(
-        "WANDB__SHOW_OPERATION_STATS",
+    os.environ["WANDB_X_SHOW_OPERATION_STATS"] = os.environ.get(
+        "WANDB_X_SHOW_OPERATION_STATS",
         "true",
     )
 

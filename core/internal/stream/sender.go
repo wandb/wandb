@@ -19,6 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/debounce"
 	fs "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/nullify"
@@ -47,6 +48,7 @@ const (
 	configDebouncerBurstSize  = 1        // todo: audit burst size
 	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
 	summaryDebouncerBurstSize = 1        // todo: audit burst size
+	ConsoleFileName           = "output.log"
 )
 
 type SenderParams struct {
@@ -65,7 +67,6 @@ type SenderParams struct {
 	RunSummary          *runsummary.RunSummary
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *spb.Result
-	OutputFileName      *paths.RelativePath
 }
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -167,25 +168,54 @@ func NewSender(
 ) *Sender {
 
 	var outputFileName paths.RelativePath
-	if params.OutputFileName != nil {
-		outputFileName = *params.OutputFileName
-	} else {
+	// Guaranteed not to fail.
+	path, _ := paths.Relative(ConsoleFileName)
+	outputFileName = *path
+
+	if params.Settings.GetLabel() != "" {
+		sanitizedLabel := fileutil.SanitizeFilename(params.Settings.GetLabel())
 		// Guaranteed not to fail.
-		path, _ := paths.Relative(LatestOutputFileName)
+		// split filename and extension
+		extension := filepath.Ext(string(outputFileName))
+		path, _ := paths.Relative(
+			fmt.Sprintf(
+				"%s_%s%s",
+				strings.TrimSuffix(string(outputFileName), extension),
+				sanitizedLabel,
+				extension,
+			),
+		)
+		outputFileName = *path
+	}
+
+	// If console capture is enabled, we need to create a multipart console log file.
+	if params.Settings.IsConsoleMultipart() {
+		// This is guaranteed not to fail.
+		timestamp := time.Now()
+		extension := filepath.Ext(string(outputFileName))
+		path, _ := paths.Relative(
+			filepath.Join(
+				"logs",
+				fmt.Sprintf(
+					"%s_%s_%09d%s",
+					strings.TrimSuffix(string(outputFileName), extension),
+					timestamp.Format("20060102_150405"),
+					timestamp.Nanosecond(),
+					extension,
+				),
+			),
+		)
 		outputFileName = *path
 	}
 
 	consoleLogsSenderParams := runconsolelogs.Params{
-		ConsoleOutputFile: outputFileName,
-		FilesDir:          params.Settings.GetFilesDir(),
-		EnableCapture:     params.Settings.IsConsoleCaptureEnabled(),
-		Logger:            params.Logger,
-		FileStreamOrNil:   params.FileStream,
-		Label:             params.Settings.GetLabel(),
-	}
-	// TODO: In a distributed setting, only the primary node uploads the console log file.
-	if params.Settings.IsPrimaryNode() {
-		consoleLogsSenderParams.RunfilesUploaderOrNil = params.RunfilesUploader
+		ConsoleOutputFile:     outputFileName,
+		FilesDir:              params.Settings.GetFilesDir(),
+		EnableCapture:         params.Settings.IsConsoleCaptureEnabled(),
+		Logger:                params.Logger,
+		FileStreamOrNil:       params.FileStream,
+		Label:                 params.Settings.GetLabel(),
+		RunfilesUploaderOrNil: params.RunfilesUploader,
 	}
 
 	s := &Sender{

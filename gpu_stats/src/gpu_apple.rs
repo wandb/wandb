@@ -419,6 +419,16 @@ impl ThreadSafeSampler {
             MetricValue::Int(metrics.memory_gb as i64),
         ));
 
+        result.push((
+            "_swap.total".to_string(),
+            MetricValue::Int(metrics.memory.swap_total as i64),
+        ));
+
+        result.push((
+            "_ram.total".to_string(),
+            MetricValue::Int(metrics.memory.ram_total as i64),
+        ));
+
         // Temperature metrics
         if metrics.temp.cpu_temp_avg.is_finite() {
             add_finite_float(
@@ -438,23 +448,23 @@ impl ThreadSafeSampler {
         // Memory metrics
         add_optional_int(
             &mut result,
-            "memory.total".to_string(),
-            metrics.memory.ram_total,
-        );
-        add_optional_int(
-            &mut result,
             "memory.used".to_string(),
             metrics.memory.ram_usage,
         );
-        add_optional_int(
+        add_finite_float(
             &mut result,
-            "swap.total".to_string(),
-            metrics.memory.swap_total,
+            "memory.used_percent".to_string(),
+            (metrics.memory.ram_usage as f64 / metrics.memory.ram_total as f64) * 100.0,
         );
         add_optional_int(
             &mut result,
             "swap.used".to_string(),
             metrics.memory.swap_usage,
+        );
+        add_finite_float(
+            &mut result,
+            "swap.used_percent".to_string(),
+            (metrics.memory.swap_usage as f64 / metrics.memory.swap_total as f64) * 100.0,
         );
 
         // CPU metrics
@@ -553,6 +563,16 @@ impl ThreadSafeSampler {
         if let Some(&value) = samples.get("_apple.memory_gb") {
             if let MetricValue::Int(memory_gb) = value {
                 gpu_apple.memory_gb = *memory_gb as u32;
+            }
+        }
+        if let Some(&value) = samples.get("_swap.total") {
+            if let MetricValue::Int(swap_total) = value {
+                gpu_apple.swap_total_bytes = *swap_total as u64;
+            }
+        }
+        if let Some(&value) = samples.get("_ram.total") {
+            if let MetricValue::Int(ram_total) = value {
+                gpu_apple.ram_total_bytes = *ram_total as u64;
             }
         }
         MetadataRequest {
