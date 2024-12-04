@@ -61,8 +61,6 @@ def generate_random_dict(num_fields: int, field_size: int) -> dict:
     return {random_key(): random.randint(1, 10**6) for _ in range(num_fields)}
 
 
-"""
-"""
 
 
 def capture_sar_metrics(log_dir: str, iteration: int = 8):
