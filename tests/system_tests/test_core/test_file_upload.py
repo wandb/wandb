@@ -33,11 +33,11 @@ def test_file_upload_good(wandb_backend_spy, mock_run, publish_util):
                 "requirements.txt",
             },
         ),
-        (False, set()),
+        (False, {"output.log"}),
     ],
 )
 @pytest.mark.wandb_core_only
-def test_upload_wandb_files(user, wandb_backend_spy, x_primary_node, files):
+def test_upload_wandb_files(wandb_backend_spy, x_primary_node, files):
     with wandb.init(settings=wandb.Settings(x_primary_node=x_primary_node)) as run:
         pass
 
