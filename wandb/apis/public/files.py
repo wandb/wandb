@@ -49,6 +49,7 @@ class Files(Paginator):
         query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
             $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false) {{
             project(name: $project, entityName: $entity) {{
+                internalId
                 run(name: $name) {{
                     fileCount
                     ...RunFilesFragment
@@ -98,7 +99,7 @@ class Files(Paginator):
 
     def convert_objects(self):
         return [
-            File(self.client, r["node"])
+            File(self.client, r["node"], self.run)
             for r in self.last_response["project"]["run"]["files"]["edges"]
         ]
 
@@ -120,9 +121,11 @@ class File(Attrs):
         path_uri (str): path to file in the bucket, currently only available for files stored in S3
     """
 
-    def __init__(self, client, attrs):
+    def __init__(self, client, attrs, run=None):
         self.client = client
         self._attrs = attrs
+        self.run = run
+        self.server_supports_delete_file_with_project_id: Optional[bool] = None
         super().__init__(dict(attrs))
 
     @property
@@ -189,18 +192,35 @@ class File(Attrs):
 
     @normalize_exceptions
     def delete(self):
-        mutation = gql(
-            """
-        mutation deleteFiles($files: [ID!]!) {
-            deleteFiles(input: {
-                files: $files
-            }) {
-                success
-            }
+        project_id_mutation_fragment = ""
+        project_id_variable_fragment = ""
+        variable_values = {
+            "files": [self.id],
         }
-        """
+
+        # Add projectId to mutation and variables if the server supports it.
+        # Otherwise, do not include projectId in mutation for older server versions which do not support it.
+        if self._server_accepts_project_id_for_delete_file():
+            variable_values["projectId"] = self.run._project_internal_id
+            project_id_variable_fragment = ", $projectId: Int"
+            project_id_mutation_fragment = "projectId: $projectId"
+
+        mutation_string = """
+            mutation deleteFiles($files: [ID!]!{}) {{
+                deleteFiles(input: {{
+                    files: $files
+                    {}
+                }}) {{
+                    success
+                }}
+            }}
+            """.format(project_id_variable_fragment, project_id_mutation_fragment)
+        mutation = gql(mutation_string)
+
+        self.client.execute(
+            mutation,
+            variable_values=variable_values,
         )
-        self.client.execute(mutation, variable_values={"files": [self.id]})
 
     def __repr__(self):
         return "<File {} ({}) {}>".format(
@@ -208,3 +228,36 @@ class File(Attrs):
             self.mimetype,
             util.to_human_size(self.size, units=util.POW_2_BYTES),
         )
+
+    @normalize_exceptions
+    def _server_accepts_project_id_for_delete_file(self) -> bool:
+        """Returns True if the server supports deleting files with a projectId.
+
+        This check is done by utilizing GraphQL introspection in the avaiable fields on the DeleteFiles API.
+        """
+        query_string = """
+           query ProbeDeleteFilesProjectIdInput {
+                DeleteFilesProjectIdInputType: __type(name:"DeleteFilesInput") {
+                    inputFields{
+                        name
+                    }
+                }
+            }
+        """
+
+        # Only perform the query once to avoid extra network calls
+        if self.server_supports_delete_file_with_project_id is None:
+            query = gql(query_string)
+            res = self.client.execute(query)
+
+            # If projectId is in the inputFields, the server supports deleting files with a projectId
+            self.server_supports_delete_file_with_project_id = "projectId" in [
+                x["name"]
+                for x in (
+                    res.get("DeleteFilesProjectIdInputType", {}).get(
+                        "inputFields", [{}]
+                    )
+                )
+            ]
+
+        return self.server_supports_delete_file_with_project_id

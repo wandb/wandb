@@ -71,6 +71,7 @@ class Runs(Paginator):
         """
         query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
             project(name: $project, entityName: $entity) {{
+                internalId
                 runCount(filters: $filters)
                 readOnly
                 runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
@@ -103,6 +104,7 @@ class Runs(Paginator):
     ):
         self.entity = entity
         self.project = project
+        self._project_internal_id = None
         self.filters = filters or {}
         self.order = order
         self._sweeps = {}
@@ -287,6 +289,7 @@ class Run(Attrs):
                     Calling update will persist any changes.
         project (str): the project associated with the run
         entity (str): the name of the entity associated with the run
+        project_internal_id (int): the internal id of the project
         user (str): the name of the user who created the run
         path (str): Unique identifier [entity]/[project]/[run_id]
         notes (str): Notes about the run
@@ -417,6 +420,7 @@ class Run(Attrs):
             """
         query Run($project: String!, $entity: String!, $name: String!) {{
             project(name: $project, entityName: $entity) {{
+                internalId
                 run(name: $name) {{
                     ...RunFragment
                 }}
@@ -435,7 +439,7 @@ class Run(Attrs):
                 raise ValueError("Could not find run {}".format(self))
             self._attrs = response["project"]["run"]
             self._state = self._attrs["state"]
-
+            self._project_internal_id = response["project"]["internalId"]
             if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
@@ -495,7 +499,6 @@ class Run(Attrs):
             res = self._exec(query)
             state = res["project"]["run"]["state"]
             if state in ["finished", "crashed", "failed"]:
-                print(f"Run finished with status: {state}")
                 self._attrs["state"] = state
                 self._state = state
                 return
