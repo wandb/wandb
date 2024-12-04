@@ -560,11 +560,13 @@ def test_delete_file(
         gql.Matcher(operation="deleteFiles"),
         delete_spy,
     )
+
     run = Api().run(f"{user}/test/test")
     file = run.files()[0]
     file.delete()
 
     assert "projectId" in delete_spy.requests[0].variables
+    assert "projectId" in delete_spy.requests[0].query
     assert delete_spy.requests[0].variables == {
         "files": [file.id],
         "projectId": run._project_internal_id,
@@ -604,6 +606,7 @@ def test_delete_file_without_project_id_support(
     file.delete()
 
     assert "projectId" not in delete_spy.requests[0].variables
+    assert "projectId" not in delete_spy.requests[0].query
     assert delete_spy.requests[0].variables == {
         "files": [file.id],
     }

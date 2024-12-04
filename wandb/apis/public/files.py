@@ -192,24 +192,30 @@ class File(Attrs):
 
     @normalize_exceptions
     def delete(self):
-        mutation = gql(
-            """
-            mutation deleteFiles($files: [ID!]!, $projectId: Int) {
-                deleteFiles(input: {
-                    files: $files
-                    projectId: $projectId
-                }) {
-                    success
-                }
-            }
-            """
-        )
+        project_id_mutation_fragment = ""
+        project_id_variable_fragment = ""
         variable_values = {
             "files": [self.id],
         }
 
+        # Add projectId to mutation and variables if the server supports it.
+        # Otherwise, do not include projectId in mutation for older server versions which do not support it.
         if self._server_accepts_project_id_for_delete_file():
             variable_values["projectId"] = self.run._project_internal_id
+            project_id_variable_fragment = ", $projectId: Int"
+            project_id_mutation_fragment = "projectId: $projectId"
+
+        mutation_string = """
+            mutation deleteFiles($files: [ID!]!{}) {{
+                deleteFiles(input: {{
+                    files: $files
+                    {}
+                }}) {{
+                    success
+                }}
+            }}
+            """.format(project_id_variable_fragment, project_id_mutation_fragment)
+        mutation = gql(mutation_string)
 
         self.client.execute(
             mutation,
