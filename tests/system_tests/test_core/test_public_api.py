@@ -78,6 +78,7 @@ def stub_run_gql_once(user, wandb_backend_spy):
         body = {
             "data": {
                 "project": {
+                    "internalId": "testinternalid",
                     "run": {
                         "id": id,
                         "tags": [],
@@ -109,6 +110,46 @@ def stub_run_gql_once(user, wandb_backend_spy):
         responder = gql.once(content=body)
         wandb_backend_spy.stub_gql(
             gql.Matcher(operation="Run"),
+            responder,
+        )
+        return responder
+
+    return helper
+
+
+@pytest.fixture
+def stub_run_files_gql_once(user, wandb_backend_spy):
+    """helper fixture for stubbing out the 'RunFiles' graphql query response.
+
+    The fixture is a function that can be called to stub out the 'RunFiles' response.
+    It returns a `wandb_backend_spy.gql.responder` instance that can be used to
+    assert on the interactions.
+    """
+    gql = wandb_backend_spy.gql
+
+    def helper():
+        body = {
+            "data": {
+                "project": {
+                    "run": {
+                        "files": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "id": "RmlsZToxODMw",
+                                        "name": "test.txt",
+                                    }
+                                },
+                            ],
+                        },
+                    },
+                },
+            },
+        }
+
+        responder = gql.once(content=body)
+        wandb_backend_spy.stub_gql(
+            gql.Matcher(operation="RunFiles"),
             responder,
         )
         return responder
@@ -505,35 +546,51 @@ def test_projects(user, inject_graphql_response, relay_server):
         assert sum([1 for _ in projects]) == 2
 
 
-def test_delete_file(user, stub_run_gql_once, wandb_backend_spy):
+def test_delete_file(
+    user,
+    stub_run_gql_once,
+    stub_run_files_gql_once,
+    wandb_backend_spy,
+):
     stub_run_gql_once()
+    stub_run_files_gql_once()
+    gql = wandb_backend_spy.gql
+    delete_spy = gql.once(content={"data": {"deleteFiles": {"success": True}}})
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="deleteFiles"),
+        delete_spy,
+    )
+    run = Api().run(f"{user}/test/test")
+    file = run.files()[0]
+    file.delete()
+
+    assert "projectId" in delete_spy.requests[0].variables
+    assert delete_spy.requests[0].variables == {
+        "files": [file.id],
+        "projectId": run._project_internal_id,
+    }
+
+
+def test_delete_file_without_project_id_support(
+    user,
+    stub_run_gql_once,
+    stub_run_files_gql_once,
+    wandb_backend_spy,
+):
+    stub_run_gql_once()
+    stub_run_files_gql_once()
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="RunFiles"),
+        gql.Matcher(operation="ProbeDeleteFilesProjectIdInput"),
         gql.once(
             content={
                 "data": {
-                    "project": {
-                        "run": {
-                            "files": {
-                                "edges": [
-                                    {
-                                        "node": {
-                                            "id": "RmlsZToxODMw",
-                                            "name": "test.txt",
-                                        }
-                                    },
-                                    {
-                                        "node": {
-                                            "id": "RmlsZToxOTI1",
-                                            "name": "another-test.txt",
-                                        }
-                                    },
-                                ],
-                            },
-                        },
-                    },
-                },
+                    "DeleteFilesProjectIdInputType": {
+                        "inputFields": [
+                            {"name": "files"},
+                        ]
+                    }
+                }
             }
         ),
     )
@@ -546,16 +603,10 @@ def test_delete_file(user, stub_run_gql_once, wandb_backend_spy):
     file = run.files()[0]
     file.delete()
 
-    assert delete_spy.requests[0].variables == {"files": [file.id]}
-    # inject_response.append(inject_delete_files)
-    # with relay_server(inject=inject_response) as relay:
-    #     run = Api().run(f"{user}/test/test")
-    #     file = run.files()[0]
-    #     file.delete()
-    #     assert relay.context.raw_data[-1]["request"]["variables"] == {
-    #         "files": [file.id],
-    #         "projectId": run.project,
-    #     }
+    assert "projectId" not in delete_spy.requests[0].variables
+    assert delete_spy.requests[0].variables == {
+        "files": [file.id],
+    }
 
 
 def test_nested_summary(user, stub_run_gql_once):

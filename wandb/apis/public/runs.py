@@ -89,9 +89,7 @@ class Runs(Paginator):
             }}
         }}
         {}
-        """.format(
-            RUN_FRAGMENT
-        )
+        """.format(RUN_FRAGMENT)
     )
 
     def __init__(
@@ -430,9 +428,7 @@ class Run(Attrs):
             }}
         }}
         {}
-        """.format(
-                RUN_FRAGMENT
-            )
+        """.format(RUN_FRAGMENT)
         )
         if force or not self._attrs:
             response = self._exec(query)
@@ -522,9 +518,7 @@ class Run(Attrs):
             }}
         }}
         {}
-        """.format(
-                RUN_FRAGMENT
-            )
+        """.format(RUN_FRAGMENT)
         )
         _ = self._exec(
             mutation,
@@ -611,9 +605,7 @@ class Run(Attrs):
                 run(name: $name) {{ {}(samples: $samples) }}
             }}
         }}
-        """.format(
-                node
-            )
+        """.format(node)
         )
 
         response = self._exec(query, samples=samples)

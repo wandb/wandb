@@ -57,9 +57,7 @@ class Files(Paginator):
             }}
         }}
         {}
-        """.format(
-            FILE_FRAGMENT
-        )
+        """.format(FILE_FRAGMENT)
     )
 
     def __init__(self, client, run, names=None, per_page=50, upload=False):
@@ -127,6 +125,7 @@ class File(Attrs):
         self.client = client
         self._attrs = attrs
         self.run = run
+        self.server_supports_delete_file_with_project_id: Optional[bool] = None
         super().__init__(dict(attrs))
 
     @property
@@ -205,12 +204,16 @@ class File(Attrs):
             }
             """
         )
+        variable_values = {
+            "files": [self.id],
+        }
+
+        if self._server_accepts_project_id_for_delete_file():
+            variable_values["projectId"] = self.run._project_internal_id
+
         self.client.execute(
             mutation,
-            variable_values={
-                "files": [self.id],
-                "projectId": self.run._project_internal_id,
-            },
+            variable_values=variable_values,
         )
 
     def __repr__(self):
@@ -219,3 +222,36 @@ class File(Attrs):
             self.mimetype,
             util.to_human_size(self.size, units=util.POW_2_BYTES),
         )
+
+    @normalize_exceptions
+    def _server_accepts_project_id_for_delete_file(self) -> bool:
+        """Returns True if the server supports deleting files with a projectId.
+
+        This check is done by utilizing GraphQL introspection in the avaiable fields on the DeleteFiles API.
+        """
+        query_string = """
+           query ProbeDeleteFilesProjectIdInput {
+                DeleteFilesProjectIdInputType: __type(name:"DeleteFilesInput") {
+                    inputFields{
+                        name
+                    }
+                }
+            }
+        """
+
+        # Only perform the query once to avoid extra network calls
+        if self.server_supports_delete_file_with_project_id is None:
+            query = gql(query_string)
+            res = self.client.execute(query)
+
+            # If projectId is in the inputFields, the server supports deleting files with a projectId
+            self.server_supports_delete_file_with_project_id = "projectId" in [
+                x["name"]
+                for x in (
+                    res.get("DeleteFilesProjectIdInputType", {}).get(
+                        "inputFields", [{}]
+                    )
+                )
+            ]
+
+        return self.server_supports_delete_file_with_project_id
