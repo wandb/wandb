@@ -108,10 +108,10 @@ def test_jupyter_path(meta, test_settings, mocked_ipython, git_repo):
     platform.system() == "Windows",
     reason="backend sometimes crashes on Windows in CI",
 )
-def test_commit_hash_sent_correctly(wandb_init, git_repo):
+def test_commit_hash_sent_correctly(user, git_repo):
     # disable_git is False is by default
     # so run object should have git info
-    run = wandb_init()
+    run = wandb.init()
     assert run._commit is not None
     assert run._commit == git_repo.last_commit
     assert run._remote_url is None
@@ -123,9 +123,9 @@ def test_commit_hash_sent_correctly(wandb_init, git_repo):
     platform.system() == "Windows",
     reason="backend sometimes crashes on Windows in CI",
 )
-def test_commit_hash_not_sent_when_disable(wandb_init, git_repo):
+def test_commit_hash_not_sent_when_disable(user, git_repo):
     with unittest.mock.patch.dict("os.environ", WANDB_DISABLE_GIT="true"):
-        run = wandb_init()
+        run = wandb.init()
         assert git_repo.last_commit
         assert run._commit is None
         run.finish()
