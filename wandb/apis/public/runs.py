@@ -236,7 +236,6 @@ class Runs(Paginator):
             if not histories:
                 return pd.DataFrame()
             combined_df = pd.concat(histories)
-            combined_df.sort_values("run_id", inplace=True)
             combined_df.reset_index(drop=True, inplace=True)
             # sort columns for consistency
             combined_df = combined_df[(sorted(combined_df.columns))]
@@ -262,9 +261,9 @@ class Runs(Paginator):
                 histories.append(df)
             if not histories:
                 return pl.DataFrame()
-            combined_df = pl.concat(histories, how="align")
+            combined_df = pl.concat(histories, how="vertical")
             # sort columns for consistency
-            combined_df = combined_df.select(sorted(combined_df.columns)).sort("run_id")
+            combined_df = combined_df.select(sorted(combined_df.columns))
 
             return combined_df
 

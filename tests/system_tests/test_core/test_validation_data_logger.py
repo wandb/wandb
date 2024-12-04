@@ -8,8 +8,8 @@ from wandb.sdk.integration_utils.data_logging import (
 )
 
 
-def test_data_logger_val_data_lists(wandb_init):
-    run = wandb_init()
+def test_data_logger_val_data_lists(user):
+    run = wandb.init()
     print(run.settings)
     vd = ValidationDataLogger(
         inputs=np.array([[i, i, i] for i in range(10)]),
@@ -37,8 +37,8 @@ def test_data_logger_val_data_lists(wandb_init):
     run.finish()
 
 
-def test_data_logger_val_data_dicts(wandb_init):
-    run = wandb_init()
+def test_data_logger_val_data_dicts(user):
+    run = wandb.init()
     vd = ValidationDataLogger(
         inputs={
             "ia": np.array([[i, i, i] for i in range(10)]),
@@ -75,8 +75,8 @@ def test_data_logger_val_data_dicts(wandb_init):
     run.finish()
 
 
-def test_data_logger_val_indexes(wandb_init):
-    run = wandb_init()
+def test_data_logger_val_indexes(user):
+    run = wandb.init()
     table = wandb.Table(columns=["label"], data=[["cat"]])
     _ = ValidationDataLogger(
         inputs={
@@ -93,8 +93,8 @@ def test_data_logger_val_indexes(wandb_init):
     run.finish()
 
 
-def test_data_logger_val_invalid(wandb_init):
-    run = wandb_init()
+def test_data_logger_val_invalid(user):
+    run = wandb.init()
     with pytest.raises(AssertionError):
         _ = ValidationDataLogger(
             inputs={
@@ -111,8 +111,8 @@ def test_data_logger_val_invalid(wandb_init):
     run.finish()
 
 
-def test_data_logger_val_user_proc(wandb_init):
-    run = wandb_init()
+def test_data_logger_val_user_proc(user):
+    run = wandb.init()
     vd = ValidationDataLogger(
         inputs=np.array([[i, i, i] for i in range(10)]),
         targets=np.array([[i] for i in range(10)]),
@@ -152,8 +152,8 @@ def test_data_logger_val_user_proc(wandb_init):
 
 
 @pytest.mark.skip
-def test_data_logger_val_inferred_proc(wandb_init):
-    run = wandb_init()
+def test_data_logger_val_inferred_proc(user):
+    run = wandb.init()
     np.random.seed(42)
     vd = ValidationDataLogger(
         inputs=np.array([[i, i, i] for i in range(10)]),
@@ -233,8 +233,8 @@ def test_data_logger_val_inferred_proc(wandb_init):
 
 
 @pytest.mark.skip
-def test_data_logger_val_inferred_proc_no_class(wandb_init):
-    run = wandb_init()
+def test_data_logger_val_inferred_proc_no_class(user):
+    run = wandb.init()
     vd = ValidationDataLogger(
         inputs=np.array([[i, i, i] for i in range(10)]),
         targets={
@@ -313,8 +313,8 @@ def test_data_logger_val_inferred_proc_no_class(wandb_init):
     run.finish()
 
 
-def test_data_logger_pred(wandb_init):
-    run = wandb_init()
+def test_data_logger_pred(user):
+    run = wandb.init()
     vd = ValidationDataLogger(
         inputs=np.array([[i, i, i] for i in range(10)]),
         targets=np.array([[i] for i in range(10)]),
@@ -334,8 +334,8 @@ def test_data_logger_pred(wandb_init):
     run.finish()
 
 
-def test_data_logger_pred_user_proc(wandb_init):
-    run = wandb_init()
+def test_data_logger_pred_user_proc(user):
+    run = wandb.init()
     vd = ValidationDataLogger(
         inputs=np.array([[i, i, i] for i in range(10)]),
         targets=np.array([[i] for i in range(10)]),
@@ -356,8 +356,8 @@ def test_data_logger_pred_user_proc(wandb_init):
 
 
 @pytest.mark.skip
-def test_data_logger_pred_inferred_proc(wandb_init):
-    run = wandb_init()
+def test_data_logger_pred_inferred_proc(user):
+    run = wandb.init()
     vd = ValidationDataLogger(
         inputs=np.array([[i, i, i] for i in range(10)]),
         targets=np.array([[i] for i in range(10)]),
@@ -434,8 +434,8 @@ def test_data_logger_pred_inferred_proc(wandb_init):
 
 
 @pytest.mark.skip
-def test_data_logger_pred_inferred_proc_no_classes(wandb_init):
-    run = wandb_init()
+def test_data_logger_pred_inferred_proc_no_classes(user):
+    run = wandb.init()
     vd = ValidationDataLogger(
         inputs=np.array([[i, i, i] for i in range(10)]),
         targets=np.array([[i] for i in range(10)]),
