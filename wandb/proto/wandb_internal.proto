@@ -1235,6 +1235,8 @@ message AppleInfo {
   uint32 pcpu_cores = 3;
   uint32 gpu_cores = 4;
   uint32 memory_gb = 5;
+  uint64 swap_total_bytes = 6;
+  uint64 ram_total_bytes = 7;
 }
 
 message GpuNvidiaInfo {

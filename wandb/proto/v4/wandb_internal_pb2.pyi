@@ -3836,11 +3836,15 @@ class AppleInfo(google.protobuf.message.Message):
     PCPU_CORES_FIELD_NUMBER: builtins.int
     GPU_CORES_FIELD_NUMBER: builtins.int
     MEMORY_GB_FIELD_NUMBER: builtins.int
+    SWAP_TOTAL_BYTES_FIELD_NUMBER: builtins.int
+    RAM_TOTAL_BYTES_FIELD_NUMBER: builtins.int
     name: builtins.str
     ecpu_cores: builtins.int
     pcpu_cores: builtins.int
     gpu_cores: builtins.int
     memory_gb: builtins.int
+    swap_total_bytes: builtins.int
+    ram_total_bytes: builtins.int
     def __init__(
         self,
         *,
@@ -3849,8 +3853,10 @@ class AppleInfo(google.protobuf.message.Message):
         pcpu_cores: builtins.int = ...,
         gpu_cores: builtins.int = ...,
         memory_gb: builtins.int = ...,
+        swap_total_bytes: builtins.int = ...,
+        ram_total_bytes: builtins.int = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["ecpu_cores", b"ecpu_cores", "gpu_cores", b"gpu_cores", "memory_gb", b"memory_gb", "name", b"name", "pcpu_cores", b"pcpu_cores"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["ecpu_cores", b"ecpu_cores", "gpu_cores", b"gpu_cores", "memory_gb", b"memory_gb", "name", b"name", "pcpu_cores", b"pcpu_cores", "ram_total_bytes", b"ram_total_bytes", "swap_total_bytes", b"swap_total_bytes"]) -> None: ...
 
 global___AppleInfo = AppleInfo
 
