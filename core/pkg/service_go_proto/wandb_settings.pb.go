@@ -562,7 +562,7 @@ type Settings struct {
 	// This is used to make sure we don't overwrite the console log file if it
 	// already exists.
 	//
-	// The format is: logs/<filename>_<timestamp>_<nanoseconds>.log
+	// The format is: logs/output_<optional:Settings.Label>_<timestamp>_<nanoseconds>.log
 	ConsoleMultipart *wrapperspb.BoolValue `protobuf:"bytes,166,opt,name=console_multipart,json=consoleMultipart,proto3" json:"console_multipart,omitempty"`
 	// Whether to sync TensorBoard logs to W&B.
 	SyncTensorboard                 *wrapperspb.BoolValue    `protobuf:"bytes,179,opt,name=sync_tensorboard,json=syncTensorboard,proto3" json:"sync_tensorboard,omitempty"`

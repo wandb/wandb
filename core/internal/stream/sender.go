@@ -19,6 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/debounce"
 	fs "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/nullify"
@@ -172,6 +173,7 @@ func NewSender(
 	outputFileName = *path
 
 	if params.Settings.GetLabel() != "" {
+		sanitizedLabel := fileutil.SanitizeFilename(params.Settings.GetLabel())
 		// Guaranteed not to fail.
 		// split filename and extension
 		extension := filepath.Ext(string(outputFileName))
@@ -179,7 +181,7 @@ func NewSender(
 			fmt.Sprintf(
 				"%s_%s%s",
 				strings.TrimSuffix(string(outputFileName), extension),
-				params.Settings.GetLabel(),
+				sanitizedLabel,
 				extension,
 			),
 		)
