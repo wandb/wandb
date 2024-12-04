@@ -17,3 +17,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - Support JWT authentication in wandb-core (@elainaRenee in https://github.com/wandb/wandb/pull/8431)
 - Add support for logging nested custom charts. (@jacobromero in https://github.com/wandb/wandb/pull/8789)
+
+### Fixed
+
+- Prevent errors from bugs in older versions of `botocore < 1.5.76` (@amusipatla-wandb, @tonyyli-wandb in https://github.com/wandb/wandb/pull/9015)
