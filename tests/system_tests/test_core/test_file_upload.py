@@ -1,5 +1,5 @@
 import os
-import sys
+import platform
 
 import pytest
 import wandb
@@ -47,8 +47,6 @@ def test_upload_wandb_files(wandb_backend_spy, x_primary_node, files):
         assert files == uploaded_files
 
 
-@pytest.mark.wandb_core_only
-@pytest.mark.skipif(sys.platform != "win32", reason="Windows only")
 @pytest.mark.parametrize(
     "x_label, files",
     [
@@ -56,6 +54,8 @@ def test_upload_wandb_files(wandb_backend_spy, x_primary_node, files):
         ("invalid?:label<>", {"output_invalid__label_.log"}),
     ],
 )
+@pytest.mark.wandb_core_only
+@pytest.mark.skipif(platform.system() != "Windows", reason="Windows only")
 def test_upload_wandb_files_windows_with_label(wandb_backend_spy, x_label, files):
     with wandb.init(
         settings=wandb.Settings(x_label=x_label, x_primary_node=False),
@@ -66,8 +66,6 @@ def test_upload_wandb_files_windows_with_label(wandb_backend_spy, x_label, files
         assert files == set(snapshot.uploaded_files(run_id=run.id))
 
 
-@pytest.mark.wandb_core_only
-@pytest.mark.skipif(sys.platform == "win32", reason="Linux only")
 @pytest.mark.parametrize(
     "x_label, files",
     [
@@ -75,7 +73,9 @@ def test_upload_wandb_files_windows_with_label(wandb_backend_spy, x_label, files
         ("invalid/label", {"output_invalid_label.log"}),
     ],
 )
-def test_upload_wandb_files_linux_with_label(wandb_backend_spy, x_label, files):
+@pytest.mark.wandb_core_only
+@pytest.mark.skipif(platform.system() != "Windows", reason="Linux only")
+def test_upload_wandb_files_non_windows_with_label(wandb_backend_spy, x_label, files):
     with wandb.init(
         settings=wandb.Settings(x_label=x_label, x_primary_node=False),
     ) as run:
