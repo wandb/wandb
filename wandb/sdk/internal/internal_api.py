@@ -4550,7 +4550,7 @@ class Api:
         check_httpclient_logger_handler()
         return requests.put(
             url=url,
-            headers={"Content-Length": "0", "Content-Range": "bytes */%i" % length},
+            headers={"Content-Length": "0", "Content-Range": f"bytes */{length}"},
         )
 
     def _flatten_edges(self, response: "_Response") -> List[Dict]:

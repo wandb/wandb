@@ -356,7 +356,7 @@ class TorchGraph(wandb.data_types.Graph):
 
             if not self._graph_hooks:
                 # we went through the entire graph
-                wandb.run.summary["graph_%i" % graph_idx] = self
+                wandb.run.summary[f"graph_{graph_idx}"] = self
 
         return after_forward_hook
 
