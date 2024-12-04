@@ -4,6 +4,7 @@ import string
 import subprocess
 from pathlib import Path
 
+
 def get_logger(name: str, log_file: str = "perf.log") -> logging.Logger:
     """Creates and configures a logger that writes to both screen and log file.
 

@@ -31,7 +31,7 @@ def run_test_case(test_case, log_folder):
         step_count = 10000
         logger.info(
             f"Load testing SDK logging in {loop_count} iterations, "
-            + f"each logging {step_count} steps, 100 metrics and metric key size of 10"
+            f"each logging {step_count} steps, 100 metrics and metric key size of 10"
         )
         test_case_helper.bench_log(log_folder, loop_count, step_count)
 
@@ -39,7 +39,7 @@ def run_test_case(test_case, log_folder):
         steps = [1000, 2000, 4000, 8000]
         logger.info(
             f"Load testing SDK logging scaling through {steps} steps "
-            + "each logging 100 metrics with a metric key size of 10"
+            "each logging 100 metrics with a metric key size of 10"
         )
         test_case_helper.bench_log_scale_step(log_folder, steps)
 
@@ -47,7 +47,7 @@ def run_test_case(test_case, log_folder):
         metrics = [100, 200, 400, 800]
         logger.info(
             f"Load testing SDK logging scaling through {metrics} metrics, "
-            + "in each of the 1000 steps, and a metric key size of 10"
+            "in each of the 1000 steps, and a metric key size of 10"
         )
         test_case_helper.bench_log_scale_metric(log_folder, metrics)
 

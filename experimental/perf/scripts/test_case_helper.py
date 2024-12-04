@@ -5,7 +5,7 @@ from process_sar_helper import process_sar_files
 from setup_helper import capture_sar_metrics
 
 
-def bench_log(root_folder: str, loop_count: int, step: int=2000) -> None:
+def bench_log(root_folder: str, loop_count: int, step: int = 2000) -> None:
     """Runs a set of load tests with the same parameter.
 
     The goal is to measure the performance of a baseline test with reliable
@@ -17,11 +17,9 @@ def bench_log(root_folder: str, loop_count: int, step: int=2000) -> None:
         step (int, optional): Number of step in each iteration. Defaults to 2000.
     """
     mc = 100
-    sort_key = 1
 
-    for loop in range(1, loop_count + 1):
+    for sort_key, loop in enumerate(range(1, loop_count + 1), start=1):
         run_experiment_helper(loop, step, mc, root_folder, sort_key)
-        sort_key += 1
 
 
 def bench_log_scale_step(root_folder: str, list_of_steps: list[int]) -> None:
@@ -35,11 +33,9 @@ def bench_log_scale_step(root_folder: str, list_of_steps: list[int]) -> None:
     """
     loop = 1
     mc = 100
-    sort_key = 1
 
-    for step in list_of_steps:
+    for sort_key, step in enumerate(list_of_steps):
         run_experiment_helper(loop, step, mc, root_folder, sort_key)
-        sort_key += 1
 
 
 def bench_log_scale_metric(root_folder: str, list_of_metric_count: list[int]) -> None:
@@ -53,10 +49,9 @@ def bench_log_scale_metric(root_folder: str, list_of_metric_count: list[int]) ->
     """
     loop = 1
     step = 1000
-    sort_key = 1
-    for mc in list_of_metric_count:
+
+    for sort_key, mc in enumerate(list_of_metric_count):
         run_experiment_helper(loop, step, mc, root_folder, sort_key)
-        sort_key += 1
 
 
 def run_experiment_helper(
