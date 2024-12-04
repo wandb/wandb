@@ -395,27 +395,6 @@ def test_fail_to_make_file(
         wb_image.bind_to_run(mock_run(), "my key: an identifier", 0)
 
 
-# def test_cant_serialize_to_other_run(mock_run):
-#     """This isn't implemented yet. Should work eventually."""
-#     other_run = wandb.wandb_sdk.wandb_run.Run(settings=wandb_init)
-#     other_run._set_backend(mock_run._backend)
-#     wb_image = wandb.Image(image)
-
-#     wb_image.bind_to_run(mock_run, "stuff", 10)
-
-#     with pytest.raises(AssertionError):
-#         wb_image.to_json(other_run)
-
-
-#     meta_expected = {
-#         "_type": "images/separated",
-#         "count": 1,
-#         "height": 28,
-#         "width": 28,
-#     }
-#     assert utils.subdict(meta, meta_expected) == meta_expected
-
-
 ################################################################################
 # Test wandb.Audio
 ################################################################################
