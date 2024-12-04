@@ -1,15 +1,18 @@
 use std::fs;
 use std::io::Result;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 
 fn main() -> Result<()> {
-    // Paths to your .proto files
+    // Get the path to the directory containing Cargo.toml
+    let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+
+    let proto_dir = manifest_dir.join("..").join("wandb").join("proto");
     let protos = [
-        "../wandb/proto/wandb_base.proto",
-        "../wandb/proto/wandb_telemetry.proto",
-        "../wandb/proto/wandb_internal.proto",
-        "../wandb/proto/wandb_system_monitor.proto",
+        proto_dir.join("wandb_base.proto"),
+        proto_dir.join("wandb_telemetry.proto"),
+        proto_dir.join("wandb_internal.proto"),
+        proto_dir.join("wandb_system_monitor.proto"),
     ];
 
     // Create a temporary directory to store modified .proto files
@@ -31,12 +34,14 @@ fn main() -> Result<()> {
     let temp_paths: Vec<_> = temp_files.iter().map(|f| f.to_str().unwrap()).collect();
     let includes = [temp_dir.path().to_str().unwrap()];
 
+    let out_dir = manifest_dir.join("src");
+    let descriptor_path = out_dir.join("descriptor.bin");
+
     // Use tonic_build to compile .proto files and generate gRPC code
     tonic_build::configure()
         .build_server(true) // Generate server code
-        // .build_client(true) // Generate client code
-        .out_dir("src") // Specify the output directory
-        .file_descriptor_set_path("src/descriptor.bin") // Save the descriptor
+        .out_dir(out_dir) // Specify the output directory
+        .file_descriptor_set_path(descriptor_path) // Generate a file descriptor set
         .compile_protos(&temp_paths, &includes)
         .unwrap_or_else(|e| panic!("Failed to compile protos {:?}", e));
 
