@@ -32,6 +32,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/server"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/version"
@@ -67,6 +68,7 @@ type SenderParams struct {
 	RunSummary          *runsummary.RunSummary
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *spb.Result
+	FeatureProvider     *server.ServerFeatures
 }
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -235,6 +237,7 @@ func NewSender(
 			params.Logger,
 			params.GraphqlClient,
 			params.FileTransferManager,
+			params.FeatureProvider,
 		),
 		tbHandler:     params.TBHandler,
 		networkPeeker: params.Peeker,

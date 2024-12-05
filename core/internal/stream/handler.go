@@ -24,6 +24,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/server"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/timer"
@@ -52,6 +53,7 @@ type HandlerParams struct {
 	TBHandler         *tensorboard.TBHandler
 	SystemMonitor     *monitor.SystemMonitor
 	TerminalPrinter   *observability.Printer
+	FeatureProvider   *server.ServerFeatures
 
 	// SkipSummary controls whether to skip summary updates.
 	//
@@ -139,6 +141,9 @@ type Handler struct {
 	terminalPrinter *observability.Printer
 
 	mailbox *mailbox.Mailbox
+
+	// featureProvider provides server features
+	featureProvider *server.ServerFeatures
 }
 
 // NewHandler creates a new handler
@@ -147,24 +152,25 @@ func NewHandler(
 	params HandlerParams,
 ) *Handler {
 	return &Handler{
-		commit:               commit,
-		runTimer:             timer.New(),
-		terminalPrinter:      params.TerminalPrinter,
-		logger:               params.Logger,
-		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
-		operations:           params.Operations,
-		settings:             params.Settings,
 		clientID:             randomid.GenerateUniqueID(32),
-		fwdChan:              params.FwdChan,
-		outChan:              params.OutChan,
-		mailbox:              params.Mailbox,
-		runSummary:           runsummary.New(),
-		skipSummary:          params.SkipSummary,
-		runHistorySampler:    runhistory.NewRunHistorySampler(),
-		metricHandler:        runmetric.New(),
+		commit:               commit,
+		featureProvider:      params.FeatureProvider,
 		fileTransferStats:    params.FileTransferStats,
-		tbHandler:            params.TBHandler,
+		fwdChan:              params.FwdChan,
+		logger:               params.Logger,
+		mailbox:              params.Mailbox,
+		metricHandler:        runmetric.New(),
+		operations:           params.Operations,
+		outChan:              params.OutChan,
+		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
+		runHistorySampler:    runhistory.NewRunHistorySampler(),
+		runSummary:           runsummary.New(),
+		runTimer:             timer.New(),
+		settings:             params.Settings,
+		skipSummary:          params.SkipSummary,
 		systemMonitor:        params.SystemMonitor,
+		tbHandler:            params.TBHandler,
+		terminalPrinter:      params.TerminalPrinter,
 	}
 }
 
@@ -356,6 +362,8 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestJobInput(record)
 	case *spb.Request_RunFinishWithoutExit:
 		h.handleRequestRunFinishWithoutExit(record)
+	case *spb.Request_ServerFeature:
+		h.handleRequestServerFeature(record, x.ServerFeature)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRequest: request type is nil"))
@@ -1147,6 +1155,23 @@ func (h *Handler) handleRequestSampledHistory(record *spb.Record) {
 			SampledHistoryResponse: &spb.SampledHistoryResponse{
 				Item: h.runHistorySampler.Get(),
 			},
+		},
+	})
+}
+
+// handleRequestServerFeature gets the server features requested by the client,
+// and responds with the details of the feature provided by the server.
+func (h *Handler) handleRequestServerFeature(
+	record *spb.Record,
+	request *spb.ServerFeatureRequest,
+) {
+	serverFeatureValue := h.featureProvider.Get(
+		request.Features,
+		h.logger,
+	)
+	h.respond(record, &spb.Response{
+		ResponseType: &spb.Response_ServerFeatureResponse{
+			ServerFeatureResponse: serverFeatureValue,
 		},
 	})
 }
