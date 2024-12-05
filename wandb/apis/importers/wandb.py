@@ -573,7 +573,7 @@ class WandbImporter:
         project = coalesce(project, src_art.project)
         name = src_art.name
 
-        return self.dst_api.artifact(f"{entity}/{project}/{name}")
+        return self.dst_api._artifact(f"{entity}/{project}/{name}")
 
     def _get_run_problems(
         self, src_run: Run, dst_run: Run, force_retry: bool = False

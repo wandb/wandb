@@ -10,7 +10,7 @@ For reference documentation, see https://docs.wandb.com/ref/python.
 """
 from __future__ import annotations
 
-__version__ = "0.18.6.dev1"
+__version__ = "0.19.1.dev1"
 
 
 from wandb.errors import Error
@@ -75,7 +75,7 @@ from wandb.data_types import JoinedTable
 
 from wandb.wandb_agent import agent
 
-from wandb.plot.viz import visualize
+from wandb.plot import visualize, plot_table
 from wandb.integration.sagemaker import sagemaker_auth
 from wandb.sdk.internal import profiler
 
@@ -142,9 +142,6 @@ mark_preempting = _preinit.PreInitCallable(
     "wandb.mark_preempting", wandb_sdk.wandb_run.Run.mark_preempting  # type: ignore
 )
 
-plot_table = _preinit.PreInitCallable(
-    "wandb.plot_table", wandb_sdk.wandb_run.Run.plot_table
-)
 alert = _preinit.PreInitCallable("wandb.alert", wandb_sdk.wandb_run.Run.alert)  # type: ignore
 
 # record of patched libraries
@@ -208,8 +205,8 @@ if "dev" in __version__:
     )
 
     # Enable new features in dev versions.
-    os.environ["WANDB__SHOW_OPERATION_STATS"] = os.environ.get(
-        "WANDB__SHOW_OPERATION_STATS",
+    os.environ["WANDB_X_SHOW_OPERATION_STATS"] = os.environ.get(
+        "WANDB_X_SHOW_OPERATION_STATS",
         "true",
     )
 
@@ -251,4 +248,5 @@ __all__ = (
     "define_metric",
     "watch",
     "unwatch",
+    "plot_table",
 )

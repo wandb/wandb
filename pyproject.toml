@@ -9,10 +9,10 @@ description = "A CLI and library for interacting with the Weights & Biases API."
 authors = [{ name = "Weights & Biases", email = "support@wandb.com" }]
 readme = "package_readme.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 dependencies = [
-    "Click>=7.1,!=8.0.0",        # click 8.0.0 is broken
-    "GitPython>=1.0.0,!=3.1.29", # CVE-2022-24439
+    "Click>=7.1,!=8.0.0",
+    "GitPython>=1.0.0,!=3.1.29",
     "requests>=2.0.0,<3",
     "psutil>=5.0.0",
     "sentry-sdk>=2.0.0",
@@ -28,9 +28,9 @@ dependencies = [
     "PyYAML",
     "setproctitle",
     "platformdirs",
-    # typing_extensions 4.4.0 adds 'override'.
-    # Python 3.12 adds 'override' to the typing module.
     "typing_extensions>=4.4,<5; python_version < '3.12'",
+    "pydantic>=2.6,<3",
+    "eval_type_backport; python_version < '3.10'",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -39,12 +39,12 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Go",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -115,7 +115,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 minversion = "6.0"
 console_output_style = "count"
-addopts = "-vvv --cov-config=pyproject.toml --dist=loadscope"
+addopts = "-vvv --cov-config=pyproject.toml"
 markers = [
     "image_output",
     "multiclass",
@@ -169,7 +169,7 @@ extend-exclude = [
 target-version = "py37"
 
 [tool.ruff.lint]
-select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP", "ISC"]
+select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP"]
 ignore = [
     "B904",
     "E501",
@@ -231,14 +231,13 @@ ignore-decorators = [
 
 
 [tool.mypy]
+plugins = ["pydantic.mypy"]
 warn_redundant_casts = true
 exclude = '''
    (?x)(
       wandb/vendor/.
    )
 '''
-
-
 # wandb.*
 [[tool.mypy.overrides]]
 module = "wandb.*"

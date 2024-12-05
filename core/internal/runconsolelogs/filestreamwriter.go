@@ -23,12 +23,22 @@ func (w *filestreamWriter) SendChanged(
 		timestamp := strings.TrimSuffix(
 			line.Timestamp.UTC().Format(rfc3339Micro), "Z")
 
-		return fmt.Sprintf(
-			"%s%s %s",
-			line.StreamPrefix,
-			timestamp,
-			string(line.Content),
-		)
+		if line.StreamLabel != "" {
+			return fmt.Sprintf(
+				"%s%s [%s] %s",
+				line.StreamPrefix,
+				timestamp,
+				line.StreamLabel,
+				string(line.Content),
+			)
+		} else {
+			return fmt.Sprintf(
+				"%s%s %s",
+				line.StreamPrefix,
+				timestamp,
+				string(line.Content),
+			)
+		}
 	})
 
 	w.FileStream.StreamUpdate(&filestream.LogsUpdate{

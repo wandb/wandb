@@ -143,7 +143,7 @@ def test_missing(**kwargs):
             missing = 0
             missing = np.count_nonzero(pd.isnull(v))
             if missing > 0:
-                wandb.termwarn("%s contains %d missing values. " % (k, missing))
+                wandb.termwarn(f"{k} contains {missing} missing values. ")
                 test_passed = False
             # Ensure the dataset contains only integers
             non_nums = 0

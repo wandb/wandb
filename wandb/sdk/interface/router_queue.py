@@ -7,7 +7,6 @@ Router to manage responses from a queue.
 import queue
 from typing import TYPE_CHECKING, Optional
 
-from ..lib import tracelog
 from ..lib.mailbox import Mailbox
 from .router import MessageRouter
 
@@ -36,9 +35,7 @@ class MessageQueueRouter(MessageRouter):
             msg = self._response_queue.get(timeout=1)
         except queue.Empty:
             return None
-        tracelog.log_message_dequeue(msg, self._response_queue)
         return msg
 
     def _send_message(self, record: "pb.Record") -> None:
-        tracelog.log_message_queue(record, self._request_queue)
         self._request_queue.put(record)

@@ -490,7 +490,7 @@ class Table(Media):
                     f"the limit with `wandb.Table.MAX_ARTIFACT_ROWS = X` and try again. Note: "
                     f"this may cause slower queries in the W&B UI."
                 )
-            logging.warning("Truncating wandb.Table object to %i rows." % max_rows)
+            logging.warning(f"Truncating wandb.Table object to {max_rows} rows.")
         return {"columns": self.columns, "data": self.data[:max_rows]}
 
     def bind_to_run(self, *args, **kwargs):

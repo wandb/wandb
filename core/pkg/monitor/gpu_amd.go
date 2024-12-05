@@ -11,6 +11,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // TODO: this is a port of the python code.
@@ -321,7 +322,7 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 	return parsedStats
 }
 
-func (g *GPUAMD) Sample() (map[string]any, error) {
+func (g *GPUAMD) Sample() (*spb.StatsRecord, error) {
 	metrics := make(map[string]any)
 	cards, err := g.getCards()
 	if err != nil {
@@ -335,7 +336,11 @@ func (g *GPUAMD) Sample() (map[string]any, error) {
 		}
 	}
 
-	return metrics, nil
+	if len(metrics) == 0 {
+		return nil, nil
+	}
+
+	return marshal(metrics, timestamppb.Now()), nil
 }
 
 func parseFloat(s string) (float64, error) {
