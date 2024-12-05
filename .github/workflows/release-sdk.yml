@@ -159,6 +159,7 @@ jobs:
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
           CIBW_SKIP: cp36-*
           CIBW_ARCHS_LINUX: aarch64
+          CIBW_ENVIRONMENT_LINUX: PATH=$PATH:/home/runner/go/bin
 
       - uses: actions/upload-artifact@v3
         with:
