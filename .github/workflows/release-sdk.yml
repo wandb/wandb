@@ -355,7 +355,7 @@ jobs:
       - name: Smoke-test wandb
         shell: bash
         run: |
-          WANDB__REQUIRE_LEGACY_SERVICE=${{ matrix.use_legacy_service }} \
+          WANDB_X_REQUIRE_LEGACY_SERVICE=${{ matrix.use_legacy_service }} \
           WANDB_MODE=offline \
           python -c "import wandb; run = wandb.init(); run.finish()"
 
@@ -389,7 +389,7 @@ jobs:
       - name: Smoke-test wandb ${{ matrix.use_legacy_service && '' || 'with core' }}
         shell: bash
         run: |
-          WANDB__REQUIRE_LEGACY_SERVICE=${{ matrix.use_legacy_service }} \
+          WANDB_X_REQUIRE_LEGACY_SERVICE=${{ matrix.use_legacy_service }} \
           WANDB_MODE=offline \
           python -c "import wandb; run = wandb.init(); run.finish()"
 
