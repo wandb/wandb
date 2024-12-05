@@ -648,9 +648,10 @@ class _WandbInit:
 
         if self.settings._noop:
             return self._make_run_disabled()
-        if self.settings.reinit or (
-            self.settings._jupyter and self.settings.reinit is not False
-        ):
+        if (
+            self.settings.reinit
+            or (self.settings._jupyter and self.settings.reinit is not False)
+        ) and len(self._wl._global_run_stack) > 0:
             if len(self._wl._global_run_stack) > 1:
                 wandb.termwarn(
                     "Launching multiple wandb runs using Python's threading"
