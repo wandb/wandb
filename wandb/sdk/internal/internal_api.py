@@ -20,19 +20,16 @@ from typing import (
     Dict,
     Iterable,
     List,
+    Literal,
     Mapping,
     MutableMapping,
+    NamedTuple,
     Optional,
     Sequence,
     TextIO,
     Tuple,
     Union,
 )
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 import click
 import requests
@@ -62,10 +59,7 @@ logger = logging.getLogger(__name__)
 LAUNCH_DEFAULT_PROJECT = "model-registry"
 
 if TYPE_CHECKING:
-    if sys.version_info >= (3, 8):
-        from typing import Literal, TypedDict
-    else:
-        from typing_extensions import Literal, TypedDict
+    from typing import Literal, TypedDict
 
     from .progress import ProgressFn
 
@@ -167,6 +161,50 @@ class _ThreadLocalData(threading.local):
 
     def __init__(self) -> None:
         self.context = None
+
+
+class _OrgNames(NamedTuple):
+    entity_name: str
+    display_name: str
+
+
+def _match_org_with_fetched_org_entities(
+    organization: str, orgs: Sequence[_OrgNames]
+) -> str:
+    """Match the organization provided in the path with the org entity or org name of the input entity.
+
+    Args:
+        organization: The organization name to match
+        orgs: List of tuples containing (org_entity_name, org_display_name)
+
+    Returns:
+        str: The matched org entity name
+
+    Raises:
+        ValueError: If no matching organization is found or if multiple orgs exist without a match
+    """
+    for org_names in orgs:
+        if organization in org_names:
+            wandb.termwarn(
+                "Registries can be linked/fetched using a shorthand form without specifying the organization name. "
+                "Try using shorthand path format: <my_registry_name>/<artifact_name> or "
+                "just <my_registry_name> if fetching just the project."
+            )
+            return org_names.entity_name
+
+    if len(orgs) == 1:
+        raise ValueError(
+            f"Expecting the organization name or entity name to match {orgs[0].display_name!r} "
+            f"and cannot be linked/fetched with {organization!r}. "
+            "Please update the target path with the correct organization name."
+        )
+
+    raise ValueError(
+        "Personal entity belongs to multiple organizations "
+        f"and cannot be linked/fetched with {organization!r}. "
+        "Please update the target path with the correct organization name "
+        "or use a team entity in the entity settings."
+    )
 
 
 class Api:
@@ -313,6 +351,7 @@ class Api:
         self.server_create_artifact_input_info: Optional[List[str]] = None
         self.server_artifact_fields_info: Optional[List[str]] = None
         self.server_organization_type_fields_info: Optional[List[str]] = None
+        self.server_supports_enabling_artifact_usage_tracking: Optional[bool] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
         self.fail_run_queue_item_input_info: Optional[List[str]] = None
@@ -3496,7 +3535,9 @@ class Api:
         org_entity = ""
         if is_artifact_registry_project(project):
             try:
-                org_entity = self._resolve_org_entity_name(entity, organization)
+                org_entity = self._resolve_org_entity_name(
+                    entity=entity, organization=organization
+                )
             except ValueError as e:
                 wandb.termerror(str(e))
                 raise
@@ -3538,45 +3579,65 @@ class Api:
         # the organization parameter, or an error if it is empty. Otherwise, this returns the
         # fetched value after validating that the given organization, if not empty, matches
         # either the org's display or entity name.
+
+        if not entity:
+            raise ValueError("Entity name is required to resolve org entity name.")
+
         org_fields = self.server_organization_type_introspection()
-        can_fetch_org_entity = "orgEntity" in org_fields
-        if not organization and not can_fetch_org_entity:
+        can_shorthand_org_entity = "orgEntity" in org_fields
+        if not organization and not can_shorthand_org_entity:
             raise ValueError(
                 "Fetching Registry artifacts without inputting an organization "
                 "is unavailable for your server version. "
                 "Please upgrade your server to 0.50.0 or later."
             )
-        if not can_fetch_org_entity:
+        if not can_shorthand_org_entity:
             # Server doesn't support fetching org entity to validate,
             # assume org entity is correctly inputted
             return organization
 
-        org_entity, org_name = self.fetch_org_entity_from_entity(entity)
+        orgs_from_entity = self._fetch_orgs_and_org_entities_from_entity(entity)
         if organization:
-            if organization != org_name and organization != org_entity:
-                raise ValueError(
-                    f"Artifact belongs to the organization {org_name!r} "
-                    f"and cannot be linked/fetched with {organization!r}. "
-                    "Please update the target path with the correct organization name."
-                )
-            wandb.termwarn(
-                "Registries can be linked/fetched using a shorthand form without specifying the organization name. "
-                "Try using shorthand path format: <my_registry_name>/<artifact_name>"
-            )
-        return org_entity
+            return _match_org_with_fetched_org_entities(organization, orgs_from_entity)
 
-    def fetch_org_entity_from_entity(self, entity: str) -> Tuple[str, str]:
+        # If no input organization provided, error if entity belongs to multiple orgs because we
+        # cannot determine which one to use.
+        if len(orgs_from_entity) > 1:
+            raise ValueError(
+                f"Personal entity {entity!r} belongs to multiple organizations "
+                "and cannot be used without specifying the organization name. "
+                "Please specify the organization in the Registry path or use a team entity in the entity settings."
+            )
+        return orgs_from_entity[0].entity_name
+
+    def _fetch_orgs_and_org_entities_from_entity(self, entity: str) -> List[_OrgNames]:
+        """Fetches organization entity names and display names for a given entity.
+
+        Args:
+            entity (str): Entity name to lookup. Can be either a personal or team entity.
+
+        Returns:
+            List[_OrgNames]: List of _OrgNames tuples. (_OrgNames(entity_name, display_name))
+
+        Raises:
+        ValueError: If entity is not found, has no organizations, or other validation errors.
+        """
         query = gql(
             """
-            query FetchOrgEntityFromEntity(
-                $entityName: String!,
-            ) {
+            query FetchOrgEntityFromEntity($entityName: String!) {
                 entity(name: $entityName) {
-                    isTeam
                     organization {
                         name
                         orgEntity {
                             name
+                        }
+                    }
+                    user {
+                        organizations {
+                            name
+                            orgEntity {
+                                name
+                            }
                         }
                     }
                 }
@@ -3589,28 +3650,40 @@ class Api:
                 "entityName": entity,
             },
         )
-        try:
-            is_team = response["entity"].get("isTeam", False)
-            org = response["entity"]["organization"]
-            org_name = org["name"] or ""
-            org_entity_name = org["orgEntity"]["name"] or ""
-        except (LookupError, TypeError) as e:
-            if is_team:
-                # This path should pretty much never be reached as all team entities have an organization.
+
+        # Parse organization from response
+        entity_resp = response["entity"]["organization"]
+        user_resp = response["entity"]["user"]
+        # Check for organization under team/org entity type
+        if entity_resp:
+            org_name = entity_resp.get("name")
+            org_entity_name = entity_resp.get("orgEntity") and entity_resp[
+                "orgEntity"
+            ].get("name")
+            if not org_name or not org_entity_name:
                 raise ValueError(
-                    f"Unable to find an organization under entity {entity!r}. "
-                ) from e
-            else:
+                    f"Unable to find an organization under entity {entity!r}."
+                )
+            return [_OrgNames(entity_name=org_entity_name, display_name=org_name)]
+        # Check for organization under personal entity type, where a user can belong to multiple orgs
+        elif user_resp:
+            orgs = user_resp.get("organizations", [])
+            org_entities_return = [
+                _OrgNames(
+                    entity_name=org["orgEntity"]["name"], display_name=org["name"]
+                )
+                for org in orgs
+                if org.get("orgEntity") and org.get("name")
+            ]
+            if not org_entities_return:
                 raise ValueError(
-                    f"Unable to resolve an organization associated with the entity: {entity!r} "
-                    "that is initialized in the API or Run settings. This could be because "
-                    f"{entity!r} is a personal entity or the team entity doesn't exist. "
-                    "Please re-initialize the API or Run with a team entity using "
-                    "wandb.Api(overrides={'entity': '<my_team_entity>'}) "
-                    "or wandb.init(entity='<my_team_entity>') "
-                ) from e
+                    f"Unable to resolve an organization associated with personal entity: {entity!r}. "
+                    "This could be because its a personal entity that doesn't belong to any organizations. "
+                    "Please specify the organization in the Registry path or use a team entity in the entity settings."
+                )
+            return org_entities_return
         else:
-            return org_entity_name, org_name
+            raise ValueError(f"Unable to find an organization under entity {entity!r}.")
 
     def use_artifact(
         self,
@@ -3700,6 +3773,41 @@ class Api:
             ]
 
         return self.server_organization_type_fields_info
+
+    # Fetch input arguments for the "artifact" endpoint on the "Project" type
+    def server_project_type_introspection(self) -> bool:
+        if self.server_supports_enabling_artifact_usage_tracking is not None:
+            return self.server_supports_enabling_artifact_usage_tracking
+
+        query_string = """
+            query ProbeServerProjectInfo {
+                ProjectInfoType: __type(name:"Project") {
+                    fields {
+                        name
+                        args {
+                            name
+                        }
+                    }
+                }
+            }
+        """
+
+        query = gql(query_string)
+        res = self.gql(query)
+        input_fields = res.get("ProjectInfoType", {}).get("fields", [{}])
+        artifact_args: List[Dict[str, str]] = next(
+            (
+                field.get("args", [])
+                for field in input_fields
+                if field.get("name") == "artifact"
+            ),
+            [],
+        )
+        self.server_supports_enabling_artifact_usage_tracking = any(
+            arg.get("name") == "enableTracking" for arg in artifact_args
+        )
+
+        return self.server_supports_enabling_artifact_usage_tracking
 
     def create_artifact_type(
         self,
@@ -4442,7 +4550,7 @@ class Api:
         check_httpclient_logger_handler()
         return requests.put(
             url=url,
-            headers={"Content-Length": "0", "Content-Range": "bytes */%i" % length},
+            headers={"Content-Length": "0", "Content-Range": f"bytes */{length}"},
         )
 
     def _flatten_edges(self, response: "_Response") -> List[Dict]:

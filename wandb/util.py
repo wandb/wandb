@@ -82,9 +82,10 @@ T = TypeVar("T")
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
+LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
+
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
-RE_WINFNAMES = re.compile(r'[<>:"\\?*]')
 
 # From https://docs.docker.com/engine/reference/commandline/tag/
 # "Name components may contain lowercase letters, digits and separators.
@@ -101,35 +102,6 @@ if IS_GIT:
     SENTRY_ENV = "development"
 else:
     SENTRY_ENV = "production"
-
-
-PLATFORM_WINDOWS = "windows"
-PLATFORM_LINUX = "linux"
-PLATFORM_BSD = "bsd"
-PLATFORM_DARWIN = "darwin"
-PLATFORM_UNKNOWN = "unknown"
-
-LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
-
-
-def get_platform_name() -> str:
-    if sys.platform.startswith("win"):
-        return PLATFORM_WINDOWS
-    elif sys.platform.startswith("darwin"):
-        return PLATFORM_DARWIN
-    elif sys.platform.startswith("linux"):
-        return PLATFORM_LINUX
-    elif sys.platform.startswith(
-        (
-            "dragonfly",
-            "freebsd",
-            "netbsd",
-            "openbsd",
-        )
-    ):
-        return PLATFORM_BSD
-    else:
-        return PLATFORM_UNKNOWN
 
 
 POW_10_BYTES = [
@@ -1596,10 +1568,6 @@ def _is_py_requirements_or_dockerfile(path: str) -> bool:
     )
 
 
-def check_windows_valid_filename(path: Union[int, str]) -> bool:
-    return not bool(re.search(RE_WINFNAMES, path))  # type: ignore
-
-
 def artifact_to_json(artifact: "Artifact") -> Dict[str, Any]:
     return {
         "_type": "artifactVersion",
@@ -1911,14 +1879,8 @@ class InstalledDistribution:
 
 
 def working_set() -> Iterable[InstalledDistribution]:
-    """Return the working set of installed distributions.
-
-    Uses importlib.metadata in Python versions above 3.7, and importlib_metadata otherwise.
-    """
-    try:
-        from importlib.metadata import distributions
-    except ImportError:
-        from importlib_metadata import distributions  # type: ignore
+    """Return the working set of installed distributions."""
+    from importlib.metadata import distributions
 
     for d in distributions():
         try:
@@ -1976,9 +1938,9 @@ def get_core_path() -> str:
     bin_path = pathlib.Path(__file__).parent / "bin" / "wandb-core"
     if not bin_path.exists():
         raise WandbCoreNotAvailableError(
-            f"Looks like wandb-core is not compiled for your system ({platform.platform()}):"
-            " Please contact support at support@wandb.com to request `wandb-core`"
-            " support for your system."
+            f"File not found: {bin_path}."
+            " Please contact support at support@wandb.com."
+            f" Your platform is: {platform.platform()}."
         )
 
     return str(bin_path)

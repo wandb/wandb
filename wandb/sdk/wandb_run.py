@@ -19,26 +19,24 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
+from functools import reduce
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Sequence, TextIO
-
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal
-else:
-    from typing import Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, Sequence, TextIO
 
 import requests
 
 import wandb
 import wandb.env
-from wandb import errors, trigger
+import wandb.util
+from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
-from wandb.errors import CommError
+from wandb.errors import CommError, UnsupportedError, UsageError
+from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
-from wandb.plot.viz import CustomChart, Visualize, custom_chart
+from wandb.plot import CustomChart, Visualize
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
@@ -88,24 +86,18 @@ from .lib.exit_hooks import ExitHooks
 from .lib.gitlib import GitRepo
 from .lib.mailbox import MailboxError, MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.proto_util import message_to_dict
-from .lib.reporting import Reporter
-from .lib.wburls import wburls
 from .wandb_alerts import AlertLevel
 from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
 
 if TYPE_CHECKING:
-    if sys.version_info >= (3, 8):
-        from typing import TypedDict
-    else:
-        from typing_extensions import TypedDict
+    from typing import TypedDict
 
     import torch  # type: ignore [import-not-found]
 
     import wandb.apis.public
     import wandb.sdk.backend.backend
     import wandb.sdk.interface.interface_queue
-    from wandb.data_types import Table
     from wandb.proto.wandb_internal_pb2 import (
         GetSummaryResponse,
         InternalMessagesResponse,
@@ -410,7 +402,7 @@ class _run_decorator:  # noqa: N801
                 if only_warn:
                     warnings.warn(resolved_message, UserWarning, stacklevel=2)
                 else:
-                    raise errors.UsageError(resolved_message)
+                    raise UsageError(resolved_message)
 
             return wrapper_fn
 
@@ -430,20 +422,19 @@ class _run_decorator:  # noqa: N801
                 #   - for fork case the new process share mem space hence the value would be of parent process.
                 _init_pid = getattr(self, "_init_pid", None)
                 if _init_pid != os.getpid():
-                    message = "`{}` ignored (called from pid={}, `init` called from pid={}). See: {}".format(
-                        func.__name__,
-                        os.getpid(),
-                        _init_pid,
-                        wburls.get("multiprocess"),
+                    message = (
+                        f"`{func.__name__}` ignored (called from pid={os.getpid()}, "
+                        f"`init` called from pid={_init_pid}). "
+                        f"See: {url_registry.url('multiprocess')}"
                     )
                     # - if this process was pickled in non-service case,
                     #   we ignore the attributes (since pickle is not supported)
                     # - for fork case will use the settings of the parent process
                     # - only point of inconsistent behavior from forked and non-forked cases
                     settings = getattr(self, "_settings", None)
-                    if settings and settings["strict"]:
+                    if settings and settings.strict:
                         wandb.termerror(message, repeat=False)
-                        raise errors.UnsupportedError(
+                        raise UnsupportedError(
                             f"`{func.__name__}` does not support multiprocessing"
                         )
                     wandb.termwarn(message, repeat=False)
@@ -540,7 +531,6 @@ class Run:
     _sweep_id: str | None
 
     _run_obj: RunRecord | None
-    # Use string literal annotation because of type reference loop
     _backend: wandb.sdk.backend.backend.Backend | None
     _internal_run_interface: wandb.sdk.interface.interface_queue.InterfaceQueue | None
     _wl: _WandbSetup | None
@@ -550,7 +540,6 @@ class Run:
     _redirect_cb: Callable[[str, str], None] | None
     _redirect_raw_cb: Callable[[str, str], None] | None
     _output_writer: filesystem.CRDedupedFile | None
-    _quiet: bool | None
 
     _atexit_cleanup_called: bool
     _hooks: ExitHooks | None
@@ -635,7 +624,6 @@ class Run:
 
         self._printer = printer.new_printer()
         self._wl = None
-        self._reporter: Reporter | None = None
 
         self._entity = None
         self._project = None
@@ -658,7 +646,6 @@ class Run:
         self._stderr_slave_fd = None
         self._exit_code = None
         self._exit_result = None
-        self._quiet = self._settings.quiet
 
         self._output_writer = None
         self._used_artifact_slots: dict[str, str] = {}
@@ -752,7 +739,7 @@ class Run:
         self._attach_pid = os.getpid()
 
         # for now, use runid as attach id, this could/should be versioned in the future
-        if not self._settings._disable_service:
+        if not self._settings.x_disable_service:
             self._attach_id = self._settings.run_id
 
     def _set_iface_pid(self, iface_pid: int) -> None:
@@ -897,7 +884,7 @@ class Run:
     def __getstate__(self) -> Any:
         """Return run state as a custom pickle."""
         # We only pickle in service mode
-        if not self._settings or self._settings._disable_service:
+        if not self._settings or self._settings.x_disable_service:
             return
 
         _attach_id = self._attach_id
@@ -934,9 +921,7 @@ class Run:
     @_run_decorator._attach
     def settings(self) -> Settings:
         """A frozen copy of run's Settings object."""
-        cp = self._settings.copy()
-        cp.freeze()
-        return cp
+        return self._settings.model_copy(deep=True)
 
     @property
     @_run_decorator._attach
@@ -1194,11 +1179,11 @@ class Run:
                 notebook_name = None
                 if self.settings.notebook_name:
                     notebook_name = self.settings.notebook_name
-                elif self.settings._jupyter_path:
-                    if self.settings._jupyter_path.startswith("fileId="):
-                        notebook_name = self.settings._jupyter_name
+                elif self.settings.x_jupyter_path:
+                    if self.settings.x_jupyter_path.startswith("fileId="):
+                        notebook_name = self.settings.x_jupyter_name
                     else:
-                        notebook_name = self.settings._jupyter_path
+                        notebook_name = self.settings.x_jupyter_path
                 name_string = f"{self._project}-{notebook_name}"
             else:
                 name_string = f"{self._project}-{self._settings.program_relpath}"
@@ -1415,7 +1400,7 @@ class Run:
             if is_id:
                 artifact = Artifact._from_id(artifact_string, public_api._client)
             else:
-                artifact = public_api.artifact(name=artifact_string)
+                artifact = public_api._artifact(name=artifact_string)
             # in the future we'll need to support using artifacts from
             # different instances of wandb.
 
@@ -1470,61 +1455,56 @@ class Run:
         files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
-    def _visualization_hack(self, row: dict[str, Any]) -> dict[str, Any]:
-        # TODO(jhr): move visualize hack somewhere else
+    def _serialize_custom_charts(self, data: dict[str, Any]) -> dict[str, Any]:
+        if not data:
+            return data
+
         chart_keys = set()
-        split_table_set = set()
-        for k in row:
-            if isinstance(row[k], Visualize):
-                key = row[k].get_config_key(k)
-                value = row[k].get_config_value(k)
-                row[k] = row[k]._data
-                self._config_callback(val=value, key=key)
-            elif isinstance(row[k], CustomChart):
+        for k, v in data.items():
+            if isinstance(v, Visualize):
+                data[k] = v.table
+                v.set_key(k)
+                self._config_callback(
+                    val=v.spec.config_value,
+                    key=v.spec.config_key,
+                )
+            elif isinstance(v, CustomChart):
                 chart_keys.add(k)
-                key = row[k].get_config_key(k)
-                if row[k]._split_table:
-                    value = row[k].get_config_value(
-                        "Vega2", row[k].user_query(f"Custom Chart Tables/{k}_table")
-                    )
-                    split_table_set.add(k)
-                else:
-                    value = row[k].get_config_value(
-                        "Vega2", row[k].user_query(f"{k}_table")
-                    )
-                row[k] = row[k]._data
-                self._config_callback(val=value, key=key)
+                v.set_key(k)
+                self._config_callback(
+                    key=v.spec.config_key,
+                    val=v.spec.config_value,
+                )
 
         for k in chart_keys:
             # remove the chart key from the row
-            # TODO: is this really the right move? what if the user logs
-            #     a non-custom chart to this key?
-            if k in split_table_set:
-                row[f"Custom Chart Tables/{k}_table"] = row.pop(k)
-            else:
-                row[f"{k}_table"] = row.pop(k)
-        return row
+            v = data.pop(k)
+            if isinstance(v, CustomChart):
+                data[v.spec.table_key] = v.table
+        return data
 
     def _partial_history_callback(
         self,
-        row: dict[str, Any],
+        data: dict[str, Any],
         step: int | None = None,
         commit: bool | None = None,
     ) -> None:
-        row = row.copy()
-        if row:
-            row = self._visualization_hack(row)
+        if not (self._backend and self._backend.interface):
+            return
 
-        if self._backend and self._backend.interface:
-            not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+        data = data.copy()  # avoid modifying the original data
 
-            self._backend.interface.publish_partial_history(
-                row,
-                user_step=self._step,
-                step=step,
-                flush=commit,
-                publish_step=not_using_tensorboard,
-            )
+        # Serialize custom charts before publishing
+        data = self._serialize_custom_charts(data)
+
+        not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+        self._backend.interface.publish_partial_history(
+            data,
+            user_step=self._step,
+            step=step,
+            flush=commit,
+            publish_step=not_using_tensorboard,
+        )
 
     def _console_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
@@ -1565,9 +1545,6 @@ class Run:
     ) -> None:
         self._internal_run_interface = interface
 
-    def _set_reporter(self, reporter: Reporter) -> None:
-        self._reporter = reporter
-
     def _set_teardown_hooks(self, hooks: list[TeardownHook]) -> None:
         self._teardown_hooks = hooks
 
@@ -1597,8 +1574,31 @@ class Run:
         self._step = self._get_starting_step()
 
         # update settings from run_obj
-        self._settings._apply_run_start(message_to_dict(self._run_obj))
-        self._update_settings(self._settings)
+        run_start_settings = message_to_dict(self._run_obj)
+        param_map = {
+            "run_id": "run_id",
+            "entity": "entity",
+            "project": "project",
+            "run_group": "run_group",
+            "job_type": "run_job_type",
+            "display_name": "run_name",
+            "notes": "run_notes",
+            "tags": "run_tags",
+            "sweep_id": "sweep_id",
+            "host": "host",
+            "resumed": "resumed",
+            "git.remote_url": "git_remote_url",
+            "git.commit": "git_commit",
+        }
+        run_settings = {
+            name: reduce(lambda d, k: d.get(k, {}), attr.split("."), run_start_settings)
+            for attr, name in param_map.items()
+        }
+        run_settings = {key: value for key, value in run_settings.items() if value}
+
+        if run_settings:
+            self._settings.update_from_dict(run_settings)
+            self._update_settings(self._settings)
 
         wandb._sentry.configure_scope(
             process_context="user",
@@ -1707,7 +1707,7 @@ class Run:
         [guides to logging](https://docs.wandb.ai/guides/track/log) for examples,
         from 3D molecular structures and segmentation masks to PR curves and histograms.
         You can use `wandb.Table` to log structured data. See our
-        [guide to logging tables](https://docs.wandb.ai/guides/data-vis/log-tables)
+        [guide to logging tables](https://docs.wandb.ai/guides/tables/tables-walkthrough)
         for details.
 
         The W&B UI organizes metrics with a forward slash (`/`) in their name
@@ -1923,7 +1923,7 @@ class Run:
         if self._settings._shared and step is not None:
             wandb.termwarn(
                 "In shared mode, the use of `wandb.log` with the step argument is not supported "
-                f"and will be ignored. Please refer to {wburls.get('wandb_define_metric')} "
+                f"and will be ignored. Please refer to {url_registry.url('define-metric')} "
                 "on how to customize your x-axis.",
                 repeat=False,
             )
@@ -2042,7 +2042,7 @@ class Run:
         policy: PolicyName,
     ) -> list[str]:
         # Can't use is_relative_to() because that's added in Python 3.9,
-        # but we support down to Python 3.7.
+        # but we support down to Python 3.8.
         if not str(glob_path).startswith(str(base_path)):
             raise ValueError("Glob may not walk above the base path")
 
@@ -2086,12 +2086,7 @@ class Run:
             target_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Delete the symlink if it exists.
-            try:
-                target_path.unlink()
-            except FileNotFoundError:
-                # In Python 3.8, we would pass missing_ok=True, but as of now
-                # we support down to Python 3.7.
-                pass
+            target_path.unlink(missing_ok=True)
 
             target_path.symlink_to(source_path)
 
@@ -2136,29 +2131,44 @@ class Run:
 
     @_run_decorator._noop
     @_run_decorator._attach
-    def finish(self, exit_code: int | None = None, quiet: bool | None = None) -> None:
-        """Mark a run as finished, and finish uploading all data.
-
-        This is used when creating multiple runs in the same process. We automatically
-        call this method when your script exits or if you use the run context manager.
-
-        Args:
-            exit_code: Set to something other than 0 to mark a run as failed
-            quiet: Set to true to minimize log output
-        """
-        return self._finish(exit_code, quiet)
-
-    def _finish(
+    def finish(
         self,
         exit_code: int | None = None,
         quiet: bool | None = None,
     ) -> None:
+        """Finish a run and upload any remaining data.
+
+        Marks the completion of a W&B run and ensures all data is synced to the server.
+        The run's final state is determined by its exit conditions and sync status.
+
+        Run States:
+        - Running: Active run that is logging data and/or sending heartbeats.
+        - Crashed: Run that stopped sending heartbeats unexpectedly.
+        - Finished: Run completed successfully (`exit_code=0`) with all data synced.
+        - Failed: Run completed with errors (`exit_code!=0`).
+
+        Args:
+            exit_code: Integer indicating the run's exit status. Use 0 for success,
+                any other value marks the run as failed.
+            quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
+        """
+        if quiet is not None:
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__finish_quiet,
+                warning_message=(
+                    "The `quiet` argument to `wandb.run.finish()` is deprecated, "
+                    "use `wandb.Settings(quiet=...)` to set this instead."
+                ),
+            )
+        return self._finish(exit_code)
+
+    def _finish(
+        self,
+        exit_code: int | None = None,
+    ) -> None:
         logger.info(f"finishing run {self._get_path()}")
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
-
-        if quiet is not None:
-            self._quiet = quiet
 
         # Pop this run (hopefully) from the run stack, to support the "reinit"
         # functionality of wandb.init().
@@ -2193,7 +2203,7 @@ class Run:
             #
             # TODO: Why not do this in _atexit_cleanup()?
             service = self._wl and self._wl.service
-            if service:
+            if service and self._run_id:
                 service.inform_finish(run_id=self._run_id)
 
         finally:
@@ -2238,31 +2248,6 @@ class Run:
             sync_time=sync_time,
         )
 
-    @staticmethod
-    def plot_table(
-        vega_spec_name: str,
-        data_table: Table,
-        fields: dict[str, Any],
-        string_fields: dict[str, Any] | None = None,
-        split_table: bool | None = False,
-    ) -> CustomChart:
-        """Create a custom plot on a table.
-
-        Args:
-            vega_spec_name: the name of the spec for the plot
-            data_table: a wandb.Table object containing the data to
-                be used on the visualization
-            fields: a dict mapping from table keys to fields that the custom
-                visualization needs
-            string_fields: a dict that provides values for any string constants
-                the custom visualization needs
-            split_table: a boolean that indicates whether the table should be in
-                a separate section in the UI
-        """
-        return custom_chart(
-            vega_spec_name, data_table, fields, string_fields or {}, split_table
-        )
-
     def _add_panel(
         self, visualize_key: str, panel_type: str, panel_config: dict
     ) -> None:
@@ -2282,7 +2267,6 @@ class Run:
             use_artifact=self.use_artifact,
             log_artifact=self.log_artifact,
             define_metric=self.define_metric,
-            plot_table=self.plot_table,
             alert=self.alert,
             watch=self.watch,
             unwatch=self.unwatch,
@@ -2302,7 +2286,7 @@ class Run:
             console = self._settings.console
         # only use raw for service to minimize potential changes
         if console == "wrap":
-            if not self._settings._disable_service:
+            if not self._settings.x_disable_service:
                 console = "wrap_raw"
             else:
                 console = "wrap_emu"
@@ -2451,8 +2435,6 @@ class Run:
             final_summary=self._final_summary,
             poll_exit_response=self._poll_exit_response,
             internal_messages_response=self._internal_messages_response,
-            reporter=self._reporter,
-            quiet=self._quiet,
             settings=self._settings,
             printer=self._printer,
         )
@@ -2491,7 +2473,7 @@ class Run:
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
 
-        if self._settings._save_requirements:
+        if self._settings.x_save_requirements:
             if self._backend and self._backend.interface:
                 from wandb.util import working_set
 
@@ -2535,6 +2517,8 @@ class Run:
 
         import_telemetry_set = telemetry.list_telemetry_imports()
         import_hook_fn = functools.partial(_telemetry_import_hook, self)
+        if not self._run_id:
+            return
         for module_name in import_telemetry_set:
             register_post_import_hook(
                 import_hook_fn,
@@ -2675,7 +2659,11 @@ class Run:
 
         assert self._backend and self._backend.interface
 
-        exit_handle = self._backend.interface.deliver_exit(self._exit_code)
+        if self._settings.x_update_finish_state:
+            exit_handle = self._backend.interface.deliver_exit(self._exit_code)
+        else:
+            exit_handle = self._backend.interface.deliver_finish_without_exit()
+
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
         with progress.progress_printer(
@@ -2727,7 +2715,8 @@ class Run:
         if self._run_status_checker:
             self._run_status_checker.join()
 
-        self._unregister_telemetry_import_hooks(self._run_id)
+        if self._run_id:
+            self._unregister_telemetry_import_hooks(self._run_id)
 
     @staticmethod
     def _unregister_telemetry_import_hooks(run_id: str) -> None:
@@ -2880,7 +2869,7 @@ class Run:
     def watch(
         self,
         models: torch.nn.Module | Sequence[torch.nn.Module],
-        criterion: torch.F | None = None,
+        criterion: torch.F | None = None,  # type: ignore
         log: Literal["gradients", "parameters", "all"] | None = "gradients",
         log_freq: int = 1000,
         idx: int | None = None,
@@ -3073,7 +3062,7 @@ class Run:
             else:
                 name = artifact_or_name
             public_api = self._public_api()
-            artifact = public_api.artifact(type=type, name=name)
+            artifact = public_api._artifact(type=type, name=name)
             if type is not None and type != artifact.type:
                 raise ValueError(
                     "Supplied type {} does not match type {} of artifact {}".format(
@@ -3360,7 +3349,7 @@ class Run:
         return artifact
 
     def _public_api(self, overrides: dict[str, str] | None = None) -> PublicApi:
-        overrides = {"run": self._run_id}
+        overrides = {"run": self._run_id}  # type: ignore
         if not (self._settings._offline or self._run_obj is None):
             overrides["entity"] = self._run_obj.entity
             overrides["project"] = self._run_obj.project
@@ -3615,7 +3604,7 @@ class Run:
 
         public_api = self._public_api()
         try:
-            artifact = public_api.artifact(name=f"{name}:latest")
+            artifact = public_api._artifact(name=f"{name}:latest")
             assert (
                 "model" in str(artifact.type.lower())
             ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
@@ -3698,9 +3687,10 @@ class Run:
         Returns:
             A dictionary of system metrics.
         """
+        from wandb.proto import wandb_internal_pb2
 
         def pb_to_dict(
-            system_metrics_pb: wandb.proto.wandb_internal_pb2.GetSystemMetricsResponse,
+            system_metrics_pb: wandb_internal_pb2.GetSystemMetricsResponse,
         ) -> dict[str, list[tuple[datetime, float]]]:
             res = {}
 
@@ -3813,7 +3803,7 @@ class Run:
 
                 # TODO(settings): make settings the source of truth
                 if not wandb.jupyter.quiet():  # type: ignore
-                    doc_html = printer.link(wburls.get("doc_run"), "docs")
+                    doc_html = printer.link(url_registry.url("developer-guide"), "docs")
 
                     project_html = printer.link(project_url, "Weights & Biases")
                     project_line = f"to {project_html} ({doc_html})"
@@ -3862,8 +3852,6 @@ class Run:
         final_summary: GetSummaryResponse | None = None,
         poll_exit_response: PollExitResponse | None = None,
         internal_messages_response: InternalMessagesResponse | None = None,
-        reporter: Reporter | None = None,
-        quiet: bool | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
@@ -3871,37 +3859,29 @@ class Run:
         Run._footer_history_summary_info(
             history=sampled_history,
             summary=final_summary,
-            quiet=quiet,
             settings=settings,
             printer=printer,
         )
 
         Run._footer_sync_info(
             poll_exit_response=poll_exit_response,
-            quiet=quiet,
             settings=settings,
             printer=printer,
         )
-        Run._footer_log_dir_info(quiet=quiet, settings=settings, printer=printer)
+        Run._footer_log_dir_info(settings=settings, printer=printer)
         Run._footer_notify_wandb_core(
-            quiet=quiet,
             settings=settings,
             printer=printer,
         )
         Run._footer_internal_messages(
             internal_messages_response=internal_messages_response,
-            quiet=quiet,
             settings=settings,
             printer=printer,
-        )
-        Run._footer_reporter_warn_err(
-            reporter=reporter, quiet=quiet, settings=settings, printer=printer
         )
 
     @staticmethod
     def _footer_sync_info(
         poll_exit_response: PollExitResponse | None = None,
-        quiet: bool | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
@@ -3910,7 +3890,7 @@ class Run:
             return
 
         if settings._offline:
-            if not quiet and not settings.quiet:
+            if not settings.quiet:
                 printer.display(
                     [
                         "You can sync this run to the cloud by running:",
@@ -3939,12 +3919,11 @@ class Run:
 
     @staticmethod
     def _footer_log_dir_info(
-        quiet: bool | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
     ) -> None:
-        if (quiet or settings.quiet) or settings.silent:
+        if settings.quiet or settings.silent:
             return
 
         log_dir = settings.log_user or settings.log_internal
@@ -3958,12 +3937,11 @@ class Run:
     def _footer_history_summary_info(
         history: SampledHistoryResponse | None = None,
         summary: GetSummaryResponse | None = None,
-        quiet: bool | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
     ) -> None:
-        if (quiet or settings.quiet) or settings.silent:
+        if settings.quiet or settings.silent:
             return
 
         panel = []
@@ -4028,12 +4006,11 @@ class Run:
     @staticmethod
     def _footer_internal_messages(
         internal_messages_response: InternalMessagesResponse | None = None,
-        quiet: bool | None = None,
         *,
         settings: Settings,
         printer: printer.Printer,
     ) -> None:
-        if (quiet or settings.quiet) or settings.silent:
+        if settings.quiet or settings.silent:
             return
 
         if not internal_messages_response:
@@ -4045,48 +4022,19 @@ class Run:
     @staticmethod
     def _footer_notify_wandb_core(
         *,
-        quiet: bool | None = None,
         settings: Settings,
         printer: printer.Printer,
     ) -> None:
         """Prints a message advertising the upcoming core release."""
-        if quiet or not settings._require_legacy_service:
+        if settings.quiet or not settings.x_require_legacy_service:
             return
 
         printer.display(
             "The legacy backend is deprecated. In future versions, `wandb-core` will become "
             "the sole backend service, and the `wandb.require('legacy-service')` flag will be removed. "
-            "For more information, visit https://wandb.me/wandb-core",
+            f"For more information, visit {url_registry.url('wandb-core')}",
             level="warn",
         )
-
-    @staticmethod
-    def _footer_reporter_warn_err(
-        reporter: Reporter | None = None,
-        quiet: bool | None = None,
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
-        if (quiet or settings.quiet) or settings.silent:
-            return
-
-        if not reporter:
-            return
-
-        warning_lines = reporter.warning_lines
-        if warning_lines:
-            warnings = ["Warnings:"] + [f"{line}" for line in warning_lines]
-            if len(warning_lines) < reporter.warning_count:
-                warnings.append("More warnings...")
-            printer.display(warnings)
-
-        error_lines = reporter.error_lines
-        if error_lines:
-            errors = ["Errors:"] + [f"{line}" for line in error_lines]
-            if len(error_lines) < reporter.error_count:
-                errors.append("More errors...")
-            printer.display(errors)
 
 
 # We define this outside of the run context to support restoring before init
@@ -4153,15 +4101,25 @@ except AttributeError:
     pass
 
 
-def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
-    """Mark a run as finished, and finish uploading all data.
+def finish(
+    exit_code: int | None = None,
+    quiet: bool | None = None,
+) -> None:
+    """Finish a run and upload any remaining data.
 
-    This is used when creating multiple runs in the same process.
-    We automatically call this method when your script exits.
+    Marks the completion of a W&B run and ensures all data is synced to the server.
+    The run's final state is determined by its exit conditions and sync status.
+
+    Run States:
+    - Running: Active run that is logging data and/or sending heartbeats.
+    - Crashed: Run that stopped sending heartbeats unexpectedly.
+    - Finished: Run completed successfully (`exit_code=0`) with all data synced.
+    - Failed: Run completed with errors (`exit_code!=0`).
 
     Args:
-        exit_code: Set to something other than 0 to mark a run as failed
-        quiet: Set to true to minimize log output
+        exit_code: Integer indicating the run's exit status. Use 0 for success,
+            any other value marks the run as failed.
+        quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code, quiet=quiet)

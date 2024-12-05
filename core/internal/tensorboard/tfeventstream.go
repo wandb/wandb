@@ -106,10 +106,12 @@ func (s *tfEventStream) loop() {
 				return
 			}
 
+			delayCh, delayCancel := s.readDelay.Wait()
 			select {
-			case <-s.readDelay.Wait():
+			case <-delayCh:
 				continue
 			case <-s.done:
+				delayCancel()
 				isFinishing = true
 				continue
 			}

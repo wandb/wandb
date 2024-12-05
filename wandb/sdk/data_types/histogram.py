@@ -78,9 +78,7 @@ class Histogram(WBValue):
             self.histogram = self.histogram.tolist()
             self.bins = self.bins.tolist()
         if len(self.histogram) > self.MAX_LENGTH:
-            raise ValueError(
-                "The maximum length of a histogram is %i" % self.MAX_LENGTH
-            )
+            raise ValueError(f"The maximum length of a histogram is {self.MAX_LENGTH}")
         if len(self.histogram) + 1 != len(self.bins):
             raise ValueError("len(bins) must be len(histogram) + 1")
 

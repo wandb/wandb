@@ -1,7 +1,5 @@
-import os
 import platform
 import queue
-import subprocess
 import unittest.mock
 
 import pytest
@@ -60,45 +58,6 @@ def send_manager(
     yield send_manager_helper
 
 
-def test_meta_probe(
-    relay_server, meta, mock_run, send_manager, record_q, user, monkeypatch
-):
-    orig_exists = os.path.exists
-    orig_call = subprocess.call
-    monkeypatch.setattr(
-        os.path,
-        "exists",
-        lambda path: True if "conda-meta" in path else orig_exists(path),
-    )
-    monkeypatch.setattr(
-        subprocess,
-        "call",
-        lambda cmd, **kwargs: kwargs["stdout"].write("CONDA YAML")
-        if "conda" in cmd
-        else orig_call(cmd, **kwargs),
-    )
-    with open("README", "w") as f:
-        f.write("Testing")
-    with relay_server() as relay:
-        run = mock_run(use_magic_mock=True, settings={"save_code": True})
-        meta = meta(run.settings)
-        sm = send_manager(run, meta)
-        data = meta.probe()
-        meta.publish(data)
-        sm.send(record_q.get())
-        sm.finish()
-
-    uploaded_files = relay.context.get_run_uploaded_files(run.id)
-    assert sorted(uploaded_files) == sorted(
-        [
-            "wandb-metadata.json",
-            "config.yaml",
-            "diff.patch",
-            "conda-environment.yaml",
-        ]
-    )
-
-
 def test_executable_outside_cwd(meta, test_settings):
     meta = meta(test_settings(dict(program="asdf.py")))
     data = meta.probe()
@@ -137,7 +96,7 @@ def test_jupyter_name(meta, test_settings, mocked_ipython):
 
 def test_jupyter_path(meta, test_settings, mocked_ipython, git_repo):
     # not actually how jupyter setup works but just to test the meta paths
-    meta = meta(test_settings(dict(_jupyter_path="dummy/path")))
+    meta = meta(test_settings(dict(x_jupyter_path="dummy/path")))
     data = meta.probe()
     assert data["program"] == "dummy/path"
     assert data.get("root") is not None
@@ -149,10 +108,10 @@ def test_jupyter_path(meta, test_settings, mocked_ipython, git_repo):
     platform.system() == "Windows",
     reason="backend sometimes crashes on Windows in CI",
 )
-def test_commit_hash_sent_correctly(wandb_init, git_repo):
+def test_commit_hash_sent_correctly(user, git_repo):
     # disable_git is False is by default
     # so run object should have git info
-    run = wandb_init()
+    run = wandb.init()
     assert run._commit is not None
     assert run._commit == git_repo.last_commit
     assert run._remote_url is None
@@ -164,9 +123,9 @@ def test_commit_hash_sent_correctly(wandb_init, git_repo):
     platform.system() == "Windows",
     reason="backend sometimes crashes on Windows in CI",
 )
-def test_commit_hash_not_sent_when_disable(wandb_init, git_repo):
+def test_commit_hash_not_sent_when_disable(user, git_repo):
     with unittest.mock.patch.dict("os.environ", WANDB_DISABLE_GIT="true"):
-        run = wandb_init()
+        run = wandb.init()
         assert git_repo.last_commit
         assert run._commit is None
         run.finish()

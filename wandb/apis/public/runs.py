@@ -2,16 +2,19 @@
 
 import json
 import os
-import sys
 import tempfile
 import time
 import urllib
-from typing import TYPE_CHECKING, Any, Collection, Dict, List, Mapping, Optional
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Collection,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+)
 
 from wandb_gql import gql
 
@@ -233,7 +236,6 @@ class Runs(Paginator):
             if not histories:
                 return pd.DataFrame()
             combined_df = pd.concat(histories)
-            combined_df.sort_values("run_id", inplace=True)
             combined_df.reset_index(drop=True, inplace=True)
             # sort columns for consistency
             combined_df = combined_df[(sorted(combined_df.columns))]
@@ -259,9 +261,9 @@ class Runs(Paginator):
                 histories.append(df)
             if not histories:
                 return pl.DataFrame()
-            combined_df = pl.concat(histories, how="align")
+            combined_df = pl.concat(histories, how="vertical")
             # sort columns for consistency
-            combined_df = combined_df.select(sorted(combined_df.columns)).sort("run_id")
+            combined_df = combined_df.select(sorted(combined_df.columns))
 
             return combined_df
 
@@ -919,7 +921,10 @@ class Run(Attrs):
         if self._metadata is None:
             try:
                 f = self.file("wandb-metadata.json")
-                contents = util.download_file_into_memory(f.url, wandb.Api().api_key)
+                session = self.client._client.transport.session
+                response = session.get(f.url, timeout=5)
+                response.raise_for_status()
+                contents = response.content
                 self._metadata = json_util.loads(contents)
             except:  # noqa: E722
                 # file doesn't exist, or can't be downloaded, or can't be parsed

@@ -589,6 +589,9 @@ pub struct Deprecated {
     /// wandb.run.define_metric() called with summary="best" and goal="maximize/minimize"
     #[prost(bool, tag = "18")]
     pub run_define_metric_best_goal: bool,
+    /// wandb.run.finish(quiet=...) called
+    #[prost(bool, tag = "19")]
+    pub run_finish_quiet: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {
@@ -2569,6 +2572,10 @@ pub struct AppleInfo {
     pub gpu_cores: u32,
     #[prost(uint32, tag = "5")]
     pub memory_gb: u32,
+    #[prost(uint64, tag = "6")]
+    pub swap_total_bytes: u64,
+    #[prost(uint64, tag = "7")]
+    pub ram_total_bytes: u64,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GpuNvidiaInfo {

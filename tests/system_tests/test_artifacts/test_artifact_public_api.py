@@ -80,7 +80,7 @@ def test_artifact_file(user, api, sample_data):
     assert path == os.path.join(".", "artifacts", part, "digits.h5")
 
 
-def test_artifact_files(user, api, sample_data, relay_server, inject_graphql_response):
+def test_artifact_files(user, api, sample_data, wandb_backend_spy):
     art = api.artifact("mnist:v0", type="dataset")
     assert (
         str(art.files()) == f"<ArtifactFiles {art.entity}/uncategorized/mnist:v0 (1)>"
@@ -89,17 +89,23 @@ def test_artifact_files(user, api, sample_data, relay_server, inject_graphql_res
     assert paths[0].startswith("wandb_artifacts/")
 
     # Assert we don't break legacy local installs
-    server_info_response = inject_graphql_response(
-        # request
-        query_match_fn=lambda query, variables: query.startswith("query ServerInfo"),
-        # response
-        body="""{"data": {"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.12.20"}}}}""",
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="ServerInfo"),
+        gql.once(
+            content={
+                "data": {
+                    "serverInfo": {"cliVersionInfo": {"max_cli_version": "0.12.20"}}
+                }
+            },
+            status=200,
+        ),
     )
-    with relay_server(inject=[server_info_response]):
-        api = wandb.Api()
-        art = api.artifact("mnist:v0", type="dataset")
-        file = art.files()[0]
-        assert "storagePath" not in file._attrs.keys()
+
+    api = wandb.Api()
+    art = api.artifact("mnist:v0", type="dataset")
+    file = art.files()[0]
+    assert "storagePath" not in file._attrs.keys()
 
 
 def test_artifact_download(user, api, sample_data):

@@ -240,7 +240,7 @@ def _launch_add(
     public_api = public.Api()
     if job is not None:
         try:
-            public_api.artifact(job, type="job")
+            public_api._artifact(job, type="job")
         except (ValueError, CommError) as e:
             raise LaunchError(f"Unable to fetch job with name {job}: {e}")
 

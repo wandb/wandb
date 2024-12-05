@@ -590,14 +590,6 @@ func (client *Client) GetSDKIdentifier() string {
 	return client.sdkIdentifier
 }
 
-// reverse reverses the slice a in place.
-func reverse(a []Exception) {
-	for i := len(a)/2 - 1; i >= 0; i-- {
-		opp := len(a) - 1 - i
-		a[i], a[opp] = a[opp], a[i]
-	}
-}
-
 func (client *Client) processEvent(event *Event, hint *EventHint, scope EventModifier) *EventID {
 	if event == nil {
 		err := usageError{fmt.Errorf("%s called with nil event", callerFunctionName())}

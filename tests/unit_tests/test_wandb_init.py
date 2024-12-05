@@ -7,6 +7,7 @@ from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.wandb_init import _WandbInit
 
 
+@pytest.mark.wandb_core_only
 def test_init(test_settings):
     class MyExitError(Exception):
         pass
@@ -17,7 +18,7 @@ def test_init(test_settings):
         ), patch("wandb._assert_is_user_process", side_effect=lambda: None):
             instance = mocked_wandbinit.return_value
             instance.settings = test_settings()
-            instance.setup.side_effect = lambda *_: None
+            instance.setup.side_effect = lambda **_: None
             instance.init.side_effect = MyExitError("test")
             with pytest.raises(MyExitError):
                 wandb.init()
@@ -53,9 +54,8 @@ def test_init_reinit(test_settings):
 
         wandbinit = _WandbInit()
         wandbinit.kwargs = {}
-        wandbinit.settings = test_settings({"reinit": True})
+        wandbinit.settings = test_settings({"reinit": True, "run_id": "test"})
         wandbinit.init_artifact_config = {}
-        wandbinit._reporter = MagicMock()
         last_run_instance = MagicMock()
         wandbinit._wl = MagicMock(
             _global_run_stack=[last_run_instance],
@@ -99,8 +99,7 @@ def test_init_internal_error(test_settings):
 
         wandbinit = _WandbInit()
         wandbinit.kwargs = {}
-        wandbinit.settings = test_settings()
-        wandbinit._reporter = MagicMock()
+        wandbinit.settings = test_settings({"run_id": "test"})
         wandbinit._wl = MagicMock(
             _get_manager=MagicMock(side_effect=lambda: MagicMock()),
         )

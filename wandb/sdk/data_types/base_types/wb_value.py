@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Type, Union
 
+import wandb
 from wandb import util
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -13,16 +14,25 @@ if TYPE_CHECKING:  # pragma: no cover
 def _server_accepts_client_ids() -> bool:
     from wandb.util import parse_version
 
-    # First, if we are offline, assume the backend server cannot
-    # accept client IDs. Unfortunately, this is the best we can do
-    # until we are sure that all local versions are > "0.11.0" max_cli_version.
-    # The practical implication is that tables logged in offline mode
-    # will not show up in the workspace (but will still show up in artifacts). This
-    # means we never lose data, and we can still view using weave. If we decided
-    # to use client ids in offline mode, then the manifests and artifact data
-    # would never be resolvable and would lead to failed uploads. Our position
-    # is to never lose data - and instead take the tradeoff in the UI.
-    if util._is_offline():
+    # There are versions of W&B Server that cannot accept client IDs. Those versions of
+    # the backend have a max_cli_version of less than "0.11.0." If the backend cannot
+    # accept client IDs, manifests and artifact data would never be resolvable and lead
+    # to failed uploads. Our position in 2021/06/29 was to never lose data - and instead take the
+    # tradeoff in the UI. The results in tables not displaying media correctly, but
+    # the table can still be accessed via the .artifact op.
+    #
+    # The latest SDK version that is < "0.11.0" was released on 2021/06/29.
+    # AS OF NOW, 2024/11/06, we assume that all customer's server deployments accept
+    # client IDs.
+    #
+    # If there are any users with issues on an older backend, customers can disable the
+    # setting `allow_offline_artifacts` to revert the SDK's behavior back to not
+    # using client IDs in offline mode.
+    if (
+        util._is_offline()
+        and wandb.run
+        and not wandb.run.settings.allow_offline_artifacts
+    ):
         return False
 
     # If the script is online, request the max_cli_version and ensure the server
