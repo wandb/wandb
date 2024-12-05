@@ -8,7 +8,6 @@ import (
 	"math"
 	"net/url"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,6 +22,7 @@ import (
 	"github.com/wandb/wandb/core/internal/namedgoroutines"
 	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/server"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -44,6 +44,7 @@ const (
 type ArtifactSaveManager struct {
 	logger              *observability.CoreLogger
 	graphqlClient       graphql.Client
+	featureProvider     *server.ServerFeatures
 	fileTransferManager filetransfer.FileTransferManager
 	fileCache           Cache
 
@@ -56,6 +57,7 @@ func NewArtifactSaveManager(
 	logger *observability.CoreLogger,
 	graphqlClient graphql.Client,
 	fileTransferManager filetransfer.FileTransferManager,
+	featureProvider *server.ServerFeatures,
 ) *ArtifactSaveManager {
 	workerPool := &errgroup.Group{}
 	workerPool.SetLimit(maxSimultaneousUploads)
@@ -65,6 +67,7 @@ func NewArtifactSaveManager(
 		graphqlClient:       graphqlClient,
 		fileTransferManager: fileTransferManager,
 		fileCache:           NewFileCache(UserCacheDir()),
+		featureProvider:     featureProvider,
 		uploadsByName: namedgoroutines.New(
 			uploadBufferPerArtifactName,
 			workerPool,
@@ -111,6 +114,7 @@ func (as *ArtifactSaveManager) Save(
 			stagingDir:          stagingDir,
 			maxActiveBatches:    5,
 			resultChan:          resultChan,
+			featureProvider:     as.featureProvider,
 		},
 	)
 
@@ -123,6 +127,7 @@ type ArtifactSaver struct {
 	ctx                 context.Context
 	logger              *observability.CoreLogger
 	graphqlClient       graphql.Client
+	featureProvider     *server.ServerFeatures
 	fileTransferManager filetransfer.FileTransferManager
 	fileCache           Cache
 	resultChan          chan<- ArtifactSaveResult
@@ -176,16 +181,13 @@ func (as *ArtifactSaver) createArtifact() (
 		runId = &as.artifact.RunId
 	}
 
-	// Check which fields are actually supported on the input
-	inputFieldNames, err := GetGraphQLInputFields(as.ctx, as.graphqlClient, "CreateArtifactInput")
-	if err != nil {
-		return gql.CreatedArtifactArtifact{}, err
-	}
-
 	// Note: if tags are empty, `omitempty` ensures they're nulled out
 	// (effectively omitted) in the prepare GraphQL request
 	var tags []gql.TagInput
-	if slices.Contains(inputFieldNames, "tags") {
+
+	// Check which fields are actually supported on the input
+	serverAllowsArtifactTags := as.featureProvider.GetFeature("ServerSupportsArtifactTags").Enabled
+	if serverAllowsArtifactTags {
 		for _, tag := range as.artifact.Tags {
 			tags = append(tags, gql.TagInput{TagName: tag})
 		}

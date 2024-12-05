@@ -17,6 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
+	"github.com/wandb/wandb/core/internal/server"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/version"
@@ -208,6 +209,8 @@ func NewStream(
 		)
 	}
 
+	featureProvider := server.NewServerFeatures(graphqlClientOrNil, s.runWork, s.logger)
+
 	mailbox := mailbox.New()
 
 	s.handler = NewHandler(opts.Commit,
@@ -222,6 +225,7 @@ func NewStream(
 			FileTransferStats: fileTransferStats,
 			Mailbox:           mailbox,
 			TerminalPrinter:   terminalPrinter,
+			FeatureProvider:   featureProvider,
 		},
 	)
 
@@ -251,6 +255,7 @@ func NewStream(
 			GraphqlClient:       graphqlClientOrNil,
 			OutChan:             make(chan *spb.Result, BufferSize),
 			Mailbox:             mailbox,
+			FeatureProvider:     featureProvider,
 		},
 	)
 
