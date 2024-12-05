@@ -131,6 +131,10 @@ func getStorageProvider(ref string, fts *FileTransfers) (ReferenceArtifactFileTr
 		return fts.GCS, nil
 	case uriParts.Scheme == "s3":
 		return fts.S3, nil
+	// azure blob storage urls have the following format:
+	// https://<storage-account-name>.blob.core.windows.net/<container-name>/<blob-name>
+	case uriParts.Scheme == "https" && strings.HasSuffix(uriParts.Host, ".blob.core.windows.net"):
+		return fts.Azure, nil
 	default:
 		return nil, fmt.Errorf("reference artifact task: unknown reference type: %s", ref)
 	}

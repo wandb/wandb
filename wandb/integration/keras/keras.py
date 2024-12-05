@@ -633,8 +633,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 wandb.run.summary["{}{}".format(self.log_best_prefix, "epoch")] = epoch
                 if self.verbose and not self.save_model:
                     print(
-                        "Epoch %05d: %s improved from %0.5f to %0.5f"
-                        % (epoch, self.monitor, self.best, self.current)
+                        f"Epoch {epoch:05d}: {self.monitor} improved from {self.best:.5f} to {self.current:.5f}"
                     )
             if self.save_model:
                 self._save_model(epoch)
@@ -1005,9 +1004,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
             return
         if self.verbose > 0:
             print(
-                "Epoch %05d: %s improved from %0.5f to %0.5f,"
-                " saving model to %s"
-                % (epoch, self.monitor, self.best, self.current, self.filepath)
+                f"Epoch {epoch:05d}: {self.monitor} improved from {self.best:.5f} to {self.current:.5f}, "
+                f"saving model to {self.filepath}"
             )
 
         try:

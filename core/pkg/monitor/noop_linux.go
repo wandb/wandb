@@ -15,7 +15,7 @@ func NewGPUApple() *GPUApple {
 
 func (g *GPUApple) Name() string { return g.name }
 
-func (g *GPUApple) Sample() (map[string]any, error) { return nil, nil }
+func (g *GPUApple) Sample() (*spb.StatsRecord, error) { return nil, nil }
 
 func (g *GPUApple) IsAvailable() bool { return false }
 

@@ -11,7 +11,6 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 import gzip
 import logging
 import os
-import sys
 import time
 from abc import abstractmethod
 from pathlib import Path
@@ -22,9 +21,11 @@ from typing import (
     Dict,
     Iterable,
     List,
+    Literal,
     NewType,
     Optional,
     Tuple,
+    TypedDict,
     Union,
 )
 
@@ -54,10 +55,6 @@ MANIFEST_FILE_SIZE_THRESHOLD = 100_000
 
 GlobStr = NewType("GlobStr", str)
 
-if sys.version_info >= (3, 8):
-    from typing import Literal, TypedDict
-else:
-    from typing_extensions import Literal, TypedDict
 
 PolicyName = Literal["now", "live", "end"]
 
@@ -951,6 +948,16 @@ class InterfaceBase:
 
     @abstractmethod
     def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_finish_without_exit(self) -> MailboxHandle:
+        run_finish_without_exit = pb.RunFinishWithoutExitRequest()
+        return self._deliver_finish_without_exit(run_finish_without_exit)
+
+    @abstractmethod
+    def _deliver_finish_without_exit(
+        self, run_finish_without_exit: pb.RunFinishWithoutExitRequest
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_request_sampled_history(self) -> MailboxHandle:

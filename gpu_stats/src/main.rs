@@ -28,10 +28,12 @@ use tokio_stream;
 use tonic;
 use tonic::{transport::Server, Request, Response, Status};
 
+use chrono::Utc;
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 use gpu_apple::ThreadSafeSampler;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use gpu_nvidia::NvidiaGpu;
+use prost_types::Timestamp;
 use wandb_internal::{
     record::RecordType,
     request::RequestType,
@@ -40,6 +42,14 @@ use wandb_internal::{
     GetMetadataRequest, GetStatsRequest, MetadataRequest, Record, Request as Req, StatsItem,
     StatsRecord,
 };
+
+fn current_timestamp() -> Timestamp {
+    let now = Utc::now();
+    Timestamp {
+        seconds: now.timestamp(),
+        nanos: now.timestamp_subsec_nanos() as i32,
+    }
+}
 
 /// Command-line arguments for the system metrics service.
 #[derive(Parser, Debug)]
@@ -280,6 +290,7 @@ impl SystemMonitor for SystemMonitorImpl {
 
         let record = Record {
             record_type: Some(RecordType::Stats(StatsRecord {
+                timestamp: Some(current_timestamp()),
                 stats_type: StatsType::System as i32,
                 item: stats_items,
                 ..Default::default()

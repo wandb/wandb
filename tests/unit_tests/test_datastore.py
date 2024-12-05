@@ -39,13 +39,21 @@ def check(
 
 
 @pytest.fixture()
-def with_datastore(request):
+def force_internal_process():
+    wandb._IS_INTERNAL_PROCESS = True
+    yield
+    wandb._IS_INTERNAL_PROCESS = False
+
+
+@pytest.fixture()
+def with_datastore(request, force_internal_process):
     """Fixture which returns an initialized datastore."""
     try:
         os.unlink(FNAME)
     except FileNotFoundError:
         pass
-    wandb._set_internal_process()
+
+    _ = force_internal_process  # required by DataStore
     s = datastore.DataStore()
     s.open_for_write(FNAME)
 
@@ -56,7 +64,7 @@ def with_datastore(request):
     return s
 
 
-def test_proto_write_partial():
+def test_proto_write_partial(force_internal_process):
     """Serialize a proto into a partial block."""
     data = dict(this=2, that=4)
     history = wandb_internal_pb2.HistoryRecord()
@@ -68,7 +76,7 @@ def test_proto_write_partial():
     rec = wandb_internal_pb2.Record()
     rec.history.CopyFrom(history)
 
-    wandb._set_internal_process()
+    _ = force_internal_process  # required by DataStore
     s = datastore.DataStore()
     s.open_for_write(FNAME)
     s.write(rec)

@@ -21,13 +21,13 @@ def determine_scope(fixture_name, config):
 
 
 @pytest.fixture(scope="session")
-def fixture_fn2(request, fixture_fn_factory):
-    yield from fixture_fn_factory(request.config.wandb_server_settings2)
+def fixture_fn2(local_wandb_backend_importers, fixture_fn_factory):
+    yield from fixture_fn_factory(local_wandb_backend_importers)
 
 
 @pytest.fixture(scope=determine_scope)
-def user2(request, user_factory, fixture_fn2):
-    yield from user_factory(fixture_fn2, request.config.wandb_server_settings2)
+def user2(user_factory, fixture_fn2):
+    yield from user_factory(fixture_fn2)
 
 
 @pytest.fixture

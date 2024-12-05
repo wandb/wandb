@@ -1,184 +1,53 @@
-import re
-
 import pytest
 import wandb
 
 
-def log_line_match_http_error(user, project, run_id, status_code):
-    pattern = (
-        r"POST http://127\.0\.0\.1:\d+/files/"
-        + re.escape(user)
-        + "/"
-        + re.escape(project)
-        + "/"
-        + re.escape(run_id)
-        + r"/file_stream \(status: "
-        + re.escape(status_code)
-        + r"\): retrying in \d+\.\d+s \(\d+ left\)"
-    )
-    return re.compile(pattern)
-
-
-def log_line_match_eof(user, project, run_id):
-    pattern = (
-        r"POST http://127\.0\.0\.1:\d+/files/"
-        + re.escape(user)
-        + "/"
-        + re.escape(project)
-        + "/"
-        + re.escape(run_id)
-        + r"/file_stream: retrying in \d+\.\d+s \(\d+ left\)"
-    )
-    return re.compile(pattern)
-
-
-@pytest.mark.wandb_core_only
 @pytest.mark.parametrize("status_code", [429, 500])
-def test_retryable_codes(
-    status_code,
-    user,
-    test_settings,
-    relay_server,
-    inject_file_stream_response,
-    monkeypatch,
-    tokenized_circular_pattern,
-):
-    # turn on debug logs
-    monkeypatch.setenv("WANDB_DEBUG", "true")
-    monkeypatch.setenv("WANDB_CORE_DEBUG", "true")
+def test_retries_retryable_codes(status_code, wandb_backend_spy):
+    wandb_backend_spy.stub_filestream(
+        "transient error",
+        status=status_code,
+        n_times=2,  # Should keep retrying until success.
+    )
 
-    with relay_server() as relay:
-        run = wandb.init(
-            settings=test_settings(
-                {
-                    "_file_stream_retry_wait_min_seconds": 1,
-                    "_disable_machine_info": True,
-                }
-            )
-        )
-        relay.inject.append(
-            inject_file_stream_response(
-                run=run,
-                application_pattern=(
-                    tokenized_circular_pattern.APPLY_TOKEN
-                    + tokenized_circular_pattern.APPLY_TOKEN
-                    + tokenized_circular_pattern.STOP_TOKEN
-                ),
-                status=status_code,
-                body="transient error",
-            )
-        )
+    with wandb.init(
+        settings=wandb.Settings(_file_stream_retry_wait_min_seconds=1)
+    ) as run:
         run.log({"acc": 1})
-        run.finish()
 
-    # check debug logs
-    with open(run.settings.log_symlink_internal) as f:
-        internal_log = f.read()
-        regex_pattern = log_line_match_http_error(
-            user, run.project, run.id, str(status_code)
-        )
-        matches = regex_pattern.findall(internal_log)
-        # we should have 2 retries
-        assert len(matches) == 2
+    with wandb_backend_spy.freeze() as snapshot:
+        assert snapshot.history(run_id=run.id)[0]["acc"] == 1
 
 
+def test_ignores_malformed_response(wandb_backend_spy):
+    wandb_backend_spy.stub_filestream(
+        "malformed response",
+        status=200,
+    )
+
+    with wandb.init() as run:
+        run.log({"acc": 1})
+
+    with wandb_backend_spy.freeze() as snapshot:
+        assert snapshot.history(run_id=run.id)[0]["acc"] == 1
+
+
+# The retry behavior is different in the legacy service.
 @pytest.mark.wandb_core_only
 @pytest.mark.parametrize(
-    "status_code, name",
-    [
-        (400, "Bad Request"),
-        (401, "Unauthorized"),
-        (403, "Forbidden"),
-        (404, "Not Found"),
-        (409, "Conflict"),
-        (410, "Gone"),
-    ],
+    "status_code",
+    [400, 401, 403, 404, 409, 410],
 )
-def test_non_retryable_codes(
-    status_code,
-    name,
-    user,
-    test_settings,
-    relay_server,
-    inject_file_stream_response,
-    monkeypatch,
-    tokenized_circular_pattern,
-):
-    # turn on debug logs
-    monkeypatch.setenv("WANDB_DEBUG", "true")
-    monkeypatch.setenv("WANDB_CORE_DEBUG", "true")
+def test_fails_on_non_retryable_codes(status_code, wandb_backend_spy):
+    wandb_backend_spy.stub_filestream(
+        "non-retryable error",
+        status=status_code,
+        n_times=1,  # The first error should cause a failure.
+    )
 
-    with relay_server() as relay:
-        run = wandb.init(
-            settings=test_settings(
-                {
-                    "_file_stream_retry_wait_min_seconds": 1,
-                    "_disable_machine_info": True,
-                }
-            )
-        )
-        relay.inject.append(
-            inject_file_stream_response(
-                run=run,
-                application_pattern=(
-                    tokenized_circular_pattern.APPLY_TOKEN
-                    + tokenized_circular_pattern.STOP_TOKEN
-                ),
-                status=status_code,
-                body="non-retryable error",
-            )
-        )
+    with wandb.init() as run:
         run.log({"acc": 1})
-        run.finish()
 
-    # check debug logs
-    with open(run.settings.log_symlink_internal) as f:
-        internal_log = f.read()
-        log_line = f"filestream: failed to upload: {status_code} {name.upper()}"
-        assert log_line in internal_log
-
-
-@pytest.mark.wandb_core_only
-def test_connection_reset(
-    user,
-    test_settings,
-    relay_server,
-    inject_file_stream_connection_reset,
-    monkeypatch,
-    tokenized_circular_pattern,
-):
-    # turn on debug logs
-    monkeypatch.setenv("WANDB_DEBUG", "true")
-    monkeypatch.setenv("WANDB_CORE_DEBUG", "true")
-
-    with relay_server() as relay:
-        run = wandb.init(
-            settings=test_settings(
-                {
-                    "_file_stream_retry_wait_min_seconds": 1,
-                    "_disable_machine_info": True,
-                }
-            )
-        )
-        relay.inject.append(
-            inject_file_stream_connection_reset(
-                run=run,
-                application_pattern=(
-                    tokenized_circular_pattern.APPLY_TOKEN
-                    + tokenized_circular_pattern.APPLY_TOKEN
-                    + tokenized_circular_pattern.STOP_TOKEN
-                ),
-                body=ConnectionResetError("Connection reset by peer"),
-            )
-        )
-        run.log({"acc": 1})
-        run.finish()
-
-    with open(run.settings.log_symlink_internal) as f:
-        internal_log = f.read()
-        regex_pattern = log_line_match_eof(user, run.project, run.id)
-        matches = regex_pattern.findall(internal_log)
-
-        assert len(matches) == 2
-        # Each retry generates 2 log messages.
-        assert internal_log.count(': EOF"') == 4
+    # No history should be uploaded.
+    with wandb_backend_spy.freeze() as snapshot:
+        assert len(snapshot.history(run_id=run.id)) == 0

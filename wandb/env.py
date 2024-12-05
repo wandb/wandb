@@ -82,11 +82,11 @@ SENTRY_DSN = "WANDB_SENTRY_DSN"
 INIT_TIMEOUT = "WANDB_INIT_TIMEOUT"
 GIT_COMMIT = "WANDB_GIT_COMMIT"
 GIT_REMOTE_URL = "WANDB_GIT_REMOTE_URL"
-_EXECUTABLE = "WANDB_EXECUTABLE"
+_EXECUTABLE = "WANDB_X_EXECUTABLE"
 LAUNCH_QUEUE_NAME = "WANDB_LAUNCH_QUEUE_NAME"
 LAUNCH_QUEUE_ENTITY = "WANDB_LAUNCH_QUEUE_ENTITY"
 LAUNCH_TRACE_ID = "WANDB_LAUNCH_TRACE_ID"
-_REQUIRE_LEGACY_SERVICE = "WANDB__REQUIRE_LEGACY_SERVICE"
+_REQUIRE_LEGACY_SERVICE = "WANDB_X_REQUIRE_LEGACY_SERVICE"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -290,9 +290,7 @@ def get_base_url(
     if env is None:
         env = os.environ
 
-    base_url = env.get(BASE_URL, default)
-
-    return base_url.rstrip("/") if base_url is not None else base_url
+    return env.get(BASE_URL, default)
 
 
 def get_app_url(

@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 from wandb import _sentry, termlog
 from wandb.env import core_debug, error_reporting_enabled, is_require_legacy_service
 from wandb.errors import Error, WandbCoreNotAvailableError
-from wandb.sdk.lib.wburls import wburls
+from wandb.errors.links import url_registry
 from wandb.util import get_core_path, get_module
 
 from . import _startup_debug, port_file
@@ -76,7 +76,7 @@ class _Service:
             ServiceStartProcessError: If the service process exits unexpectedly.
 
         """
-        time_max = time.monotonic() + self._settings._service_wait
+        time_max = time.monotonic() + self._settings.x_service_wait
         while time.monotonic() < time_max:
             if proc and proc.poll():
                 # process finished
@@ -97,7 +97,7 @@ class _Service:
                     f"The wandb service process exited with {proc.returncode}. "
                     "Ensure that `sys.executable` is a valid python interpreter. "
                     "You can override it with the `_executable` setting "
-                    "or with the `WANDB__EXECUTABLE` environment variable."
+                    "or with the `WANDB_X_EXECUTABLE` environment variable."
                     f"\n{context}",
                     context=context,
                 )
@@ -120,7 +120,7 @@ class _Service:
             return
         raise ServiceStartTimeoutError(
             "Timed out waiting for wandb service to start after "
-            f"{self._settings._service_wait} seconds. "
+            f"{self._settings.x_service_wait} seconds. "
             "Try increasing the timeout with the `_service_wait` setting."
         )
 
@@ -143,7 +143,7 @@ class _Service:
         with tempfile.TemporaryDirectory() as tmpdir:
             fname = os.path.join(tmpdir, f"port-{pid}.txt")
 
-            executable = self._settings._executable
+            executable = self._settings.x_executable
             exec_cmd_list = [executable, "-m"]
 
             service_args = []
@@ -164,8 +164,8 @@ class _Service:
 
                 exec_cmd_list = []
                 termlog(
-                    "Using wandb-core as the SDK backend."
-                    f" Please refer to {wburls.get('wandb_core')} for more information.",
+                    "Using wandb-core as the SDK backend.  Please refer to "
+                    f"{url_registry.url('wandb-core')} for more information.",
                     repeat=False,
                 )
             else:
@@ -212,7 +212,7 @@ class _Service:
 
             try:
                 internal_proc = subprocess.Popen(
-                    exec_cmd_list + service_args,
+                    exec_cmd_list + service_args,  # type: ignore[arg-type]
                     env=os.environ,
                     **kwargs,
                 )
