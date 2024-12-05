@@ -1342,10 +1342,19 @@ class Run:
     @_run_decorator._attach
     def display(self, height: int = 420, hidden: bool = False) -> bool:
         """Display this run in jupyter."""
-        if self._settings._jupyter:
-            ipython.display_html(self.to_html(height, hidden))
+        if self._settings.silent:
+            return False
+
+        if not ipython.in_jupyter():
+            return False
+
+        try:
+            from IPython import display
+
+            display.display(display.HTML(self.to_html(height, hidden)))
             return True
-        else:
+
+        except ImportError:
             wandb.termwarn(".display() only works in jupyter environments")
             return False
 
