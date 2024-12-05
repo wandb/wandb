@@ -20,10 +20,6 @@ repos:
       - id: ruff
         args: [ --fix]
       - id: ruff-format
-  - repo: https://github.com/asottile/blacken-docs
-    rev: 1.18.0
-    hooks:
-      - id: blacken-docs
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v19.1.4
     hooks:
