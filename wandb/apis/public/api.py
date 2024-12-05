@@ -24,10 +24,11 @@ from wandb_gql.client import RetryError
 import wandb
 from wandb import env, util
 from wandb.apis import public
-from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
+from wandb.apis.public.utils import PathType, parse_org_from_registry_path
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import retry, runid
@@ -781,8 +782,18 @@ class Api:
         Returns:
             A `Project` object.
         """
+        # For registry artifacts, capture potential org user inputted before resolving entity
+        org = entity if is_artifact_registry_project(name) else ""
+
         if entity is None:
             entity = self.settings["entity"] or self.default_entity
+
+        # For registry artifacts, resolve org-based entity
+        if is_artifact_registry_project(name):
+            settings_entity = self.settings["entity"] or self.default_entity
+            entity = InternalApi()._resolve_org_entity_name(
+                entity=settings_entity, organization=org
+            )
         return public.Project(self.client, entity, name, {})
 
     def reports(
@@ -1041,7 +1052,15 @@ class Api:
         Returns:
             An iterable `ArtifactTypes` object.
         """
-        entity, project = self._parse_project_path(project)
+        project_path = project
+        entity, project = self._parse_project_path(project_path)
+        # If its a Registry project, the entity is considered to be an org instead
+        if is_artifact_registry_project(project):
+            settings_entity = self.settings["entity"] or self.default_entity
+            org = parse_org_from_registry_path(project_path, PathType.PROJECT)
+            entity = InternalApi()._resolve_org_entity_name(
+                entity=settings_entity, organization=org
+            )
         return public.ArtifactTypes(self.client, entity, project)
 
     @normalize_exceptions
@@ -1057,7 +1076,15 @@ class Api:
         Returns:
             An `ArtifactType` object.
         """
-        entity, project = self._parse_project_path(project)
+        project_path = project
+        entity, project = self._parse_project_path(project_path)
+        # If its an Registry artifact, the entity is an org instead
+        if is_artifact_registry_project(project):
+            org = parse_org_from_registry_path(project_path, PathType.PROJECT)
+            settings_entity = self.settings["entity"] or self.default_entity
+            entity = InternalApi()._resolve_org_entity_name(
+                entity=settings_entity, organization=org
+            )
         return public.ArtifactType(self.client, entity, project, type_name)
 
     @normalize_exceptions
@@ -1076,6 +1103,13 @@ class Api:
             An iterable `ArtifactCollections` object.
         """
         entity, project = self._parse_project_path(project_name)
+        # If iterating through Registry project, the entity is considered to be an org instead
+        if is_artifact_registry_project(project):
+            org = parse_org_from_registry_path(project_name, PathType.PROJECT)
+            settings_entity = self.settings["entity"] or self.default_entity
+            entity = InternalApi()._resolve_org_entity_name(
+                entity=settings_entity, organization=org
+            )
         return public.ArtifactCollections(
             self.client, entity, project, type_name, per_page=per_page
         )
@@ -1094,6 +1128,13 @@ class Api:
             An `ArtifactCollection` object.
         """
         entity, project, collection_name = self._parse_artifact_path(name)
+        # If its an Registry artifact, the entity is considered to be an org instead
+        if is_artifact_registry_project(project):
+            org = parse_org_from_registry_path(name, PathType.ARTIFACT)
+            settings_entity = self.settings["entity"] or self.default_entity
+            entity = InternalApi()._resolve_org_entity_name(
+                entity=settings_entity, organization=org
+            )
         return public.ArtifactCollection(
             self.client, entity, project, collection_name, type_name
         )
@@ -1131,6 +1172,13 @@ class Api:
             An iterable `Artifacts` object.
         """
         entity, project, collection_name = self._parse_artifact_path(name)
+        # If its an Registry project, the entity is considered to be an org instead
+        if is_artifact_registry_project(project):
+            org = parse_org_from_registry_path(name, PathType.ARTIFACT)
+            settings_entity = self.settings["entity"] or self.default_entity
+            entity = InternalApi()._resolve_org_entity_name(
+                entity=settings_entity, organization=org
+            )
         return public.Artifacts(
             self.client,
             entity,
@@ -1142,7 +1190,38 @@ class Api:
         )
 
     @normalize_exceptions
-    def artifact(self, name, type=None):
+    def _artifact(
+        self, name: str, type: Optional[str] = None, enable_tracking: bool = False
+    ):
+        if name is None:
+            raise ValueError("You must specify name= to fetch an artifact.")
+        entity, project, artifact_name = self._parse_artifact_path(name)
+
+        # If its an Registry artifact, the entity is an org instead
+        if is_artifact_registry_project(project):
+            organization = name.split("/")[0] if name.count("/") == 2 else ""
+            # set entity to match the settings since in above code it was potentially set to an org
+            settings_entity = self.settings["entity"] or self.default_entity
+            # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
+            # we need to fetch the org entity to for the user behind the scenes.
+            entity = InternalApi()._resolve_org_entity_name(
+                entity=settings_entity, organization=organization
+            )
+        artifact = wandb.Artifact._from_name(
+            entity=entity,
+            project=project,
+            name=artifact_name,
+            client=self.client,
+            enable_tracking=enable_tracking,
+        )
+        if type is not None and artifact.type != type:
+            raise ValueError(
+                f"type {type} specified but this artifact is of type {artifact.type}"
+            )
+        return artifact
+
+    @normalize_exceptions
+    def artifact(self, name: str, type: Optional[str] = None):
         """Return a single artifact by parsing path in the form `project/name` or `entity/project/name`.
 
         Args:
@@ -1154,31 +1233,16 @@ class Api:
             type: (str, optional) The type of artifact to fetch.
 
         Returns:
-            A `Artifact` object.
-        """
-        if name is None:
-            raise ValueError("You must specify name= to fetch an artifact.")
-        entity, project, artifact_name = self._parse_artifact_path(name)
+            An `Artifact` object.
 
-        organization = ""
-        # If its an Registry artifact, the entity is an org instead
-        if is_artifact_registry_project(project):
-            # Update `organization` only if an organization name was provided,
-            # otherwise use the default that you already set above.
-            try:
-                organization, _, _ = name.split("/")
-            except ValueError:
-                organization = ""
-            # set entity to match the settings since in above code it was potentially set to an org
-            entity = self.settings["entity"] or self.default_entity
-        artifact = wandb.Artifact._from_name(
-            entity, project, artifact_name, self.client, organization
-        )
-        if type is not None and artifact.type != type:
-            raise ValueError(
-                f"type {type} specified but this artifact is of type {artifact.type}"
-            )
-        return artifact
+        Raises:
+            ValueError: If the artifact name is not specified.
+            ValueError: If the artifact type is specified but does not match the type of the fetched artifact.
+
+        Note:
+        This method is intended for external use only. Do not call `api.artifact()` within the wandb repository code.
+        """
+        return self._artifact(name=name, type=type, enable_tracking=True)
 
     @normalize_exceptions
     def job(self, name: Optional[str], path: Optional[str] = None) -> "public.Job":
@@ -1294,7 +1358,7 @@ class Api:
             True if the artifact version exists, False otherwise.
         """
         try:
-            self.artifact(name, type)
+            self._artifact(name, type)
             return True
         except wandb.errors.CommError:
             return False

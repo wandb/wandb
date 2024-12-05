@@ -307,6 +307,8 @@ class _WandbController:
             self._create["parameters"][name]["value"] = value
         if values is not None:
             self._create["parameters"][name]["values"] = values
+        if distribution is not None:
+            self._create["parameters"][name]["distribution"] = distribution
         if min is not None:
             self._create["parameters"][name]["min"] = min
         if max is not None:
@@ -588,13 +590,11 @@ class _WandbController:
         stopper = self._custom_stopping or sweeps.stop_runs
         stop_runs = stopper(self._sweep_config, self._sweep_runs or [])
 
-        debug_lines = "\n".join(
-            [
-                " ".join([f"{k}={v}" for k, v in run.early_terminate_info.items()])
-                for run in stop_runs
-                if run.early_terminate_info is not None
-            ]
-        )
+        debug_lines = [
+            " ".join([f"{k}={v}" for k, v in run.early_terminate_info.items()])
+            for run in stop_runs
+            if run.early_terminate_info is not None
+        ]
         if debug_lines:
             self._log_debug += debug_lines
 
@@ -678,7 +678,7 @@ def _get_runs_status(metrics):
     for c in categories:
         if not metrics.get(c):
             continue
-        mlist.append("%s: %d" % (c.capitalize(), metrics[c]))
+        mlist.append(f"{c.capitalize()}: {metrics[c]}")
     s = ", ".join(mlist)
     return s
 
@@ -696,9 +696,9 @@ def _sweep_status(
     stopping = len([r for r in sweep_runs if r.should_stop])
     stopstr = ""
     if stopped or stopping:
-        stopstr = "Stopped: %d" % stopped
+        stopstr = f"Stopped: {stopped}"
         if stopping:
-            stopstr += " (Stopping: %d)" % stopping
+            stopstr += f" (Stopping: {stopping})"
     runs_status = _get_runs_status(run_type_counts)
     method = sweep_conf.get("method", "unknown")
     stopping = sweep_conf.get("early_terminate", None)
@@ -710,9 +710,9 @@ def _sweep_status(
     sections = []
     sections.append(f"Sweep: {sweep} ({sweep_options})")
     if runs_status:
-        sections.append("Runs: %d (%s)" % (run_count, runs_status))
+        sections.append(f"Runs: {run_count} ({runs_status})")
     else:
-        sections.append("Runs: %d" % (run_count))
+        sections.append(f"Runs: {run_count}")
     if stopstr:
         sections.append(stopstr)
     sections = " | ".join(sections)

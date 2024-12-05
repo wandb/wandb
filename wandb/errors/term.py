@@ -7,12 +7,7 @@ import logging
 import os
 import sys
 import threading
-from typing import TYPE_CHECKING, Iterator
-
-if sys.version_info < (3, 8):
-    from typing_extensions import Protocol
-else:
-    from typing import Protocol
+from typing import TYPE_CHECKING, Iterator, Protocol
 
 import click
 
@@ -136,12 +131,13 @@ def dynamic_text() -> Iterator[DynamicBlock | None]:
     with _dynamic_text_lock:
         _dynamic_blocks.append(block)
 
-    yield block
-
-    with _dynamic_text_lock:
-        block._lines_to_print = []
-        _l_rerender_dynamic_blocks()
-        _dynamic_blocks.remove(block)
+    try:
+        yield block
+    finally:
+        with _dynamic_text_lock:
+            block._lines_to_print = []
+            _l_rerender_dynamic_blocks()
+            _dynamic_blocks.remove(block)
 
 
 def _sys_stderr_isatty() -> bool:

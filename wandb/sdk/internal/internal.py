@@ -28,7 +28,6 @@ import psutil
 import wandb
 
 from ..interface.interface_queue import InterfaceQueue
-from ..lib import tracelog
 from . import context, handler, internal_util, sender, writer
 
 if TYPE_CHECKING:
@@ -63,7 +62,6 @@ def wandb_internal(
     """
     # mark this process as internal
     wandb._set_internal_process()  # type: ignore
-    _setup_tracelog()
     started = time.time()
 
     # any sentry events in the internal process will be tagged as such
@@ -77,7 +75,7 @@ def wandb_internal(
     # Let's make sure we don't modify settings so use a static object
     _settings = settings
     if _settings.log_internal:
-        configure_logging(_settings.log_internal, _settings._log_level)
+        configure_logging(_settings.log_internal, _settings.x_log_level)
 
     user_pid = user_pid or os.getppid()
     pid = os.getpid()
@@ -88,8 +86,6 @@ def wandb_internal(
         datetime.fromtimestamp(started),
     )
 
-    tracelog.annotate_queue(record_q, "record_q")
-    tracelog.annotate_queue(result_q, "result_q")
     publish_interface = InterfaceQueue(record_q=record_q)
 
     stopped = threading.Event()
@@ -98,10 +94,8 @@ def wandb_internal(
     context_keeper = context.ContextKeeper()
 
     send_record_q: Queue[Record] = queue.Queue()
-    tracelog.annotate_queue(send_record_q, "send_q")
 
     write_record_q: Queue[Record] = queue.Queue()
-    tracelog.annotate_queue(write_record_q, "write_q")
 
     record_sender_thread = SenderThread(
         settings=_settings,
@@ -175,21 +169,13 @@ def wandb_internal(
             traceback.print_exception(*exc_info)
             wandb._sentry.exception(exc_info)
             wandb.termerror("Internal wandb error: file data was not synced")
-            if not settings._disable_service:
+            if not settings.x_disable_service:
                 # TODO: We can make this more graceful by returning an error to streams.py
                 # and potentially just fail the one stream.
                 os._exit(-1)
             sys.exit(-1)
 
     close_internal_log()
-
-
-def _setup_tracelog() -> None:
-    # TODO: remove this temporary hack, need to find a better way to pass settings
-    # to the server.  for now lets just look at the environment variable we need
-    tracelog_mode = os.environ.get("WANDB_TRACELOG")
-    if tracelog_mode:
-        tracelog.enable(tracelog_mode)
 
 
 def configure_logging(
@@ -394,7 +380,7 @@ class ProcessCheck:
         self.settings = settings
         self.pid = user_pid
         self.check_process_last = None
-        self.check_process_interval = settings._internal_check_process
+        self.check_process_interval = settings.x_internal_check_process
 
     def is_dead(self) -> bool:
         if not self.check_process_interval or not self.pid:

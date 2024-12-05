@@ -141,7 +141,7 @@ func encodeMetric(enc *json.Encoder, b io.Writer, metrics []Metric) error {
 		return err
 	}
 
-	return err
+	return nil
 }
 
 func encodeAttachment(enc *json.Encoder, b io.Writer, attachment *Attachment) error {
@@ -279,10 +279,12 @@ func getRequestFromEvent(ctx context.Context, event *Event, dsn *Dsn) (r *http.R
 			r.Header.Set("X-Sentry-Auth", auth)
 		}
 	}()
+
 	body := getRequestBodyFromEvent(event)
 	if body == nil {
 		return nil, errors.New("event could not be marshaled")
 	}
+
 	envelope, err := envelopeFromBody(event, dsn, time.Now(), body)
 	if err != nil {
 		return nil, err

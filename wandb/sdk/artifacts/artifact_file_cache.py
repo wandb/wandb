@@ -20,10 +20,7 @@ from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
-    if sys.version_info >= (3, 8):
-        from typing import Protocol
-    else:
-        from typing_extensions import Protocol
+    from typing import Protocol
 
     class Opener(Protocol):
         def __call__(self, mode: str = ...) -> ContextManager[IO]:
@@ -171,7 +168,7 @@ class ArtifactFileCache:
         if total_size > target_size:
             wandb.termerror(
                 f"Failed to reclaim enough space in {self._cache_dir}. Try running"
-                " `wandb artifact cleanup --remove-temp` to remove temporary files."
+                " `wandb artifact cache cleanup --remove-temp` to remove temporary files."
             )
 
         return bytes_reclaimed

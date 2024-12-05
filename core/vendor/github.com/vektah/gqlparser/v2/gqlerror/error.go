@@ -1,10 +1,10 @@
 package gqlerror
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -38,7 +38,7 @@ type Location struct {
 type List []*Error
 
 func (err *Error) Error() string {
-	var res bytes.Buffer
+	var res strings.Builder
 	if err == nil {
 		return ""
 	}
@@ -80,7 +80,7 @@ func (err *Error) AsError() error {
 }
 
 func (errs List) Error() string {
-	var buf bytes.Buffer
+	var buf strings.Builder
 	for _, err := range errs {
 		buf.WriteString(err.Error())
 		buf.WriteByte('\n')

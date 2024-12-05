@@ -9,13 +9,8 @@ import os
 import pathlib
 import sys
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, Literal
 from urllib.parse import quote
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 import sentry_sdk  # type: ignore
 import sentry_sdk.scope  # type: ignore
@@ -214,12 +209,11 @@ class Sentry:
             "sweep_url",
             "sweep_id",
             "deployment",
-            "_disable_service",
-            "_require_legacy_service",
+            "x_disable_service",
+            "x_require_legacy_service",
             "launch",
+            "_platform",
         )
-
-        self.scope.set_tag("platform", wandb.util.get_platform_name())
 
         # set context
         if process_context:

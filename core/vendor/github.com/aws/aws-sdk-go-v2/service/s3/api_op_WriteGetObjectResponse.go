@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-// This operation is not supported by directory buckets.
+// This operation is not supported for directory buckets.
 //
 // Passes transformed objects to a GetObject operation when using Object Lambda
 // access points. For information about Object Lambda access points, see [Transforming objects with Object Lambda access points]in the

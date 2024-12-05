@@ -478,7 +478,7 @@ func (scope *Scope) ApplyToEvent(event *Event, hint *EventHint, client *Client) 
 // a proper deep copy: if some context values are pointer types (e.g. maps),
 // they won't be properly copied.
 func cloneContext(c Context) Context {
-	res := Context{}
+	res := make(Context, len(c))
 	for k, v := range c {
 		res[k] = v
 	}

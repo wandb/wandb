@@ -7,6 +7,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/process"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -22,7 +23,7 @@ func NewCPU(pid int32) *CPU {
 
 func (c *CPU) Name() string { return c.name }
 
-func (c *CPU) Sample() (map[string]any, error) {
+func (c *CPU) Sample() (*spb.StatsRecord, error) {
 	metrics := make(map[string]any)
 	var errs []error
 
@@ -64,7 +65,11 @@ func (c *CPU) Sample() (map[string]any, error) {
 		}
 	}
 
-	return metrics, errors.Join(errs...)
+	if len(metrics) == 0 {
+		return nil, errors.Join(errs...)
+	}
+
+	return marshal(metrics, timestamppb.Now()), errors.Join(errs...)
 }
 func (c *CPU) IsAvailable() bool { return true }
 
