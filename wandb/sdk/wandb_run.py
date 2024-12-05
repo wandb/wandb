@@ -41,6 +41,8 @@ from wandb.proto.wandb_internal_pb2 import (
     PollExitResponse,
     Result,
     RunRecord,
+    ServerFeatureItem,
+    ServerFeatureResponse,
 )
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal import job_builder
@@ -2798,6 +2800,24 @@ class Run:
         m._set_callback(self._metric_callback)
         m._commit()
         return m
+
+    def get_server_feature(self, feature: str) -> ServerFeatureResponse:
+        response = self._backend.interface.deliver_request_server_feature(feature)
+        response = response.wait(timeout=2)
+        if response is None or response.response.server_feature_response is None:
+            wandb.termwarn(
+                f"Failed to get server feature {feature}. Defaulting to disabled."
+            )
+            return ServerFeatureResponse(
+                features=[
+                    ServerFeatureItem(
+                        name=feature,
+                        enabled=False,
+                    )
+                ]
+            )
+
+        return response.response.server_feature_response
 
     @_run_decorator._attach
     def watch(

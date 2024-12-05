@@ -10,7 +10,6 @@ from wandb import util
 
 from .base_types.media import BatchableMedia, Media
 from .base_types.wb_value import WBValue
-from .image import _server_accepts_image_filenames
 from .plotly import Plotly
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -101,7 +100,13 @@ def val_to_json(
 
             items = _prune_max_seq(val)
 
-            if _server_accepts_image_filenames():
+            # TODO: update this appropriate with feature name when implemented in backend server
+            server_accepts_image_filenames = (
+                run.get_server_feature("ServerAcceptsImageFilenames")
+                .features[0]
+                .enabled
+            )
+            if server_accepts_image_filenames:
                 for item in items:
                     item.bind_to_run(
                         run=run,

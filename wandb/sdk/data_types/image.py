@@ -34,34 +34,6 @@ if TYPE_CHECKING:  # pragma: no cover
     TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
 
-def _server_accepts_image_filenames() -> bool:
-    if util._is_offline():
-        return True
-
-    # Newer versions of wandb accept large image filenames arrays
-    # but older versions would have issues with this.
-    max_cli_version = util._get_max_cli_version()
-    if max_cli_version is None:
-        return False
-    from wandb.util import parse_version
-
-    accepts_image_filenames: bool = parse_version("0.12.10") <= parse_version(
-        max_cli_version
-    )
-    return accepts_image_filenames
-
-
-def _server_accepts_artifact_path() -> bool:
-    from wandb.util import parse_version
-
-    target_version = "0.12.14"
-    max_cli_version = util._get_max_cli_version() if not util._is_offline() else None
-    accepts_artifact_path: bool = max_cli_version is not None and parse_version(
-        target_version
-    ) <= parse_version(max_cli_version)
-    return accepts_artifact_path
-
-
 class Image(BatchableMedia):
     """Format images for logging to W&B.
 
@@ -401,9 +373,13 @@ class Image(BatchableMedia):
                 "Image media created by a reference to external storage cannot currently be added to a run"
             )
 
+        # TODO: update this appropriate with feature name when implemented in backend server
+        server_accepts_artifact_path = (
+            run.get_server_feature("ServerAcceptsArtifactPaths").features[0].enabled
+        )
         if (
-            not _server_accepts_artifact_path()
-            or self._get_artifact_entry_ref_url() is None
+            not server_accepts_artifact_path
+            or self._get_artifact_entry_ref_url(run) is None
         ):
             super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
         if self._boxes is not None:
@@ -559,7 +535,12 @@ class Image(BatchableMedia):
             "format": format,
             "count": num_images_to_log,
         }
-        if _server_accepts_image_filenames():
+
+        # TODO: update this appropriate with feature name when implemented in backend server
+        server_accepts_image_filenames = (
+            run.get_server_feature("ServerAcceptsImageFilenames").features[0].enabled
+        )
+        if server_accepts_image_filenames:
             meta["filenames"] = [
                 obj.get("path", obj.get("artifact_path")) for obj in jsons
             ]

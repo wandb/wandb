@@ -154,6 +154,7 @@ class InterfaceShared(InterfaceBase):
         python_packages: Optional[pb.PythonPackagesRequest] = None,
         job_input: Optional[pb.JobInputRequest] = None,
         run_finish_without_exit: Optional[pb.RunFinishWithoutExitRequest] = None,
+        server_feature: Optional[pb.ServerFeatureRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -220,6 +221,8 @@ class InterfaceShared(InterfaceBase):
             request.job_input.CopyFrom(job_input)
         elif run_finish_without_exit:
             request.run_finish_without_exit.CopyFrom(run_finish_without_exit)
+        elif server_feature:
+            request.server_feature.CopyFrom(server_feature)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -521,6 +524,12 @@ class InterfaceShared(InterfaceBase):
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
         record = self._make_request(run_status=run_status)
+        return self._deliver_record(record)
+
+    def _deliver_request_server_feature(
+        self, server_feature: pb.ServerFeatureRequest
+    ) -> MailboxHandle:
+        record = self._make_request(server_feature=server_feature)
         return self._deliver_record(record)
 
     def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:
