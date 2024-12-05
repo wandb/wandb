@@ -1671,6 +1671,7 @@ class Request(google.protobuf.message.Message):
     LOG_ARTIFACT_FIELD_NUMBER: builtins.int
     DOWNLOAD_ARTIFACT_FIELD_NUMBER: builtins.int
     KEEPALIVE_FIELD_NUMBER: builtins.int
+    SERVER_FEATURE_FIELD_NUMBER: builtins.int
     RUN_STATUS_FIELD_NUMBER: builtins.int
     CANCEL_FIELD_NUMBER: builtins.int
     METADATA_FIELD_NUMBER: builtins.int
@@ -1722,6 +1723,8 @@ class Request(google.protobuf.message.Message):
     def download_artifact(self) -> global___DownloadArtifactRequest: ...
     @property
     def keepalive(self) -> global___KeepaliveRequest: ...
+    @property
+    def server_feature(self) -> global___ServerFeatureRequest: ...
     @property
     def run_status(self) -> global___RunStatusRequest: ...
     @property
@@ -1782,6 +1785,7 @@ class Request(google.protobuf.message.Message):
         log_artifact: global___LogArtifactRequest | None = ...,
         download_artifact: global___DownloadArtifactRequest | None = ...,
         keepalive: global___KeepaliveRequest | None = ...,
+        server_feature: global___ServerFeatureRequest | None = ...,
         run_status: global___RunStatusRequest | None = ...,
         cancel: global___CancelRequest | None = ...,
         metadata: global___MetadataRequest | None = ...,
@@ -1804,9 +1808,9 @@ class Request(google.protobuf.message.Message):
         run_finish_without_exit: global___RunFinishWithoutExitRequest | None = ...,
         test_inject: global___TestInjectRequest | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "download_artifact", b"download_artifact", "get_summary", b"get_summary", "get_system_metrics", b"get_system_metrics", "internal_messages", b"internal_messages", "job_info", b"job_info", "job_input", b"job_input", "keepalive", b"keepalive", "link_artifact", b"link_artifact", "log_artifact", b"log_artifact", "login", b"login", "metadata", b"metadata", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "python_packages", b"python_packages", "request_type", b"request_type", "resume", b"resume", "run_finish_without_exit", b"run_finish_without_exit", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "summary_record", b"summary_record", "sync", b"sync", "telemetry_record", b"telemetry_record", "test_inject", b"test_inject"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "download_artifact", b"download_artifact", "get_summary", b"get_summary", "get_system_metrics", b"get_system_metrics", "internal_messages", b"internal_messages", "job_info", b"job_info", "job_input", b"job_input", "keepalive", b"keepalive", "link_artifact", b"link_artifact", "log_artifact", b"log_artifact", "login", b"login", "metadata", b"metadata", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "python_packages", b"python_packages", "request_type", b"request_type", "resume", b"resume", "run_finish_without_exit", b"run_finish_without_exit", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "summary_record", b"summary_record", "sync", b"sync", "telemetry_record", b"telemetry_record", "test_inject", b"test_inject"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["request_type", b"request_type"]) -> typing.Literal["stop_status", "network_status", "defer", "get_summary", "login", "pause", "resume", "poll_exit", "sampled_history", "partial_history", "run_start", "check_version", "log_artifact", "download_artifact", "keepalive", "run_status", "cancel", "metadata", "internal_messages", "python_packages", "shutdown", "attach", "status", "server_info", "sender_mark", "sender_read", "status_report", "summary_record", "telemetry_record", "job_info", "get_system_metrics", "sync", "job_input", "link_artifact", "run_finish_without_exit", "test_inject"] | None: ...
+    def HasField(self, field_name: typing.Literal["attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "download_artifact", b"download_artifact", "get_summary", b"get_summary", "get_system_metrics", b"get_system_metrics", "internal_messages", b"internal_messages", "job_info", b"job_info", "job_input", b"job_input", "keepalive", b"keepalive", "link_artifact", b"link_artifact", "log_artifact", b"log_artifact", "login", b"login", "metadata", b"metadata", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "python_packages", b"python_packages", "request_type", b"request_type", "resume", b"resume", "run_finish_without_exit", b"run_finish_without_exit", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_feature", b"server_feature", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "summary_record", b"summary_record", "sync", b"sync", "telemetry_record", b"telemetry_record", "test_inject", b"test_inject"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "download_artifact", b"download_artifact", "get_summary", b"get_summary", "get_system_metrics", b"get_system_metrics", "internal_messages", b"internal_messages", "job_info", b"job_info", "job_input", b"job_input", "keepalive", b"keepalive", "link_artifact", b"link_artifact", "log_artifact", b"log_artifact", "login", b"login", "metadata", b"metadata", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "python_packages", b"python_packages", "request_type", b"request_type", "resume", b"resume", "run_finish_without_exit", b"run_finish_without_exit", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_feature", b"server_feature", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "summary_record", b"summary_record", "sync", b"sync", "telemetry_record", b"telemetry_record", "test_inject", b"test_inject"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["request_type", b"request_type"]) -> typing.Literal["stop_status", "network_status", "defer", "get_summary", "login", "pause", "resume", "poll_exit", "sampled_history", "partial_history", "run_start", "check_version", "log_artifact", "download_artifact", "keepalive", "server_feature", "run_status", "cancel", "metadata", "internal_messages", "python_packages", "shutdown", "attach", "status", "server_info", "sender_mark", "sender_read", "status_report", "summary_record", "telemetry_record", "job_info", "get_system_metrics", "sync", "job_input", "link_artifact", "run_finish_without_exit", "test_inject"] | None: ...
 
 global___Request = Request
 
@@ -1829,6 +1833,7 @@ class Response(google.protobuf.message.Message):
     CHECK_VERSION_RESPONSE_FIELD_NUMBER: builtins.int
     LOG_ARTIFACT_RESPONSE_FIELD_NUMBER: builtins.int
     DOWNLOAD_ARTIFACT_RESPONSE_FIELD_NUMBER: builtins.int
+    SERVER_FEATURE_RESPONSE_FIELD_NUMBER: builtins.int
     RUN_STATUS_RESPONSE_FIELD_NUMBER: builtins.int
     CANCEL_RESPONSE_FIELD_NUMBER: builtins.int
     INTERNAL_MESSAGES_RESPONSE_FIELD_NUMBER: builtins.int
@@ -1864,6 +1869,8 @@ class Response(google.protobuf.message.Message):
     def log_artifact_response(self) -> global___LogArtifactResponse: ...
     @property
     def download_artifact_response(self) -> global___DownloadArtifactResponse: ...
+    @property
+    def server_feature_response(self) -> global___ServerFeatureResponse: ...
     @property
     def run_status_response(self) -> global___RunStatusResponse: ...
     @property
@@ -1904,6 +1911,7 @@ class Response(google.protobuf.message.Message):
         check_version_response: global___CheckVersionResponse | None = ...,
         log_artifact_response: global___LogArtifactResponse | None = ...,
         download_artifact_response: global___DownloadArtifactResponse | None = ...,
+        server_feature_response: global___ServerFeatureResponse | None = ...,
         run_status_response: global___RunStatusResponse | None = ...,
         cancel_response: global___CancelResponse | None = ...,
         internal_messages_response: global___InternalMessagesResponse | None = ...,
@@ -1918,9 +1926,9 @@ class Response(google.protobuf.message.Message):
         run_finish_without_exit_response: global___RunFinishWithoutExitResponse | None = ...,
         test_inject_response: global___TestInjectResponse | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["attach_response", b"attach_response", "cancel_response", b"cancel_response", "check_version_response", b"check_version_response", "download_artifact_response", b"download_artifact_response", "get_summary_response", b"get_summary_response", "get_system_metrics_response", b"get_system_metrics_response", "internal_messages_response", b"internal_messages_response", "job_info_response", b"job_info_response", "keepalive_response", b"keepalive_response", "link_artifact_response", b"link_artifact_response", "log_artifact_response", b"log_artifact_response", "login_response", b"login_response", "network_status_response", b"network_status_response", "poll_exit_response", b"poll_exit_response", "response_type", b"response_type", "run_finish_without_exit_response", b"run_finish_without_exit_response", "run_start_response", b"run_start_response", "run_status_response", b"run_status_response", "sampled_history_response", b"sampled_history_response", "server_info_response", b"server_info_response", "shutdown_response", b"shutdown_response", "status_response", b"status_response", "stop_status_response", b"stop_status_response", "sync_response", b"sync_response", "test_inject_response", b"test_inject_response"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["attach_response", b"attach_response", "cancel_response", b"cancel_response", "check_version_response", b"check_version_response", "download_artifact_response", b"download_artifact_response", "get_summary_response", b"get_summary_response", "get_system_metrics_response", b"get_system_metrics_response", "internal_messages_response", b"internal_messages_response", "job_info_response", b"job_info_response", "keepalive_response", b"keepalive_response", "link_artifact_response", b"link_artifact_response", "log_artifact_response", b"log_artifact_response", "login_response", b"login_response", "network_status_response", b"network_status_response", "poll_exit_response", b"poll_exit_response", "response_type", b"response_type", "run_finish_without_exit_response", b"run_finish_without_exit_response", "run_start_response", b"run_start_response", "run_status_response", b"run_status_response", "sampled_history_response", b"sampled_history_response", "server_info_response", b"server_info_response", "shutdown_response", b"shutdown_response", "status_response", b"status_response", "stop_status_response", b"stop_status_response", "sync_response", b"sync_response", "test_inject_response", b"test_inject_response"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["response_type", b"response_type"]) -> typing.Literal["keepalive_response", "stop_status_response", "network_status_response", "login_response", "get_summary_response", "poll_exit_response", "sampled_history_response", "run_start_response", "check_version_response", "log_artifact_response", "download_artifact_response", "run_status_response", "cancel_response", "internal_messages_response", "shutdown_response", "attach_response", "status_response", "server_info_response", "job_info_response", "get_system_metrics_response", "sync_response", "link_artifact_response", "run_finish_without_exit_response", "test_inject_response"] | None: ...
+    def HasField(self, field_name: typing.Literal["attach_response", b"attach_response", "cancel_response", b"cancel_response", "check_version_response", b"check_version_response", "download_artifact_response", b"download_artifact_response", "get_summary_response", b"get_summary_response", "get_system_metrics_response", b"get_system_metrics_response", "internal_messages_response", b"internal_messages_response", "job_info_response", b"job_info_response", "keepalive_response", b"keepalive_response", "link_artifact_response", b"link_artifact_response", "log_artifact_response", b"log_artifact_response", "login_response", b"login_response", "network_status_response", b"network_status_response", "poll_exit_response", b"poll_exit_response", "response_type", b"response_type", "run_finish_without_exit_response", b"run_finish_without_exit_response", "run_start_response", b"run_start_response", "run_status_response", b"run_status_response", "sampled_history_response", b"sampled_history_response", "server_feature_response", b"server_feature_response", "server_info_response", b"server_info_response", "shutdown_response", b"shutdown_response", "status_response", b"status_response", "stop_status_response", b"stop_status_response", "sync_response", b"sync_response", "test_inject_response", b"test_inject_response"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["attach_response", b"attach_response", "cancel_response", b"cancel_response", "check_version_response", b"check_version_response", "download_artifact_response", b"download_artifact_response", "get_summary_response", b"get_summary_response", "get_system_metrics_response", b"get_system_metrics_response", "internal_messages_response", b"internal_messages_response", "job_info_response", b"job_info_response", "keepalive_response", b"keepalive_response", "link_artifact_response", b"link_artifact_response", "log_artifact_response", b"log_artifact_response", "login_response", b"login_response", "network_status_response", b"network_status_response", "poll_exit_response", b"poll_exit_response", "response_type", b"response_type", "run_finish_without_exit_response", b"run_finish_without_exit_response", "run_start_response", b"run_start_response", "run_status_response", b"run_status_response", "sampled_history_response", b"sampled_history_response", "server_feature_response", b"server_feature_response", "server_info_response", b"server_info_response", "shutdown_response", b"shutdown_response", "status_response", b"status_response", "stop_status_response", b"stop_status_response", "sync_response", b"sync_response", "test_inject_response", b"test_inject_response"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["response_type", b"response_type"]) -> typing.Literal["keepalive_response", "stop_status_response", "network_status_response", "login_response", "get_summary_response", "poll_exit_response", "sampled_history_response", "run_start_response", "check_version_response", "log_artifact_response", "download_artifact_response", "server_feature_response", "run_status_response", "cancel_response", "internal_messages_response", "shutdown_response", "attach_response", "status_response", "server_info_response", "job_info_response", "get_system_metrics_response", "sync_response", "link_artifact_response", "run_finish_without_exit_response", "test_inject_response"] | None: ...
 
 global___Response = Response
 
@@ -4294,3 +4302,80 @@ class JobInputRequest(google.protobuf.message.Message):
     def ClearField(self, field_name: typing.Literal["exclude_paths", b"exclude_paths", "include_paths", b"include_paths", "input_schema", b"input_schema", "input_source", b"input_source"]) -> None: ...
 
 global___JobInputRequest = JobInputRequest
+
+@typing.final
+class ServerFeatureRequest(google.protobuf.message.Message):
+    """ServerFeatures related protobufs
+
+    *
+    ServerFeatureRequest: request to the backend server for the features it supports.
+    including the details of the feature provided by the server.
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    FEATURES_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
+    @property
+    def features(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
+    def __init__(
+        self,
+        *,
+        features: collections.abc.Iterable[builtins.str] | None = ...,
+        _info: wandb.proto.wandb_base_pb2._RequestInfo | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["_info", b"_info", "features", b"features"]) -> None: ...
+
+global___ServerFeatureRequest = ServerFeatureRequest
+
+@typing.final
+class ServerFeatureResponse(google.protobuf.message.Message):
+    """*
+    ServerFeatureResponse: response from the backend server for the features it
+    supports. including the details of the feature provided by the server.
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    FEATURES_FIELD_NUMBER: builtins.int
+    @property
+    def features(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ServerFeatureItem]: ...
+    def __init__(
+        self,
+        *,
+        features: collections.abc.Iterable[global___ServerFeatureItem] | None = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing.Literal["features", b"features"]) -> None: ...
+
+global___ServerFeatureResponse = ServerFeatureResponse
+
+@typing.final
+class ServerFeatureItem(google.protobuf.message.Message):
+    """*
+    ServerFeatureItem: details of a feature provided by the server.
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    NAME_FIELD_NUMBER: builtins.int
+    ENABLED_FIELD_NUMBER: builtins.int
+    DEFAULT_VALUE_FIELD_NUMBER: builtins.int
+    DESCRIPTION_FIELD_NUMBER: builtins.int
+    name: builtins.str
+    enabled: builtins.bool
+    default_value: builtins.str
+    description: builtins.str
+    def __init__(
+        self,
+        *,
+        name: builtins.str = ...,
+        enabled: builtins.bool = ...,
+        default_value: builtins.str = ...,
+        description: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing.Literal["default_value", b"default_value", "description", b"description", "enabled", b"enabled", "name", b"name"]) -> None: ...
+
+global___ServerFeatureItem = ServerFeatureItem
