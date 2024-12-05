@@ -1,6 +1,6 @@
 module github.com/wandb/wandb/core
 
-go 1.23.3
+go 1.23.4
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.16.0
