@@ -38,7 +38,8 @@ def scatter(
 
         # Simulate temperature variations at different altitudes over time
         data = [
-            [i, random.uniform(-10, 20) - 0.005 * i + 5 * math.sin(i / 50)] for i in range(300)
+            [i, random.uniform(-10, 20) - 0.005 * i + 5 * math.sin(i / 50)]
+            for i in range(300)
         ]
 
         # Create W&B table with altitude (m) and temperature (°C) columns

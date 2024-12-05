@@ -211,7 +211,10 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
             Second str is the rest of the string.
 
         Example:
-            >>> chunk = Chunk(filename="output.log", data="ERROR 2020-08-25T20:38 this is my line of text\n")
+            >>> chunk = Chunk(
+            ...     filename="output.log",
+            ...     data="ERROR 2020-08-25T20:38 this is my line of text\n",
+            ... )
             >>> split_chunk(chunk)
             ("ERROR 2020-08-25T20:38 ", "this is my line of text\n")
         """

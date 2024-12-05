@@ -1167,7 +1167,9 @@ class Run:
             run.log_code(
                 "../",
                 include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"),
-                exclude_fn=lambda path, root: os.path.relpath(path, root).startswith("cache/"),
+                exclude_fn=lambda path, root: os.path.relpath(path, root).startswith(
+                    "cache/"
+                ),
             )
             ```
 
@@ -1715,12 +1717,14 @@ class Run:
         the following results in two sections named "train" and "validate":
 
         ```
-        run.log({
-            "train/accuracy": 0.9,
-            "train/loss": 30,
-            "validate/accuracy": 0.8,
-            "validate/loss": 20,
-        })
+        run.log(
+            {
+                "train/accuracy": 0.9,
+                "train/loss": 30,
+                "validate/accuracy": 0.8,
+                "validate/loss": 20,
+            }
+        )
         ```
 
         Only one level of nesting is supported; `run.log({"a/b/c": 1})`
@@ -1846,7 +1850,9 @@ class Run:
             run = wandb.init()
             examples = []
             for i in range(3):
-                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+                pixels = np.random.randint(
+                    low=0, high=256, size=(100, 100, 3), dtype=np.uint8
+                )
                 pil_image = PILImage.fromarray(pixels, mode="RGB")
                 image = wandb.Image(pil_image, caption=f"random field {i}")
                 examples.append(image)
@@ -1861,7 +1867,9 @@ class Run:
 
             run = wandb.init()
             # axes are (time, channel, height, width)
-            frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
+            frames = np.random.randint(
+                low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8
+            )
             run.log({"video": wandb.Video(frames, fps=4)})
             ```
 

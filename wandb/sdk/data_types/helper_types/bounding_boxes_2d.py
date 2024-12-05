@@ -65,7 +65,12 @@ class BoundingBoxes2D(JSONMetadata):
                     "box_data": [
                         {
                             # one box expressed in the default relative/fractional domain
-                            "position": {"minX": 0.1, "maxX": 0.2, "minY": 0.3, "maxY": 0.4},
+                            "position": {
+                                "minX": 0.1,
+                                "maxX": 0.2,
+                                "minY": 0.3,
+                                "maxY": 0.4,
+                            },
                             "class_id": 1,
                             "box_caption": class_labels[1],
                             "scores": {"acc": 0.2, "loss": 1.2},
@@ -115,7 +120,12 @@ class BoundingBoxes2D(JSONMetadata):
                     "box_data": [
                         {
                             # one box expressed in the default relative/fractional domain
-                            "position": {"minX": 0.1, "maxX": 0.2, "minY": 0.3, "maxY": 0.4},
+                            "position": {
+                                "minX": 0.1,
+                                "maxX": 0.2,
+                                "minY": 0.3,
+                                "maxY": 0.4,
+                            },
                             "class_id": 1,
                             "box_caption": class_labels[1],
                             "scores": {"acc": 0.2, "loss": 1.2},

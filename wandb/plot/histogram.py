@@ -53,7 +53,7 @@ def histogram(
 
         # Log the histogram plot to W&B
         with wandb.init(...) as run:
-            run.log({'histogram-plot1': histogram})
+            run.log({"histogram-plot1": histogram})
         ```
     """
     return plot_table(
