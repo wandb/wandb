@@ -62,8 +62,9 @@ def test_init_reinit(test_settings):
             _get_manager=MagicMock(side_effect=lambda: MagicMock()),
         )
 
-        with patch("wandb.sdk.wandb_init.ipython", autospec=True), patch(
-            "wandb.sdk.lib.ipython._get_python_type", side_effect=lambda: "jupyter"
+        with patch(
+            "wandb.sdk.lib.ipython._get_python_type",
+            side_effect=lambda: "jupyter",
         ):
             wandbinit.init()
 
