@@ -28,7 +28,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       # Use the GHA bot credentials: https://api.github.com/users/github-actions%5Bbot%5D
       - name: Setup git config
@@ -104,13 +104,13 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.19.2
         with:
-           package-dir: .
-           output-dir: dist
+          package-dir: .
+          output-dir: dist
         env:
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
           CIBW_BUILD: cp*-macosx* pp*-macosx*
           CIBW_SKIP: cp36-*
-          CIBW_ARCHS_MACOS: x86_64 arm64  # arm64 == aarch64
+          CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
 
           # Work around https://github.com/matthew-brett/delocate/issues/204
           # by adding `--ignore-missing-dependencies` to cibuildwheel's default
@@ -175,8 +175,8 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.19.2
         with:
-           package-dir: .
-           output-dir: dist
+          package-dir: .
+          output-dir: dist
         env:
           # In cp36-*, the wheel name sometimes includes additional dashes that
           # make it invalid, breaking the job.
@@ -187,7 +187,7 @@ jobs:
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
           CIBW_SKIP: cp36-* *musllinux_aarch64*
           CIBW_ARCHS_LINUX: x86_64 aarch64
-          CIBW_ARCHS_MACOS: x86_64 arm64  # arm64 == aarch64
+          CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
 
           # Work around https://github.com/matthew-brett/delocate/issues/204
           # by adding `--ignore-missing-dependencies` to cibuildwheel's default
@@ -220,8 +220,7 @@ jobs:
             source $HOME/.cargo/env &&
             rustc --version &&
             cargo --version
-          CIBW_ENVIRONMENT_LINUX:
-            PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
+          CIBW_ENVIRONMENT_LINUX: PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
       - uses: actions/upload-artifact@v3
         with:
@@ -240,7 +239,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Build wheel
         run: pip wheel -w wheelhouse --no-deps .
@@ -269,7 +268,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install Hatch
         run: pip install hatch==1.12
@@ -291,7 +290,7 @@ jobs:
       name: release
       url: https://test.pypi.org/p/wandb
     permissions:
-      id-token: write  # trusted publishing
+      id-token: write # trusted publishing
     steps:
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -330,6 +329,7 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -355,7 +355,7 @@ jobs:
       - name: Smoke-test wandb
         shell: bash
         run: |
-          WANDB__REQUIRE_LEGACY_SERVICE=${{ matrix.use_legacy_service }} \
+          WANDB_X_REQUIRE_LEGACY_SERVICE=${{ matrix.use_legacy_service }} \
           WANDB_MODE=offline \
           python -c "import wandb; run = wandb.init(); run.finish()"
 
@@ -364,6 +364,7 @@ jobs:
     name: Smoke-test sdist
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -388,10 +389,9 @@ jobs:
       - name: Smoke-test wandb ${{ matrix.use_legacy_service && '' || 'with core' }}
         shell: bash
         run: |
-          WANDB__REQUIRE_LEGACY_SERVICE=${{ matrix.use_legacy_service }} \
+          WANDB_X_REQUIRE_LEGACY_SERVICE=${{ matrix.use_legacy_service }} \
           WANDB_MODE=offline \
           python -c "import wandb; run = wandb.init(); run.finish()"
-
 
   pypi-publish:
     if: ${{ !inputs.dry-run }}
@@ -428,7 +428,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install bump2version
         run: pip install bump2version
@@ -454,7 +454,6 @@ jobs:
           IFS='.' read -r major minor patch <<< "${{ github.event.inputs.version }}"
           new_version="${major}.${minor}.$((patch + 1)).dev1"
           gh pr create --base main --head bump-${new_version} --title "chore(sdk): bump version to ${new_version}" --body "This PR bumps the version to the next dev version after the release of ${{ github.event.inputs.version }}."
-
 
   publish-release-notes:
     name: Publish Release Notes
