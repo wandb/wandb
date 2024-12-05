@@ -35,7 +35,7 @@ func NewServerFeatures(
 	features := map[string]ServerFeature{}
 
 	// Query the server for the features provided by the server
-	resp, err := gql.ViewerFeatureFlags(
+	resp, err := gql.ServerFeaturesQuery(
 		runWork.BeforeEndCtx(),
 		graphqlClient,
 		gql.RampIDTypeUsername,

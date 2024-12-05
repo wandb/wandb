@@ -1,0 +1,8 @@
+query ServerFeaturesQuery($rampIDType: RampIDType!) {
+  viewer {
+    featureFlags(rampIDType: $rampIDType) {
+      rampKey
+      isEnabled
+    }
+  }
+}

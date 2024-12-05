@@ -894,21 +894,6 @@ func (v *NotifyScriptableRunAlertResponse) GetNotifyScriptableRunAlert() *Notify
 	return v.NotifyScriptableRunAlert
 }
 
-type RampIDType string
-
-const (
-	RampIDTypeNone       RampIDType = "None"
-	RampIDTypeCustomid   RampIDType = "CustomID"
-	RampIDTypeEntityid   RampIDType = "EntityID"
-	RampIDTypeEntityname RampIDType = "EntityName"
-	RampIDTypeOrgname    RampIDType = "OrgName"
-	RampIDTypeOrgid      RampIDType = "OrgID"
-	RampIDTypeUserid     RampIDType = "UserID"
-	RampIDTypeUsername   RampIDType = "UserName"
-	RampIDTypeProjectid  RampIDType = "ProjectID"
-	RampIDTypeApikey     RampIDType = "ApiKey"
-)
-
 // RewindRunResponse is returned by RewindRun on success.
 type RewindRunResponse struct {
 	RewindRun *RewindRunRewindRunRewindRunPayload `json:"rewindRun"`
@@ -1114,38 +1099,6 @@ type RunStoppedStatusResponse struct {
 
 // GetProject returns RunStoppedStatusResponse.Project, and is useful for accessing the field via an interface.
 func (v *RunStoppedStatusResponse) GetProject() *RunStoppedStatusProject { return v.Project }
-
-// ServerFeaturesQueryResponse is returned by ServerFeaturesQuery on success.
-type ServerFeaturesQueryResponse struct {
-	Viewer *ServerFeaturesQueryViewerUser `json:"viewer"`
-}
-
-// GetViewer returns ServerFeaturesQueryResponse.Viewer, and is useful for accessing the field via an interface.
-func (v *ServerFeaturesQueryResponse) GetViewer() *ServerFeaturesQueryViewerUser { return v.Viewer }
-
-// ServerFeaturesQueryViewerUser includes the requested fields of the GraphQL type User.
-type ServerFeaturesQueryViewerUser struct {
-	FeatureFlags []*ServerFeaturesQueryViewerUserFeatureFlagsFeatureFlag `json:"featureFlags"`
-}
-
-// GetFeatureFlags returns ServerFeaturesQueryViewerUser.FeatureFlags, and is useful for accessing the field via an interface.
-func (v *ServerFeaturesQueryViewerUser) GetFeatureFlags() []*ServerFeaturesQueryViewerUserFeatureFlagsFeatureFlag {
-	return v.FeatureFlags
-}
-
-// ServerFeaturesQueryViewerUserFeatureFlagsFeatureFlag includes the requested fields of the GraphQL type FeatureFlag.
-type ServerFeaturesQueryViewerUserFeatureFlagsFeatureFlag struct {
-	RampKey   string `json:"rampKey"`
-	IsEnabled bool   `json:"isEnabled"`
-}
-
-// GetRampKey returns ServerFeaturesQueryViewerUserFeatureFlagsFeatureFlag.RampKey, and is useful for accessing the field via an interface.
-func (v *ServerFeaturesQueryViewerUserFeatureFlagsFeatureFlag) GetRampKey() string { return v.RampKey }
-
-// GetIsEnabled returns ServerFeaturesQueryViewerUserFeatureFlagsFeatureFlag.IsEnabled, and is useful for accessing the field via an interface.
-func (v *ServerFeaturesQueryViewerUserFeatureFlagsFeatureFlag) GetIsEnabled() bool {
-	return v.IsEnabled
-}
 
 // ServerInfoResponse is returned by ServerInfo on success.
 type ServerInfoResponse struct {
@@ -1824,14 +1777,6 @@ func (v *__RunStoppedStatusInput) GetProjectName() *string { return v.ProjectNam
 
 // GetRunId returns __RunStoppedStatusInput.RunId, and is useful for accessing the field via an interface.
 func (v *__RunStoppedStatusInput) GetRunId() string { return v.RunId }
-
-// __ServerFeaturesQueryInput is used internally by genqlient
-type __ServerFeaturesQueryInput struct {
-	RampIDType RampIDType `json:"rampIDType"`
-}
-
-// GetRampIDType returns __ServerFeaturesQueryInput.RampIDType, and is useful for accessing the field via an interface.
-func (v *__ServerFeaturesQueryInput) GetRampIDType() RampIDType { return v.RampIDType }
 
 // __TypeFieldsInput is used internally by genqlient
 type __TypeFieldsInput struct {
@@ -2756,44 +2701,6 @@ func RunStoppedStatus(
 	var err_ error
 
 	var data_ RunStoppedStatusResponse
-	resp_ := &graphql.Response{Data: &data_}
-
-	err_ = client_.MakeRequest(
-		ctx_,
-		req_,
-		resp_,
-	)
-
-	return &data_, err_
-}
-
-// The query or mutation executed by ServerFeaturesQuery.
-const ServerFeaturesQuery_Operation = `
-query ServerFeaturesQuery ($rampIDType: RampIDType!) {
-	viewer {
-		featureFlags(rampIDType: $rampIDType) {
-			rampKey
-			isEnabled
-		}
-	}
-}
-`
-
-func ServerFeaturesQuery(
-	ctx_ context.Context,
-	client_ graphql.Client,
-	rampIDType RampIDType,
-) (*ServerFeaturesQueryResponse, error) {
-	req_ := &graphql.Request{
-		OpName: "ServerFeaturesQuery",
-		Query:  ServerFeaturesQuery_Operation,
-		Variables: &__ServerFeaturesQueryInput{
-			RampIDType: rampIDType,
-		},
-	}
-	var err_ error
-
-	var data_ ServerFeaturesQueryResponse
 	resp_ := &graphql.Response{Data: &data_}
 
 	err_ = client_.MakeRequest(
