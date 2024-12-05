@@ -16,7 +16,6 @@ import (
 	"github.com/wandb/wandb/experimental/client-go/pkg/gowandb"
 	"github.com/wandb/wandb/experimental/client-go/pkg/runconfig"
 	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // globals to keep track of the wandb session and any runs
@@ -60,19 +59,17 @@ func wandbcoreInit(configDataNum int, name *C.cchar_t, runID *C.cchar_t, project
 	wandbcoreSetup()
 
 	configData := runconfig.Config(wandbData.Get(configDataNum))
-	options := gowandb.RunParams{
+	params := gowandb.RunParams{
 		Config: &configData,
-		Settings: &settings.SettingsWrap{
-			Settings: &spb.Settings{
-				Project: &wrapperspb.StringValue{Value: C.GoString(project)},
-				RunId:   &wrapperspb.StringValue{Value: C.GoString(runID)},
-				RunName: &wrapperspb.StringValue{Value: C.GoString(name)},
-			},
+		Settings: &settings.Settings{
+			RunProject: C.GoString(project),
+			RunID:      C.GoString(runID),
+			RunName:    C.GoString(name),
 		},
 		// Telemetry: getTelemetry(library),
 	}
 
-	run, err := wandbSession.NewRun(options.Settings, options.Config)
+	run, err := wandbSession.NewRun(params)
 	if err != nil {
 		panic(err)
 	}

@@ -6,11 +6,9 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/experimental/client-go/internal/connection"
 	"github.com/wandb/wandb/experimental/client-go/internal/interfaces"
@@ -36,13 +34,13 @@ func format(text string, color Color) string {
 type RunParams struct {
 	Conn      *connection.Connection
 	Config    *runconfig.Config
-	Settings  *settings.SettingsWrap
+	Settings  *settings.Settings
 	Telemetry *spb.TelemetryRecord
 }
 type Run struct {
 	// ctx is the context for the run
 	ctx            context.Context
-	settings       *settings.SettingsWrap
+	settings       *settings.Settings
 	config         *runconfig.Config
 	conn           *connection.Connection
 	sock           *interfaces.SockInterface
@@ -63,7 +61,7 @@ func NewRun(ctx context.Context, params RunParams) *Run {
 		conn:     params.Conn,
 		sock: &interfaces.SockInterface{
 			Conn:     params.Conn,
-			StreamId: params.Settings.GetRunId().GetValue(),
+			StreamId: params.Settings.RunID,
 		},
 		wg:             sync.WaitGroup{},
 		config:         params.Config,
@@ -74,10 +72,10 @@ func NewRun(ctx context.Context, params RunParams) *Run {
 }
 
 func (r *Run) Start() {
-	if err := os.MkdirAll(r.settings.GetLogDir().GetValue(), os.ModePerm); err != nil {
+	if err := os.MkdirAll(r.settings.GetLogDir(), os.ModePerm); err != nil {
 		slog.Error("error creating log dir", "err", err)
 	}
-	if err := os.MkdirAll(r.settings.GetFilesDir().GetValue(), os.ModePerm); err != nil {
+	if err := os.MkdirAll(r.settings.GetFilesDir(), os.ModePerm); err != nil {
 		slog.Error("error creating files dir", "err", err)
 	}
 
@@ -94,8 +92,11 @@ func (r *Run) Start() {
 		return
 	}
 	result := handle.Wait()
-	r.settings.Entity = wrapperspb.String(result.GetRunResult().GetRun().GetEntity())
-	r.settings.RunName = wrapperspb.String(result.GetRunResult().GetRun().GetDisplayName())
+	r.settings.FromSettings(&settings.Settings{
+		Entity:  result.GetRunResult().GetRun().GetEntity(),
+		RunName: result.GetRunResult().GetRun().GetDisplayName(),
+	})
+
 	if err := r.sock.InformStart(r.settings); err != nil {
 		slog.Error("error informing start", "err", err)
 		return
@@ -149,23 +150,16 @@ func (r *Run) Finish() {
 }
 
 func (r *Run) printRunURL() {
-	url := fmt.Sprintf("%v/%v/%v/runs/%v",
-		strings.Replace(r.settings.GetBaseUrl().GetValue(), "//api.", "//", 1),
-		r.settings.GetEntity().GetValue(),
-		r.settings.GetProject().GetValue(),
-		r.settings.GetRunId().GetValue(),
-	)
-
 	fmt.Printf("%v: 🚀 View run %v at: %v\n",
 		format("wandb", BrightBlue),
-		format(r.settings.GetRunName().GetValue(), Yellow),
-		format(url, Blue),
+		format(r.settings.RunName, Yellow),
+		format(r.settings.GetRunURL(), Blue),
 	)
 }
 
 func (r *Run) printLogDir() {
 
-	logDir := r.settings.GetLogDir().GetValue()
+	logDir := r.settings.GetLogDir()
 	if cwd, err := os.Getwd(); err != nil {
 		slog.Error("error getting current directory", "err", err)
 	} else if relLogDir, err := filepath.Rel(cwd, logDir); err != nil {
