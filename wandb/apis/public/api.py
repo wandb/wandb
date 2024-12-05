@@ -912,7 +912,12 @@ class Api:
             ```
             api.runs(
                 path="my_entity/my_project",
-                filters={"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]}
+                filters={
+                    "$or": [
+                        {"config.experiment_name": "foo"},
+                        {"config.experiment_name": "bar"},
+                    ]
+                },
             )
             ```
 
@@ -920,15 +925,14 @@ class Api:
             ```
             api.runs(
                 path="my_entity/my_project",
-                filters={"config.experiment_name": {"$regex": "b.*"}}
+                filters={"config.experiment_name": {"$regex": "b.*"}},
             )
             ```
 
             Find runs in my_project where the run name matches a regex (anchors are not supported)
             ```
             api.runs(
-                path="my_entity/my_project",
-                filters={"display_name": {"$regex": "^foo.*"}}
+                path="my_entity/my_project", filters={"display_name": {"$regex": "^foo.*"}}
             )
             ```
 

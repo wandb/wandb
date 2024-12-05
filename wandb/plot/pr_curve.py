@@ -74,10 +74,10 @@ def pr_curve(
             [0.2, 0.8],  # Second sample (spam), and so on
             [0.1, 0.9],
             [0.8, 0.2],
-            [0.3, 0.7]
+            [0.3, 0.7],
         ]
 
-        labels = ['not spam', 'spam']  # Optional class names for readability
+        labels = ["not spam", "spam"]  # Optional class names for readability
 
         with wandb.init(project="spam-detection") as run:
             pr_curve = wandb.plot.pr_curve(
