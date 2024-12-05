@@ -447,7 +447,7 @@ class _PrinterJupyter(Printer):
             return
 
         text = "<br/>".join(text) if isinstance(text, (list, tuple)) else text
-        self._ipython_display.display(text)
+        self._ipython_display.display(self._ipython_display.HTML(text))
 
     @override
     @property

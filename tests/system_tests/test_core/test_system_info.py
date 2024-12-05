@@ -3,6 +3,7 @@ import queue
 import unittest.mock
 
 import pytest
+import wandb
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import context
 from wandb.sdk.internal.sender import SendManager

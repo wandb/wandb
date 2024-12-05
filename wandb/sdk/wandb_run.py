@@ -1345,6 +1345,9 @@ class Run:
         if self._settings.silent:
             return False
 
+        if not ipython.in_jupyter():
+            return False
+
         try:
             from IPython import display
 
