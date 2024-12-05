@@ -921,7 +921,10 @@ class Run(Attrs):
         if self._metadata is None:
             try:
                 f = self.file("wandb-metadata.json")
-                contents = util.download_file_into_memory(f.url, wandb.Api().api_key)
+                session = self.client._client.transport.session
+                response = session.get(f.url, timeout=5)
+                response.raise_for_status()
+                contents = response.content
                 self._metadata = json_util.loads(contents)
             except:  # noqa: E722
                 # file doesn't exist, or can't be downloaded, or can't be parsed
