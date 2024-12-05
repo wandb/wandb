@@ -183,7 +183,7 @@ class _WandbInit:
         self.warn_env_vars_change_after_setup()
 
         # mode="disabled" is a special case where we don't want to start wandb-core
-        setup_settings_dict = {}
+        setup_settings_dict: dict[str, Any] = {}
         if init_settings.mode == "disabled":
             setup_settings_dict["mode"] = init_settings.mode
         # TODO: x_disable_service is deprecated, remove this once officially deprecated
