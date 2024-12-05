@@ -13,6 +13,9 @@ class Attrs:
 
     def display(self, height=420, hidden=False) -> bool:
         """Display this object in jupyter."""
+        if wandb.run and wandb.run._settings.silent:
+            return False
+
         html = self.to_html(height, hidden)
         if html is None:
             wandb.termwarn("This object does not support `.display()`")

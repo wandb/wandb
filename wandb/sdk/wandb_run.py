@@ -1342,6 +1342,9 @@ class Run:
     @_run_decorator._attach
     def display(self, height: int = 420, hidden: bool = False) -> bool:
         """Display this run in jupyter."""
+        if self._settings.silent:
+            return False
+
         try:
             from IPython import display
 

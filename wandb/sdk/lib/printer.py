@@ -443,6 +443,9 @@ class _PrinterJupyter(Printer):
         *,
         level: str | int | None = None,
     ) -> None:
+        if wandb.run and wandb.run._settings.silent:
+            return
+
         text = "<br/>".join(text) if isinstance(text, (list, tuple)) else text
         self._ipython_display.display(text)
 
