@@ -7,7 +7,7 @@ import contextlib
 import itertools
 import platform
 import sys
-from typing import TYPE_CHECKING, Callable, Iterator
+from typing import Callable, Iterator
 
 import wandb.util
 
@@ -22,9 +22,6 @@ import wandb
 from wandb.errors import term
 
 from . import ipython, sparkline
-
-if TYPE_CHECKING:
-    from IPython.display import DisplayHandle
 
 # Follow the same logic as the python logging module
 CRITICAL = 50
