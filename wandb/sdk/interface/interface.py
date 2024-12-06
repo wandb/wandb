@@ -925,12 +925,22 @@ class InterfaceBase:
         raise NotImplementedError
 
     def deliver_get_system_metrics(self) -> MailboxHandle:
-        get_summary = pb.GetSystemMetricsRequest()
-        return self._deliver_get_system_metrics(get_summary)
+        get_system_metrics = pb.GetSystemMetricsRequest()
+        return self._deliver_get_system_metrics(get_system_metrics)
 
     @abstractmethod
     def _deliver_get_system_metrics(
         self, get_summary: pb.GetSystemMetricsRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_get_system_metadata(self) -> MailboxHandle:
+        get_system_metadata = pb.GetSystemMetadataRequest()
+        return self._deliver_get_system_metadata(get_system_metadata)
+
+    @abstractmethod
+    def _deliver_get_system_metadata(
+        self, get_system_metadata: pb.GetSystemMetadataRequest
     ) -> MailboxHandle:
         raise NotImplementedError
 

@@ -87,6 +87,7 @@ from .lib.gitlib import GitRepo
 from .lib.mailbox import MailboxError, MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.proto_util import message_to_dict
 from .wandb_alerts import AlertLevel
+from .wandb_metadata import Metadata
 from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
 
@@ -3723,6 +3724,28 @@ class Run:
             except Exception as e:
                 logger.error("Error getting system metrics: %s", e)
         return {}
+
+    @property
+    def metadata(self) -> Metadata | None:
+        """Returns the metadata associated with this run.
+
+        Returns:
+            A dictionary of metadata.
+        """
+        if not self._backend or not self._backend.interface:
+            return None
+
+        handle = self._backend.interface.deliver_get_system_metadata()
+        result = handle.wait(timeout=1)
+
+        if result:
+            try:
+                response = result.response.get_system_metadata_response
+                if response:
+                    return Metadata.from_proto(response.metadata)
+            except Exception as e:
+                logger.error("Error getting system metrics: %s", e)
+        return None
 
     # ------------------------------------------------------------------------------
     # HEADER
