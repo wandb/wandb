@@ -426,6 +426,10 @@ class _PrinterJupyter(Printer):
         super().__init__()
         self._progress = ipython.jupyter_progress_bar()
 
+        from IPython import display
+
+        self._ipython_display = display
+
     @override
     @contextlib.contextmanager
     def dynamic_text(self) -> Iterator[DynamicText | None]:
@@ -439,25 +443,11 @@ class _PrinterJupyter(Printer):
         *,
         level: str | int | None = None,
     ) -> None:
+        if wandb.run and wandb.run._settings.silent:
+            return
+
         text = "<br/>".join(text) if isinstance(text, (list, tuple)) else text
-        self._display_fn_mapping(level)(text)
-
-    @staticmethod
-    def _display_fn_mapping(level: str | int | None) -> Callable[[str], None]:
-        level = Printer._sanitize_level(level)
-
-        if level >= CRITICAL:
-            return ipython.display_html
-        elif ERROR <= level < CRITICAL:
-            return ipython.display_html
-        elif WARNING <= level < ERROR:
-            return ipython.display_html
-        elif INFO <= level < WARNING:
-            return ipython.display_html
-        elif DEBUG <= level < INFO:
-            return ipython.display_html
-        else:
-            return ipython.display_html
+        self._ipython_display.display(self._ipython_display.HTML(text))
 
     @override
     @property
