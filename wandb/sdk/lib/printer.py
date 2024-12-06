@@ -539,11 +539,11 @@ class _PrinterJupyter(Printer):
 
 
 class _DynamicJupyterText(DynamicText):
-    def __init__(self, handle: DisplayHandle) -> None:
+    def __init__(self, handle) -> None:
         from IPython import display
 
         self._ipython_to_html = display.HTML
-        self._handle = handle
+        self._handle: display.DisplayHandle = handle
 
     @override
     def set_text(self, text: str) -> None:
