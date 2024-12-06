@@ -3148,18 +3148,15 @@ class Run:
 
         Args:
             artifact_or_path: (str or Artifact) A path to the contents of this artifact,
-                can be in the following forms:
-                    - `/local/directory`
-                    - `/local/directory/file.txt`
-                    - `s3://bucket/path`
-                You can also pass an Artifact object created by calling
-                `wandb.Artifact`.
-            name: (str, optional) An artifact name. Valid names can be in the following forms:
-                    - name:version
-                    - name:alias
-                    - digest
-                This will default to the basename of the path prepended with the current
-                run id  if not specified.
+                can be in the following forms
+            - `/local/directory`
+            - `/local/directory/file.txt`
+            - `s3://bucket/path`
+            name: (str, optional) An artifact name. Defaults to the basename of the path prepended with the current
+            run id  if not specified. Valid names can be in the following forms:
+            - name:version
+            - name:alias
+            - digest
             type: (str) The type of artifact to log, examples include `dataset`, `model`
             aliases: (list, optional) Aliases to apply to this artifact,
                 defaults to `["latest"]`

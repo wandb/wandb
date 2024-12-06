@@ -53,11 +53,11 @@ def login(
     `verify=True`.
 
     Args:
-        anonymous: (string, optional) Can be "must", "allow", or "never".
-            If set to "must", always log a user in anonymously. If set to
+        anonymous: (string, optional) Set to `must`, `allow`, or `never`.
+            If set to `must`, always log a user in anonymously. If set to
             "allow", only create an anonymous user if the user
-            isn't already logged in. If set to "never", never log a
-            user anonymously. Default set to "never".
+            isn't already logged in. If set to `never`, never log a
+            user anonymously. Default set to `never`.
         key: (string, optional) The API key to use.
         relogin: (bool, optional) If true, will re-prompt for API key.
         host: (string, optional) The host to connect to.
@@ -69,8 +69,8 @@ def login(
         bool: if key is configured
 
     Raises:
-        AuthenticationError - if api_key fails verification with the server
-        UsageError - if api_key cannot be configured and no tty
+        `AuthenticationError` if api_key fails verification with the server
+        `UsageError` if api_key cannot be configured and no tty
     """
     _handle_host_wandb_setting(host)
     if wandb.setup()._settings._noop:
