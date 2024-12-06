@@ -99,16 +99,16 @@ def controller(
 ) -> "_WandbController":
     """Public sweep controller constructor.
 
-    Usage:
-        ```python
-        import wandb
+    Examples:
+    ```python
+    import wandb
 
-        tuner = wandb.controller(...)
-        print(tuner.sweep_config)
-        print(tuner.sweep_id)
-        tuner.configure_search(...)
-        tuner.configure_stopping(...)
-        ```
+    tuner = wandb.controller(...)
+    print(tuner.sweep_config)
+    print(tuner.sweep_id)
+    tuner.configure_search(...)
+    tuner.configure_stopping(...)
+    ```
 
     """
     from ..wandb_controller import _WandbController
