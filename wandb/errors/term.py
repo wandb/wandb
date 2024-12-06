@@ -292,11 +292,11 @@ class DynamicBlock:
 
 
 def _os_get_terminal_width() -> int:
-    """Returns the width of the stderr terminal.
+    """Returns the width of the terminal.
 
     Defined here for patching in tests.
     """
-    columns, _ = os.get_terminal_size(sys.stderr.fileno())
+    columns, _ = os.get_terminal_size()
     return columns
 
 
