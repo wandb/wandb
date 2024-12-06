@@ -4330,13 +4330,31 @@ class ServerFeatureResponse(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    @typing_extensions.final
+    class FeaturesEntry(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+        KEY_FIELD_NUMBER: builtins.int
+        VALUE_FIELD_NUMBER: builtins.int
+        key: builtins.str
+        @property
+        def value(self) -> global___ServerFeatureItem: ...
+        def __init__(
+            self,
+            *,
+            key: builtins.str = ...,
+            value: global___ServerFeatureItem | None = ...,
+        ) -> None: ...
+        def HasField(self, field_name: typing_extensions.Literal["value", b"value"]) -> builtins.bool: ...
+        def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
+
     FEATURES_FIELD_NUMBER: builtins.int
     @property
-    def features(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ServerFeatureItem]: ...
+    def features(self) -> google.protobuf.internal.containers.MessageMap[builtins.str, global___ServerFeatureItem]: ...
     def __init__(
         self,
         *,
-        features: collections.abc.Iterable[global___ServerFeatureItem] | None = ...,
+        features: collections.abc.Mapping[builtins.str, global___ServerFeatureItem] | None = ...,
     ) -> None: ...
     def ClearField(self, field_name: typing_extensions.Literal["features", b"features"]) -> None: ...
 
