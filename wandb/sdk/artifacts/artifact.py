@@ -14,11 +14,23 @@ import shutil
 import stat
 import tempfile
 import time
+import warnings
 from copy import copy
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
-from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Literal, Sequence, Type, cast
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Final,
+    Iterator,
+    Literal,
+    Sequence,
+    Type,
+    cast,
+)
 from urllib.parse import urlparse
 
 import requests
@@ -2128,6 +2140,8 @@ class Artifact:
             },
         )
 
+    _MAX_USEDBY_RUNS: Final[int] = 500
+
     @ensure_logged
     def used_by(self) -> list[Run]:
         """Get a list of the runs that have used this artifact.
@@ -2137,6 +2151,13 @@ class Artifact:
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
+
+        Warnings:
+            This method currently returns a maximum of 500 runs.  If more than
+            500 runs are associated with the artifact, the results will be
+            truncated.  If this occurs, consider using `Run.used_artifacts()`
+            for reverse mapping or paginating through results to retrieve
+            additional runs.
         """
         query = gql(
             """
@@ -2164,7 +2185,7 @@ class Artifact:
             query,
             variable_values={"id": self.id},
         )
-        return [
+        runs = [
             Run(
                 self._client,
                 edge["node"]["project"]["entityName"],
@@ -2173,6 +2194,16 @@ class Artifact:
             )
             for edge in response.get("artifact", {}).get("usedBy", {}).get("edges", [])
         ]
+
+        if len(runs) == self._MAX_USEDBY_RUNS:
+            msg = (
+                f"{type(self).used_by.__qualname__!r} is returning the maximum "
+                f"limit of {self._MAX_USEDBY_RUNS:,d} runs. Additional runs, "
+                f"if any, may be omitted. Please review your artifact usage or "
+                f"consider using {Run.used_artifacts.__qualname__!r} instead."
+            )
+            warnings.warn(msg, UserWarning, stacklevel=1)
+        return runs
 
     @ensure_logged
     def logged_by(self) -> Run | None:

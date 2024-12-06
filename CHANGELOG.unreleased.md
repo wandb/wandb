@@ -25,3 +25,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Fix uploading large artifacts when using Azure Blob Storage. (@amulya-musipatla in https://github.com/wandb/wandb/pull/8946)
 - Fix error when reinitializing a run, caused by accessing a removed attribute. (@MathisTLD in https://github.com/wandb/wandb/pull/8912)
 - Fixed occasional deadlock when using `multiprocessing` to update a single run from multiple processes (@timoffex in https://github.com/wandb/wandb/pull/9126)
+- Update docs for `Artifact.used_by()` to clarify the upper limit on returned runs, and emit a `UserWarning` if returning the maximum number of results. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9042)
