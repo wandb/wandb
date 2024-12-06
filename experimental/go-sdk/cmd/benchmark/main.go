@@ -36,8 +36,15 @@ func (b *Bench) Setup() {
 		params.Address = fmt.Sprintf("%s:%d", *b.opts.host, *b.opts.port)
 	}
 	if *b.opts.offline {
-		baseSettings := settings.NewSettings()
-		baseSettings.XOffline.Value = true
+		baseSettings, err := settings.New()
+		if err != nil {
+			panic(err)
+		}
+		baseSettings.FromSettings(
+			&settings.Settings{
+				Mode: settings.ModeOffline,
+			},
+		)
 		params.Settings = baseSettings
 	}
 	var err error
@@ -63,7 +70,7 @@ func (b *Bench) RunWorkers() {
 }
 
 func (b *Bench) Worker() {
-	run, err := b.wandb.NewRun(nil, nil)
+	run, err := b.wandb.NewRun(gowandb.RunParams{})
 	if err != nil {
 		panic(err)
 	}

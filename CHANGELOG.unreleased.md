@@ -15,16 +15,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Changed
 
-- Set default behavior to not create a W&B Job (@KyleGoyette in https://github.com/wandb/wandb/pull/8907)
+- Improved error message for failing tensorboard.patch() calls to show the option to call tensorboard.unpatch() first (@daniel-bogdoll in https://github.com/wandb/wandb/pull/8938)
 - Add projectId to deleteFiles mutation if the server supports it. (@jacobromero in https://github.com/wandb/wandb/pull/8837)
-
-### Removed
-
-- Remove `wandb.Run.plot_table` method. The functionality is still available and should be accessed using `wandb.plot_table`, which is now the recommended way to use this feature. (@kptkin in https://github.com/wandb/wandb/pull/8686)
-- Drop support for Python 3.7. (@kptkin in https://github.com/wandb/wandb/pull/8858)
-
-### Fixed
-
-- Fix `ultralytics` reporting if there are no positive examples in a validation batch. (@Jamil in https://github.com/wandb/wandb/pull/8870)
-- Debug printing for hyperband stopping algorithm printed one char per line (@temporaer in https://github.com/wandb/wandb/pull/8955)
-- Include the missing `log_params` argument when calling lightgbm's `wandb_callback` function. (@i-aki-y https://github.com/wandb/wandb/pull/8943)

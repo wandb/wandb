@@ -38,7 +38,7 @@ from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import SummaryDisabled, filesystem, ipython, module, printer, telemetry
+from .lib import SummaryDisabled, filesystem, module, printer, telemetry
 from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxProgress
 from .wandb_helper import parse_config
@@ -182,12 +182,17 @@ class _WandbInit:
         """
         self.warn_env_vars_change_after_setup()
 
-        setup_settings = wandb.Settings(
-            mode=init_settings.mode or os.environ.get(wandb.env.MODE) or "online",
-            x_disable_service=init_settings.x_disable_service
-            or os.environ.get(wandb.env._DISABLE_SERVICE)
-            or False,
+        # mode="disabled" is a special case where we don't want to start wandb-core
+        setup_settings_dict: dict[str, Any] = {}
+        if init_settings.mode == "disabled":
+            setup_settings_dict["mode"] = init_settings.mode
+        # TODO: x_disable_service is deprecated, remove this once officially deprecated
+        if init_settings.x_disable_service:
+            setup_settings_dict["x_disable_service"] = init_settings.x_disable_service
+        setup_settings = (
+            wandb.Settings(**setup_settings_dict) if setup_settings_dict else None
         )
+
         self._wl = wandb_setup.setup(settings=setup_settings)
 
         assert self._wl is not None
@@ -643,34 +648,21 @@ class _WandbInit:
 
         if self.settings._noop:
             return self._make_run_disabled()
-        if self.settings.reinit or (
-            self.settings._jupyter and self.settings.reinit is not False
-        ):
-            if len(self._wl._global_run_stack) > 0:
-                if len(self._wl._global_run_stack) > 1:
-                    wandb.termwarn(
-                        "If you want to track multiple runs concurrently in wandb, "
-                        "you should use multi-processing not threads"
-                    )
-
-                latest_run = self._wl._global_run_stack[-1]
-
-                logger.info(
-                    f"re-initializing run, found existing run on stack: {latest_run._run_id}"
+        if (
+            self.settings.reinit
+            or (self.settings._jupyter and self.settings.reinit is not False)
+        ) and len(self._wl._global_run_stack) > 0:
+            if len(self._wl._global_run_stack) > 1:
+                wandb.termwarn(
+                    "Launching multiple wandb runs using Python's threading"
+                    " module is not well-supported."
+                    " Please use multiprocessing instead."
+                    " Finishing previous run before initializing another."
                 )
 
-                jupyter = self.settings._jupyter
-                if jupyter and not self.settings.silent:
-                    ipython.display_html(
-                        f"Finishing last run (ID:{latest_run._run_id}) before initializing another..."
-                    )
-
-                latest_run.finish()
-
-                if jupyter and not self.settings.silent:
-                    ipython.display_html(
-                        f"Successfully finished last run (ID:{latest_run._run_id}). Initializing new run:<br/>"
-                    )
+            latest_run = self._wl._global_run_stack[-1]
+            logger.info(f"found existing run on stack: {latest_run._run_id}")
+            latest_run.finish()
         elif isinstance(wandb.run, Run):
             service = self._wl.service
             # We shouldn't return a stale global run if we are in a new pid
