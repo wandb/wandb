@@ -1,16 +1,17 @@
 package server
 
 import (
+	"context"
+
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/runwork"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // ServerFeatures is responsible for providing the capabilities of a server
 type ServerFeatures struct {
-	features map[string]ServerFeature
+	Features map[string]ServerFeature
 }
 
 type ServerFeature struct {
@@ -23,12 +24,11 @@ type ServerFeature struct {
 
 func NewServerFeatures(
 	graphqlClient graphql.Client,
-	runWork runwork.RunWork,
-	logger *observability.CoreLogger,
+	ctx context.Context,
 ) *ServerFeatures {
 	if graphqlClient == nil {
 		return &ServerFeatures{
-			features: make(map[string]ServerFeature),
+			Features: make(map[string]ServerFeature),
 		}
 	}
 
@@ -36,7 +36,7 @@ func NewServerFeatures(
 
 	// Query the server for the features provided by the server
 	resp, err := gql.ServerFeaturesQuery(
-		runWork.BeforeEndCtx(),
+		ctx,
 		graphqlClient,
 		gql.RampIDTypeUsername,
 	)
@@ -50,10 +50,8 @@ func NewServerFeatures(
 		}
 	}
 
-	logger.Info("server features", "features", features)
-
 	return &ServerFeatures{
-		features: features,
+		Features: features,
 	}
 }
 
@@ -61,18 +59,14 @@ func NewServerFeatures(
 // - Add feature to map
 // - remove feature from map
 
-func (sf *ServerFeatures) GetAllFeatures() map[string]ServerFeature {
-	return sf.features
-}
-
 func (sf *ServerFeatures) GetFeature(name string) *spb.ServerFeatureItem {
 	// Default value, if feature is not in map
 	serverFeature := &spb.ServerFeatureItem{
 		Name:    name,
-		Enabled: true, //false,
+		Enabled: false,
 	}
 
-	feature, ok := sf.features[name]
+	feature, ok := sf.Features[name]
 	if ok {
 		serverFeature = &spb.ServerFeatureItem{
 			Name:    feature.Name,
@@ -87,11 +81,11 @@ func (sf *ServerFeatures) Get(
 	logger *observability.CoreLogger,
 ) *spb.ServerFeatureResponse {
 	// Get feature from map or default value
-	features := []*spb.ServerFeatureItem{}
+	features := map[string]*spb.ServerFeatureItem{}
 	for _, name := range featureNames {
 		// Default value, if feature is not in map
 		serverFeature := sf.GetFeature(name)
-		features = append(features, serverFeature)
+		features[name] = serverFeature
 	}
 
 	return &spb.ServerFeatureResponse{

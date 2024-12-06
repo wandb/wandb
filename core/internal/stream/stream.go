@@ -209,7 +209,7 @@ func NewStream(
 		)
 	}
 
-	featureProvider := server.NewServerFeatures(graphqlClientOrNil, s.runWork, s.logger)
+	featureProvider := server.NewServerFeatures(graphqlClientOrNil, s.runWork.BeforeEndCtx())
 
 	mailbox := mailbox.New()
 

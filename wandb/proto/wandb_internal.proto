@@ -1380,7 +1380,7 @@ message ServerFeatureRequest {
  * supports. including the details of the feature provided by the server.
  */
 message ServerFeatureResponse {
-  repeated ServerFeatureItem features = 1;
+  map<string, ServerFeatureItem> features = 1;
 }
 
 /**
