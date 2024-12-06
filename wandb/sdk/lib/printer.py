@@ -523,3 +523,16 @@ class _PrinterJupyter(Printer):
     def panel(self, columns: list[str]) -> str:
         row = "".join([f'<div class="wandb-col">{col}</div>' for col in columns])
         return f'{_JUPYTER_PANEL_STYLES}<div class="wandb-row">{row}</div>'
+
+
+class _DynamicJupyterText(DynamicText):
+    def __init__(self, handle) -> None:
+        from IPython import display
+
+        self._ipython_to_html = display.HTML
+        self._handle: display.DisplayHandle = handle
+
+    @override
+    def set_text(self, text: str) -> None:
+        text = "<br>".join(text.splitlines())
+        self._handle.update(self._ipython_to_html(text))

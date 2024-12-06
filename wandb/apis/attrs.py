@@ -2,6 +2,8 @@ from typing import Any, MutableMapping
 
 import wandb
 
+from ..sdk.lib import ipython
+
 
 class Attrs:
     def __init__(self, attrs: MutableMapping[str, Any]):
@@ -14,6 +16,9 @@ class Attrs:
     def display(self, height=420, hidden=False) -> bool:
         """Display this object in jupyter."""
         if wandb.run and wandb.run._settings.silent:
+            return False
+
+        if not ipython.in_jupyter():
             return False
 
         html = self.to_html(height, hidden)
