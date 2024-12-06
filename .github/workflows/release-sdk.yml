@@ -299,7 +299,14 @@ jobs:
 
   test-pypi-publish:
     name: Publish to TestPyPI
-    needs: [build-platform-wheels, build-universal-wheel, build-sdist]
+    needs:
+      [
+        build-platform-wheels,
+        build-linux-arm64-wheels,
+        build-macos-10-wheels,
+        build-universal-wheel,
+        build-sdist,
+      ]
     continue-on-error: true
     runs-on: ubuntu-latest
     environment:
