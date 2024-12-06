@@ -3445,6 +3445,12 @@ class Run:
             aliases: (list, optional) Aliases to apply to the created model artifact,
                     defaults to `["latest"]`
 
+        Raises:
+            ValueError: if name has invalid special characters
+
+        Returns:
+            None
+
         Examples:
         ```python
         run.log_model(
@@ -3463,12 +3469,6 @@ class Run:
             aliases=["production"],
         )
         ```
-
-        Raises:
-            ValueError: if name has invalid special characters
-
-        Returns:
-            None
         """
         self._log_artifact(
             artifact_or_path=path, name=name, type="model", aliases=aliases
