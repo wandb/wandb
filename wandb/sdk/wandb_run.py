@@ -1730,8 +1730,6 @@ class Run:
         For optimal performance, limit your logging to once every N iterations,
         or collect data over multiple iterations and log it in a single step.
 
-        ### The W&B step
-
         With basic usage, each call to `log` creates a new "step".
         The step must always increase, and it is not possible to log
         to a previous step.
@@ -1740,7 +1738,7 @@ class Run:
         In many cases, it is better to treat the W&B step like
         you'd treat a timestamp rather than a training step.
 
-        ```
+        ```python
         # Example: log an "epoch" metric for use as an X axis.
         run.log({"epoch": 40, "train-loss": 0.5})
         ```
@@ -1751,7 +1749,7 @@ class Run:
         the same step with the `step` and `commit` parameters.
         The following are all equivalent:
 
-        ```
+        ```python
         # Normal usage:
         run.log({"train-loss": 0.5, "accuracy": 0.8})
         run.log({"train-loss": 0.4, "accuracy": 0.9})
@@ -1785,129 +1783,135 @@ class Run:
                 otherwise, the default is `commit=False`.
             sync: This argument is deprecated and does nothing.
 
-        Examples:
-            For more and more detailed examples, see
-            [our guides to logging](https://docs.wandb.com/guides/track/log).
-
-            ### Basic usage
-            <!--yeadoc-test:init-and-log-basic-->
-            ```python
-            import wandb
-
-            run = wandb.init()
-            run.log({"accuracy": 0.9, "epoch": 5})
-            ```
-
-            ### Incremental logging
-            <!--yeadoc-test:init-and-log-incremental-->
-            ```python
-            import wandb
-
-            run = wandb.init()
-            run.log({"loss": 0.2}, commit=False)
-            # Somewhere else when I'm ready to report this step:
-            run.log({"accuracy": 0.8})
-            ```
-
-            ### Histogram
-            <!--yeadoc-test:init-and-log-histogram-->
-            ```python
-            import numpy as np
-            import wandb
-
-            # sample gradients at random from normal distribution
-            gradients = np.random.randn(100, 100)
-            run = wandb.init()
-            run.log({"gradients": wandb.Histogram(gradients)})
-            ```
-
-            ### Image from numpy
-            <!--yeadoc-test:init-and-log-image-numpy-->
-            ```python
-            import numpy as np
-            import wandb
-
-            run = wandb.init()
-            examples = []
-            for i in range(3):
-                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
-                image = wandb.Image(pixels, caption=f"random field {i}")
-                examples.append(image)
-            run.log({"examples": examples})
-            ```
-
-            ### Image from PIL
-            <!--yeadoc-test:init-and-log-image-pillow-->
-            ```python
-            import numpy as np
-            from PIL import Image as PILImage
-            import wandb
-
-            run = wandb.init()
-            examples = []
-            for i in range(3):
-                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
-                pil_image = PILImage.fromarray(pixels, mode="RGB")
-                image = wandb.Image(pil_image, caption=f"random field {i}")
-                examples.append(image)
-            run.log({"examples": examples})
-            ```
-
-            ### Video from numpy
-            <!--yeadoc-test:init-and-log-video-numpy-->
-            ```python
-            import numpy as np
-            import wandb
-
-            run = wandb.init()
-            # axes are (time, channel, height, width)
-            frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
-            run.log({"video": wandb.Video(frames, fps=4)})
-            ```
-
-            ### Matplotlib Plot
-            <!--yeadoc-test:init-and-log-matplotlib-->
-            ```python
-            from matplotlib import pyplot as plt
-            import numpy as np
-            import wandb
-
-            run = wandb.init()
-            fig, ax = plt.subplots()
-            x = np.linspace(0, 10)
-            y = x * x
-            ax.plot(x, y)  # plot y = x^2
-            run.log({"chart": fig})
-            ```
-
-            ### PR Curve
-            ```python
-            import wandb
-
-            run = wandb.init()
-            run.log({"pr": wandb.plot.pr_curve(y_test, y_probas, labels)})
-            ```
-
-            ### 3D Object
-            ```python
-            import wandb
-
-            run = wandb.init()
-            run.log(
-                {
-                    "generated_samples": [
-                        wandb.Object3D(open("sample.obj")),
-                        wandb.Object3D(open("sample.gltf")),
-                        wandb.Object3D(open("sample.glb")),
-                    ]
-                }
-            )
-            ```
-
         Raises:
             wandb.Error: if called before `wandb.init`
             ValueError: if invalid data is passed
 
+        Examples:
+        <!--yeadoc-test:init-and-log-basic-->
+
+        ```python
+        # Basic usage
+        import wandb
+
+        run = wandb.init()
+        run.log({"accuracy": 0.9, "epoch": 5})
+        ```
+
+        <!--yeadoc-test:init-and-log-incremental-->
+
+        ```python
+        # Incremental logging
+        import wandb
+
+        run = wandb.init()
+        run.log({"loss": 0.2}, commit=False)
+        # Somewhere else when I'm ready to report this step:
+        run.log({"accuracy": 0.8})
+        ```
+
+        <!--yeadoc-test:init-and-log-histogram-->
+
+        ```python
+        # Histogram
+        import numpy as np
+        import wandb
+
+        # sample gradients at random from normal distribution
+        gradients = np.random.randn(100, 100)
+        run = wandb.init()
+        run.log({"gradients": wandb.Histogram(gradients)})
+        ```
+
+        <!--yeadoc-test:init-and-log-image-numpy-->
+
+        ```python
+        # Image from numpy
+        import numpy as np
+        import wandb
+
+        run = wandb.init()
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+            image = wandb.Image(pixels, caption=f"random field {i}")
+            examples.append(image)
+        run.log({"examples": examples})
+        ```
+
+        <!--yeadoc-test:init-and-log-image-pillow-->
+
+        ```python
+        # Image from PIL
+        import numpy as np
+        from PIL import Image as PILImage
+        import wandb
+
+        run = wandb.init()
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+            pil_image = PILImage.fromarray(pixels, mode="RGB")
+            image = wandb.Image(pil_image, caption=f"random field {i}")
+            examples.append(image)
+        run.log({"examples": examples})
+        ```
+
+        <!--yeadoc-test:init-and-log-video-numpy-->
+
+        ```python
+        # Video from numpy
+        import numpy as np
+        import wandb
+
+        run = wandb.init()
+        # axes are (time, channel, height, width)
+        frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
+        run.log({"video": wandb.Video(frames, fps=4)})
+        ```
+
+        <!--yeadoc-test:init-and-log-matplotlib-->
+
+        ```python
+        # Matplotlib Plot
+        from matplotlib import pyplot as plt
+        import numpy as np
+        import wandb
+
+        run = wandb.init()
+        fig, ax = plt.subplots()
+        x = np.linspace(0, 10)
+        y = x * x
+        ax.plot(x, y)  # plot y = x^2
+        run.log({"chart": fig})
+        ```
+
+        ```python
+        # PR Curve
+        import wandb
+
+        run = wandb.init()
+        run.log({"pr": wandb.plot.pr_curve(y_test, y_probas, labels)})
+        ```
+
+        ```python
+        # 3D Object
+        import wandb
+
+        run = wandb.init()
+        run.log(
+            {
+                "generated_samples": [
+                    wandb.Object3D(open("sample.obj")),
+                    wandb.Object3D(open("sample.gltf")),
+                    wandb.Object3D(open("sample.glb")),
+                ]
+            }
+        )
+        ```
+
+        For more and more detailed examples, see
+        [our guides to logging](https://docs.wandb.com/guides/track/log).
         """
         if step is not None:
             with telemetry.context(run=self) as tel:
