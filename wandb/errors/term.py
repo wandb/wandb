@@ -6,6 +6,7 @@ import contextlib
 import logging
 import os
 import re
+import shutil
 import sys
 import threading
 from typing import TYPE_CHECKING, Iterator, Protocol
@@ -280,9 +281,10 @@ class DynamicBlock:
             # There is no ANSI escape sequence that moves the cursor up by one
             # "physical" line instead. Note that the user may resize their
             # terminal.
+            term_width = _shutil_get_terminal_width()
             click.echo(
                 "\n".join(
-                    _ansi_shorten(line, _os_get_terminal_width())
+                    _ansi_shorten(line, term_width)  #
                     for line in self._lines_to_print
                 ),
                 file=sys.stderr,
@@ -291,12 +293,12 @@ class DynamicBlock:
         self._num_lines_printed += len(self._lines_to_print)
 
 
-def _os_get_terminal_width() -> int:
+def _shutil_get_terminal_width() -> int:
     """Returns the width of the terminal.
 
     Defined here for patching in tests.
     """
-    columns, _ = os.get_terminal_size()
+    columns, _ = shutil.get_terminal_size()
     return columns
 
 
