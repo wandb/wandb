@@ -15,13 +15,13 @@ require (
 	github.com/googleapis/gax-go/v2 v2.14.0
 	github.com/hashicorp/go-retryablehttp v0.7.7
 	github.com/hashicorp/golang-lru v1.0.2
-	github.com/prometheus/common v0.60.1
+	github.com/prometheus/common v0.61.0
 	github.com/radovskyb/watcher v1.0.7
 	github.com/shirou/gopsutil/v4 v4.24.11
 	github.com/spf13/afero v1.11.0
 	github.com/stretchr/testify v1.10.0
 	github.com/wandb/simplejsonext v0.0.0-20240710214335-0cdf78d14700
-	golang.org/x/sync v0.9.0
+	golang.org/x/sync v0.10.0
 	golang.org/x/time v0.8.0
 	google.golang.org/api v0.209.0
 	google.golang.org/grpc v1.68.0
@@ -125,11 +125,11 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.19 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	golang.org/x/crypto v0.29.0 // indirect
+	golang.org/x/crypto v0.30.0 // indirect
 	golang.org/x/mod v0.22.0 // indirect
-	golang.org/x/net v0.31.0 // indirect
-	golang.org/x/sys v0.27.0 // indirect
-	golang.org/x/text v0.20.0 // indirect
+	golang.org/x/net v0.32.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/tools v0.27.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
