@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from google.protobuf.timestamp_pb2 import Timestamp
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from wandb.proto import wandb_internal_pb2
 
@@ -242,6 +242,12 @@ class Metadata(BaseModel, validate_assignment=True):
     NOTE: Definitions must be kept in sync with wandb_internal.proto.
     """
 
+    # TODO: Pydantic configuration.
+    model_config = ConfigDict(
+        # extra="forbid",  # throw an error if extra fields are provided
+        # validate_default=True,  # validate default values
+    )
+
     os: str | None = None
     python: str | None = None
     heartbeat_at: datetime | None = Field(None, alias="heartbeatAt")
@@ -296,83 +302,175 @@ class Metadata(BaseModel, validate_assignment=True):
         dt = datetime.fromtimestamp(ts.seconds, tz=timezone.utc)
         return dt.replace(microsecond=ts.nanos // 1000)
 
-    def to_proto(self) -> wandb_internal_pb2.MetadataRequest:
-        return wandb_internal_pb2.MetadataRequest(
-            os=self.os if self.os is not None else "",
-            python=self.python if self.python is not None else "",
-            heartbeat_at=self._datetime_to_timestamp(self.heartbeat_at),
-            started_at=self._datetime_to_timestamp(self.started_at),
-            docker=self.docker if self.docker is not None else "",
-            cuda=self.cuda if self.cuda is not None else "",
-            args=self.args,
-            state=self.state if self.state is not None else "",
-            program=self.program if self.program is not None else "",
-            code_path=self.code_path if self.code_path is not None else "",
-            git=self.git.to_proto() if self.git is not None else None,
-            email=self.email if self.email is not None else "",
-            root=self.root if self.root is not None else "",
-            host=self.host if self.host is not None else "",
-            username=self.username if self.username is not None else "",
-            executable=self.executable if self.executable is not None else "",
-            code_path_local=self.code_path_local
-            if self.code_path_local is not None
-            else "",
-            colab=self.colab if self.colab is not None else "",
-            cpu_count=self.cpu_count if self.cpu_count is not None else 0,
-            cpu_count_logical=self.cpu_count_logical
-            if self.cpu_count_logical is not None
-            else 0,
-            gpu_type=self.gpu_type if self.gpu_type is not None else "",
-            gpu_count=self.gpu_count if self.gpu_count is not None else 0,
-            disk={k: v.to_proto() for k, v in self.disk.items()},
-            memory=self.memory.to_proto() if self.memory is not None else None,
-            cpu=self.cpu.to_proto() if self.cpu is not None else None,
-            apple=self.apple.to_proto() if self.apple is not None else None,
-            gpu_nvidia=[gpu.to_proto() for gpu in self.gpu_nvidia],
-            gpu_amd=[gpu.to_proto() for gpu in self.gpu_amd],
-            slurm=self.slurm,
-            cuda_version=self.cuda_version if self.cuda_version is not None else "",
-            trainium=self.trainium.to_proto() if self.trainium is not None else None,
-            tpu=self.tpu.to_proto() if self.tpu is not None else None,
-        )
+    def to_proto(self) -> wandb_internal_pb2.MetadataRequest:  # noqa: C901
+        proto = wandb_internal_pb2.MetadataRequest()
+
+        # Handle all scalar fields
+        if self.os is not None:
+            proto.os = self.os
+        if self.python is not None:
+            proto.python = self.python
+        if self.docker is not None:
+            proto.docker = self.docker
+        if self.cuda is not None:
+            proto.cuda = self.cuda
+        if self.state is not None:
+            proto.state = self.state
+        if self.program is not None:
+            proto.program = self.program
+        if self.code_path is not None:
+            proto.code_path = self.code_path
+        if self.email is not None:
+            proto.email = self.email
+        if self.root is not None:
+            proto.root = self.root
+        if self.host is not None:
+            proto.host = self.host
+        if self.username is not None:
+            proto.username = self.username
+        if self.executable is not None:
+            proto.executable = self.executable
+        if self.code_path_local is not None:
+            proto.code_path_local = self.code_path_local
+        if self.colab is not None:
+            proto.colab = self.colab
+        if self.cpu_count is not None:
+            proto.cpu_count = self.cpu_count
+        if self.cpu_count_logical is not None:
+            proto.cpu_count_logical = self.cpu_count_logical
+        if self.gpu_type is not None:
+            proto.gpu_type = self.gpu_type
+        if self.gpu_count is not None:
+            proto.gpu_count = self.gpu_count
+        if self.cuda_version is not None:
+            proto.cuda_version = self.cuda_version
+
+        # Handle timestamp fields
+        if self.heartbeat_at is not None:
+            proto.heartbeat_at.CopyFrom(self._datetime_to_timestamp(self.heartbeat_at))
+        if self.started_at is not None:
+            proto.started_at.CopyFrom(self._datetime_to_timestamp(self.started_at))
+
+        # Handle nested message fields
+        if self.git is not None:
+            proto.git.CopyFrom(self.git.to_proto())
+        if self.memory is not None:
+            proto.memory.CopyFrom(self.memory.to_proto())
+        if self.cpu is not None:
+            proto.cpu.CopyFrom(self.cpu.to_proto())
+        if self.apple is not None:
+            proto.apple.CopyFrom(self.apple.to_proto())
+        if self.trainium is not None:
+            proto.trainium.CopyFrom(self.trainium.to_proto())
+        if self.tpu is not None:
+            proto.tpu.CopyFrom(self.tpu.to_proto())
+
+        # Handle repeated fields
+        if self.args:
+            proto.args.extend(self.args)
+        if self.gpu_nvidia:
+            proto.gpu_nvidia.extend(gpu.to_proto() for gpu in self.gpu_nvidia)
+        if self.gpu_amd:
+            proto.gpu_amd.extend(gpu.to_proto() for gpu in self.gpu_amd)
+
+        # Handle map fields
+        if self.disk:
+            for k, v in self.disk.items():
+                proto.disk[k].CopyFrom(v.to_proto())
+        if self.slurm:
+            proto.slurm.update(self.slurm)
+
+        return proto
 
     @classmethod
-    def from_proto(cls, proto: wandb_internal_pb2.MetadataRequest) -> Metadata:
-        return cls(
-            os=proto.os,
-            python=proto.python,
-            heartbeat_at=cls._timestamp_to_datetime(proto.heartbeat_at)
-            if proto.HasField("heartbeat_at")
-            else None,
-            started_at=cls._timestamp_to_datetime(proto.started_at)
-            if proto.HasField("started_at")
-            else None,
-            docker=proto.docker,
-            cuda=proto.cuda,
-            args=list(proto.args),
-            state=proto.state,
-            program=proto.program,
-            code_path=proto.code_path,
-            git=GitRepoRecord.from_proto(proto.git) if proto.HasField("git") else None,
-            email=proto.email,
-            root=proto.root,
-            host=proto.host,
-            username=proto.username,
-            executable=proto.executable,
-            code_path_local=proto.code_path_local,
-            colab=proto.colab,
-            cpu_count=proto.cpu_count,
-            cpu_count_logical=proto.cpu_count_logical,
-            gpu_type=proto.gpu_type,
-            gpu_count=proto.gpu_count,
-            disk={k: DiskInfo.from_proto(v) for k, v in proto.disk.items()},
-            memory=MemoryInfo.from_proto(proto.memory),
-            cpu=CpuInfo.from_proto(proto.cpu),
-            apple=AppleInfo.from_proto(proto.apple),
-            gpu_nvidia=[GpuNvidiaInfo.from_proto(gpu) for gpu in proto.gpu_nvidia],
-            gpu_amd=[GpuAmdInfo.from_proto(gpu) for gpu in proto.gpu_amd],
-            slurm=dict(proto.slurm),
-            cuda_version=proto.cuda_version,
-            trainium=TrainiumInfo.from_proto(proto.trainium),
-            tpu=TPUInfo.from_proto(proto.tpu),
-        )
+    def from_proto(cls, proto: wandb_internal_pb2.MetadataRequest) -> Metadata:  # noqa: C901
+        print(proto)
+        data = {}
+
+        # Handle all scalar fields.
+        if proto.os:
+            data["os"] = proto.os
+        if proto.python:
+            data["python"] = proto.python
+        if proto.docker:
+            data["docker"] = proto.docker
+        if proto.cuda:
+            data["cuda"] = proto.cuda
+        if proto.state:
+            data["state"] = proto.state
+        if proto.program:
+            data["program"] = proto.program
+        if proto.code_path:
+            data["code_path"] = proto.code_path
+        if proto.email:
+            data["email"] = proto.email
+        if proto.root:
+            data["root"] = proto.root
+        if proto.host:
+            data["host"] = proto.host
+        if proto.username:
+            data["username"] = proto.username
+        if proto.executable:
+            data["executable"] = proto.executable
+        if proto.code_path_local:
+            data["code_path_local"] = proto.code_path_local
+        if proto.colab:
+            data["colab"] = proto.colab
+        if proto.cpu_count:
+            data["cpu_count"] = proto.cpu_count
+        if proto.cpu_count_logical:
+            data["cpu_count_logical"] = proto.cpu_count_logical
+        if proto.gpu_type:
+            data["gpu_type"] = proto.gpu_type
+        if proto.gpu_count:
+            data["gpu_count"] = proto.gpu_count
+        if proto.cuda_version:
+            data["cuda_version"] = proto.cuda_version
+
+        # Handle timestamp fields (these are messages, so use HasField)
+        if proto.HasField("heartbeat_at"):
+            data["heartbeat_at"] = cls._timestamp_to_datetime(proto.heartbeat_at)
+        if proto.HasField("started_at"):
+            data["started_at"] = cls._timestamp_to_datetime(proto.started_at)
+
+        # Handle nested message fields (these have presence)
+        if proto.HasField("git"):
+            data["git"] = GitRepoRecord.from_proto(proto.git)
+        if proto.HasField("memory"):
+            data["memory"] = MemoryInfo.from_proto(proto.memory)
+        if proto.HasField("cpu"):
+            data["cpu"] = CpuInfo.from_proto(proto.cpu)
+        if proto.HasField("apple"):
+            data["apple"] = AppleInfo.from_proto(proto.apple)
+        if proto.HasField("trainium"):
+            data["trainium"] = TrainiumInfo.from_proto(proto.trainium)
+        if proto.HasField("tpu"):
+            data["tpu"] = TPUInfo.from_proto(proto.tpu)
+
+        # Handle repeated fields
+        if len(proto.args) > 0:
+            data["args"] = list(proto.args)
+        else:
+            data["args"] = []
+        if len(proto.gpu_nvidia) > 0:
+            data["gpu_nvidia"] = [
+                GpuNvidiaInfo.from_proto(gpu) for gpu in proto.gpu_nvidia
+            ]
+        else:
+            data["gpu_nvidia"] = []
+        if len(proto.gpu_amd) > 0:
+            data["gpu_amd"] = [GpuAmdInfo.from_proto(gpu) for gpu in proto.gpu_amd]
+        else:
+            data["gpu_amd"] = []
+
+        # Handle map fields
+        if len(proto.disk) > 0:
+            data["disk"] = {k: DiskInfo.from_proto(v) for k, v in proto.disk.items()}
+        else:
+            data["disk"] = {}
+        if len(proto.slurm) > 0:
+            data["slurm"] = dict(proto.slurm)
+        else:
+            data["slurm"] = {}
+
+        return cls(**data)
