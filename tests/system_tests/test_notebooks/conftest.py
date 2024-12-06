@@ -56,7 +56,7 @@ def mocked_module(monkeypatch):
 
 @pytest.fixture
 def mocked_ipython(monkeypatch):
-    monkeypatch.setattr(ipython, "in_jupyter", True)
+    monkeypatch.setattr(ipython, "in_jupyter", lambda: True)
 
     def run_cell(cell):
         print("Running cell: ", cell)
