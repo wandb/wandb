@@ -95,16 +95,15 @@ class RetryingClient:
 
 
 class Api:
-    """Used for querying the wandb server.
-
-    Examples:
-        Most common way to initialize
-        >>> wandb.Api()
+    """Used for querying the W&B server.
 
     Args:
-        overrides: (dict) You can set `base_url` if you are using a wandb server
-            other than https://api.wandb.ai.
-            You can also set defaults for `entity`, `project`, and `run`.
+        overrides: (dict) You can set `base_url` if you are using a W&B server other than `https://api.wandb.ai`. You can also set defaults for `entity`, `project`, and `run`.
+
+    Examples:
+    ```python
+    wandb.Api()
+    ```
     """
 
     _HTTP_TIMEOUT = env.get_http_timeout(19)
@@ -328,25 +327,14 @@ class Api:
             entity: (str) Optional name of the entity to create the queue. If None, will use the configured or default entity.
             prioritization_mode: (str) Optional version of prioritization to use. Either "V0" or None
             config: (dict) Optional default resource configuration to be used for the queue. Use handlebars (eg. `{{var}}`) to specify template variables.
-            template_variables: (dict) A dictionary of template variable schemas to be used with the config. Expected format of:
-                `{
-                    "var-name": {
-                        "schema": {
-                            "type": ("string", "number", or "integer"),
-                            "default": (optional value),
-                            "minimum": (optional minimum),
-                            "maximum": (optional maximum),
-                            "enum": [..."(options)"]
-                        }
-                    }
-                }`
+            template_variables: (dict) A dictionary of template variable schemas to be used with the config.
 
         Returns:
             The newly created `RunQueue`
 
         Raises:
-            ValueError if any of the parameters are invalid
-            wandb.Error on wandb API errors
+            `ValueError` if any of the parameters are invalid
+            `wandb.Error` on wandb API errors
         """
         # TODO(np): Need to check server capabilities for this feature
         # 0. assert params are valid/normalized
@@ -440,22 +428,8 @@ class Api:
             entity: (str) Optional name of the entity to create the queue. If None, will use the configured or default entity.
             resource_config: (dict) Optional default resource configuration to be used for the queue. Use handlebars (eg. `{{var}}`) to specify template variables.
             resource_type: (str) Type of resource to be used for the queue. One of "local-container", "local-process", "kubernetes", "sagemaker", or "gcp-vertex".
-            template_variables: (dict) A dictionary of template variable schemas to be used with the config. Expected format of:
-                `{
-                    "var-name": {
-                        "schema": {
-                            "type": ("string", "number", or "integer"),
-                            "default": (optional value),
-                            "minimum": (optional minimum),
-                            "maximum": (optional maximum),
-                            "enum": [..."(options)"]
-                        }
-                    }
-                }`
-            external_links: (dict) Optional dictionary of external links to be used with the queue. Expected format of:
-                `{
-                    "name": "url"
-                }`
+            template_variables: (dict) A dictionary of template variable schemas to be used with the config.
+            external_links: (dict) Optional dictionary of external links to be used with the queue.
             prioritization_mode: (str) Optional version of prioritization to use. Either "V0" or None
 
         Returns:
@@ -627,15 +601,6 @@ class Api:
     def from_path(self, path):
         """Return a run, sweep, project or report from a path.
 
-        Examples:
-            ```
-            project = api.from_path("my_project")
-            team_project = api.from_path("my_team/my_project")
-            run = api.from_path("my_team/my_project/runs/id")
-            sweep = api.from_path("my_team/my_project/sweeps/id")
-            report = api.from_path("my_team/my_project/reports/My-Report-Vm11dsdf")
-            ```
-
         Args:
             path: (str) The path to the project, run, sweep or report
 
@@ -643,7 +608,18 @@ class Api:
             A `Project`, `Run`, `Sweep`, or `BetaReport` instance.
 
         Raises:
-            wandb.Error if path is invalid or the object doesn't exist
+            `wandb.Error` if path is invalid or the object doesn't exist
+
+        Examples:
+        ```python
+        project = api.from_path("my_project")
+        team_project = api.from_path("my_team/my_project")
+        run = api.from_path("my_team/my_project/runs/id")
+        sweep = api.from_path("my_team/my_project/sweeps/id")
+        report = api.from_path("my_team/my_project/reports/My-Report-Vm11dsdf")
+        ```
+
+
         """
         parts = path.strip("/ ").split("/")
         if len(parts) == 1:
@@ -804,7 +780,7 @@ class Api:
         WARNING: This api is in beta and will likely change in a future release
 
         Args:
-            path: (str) path to project the report resides in, should be in the form: "entity/project"
+            path: (str) path to project the report resides in, should be in the form: `entity/project`
             name: (str, optional) optional name of the report requested.
             per_page: (int) Sets the page size for query pagination.  None will use the default size.
                 Usually there is no reason to change this.
@@ -900,51 +876,13 @@ class Api:
     ):
         """Return a set of runs from a project that match the filters provided.
 
-        You can filter by `config.*`, `summary_metrics.*`, `tags`, `state`, `entity`, `createdAt`, etc.
-
-        Examples:
-            Find runs in my_project where config.experiment_name has been set to "foo"
-            ```
-            api.runs(path="my_entity/my_project", filters={"config.experiment_name": "foo"})
-            ```
-
-            Find runs in my_project where config.experiment_name has been set to "foo" or "bar"
-            ```
-            api.runs(
-                path="my_entity/my_project",
-                filters={"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]}
-            )
-            ```
-
-            Find runs in my_project where config.experiment_name matches a regex (anchors are not supported)
-            ```
-            api.runs(
-                path="my_entity/my_project",
-                filters={"config.experiment_name": {"$regex": "b.*"}}
-            )
-            ```
-
-            Find runs in my_project where the run name matches a regex (anchors are not supported)
-            ```
-            api.runs(
-                path="my_entity/my_project",
-                filters={"display_name": {"$regex": "^foo.*"}}
-            )
-            ```
-
-            Find runs in my_project sorted by ascending loss
-            ```
-            api.runs(path="my_entity/my_project", order="+summary_metrics.loss")
-            ```
+        You can filter by `config.*`, `summary_metrics.*`, `tags`, `state`, `entity`, `createdAt`, and so
+        forth. You can also compose operations to make more complicated queries. For  more information,
+        see Query and Project Operators MongoDb Reference at https://docs.mongodb.com/manual/reference/operator/query.
 
         Args:
             path: (str) path to project, should be in the form: "entity/project"
             filters: (dict) queries for specific runs using the MongoDB query language.
-                You can filter by run properties such as config.key, summary_metrics.key, state, entity, createdAt, etc.
-                For example: `{"config.experiment_name": "foo"}` would find runs with a config entry
-                    of experiment name set to "foo"
-                You can compose operations to make more complicated queries,
-                    see Reference for the language is at  https://docs.mongodb.com/manual/reference/operator/query
             order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
                 If you prepend order with a + order is ascending.
                 If you prepend order with a - order is descending (default).
@@ -954,6 +892,41 @@ class Api:
 
         Returns:
             A `Runs` object, which is an iterable collection of `Run` objects.
+
+        Examples:
+        ```python
+        # Find runs in my_project where config.experiment_name has been set to "foo"
+        api.runs(path="my_entity/my_project", filters={"config.experiment_name": "foo"})
+        ```
+
+        ```python
+        # Find runs in my_project where config.experiment_name has been set to "foo" or "bar"
+        api.runs(
+            path="my_entity/my_project",
+            filters={"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]}
+        )
+        ```
+
+        ```python
+        # Find runs in my_project where config.experiment_name matches a regex (anchors are not supported)
+        api.runs(
+            path="my_entity/my_project",
+            filters={"config.experiment_name": {"$regex": "b.*"}}
+        )
+        ```
+
+        ```python
+        # Find runs in my_project where the run name matches a regex (anchors are not supported)
+        api.runs(
+            path="my_entity/my_project",
+            filters={"display_name": {"$regex": "^foo.*"}}
+        )
+        ```
+
+        ```python
+        # Find runs in my_project sorted by ascending loss
+        api.runs(path="my_entity/my_project", order="+summary_metrics.loss")
+        ```
         """
         entity, project = self._parse_project_path(path)
         filters = filters or {}
@@ -972,7 +945,7 @@ class Api:
 
     @normalize_exceptions
     def run(self, path=""):
-        """Return a single run by parsing path in the form entity/project/run_id.
+        """Return a single run by parsing path in the form `entity/project/run_id`.
 
         Args:
             path: (str) path to run in the form `entity/project/run_id`.
@@ -998,7 +971,7 @@ class Api:
     ):
         """Return a single queued run based on the path.
 
-        Parses paths of the form entity/project/queue_id/run_queue_item_id.
+        Parses paths of the form `entity/project/queue_id/run_queue_item_id`.
         """
         return public.QueuedRun(
             self.client,
