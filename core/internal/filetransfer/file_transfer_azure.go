@@ -2,18 +2,27 @@ package filetransfer
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"io"
+	"math"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/wboperation"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -169,12 +178,171 @@ func setupBlobClient(
 	return client, nil
 }
 
-// Upload uploads a file to the server. This method is not yet implemented, but
-// is required for the FileTransfer interface.
-func (ft *AzureFileTransfer) Upload(task *ReferenceArtifactUploadTask) error {
-	ft.logger.Debug("Azure file transfer: uploading file", "path", task.PathOrPrefix)
+// Upload uploads a file to the server.
+func (ft *AzureFileTransfer) Upload(task *DefaultUploadTask) error {
+	ft.logger.Debug("Azure file transfer: uploading file", "path", task.Path, "url", task.Url)
+
+	// open the file for reading and defer closing it
+	file, err := os.Open(task.Path)
+	if err != nil {
+		return err
+	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			ft.logger.CaptureError(
+				fmt.Errorf(
+					"azure file transfer: upload: error closing file %s: %v",
+					task.Path,
+					err,
+				))
+		}
+	}(file)
+
+	stat, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf(
+			"azure file transfer: upload: error when stat-ing %s: %v",
+			task.Path,
+			err,
+		)
+	}
+
+	// Don't try to upload directories.
+	if stat.IsDir() {
+		return fmt.Errorf(
+			"azure file transfer: upload: cannot upload directory %v",
+			task.Path,
+		)
+	}
+
+	if task.Offset+task.Size > stat.Size() {
+		// If the range exceeds the file size, there was some kind of error upstream.
+		return fmt.Errorf("azure file transfer: upload: offset + size exceeds the file size")
+	}
+
+	if task.Size == 0 {
+		// If Size is 0, upload the remainder of the file.
+		task.Size = stat.Size() - task.Offset
+	}
+
+	// Due to historical mistakes, net/http interprets a 0 value of
+	// Request.ContentLength as "unknown" if the body is non-nil, and
+	// doesn't send the Content-Length header which is usually required.
+	//
+	// To have it understand 0 as 0, the body must be set to nil or
+	// the NoBody sentinel.
+	var requestBody io.Reader
+	if task.Size == 0 {
+		requestBody = http.NoBody
+	} else {
+		if task.Size > math.MaxInt {
+			return fmt.Errorf("azure file transfer: file too large (%d bytes)", task.Size)
+		}
+
+		progress, err := wboperation.Get(task.Context).NewProgress()
+		if err != nil {
+			ft.logger.CaptureError(fmt.Errorf("azure file transfer: %v", err))
+		}
+
+		requestBody = NewProgressReader(
+			io.NewSectionReader(file, task.Offset, task.Size),
+			int(task.Size),
+			func(processed int, total int) {
+				if task.ProgressCallback != nil {
+					task.ProgressCallback(processed, total)
+				}
+
+				progress.SetBytesOfTotal(processed, total)
+
+				ft.fileTransferStats.UpdateUploadStats(FileUploadInfo{
+					FileKind:      task.FileKind,
+					Path:          task.Path,
+					UploadedBytes: int64(processed),
+					TotalBytes:    int64(total),
+				})
+			},
+		)
+	}
+
+	resp, err := ft.uploadBlob(task, requestBody)
+	if err != nil {
+		return err
+	}
+	task.Response = resp
 
 	return nil
+}
+
+// uploadBlob uploads the given request body to a blob at task.Url.
+func (ft *AzureFileTransfer) uploadBlob(task *DefaultUploadTask, requestBody io.Reader) (*http.Response, error) {
+	clientOptions := blockblob.ClientOptions{
+		ClientOptions: azcore.ClientOptions{
+			Retry: policy.RetryOptions{
+				MaxRetries: 0,
+			},
+		},
+	}
+	blobClient, err := blockblob.NewClientWithNoCredential(task.Url, &clientOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	uploadOptions := blockblob.UploadStreamOptions{
+		Concurrency: 4,
+		BlockSize:   4 * 1024,
+		HTTPHeaders: &blob.HTTPHeaders{},
+	}
+
+	for _, header := range task.Headers {
+		parts := strings.SplitN(header, ":", 2)
+		if len(parts) != 2 {
+			ft.logger.Error("file transfer: upload: invalid header", "header", header)
+			continue
+		}
+		switch parts[0] {
+		case "Content-MD5":
+			md5, err := base64.StdEncoding.DecodeString(parts[1])
+			if err != nil {
+				return nil, err
+			}
+			uploadOptions.HTTPHeaders.BlobContentMD5 = md5
+		case "Content-Type":
+			uploadOptions.HTTPHeaders.BlobContentType = &parts[1]
+		}
+	}
+
+	resp, err := blobClient.UploadStream(context.Background(), requestBody, &uploadOptions)
+	if err != nil {
+		return nil, err
+	}
+	return &http.Response{
+		StatusCode: 200,
+		Status:     "OK",
+		Header:     getHeadersFromResponse(resp),
+	}, nil
+}
+
+// getHeadersFromResponse gets the relevant headers from the upload response.
+func getHeadersFromResponse(resp blockblob.UploadStreamResponse) http.Header {
+	header := http.Header{}
+	if resp.ETag != nil {
+		header.Set("ETag", string(*resp.ETag))
+	}
+	if resp.ClientRequestID != nil {
+		header.Set("Client-Request-ID", *resp.ClientRequestID)
+	}
+	if resp.RequestID != nil {
+		header.Set("Request-ID", *resp.RequestID)
+	}
+	if resp.Date != nil {
+		header.Set("Date", resp.Date.Format(time.UnixDate))
+	}
+	if resp.LastModified != nil {
+		header.Set("Last-Modified", resp.LastModified.Format(time.UnixDate))
+	}
+	header.Set("Content-MD5", base64.StdEncoding.EncodeToString(resp.ContentMD5))
+	return header
 }
 
 type ParsedBlobInfo struct {

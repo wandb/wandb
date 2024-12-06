@@ -10,8 +10,8 @@ type FileTransfer interface {
 	Download(task *DefaultDownloadTask) error
 }
 
-type ReferenceArtifactFileTransfer interface {
-	Upload(task *ReferenceArtifactUploadTask) error
+type ArtifactFileTransfer interface {
+	Upload(task *DefaultUploadTask) error
 	Download(task *ReferenceArtifactDownloadTask) error
 }
 
@@ -21,13 +21,13 @@ type FileTransfers struct {
 	Default FileTransfer
 
 	// GCS connects to GCloud to upload/download files given their paths
-	GCS ReferenceArtifactFileTransfer
+	GCS ArtifactFileTransfer
 
 	// S3 connects to AWS to upload/download files given their paths
-	S3 ReferenceArtifactFileTransfer
+	S3 ArtifactFileTransfer
 
 	// Azure connects to Azure to upload/download files given their paths
-	Azure ReferenceArtifactFileTransfer
+	Azure ArtifactFileTransfer
 }
 
 // NewFileTransfers creates a new fileTransfers

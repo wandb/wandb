@@ -1,8 +1,6 @@
 package filetransfer
 
 import (
-	"context"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"math"
@@ -10,12 +8,7 @@ import (
 	"os"
 	"path"
 	"strings"
-	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -101,7 +94,7 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 	//
 	// To have it understand 0 as 0, the body must be set to nil or
 	// the NoBody sentinel.
-	var requestBody io.Reader
+	var requestBody any
 	if task.Size == 0 {
 		requestBody = http.NoBody
 	} else {
@@ -134,28 +127,22 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 		)
 	}
 
-	var resp *http.Response
-	if task.RequiresAzureUpload() {
-		resp, err = ft.UploadAzure(task, requestBody)
-	} else {
-		var req *retryablehttp.Request
-		req, err = retryablehttp.NewRequest(http.MethodPut, task.Url, requestBody)
-		if err != nil {
-			return err
-		}
-		for _, header := range task.Headers {
-			parts := strings.SplitN(header, ":", 2)
-			if len(parts) != 2 {
-				ft.logger.Error("file transfer: upload: invalid header", "header", header)
-				continue
-			}
-			req.Header.Set(parts[0], parts[1])
-		}
-		if task.Context != nil {
-			req = req.WithContext(task.Context)
-		}
-		resp, err = ft.client.Do(req)
+	req, err := retryablehttp.NewRequest(http.MethodPut, task.Url, requestBody)
+	if err != nil {
+		return err
 	}
+	for _, header := range task.Headers {
+		parts := strings.SplitN(header, ":", 2)
+		if len(parts) != 2 {
+			ft.logger.Error("file transfer: upload: invalid header", "header", header)
+			continue
+		}
+		req.Header.Set(parts[0], parts[1])
+	}
+	if task.Context != nil {
+		req = req.WithContext(task.Context)
+	}
+	resp, err := ft.client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -222,75 +209,6 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		return err
 	}
 	return nil
-}
-
-func (ft *DefaultFileTransfer) UploadAzure(task *DefaultUploadTask, requestBody io.Reader) (*http.Response, error) {
-	clientOptions := blockblob.ClientOptions{
-		ClientOptions: azcore.ClientOptions{
-			Retry: policy.RetryOptions{
-				MaxRetries: 0,
-			},
-		},
-	}
-	blobClient, err := blockblob.NewClientWithNoCredential(task.Url, &clientOptions)
-	if err != nil {
-		return nil, err
-	}
-
-	uploadOptions := blockblob.UploadStreamOptions{
-		Concurrency: 4,
-		BlockSize:   4 * 1024,
-		HTTPHeaders: &blob.HTTPHeaders{},
-	}
-
-	for _, header := range task.Headers {
-		parts := strings.SplitN(header, ":", 2)
-		if len(parts) != 2 {
-			ft.logger.Error("file transfer: upload: invalid header", "header", header)
-			continue
-		}
-		switch parts[0] {
-		case "Content-MD5":
-			md5, err := base64.StdEncoding.DecodeString(parts[1])
-			if err != nil {
-				return nil, err
-			}
-			uploadOptions.HTTPHeaders.BlobContentMD5 = md5
-		case "Content-Type":
-			uploadOptions.HTTPHeaders.BlobContentType = &parts[1]
-		}
-	}
-
-	resp, err := blobClient.UploadStream(context.Background(), requestBody, &uploadOptions)
-	if err != nil {
-		return nil, err
-	}
-	return &http.Response{
-		StatusCode: 200,
-		Status:     "OK",
-		Header:     getHeadersFromResponse(resp),
-	}, nil
-}
-
-func getHeadersFromResponse(resp blockblob.UploadStreamResponse) http.Header {
-	header := http.Header{}
-	if resp.ETag != nil {
-		header.Set("ETag", string(*resp.ETag))
-	}
-	if resp.ClientRequestID != nil {
-		header.Set("Client-Request-ID", *resp.ClientRequestID)
-	}
-	if resp.RequestID != nil {
-		header.Set("Request-ID", *resp.RequestID)
-	}
-	if resp.Date != nil {
-		header.Set("Date", resp.Date.Format(time.UnixDate))
-	}
-	if resp.LastModified != nil {
-		header.Set("Last-Modified", resp.LastModified.Format(time.UnixDate))
-	}
-	header.Set("Content-MD5", base64.StdEncoding.EncodeToString(resp.ContentMD5))
-	return header
 }
 
 type ProgressReader struct {

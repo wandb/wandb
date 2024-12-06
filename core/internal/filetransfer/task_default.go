@@ -53,6 +53,9 @@ type DefaultTask struct {
 type DefaultUploadTask DefaultTask
 
 func (t *DefaultUploadTask) Execute(fts *FileTransfers) error {
+	if t.RequiresAzureUpload() {
+		return fts.Azure.Upload(t)
+	}
 	return fts.Default.Upload(t)
 }
 func (t *DefaultUploadTask) Complete(fts FileTransferStats) {
