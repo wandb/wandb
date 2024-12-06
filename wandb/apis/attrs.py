@@ -1,7 +1,8 @@
 from typing import Any, MutableMapping
 
 import wandb
-from wandb.sdk.lib import ipython
+
+from ..sdk.lib import ipython
 
 
 class Attrs:
@@ -14,14 +15,24 @@ class Attrs:
 
     def display(self, height=420, hidden=False) -> bool:
         """Display this object in jupyter."""
+        if wandb.run and wandb.run._settings.silent:
+            return False
+
+        if not ipython.in_jupyter():
+            return False
+
         html = self.to_html(height, hidden)
         if html is None:
             wandb.termwarn("This object does not support `.display()`")
             return False
-        if ipython.in_jupyter():
-            ipython.display_html(html)
+
+        try:
+            from IPython import display
+
+            display.display(display.HTML(html))
             return True
-        else:
+
+        except ImportError:
             wandb.termwarn(".display() only works in jupyter environments")
             return False
 
