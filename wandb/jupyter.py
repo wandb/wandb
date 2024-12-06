@@ -15,8 +15,7 @@ import wandb.util
 from wandb.sdk.lib import filesystem
 
 try:
-    from IPython import display
-    from IPython.core.getipython import get_ipython
+    import IPython
     from IPython.core.magic import Magics, line_cell_magic, magics_class
     from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 except ImportError:
@@ -66,7 +65,7 @@ class IFrame:
 
     def maybe_display(self) -> bool:
         if not self.displayed and (self.path or wandb.run):
-            display.display(self)
+            IPython.display.display(self)
         return self.displayed
 
     def _repr_html_(self):
@@ -155,7 +154,7 @@ class WandBMagics(Magics):
                     + cell
                     + "\nwandb.jupyter.__IFrame = None"
                 )
-            get_ipython().run_cell(cell)
+            IPython.get_ipython().run_cell(cell)
 
 
 def notebook_metadata_from_jupyter_servers_and_kernel_id():
@@ -343,7 +342,7 @@ class Notebook:
     def __init__(self, settings):
         self.outputs = {}
         self.settings = settings
-        self.shell = get_ipython()
+        self.shell = IPython.get_ipython()
 
     def save_display(self, exc_count, data_with_metadata):
         self.outputs[exc_count] = self.outputs.get(exc_count, [])

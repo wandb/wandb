@@ -70,7 +70,7 @@ def mocked_ipython(monkeypatch):
     monkeypatch.setattr(
         IPython.display,
         "display",
-        lambda obj: mock_get_ipython_result.html(obj._repr_html_()),
+        lambda obj, **kwargs: mock_get_ipython_result.html(obj._repr_html_()),
     )
 
     return mock_get_ipython_result
