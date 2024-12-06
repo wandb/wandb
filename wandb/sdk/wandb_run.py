@@ -3434,11 +3434,10 @@ class Run:
         """Logs a model artifact containing the contents inside the `path` to a run and marks it as an output to this run.
 
         Args:
-            path: (str) A path to the contents of this model,
-                can be in the following forms:
-                    - `/local/directory`
-                    - `/local/directory/file.txt`
-                    - `s3://bucket/path`
+            path: (str) A path to the contents of this model, can be in the following forms
+            - `/local/directory`
+            - `/local/directory/file.txt`
+            - `s3://bucket/path`
             name: (str, optional) A name to assign to the model artifact that the file contents will be added to.
                 The string must contain only the following alphanumeric characters: dashes, underscores, and dots.
                 This will default to the basename of the path prepended with the current
