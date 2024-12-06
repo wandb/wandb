@@ -506,8 +506,8 @@ class Run(Attrs):
         """Persist changes to the run object to the wandb backend."""
         mutation = gql(
             """
-        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!, $groupName: String) {{
-            upsertBucket(input: {{id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config, groupName: $groupName}}) {{
+        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!, $groupName: String, $jobType: String) {{
+            upsertBucket(input: {{id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config, groupName: $groupName, jobType: $jobType}}) {{
                 bucket {{
                     ...RunFragment
                 }}
@@ -525,6 +525,7 @@ class Run(Attrs):
             display_name=self.display_name,
             config=self.json_config,
             groupName=self.group,
+            jobType=self.job_type,
         )
         self.summary.update()
 
@@ -921,7 +922,10 @@ class Run(Attrs):
         if self._metadata is None:
             try:
                 f = self.file("wandb-metadata.json")
-                contents = util.download_file_into_memory(f.url, wandb.Api().api_key)
+                session = self.client._client.transport.session
+                response = session.get(f.url, timeout=5)
+                response.raise_for_status()
+                contents = response.content
                 self._metadata = json_util.loads(contents)
             except:  # noqa: E722
                 # file doesn't exist, or can't be downloaded, or can't be parsed
