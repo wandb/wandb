@@ -1952,9 +1952,25 @@ class Run:
         A `base_path` may be provided to control the directory structure of
         uploaded files. It should be a prefix of `glob_str`, and the directory
         structure beneath it is preserved. It's best understood through
-        examples:
 
-        ```
+        Note: when given an absolute path or glob and no `base_path`, one
+        directory level is preserved as in the example above.
+
+        Args:
+            glob_str: A relative or absolute path or Unix glob.
+            base_path: A path to use to infer a directory structure; see examples.
+            policy: One of `live`, `now`, or `end`.
+            - live: upload the file as it changes, overwriting the previous version
+            - now: upload the file once now
+            - end: upload file when the run ends
+
+        Returns:
+            Paths to the symlinks created for the matched files.
+
+            For historical reasons, this may return a boolean in legacy code.
+
+        Examples:
+        ```python
         wandb.save("these/are/myfiles/*")
         # => Saves files in a "these/are/myfiles/" folder in the run.
 
@@ -1971,22 +1987,6 @@ class Run:
         # => Saves each "saveme.txt" file in an appropriate subdirectory
         #    of "files/".
         ```
-
-        Note: when given an absolute path or glob and no `base_path`, one
-        directory level is preserved as in the example above.
-
-        Args:
-            glob_str: A relative or absolute path or Unix glob.
-            base_path: A path to use to infer a directory structure; see examples.
-            policy: One of `live`, `now`, or `end`.
-                * live: upload the file as it changes, overwriting the previous version
-                * now: upload the file once now
-                * end: upload file when the run ends
-
-        Returns:
-            Paths to the symlinks created for the matched files.
-
-            For historical reasons, this may return a boolean in legacy code.
         """
         if glob_str is None:
             # noop for historical reasons, run.save() may be called in legacy code
@@ -3444,7 +3444,7 @@ class Run:
 
         Returns:
             None
-                    
+
         Raises:
             ValueError: if name has invalid special characters
 
