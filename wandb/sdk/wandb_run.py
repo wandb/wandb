@@ -3442,11 +3442,11 @@ class Run:
             aliases: (list, optional) Aliases to apply to the created model artifact,
                     defaults to `["latest"]`
 
-        Raises:
-            ValueError: if name has invalid special characters
-
         Returns:
             None
+                    
+        Raises:
+            ValueError: if name has invalid special characters
 
         Examples:
         ```python
