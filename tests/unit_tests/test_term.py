@@ -92,7 +92,7 @@ def test_static_and_dynamic_text(emulated_terminal):
 def test_truncates_dynamic_text(emulated_terminal, monkeypatch):
     # Pretend the terminal is very narrow.
     columns = len("wandb: this should fit")
-    monkeypatch.setattr(term, "_os_get_terminal_width", lambda: columns)
+    monkeypatch.setattr(term, "_shutil_get_terminal_width", lambda: columns)
     with term.dynamic_text() as text:
         assert text
 

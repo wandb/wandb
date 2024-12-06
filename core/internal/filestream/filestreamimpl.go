@@ -197,5 +197,10 @@ func (fs *fileStream) trackUploadOperation(
 				console.Offset+len(console.Content)-1))
 	}
 
-	return fs.operations.New("uploading " + strings.Join(parts, ", "))
+	if len(parts) == 0 {
+		// Shouldn't happen, but guard against future bugs.
+		return fs.operations.New("uploading data")
+	} else {
+		return fs.operations.New("uploading " + strings.Join(parts, ", "))
+	}
 }
