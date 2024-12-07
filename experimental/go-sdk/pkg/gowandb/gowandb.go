@@ -10,14 +10,19 @@ import (
 type History map[string]interface{}
 
 func NewSession(params SessionParams) (*Session, error) {
-	if params.Settings == nil {
-		params.Settings = settings.NewSettings()
+	sessSettings, err := settings.New()
+	if err != nil {
+		return nil, err
+	}
+	sessSettings.FromEnv()
+	if params.Settings != nil {
+		sessSettings.FromSettings(params.Settings)
 	}
 	session := &Session{
 		ctx:        context.Background(),
 		coreBinary: params.CoreBinary,
 		address:    params.Address,
-		settings:   params.Settings,
+		settings:   sessSettings,
 	}
 	session.start()
 	return session, nil
