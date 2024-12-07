@@ -50,7 +50,7 @@ def pre_process_network_sar_log(log_dir: str) -> str:
         if result.returncode == 0:
             return f"network.dev.{dev}.log"
         else:
-            logger.warn(result)
+            logger.warning(result)
 
     return ""
 
