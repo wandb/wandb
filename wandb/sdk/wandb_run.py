@@ -2913,7 +2913,7 @@ class Run:
         """Remove pytorch model topology, gradient and parameter hooks.
 
         Args:
-            models (torch.nn.Module | Sequence[torch.nn.Module]):
+            models: (torch.nn.Module | Sequence[torch.nn.Module])
                 Optional list of pytorch models that have had watch called on them
         """
         wandb.sdk._unwatch(self, models=models)
@@ -3481,36 +3481,37 @@ class Run:
                 model artifact.
                 May be prefixed with entity/project/. Valid names
                 can be in the following forms:
-                    - model_artifact_name:version
-                    - model_artifact_name:alias
-
-        Examples:
-            ```python
-            run.use_model(
-                name="my_model_artifact:latest",
-            )
-
-            run.use_model(
-                name="my_project/my_model_artifact:v0",
-            )
-
-            run.use_model(
-                name="my_entity/my_project/my_model_artifact:<digest>",
-            )
-            ```
-
-            Invalid usage
-            ```python
-            run.use_model(
-                name="my_entity/my_project/my_model_artifact",
-            )
-            ```
+                - model_artifact_name:version
+                - model_artifact_name:alias
 
         Raises:
             AssertionError: if model artifact `name` is of a type that does not contain the substring 'model'.
 
         Returns:
             path: (str) path to downloaded model artifact file(s).
+
+        Examples:
+        ```python
+        run.use_model(
+            name="my_model_artifact:latest",
+        )
+
+        run.use_model(
+            name="my_project/my_model_artifact:v0",
+        )
+
+        run.use_model(
+            name="my_entity/my_project/my_model_artifact:<digest>",
+        )
+        ```
+
+        Invalid usage
+        
+        ```python
+        run.use_model(
+            name="my_entity/my_project/my_model_artifact",
+        )
+        ```            
         """
         artifact = self.use_artifact(artifact_or_name=name)
         assert (
