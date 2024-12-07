@@ -43,7 +43,6 @@ from wandb.proto.wandb_internal_pb2 import (
     Result,
     RunRecord,
     ServerFeatureItem,
-    ServerFeatureResponse,
 )
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal import job_builder

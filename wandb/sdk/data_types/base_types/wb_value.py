@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Type, Union
 
-import wandb
 from wandb import util
 
 if TYPE_CHECKING:  # pragma: no cover
