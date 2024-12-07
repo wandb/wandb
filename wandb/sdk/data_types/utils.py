@@ -101,11 +101,9 @@ def val_to_json(
             items = _prune_max_seq(val)
 
             # TODO: update this appropriate with feature name when implemented in backend server
-            server_accepts_image_filenames = (
-                run.get_server_feature("ServerAcceptsImageFilenames")
-                .features[0]
-                .enabled
-            )
+            server_accepts_image_filenames = run.get_server_feature(
+                "ServerAcceptsImageFilenames"
+            ).enabled
             if server_accepts_image_filenames:
                 for item in items:
                     item.bind_to_run(

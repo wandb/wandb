@@ -374,9 +374,9 @@ class Image(BatchableMedia):
             )
 
         # TODO: update this appropriate with feature name when implemented in backend server
-        server_accepts_artifact_path = (
-            run.get_server_feature("ServerAcceptsArtifactPaths").features[0].enabled
-        )
+        server_accepts_artifact_path = run.get_server_feature(
+            "ServerAcceptsArtifactPaths"
+        ).enabled
         if (
             not server_accepts_artifact_path
             or self._get_artifact_entry_ref_url(run) is None
@@ -537,9 +537,9 @@ class Image(BatchableMedia):
         }
 
         # TODO: update this appropriate with feature name when implemented in backend server
-        server_accepts_image_filenames = (
-            run.get_server_feature("ServerAcceptsImageFilenames").features[0].enabled
-        )
+        server_accepts_image_filenames = run.get_server_feature(
+            "ServerAcceptsImageFilenames"
+        ).enabled
         if server_accepts_image_filenames:
             meta["filenames"] = [
                 obj.get("path", obj.get("artifact_path")) for obj in jsons

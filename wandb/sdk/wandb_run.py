@@ -2801,23 +2801,19 @@ class Run:
         m._commit()
         return m
 
-    def get_server_feature(self, feature: str) -> ServerFeatureResponse:
+    def get_server_feature(self, feature: str) -> ServerFeatureItem:
         response = self._backend.interface.deliver_request_server_feature(feature)
         response = response.wait(timeout=2)
         if response is None or response.response.server_feature_response is None:
             wandb.termwarn(
                 f"Failed to get server feature {feature}. Defaulting to disabled."
             )
-            return ServerFeatureResponse(
-                features=[
-                    ServerFeatureItem(
-                        name=feature,
-                        enabled=False,
-                    )
-                ]
+            return ServerFeatureItem(
+                name=feature,
+                enabled=False,
             )
 
-        return response.response.server_feature_response
+        return response.response.server_feature_response.features[feature]
 
     @_run_decorator._attach
     def watch(
