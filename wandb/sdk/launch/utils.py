@@ -134,6 +134,7 @@ def event_loop_thread_exec(func: Any) -> Any:
     def my_func(arg1, arg2):
         return arg1 + arg2
 
+
     future = event_loop_thread_exec(my_func)(2, 2)
     assert await future == 4
     ```

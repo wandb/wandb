@@ -192,7 +192,9 @@ class WandbLogger(Logger):
         wandb_logger.log_image(key="samples", images=[img1, img2])
 
         # adding captions
-        wandb_logger.log_image(key="samples", images=[img1, img2], caption=["tree", "person"])
+        wandb_logger.log_image(
+            key="samples", images=[img1, img2], caption=["tree", "person"]
+        )
 
         # using file path
         wandb_logger.log_image(key="samples", images=["img_1.jpg", "img_2.jpg"])
