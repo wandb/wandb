@@ -10,6 +10,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfertest"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/server"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -45,65 +46,98 @@ func TestGetChunkSize(t *testing.T) {
 }
 
 func TestSaveGraphQLRequest(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("InputFields"),
-		`{"TypeInfo": {"inputFields": [{"name": "tags"}]}}`,
-	)
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("CreateArtifact"),
-		`{
-			"createArtifact": {
-				"artifact": {
-					"id": "artifact-id",
-					"state": "PENDING"
-				}
-			}
-		}`,
-	)
-	mockGQL.StubMatchOnce( // first createManifest request
-		gqlmock.WithOpName("CreateArtifactManifest"),
-		`{"createArtifactManifest": {}}`,
-	)
-	mockGQL.StubMatchOnce( // second one, before uploading the manifest
-		gqlmock.WithOpName("CreateArtifactManifest"),
-		`{
-			"createArtifactManifest": {
-				"artifactManifest": {
-					"file": {
-						"uploadUrl": "test-url"
-					}
-				}
-			}
-		}`,
-	)
-	ftm := filetransfertest.NewFakeFileTransferManager()
-	ftm.ShouldCompleteImmediately = true
-	saver := NewArtifactSaveManager(
-		observability.NewNoOpLogger(),
-		mockGQL,
-		ftm,
-	)
-
-	result := <-saver.Save(
-		context.Background(),
-		&spb.ArtifactRecord{
-			Entity: "test-entity",
-			Manifest: &spb.ArtifactManifest{
-				Version: 1,
-			},
+	tags := []string{"tag1", "tag2"}
+	testCases := []struct {
+		name                       string
+		serverSupportsArtifactTags bool
+		verifyTagsMatch            gomock.Matcher
+	}{
+		{
+			name:                       "with artifact tags support",
+			serverSupportsArtifactTags: true,
+			verifyTagsMatch:            gomock.Len(len(tags)),
 		},
-		0,
-		"",
-	)
+		{
+			name:                       "without artifact tags support",
+			serverSupportsArtifactTags: false,
+			verifyTagsMatch:            gomock.Eq(nil),
+		},
+	}
 
-	assert.NoError(t, result.Err)
-	requests := mockGQL.AllRequests()
-	assert.Len(t, requests, 4)
-	createArtifactRequest := requests[1]
-	gqlmock.AssertRequest(t,
-		gqlmock.WithVariables(
-			gqlmock.GQLVar("input.entityName", gomock.Eq("test-entity")),
-		),
-		createArtifactRequest)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockGQL := gqlmock.NewMockClient()
+			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("CreateArtifact"),
+				`{
+					"createArtifact": {
+						"artifact": {
+							"id": "artifact-id",
+							"state": "PENDING"
+						}
+					}
+				}`,
+			)
+			mockGQL.StubMatchOnce( // first createManifest request
+				gqlmock.WithOpName("CreateArtifactManifest"),
+				`{"createArtifactManifest": {}}`,
+			)
+			mockGQL.StubMatchOnce( // second one, before uploading the manifest
+				gqlmock.WithOpName("CreateArtifactManifest"),
+				`{
+					"createArtifactManifest": {
+						"artifactManifest": {
+							"file": {
+								"uploadUrl": "test-url"
+							}
+						}
+					}
+				}`,
+			)
+			ftm := filetransfertest.NewFakeFileTransferManager()
+			ftm.ShouldCompleteImmediately = true
+
+			features := &server.ServerFeatures{
+				Features: map[string]server.ServerFeature{
+					"ServerSupportsArtifactTags": {
+						Name:    "ServerSupportsArtifactTags",
+						Enabled: tc.serverSupportsArtifactTags,
+					},
+				},
+			}
+
+			saver := NewArtifactSaveManager(
+				observability.NewNoOpLogger(),
+				mockGQL,
+				ftm,
+				features,
+			)
+
+			result := <-saver.Save(
+				context.Background(),
+				&spb.ArtifactRecord{
+					Entity: "test-entity",
+					Manifest: &spb.ArtifactManifest{
+						Version: 1,
+					},
+					Tags: tags,
+				},
+				0,
+				"",
+			)
+
+			assert.NoError(t, result.Err)
+			requests := mockGQL.AllRequests()
+			assert.Len(t, requests, 3)
+			createArtifactRequest := requests[0]
+
+			gqlmock.AssertRequest(t,
+				gqlmock.WithVariables(
+					gqlmock.GQLVar("input.entityName", gomock.Eq("test-entity")),
+					gqlmock.GQLVar("input.tags", tc.verifyTagsMatch),
+				),
+				createArtifactRequest,
+			)
+		})
+	}
 }

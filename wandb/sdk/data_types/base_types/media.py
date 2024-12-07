@@ -232,10 +232,10 @@ class Media(WBValue):
                     "size": self._size,
                 }
             )
-            artifact_entry_url = self._get_artifact_entry_ref_url()
+            artifact_entry_url = self._get_artifact_entry_ref_url(run)
             if artifact_entry_url is not None:
                 json_obj["artifact_path"] = artifact_entry_url
-            artifact_entry_latest_url = self._get_artifact_entry_latest_ref_url()
+            artifact_entry_latest_url = self._get_artifact_entry_latest_ref_url(run)
             if artifact_entry_latest_url is not None:
                 json_obj["_latest_artifact_path"] = artifact_entry_latest_url
 

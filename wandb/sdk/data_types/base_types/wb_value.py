@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Type, Union
 
-import wandb
 from wandb import util
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -9,39 +8,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from ...wandb_run import Run as LocalRun
 
     TypeMappingType = Dict[str, Type["WBValue"]]
-
-
-def _server_accepts_client_ids() -> bool:
-    from wandb.util import parse_version
-
-    # There are versions of W&B Server that cannot accept client IDs. Those versions of
-    # the backend have a max_cli_version of less than "0.11.0." If the backend cannot
-    # accept client IDs, manifests and artifact data would never be resolvable and lead
-    # to failed uploads. Our position in 2021/06/29 was to never lose data - and instead take the
-    # tradeoff in the UI. The results in tables not displaying media correctly, but
-    # the table can still be accessed via the .artifact op.
-    #
-    # The latest SDK version that is < "0.11.0" was released on 2021/06/29.
-    # AS OF NOW, 2024/11/06, we assume that all customer's server deployments accept
-    # client IDs.
-    #
-    # If there are any users with issues on an older backend, customers can disable the
-    # setting `allow_offline_artifacts` to revert the SDK's behavior back to not
-    # using client IDs in offline mode.
-    if (
-        util._is_offline()
-        and wandb.run
-        and not wandb.run.settings.allow_offline_artifacts
-    ):
-        return False
-
-    # If the script is online, request the max_cli_version and ensure the server
-    # is of a high enough version.
-    max_cli_version = util._get_max_cli_version()
-    if max_cli_version is None:
-        return False
-    accepts_client_ids: bool = parse_version("0.11.0") <= parse_version(max_cli_version)
-    return accepts_client_ids
 
 
 class _WBValueArtifactSource:
@@ -212,7 +178,12 @@ class WBValue:
         )
         self._artifact_target = _WBValueArtifactTarget(artifact, name)
 
-    def _get_artifact_entry_ref_url(self) -> Optional[str]:
+    def _get_artifact_entry_ref_url(self, run: "LocalRun") -> Optional[str]:
+        # TODO: update this appropriate with feature name when implemented in backend server
+        server_accepts_client_ids = run.get_server_feature(
+            "ServerAcceptsClientIds"
+        ).enabled
+
         # If the object is coming from another artifact
         if self._artifact_source and self._artifact_source.name:
             ref_entry = self._artifact_source.artifact.get_entry(
@@ -225,7 +196,7 @@ class WBValue:
             and self._artifact_target.name
             and self._artifact_target.artifact._client_id is not None
             and self._artifact_target.artifact._final
-            and _server_accepts_client_ids()
+            and server_accepts_client_ids
         ):
             return "wandb-client-artifact://{}/{}".format(
                 self._artifact_target.artifact._client_id,
@@ -241,7 +212,7 @@ class WBValue:
             and self._artifact_target.name
             and self._artifact_target.artifact._is_draft_save_started()
             and not util._is_offline()
-            and not _server_accepts_client_ids()
+            and not server_accepts_client_ids
         ):
             self._artifact_target.artifact.wait()
             ref_entry = self._artifact_target.artifact.get_entry(
@@ -250,13 +221,18 @@ class WBValue:
             return str(ref_entry.ref_url())
         return None
 
-    def _get_artifact_entry_latest_ref_url(self) -> Optional[str]:
+    def _get_artifact_entry_latest_ref_url(self, run: "LocalRun") -> Optional[str]:
+        # TODO: update this appropriate with feature name when implemented in backend server
+        server_accepts_client_ids = run.get_server_feature(
+            "ServerAcceptsClientIds"
+        ).enabled
+
         if (
             self._artifact_target
             and self._artifact_target.name
             and self._artifact_target.artifact._client_id is not None
             and self._artifact_target.artifact._final
-            and _server_accepts_client_ids()
+            and server_accepts_client_ids
         ):
             return "wandb-client-artifact://{}:latest/{}".format(
                 self._artifact_target.artifact._sequence_client_id,
@@ -272,7 +248,7 @@ class WBValue:
             and self._artifact_target.name
             and self._artifact_target.artifact._is_draft_save_started()
             and not util._is_offline()
-            and not _server_accepts_client_ids()
+            and not server_accepts_client_ids
         ):
             self._artifact_target.artifact.wait()
             ref_entry = self._artifact_target.artifact.get_entry(
