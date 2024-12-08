@@ -311,7 +311,7 @@ def test_log_code_settings(user):
         pass
 
     artifact_name = wandb.util.make_artifact_name_safe(
-        f"source-{run._project}-{run._settings.program_relpath}"
+        f"source-{run.project}-{run._settings.program_relpath}"
     )
     wandb.Api().artifact(f"{artifact_name}:v0")
 
@@ -339,7 +339,7 @@ def test_log_code_env(wandb_backend_spy, save_code):
             assert run._settings.save_code is save_code
 
         artifact_name = wandb.util.make_artifact_name_safe(
-            f"source-{run._project}-{run._settings.program_relpath}"
+            f"source-{run.project}-{run._settings.program_relpath}"
         )
         if save_code:
             wandb.Api().artifact(f"{artifact_name}:v0")

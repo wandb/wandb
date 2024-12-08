@@ -67,7 +67,7 @@ def test_access_properties(user):
     assert run.dir
     assert run.disabled
     assert run.entity
-    assert run.project == ""
+    assert run.project == "dummy"
     assert not run.resumed
     assert run.start_time
     assert run.starting_step == 0
@@ -91,7 +91,7 @@ def test_access_properties(user):
     assert run.get_project_url() is None
     assert run.get_sweep_url() is None
     assert run.get_url() is None
-    assert run.project_name() == ""
+    assert run.project_name() == "dummy"
 
     assert run.status() is None
 

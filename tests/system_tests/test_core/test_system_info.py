@@ -92,9 +92,9 @@ def test_commit_hash_sent_correctly(user, git_repo):
     # disable_git is False is by default
     # so run object should have git info
     run = wandb.init()
-    assert run._commit is not None
-    assert run._commit == git_repo.last_commit
-    assert run._remote_url is None
+    assert run._settings.git_commit is not None
+    assert run._settings.git_commit == git_repo.last_commit
+    assert run._settings.git_remote_url is None
     run.finish()
 
 
@@ -107,5 +107,5 @@ def test_commit_hash_not_sent_when_disable(user, git_repo):
     with unittest.mock.patch.dict("os.environ", WANDB_DISABLE_GIT="true"):
         run = wandb.init()
         assert git_repo.last_commit
-        assert run._commit is None
+        assert run._settings.git_commit is None
         run.finish()
