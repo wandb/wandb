@@ -176,6 +176,10 @@ def pr_curve(
             "y": "precision",
             "class": "class",
         },
-        string_fields={"title": title},
+        string_fields={
+            "title": title,
+            "x-axis-title": "Recall",
+            "y-axis-title": "Precision",
+        },
         split_table=split_table,
     )

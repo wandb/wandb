@@ -30,11 +30,11 @@ func (s *SockInterface) Close() {
 	s.wg.Wait()
 }
 
-func (s *SockInterface) InformInit(settings *settings.SettingsWrap) error {
+func (s *SockInterface) InformInit(settings *settings.Settings) error {
 	serverRecord := spb.ServerRequest{
 		ServerRequestType: &spb.ServerRequest_InformInit{
 			InformInit: &spb.ServerInformInitRequest{
-				Settings: settings.Settings,
+				Settings: settings.ToProto(),
 				XInfo: &spb.XRecordInfo{
 					StreamId: s.StreamId,
 				},
@@ -45,7 +45,7 @@ func (s *SockInterface) InformInit(settings *settings.SettingsWrap) error {
 }
 
 func (s *SockInterface) DeliverRunRecord(
-	settings *settings.SettingsWrap,
+	settings *settings.Settings,
 	config *runconfig.Config,
 	telemetry *spb.TelemetryRecord,
 ) (*mailbox.MailboxHandle, error) {
@@ -64,9 +64,9 @@ func (s *SockInterface) DeliverRunRecord(
 	record := spb.Record{
 		RecordType: &spb.Record_Run{
 			Run: &spb.RunRecord{
-				RunId:       settings.RunId.GetValue(),
-				DisplayName: settings.RunName.GetValue(),
-				Project:     settings.Project.GetValue(),
+				RunId:       settings.RunID,
+				DisplayName: settings.RunName,
+				Project:     settings.RunProject,
 				Config:      cfg,
 				Telemetry:   telemetry,
 				XInfo: &spb.XRecordInfo{
@@ -91,11 +91,11 @@ func (s *SockInterface) DeliverRunRecord(
 	return handle, nil
 }
 
-func (s *SockInterface) InformStart(settings *settings.SettingsWrap) error {
+func (s *SockInterface) InformStart(settings *settings.Settings) error {
 	serverRecord := spb.ServerRequest{
 		ServerRequestType: &spb.ServerRequest_InformStart{
 			InformStart: &spb.ServerInformStartRequest{
-				Settings: settings.Settings,
+				Settings: settings.ToProto(),
 				XInfo: &spb.XRecordInfo{
 					StreamId: s.StreamId,
 				},
@@ -105,14 +105,14 @@ func (s *SockInterface) InformStart(settings *settings.SettingsWrap) error {
 	return s.Conn.Send(&serverRecord)
 }
 
-func (s *SockInterface) DeliverRunStartRequest(settings *settings.SettingsWrap) (*mailbox.MailboxHandle, error) {
+func (s *SockInterface) DeliverRunStartRequest(settings *settings.Settings) (*mailbox.MailboxHandle, error) {
 	record := spb.Record{
 		RecordType: &spb.Record_Request{
 			Request: &spb.Request{
 				RequestType: &spb.Request_RunStart{
 					RunStart: &spb.RunStartRequest{
 						Run: &spb.RunRecord{
-							RunId: settings.RunId.GetValue(),
+							RunId: settings.RunID,
 						},
 					},
 				},

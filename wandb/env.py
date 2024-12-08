@@ -169,7 +169,7 @@ def error_reporting_enabled() -> bool:
 
 
 def core_debug(default: str | None = None) -> bool:
-    return _env_as_bool(CORE_DEBUG, default=default)
+    return _env_as_bool(CORE_DEBUG, default=default) or is_debug()
 
 
 def ssl_disabled() -> bool:

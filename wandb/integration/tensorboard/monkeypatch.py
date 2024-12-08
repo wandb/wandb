@@ -30,8 +30,9 @@ def patch(
 ) -> None:
     if len(wandb.patched["tensorboard"]) > 0:
         raise ValueError(
-            "Tensorboard already patched, remove `sync_tensorboard=True` "
-            "from `wandb.init` or only call `wandb.tensorboard.patch` once."
+            "Tensorboard already patched. Call `wandb.tensorboard.unpatch()` first; "
+            "remove `sync_tensorboard=True` from `wandb.init`; "
+            "or only call `wandb.tensorboard.patch` once."
         )
 
     # TODO: Some older versions of tensorflow don't require tensorboard to be present.

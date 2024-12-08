@@ -71,6 +71,7 @@ class Runs(Paginator):
         """
         query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
             project(name: $project, entityName: $entity) {{
+                internalId
                 runCount(filters: $filters)
                 readOnly
                 runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
@@ -103,6 +104,7 @@ class Runs(Paginator):
     ):
         self.entity = entity
         self.project = project
+        self._project_internal_id = None
         self.filters = filters or {}
         self.order = order
         self._sweeps = {}
@@ -287,6 +289,7 @@ class Run(Attrs):
                     Calling update will persist any changes.
         project (str): the project associated with the run
         entity (str): the name of the entity associated with the run
+        project_internal_id (int): the internal id of the project
         user (str): the name of the user who created the run
         path (str): Unique identifier [entity]/[project]/[run_id]
         notes (str): Notes about the run
@@ -328,6 +331,7 @@ class Run(Attrs):
         self._summary = None
         self._metadata: Optional[Dict[str, Any]] = None
         self._state = _attrs.get("state", "not found")
+        self.server_provides_internal_id_field: Optional[bool] = None
 
         self.load(force=not _attrs)
 
@@ -417,13 +421,18 @@ class Run(Attrs):
             """
         query Run($project: String!, $entity: String!, $name: String!) {{
             project(name: $project, entityName: $entity) {{
+                {}
                 run(name: $name) {{
                     ...RunFragment
                 }}
             }}
         }}
         {}
-        """.format(RUN_FRAGMENT)
+        """.format(
+                # Only query internalId if the server supports it
+                "internalId" if self._server_provides_internal_id_for_project() else "",
+                RUN_FRAGMENT,
+            )
         )
         if force or not self._attrs:
             response = self._exec(query)
@@ -435,7 +444,7 @@ class Run(Attrs):
                 raise ValueError("Could not find run {}".format(self))
             self._attrs = response["project"]["run"]
             self._state = self._attrs["state"]
-
+            self._project_internal_id = response["project"].get("internalId", None)
             if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
@@ -495,7 +504,6 @@ class Run(Attrs):
             res = self._exec(query)
             state = res["project"]["run"]["state"]
             if state in ["finished", "crashed", "failed"]:
-                print(f"Run finished with status: {state}")
                 self._attrs["state"] = state
                 self._state = state
                 return
@@ -506,8 +514,8 @@ class Run(Attrs):
         """Persist changes to the run object to the wandb backend."""
         mutation = gql(
             """
-        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!, $groupName: String) {{
-            upsertBucket(input: {{id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config, groupName: $groupName}}) {{
+        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!, $groupName: String, $jobType: String) {{
+            upsertBucket(input: {{id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config, groupName: $groupName, jobType: $jobType}}) {{
                 bucket {{
                     ...RunFragment
                 }}
@@ -525,6 +533,7 @@ class Run(Attrs):
             display_name=self.display_name,
             config=self.json_config,
             groupName=self.group,
+            jobType=self.job_type,
         )
         self.summary.update()
 
@@ -893,6 +902,37 @@ class Run(Attrs):
         )
         return artifact
 
+    @normalize_exceptions
+    def _server_provides_internal_id_for_project(self) -> bool:
+        """Returns True if the server allows us to query the internalId field for a project.
+
+        This check is done by utilizing GraphQL introspection in the avaiable fields on the Project type.
+        """
+        query_string = """
+           query ProbeProjectInput {
+                ProjectType: __type(name:"Project") {
+                    fields {
+                        name
+                    }
+                }
+            }
+        """
+
+        # Only perform the query once to avoid extra network calls
+        if self.server_provides_internal_id_field is None:
+            query = gql(query_string)
+            res = self.client.execute(query)
+            print(
+                "internalId"
+                in [x["name"] for x in (res.get("ProjectType", {}).get("fields", [{}]))]
+            )
+
+            self.server_provides_internal_id_field = "internalId" in [
+                x["name"] for x in (res.get("ProjectType", {}).get("fields", [{}]))
+            ]
+
+        return self.server_provides_internal_id_field
+
     @property
     def summary(self):
         if self._summary is None:
@@ -921,7 +961,10 @@ class Run(Attrs):
         if self._metadata is None:
             try:
                 f = self.file("wandb-metadata.json")
-                contents = util.download_file_into_memory(f.url, wandb.Api().api_key)
+                session = self.client._client.transport.session
+                response = session.get(f.url, timeout=5)
+                response.raise_for_status()
+                contents = response.content
                 self._metadata = json_util.loads(contents)
             except:  # noqa: E722
                 # file doesn't exist, or can't be downloaded, or can't be parsed

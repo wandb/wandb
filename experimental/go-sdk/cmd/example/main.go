@@ -21,7 +21,7 @@ func main() {
 	}
 	defer wandb.Close()
 
-	run, err := wandb.NewRun(nil, nil)
+	run, err := wandb.NewRun(gowandb.RunParams{})
 	if err != nil {
 		panic(err)
 	}

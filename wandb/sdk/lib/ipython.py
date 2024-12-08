@@ -71,36 +71,14 @@ def in_notebook() -> bool:
     return _get_python_type() != "python"
 
 
-def display_html(html: str):  # type: ignore
-    """Display HTML in notebooks, is a noop outside a jupyter context."""
-    if wandb.run and wandb.run._settings.silent:
-        return
-    try:
-        from IPython.core.display import HTML, display  # type: ignore
-    except ImportError:
-        wandb.termwarn("Unable to render HTML, can't import display from ipython.core")
-        return False
-    return display(HTML(html))
-
-
-def display_widget(widget):
-    """Display ipywidgets in notebooks, is a noop outside of a jupyter context."""
-    if wandb.run and wandb.run._settings.silent:
-        return
-    try:
-        from IPython.core.display import display
-    except ImportError:
-        wandb.termwarn(
-            "Unable to render Widget, can't import display from ipython.core"
-        )
-        return False
-    return display(widget)
-
-
 class ProgressWidget:
     """A simple wrapper to render a nice progress bar with a label."""
 
     def __init__(self, widgets, min, max):
+        from IPython import display
+
+        self._ipython_display = display
+
         self.widgets = widgets
         self._progress = widgets.FloatProgress(min=min, max=max)
         self._label = widgets.Label()
@@ -116,7 +94,7 @@ class ProgressWidget:
             self._label.value = label
             if not self._displayed:
                 self._displayed = True
-                display_widget(self._widget)
+                self._ipython_display.display(self._widget)
         except Exception as e:
             self._disabled = True
             logger.exception(e)

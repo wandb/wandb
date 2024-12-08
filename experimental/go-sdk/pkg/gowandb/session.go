@@ -8,15 +8,13 @@ import (
 	"github.com/wandb/wandb/experimental/client-go/internal/connection"
 	"github.com/wandb/wandb/experimental/client-go/internal/execbin"
 	"github.com/wandb/wandb/experimental/client-go/internal/launcher"
-	"github.com/wandb/wandb/experimental/client-go/internal/uuid"
-	"github.com/wandb/wandb/experimental/client-go/pkg/runconfig"
 	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
 )
 
 type SessionParams struct {
 	CoreBinary []byte
 	Address    string
-	Settings   *settings.SettingsWrap
+	Settings   *settings.Settings
 }
 
 type Session struct {
@@ -25,7 +23,7 @@ type Session struct {
 	execCmd    *execbin.ForkExecCmd
 	coreBinary []byte
 	address    string
-	settings   *settings.SettingsWrap
+	settings   *settings.Settings
 }
 
 func (s *Session) start() {
@@ -79,18 +77,16 @@ func (s *Session) Close() {
 	}
 }
 
-func (s *Session) NewRun(settings *settings.SettingsWrap, config *runconfig.Config) (*Run, error) {
+func (s *Session) NewRun(params RunParams) (*Run, error) {
 	// make a copy of the base manager settings
-	runSettings := s.settings.Copy()
-	if settings.RunId != nil {
-		runSettings.SetRunID(settings.RunId.GetValue())
-	} else if runSettings.RunId == nil {
-		runSettings.SetRunID(uuid.GenerateUniqueID(8))
+	runSettings, err := settings.New()
+	if err != nil {
+		return nil, err
 	}
-
+	runSettings.FromSettings(s.settings).FromSettings(params.Settings)
 	run := NewRun(s.ctx, RunParams{
 		Settings: runSettings,
-		Config:   config,
+		Config:   params.Config,
 		Conn:     s.connect(),
 	})
 	run.Start()

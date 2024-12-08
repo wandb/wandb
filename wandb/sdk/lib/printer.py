@@ -426,11 +426,24 @@ class _PrinterJupyter(Printer):
         super().__init__()
         self._progress = ipython.jupyter_progress_bar()
 
+        from IPython import display
+
+        self._ipython_display = display
+
     @override
     @contextlib.contextmanager
     def dynamic_text(self) -> Iterator[DynamicText | None]:
-        # TODO: Support dynamic text in Jupyter notebooks.
-        yield None
+        handle = self._ipython_display.display(
+            self._ipython_display.HTML(""),
+            display_id=True,
+        )
+
+        if handle:
+            yield _DynamicJupyterText(handle)
+        else:
+            yield None
+
+        handle.update(self._ipython_display.HTML(""))
 
     @override
     def display(
@@ -439,25 +452,12 @@ class _PrinterJupyter(Printer):
         *,
         level: str | int | None = None,
     ) -> None:
-        text = "<br/>".join(text) if isinstance(text, (list, tuple)) else text
-        self._display_fn_mapping(level)(text)
+        if wandb.run and wandb.run._settings.silent:
+            return
 
-    @staticmethod
-    def _display_fn_mapping(level: str | int | None) -> Callable[[str], None]:
-        level = Printer._sanitize_level(level)
-
-        if level >= CRITICAL:
-            return ipython.display_html
-        elif ERROR <= level < CRITICAL:
-            return ipython.display_html
-        elif WARNING <= level < ERROR:
-            return ipython.display_html
-        elif INFO <= level < WARNING:
-            return ipython.display_html
-        elif DEBUG <= level < INFO:
-            return ipython.display_html
-        else:
-            return ipython.display_html
+        text = "<br>".join(text) if isinstance(text, (list, tuple)) else text
+        text = "<br>".join(text.splitlines())
+        self._ipython_display.display(self._ipython_display.HTML(text))
 
     @override
     @property
@@ -533,3 +533,16 @@ class _PrinterJupyter(Printer):
     def panel(self, columns: list[str]) -> str:
         row = "".join([f'<div class="wandb-col">{col}</div>' for col in columns])
         return f'{_JUPYTER_PANEL_STYLES}<div class="wandb-row">{row}</div>'
+
+
+class _DynamicJupyterText(DynamicText):
+    def __init__(self, handle) -> None:
+        from IPython import display
+
+        self._ipython_to_html = display.HTML
+        self._handle: display.DisplayHandle = handle
+
+    @override
+    def set_text(self, text: str) -> None:
+        text = "<br>".join(text.splitlines())
+        self._handle.update(self._ipython_to_html(text))

@@ -592,6 +592,7 @@ def mypy_report(session: nox.Session) -> None:
         "pip",
         "pydantic",
         "pycobertura",
+        "ipython",
         "lxml",
         "pandas-stubs",
         "platformdirs",
