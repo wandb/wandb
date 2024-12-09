@@ -31,7 +31,9 @@ def bench_log(
         )
 
 
-def bench_log_scale_step(root_folder: str, list_of_steps: list[int]) -> None:
+def bench_log_scale_step(
+    root_folder: str, list_of_steps: list[int], num_of_parallel_runs: int
+) -> None:
     """Runs a set of load tests with increasing # of steps.
 
     The goal is to measure the performance impact of runs with more steps.
@@ -44,10 +46,14 @@ def bench_log_scale_step(root_folder: str, list_of_steps: list[int]) -> None:
     mc = 100
 
     for sort_key, step in enumerate(list_of_steps):
-        run_experiment_helper(loop, step, mc, root_folder, sort_key)
+        run_parallel_experiments_helper(
+            loop, step, mc, root_folder, sort_key, num_of_parallel_runs
+        )
 
 
-def bench_log_scale_metric(root_folder: str, list_of_metric_count: list[int]) -> None:
+def bench_log_scale_metric(
+    root_folder: str, list_of_metric_count: list[int], num_of_parallel_runs: int
+) -> None:
     """Runs a set of load tests with increasing # of metrics per step.
 
     The goal is to measure the performance impact of more metrics logged per step.
@@ -60,7 +66,9 @@ def bench_log_scale_metric(root_folder: str, list_of_metric_count: list[int]) ->
     step = 1000
 
     for sort_key, mc in enumerate(list_of_metric_count):
-        run_experiment_helper(loop, step, mc, root_folder, sort_key)
+        run_parallel_experiments_helper(
+            loop, step, mc, root_folder, sort_key, num_of_parallel_runs
+        )
 
 
 def run_experiment_helper(

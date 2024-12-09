@@ -43,7 +43,7 @@ def run_test_case(test_case: str, log_folder: str, num_of_parallel_runs: int):
             f"Load testing SDK logging scaling through {steps} steps "
             "each logging 100 metrics with a metric key size of 10"
         )
-        test_case_helper.bench_log_scale_step(log_folder, steps)
+        test_case_helper.bench_log_scale_step(log_folder, steps, num_of_parallel_runs)
 
     elif test_case == "bench_log_scale_metric":
         metrics = [1000, 2000, 4000, 8000]
@@ -51,7 +51,9 @@ def run_test_case(test_case: str, log_folder: str, num_of_parallel_runs: int):
             f"Load testing SDK logging scaling through {metrics} metrics, "
             "in each of the 1000 steps, and a metric key size of 10"
         )
-        test_case_helper.bench_log_scale_metric(log_folder, metrics)
+        test_case_helper.bench_log_scale_metric(
+            log_folder, metrics, num_of_parallel_runs
+        )
 
     else:
         logger.error(f"Unrecognized test case: {test_case}")
