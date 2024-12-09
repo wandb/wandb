@@ -6,6 +6,7 @@ from process_sar_helper import process_sar_files
 from setup_helper import capture_sar_metrics, get_logger
 
 logger = get_logger(__name__)
+import wandb
 
 
 def bench_log(
@@ -128,6 +129,9 @@ def run_parallel_experiments_helper(
     log_folder.mkdir(parents=True, exist_ok=True)
 
     capture_sar_metrics(log_folder)
+
+    # To ensure only 1 wandb-core process is launched to reduce overhead
+    wandb.setup()
 
     processes = []
     print(f"num_of_processes: {num_of_processes}, type: {type(num_of_processes)}")
