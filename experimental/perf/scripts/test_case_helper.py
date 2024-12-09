@@ -1,4 +1,6 @@
 import multiprocessing as mp
+import wandb
+
 from pathlib import Path
 
 from bench_run_log import run_experiment
@@ -6,7 +8,6 @@ from process_sar_helper import process_sar_files
 from setup_helper import capture_sar_metrics, get_logger
 
 logger = get_logger(__name__)
-import wandb
 
 
 def bench_log(
