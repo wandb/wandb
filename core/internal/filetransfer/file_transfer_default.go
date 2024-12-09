@@ -150,7 +150,12 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	return nil
 }
 
-func getUploadRequestBody(task *DefaultUploadTask, file *os.File, fileTransferStats FileTransferStats, logger *observability.CoreLogger) (io.Reader, error) {
+func getUploadRequestBody(
+	task *DefaultUploadTask,
+	file *os.File,
+	fileTransferStats FileTransferStats,
+	logger *observability.CoreLogger,
+) (io.Reader, error) {
 	stat, err := file.Stat()
 	if err != nil {
 		return nil, fmt.Errorf(
