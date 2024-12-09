@@ -26,10 +26,10 @@ __all__ = (
     "summary",
     "Api",
     "Graph",
-    "Image", # doc:exclude
+    "Image", 
     "Plotly", # doc:exclude
     "Video",
-    "Audio", # doc:exclude
+    "Audio", 
     "Table",
     "Html",
     "box3d", # doc:exclude
