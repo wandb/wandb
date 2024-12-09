@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -22,7 +21,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/wboperation"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -199,70 +197,9 @@ func (ft *AzureFileTransfer) Upload(task *DefaultUploadTask) error {
 		}
 	}(file)
 
-	stat, err := file.Stat()
+	requestBody, err := getUploadRequestBody(task, file, ft.fileTransferStats, ft.logger)
 	if err != nil {
-		return fmt.Errorf(
-			"azure file transfer: upload: error when stat-ing %s: %v",
-			task.Path,
-			err,
-		)
-	}
-
-	// Don't try to upload directories.
-	if stat.IsDir() {
-		return fmt.Errorf(
-			"azure file transfer: upload: cannot upload directory %v",
-			task.Path,
-		)
-	}
-
-	if task.Offset+task.Size > stat.Size() {
-		// If the range exceeds the file size, there was some kind of error upstream.
-		return fmt.Errorf("azure file transfer: upload: offset + size exceeds the file size")
-	}
-
-	if task.Size == 0 {
-		// If Size is 0, upload the remainder of the file.
-		task.Size = stat.Size() - task.Offset
-	}
-
-	// Due to historical mistakes, net/http interprets a 0 value of
-	// Request.ContentLength as "unknown" if the body is non-nil, and
-	// doesn't send the Content-Length header which is usually required.
-	//
-	// To have it understand 0 as 0, the body must be set to nil or
-	// the NoBody sentinel.
-	var requestBody io.Reader
-	if task.Size == 0 {
-		requestBody = http.NoBody
-	} else {
-		if task.Size > math.MaxInt {
-			return fmt.Errorf("azure file transfer: file too large (%d bytes)", task.Size)
-		}
-
-		progress, err := wboperation.Get(task.Context).NewProgress()
-		if err != nil {
-			ft.logger.CaptureError(fmt.Errorf("azure file transfer: %v", err))
-		}
-
-		requestBody = NewProgressReader(
-			io.NewSectionReader(file, task.Offset, task.Size),
-			int(task.Size),
-			func(processed int, total int) {
-				if task.ProgressCallback != nil {
-					task.ProgressCallback(processed, total)
-				}
-
-				progress.SetBytesOfTotal(processed, total)
-
-				ft.fileTransferStats.UpdateUploadStats(FileUploadInfo{
-					FileKind:      task.FileKind,
-					Path:          task.Path,
-					UploadedBytes: int64(processed),
-					TotalBytes:    int64(total),
-				})
-			},
-		)
+		return err
 	}
 
 	resp, err := ft.uploadBlob(task, requestBody)
