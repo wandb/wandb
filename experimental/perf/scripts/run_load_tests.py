@@ -46,7 +46,7 @@ def run_test_case(test_case: str, log_folder: str, num_of_parallel_runs: int):
         test_case_helper.bench_log_scale_step(log_folder, steps)
 
     elif test_case == "bench_log_scale_metric":
-        metrics = [100, 200, 400, 800]
+        metrics = [1000, 2000, 4000, 8000]
         logger.info(
             f"Load testing SDK logging scaling through {metrics} metrics, "
             "in each of the 1000 steps, and a metric key size of 10"
