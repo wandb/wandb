@@ -12,9 +12,7 @@ from wandb.sdk.artifacts.exceptions import (
 )
 
 if TYPE_CHECKING:
-    from typing import Collection, Iterable, Union
-
-    from typing_extensions import Final
+    from typing import Collection, Final, Iterable, Union
 
     from wandb.sdk.artifacts.artifact import Artifact
 
