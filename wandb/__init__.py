@@ -10,7 +10,7 @@ For reference documentation, see https://docs.wandb.com/ref/python.
 """
 from __future__ import annotations
 
-__version__ = "0.18.8.dev1"
+__version__ = "0.19.1.dev1"
 
 
 from wandb.errors import Error
@@ -205,8 +205,8 @@ if "dev" in __version__:
     )
 
     # Enable new features in dev versions.
-    os.environ["WANDB__SHOW_OPERATION_STATS"] = os.environ.get(
-        "WANDB__SHOW_OPERATION_STATS",
+    os.environ["WANDB_X_SHOW_OPERATION_STATS"] = os.environ.get(
+        "WANDB_X_SHOW_OPERATION_STATS",
         "true",
     )
 

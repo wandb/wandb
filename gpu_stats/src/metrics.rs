@@ -1,3 +1,4 @@
+#[derive(Debug, Clone)]
 pub enum MetricValue {
     Int(i64),
     Float(f64),

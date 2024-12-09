@@ -369,6 +369,16 @@ func (s *Settings) IsConsoleCaptureEnabled() bool {
 	return s.Proto.Console.GetValue() != "off"
 }
 
+// Whether to capture console logs in multipart format.
+//
+// This is used to make sure we don't overwrite the console log file if it
+// already exists.
+//
+// The format is: logs/output_<optional:Settings.Label>_<timestamp>_<nanoseconds>.log
+func (s *Settings) IsConsoleMultipart() bool {
+	return s.Proto.ConsoleMultipart.GetValue()
+}
+
 // Whether to disable metadata collection.
 func (s *Settings) IsDisableMeta() bool {
 	return s.Proto.XDisableMeta.GetValue()
@@ -432,6 +442,11 @@ func (s *Settings) GetStatsOpenMetricsEndpoints() map[string]string {
 // The OpenMetrics filters for the endpoints.
 func (s *Settings) GetStatsOpenMetricsFilters() *spb.OpenMetricsFilters {
 	return s.Proto.XStatsOpenMetricsFilters
+}
+
+// Headers to add to OpenMetrics HTTP requests.
+func (s *Settings) GetStatsOpenMetricsHeaders() map[string]string {
+	return s.Proto.XStatsOpenMetricsHttpHeaders.GetValue()
 }
 
 // The label for the run namespacing for console output and system metrics.

@@ -15,7 +15,7 @@ repos:
   #   - id: clippy
   #     args: ['--manifest-path=experimental/client-rust/Cargo.toml', '--all', '--']
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.6.4"
+    rev: "v0.8.1"
     hooks:
       - id: ruff
         args: [ --fix]
@@ -25,12 +25,12 @@ repos:
     hooks:
       - id: blacken-docs
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v18.1.8
+    rev: v19.1.4
     hooks:
       - id: clang-format
         types_or: [proto]
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v5.0.0
     hooks:
       - id: check-merge-conflict
       - id: trailing-whitespace
