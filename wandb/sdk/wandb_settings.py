@@ -126,7 +126,10 @@ class Settings(BaseModel, validate_assignment=True):
     identity_token_file: str | None = None
     # Unix glob patterns relative to `files_dir` to not upload.
     ignore_globs: tuple[str, ...] = ()
+    # Time in seconds to wait for the wandb.init call to complete before timing out.
     init_timeout: float = 90.0
+    # Whether to insecurely disable SSL verification.
+    insecure_disable_ssl: bool = False
     job_name: str | None = None
     job_source: Literal["repo", "artifact", "image"] | None = None
     label_disable: bool = False
@@ -902,6 +905,8 @@ class Settings(BaseModel, validate_assignment=True):
         for setting, value in environ.items():
             if not setting.startswith(env_prefix):
                 continue
+
+            print(setting, value)
 
             if setting in special_env_var_names:
                 key = special_env_var_names[setting]
