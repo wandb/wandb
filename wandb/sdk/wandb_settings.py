@@ -65,6 +65,15 @@ class Settings(BaseModel, validate_assignment=True):
     # To revert to the old behavior, set this to False.
     allow_offline_artifacts: bool = True
     allow_val_change: bool = False
+    # Controls anonymous data logging. Possible values are:
+    # - "never": requires you to link your W&B account before
+    #    tracking the run, so you don't accidentally create an anonymous
+    #    run.
+    # - "allow": lets a logged-in user track runs with their account, but
+    #    lets someone who is running the script without a W&B account see
+    #    the charts in the UI.
+    # - "must": sends the run to an anonymous account instead of to a
+    #    signed-up user account.
     anonymous: Literal["allow", "must", "never"] | None = None
     # The W&B API key.
     api_key: str | None = None
