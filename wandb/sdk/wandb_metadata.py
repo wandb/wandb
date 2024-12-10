@@ -295,7 +295,7 @@ class Metadata(BaseModel, validate_assignment=True):
         return ts
 
     @classmethod
-    def _timestamp_to_datetime(cls, ts: Timestamp | None) -> datetime:
+    def _timestamp_to_datetime(cls, ts: Timestamp | None) -> datetime | None:
         if ts is None:
             return None
         # Create UTC datetime from seconds and add microseconds

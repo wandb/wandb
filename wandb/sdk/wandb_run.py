@@ -3730,7 +3730,7 @@ class Run:
         """Returns the metadata associated with this run.
 
         Returns:
-            A dictionary of metadata.
+            The metadata associated with this run.
         """
         if not self._backend or not self._backend.interface:
             return None
@@ -3738,14 +3738,15 @@ class Run:
         handle = self._backend.interface.deliver_get_system_metadata()
         result = handle.wait(timeout=1)
 
-        if result:
-            try:
-                response = result.response.get_system_metadata_response
-                if response:
-                    return Metadata.from_proto(response.metadata)
-            except Exception as e:
-                logger.error("Error getting system metrics: %s", e)
-        return None
+        if not result:
+            return None
+
+        try:
+            response = result.response.get_system_metadata_response
+            if response:
+                return Metadata.from_proto(response.metadata)
+        except Exception as e:
+            logger.error("Error getting system metrics: %s", e)
 
     # ------------------------------------------------------------------------------
     # HEADER
