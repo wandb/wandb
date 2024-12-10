@@ -11,7 +11,6 @@ from typing import Any, Callable
 
 import nox
 
-
 nox.options.default_venv_backend = "uv"
 
 _SUPPORTED_PYTHONS = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
