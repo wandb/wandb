@@ -53,9 +53,9 @@ def line_series(
 
             # Multiple y series to plot
             ys = [
-                [i for i in range(10)],       # y = x
-                [i**2 for i in range(10)],    # y = x^2
-                [i**3 for i in range(10)],     # y = x^3
+                [i for i in range(10)],  # y = x
+                [i**2 for i in range(10)],  # y = x^2
+                [i**3 for i in range(10)],  # y = x^3
             ]
 
             # Generate and log the line series chart

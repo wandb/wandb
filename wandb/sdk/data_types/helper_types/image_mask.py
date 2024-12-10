@@ -59,7 +59,10 @@ class ImageMask(Media):
             image,
             masks={
                 "predictions": {"mask_data": predicted_mask, "class_labels": class_labels},
-                "ground_truth": {"mask_data": ground_truth_mask, "class_labels": class_labels},
+                "ground_truth": {
+                    "mask_data": ground_truth_mask,
+                    "class_labels": class_labels,
+                },
             },
         )
         wandb.log({"img_with_masks": masked_image})
@@ -101,7 +104,10 @@ class ImageMask(Media):
             image,
             masks={
                 "predictions": {"mask_data": predicted_mask, "class_labels": class_labels},
-                "ground_truth": {"mask_data": ground_truth_mask, "class_labels": class_labels},
+                "ground_truth": {
+                    "mask_data": ground_truth_mask,
+                    "class_labels": class_labels,
+                },
             },
             classes=class_set,
         )
