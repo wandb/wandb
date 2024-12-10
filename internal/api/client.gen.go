@@ -22,6 +22,95 @@ const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
+// Defines values for JobStatus.
+const (
+	ActionRequired      JobStatus = "action_required"
+	Cancelled           JobStatus = "cancelled"
+	Completed           JobStatus = "completed"
+	ExternalRunNotFound JobStatus = "external_run_not_found"
+	Failure             JobStatus = "failure"
+	InProgress          JobStatus = "in_progress"
+	InvalidIntegration  JobStatus = "invalid_integration"
+	InvalidJobAgent     JobStatus = "invalid_job_agent"
+	Pending             JobStatus = "pending"
+	Skipped             JobStatus = "skipped"
+)
+
+// Deployment defines model for Deployment.
+type Deployment struct {
+	Description    string                 `json:"description"`
+	Id             openapi_types.UUID     `json:"id"`
+	JobAgentConfig map[string]interface{} `json:"jobAgentConfig"`
+	JobAgentId     *openapi_types.UUID    `json:"jobAgentId"`
+	Name           string                 `json:"name"`
+	Slug           string                 `json:"slug"`
+	SystemId       openapi_types.UUID     `json:"systemId"`
+}
+
+// Environment defines model for Environment.
+type Environment struct {
+	CreatedAt      time.Time               `json:"createdAt"`
+	Description    *string                 `json:"description,omitempty"`
+	ExpiresAt      *time.Time              `json:"expiresAt"`
+	Id             openapi_types.UUID      `json:"id"`
+	Name           string                  `json:"name"`
+	PolicyId       *openapi_types.UUID     `json:"policyId"`
+	ResourceFilter *map[string]interface{} `json:"resourceFilter"`
+	SystemId       openapi_types.UUID      `json:"systemId"`
+}
+
+// Job defines model for Job.
+type Job struct {
+	CreatedAt time.Time `json:"createdAt"`
+
+	// ExternalId External job identifier (e.g. GitHub workflow run ID)
+	ExternalId *string            `json:"externalId"`
+	Id         openapi_types.UUID `json:"id"`
+
+	// JobAgentConfig Configuration for the Job Agent
+	JobAgentConfig map[string]interface{} `json:"jobAgentConfig"`
+	JobAgentId     *openapi_types.UUID    `json:"jobAgentId,omitempty"`
+	Message        *string                `json:"message,omitempty"`
+	Reason         *string                `json:"reason,omitempty"`
+	Status         JobStatus              `json:"status"`
+	UpdatedAt      time.Time              `json:"updatedAt"`
+}
+
+// JobStatus defines model for Job.Status.
+type JobStatus string
+
+// Release defines model for Release.
+type Release struct {
+	Config       map[string]interface{} `json:"config"`
+	CreatedAt    time.Time              `json:"createdAt"`
+	DeploymentId openapi_types.UUID     `json:"deploymentId"`
+	Id           openapi_types.UUID     `json:"id"`
+	Name         string                 `json:"name"`
+	Version      string                 `json:"version"`
+}
+
+// Resource defines model for Resource.
+type Resource struct {
+	Config      map[string]interface{} `json:"config"`
+	CreatedAt   time.Time              `json:"createdAt"`
+	Id          openapi_types.UUID     `json:"id"`
+	Identifier  string                 `json:"identifier"`
+	Kind        string                 `json:"kind"`
+	Metadata    map[string]interface{} `json:"metadata"`
+	Name        string                 `json:"name"`
+	UpdatedAt   time.Time              `json:"updatedAt"`
+	Version     string                 `json:"version"`
+	WorkspaceId openapi_types.UUID     `json:"workspaceId"`
+}
+
+// Runbook defines model for Runbook.
+type Runbook struct {
+	Id         openapi_types.UUID `json:"id"`
+	JobAgentId openapi_types.UUID `json:"jobAgentId"`
+	Name       string             `json:"name"`
+	SystemId   openapi_types.UUID `json:"systemId"`
+}
+
 // Variable defines model for Variable.
 type Variable struct {
 	Key       string         `json:"key"`
@@ -2136,18 +2225,18 @@ type GetAgentRunningJobResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *[]struct {
-		Config         map[string]interface{}  `json:"config"`
-		Deployment     *map[string]interface{} `json:"deployment,omitempty"`
-		Environment    *map[string]interface{} `json:"environment,omitempty"`
-		ExternalId     *string                 `json:"externalId"`
-		Id             string                  `json:"id"`
-		JobAgentConfig map[string]interface{}  `json:"jobAgentConfig"`
-		JobAgentId     string                  `json:"jobAgentId"`
-		Message        string                  `json:"message"`
-		Release        *map[string]interface{} `json:"release,omitempty"`
-		Runbook        *map[string]interface{} `json:"runbook,omitempty"`
-		Status         string                  `json:"status"`
-		Target         *map[string]interface{} `json:"target,omitempty"`
+		Config         map[string]interface{} `json:"config"`
+		Deployment     *Deployment            `json:"deployment,omitempty"`
+		Environment    *Environment           `json:"environment,omitempty"`
+		ExternalId     *string                `json:"externalId"`
+		Id             string                 `json:"id"`
+		JobAgentConfig map[string]interface{} `json:"jobAgentConfig"`
+		JobAgentId     string                 `json:"jobAgentId"`
+		Message        string                 `json:"message"`
+		Release        *Release               `json:"release,omitempty"`
+		Resource       *Resource              `json:"resource,omitempty"`
+		Runbook        *Runbook               `json:"runbook,omitempty"`
+		Status         string                 `json:"status"`
 	}
 }
 
@@ -2242,51 +2331,25 @@ type GetJobResponse struct {
 			Id     string                  `json:"id"`
 			Status GetJob200ApprovalStatus `json:"status"`
 		} `json:"approval"`
-		CreatedAt  time.Time `json:"createdAt"`
-		Deployment *struct {
-			Id         string  `json:"id"`
-			JobAgentId string  `json:"jobAgentId"`
-			Name       *string `json:"name,omitempty"`
-			Slug       string  `json:"slug"`
-			SystemId   string  `json:"systemId"`
-		} `json:"deployment,omitempty"`
-		Environment *struct {
-			Id       string `json:"id"`
-			Name     string `json:"name"`
-			SystemId string `json:"systemId"`
-		} `json:"environment,omitempty"`
+		CreatedAt   time.Time    `json:"createdAt"`
+		Deployment  *Deployment  `json:"deployment,omitempty"`
+		Environment *Environment `json:"environment,omitempty"`
 
 		// ExternalId External job identifier (e.g. GitHub workflow run ID)
-		ExternalId *string `json:"externalId"`
-		Id         string  `json:"id"`
+		ExternalId *string            `json:"externalId"`
+		Id         openapi_types.UUID `json:"id"`
 
 		// JobAgentConfig Configuration for the Job Agent
 		JobAgentConfig map[string]interface{} `json:"jobAgentConfig"`
-		Release        *struct {
-			Config   map[string]interface{} `json:"config"`
-			Id       string                 `json:"id"`
-			Metadata map[string]interface{} `json:"metadata"`
-			Version  string                 `json:"version"`
-		} `json:"release,omitempty"`
-		Resource *struct {
-			Config      map[string]interface{} `json:"config"`
-			Id          string                 `json:"id"`
-			Identifier  string                 `json:"identifier"`
-			Kind        string                 `json:"kind"`
-			Metadata    map[string]interface{} `json:"metadata"`
-			Name        string                 `json:"name"`
-			Version     string                 `json:"version"`
-			WorkspaceId string                 `json:"workspaceId"`
-		} `json:"resource,omitempty"`
-		Runbook *struct {
-			Id         string `json:"id"`
-			JobAgentId string `json:"jobAgentId"`
-			Name       string `json:"name"`
-			SystemId   string `json:"systemId"`
-		} `json:"runbook,omitempty"`
-		Status    GetJob200Status        `json:"status"`
-		UpdatedAt time.Time              `json:"updatedAt"`
-		Variables map[string]interface{} `json:"variables"`
+		JobAgentId     *openapi_types.UUID    `json:"jobAgentId,omitempty"`
+		Message        *string                `json:"message,omitempty"`
+		Reason         *string                `json:"reason,omitempty"`
+		Release        *Release               `json:"release,omitempty"`
+		Resource       *Resource              `json:"resource,omitempty"`
+		Runbook        *Runbook               `json:"runbook,omitempty"`
+		Status         GetJob200Status        `json:"status"`
+		UpdatedAt      time.Time              `json:"updatedAt"`
+		Variables      map[string]interface{} `json:"variables"`
 	}
 	JSON404 *struct {
 		Error *string `json:"error,omitempty"`
@@ -3352,18 +3415,18 @@ func ParseGetAgentRunningJobResponse(rsp *http.Response) (*GetAgentRunningJobRes
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest []struct {
-			Config         map[string]interface{}  `json:"config"`
-			Deployment     *map[string]interface{} `json:"deployment,omitempty"`
-			Environment    *map[string]interface{} `json:"environment,omitempty"`
-			ExternalId     *string                 `json:"externalId"`
-			Id             string                  `json:"id"`
-			JobAgentConfig map[string]interface{}  `json:"jobAgentConfig"`
-			JobAgentId     string                  `json:"jobAgentId"`
-			Message        string                  `json:"message"`
-			Release        *map[string]interface{} `json:"release,omitempty"`
-			Runbook        *map[string]interface{} `json:"runbook,omitempty"`
-			Status         string                  `json:"status"`
-			Target         *map[string]interface{} `json:"target,omitempty"`
+			Config         map[string]interface{} `json:"config"`
+			Deployment     *Deployment            `json:"deployment,omitempty"`
+			Environment    *Environment           `json:"environment,omitempty"`
+			ExternalId     *string                `json:"externalId"`
+			Id             string                 `json:"id"`
+			JobAgentConfig map[string]interface{} `json:"jobAgentConfig"`
+			JobAgentId     string                 `json:"jobAgentId"`
+			Message        string                 `json:"message"`
+			Release        *Release               `json:"release,omitempty"`
+			Resource       *Resource              `json:"resource,omitempty"`
+			Runbook        *Runbook               `json:"runbook,omitempty"`
+			Status         string                 `json:"status"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -3482,51 +3545,25 @@ func ParseGetJobResponse(rsp *http.Response) (*GetJobResponse, error) {
 				Id     string                  `json:"id"`
 				Status GetJob200ApprovalStatus `json:"status"`
 			} `json:"approval"`
-			CreatedAt  time.Time `json:"createdAt"`
-			Deployment *struct {
-				Id         string  `json:"id"`
-				JobAgentId string  `json:"jobAgentId"`
-				Name       *string `json:"name,omitempty"`
-				Slug       string  `json:"slug"`
-				SystemId   string  `json:"systemId"`
-			} `json:"deployment,omitempty"`
-			Environment *struct {
-				Id       string `json:"id"`
-				Name     string `json:"name"`
-				SystemId string `json:"systemId"`
-			} `json:"environment,omitempty"`
+			CreatedAt   time.Time    `json:"createdAt"`
+			Deployment  *Deployment  `json:"deployment,omitempty"`
+			Environment *Environment `json:"environment,omitempty"`
 
 			// ExternalId External job identifier (e.g. GitHub workflow run ID)
-			ExternalId *string `json:"externalId"`
-			Id         string  `json:"id"`
+			ExternalId *string            `json:"externalId"`
+			Id         openapi_types.UUID `json:"id"`
 
 			// JobAgentConfig Configuration for the Job Agent
 			JobAgentConfig map[string]interface{} `json:"jobAgentConfig"`
-			Release        *struct {
-				Config   map[string]interface{} `json:"config"`
-				Id       string                 `json:"id"`
-				Metadata map[string]interface{} `json:"metadata"`
-				Version  string                 `json:"version"`
-			} `json:"release,omitempty"`
-			Resource *struct {
-				Config      map[string]interface{} `json:"config"`
-				Id          string                 `json:"id"`
-				Identifier  string                 `json:"identifier"`
-				Kind        string                 `json:"kind"`
-				Metadata    map[string]interface{} `json:"metadata"`
-				Name        string                 `json:"name"`
-				Version     string                 `json:"version"`
-				WorkspaceId string                 `json:"workspaceId"`
-			} `json:"resource,omitempty"`
-			Runbook *struct {
-				Id         string `json:"id"`
-				JobAgentId string `json:"jobAgentId"`
-				Name       string `json:"name"`
-				SystemId   string `json:"systemId"`
-			} `json:"runbook,omitempty"`
-			Status    GetJob200Status        `json:"status"`
-			UpdatedAt time.Time              `json:"updatedAt"`
-			Variables map[string]interface{} `json:"variables"`
+			JobAgentId     *openapi_types.UUID    `json:"jobAgentId,omitempty"`
+			Message        *string                `json:"message,omitempty"`
+			Reason         *string                `json:"reason,omitempty"`
+			Release        *Release               `json:"release,omitempty"`
+			Resource       *Resource              `json:"resource,omitempty"`
+			Runbook        *Runbook               `json:"runbook,omitempty"`
+			Status         GetJob200Status        `json:"status"`
+			UpdatedAt      time.Time              `json:"updatedAt"`
+			Variables      map[string]interface{} `json:"variables"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
