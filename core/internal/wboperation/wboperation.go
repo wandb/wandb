@@ -220,6 +220,19 @@ func (op *WandbOperation) MarkRetryingHTTPError(responseStatus string) {
 	op.errorStatus = fmt.Sprintf("retrying HTTP %s", responseStatus)
 }
 
+// MarkRetryingError sets the operation's error status.
+//
+// There should be a corresponding call to `ClearError`.
+func (op *WandbOperation) MarkRetryingError(err error) {
+	if op == nil {
+		return
+	}
+
+	op.mu.Lock()
+	defer op.mu.Unlock()
+	op.errorStatus = fmt.Sprintf("retrying: %s", err)
+}
+
 // NewProgress creates a progress bar for the operation.
 //
 // Returns nil and an error if the operation already has a progress instance.
