@@ -162,8 +162,6 @@ func NewStream(
 		sentryClient: params.Sentry,
 	}
 
-	// TODO: replace this with a logger that can be read by the user
-	peeker := &observability.Peeker{}
 	terminalPrinter := observability.NewPrinter()
 
 	backendOrNil := NewBackend(s.logger, params.Settings)
@@ -179,14 +177,13 @@ func NewStream(
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
 	var runfilesUploaderOrNil runfiles.Uploader
 	if backendOrNil != nil {
-		graphqlClientOrNil = NewGraphQLClient(backendOrNil, params.Settings, peeker)
+		graphqlClientOrNil = NewGraphQLClient(backendOrNil, params.Settings)
 		fileStreamOrNil = NewFileStream(
 			backendOrNil,
 			s.logger,
 			operations,
 			terminalPrinter,
 			params.Settings,
-			peeker,
 		)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileTransferStats,
@@ -255,7 +252,6 @@ func NewStream(
 			FileWatcher:         fileWatcher,
 			RunfilesUploader:    runfilesUploaderOrNil,
 			TBHandler:           tbHandler,
-			Peeker:              peeker,
 			RunSummary:          runsummary.New(),
 			GraphqlClient:       graphqlClientOrNil,
 			OutChan:             make(chan *spb.Result, BufferSize),

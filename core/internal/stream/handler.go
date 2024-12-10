@@ -304,6 +304,7 @@ func (h *Handler) handleRequest(record *spb.Record) {
 	case *spb.Request_ServerInfo:
 	case *spb.Request_CheckVersion:
 	case *spb.Request_Defer:
+	case *spb.Request_NetworkStatus:
 		// The above been removed from the client but are kept here for now.
 		// Should be removed in the future.
 
@@ -323,8 +324,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestShutdown(record)
 	case *spb.Request_GetSummary:
 		h.handleRequestGetSummary(record)
-	case *spb.Request_NetworkStatus:
-		h.handleRequestNetworkStatus(record)
 	case *spb.Request_PartialHistory:
 		h.handleRequestPartialHistory(record, x.PartialHistory)
 	case *spb.Request_PollExit:
@@ -935,10 +934,6 @@ func (h *Handler) handleTBrecord(record *spb.TBRecord) {
 		h.logger.CaptureError(
 			fmt.Errorf("handler: failed to handle TB record: %v", err))
 	}
-}
-
-func (h *Handler) handleRequestNetworkStatus(record *spb.Record) {
-	h.fwdRecord(record)
 }
 
 // handleRequestPartialHistory updates the run history, flushing data for
