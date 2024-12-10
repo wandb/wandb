@@ -2,6 +2,7 @@
 // cgo -godefs sysconf_values_linux.go
 
 //go:build linux && 386
+// +build linux,386
 
 package sysconf
 

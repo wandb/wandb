@@ -195,6 +195,10 @@ func StartSpan(ctx context.Context, operation string, options ...SpanOption) *Sp
 	clientOptions := span.clientOptions()
 	if clientOptions.EnableTracing {
 		hub := hubFromContext(ctx)
+		if !span.IsTransaction() {
+			// Push a new scope to stack for non transaction span
+			hub.PushScope()
+		}
 		hub.Scope().SetSpan(&span)
 	}
 
@@ -355,6 +359,12 @@ func (s *Span) doFinish() {
 		s.EndTime = monotonicTimeSince(s.StartTime)
 	}
 
+	hub := hubFromContext(s.ctx)
+	if !s.IsTransaction() {
+		// Referenced to StartSpan function that pushes current non-transaction span to scope stack
+		defer hub.PopScope()
+	}
+
 	if !s.Sampled.Bool() {
 		return
 	}
@@ -370,7 +380,6 @@ func (s *Span) doFinish() {
 	// TODO(tracing): add breadcrumbs
 	// (see https://github.com/getsentry/sentry-python/blob/f6f3525f8812f609/sentry_sdk/tracing.py#L372)
 
-	hub := hubFromContext(s.ctx)
 	hub.CaptureEvent(event)
 }
 
@@ -554,10 +563,11 @@ func (s *Span) toEvent() *Event {
 		s.dynamicSamplingContext = DynamicSamplingContextFromTransaction(s)
 	}
 
-	contexts := make(map[string]Context, len(s.contexts))
+	contexts := make(map[string]Context, len(s.contexts)+1)
 	for k, v := range s.contexts {
 		contexts[k] = cloneContext(v)
 	}
+	contexts["trace"] = s.traceContext().Map()
 
 	// Make sure that the transaction source is valid
 	transactionSource := s.Source
@@ -725,31 +735,32 @@ const (
 	maxSpanStatus
 )
 
+var spanStatuses = [maxSpanStatus]string{
+	"",
+	"ok",
+	"cancelled", // [sic]
+	"unknown",
+	"invalid_argument",
+	"deadline_exceeded",
+	"not_found",
+	"already_exists",
+	"permission_denied",
+	"resource_exhausted",
+	"failed_precondition",
+	"aborted",
+	"out_of_range",
+	"unimplemented",
+	"internal_error",
+	"unavailable",
+	"data_loss",
+	"unauthenticated",
+}
+
 func (ss SpanStatus) String() string {
 	if ss >= maxSpanStatus {
 		return ""
 	}
-	m := [maxSpanStatus]string{
-		"",
-		"ok",
-		"cancelled", // [sic]
-		"unknown",
-		"invalid_argument",
-		"deadline_exceeded",
-		"not_found",
-		"already_exists",
-		"permission_denied",
-		"resource_exhausted",
-		"failed_precondition",
-		"aborted",
-		"out_of_range",
-		"unimplemented",
-		"internal_error",
-		"unavailable",
-		"data_loss",
-		"unauthenticated",
-	}
-	return m[ss]
+	return spanStatuses[ss]
 }
 
 func (ss SpanStatus) MarshalJSON() ([]byte, error) {

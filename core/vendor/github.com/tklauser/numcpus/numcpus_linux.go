@@ -15,6 +15,7 @@
 package numcpus
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -34,7 +35,7 @@ func getFromCPUAffinity() (int, error) {
 }
 
 func readCPURange(file string) (int, error) {
-	buf, err := os.ReadFile(filepath.Join(sysfsCPUBasePath, file))
+	buf, err := ioutil.ReadFile(filepath.Join(sysfsCPUBasePath, file))
 	if err != nil {
 		return 0, err
 	}
@@ -47,16 +48,16 @@ func parseCPURange(cpus string) (int, error) {
 		if len(cpuRange) == 0 {
 			continue
 		}
-		from, to, found := strings.Cut(cpuRange, "-")
-		first, err := strconv.ParseUint(from, 10, 32)
+		rangeOp := strings.SplitN(cpuRange, "-", 2)
+		first, err := strconv.ParseUint(rangeOp[0], 10, 32)
 		if err != nil {
 			return 0, err
 		}
-		if !found {
+		if len(rangeOp) == 1 {
 			n++
 			continue
 		}
-		last, err := strconv.ParseUint(to, 10, 32)
+		last, err := strconv.ParseUint(rangeOp[1], 10, 32)
 		if err != nil {
 			return 0, err
 		}
@@ -88,7 +89,7 @@ func getConfigured() (int, error) {
 }
 
 func getKernelMax() (int, error) {
-	buf, err := os.ReadFile(filepath.Join(sysfsCPUBasePath, "kernel_max"))
+	buf, err := ioutil.ReadFile(filepath.Join(sysfsCPUBasePath, "kernel_max"))
 	if err != nil {
 		return 0, err
 	}

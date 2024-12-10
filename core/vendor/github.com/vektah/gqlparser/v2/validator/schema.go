@@ -13,6 +13,7 @@ import (
 
 func LoadSchema(inputs ...*Source) (*Schema, error) {
 	sd, err := parser.ParseSchemas(inputs...)
+
 	if err != nil {
 		return nil, gqlerror.WrapIfUnwrapped(err)
 	}

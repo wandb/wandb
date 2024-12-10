@@ -2,6 +2,7 @@
 // cgo -godefs sysconf_values_freebsd.go
 
 //go:build freebsd && riscv64
+// +build freebsd,riscv64
 
 package sysconf
 

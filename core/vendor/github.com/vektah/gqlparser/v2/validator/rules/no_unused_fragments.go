@@ -9,6 +9,7 @@ import (
 
 func init() {
 	AddRule("NoUnusedFragments", func(observers *Events, addError AddErrFunc) {
+
 		inFragmentDefinition := false
 		fragmentNameUsed := make(map[string]bool)
 
