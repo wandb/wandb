@@ -906,8 +906,6 @@ class Settings(BaseModel, validate_assignment=True):
             if not setting.startswith(env_prefix):
                 continue
 
-            print(setting, value)
-
             if setting in special_env_var_names:
                 key = special_env_var_names[setting]
             elif setting.startswith(private_env_prefix):
