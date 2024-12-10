@@ -301,8 +301,8 @@ class Graph(Media):
     def get_media_subdir(cls):
         return os.path.join("media", "graph")
 
-    def to_json(self, run):
-        json_dict = super().to_json(run)
+    def _to_json(self, run):
+        json_dict = super()._to_json(run)
         json_dict["_type"] = self._log_type
         return json_dict
 

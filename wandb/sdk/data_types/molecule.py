@@ -205,8 +205,8 @@ class Molecule(BatchableMedia):
     def get_media_subdir(cls: Type["Molecule"]) -> str:
         return os.path.join("media", "molecule")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
-        json_dict = super().to_json(run_or_artifact)
+    def _to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        json_dict = super()._to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         if self._caption:
             json_dict["caption"] = self._caption
@@ -222,7 +222,7 @@ class Molecule(BatchableMedia):
     ) -> dict:
         seq = list(seq)
 
-        jsons = [obj.to_json(run) for obj in seq]
+        jsons = [obj._to_json(run) for obj in seq]
 
         for obj in jsons:
             expected = LogicalPath(cls.get_media_subdir())

@@ -586,8 +586,8 @@ class Table(Media):
         new_obj._update_keys()
         return new_obj
 
-    def to_json(self, run_or_artifact):
-        json_dict = super().to_json(run_or_artifact)
+    def _to_json(self, run_or_artifact):
+        json_dict = super()._to_json(run_or_artifact)
 
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             json_dict.update(
@@ -663,11 +663,11 @@ class Table(Media):
                     "data": mapped_data,
                     "ncols": len(self.columns),
                     "nrows": len(mapped_data),
-                    "column_types": self._column_types.to_json(artifact),
+                    "column_types": self._column_types._to_json(artifact),
                 }
             )
         else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+            raise ValueError("_to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         return json_dict
 

@@ -27,14 +27,14 @@ __all__ = (
     "Api",
     "Graph",
     "Image", 
-    "Plotly", # doc:exclude
+    "Plotly",
     "Video",
     "Audio", 
     "Table",
     "Html",
     "box3d", # doc:exclude
     "Object3D",
-    "Molecule", # doc:exclude
+    "Molecule", 
     "Histogram",
     "ArtifactTTL",
     "log_artifact",

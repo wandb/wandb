@@ -65,7 +65,7 @@ class Audio(BatchableMedia):
             caption=json_obj["caption"],
         )
 
-    def bind_to_run(
+    def _bind_to_run(
         self, run, key, step, id_=None, ignore_copy_err: Optional[bool] = None
     ):
         if self.path_is_reference(self._path):
@@ -73,10 +73,10 @@ class Audio(BatchableMedia):
                 "Audio media created by a reference to external storage cannot currently be added to a run"
             )
 
-        return super().bind_to_run(run, key, step, id_, ignore_copy_err)
+        return super()._bind_to_run(run, key, step, id_, ignore_copy_err)
 
-    def to_json(self, run):
-        json_dict = super().to_json(run)
+    def _to_json(self, run):
+        json_dict = super()._to_json(run)
         json_dict.update(
             {
                 "_type": self._log_type,
@@ -98,7 +98,7 @@ class Audio(BatchableMedia):
         meta = {
             "_type": "audio",
             "count": len(audio_list),
-            "audio": [a.to_json(run) for a in audio_list],
+            "audio": [a._to_json(run) for a in audio_list],
         }
         sample_rates = cls.sample_rates(audio_list)
         if sample_rates:
@@ -128,7 +128,7 @@ class Audio(BatchableMedia):
         else:
             return ["" if c is None else c for c in captions]
 
-    def resolve_ref(self):
+    def _resolve_ref(self):
         if self.path_is_reference(self._path):
             # this object was already created using a ref:
             return self._path
@@ -147,7 +147,7 @@ class Audio(BatchableMedia):
             # one or more of these objects is an unresolved reference -- we'll compare
             # their reference paths instead of their SHAs:
             return (
-                self.resolve_ref() == other.resolve_ref()
+                self._resolve_ref() == other._resolve_ref()
                 and self._caption == other._caption
             )
 

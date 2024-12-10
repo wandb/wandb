@@ -421,8 +421,8 @@ class Object3D(BatchableMedia):
     def get_media_subdir(cls: Type["Object3D"]) -> str:
         return os.path.join("media", "object3D")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
-        json_dict = super().to_json(run_or_artifact)
+    def _to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        json_dict = super()._to_json(run_or_artifact)
         json_dict["_type"] = Object3D._log_type
 
         if isinstance(run_or_artifact, wandb.Artifact):
@@ -443,7 +443,7 @@ class Object3D(BatchableMedia):
     ) -> dict:
         seq = list(seq)
 
-        jsons = [obj.to_json(run) for obj in seq]
+        jsons = [obj._to_json(run) for obj in seq]
 
         for obj in jsons:
             expected = LogicalPath(cls.get_media_subdir())

@@ -324,7 +324,7 @@ class Image(BatchableMedia):
             if data.ndim > 2:
                 data = data.squeeze()  # get rid of trivial dimensions as a convenience
             self._image = pil_image.fromarray(
-                self.to_uint8(data), mode=mode or self.guess_mode(data)
+                self.to_uint8(data), mode=mode or self._guess_mode(data)
             )
         accepted_formats = ["png", "jpg", "jpeg", "bmp"]
         if file_type is None:
@@ -379,7 +379,7 @@ class Image(BatchableMedia):
     def get_media_subdir(cls: Type["Image"]) -> str:
         return os.path.join("media", "images")
 
-    def bind_to_run(
+    def _bind_to_run(
         self,
         run: "LocalRun",
         key: Union[int, str],
@@ -405,25 +405,25 @@ class Image(BatchableMedia):
             not _server_accepts_artifact_path()
             or self._get_artifact_entry_ref_url() is None
         ):
-            super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
+            super()._bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
         if self._boxes is not None:
             for i, k in enumerate(self._boxes):
                 id_ = f"{id_}{i}" if id_ is not None else None
-                self._boxes[k].bind_to_run(
+                self._boxes[k]._bind_to_run(
                     run, key, step, id_, ignore_copy_err=ignore_copy_err
                 )
 
         if self._masks is not None:
             for i, k in enumerate(self._masks):
                 id_ = f"{id_}{i}" if id_ is not None else None
-                self._masks[k].bind_to_run(
+                self._masks[k]._bind_to_run(
                     run, key, step, id_, ignore_copy_err=ignore_copy_err
                 )
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+    def _to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         from wandb.sdk.wandb_run import Run
 
-        json_dict = super().to_json(run_or_artifact)
+        json_dict = super()._to_json(run_or_artifact)
         json_dict["_type"] = Image._log_type
         json_dict["format"] = self.format
 
@@ -462,19 +462,19 @@ class Image(BatchableMedia):
                 }
 
         elif not isinstance(run_or_artifact, Run):
-            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+            raise ValueError("_to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         if self._boxes:
             json_dict["boxes"] = {
-                k: box.to_json(run_or_artifact) for (k, box) in self._boxes.items()
+                k: box._to_json(run_or_artifact) for (k, box) in self._boxes.items()
             }
         if self._masks:
             json_dict["masks"] = {
-                k: mask.to_json(run_or_artifact) for (k, mask) in self._masks.items()
+                k: mask._to_json(run_or_artifact) for (k, mask) in self._masks.items()
             }
         return json_dict
 
-    def guess_mode(self, data: "np.ndarray") -> str:
+    def _guess_mode(self, data: "np.ndarray") -> str:
         """Guess what type of image the np.array is representing."""
         # TODO: do we want to support dimensions being at the beginning of the array?
         if data.ndim == 2:
@@ -601,7 +601,7 @@ class Image(BatchableMedia):
                 mask_group = {}
                 for k in image._masks:
                     mask = image._masks[k]
-                    mask_group[k] = mask.to_json(run)
+                    mask_group[k] = mask._to_json(run)
                 all_mask_groups.append(mask_group)
             else:
                 all_mask_groups.append(None)
@@ -624,7 +624,7 @@ class Image(BatchableMedia):
                 box_group = {}
                 for k in image._boxes:
                     box = image._boxes[k]
-                    box_group[k] = box.to_json(run)
+                    box_group[k] = box._to_json(run)
                 all_box_groups.append(box_group)
             else:
                 all_box_groups.append(None)
@@ -666,7 +666,7 @@ class Image(BatchableMedia):
                 and self._classes == other._classes
             )
 
-    def to_data_array(self) -> List[Any]:
+    def _to_data_array(self) -> List[Any]:
         res = []
         if self.image is not None:
             data = list(self.image.getdata())

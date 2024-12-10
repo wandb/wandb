@@ -193,8 +193,8 @@ class Video(BatchableMedia):
     def get_media_subdir(cls: Type["Video"]) -> str:
         return os.path.join("media", "videos")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
-        json_dict = super().to_json(run_or_artifact)
+    def _to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        json_dict = super()._to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
 
         if self._width is not None:
@@ -256,7 +256,7 @@ class Video(BatchableMedia):
         meta = {
             "_type": "videos",
             "count": len(seq),
-            "videos": [v.to_json(run) for v in seq],
+            "videos": [v._to_json(run) for v in seq],
             "captions": Video.captions(seq),
         }
         return meta
