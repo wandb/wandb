@@ -2551,7 +2551,10 @@ class Run:
         self._telemetry_obj_active = True
         self._telemetry_flush()
 
-        self._detect_and_apply_job_inputs()
+        try:
+            self._detect_and_apply_job_inputs()
+        except Exception as e:
+            logger.error("Problem applying launch job inputs", exc_info=e)
 
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
