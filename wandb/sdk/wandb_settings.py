@@ -519,7 +519,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_service_wait(cls, value):
         if value < 0:
             raise UsageError("Service wait time cannot be negative")
-        return
+        return value
 
     @field_validator("start_method")
     @classmethod
