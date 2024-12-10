@@ -4,9 +4,9 @@ import sys
 from datetime import datetime
 from typing import Literal, Tuple, TypeVar, Union
 
-from pydantic import AliasChoices, Field, Json
+from pydantic import AliasChoices, Field
 
-from ._base import Base, Base64Id, Typename
+from ._base import Base, Base64Id, SerializedToJson, Typename
 from ._generated import FilterEventTriggeringCondition, UserInfo
 from .actions import (
     DoLaunchJob,
@@ -36,7 +36,7 @@ class FilterEvent(FilterEventTriggeringCondition):
     """A more introspection-friendly representation of a triggering event from a saved automation."""
 
     typename__: Typename[Literal["FilterEventTriggeringCondition"]]
-    filter: Json[EventFilter | RunMetricFilter]  # type: ignore[assignment]  # GQL schema doesn't define as JSONString
+    filter: SerializedToJson[EventFilter | RunMetricFilter | str]  # type: ignore[assignment]  # GQL schema doesn't define as JSONString
 
     def __repr_name__(self) -> str:  # type: ignore[override]
         return self.event_type.value

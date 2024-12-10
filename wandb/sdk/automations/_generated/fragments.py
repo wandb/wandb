@@ -17,13 +17,7 @@ else:
     from typing_extensions import Annotated, Literal
 
 
-class ArtifactPortfolioScope(GQLBase):
-    typename__: Typename[str]
-    id: Base64Id
-    name: str
-
-
-class ArtifactSequenceScope(GQLBase):
+class ArtifactCollectionScope(GQLBase):
     typename__: Typename[str]
     id: Base64Id
     name: str
@@ -42,6 +36,7 @@ class DeleteTriggerResult(GQLBase):
 
 
 class FilterEventTriggeringCondition(GQLBase):
+    typename__: Typename[str]
     event_type: EventTriggeringConditionType = Field(alias="eventType")
     filter: str
 
@@ -69,34 +64,13 @@ class NotificationActionIntegrationIntegration(GQLBase):
 
 
 class PageInfo(GQLBase):
+    typename__: Typename[str]
     end_cursor: str | None = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
 
-class PaginatedIntegrations(GQLBase):
-    page_info: PageInfo = Field(alias="pageInfo")
-    edges: list[PaginatedIntegrationsEdges]
-
-
-class PaginatedIntegrationsEdges(GQLBase):
-    cursor: str
-    node: (
-        Annotated[
-            PaginatedIntegrationsEdgesNodeIntegration
-            | PaginatedIntegrationsEdgesNodeSlackIntegration,
-            Field(discriminator="typename__"),
-        ]
-        | None
-    )
-
-
-class PaginatedIntegrationsEdgesNodeIntegration(GQLBase):
-    typename__: Typename[
-        Literal["GenericWebhookIntegration", "GitHubOAuthIntegration", "Integration"]
-    ]
-
-
 class PaginatedProjectTriggers(GQLBase):
+    typename__: Typename[str]
     page_info: PageInfo = Field(alias="pageInfo")
     edges: list[PaginatedProjectTriggersEdges]
 
@@ -108,6 +82,30 @@ class PaginatedProjectTriggersEdges(GQLBase):
 
 class PaginatedProjectTriggersEdgesNode(GQLBase):
     triggers: list[Trigger]
+
+
+class PaginatedSlackIntegrations(GQLBase):
+    typename__: Typename[str]
+    page_info: PageInfo = Field(alias="pageInfo")
+    edges: list[PaginatedSlackIntegrationsEdges]
+
+
+class PaginatedSlackIntegrationsEdges(GQLBase):
+    cursor: str
+    node: (
+        Annotated[
+            PaginatedSlackIntegrationsEdgesNodeIntegration
+            | PaginatedSlackIntegrationsEdgesNodeSlackIntegration,
+            Field(discriminator="typename__"),
+        ]
+        | None
+    )
+
+
+class PaginatedSlackIntegrationsEdgesNodeIntegration(GQLBase):
+    typename__: Typename[
+        Literal["GenericWebhookIntegration", "GitHubOAuthIntegration", "Integration"]
+    ]
 
 
 class ProjectScope(GQLBase):
@@ -123,6 +121,7 @@ class QueueJobAction(GQLBase):
 
 
 class RunQueue(GQLBase):
+    typename__: Typename[str]
     id: Base64Id
     name: str
 
@@ -135,6 +134,7 @@ class SlackIntegration(GQLBase):
 
 
 class Trigger(GQLBase):
+    typename__: Typename[str]
     id: Base64Id
     created_at: datetime = Field(alias="createdAt")
     created_by: UserInfo = Field(alias="createdBy")
@@ -157,6 +157,20 @@ class Trigger(GQLBase):
     ) = Field(discriminator="typename__")
 
 
+class TriggerScopeArtifactPortfolio(GQLBase):
+    typename__: Typename[Literal["ArtifactPortfolio"]]
+    typename__: Typename[Literal["ArtifactPortfolio"]]
+    id: Base64Id
+    name: str
+
+
+class TriggerScopeArtifactSequence(GQLBase):
+    typename__: Typename[Literal["ArtifactSequence"]]
+    typename__: Typename[Literal["ArtifactSequence"]]
+    id: Base64Id
+    name: str
+
+
 class UpdateFilterTriggerResult(GQLBase):
     typename__: Typename[str]
     trigger: Trigger | None
@@ -164,6 +178,7 @@ class UpdateFilterTriggerResult(GQLBase):
 
 
 class UserInfo(GQLBase):
+    typename__: Typename[str]
     id: Base64Id
     username: str | None
 
@@ -193,14 +208,6 @@ class WebhookIntegration(GQLBase):
     created_at: datetime = Field(alias="createdAt")
 
 
-class TriggerScopeArtifactPortfolio(ArtifactPortfolioScope):
-    typename__: Typename[Literal["ArtifactPortfolio"]]
-
-
-class TriggerScopeArtifactSequence(ArtifactSequenceScope):
-    typename__: Typename[Literal["ArtifactSequence"]]
-
-
 class TriggerEventFilterEventTriggeringCondition(FilterEventTriggeringCondition):
     typename__: Typename[Literal["FilterEventTriggeringCondition"]]
 
@@ -221,7 +228,7 @@ class NotificationActionIntegrationSlackIntegration(SlackIntegration):
     typename__: Typename[Literal["SlackIntegration"]]
 
 
-class PaginatedIntegrationsEdgesNodeSlackIntegration(SlackIntegration):
+class PaginatedSlackIntegrationsEdgesNodeSlackIntegration(SlackIntegration):
     typename__: Typename[Literal["SlackIntegration"]]
 
 
@@ -233,16 +240,15 @@ class WebhookActionIntegrationGenericWebhookIntegration(WebhookIntegration):
     typename__: Typename[Literal["GenericWebhookIntegration"]]
 
 
-ArtifactPortfolioScope.model_rebuild()
-ArtifactSequenceScope.model_rebuild()
+ArtifactCollectionScope.model_rebuild()
 CreateFilterTriggerResult.model_rebuild()
 DeleteTriggerResult.model_rebuild()
 FilterEventTriggeringCondition.model_rebuild()
 GithubIntegration.model_rebuild()
 NotificationAction.model_rebuild()
 PageInfo.model_rebuild()
-PaginatedIntegrations.model_rebuild()
 PaginatedProjectTriggers.model_rebuild()
+PaginatedSlackIntegrations.model_rebuild()
 ProjectScope.model_rebuild()
 QueueJobAction.model_rebuild()
 RunQueue.model_rebuild()

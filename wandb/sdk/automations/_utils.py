@@ -7,6 +7,9 @@ from pydantic_core import to_json
 
 from ._generated import (
     CreateFilterTriggerInput,
+    GenericWebhookActionInput,
+    NotificationActionInput,
+    QueueJobActionInput,
     TriggeredActionConfig,
     TriggeredActionType,
     TriggerScopeType,
@@ -33,29 +36,26 @@ SCOPE_TYPE_MAP: dict[str, TriggerScopeType] = {
 """Mapping of `__typename`s to automation scope types."""
 
 ACTION_TYPE_MAP: dict[str, TriggeredActionType] = {
-    "QueueJobTriggeredAction": TriggeredActionType.QUEUE_JOB,
     "NotificationTriggeredAction": TriggeredActionType.NOTIFICATION,
     "GenericWebhookTriggeredAction": TriggeredActionType.GENERIC_WEBHOOK,
+    "QueueJobTriggeredAction": TriggeredActionType.QUEUE_JOB,
 }
 """Mapping of `__typename`s to automation action types."""
 
 
-def prepare_action_input(obj: ActionInput) -> TriggeredActionConfig:
+def prepare_action_config(obj: ActionInput) -> TriggeredActionConfig:
     """Return a `TriggeredActionConfig` as required in the input schema of CreateFilterTriggerInput."""
-    from wandb.sdk.automations.actions import DoLaunchJob, DoNotification, DoWebhook
-
-    if isinstance(obj, DoLaunchJob):
-        return TriggeredActionConfig(queue_job_action_input=obj)
-    if isinstance(obj, DoNotification):
+    if isinstance(obj, NotificationActionInput):
         return TriggeredActionConfig(notification_action_input=obj)
-    if isinstance(obj, DoWebhook):
+    if isinstance(obj, GenericWebhookActionInput):
         return TriggeredActionConfig(generic_webhook_action_input=obj)
-
+    if isinstance(obj, QueueJobActionInput):
+        return TriggeredActionConfig(queue_job_action_input=obj)
     raise TypeError(f"Unsupported action type {type(obj).__qualname__!r}: {obj!r}")
 
 
 def prepare_create_automation_input(obj: NewAutomation) -> CreateFilterTriggerInput:
-    return CreateFilterTriggerInput(
+    input_obj = CreateFilterTriggerInput(
         name=obj.name,
         description=obj.description,
         enabled=obj.enabled,
@@ -68,5 +68,6 @@ def prepare_create_automation_input(obj: NewAutomation) -> CreateFilterTriggerIn
         event_filter=obj.event.filter,
         # ------------------------------------------------------------------------------
         triggered_action_type=obj.action.action_type,
-        triggered_action_config=prepare_action_input(obj.action),
+        triggered_action_config=prepare_action_config(obj.action),
     )
+    return input_obj

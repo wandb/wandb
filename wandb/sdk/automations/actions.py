@@ -7,15 +7,18 @@ from typing import TYPE_CHECKING
 
 from pydantic import AliasChoices, Field, JsonValue
 
-from ._base import Base, Base64Id, SerializedToJson, Typename
+from ._base import Base64Id, SerializedToJson, Typename
 from ._generated import (
     AlertSeverity,
     GenericWebhookActionInput,
+    NotificationAction,
     NotificationActionInput,
     QueueJobAction,
+    QueueJobActionInput,
     RunQueue,
     SlackIntegration,
     TriggeredActionType,
+    WebhookAction,
     WebhookIntegration,
 )
 
@@ -35,7 +38,7 @@ class LaunchJobAction(QueueJobAction):  # Renamed for consistency with exisitng 
     template: SerializedToJson[dict[str, JsonValue]]
 
 
-class NotificationAction(Base):
+class NotificationAction(NotificationAction):
     typename__: Typename[Literal["NotificationTriggeredAction"]]
 
     integration: SlackIntegration
@@ -44,7 +47,7 @@ class NotificationAction(Base):
     severity: AlertSeverity
 
 
-class WebhookAction(Base):
+class WebhookAction(WebhookAction):
     typename__: Typename[Literal["GenericWebhookTriggeredAction"]]
 
     integration: WebhookIntegration
@@ -86,13 +89,24 @@ class DoNotification(NotificationActionInput):
         """Define a Notification action that sends to the given (Slack) integration."""
         return cls(integration_id=integration.id, title=title, text=text, level=level)
 
-    # @classmethod
-    # def for_team(cls, entity: str, **kwargs: Any) -> Self:
-    #     from wandb.apis.public.api import Api
-    #
-    #     return cls.model_validate(
-    #         dict(integration_id=Api()._team_slack_integration(entity).id, **kwargs)
-    #     )
+    @classmethod
+    def for_team(
+        cls,
+        entity: str,
+        *,
+        title: str = "",
+        text: str = "",
+        level: AlertSeverity | AlertLevel | str = AlertSeverity.INFO,
+    ) -> Self:
+        from wandb.apis.public.api import Api
+
+        integration = Api().slack_integration(entity)
+        return cls(
+            integration_id=integration.id,
+            title=title,
+            text=text,
+            level=level,
+        )
 
 
 class DoWebhook(GenericWebhookActionInput):
@@ -107,7 +121,7 @@ class DoWebhook(GenericWebhookActionInput):
     request_payload: SerializedToJson[JsonValue]
 
 
-class DoLaunchJob(Base):
+class DoLaunchJob(QueueJobActionInput):
     """Input schema for creating a QUEUE_JOB action."""
 
     action_type: Annotated[

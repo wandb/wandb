@@ -19,17 +19,12 @@ fragment GithubIntegration on GitHubOAuthIntegration {
 }
 
 # ------------------------------------------------------------------------------
-fragment ArtifactSequenceScope on ArtifactSequence {
-    __typename
-    id
-    name
-}
-fragment ArtifactPortfolioScope on ArtifactPortfolio {
-    __typename
-    id
-    name
-}
 fragment ProjectScope on Project {
+    __typename
+    id
+    name
+}
+fragment ArtifactCollectionScope on ArtifactCollection {
     __typename
     id
     name
@@ -37,12 +32,14 @@ fragment ProjectScope on Project {
 
 # ------------------------------------------------------------------------------
 fragment FilterEventTriggeringCondition on FilterEventTriggeringCondition {
+    __typename
     eventType
     filter
 }
 
 # ------------------------------------------------------------------------------
 fragment RunQueue on RunQueue {
+    __typename
     id
     name
 }
@@ -66,11 +63,13 @@ fragment WebhookAction on GenericWebhookTriggeredAction {
 
 # ------------------------------------------------------------------------------
 fragment UserInfo on User {
+    __typename
     id
     username
 }
 
 fragment Trigger on Trigger {
+    __typename
     id
     createdAt
     createdBy {...UserInfo}
@@ -79,17 +78,13 @@ fragment Trigger on Trigger {
     description
     enabled
     scope {
-        __typename
         ...ProjectScope
-        ...ArtifactPortfolioScope
-        ...ArtifactSequenceScope
+        ...ArtifactCollectionScope
     }
     event: triggeringCondition {
-        __typename
         ...FilterEventTriggeringCondition
     }
     action: triggeredAction {
-        __typename
         ...QueueJobAction
         ...NotificationAction
         ...WebhookAction
@@ -98,12 +93,14 @@ fragment Trigger on Trigger {
 
 # ------------------------------------------------------------------------------
 fragment PageInfo on PageInfo {
+    __typename
     endCursor
     hasNextPage
 }
 
 # ------------------------------------------------------------------------------
 fragment PaginatedProjectTriggers on ProjectConnection {
+    __typename
     pageInfo {...PageInfo}
     edges {
         cursor
@@ -112,27 +109,16 @@ fragment PaginatedProjectTriggers on ProjectConnection {
         }
     }
 }
-
-query TriggersInUserOrgEntity ($entityName: String, $cursor: String, $perPage: Int) {
-    viewer(entityName: $entityName) {
-        organizations {
-            orgEntity {
-                projects(after: $cursor, first: $perPage) {...PaginatedProjectTriggers}
-            }
-        }
+query TriggersInProjects ($cursor: String, $perPage: Int) {
+    viewer {
+        projects(after: $cursor, first: $perPage) {...PaginatedProjectTriggers}
     }
 }
-
-query TriggersInUserTeams ($entityName: String, $cursor: String, $perPage: Int) {
-    viewer(entityName: $entityName) {
-        organizations {
-            teams {
-                projects(after: $cursor, first: $perPage) {...PaginatedProjectTriggers}
-            }
-        }
+query TriggersInEntityProjects ($entityName: String!, $cursor: String, $perPage: Int) {
+    entity (name: $entityName) {
+        projects(after: $cursor, first: $perPage) {...PaginatedProjectTriggers}
     }
 }
-
 
 # ------------------------------------------------------------------------------
 fragment CreateFilterTriggerResult on CreateFilterTriggerPayload {
@@ -171,7 +157,8 @@ mutation DeleteTrigger($id: ID!) {
 }
 
 # ------------------------------------------------------------------------------
-fragment PaginatedIntegrations on IntegrationConnection {
+fragment PaginatedSlackIntegrations on IntegrationConnection {
+    __typename
     pageInfo {...PageInfo}
     edges {
         cursor
@@ -181,23 +168,8 @@ fragment PaginatedIntegrations on IntegrationConnection {
         }
     }
 }
-
-#query SlackIntegrationsForUser($cursor: String, $perPage: Int) {
-#    viewer {
-#        userEntity {
-#            integrations(after: $cursor, first: $perPage) {...PaginatedIntegrations}
-#        }
-#    }
-#}
-#
-#query SlackIntegrationsForTeam($entityName: String, $cursor: String, $perPage: Int) {
-#    entity(name: $entityName) {
-#        integrations(after: $cursor, first: $perPage) {...PaginatedIntegrations}
-#    }
-#}
-
-query SlackIntegrationsForEntity($entityName: String!, $cursor: String, $perPage: Int) {
+query SlackIntegrationsInEntity($entityName: String!, $cursor: String, $perPage: Int) {
     entity(name: $entityName) {
-        integrations(after: $cursor, first: $perPage) {...PaginatedIntegrations}
+        integrations(after: $cursor, first: $perPage) {...PaginatedSlackIntegrations}
     }
 }
