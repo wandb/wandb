@@ -101,7 +101,9 @@ class Image(BatchableMedia):
         with wandb.init() as run:
             examples = []
             for i in range(3):
-                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+                pixels = np.random.randint(
+                    low=0, high=256, size=(100, 100, 3), dtype=np.uint8
+                )
                 pil_image = PILImage.fromarray(pixels, mode="RGB")
                 image = wandb.Image(pil_image, caption=f"random field {i}")
                 examples.append(image)
