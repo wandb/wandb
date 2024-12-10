@@ -1362,7 +1362,6 @@ class Run:
     def _serialize_custom_charts(
         self,
         data: dict[str, Any],
-        key_prefix: str | None = None,
     ) -> dict[str, Any]:
         """Process and replace chart objects with their underlying table values.
 
@@ -1383,11 +1382,9 @@ class Run:
 
         keys_to_replace = set()
         for k, v in data.items():
-            key = f"{key_prefix}.{k}" if key_prefix else k
-
             if isinstance(v, Visualize):
                 data[k] = v.table
-                v.set_key(key)
+                v.set_key(k)
                 self._config_callback(
                     val=v.spec.config_value,
                     key=v.spec.config_key,
@@ -1396,14 +1393,14 @@ class Run:
                 # If this is a custom chart, we will update our history with the table key.
                 # Allowing for charts to be nested in dictionaries.
                 keys_to_replace.add(k)
-                v.set_key(key)
+                v.set_key(k)
                 self._config_callback(
                     val=v.spec.config_value,
                     key=v.spec.config_key,
                 )
             elif isinstance(v, dict):
                 # Recursively apply the serialization of custom charts to nested dictionaries
-                data[k] = self._serialize_custom_charts(v, key_prefix=key)
+                data[k] = self._serialize_custom_charts(v)
 
         for k in keys_to_replace:
             # Remove the custom chart keys from the history.
@@ -1411,7 +1408,7 @@ class Run:
             if isinstance(v, CustomChart):
                 # Update our history with the table key.
                 # Only the last part of the key is needed when displaying the table.
-                data[v.spec.table_key.split(".")[-1]] = v.table
+                data[v.spec.table_key] = v.table
         return data
 
     def _partial_history_callback(
