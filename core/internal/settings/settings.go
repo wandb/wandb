@@ -243,6 +243,11 @@ func (s *Settings) GetHTTPSProxy() string {
 	return s.Proto.HttpsProxy.GetValue()
 }
 
+// Whether to disable SSL verification.
+func (s *Settings) IsInsecureDisableSSL() bool {
+	return s.Proto.InsecureDisableSsl.GetValue()
+}
+
 // Path to the script that created the run, if available.
 func (s *Settings) GetProgram() string {
 	return s.Proto.Program.GetValue()
