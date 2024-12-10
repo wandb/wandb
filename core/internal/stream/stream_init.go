@@ -92,7 +92,6 @@ func ProxyFn(httpProxy string, httpsProxy string) func(req *http.Request) (*url.
 func NewGraphQLClient(
 	backend *api.Backend,
 	settings *settings.Settings,
-	peeker *observability.Peeker,
 ) graphql.Client {
 	// TODO: This is used for the service account feature to associate the run
 	// with the specified user. Note that we are using environment variables
@@ -118,7 +117,6 @@ func NewGraphQLClient(
 		RetryWaitMax:       api.DefaultRetryWaitMax,
 		NonRetryTimeout:    api.DefaultNonRetryTimeout,
 		ExtraHeaders:       graphqlHeaders,
-		NetworkPeeker:      peeker,
 		Proxy:              ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
 		InsecureDisableSSL: settings.IsInsecureDisableSSL(),
 	}
@@ -147,7 +145,6 @@ func NewFileStream(
 	operations *wboperation.WandbOperations,
 	printer *observability.Printer,
 	settings *settings.Settings,
-	peeker api.Peeker,
 ) filestream.FileStream {
 	fileStreamHeaders := map[string]string{}
 	maps.Copy(fileStreamHeaders, settings.GetExtraHTTPHeaders())
@@ -162,7 +159,6 @@ func NewFileStream(
 		RetryWaitMax:       filestream.DefaultRetryWaitMax,
 		NonRetryTimeout:    filestream.DefaultNonRetryTimeout,
 		ExtraHeaders:       fileStreamHeaders,
-		NetworkPeeker:      peeker,
 		Proxy:              ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
 		InsecureDisableSSL: settings.IsInsecureDisableSSL(),
 	}

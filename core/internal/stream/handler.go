@@ -293,11 +293,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 	case *spb.Request_JobInfo:
 		// not implemented in the old handler
 
-	case *spb.Request_ServerInfo:
-	case *spb.Request_CheckVersion:
-		// The above been removed from the client but are kept here for now.
-		// Should be removed in the future.
-
 	case *spb.Request_Login:
 		h.handleRequestLogin(record)
 	case *spb.Request_RunStatus:
@@ -316,8 +311,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestDefer(record, x.Defer)
 	case *spb.Request_GetSummary:
 		h.handleRequestGetSummary(record)
-	case *spb.Request_NetworkStatus:
-		h.handleRequestNetworkStatus(record)
 	case *spb.Request_PartialHistory:
 		h.handleRequestPartialHistory(record, x.PartialHistory)
 	case *spb.Request_PollExit:
@@ -356,6 +349,12 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestJobInput(record)
 	case *spb.Request_RunFinishWithoutExit:
 		h.handleRequestRunFinishWithoutExit(record)
+
+	// The following have been removed and should be ignored.
+	case *spb.Request_ServerInfo:
+	case *spb.Request_CheckVersion:
+	case *spb.Request_NetworkStatus:
+
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRequest: request type is nil"))
@@ -917,10 +916,6 @@ func (h *Handler) handleTBrecord(record *spb.TBRecord) {
 		h.logger.CaptureError(
 			fmt.Errorf("handler: failed to handle TB record: %v", err))
 	}
-}
-
-func (h *Handler) handleRequestNetworkStatus(record *spb.Record) {
-	h.fwdRecord(record)
 }
 
 // handleRequestPartialHistory updates the run history, flushing data for

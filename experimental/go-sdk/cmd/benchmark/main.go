@@ -6,8 +6,8 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/wandb/wandb/experimental/client-go/pkg/gowandb"
 	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
+	"github.com/wandb/wandb/experimental/client-go/pkg/wandb"
 )
 
 type BenchOpts struct {
@@ -23,7 +23,7 @@ type BenchOpts struct {
 
 type Bench struct {
 	opts  BenchOpts
-	wandb *gowandb.Session
+	wandb *wandb.Session
 }
 
 func NewBench(benchOpts BenchOpts) *Bench {
@@ -31,7 +31,7 @@ func NewBench(benchOpts BenchOpts) *Bench {
 }
 
 func (b *Bench) Setup() {
-	params := gowandb.SessionParams{}
+	params := wandb.SessionParams{}
 	if *b.opts.port != 0 {
 		params.Address = fmt.Sprintf("%s:%d", *b.opts.host, *b.opts.port)
 	}
@@ -48,7 +48,7 @@ func (b *Bench) Setup() {
 		params.Settings = baseSettings
 	}
 	var err error
-	b.wandb, err = gowandb.NewSession(params)
+	b.wandb, err = wandb.Setup(&params)
 	if err != nil {
 		panic(err)
 	}
@@ -70,12 +70,12 @@ func (b *Bench) RunWorkers() {
 }
 
 func (b *Bench) Worker() {
-	run, err := b.wandb.NewRun(gowandb.RunParams{})
+	run, err := wandb.Init(&wandb.RunParams{})
 	if err != nil {
 		panic(err)
 	}
 
-	data := make(gowandb.History)
+	data := make(wandb.History)
 	for i := 0; i < *b.opts.numHistoryElements; i++ {
 		data[fmt.Sprintf("loss_%d", i)] = float64(100 + i)
 	}
