@@ -252,7 +252,9 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 	}
 
 	if opts.InsecureDisableSSL {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
 	}
 
 	retryableHTTP.HTTPClient.Transport =
