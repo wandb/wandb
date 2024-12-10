@@ -2,6 +2,7 @@
 // cgo -godefs sysconf_values_netbsd.go
 
 //go:build netbsd && arm
+// +build netbsd,arm
 
 package sysconf
 

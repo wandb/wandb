@@ -2,6 +2,7 @@
 // cgo -godefs sysconf_values_freebsd.go
 
 //go:build freebsd && arm64
+// +build freebsd,arm64
 
 package sysconf
 

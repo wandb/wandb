@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 )
@@ -123,27 +124,27 @@ type User struct {
 }
 
 func (u User) IsEmpty() bool {
-	if len(u.ID) > 0 {
+	if u.ID != "" {
 		return false
 	}
 
-	if len(u.Email) > 0 {
+	if u.Email != "" {
 		return false
 	}
 
-	if len(u.IPAddress) > 0 {
+	if u.IPAddress != "" {
 		return false
 	}
 
-	if len(u.Username) > 0 {
+	if u.Username != "" {
 		return false
 	}
 
-	if len(u.Name) > 0 {
+	if u.Name != "" {
 		return false
 	}
 
-	if len(u.Segment) > 0 {
+	if u.Segment != "" {
 		return false
 	}
 
@@ -238,8 +239,7 @@ type Mechanism struct {
 // SetUnhandled indicates that the exception is an unhandled exception, i.e.
 // from a panic.
 func (m *Mechanism) SetUnhandled() {
-	h := false
-	m.Handled = &h
+	m.Handled = Pointer(false)
 }
 
 // Exception specifies an error that occurred.
@@ -398,12 +398,13 @@ func (e *Event) SetException(exception error, maxErrorDepth int) {
 	}
 
 	// event.Exception should be sorted such that the most recent error is last.
-	reverse(e.Exception)
+	slices.Reverse(e.Exception)
 
 	for i := range e.Exception {
 		e.Exception[i].Mechanism = &Mechanism{
 			IsExceptionGroup: true,
 			ExceptionID:      i,
+			Type:             "generic",
 		}
 		if i == 0 {
 			continue
@@ -429,7 +430,9 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 	// and a few type tricks.
 	if e.Type == transactionType {
 		return e.transactionMarshalJSON()
-	} else if e.Type == checkInType {
+	}
+
+	if e.Type == checkInType {
 		return e.checkInMarshalJSON()
 	}
 	return e.defaultMarshalJSON()
