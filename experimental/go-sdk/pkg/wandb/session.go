@@ -1,10 +1,11 @@
-package gowandb
+package wandb
 
 import (
 	"context"
 	"fmt"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+
 	"github.com/wandb/wandb/experimental/client-go/internal/connection"
 	"github.com/wandb/wandb/experimental/client-go/internal/execbin"
 	"github.com/wandb/wandb/experimental/client-go/internal/launcher"
@@ -26,10 +27,20 @@ type Session struct {
 	settings   *settings.Settings
 }
 
+func newSession(params *SessionParams) *Session {
+	return &Session{
+		ctx:        context.Background(),
+		address:    params.Address,
+		coreBinary: params.CoreBinary,
+		settings:   params.Settings,
+	}
+}
+
 func (s *Session) start() {
-	if s.address == "" {
+	if s.address != "" {
 		return
 	}
+
 	var execCmd *execbin.ForkExecCmd
 	var err error
 
@@ -49,6 +60,7 @@ func (s *Session) start() {
 		panic("error getting port")
 	}
 	s.address = fmt.Sprintf("127.0.0.1:%d", port)
+
 }
 
 func (s *Session) connect() *connection.Connection {
@@ -67,28 +79,30 @@ func (s *Session) Close() {
 			InformTeardown: &spb.ServerInformTeardownRequest{},
 		},
 	}); err != nil {
-		// slog.Error("error sending teardown request", "err", err)
+		// TODO(beta): log error
+	} else {
+		conn.Close()
 	}
-	conn.Close()
-
 	if s.execCmd != nil {
 		_ = s.execCmd.Wait()
 		// TODO(beta): check exit code
 	}
 }
 
-func (s *Session) NewRun(params RunParams) (*Run, error) {
-	// make a copy of the base manager settings
+func (s *Session) Init(params *RunParams) (*Run, error) {
 	runSettings, err := settings.New()
 	if err != nil {
 		return nil, err
 	}
-	runSettings.FromSettings(s.settings).FromSettings(params.Settings)
-	run := NewRun(s.ctx, RunParams{
-		Settings: runSettings,
-		Config:   params.Config,
-		Conn:     s.connect(),
-	})
-	run.Start()
+	runSettings.FromSettings(s.settings)
+	runSettings.FromSettings(params.Settings)
+	run := newRun(s.ctx,
+		&runParams{
+			settings: runSettings,
+			conn:     s.connect(),
+			config:   params.Config,
+		},
+	)
+	run.start()
 	return run, nil
 }
