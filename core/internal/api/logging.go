@@ -50,8 +50,11 @@ func withRetryLogging(
 			switch {
 			case resp == nil && err == nil:
 				logger.Error("api: retrying HTTP request, no error or response")
+
 			case err != nil:
 				logger.Info("api: retrying error", "error", err)
+				wboperation.Get(ctx).MarkRetryingError(err)
+
 			case resp.StatusCode >= 400:
 
 				logger.Info(

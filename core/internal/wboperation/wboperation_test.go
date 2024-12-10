@@ -2,6 +2,7 @@ package wboperation_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -103,6 +104,16 @@ func TestHTTPError(t *testing.T) {
 
 	proto := ops.ToProto()
 	assert.Equal(t, "retrying HTTP 123", proto.Operations[0].ErrorStatus)
+}
+
+func TestGoError(t *testing.T) {
+	ops := wboperation.NewOperations()
+	op := ops.New("test operation")
+
+	op.MarkRetryingError(errors.New("test: example"))
+
+	proto := ops.ToProto()
+	assert.Equal(t, "retrying: test: example", proto.Operations[0].ErrorStatus)
 }
 
 func TestClearError(t *testing.T) {
