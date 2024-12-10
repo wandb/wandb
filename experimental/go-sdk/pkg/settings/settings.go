@@ -10,7 +10,7 @@ import (
 	"time"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/experimental/client-go/internal/uuid"
+	"github.com/wandb/wandb/experimental/client-go/internal/uid"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -106,7 +106,7 @@ func New() (*Settings, error) {
 	return &Settings{
 		BaseURL:            "https://api.wandb.ai",
 		Console:            ConsoleAuto,
-		RunID:              uuid.GenerateUniqueID(8),
+		RunID:              uid.GenerateUniqueID(8),
 		Mode:               ModeOnline,
 		RootDir:            rootDir,
 		timeSpec:           time.Now(),
@@ -175,6 +175,9 @@ func (s *Settings) FromEnv() *Settings {
 
 func (s *Settings) FromSettings(source *Settings) *Settings {
 	// use reflection to copy all non-zero fields from settings to s
+	if source == nil {
+		return s
+	}
 	sourceValue := reflect.ValueOf(source)
 	targetValue := reflect.ValueOf(s)
 
