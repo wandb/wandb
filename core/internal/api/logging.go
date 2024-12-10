@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 
@@ -50,12 +52,25 @@ func withRetryLogging(
 			case err != nil:
 				logger.Info("api: retrying error", "error", err)
 			case resp.StatusCode >= 400:
-				// TODO: Log the request body.
+				// Read up to 1KB of the body.
+				bodyReader := NewBufferingReader(resp.Body)
+				bodyPrefix, err := io.ReadAll(io.LimitReader(bodyReader, 1024))
+
+				var body string
+				if err != nil {
+					body = fmt.Sprintf("error reading body: %v", err)
+				} else {
+					body = string(bodyPrefix)
+				}
+
 				logger.Info(
 					"api: retrying HTTP error",
 					"status", resp.StatusCode,
 					"url", resp.Request.URL.String(),
+					"body", body,
 				)
+
+				resp.Body = bodyReader.Reconstruct()
 
 				// TODO: Report the attempt number & time to next retry.
 				wboperation.Get(ctx).MarkRetryingHTTPError(resp.Status)
