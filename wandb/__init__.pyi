@@ -140,12 +140,10 @@ def setup(
 
         import wandb
 
-
         def run_experiment(params):
             with wandb.init(config=params):
                 # Run experiment
                 pass
-
 
         if __name__ == "__main__":
             # Start backend and set global config
@@ -520,12 +518,14 @@ def log(
     the following results in two sections named "train" and "validate":
 
     ```
-    run.log({
-        "train/accuracy": 0.9,
-        "train/loss": 30,
-        "validate/accuracy": 0.8,
-        "validate/loss": 20,
-    })
+    run.log(
+        {
+            "train/accuracy": 0.9,
+            "train/loss": 30,
+            "validate/accuracy": 0.8,
+            "validate/loss": 20,
+        }
+    )
     ```
 
     Only one level of nesting is supported; `run.log({"a/b/c": 1})`
