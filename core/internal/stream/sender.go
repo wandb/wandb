@@ -63,7 +63,6 @@ type SenderParams struct {
 	RunfilesUploader    runfiles.Uploader
 	TBHandler           *tensorboard.TBHandler
 	GraphqlClient       graphql.Client
-	Peeker              *observability.Peeker
 	RunSummary          *runsummary.RunSummary
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *spb.Result
@@ -151,9 +150,6 @@ type Sender struct {
 	// that allow users to re-run the run with different configurations
 	jobBuilder *launch.JobBuilder
 
-	// networkPeeker is a helper for peeking into network responses
-	networkPeeker *observability.Peeker
-
 	// mailbox is used to store cancel functions for each mailbox slot
 	mailbox *mailbox.Mailbox
 
@@ -237,7 +233,6 @@ func NewSender(
 			params.FileTransferManager,
 		),
 		tbHandler:     params.TBHandler,
-		networkPeeker: params.Peeker,
 		graphqlClient: params.GraphqlClient,
 		mailbox:       params.Mailbox,
 		runSummary:    params.RunSummary,
@@ -465,14 +460,8 @@ func (s *Sender) sendRecord(record *spb.Record) {
 // sendRequest sends a request
 func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 	switch x := request.RequestType.(type) {
-	case *spb.Request_ServerInfo:
-	case *spb.Request_CheckVersion:
-		// These requests were removed from the client, so we don't need to
-		// handle them. Keep for now should be removed in the future
 	case *spb.Request_RunStart:
 		s.sendRequestRunStart(x.RunStart)
-	case *spb.Request_NetworkStatus:
-		s.sendRequestNetworkStatus(record, x.NetworkStatus)
 	case *spb.Request_Defer:
 		s.sendRequestDefer(x.Defer)
 	case *spb.Request_LogArtifact:
@@ -491,6 +480,12 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 		s.sendRequestJobInput(x.JobInput)
 	case *spb.Request_RunFinishWithoutExit:
 		s.sendRequestRunFinishWithoutExit(record, x.RunFinishWithoutExit)
+
+	// These requests were removed from the client and should be ignored.
+	case *spb.Request_ServerInfo:
+	case *spb.Request_CheckVersion:
+	case *spb.Request_NetworkStatus:
+
 	case nil:
 		s.logger.CaptureFatalAndPanic(
 			errors.New("sender: sendRequest: nil RequestType"))
@@ -540,29 +535,6 @@ func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
 			s.startState.Project,
 			s.startState.RunID,
 			s.startState.FileStreamOffset,
-		)
-	}
-}
-
-func (s *Sender) sendRequestNetworkStatus(
-	record *spb.Record,
-	_ *spb.NetworkStatusRequest,
-) {
-	// in case of network peeker is not set, we don't need to do anything
-	if s.networkPeeker == nil {
-		return
-	}
-
-	// send the network status response if there is any
-	if response := s.networkPeeker.Read(); len(response) > 0 {
-		s.respond(record,
-			&spb.Response{
-				ResponseType: &spb.Response_NetworkStatusResponse{
-					NetworkStatusResponse: &spb.NetworkStatusResponse{
-						NetworkResponses: response,
-					},
-				},
-			},
 		)
 	}
 }

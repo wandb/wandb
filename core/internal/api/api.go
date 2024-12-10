@@ -184,11 +184,6 @@ type ClientOptions struct {
 	// arbitrary HTTP requests.
 	ExtraHeaders map[string]string
 
-	// Allows the client to peek at the network traffic, can preform any action
-	// on the request and response. Need to make sure that the response body is
-	// available to read by later stages.
-	NetworkPeeker Peeker
-
 	// Function that returns a proxy URL to use for a given http.Request.
 	//
 	// The proxy type is determined by the URL scheme.
@@ -257,11 +252,7 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 		}
 	}
 
-	retryableHTTP.HTTPClient.Transport =
-		NewPeekingTransport(
-			opts.NetworkPeeker,
-			NewRateLimitedTransport(transport),
-		)
+	retryableHTTP.HTTPClient.Transport = NewRateLimitedTransport(transport)
 
 	return &clientImpl{
 		backend:       backend,

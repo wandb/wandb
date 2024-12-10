@@ -153,8 +153,6 @@ class RunStatusChecker:
 
     _stop_status_lock: threading.Lock
     _stop_status_handle: MailboxHandle | None
-    _network_status_lock: threading.Lock
-    _network_status_handle: MailboxHandle | None
     _internal_messages_lock: threading.Lock
     _internal_messages_handle: MailboxHandle | None
 
@@ -180,14 +178,6 @@ class RunStatusChecker:
             daemon=True,
         )
 
-        self._network_status_lock = threading.Lock()
-        self._network_status_handle = None
-        self._network_status_thread = threading.Thread(
-            target=self.check_network_status,
-            name="NetStatThr",
-            daemon=True,
-        )
-
         self._internal_messages_lock = threading.Lock()
         self._internal_messages_handle = None
         self._internal_messages_thread = threading.Thread(
@@ -198,7 +188,6 @@ class RunStatusChecker:
 
     def start(self) -> None:
         self._stop_thread.start()
-        self._network_status_thread.start()
         self._internal_messages_thread.start()
 
     @staticmethod
@@ -254,35 +243,6 @@ class RunStatusChecker:
             wait_time = max(timeout - time_elapsed, 0)
             join_requested = self._join_event.wait(timeout=wait_time)
 
-    def check_network_status(self) -> None:
-        def _process_network_status(result: Result) -> None:
-            network_status = result.response.network_status_response
-            for hr in network_status.network_responses:
-                if (
-                    hr.http_status_code == 200 or hr.http_status_code == 0
-                ):  # we use 0 for non-http errors (eg wandb errors)
-                    wandb.termlog(f"{hr.http_response_text}")
-                else:
-                    wandb.termlog(
-                        "{} encountered ({}), retrying request".format(
-                            hr.http_status_code, hr.http_response_text.rstrip()
-                        )
-                    )
-
-        try:
-            self._loop_check_status(
-                lock=self._network_status_lock,
-                set_handle=lambda x: setattr(self, "_network_status_handle", x),
-                timeout=self._retry_polling_interval,
-                request=self._interface.deliver_network_status,
-                process=_process_network_status,
-            )
-        except BrokenPipeError:
-            self._abandon_status_check(
-                self._network_status_lock,
-                self._network_status_handle,
-            )
-
     def check_stop_status(self) -> None:
         def _process_stop_status(result: Result) -> None:
             stop_status = result.response.stop_status_response
@@ -334,10 +294,6 @@ class RunStatusChecker:
             self._stop_status_handle,
         )
         self._abandon_status_check(
-            self._network_status_lock,
-            self._network_status_handle,
-        )
-        self._abandon_status_check(
             self._internal_messages_lock,
             self._internal_messages_handle,
         )
@@ -345,7 +301,6 @@ class RunStatusChecker:
     def join(self) -> None:
         self.stop()
         self._stop_thread.join()
-        self._network_status_thread.join()
         self._internal_messages_thread.join()
 
 
