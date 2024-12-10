@@ -447,6 +447,18 @@ def init(ctx, project, entity, reset, mode):
     help="Specifies the type of run for grouping related runs together.",
 )
 @click.option(
+    "--add_tag",
+    "add_tag",
+    multiple=True,
+    help="Used to add labels to runs",
+)
+@click.option(
+    "--remove_tag",
+    "remove_tag",
+    multiple=True,
+    help="Used to remove a label from a run",
+)
+@click.option(
     "--sync-tensorboard/--no-sync-tensorboard",
     is_flag=True,
     default=None,
@@ -506,6 +518,8 @@ def sync(
     project=None,
     entity=None,
     job_type=None,  # trace this back to SyncManager
+    add_tag=None,
+    remove_tag=None,
     sync_tensorboard=None,
     include_globs=None,
     exclude_globs=None,
@@ -582,6 +596,8 @@ def sync(
             entity=entity,
             run_id=run_id,
             job_type=job_type,
+            add_tag=add_tag,
+            remove_tag=remove_tag,
             mark_synced=mark_synced,
             app_url=api.app_url,
             view=view,
