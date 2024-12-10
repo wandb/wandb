@@ -11,6 +11,7 @@ from typing import Any, Callable
 
 import nox
 
+
 nox.options.default_venv_backend = "uv"
 
 _SUPPORTED_PYTHONS = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
@@ -346,6 +347,12 @@ def graphql_codegen_schema_change(session: nox.Session) -> None:
         "--schema-change",
         external=True,
     )
+
+
+@nox.session(python="3.10", name="graphql-codegen-python")
+def graphql_codegen_python(session: nox.Session) -> None:
+    """Runs GraphQL codegen to generate python code."""
+    session.run("./tools/pydantic_codegen/generate-graphql-python.sh")
 
 
 @nox.session(python=False, name="local-testcontainer-registry")
