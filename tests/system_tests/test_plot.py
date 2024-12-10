@@ -162,10 +162,10 @@ def test_log_multiple_nested_plots(wandb_init, wandb_backend_spy):
 
         # Verify the table was set in the config and summary
         assert "layer3_table" in summary["layer1"]["layer2"]
-        assert "layer1.layer2.layer3" in config["_wandb"]["value"]["visualize"]
+        assert "layer3" in config["_wandb"]["value"]["visualize"]
 
         assert "layer5_table" in summary["layer1"]["layer4"]
-        assert "layer1.layer4.layer5" in config["_wandb"]["value"]["visualize"]
+        assert "layer5" in config["_wandb"]["value"]["visualize"]
 
         for plot, key_path in [
             (plot1, ["layer1", "layer2", "layer3_table"]),
