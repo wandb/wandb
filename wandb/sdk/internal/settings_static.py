@@ -62,7 +62,8 @@ class SettingsStatic(Settings):
                 else:
                     value = None
 
-            data[key] = value
+            if value is not None:
+                data[key] = value
 
         if len(forks_specified) > 1:
             raise ValueError(
