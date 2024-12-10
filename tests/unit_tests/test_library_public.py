@@ -209,6 +209,7 @@ SYMBOLS_RUN = {
     "display",
     "settings",
     "status",
+    "metadata",
 }
 
 # symbols having to do with resuming, we should clean this up
