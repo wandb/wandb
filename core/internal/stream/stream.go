@@ -225,13 +225,15 @@ func NewStream(
 		},
 	)
 
-	s.writer = NewWriter(
-		WriterParams{
-			Logger:   s.logger,
-			Settings: s.settings,
-			FwdChan:  make(chan runwork.Work, BufferSize),
-		},
-	)
+	if !s.settings.IsSkipTransactionLog() {
+		s.writer = NewWriter(
+			WriterParams{
+				Logger:   s.logger,
+				Settings: s.settings,
+				FwdChan:  make(chan runwork.Work, BufferSize),
+			},
+		)
+	}
 
 	s.sender = NewSender(
 		s.runWork,
@@ -294,17 +296,25 @@ func (s *Stream) Start() {
 		s.wg.Done()
 	}()
 
-	// write the data to a transaction log
-	s.wg.Add(1)
-	go func() {
-		s.writer.Do(s.handler.fwdChan)
-		s.wg.Done()
-	}()
+	var senderChan chan runwork.Work
+	if s.settings.IsSkipTransactionLog() {
+		// wire the handler directly to the sender
+		senderChan = s.handler.fwdChan
+	} else {
+		// write the data to a transaction log
+		// wire the handler through the writer to the sender
+		s.wg.Add(1)
+		go func() {
+			s.writer.Do(s.handler.fwdChan)
+			s.wg.Done()
+		}()
+		senderChan = s.writer.fwdChan
+	}
 
 	// send the data to the server
 	s.wg.Add(1)
 	go func() {
-		s.sender.Do(s.writer.fwdChan)
+		s.sender.Do(senderChan)
 		s.wg.Done()
 	}()
 
