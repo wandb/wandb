@@ -93,6 +93,11 @@ func (s *Settings) GetTransactionLogPath() string {
 	return s.Proto.SyncFile.GetValue()
 }
 
+// Whether to skip saving the run events to the transaction log.
+func (s *Settings) IsSkipTransactionLog() bool {
+	return s.Proto.XSkipTransactionLog.GetValue()
+}
+
 // Whether we are in shared mode.
 //
 // In "shared" mode, multiple processes can write to the same run,

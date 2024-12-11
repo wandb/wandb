@@ -646,6 +646,7 @@ class Settings(BaseModel, validate_assignment=True):
     """Wait time between live policy updates in seconds."""
 
     x_log_level: int = logging.INFO
+<<<<<<< HEAD
     """Logging level for internal operations."""
 
     x_network_buffer: Optional[int] = None
@@ -656,6 +657,41 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_primary: bool = Field(
         default=True, validation_alias=AliasChoices("x_primary", "x_primary_node")
+=======
+    x_network_buffer: int | None = None
+    # Determines whether to save internal wandb files and metadata.
+    # In a distributed setting, this is useful for avoiding file overwrites on secondary nodes
+    # when only system metrics and logs are needed, as the primary node handles the main logging.
+    x_primary_node: bool = True
+    # [deprecated, use http(s)_proxy] custom proxy servers for the requests to W&B
+    # [scheme -> url].
+    x_proxies: dict[str, str] | None = None
+    x_runqueue_item_id: str | None = None
+    x_require_legacy_service: bool = False
+    x_save_requirements: bool = True
+    x_service_transport: str | None = None
+    x_service_wait: float = 30.0
+    x_show_operation_stats: bool = True
+    # Whether to skip saving the run events to the transaction log.
+    x_skip_transaction_log: bool = False
+    # The start time of the run in seconds since the Unix epoch.
+    x_start_time: float | None = None
+    # PID of the process that started the wandb-core process to collect system stats for.
+    x_stats_pid: int = os.getpid()
+    # Sampling interval for the system monitor in seconds.
+    x_stats_sampling_interval: float = Field(default=10.0)
+    # Path to store the default config file for the neuron-monitor tool
+    # used to monitor AWS Trainium devices.
+    x_stats_neuron_monitor_config_path: str | None = None
+    # Open metrics endpoint names and urls.
+    x_stats_open_metrics_endpoints: dict[str, str] | None = None
+    # Filter to apply to metrics collected from OpenMetrics endpoints.
+    # Supports two formats:
+    # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
+    # - ("metric regex pattern 1", "metric regex pattern 2", ...)
+    x_stats_open_metrics_filters: dict[str, dict[str, str]] | Sequence[str] | None = (
+        None
+>>>>>>> 12fc740ae (feat: add ability to skip the writes to the transaction log)
     )
     """Determines whether to save internal wandb files and metadata.
 

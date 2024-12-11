@@ -321,23 +321,20 @@ func (s *Stream) Start() {
 		s.wg.Done()
 	}()
 
-	// write the data to a transaction log
-	if !s.settings.IsSync() {
-
+	// different modes of operations depending on the settings
+	switch {
+	case s.settings.IsSkipTransactionLog():
+		// if we are skipping the transaction log, we just forward the data from
+		// the handler to the sender directly
 		s.wg.Add(1)
 		go func() {
-			s.writer.Do(s.handler.fwdChan)
+			s.sender.Do(s.handler.fwdChan)
 			s.wg.Done()
 		}()
-
-		// send the data to the server
-		s.wg.Add(1)
-		go func() {
-			s.sender.Do(s.writer.fwdChan)
-			s.wg.Done()
-		}()
-
-	} else {
+	case s.settings.IsSync():
+		// if we are syncing, we need to read the data from the transaction log
+		// and forward it to the handler, that will forward it to the sender
+		// without going through the writer
 		s.wg.Add(1)
 		go func() {
 			s.reader.Do()
@@ -347,6 +344,22 @@ func (s *Stream) Start() {
 		s.wg.Add(1)
 		go func() {
 			s.sender.Do(s.handler.fwdChan)
+			s.wg.Done()
+		}()
+	default:
+		// This is the default case, where we are not skipping the transaction log
+		// and we are not syncing. We only get the data from the client and the
+		// handler handles it passing it to the writer (storing in the transaction log),
+		// that will forward it to the sender
+		s.wg.Add(1)
+		go func() {
+			s.writer.Do(s.handler.fwdChan)
+			s.wg.Done()
+		}()
+
+		s.wg.Add(1)
+		go func() {
+			s.sender.Do(s.writer.fwdChan)
 			s.wg.Done()
 		}()
 	}
