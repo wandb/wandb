@@ -223,18 +223,23 @@ func NewStream(
 	)
 
 	mailbox := mailbox.New()
-	if s.settings.IsSync() {
+	switch {
+	case s.settings.IsSync():
 		s.reader = NewReader(ReaderParams{
 			Logger:   s.logger,
 			Settings: s.settings,
 			RunWork:  s.runWork,
 		})
-	} else {
+	case !s.settings.IsSkipTransactionLog():
 		s.writer = NewWriter(WriterParams{
 			Logger:   s.logger,
 			Settings: s.settings,
 			FwdChan:  make(chan runwork.Work, BufferSize),
 		})
+	default:
+		s.logger.Info("stream: not syncing, skipping transaction log",
+			"id", s.settings.GetRunID(),
+		)
 	}
 
 	s.handler = NewHandler(
@@ -282,7 +287,7 @@ func NewStream(
 
 	s.dispatcher = NewDispatcher(s.logger)
 
-	s.logger.Info("created new stream", "id", s.settings.GetRunID())
+	s.logger.Info("stream: created new stream", "id", s.settings.GetRunID())
 	return s
 }
 

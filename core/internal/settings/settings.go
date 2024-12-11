@@ -94,6 +94,12 @@ func (s *Settings) GetTransactionLogPath() string {
 }
 
 // Whether to skip saving the run events to the transaction log.
+//
+// This is only relevant for online runs. Can be used to reduce the
+// amount of data written to disk.
+//
+// Should be used with caution, as it removes the gurantees about
+// recoverability.
 func (s *Settings) IsSkipTransactionLog() bool {
 	return s.Proto.XSkipTransactionLog.GetValue()
 }

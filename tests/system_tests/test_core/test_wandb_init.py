@@ -167,3 +167,27 @@ def test_resume_from_run_id_is_not_set(wandb_backend_spy):
         pass
 
     assert rewound_run.id == run_id
+
+
+@pytest.mark.wandb_core_only
+@pytest.mark.parametrize("skip_transaction_log", [True, False])
+def test_skip_transaction_log(user, skip_transaction_log):
+    """Test that the skip transaction log setting works correctly.
+
+    If skip_transaction_log is True, the transaction log file should not be created.
+    If skip_transaction_log is False, the transaction log file should be created.
+    """
+    with wandb.init(
+        settings={
+            "x_skip_transaction_log": skip_transaction_log,
+            "mode": "online",
+        }
+    ) as run:
+        pass
+    assert os.path.exists(run._settings.sync_file) == (not skip_transaction_log)
+
+
+def test_skip_transaction_log_offline(user):
+    """Test that skip transaction log is not allowed in offline mode."""
+    with pytest.raises(ValueError):
+        wandb.init(settings={"mode": "offline", "x_skip_transaction_log": True})
