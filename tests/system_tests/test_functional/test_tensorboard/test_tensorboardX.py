@@ -6,8 +6,8 @@ import wandb
 from tensorboardX import SummaryWriter
 
 
-def test_add_scalar(wandb_init, wandb_backend_spy):
-    with wandb_init(sync_tensorboard=True) as run:
+def test_add_scalar(wandb_backend_spy):
+    with wandb.init(sync_tensorboard=True) as run:
         with SummaryWriter() as writer:
             for i in range(10):
                 writer.add_scalar("loss", torch.tensor(i / 64), i + 1)
@@ -22,8 +22,8 @@ def test_add_scalar(wandb_init, wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-def test_add_image(wandb_init, wandb_backend_spy):
-    with wandb_init(sync_tensorboard=True) as run:
+def test_add_image(wandb_backend_spy):
+    with wandb.init(sync_tensorboard=True) as run:
         with SummaryWriter() as writer:
             for i in range(10):
                 writer.add_image(
@@ -46,8 +46,8 @@ def test_add_image(wandb_init, wandb_backend_spy):
 
 
 @pytest.mark.wandb_core_only
-def test_add_gif(wandb_init, wandb_backend_spy):
-    with wandb_init(sync_tensorboard=True) as run:
+def test_add_gif(wandb_backend_spy):
+    with wandb.init(sync_tensorboard=True) as run:
         with SummaryWriter() as writer:
             for i in range(10):
                 writer.add_video(
