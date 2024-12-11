@@ -282,9 +282,12 @@ impl SystemMonitor for SystemMonitorImpl {
 
         let stats_items: Vec<StatsItem> = all_metrics
             .iter()
-            .map(|(name, value)| StatsItem {
-                key: name.to_string(),
-                value_json: value.to_string(),
+            .filter(|(name, _)| !name.starts_with('_')) // Skip internal metrics
+            .filter_map(|(name, value)| {
+                serde_json::to_string(value).ok().map(|json_str| StatsItem {
+                    key: name.to_string(),
+                    value_json: json_str,
+                })
             })
             .collect();
 
