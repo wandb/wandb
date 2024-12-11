@@ -380,6 +380,12 @@ class Settings(BaseModel, validate_assignment=True):
             )
         return self
 
+    @model_validator(mode="after")
+    def validate_skip_transaction_log(self):
+        if self._offline and self.x_skip_transaction_log:
+            raise ValueError("Cannot skip transaction log in offline mode")
+        return self
+
     # Field validators.
 
     @field_validator("x_disable_service", mode="after")

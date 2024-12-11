@@ -233,6 +233,8 @@ func NewStream(
 				FwdChan:  make(chan runwork.Work, BufferSize),
 			},
 		)
+	} else {
+		s.logger.Info("stream: skipping transaction log", "id", s.settings.GetRunID())
 	}
 
 	s.sender = NewSender(
@@ -258,7 +260,7 @@ func NewStream(
 
 	s.dispatcher = NewDispatcher(s.logger)
 
-	s.logger.Info("created new stream", "id", s.settings.GetRunID())
+	s.logger.Info("stream: created new stream", "id", s.settings.GetRunID())
 	return s
 }
 
