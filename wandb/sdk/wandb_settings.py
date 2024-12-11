@@ -332,9 +332,9 @@ class Settings(BaseModel, validate_assignment=True):
         if platform.system() == "Darwin"
         else ("/",)
     )
-    # Indexes of the GPUs to monitor. Must be a subset of the GPUs available on the system
-    # and should be in the range [0, num_gpus). Numbering must be consistent with that
-    # reported by the cuda/rocm runtime.
+    # GPU device indices to monitor (e.g. [0, 1, 2]).
+    # If not set, captures metrics for all GPUs.
+    # Assumes 0-based indexing matching CUDA/ROCm device enumeration.
     x_stats_gpu_devices: Sequence[int] | None = None
     # Number of system metric samples to buffer in memory in the wandb-core process.
     # Can be accessed via run._system_metrics.
