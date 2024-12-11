@@ -435,7 +435,7 @@ func (s *Settings) GetStatsDiskPaths() []string {
 }
 
 // The indices of GPU devices to monitor.
-func (s *Settings) GetStatsGpuIds() []int32 {
+func (s *Settings) GetStatsGpuDeviceIds() []int32 {
 	return s.Proto.XStatsGpuDeviceIds.GetValue()
 }
 
