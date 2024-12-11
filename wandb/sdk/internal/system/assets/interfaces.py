@@ -1,13 +1,15 @@
 import datetime
 import logging
-import sys
 import threading
-from typing import TYPE_CHECKING, Any, List, Optional, TypeVar
-
-if sys.version_info >= (3, 8):
-    from typing import Protocol, runtime_checkable
-else:
-    from typing_extensions import Protocol, runtime_checkable
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    List,
+    Optional,
+    Protocol,
+    TypeVar,
+    runtime_checkable,
+)
 
 if TYPE_CHECKING:
     from typing import Deque

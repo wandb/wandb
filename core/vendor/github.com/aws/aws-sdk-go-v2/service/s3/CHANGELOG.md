@@ -1,3 +1,25 @@
+# v1.71.0 (2024-12-03.2)
+
+* **Feature**: Amazon S3 Metadata stores object metadata in read-only, fully managed Apache Iceberg metadata tables that you can query. You can create metadata table configurations for S3 general purpose buckets.
+
+# v1.70.0 (2024-12-02)
+
+* **Feature**: Amazon S3 introduces support for AWS Dedicated Local Zones
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.69.0 (2024-11-25)
+
+* **Feature**: Amazon Simple Storage Service / Features: Add support for ETag based conditional writes in PutObject and CompleteMultiPartUpload APIs to prevent unintended object modifications.
+
+# v1.68.0 (2024-11-21)
+
+* **Feature**: Add support for conditional deletes for the S3 DeleteObject and DeleteObjects APIs. Add support for write offset bytes option used to append to objects with the S3 PutObject API.
+
+# v1.67.1 (2024-11-18)
+
+* **Dependency Update**: Update to smithy-go v1.22.1.
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.67.0 (2024-11-14)
 
 * **Feature**: This release updates the ListBuckets API Reference documentation in support of the new 10,000 general purpose bucket default quota on all AWS accounts. To increase your bucket quota from 10,000 to up to 1 million buckets, simply request a quota increase via Service Quotas.

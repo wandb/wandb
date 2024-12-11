@@ -72,7 +72,8 @@ from typing import (
 
 import wandb.plot as plot
 from wandb.analytics import Sentry
-from wandb.apis import InternalApi, PublicApi
+from wandb.apis import InternalApi
+from wandb.apis import PublicApi as Api
 from wandb.data_types import (
     Audio,
     Graph,
@@ -102,12 +103,11 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.18.8.dev1"
+__version__: str = "0.19.1.dev1"
 
 run: Run | None
 config: wandb_config.Config
 summary: wandb_summary.Summary
-Api: type[PublicApi]
 
 # private attributes
 _sentry: Sentry
@@ -140,12 +140,10 @@ def setup(
 
         import wandb
 
-
         def run_experiment(params):
             with wandb.init(config=params):
                 # Run experiment
                 pass
-
 
         if __name__ == "__main__":
             # Start backend and set global config
@@ -422,15 +420,25 @@ def init(
     """
     ...
 
-def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
-    """Mark a run as finished, and finish uploading all data.
+def finish(
+    exit_code: int | None = None,
+    quiet: bool | None = None,
+) -> None:
+    """Finish a run and upload any remaining data.
 
-    This is used when creating multiple runs in the same process.
-    We automatically call this method when your script exits.
+    Marks the completion of a W&B run and ensures all data is synced to the server.
+    The run's final state is determined by its exit conditions and sync status.
+
+    Run States:
+    - Running: Active run that is logging data and/or sending heartbeats.
+    - Crashed: Run that stopped sending heartbeats unexpectedly.
+    - Finished: Run completed successfully (`exit_code=0`) with all data synced.
+    - Failed: Run completed with errors (`exit_code!=0`).
 
     Args:
-        exit_code: Set to something other than 0 to mark a run as failed
-        quiet: Deprecated, use `wandb.Settings(quiet=...)` to set this instead.
+        exit_code: Integer indicating the run's exit status. Use 0 for success,
+            any other value marks the run as failed.
+        quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
     """
     ...
 
@@ -510,12 +518,14 @@ def log(
     the following results in two sections named "train" and "validate":
 
     ```
-    run.log({
-        "train/accuracy": 0.9,
-        "train/loss": 30,
-        "validate/accuracy": 0.8,
-        "validate/loss": 20,
-    })
+    run.log(
+        {
+            "train/accuracy": 0.9,
+            "train/loss": 30,
+            "validate/accuracy": 0.8,
+            "validate/loss": 20,
+        }
+    )
     ```
 
     Only one level of nesting is supported; `run.log({"a/b/c": 1})`

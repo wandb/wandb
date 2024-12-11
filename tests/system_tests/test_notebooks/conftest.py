@@ -5,16 +5,18 @@ import shutil
 import sys
 from contextlib import contextmanager
 from typing import Any, Dict, Generator, List
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import filelock
+import IPython
+import IPython.display
 import nbformat
 import pytest
 import wandb
 import wandb.util
 from nbclient import NotebookClient
 from nbclient.client import CellExecutionError
-from wandb.sdk.lib.ipython import PythonType
+from wandb.sdk.lib import ipython
 
 if sys.version_info >= (3, 12):
     from typing import override
@@ -53,26 +55,25 @@ def mocked_module(monkeypatch):
 
 
 @pytest.fixture
-def mocked_ipython():
+def mocked_ipython(monkeypatch):
+    monkeypatch.setattr(ipython, "in_jupyter", lambda: True)
+
     def run_cell(cell):
         print("Running cell: ", cell)
         exec(cell)
 
-    with patch("wandb.sdk.lib.ipython._get_python_type") as _get_python_type:
-        _get_python_type.return_value = "jupyter"
-        html_mock = MagicMock()
-        with patch("wandb.sdk.lib.ipython.display_html", html_mock):
-            ipython = MagicMock()
-            ipython.html = html_mock
-            ipython.run_cell = run_cell
-            # TODO: this is really unfortunate, for reasons not clear to me, monkeypatch doesn't work
-            orig_get_ipython = wandb.jupyter.get_ipython
-            orig_display = wandb.jupyter.display
-            wandb.jupyter.get_ipython = lambda: ipython
-            wandb.jupyter.display = lambda obj: html_mock(obj._repr_html_())
-            yield ipython
-            wandb.jupyter.get_ipython = orig_get_ipython
-            wandb.jupyter.display = orig_display
+    mock_get_ipython_result = MagicMock()
+    mock_get_ipython_result.run_cell = run_cell
+    mock_get_ipython_result.html = MagicMock()
+
+    monkeypatch.setattr(IPython, "get_ipython", lambda: mock_get_ipython_result)
+    monkeypatch.setattr(
+        IPython.display,
+        "display",
+        lambda obj, **kwargs: mock_get_ipython_result.html(obj._repr_html_()),
+    )
+
+    return mock_get_ipython_result
 
 
 class WandbNotebookClient(NotebookClient):
@@ -98,7 +99,7 @@ class WandbNotebookClient(NotebookClient):
                 raise e
             for output in executed_cell["outputs"]:
                 if output["output_type"] == "error" and nb_cell_id != 0:
-                    print("Error in cell: %d" % nb_cell_id)
+                    print(f"Error in cell: {nb_cell_id}")
                     print("\n".join(output["traceback"]))
                     raise ValueError(output["evalue"])
             executed_cells.append(executed_cell)
@@ -185,7 +186,7 @@ def notebook(user, run_id, assets_path):
     def notebook_loader(
         nb_name: str,
         kernel_name: str = "wandb_python",
-        notebook_type: PythonType = "jupyter",
+        notebook_type: ipython.PythonType = "jupyter",
         save_code: bool = True,
         **kwargs: Any,
     ):

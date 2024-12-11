@@ -10,7 +10,7 @@ def test_run_system_metrics(wandb_backend_spy, test_settings):
         settings=test_settings(
             wandb.Settings(
                 x_file_stream_transmit_interval=1,
-                x_stats_sampling_interval=1,
+                x_stats_sampling_interval=0.1,
                 x_stats_buffer_size=100,
             )
         )

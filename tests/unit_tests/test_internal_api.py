@@ -1,7 +1,6 @@
 import base64
 import hashlib
 import os
-import sys
 import tempfile
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union
@@ -388,10 +387,6 @@ def test_resolve_org_entity_name_with_old_server():
 MockResponseOrException = Union[Exception, Tuple[int, Mapping[int, int], str]]
 
 
-@pytest.mark.skipif(
-    sys.version_info.major == 3 and sys.version_info.minor < 8,
-    reason="flaky on 3.7",
-)
 class TestUploadFile:
     """Tests `upload_file`."""
 

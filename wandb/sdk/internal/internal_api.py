@@ -20,6 +20,7 @@ from typing import (
     Dict,
     Iterable,
     List,
+    Literal,
     Mapping,
     MutableMapping,
     NamedTuple,
@@ -29,11 +30,6 @@ from typing import (
     Tuple,
     Union,
 )
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 import click
 import requests
@@ -63,10 +59,7 @@ logger = logging.getLogger(__name__)
 LAUNCH_DEFAULT_PROJECT = "model-registry"
 
 if TYPE_CHECKING:
-    if sys.version_info >= (3, 8):
-        from typing import Literal, TypedDict
-    else:
-        from typing_extensions import Literal, TypedDict
+    from typing import Literal, TypedDict
 
     from .progress import ProgressFn
 
@@ -4557,7 +4550,7 @@ class Api:
         check_httpclient_logger_handler()
         return requests.put(
             url=url,
-            headers={"Content-Length": "0", "Content-Range": "bytes */%i" % length},
+            headers={"Content-Length": "0", "Content-Range": f"bytes */{length}"},
         )
 
     def _flatten_edges(self, response: "_Response") -> List[Dict]:

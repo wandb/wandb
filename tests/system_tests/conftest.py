@@ -11,7 +11,7 @@ import unittest.mock
 import urllib.parse
 from collections.abc import Sequence
 from contextlib import contextmanager
-from typing import Any, Dict, Generator, Iterator, List, Optional, Union
+from typing import Any, Dict, Generator, Iterator, List, Literal, Optional, Union
 
 import pytest
 import requests
@@ -26,11 +26,6 @@ from .relay import (
     TokenizedCircularPattern,
 )
 from .wandb_backend_spy import WandbBackendProxy, WandbBackendSpy, spy_proxy
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 
 class ConsoleFormatter:
@@ -747,58 +742,6 @@ def server_context(local_wandb_backend: LocalWandbBackendAddress):
             return self.api.run(run.path)
 
     yield ServerContext()
-
-
-# Injected responses
-@pytest.fixture(scope="function")
-def inject_file_stream_response(local_wandb_backend, user):
-    def helper(
-        run,
-        body: Union[str, Exception] = "{}",
-        status: int = 200,
-        application_pattern: str = "1",
-    ) -> InjectedResponse:
-        if status > 299:
-            message = body if isinstance(body, str) else "::".join(body.args)
-            body = DeliberateHTTPError(status_code=status, message=message)
-        return InjectedResponse(
-            method="POST",
-            url=(
-                urllib.parse.urljoin(
-                    local_wandb_backend.base_url,
-                    f"/files/{user}/{run.project or 'uncategorized'}/{run.id}/file_stream",
-                )
-            ),
-            body=body,
-            status=status,
-            application_pattern=TokenizedCircularPattern(application_pattern),
-        )
-
-    yield helper
-
-
-@pytest.fixture(scope="function")
-def inject_file_stream_connection_reset(local_wandb_backend, user):
-    def helper(
-        run,
-        body: Union[str, Exception] = "{}",
-        status: int = 200,
-        application_pattern: str = "1",
-    ) -> InjectedResponse:
-        return InjectedResponse(
-            method="POST",
-            url=(
-                urllib.parse.urljoin(
-                    local_wandb_backend.base_url,
-                    f"/files/{user}/{run.project or 'uncategorized'}/{run.id}/file_stream",
-                )
-            ),
-            application_pattern=TokenizedCircularPattern(application_pattern),
-            body=body or ConnectionResetError("Connection reset by peer"),
-            status=status,
-        )
-
-    yield helper
 
 
 @pytest.fixture(scope="function")

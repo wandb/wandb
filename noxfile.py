@@ -13,7 +13,7 @@ import nox
 
 nox.options.default_venv_backend = "uv"
 
-_SUPPORTED_PYTHONS = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+_SUPPORTED_PYTHONS = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
 # Directories in which to create temporary per-session directories
 # containing test results and pytest/Go coverage.
@@ -113,10 +113,11 @@ def run_pytest(
     # Print 20 slowest tests.
     pytest_opts.append(f"--durations={opts.get('durations', 20)}")
 
-    # Track and report memory usage with memray.
-    pytest_opts.append("--memray")
-    # Show the 5 tests that allocate most memory.
-    pytest_opts.append("--most-allocations=5")
+    if platform.system() != "Windows":  # memray is not supported on Windows.
+        # Track and report memory usage with memray.
+        pytest_opts.append("--memray")
+        # Show the 5 tests that allocate most memory.
+        pytest_opts.append("--most-allocations=5")
 
     # Output test results for tooling.
     junitxml = _NOX_PYTEST_RESULTS_DIR / session_file_name / "junit.xml"
@@ -128,6 +129,12 @@ def run_pytest(
 
     # (pytest-xdist) Run tests in parallel.
     pytest_opts.append(f"-n={opts.get('n', 'auto')}")
+
+    # Limit the # of workers in CI. Due to heavy tensorflow and pytorch imports,
+    # each worker uses up 700MB+ of memory, so with a large number of workers,
+    # we start to max out the RAM and slow down. This also causes flakes in
+    # time-dependent tests.
+    pytest_opts.append("--maxprocesses=10")
 
     # (pytest-split) Run a subset of tests only (for external parallelism).
     (circle_node_index, circle_node_total) = get_circleci_splits(session)
@@ -490,7 +497,6 @@ def proto_python(session: nox.Session, pb: int) -> None:
     The pb argument is the major version of the protobuf package to use.
 
     Tested with Python 3.10 on a Mac with an M1 chip.
-    Absolutely does not work with Python 3.7.
     """
     _generate_proto_python(session, pb=pb)
 
@@ -586,6 +592,7 @@ def mypy_report(session: nox.Session) -> None:
         "pip",
         "pydantic",
         "pycobertura",
+        "ipython",
         "lxml",
         "pandas-stubs",
         "platformdirs",
@@ -788,9 +795,8 @@ def importer_tests(session: nox.Session, importer: str):
         session.install(".[workspaces]", "pydantic>=2")
     elif importer == "mlflow":
         session.install("pydantic<2")
-    if session.python != "3.7":
-        session.install("polyfactory")
     session.install(
+        "polyfactory",
         "polars<=1.2.1",
         "rich",
         "filelock",

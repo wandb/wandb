@@ -1,4 +1,3 @@
-import sys
 import time
 from contextlib import contextmanager
 from typing import Optional
@@ -145,8 +144,7 @@ def test_on_probe():
         handle.add_probe(mock_on_probe)
         _ = handle.wait(timeout=3)
         assert mock_on_probe.call_count == 2
-        if sys.version_info[:2] >= (3, 8):  # call_args.args only in 3.8+
-            assert isinstance(mock_on_probe.call_args.args[0], MailboxProbe)
+        assert isinstance(mock_on_probe.call_args.args[0], MailboxProbe)
         assert time_obj.elapsed_time >= 3
 
 
@@ -160,8 +158,7 @@ def test_on_progress():
         handle.add_progress(mock_on_progress)
         _ = handle.wait(timeout=3)
         assert mock_on_progress.call_count == 2
-        if sys.version_info[:2] >= (3, 8):  # call_args.args only in 3.8+
-            assert isinstance(mock_on_progress.call_args.args[0], MailboxProgress)
+        assert isinstance(mock_on_progress.call_args.args[0], MailboxProgress)
 
 
 def test_keepalive():
@@ -206,8 +203,7 @@ def test_wait_stop():
         result = handle.wait(timeout=3)
         assert result is None
         assert mock_on_progress.call_count == 1
-        if sys.version_info[:2] >= (3, 8):  # call_args.args only in 3.8+
-            assert isinstance(mock_on_progress.call_args.args[0], MailboxProgress)
+        assert isinstance(mock_on_progress.call_args.args[0], MailboxProgress)
 
 
 @parameterized.expand(

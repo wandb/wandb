@@ -13,13 +13,19 @@ class SettingsStatic(Settings):
     """
 
     def __init__(self, proto: wandb_settings_pb2.Settings) -> None:
-        self._from_proto(proto)
-        object.__setattr__(self, "_proto", proto)
+        data = self._proto_to_dict(proto)
+        super().__init__(**data)
 
-    def _from_proto(self, proto: wandb_settings_pb2.Settings) -> None:
+    def _proto_to_dict(self, proto: wandb_settings_pb2.Settings) -> dict:
+        data = {}
+
         forks_specified: list[str] = []
-        for key in Settings.model_fields:
+        for key in Settings.model_fields:  # type: ignore [attr-defined]
             value: Any = None
+
+            field_info = Settings.model_fields[key]
+            annotation = str(field_info.annotation)
+
             if key == "_stats_open_metrics_filters":
                 # todo: it's an underscored field, refactor into
                 #  something more elegant?
@@ -50,14 +56,21 @@ class SettingsStatic(Settings):
             else:
                 if proto.HasField(key):  # type: ignore [arg-type]
                     value = getattr(proto, key).value
+                    # Convert to list if the field is a sequence
+                    if any(t in annotation for t in ("tuple", "Sequence", "list")):
+                        value = list(value)
                 else:
                     value = None
-            object.__setattr__(self, key, value)
+
+            if value is not None:
+                data[key] = value
 
         if len(forks_specified) > 1:
             raise ValueError(
                 "Only one of fork_from or resume_from can be specified, not both"
             )
+
+        return data
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("Error: SettingsStatic is a readonly object")
