@@ -268,6 +268,8 @@ impl NvidiaGpu {
     /// # Arguments
     ///
     /// * `pid` - The process ID to monitor for GPU usage.
+    /// * `gpu_device_ids` - An optional list of GPU device IDs to monitor. If not provided,
+    ///  all GPUs are monitored.
     ///
     /// # Returns
     ///
@@ -278,7 +280,11 @@ impl NvidiaGpu {
     ///
     /// This function should return an error only if an internal NVML call fails.
     /// ```
-    pub fn get_metrics(&mut self, pid: i32) -> Result<Vec<(String, MetricValue)>, NvmlError> {
+    pub fn get_metrics(
+        &mut self,
+        pid: i32,
+        gpu_device_ids: Option<Vec<i32>>,
+    ) -> Result<Vec<(String, MetricValue)>, NvmlError> {
         let mut metrics: Vec<(String, MetricValue)> = vec![];
 
         metrics.push((
@@ -291,6 +297,14 @@ impl NvidiaGpu {
         ));
 
         for di in 0..self.device_count {
+            // Skip GPU if not in the list of device IDs to monitor.
+            // If no device IDs are provided, monitor all GPUs.
+            if let Some(ref gpu_device_ids) = gpu_device_ids {
+                if !gpu_device_ids.contains(&di) {
+                    continue;
+                }
+            }
+
             let device = match self.nvml.device_by_index(di) {
                 Ok(device) => device,
                 Err(_e) => {

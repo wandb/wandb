@@ -314,7 +314,7 @@ message Settings {
   //
   // If not set, captures metrics for all GPUs.
   // Assumes 0-based indexing matching CUDA/ROCm device enumeration.
-  ListIntValue x_stats_gpu_indices = 186;
+  ListIntValue x_stats_gpu_device_ids = 186;
 
   // Label to assign to system metrics and console logs collected for the run
   // to group by on the frontend. Can be used to distinguish data from different

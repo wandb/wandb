@@ -434,6 +434,11 @@ func (s *Settings) GetStatsDiskPaths() []string {
 	return s.Proto.XStatsDiskPaths.GetValue()
 }
 
+// The indices of GPU devices to monitor.
+func (s *Settings) GetStatsGpuIds() []int32 {
+	return s.Proto.XStatsGpuDeviceIds.GetValue()
+}
+
 // The path to the Neuron monitor config file.
 func (s *Settings) GetStatsNeuronMonitorConfigPath() string {
 	return s.Proto.XStatsNeuronMonitorConfigPath.GetValue()

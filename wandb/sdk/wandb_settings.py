@@ -335,7 +335,7 @@ class Settings(BaseModel, validate_assignment=True):
     # GPU device indices to monitor (e.g. [0, 1, 2]).
     # If not set, captures metrics for all GPUs.
     # Assumes 0-based indexing matching CUDA/ROCm device enumeration.
-    x_stats_gpu_devices: Sequence[int] | None = None
+    x_stats_gpu_device_ids: Sequence[int] | None = None
     # Number of system metric samples to buffer in memory in the wandb-core process.
     # Can be accessed via run._system_metrics.
     x_stats_buffer_size: int = 0
