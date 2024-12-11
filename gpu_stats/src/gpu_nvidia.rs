@@ -300,7 +300,7 @@ impl NvidiaGpu {
             // Skip GPU if not in the list of device IDs to monitor.
             // If no device IDs are provided, monitor all GPUs.
             if let Some(ref gpu_device_ids) = gpu_device_ids {
-                if !gpu_device_ids.contains(&di as &i32) {
+                if !gpu_device_ids.contains(&(di as i32)) {
                     continue;
                 }
             }
