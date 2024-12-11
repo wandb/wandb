@@ -2,7 +2,6 @@ package filestream
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/wandb/simplejsonext"
@@ -25,10 +24,6 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 	row["_runtime"] = timestamp.AsTime().Sub(u.StartTime).Seconds()
 
 	for _, item := range u.Record.Item {
-		// skip underscored keys
-		if strings.HasPrefix(item.Key, "_") {
-			continue
-		}
 		val, err := simplejsonext.UnmarshalString(item.ValueJson)
 		if err != nil {
 			ctx.Logger.CaptureError(

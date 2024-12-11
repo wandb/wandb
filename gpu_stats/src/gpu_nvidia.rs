@@ -675,13 +675,13 @@ impl NvidiaGpu {
         metadata_request.gpu_count = n_gpu;
         // TODO: do not assume all GPUs are the same
         if let Some(value) = samples.get("_gpu.0.name") {
-            if let MetricValue::String(gpu_name) = value {
-                metadata_request.gpu_type = gpu_name.to_string();
+            if let MetricValue::String(ref gpu_name) = value {
+                metadata_request.gpu_type = gpu_name.clone();
             }
         }
         if let Some(value) = samples.get("_cuda_version") {
-            if let MetricValue::String(cuda_version) = value {
-                metadata_request.cuda_version = cuda_version.to_string();
+            if let MetricValue::String(ref cuda_version) = value {
+                metadata_request.cuda_version = cuda_version.clone();
             }
         }
 
@@ -690,7 +690,9 @@ impl NvidiaGpu {
                 ..Default::default()
             };
             if let Some(value) = samples.get(&format!("_gpu.{}.name", i)) {
-                gpu_nvidia.name = value.to_string();
+                if let MetricValue::String(ref gpu_name) = value {
+                    gpu_nvidia.name = gpu_name.clone();
+                }
             }
             if let Some(value) = samples.get(&format!("_gpu.{}.memoryTotal", i)) {
                 if let MetricValue::Int(memory_total) = value {
@@ -705,7 +707,9 @@ impl NvidiaGpu {
             }
             // architecture
             if let Some(value) = samples.get(&format!("_gpu.{}.architecture", i)) {
-                gpu_nvidia.architecture = value.to_string();
+                if let MetricValue::String(ref architecture) = value {
+                    gpu_nvidia.architecture = architecture.clone();
+                }
             }
             metadata_request.gpu_nvidia.push(gpu_nvidia);
         }
