@@ -6,6 +6,7 @@ import json
 import logging
 import multiprocessing
 import os
+import pathlib
 import platform
 import re
 import shutil
@@ -412,6 +413,14 @@ class Settings(BaseModel, validate_assignment=True):
             raise ValueError("http is not secure, please use https://api.wandb.ai")
         return value.rstrip("/")
 
+    @field_validator("code_dir", mode="before")
+    @classmethod
+    def validate_code_dir(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
+
     @field_validator("console", mode="after")
     @classmethod
     def validate_console(cls, value, info):
@@ -428,11 +437,27 @@ class Settings(BaseModel, validate_assignment=True):
             value = "redirect"
         return value
 
+    @field_validator("x_executable", mode="before")
+    @classmethod
+    def validate_x_executable(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
+
     @field_validator("x_file_stream_max_line_bytes", mode="after")
     @classmethod
     def validate_file_stream_max_line_bytes(cls, value):
         if value is not None and value < 1:
             raise ValueError("File stream max line bytes must be greater than 0")
+        return value
+
+    @field_validator("x_files_dir", mode="before")
+    @classmethod
+    def validate_x_files_dir(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
         return value
 
     @field_validator("fork_from", mode="before")
@@ -467,6 +492,30 @@ class Settings(BaseModel, validate_assignment=True):
     @classmethod
     def validate_ignore_globs(cls, value):
         return tuple(value) if not isinstance(value, tuple) else value
+
+    @field_validator("program", mode="before")
+    @classmethod
+    def validate_program(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
+
+    @field_validator("program_abspath", mode="before")
+    @classmethod
+    def validate_program_abspath(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
+
+    @field_validator("program_relpath", mode="before")
+    @classmethod
+    def validate_program_relpath(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
 
     @field_validator("project", mode="after")
     @classmethod
@@ -504,6 +553,14 @@ class Settings(BaseModel, validate_assignment=True):
             )
         return run_moment
 
+    @field_validator("root_dir", mode="before")
+    @classmethod
+    def validate_root_dir(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
+
     @field_validator("run_id", mode="after")
     @classmethod
     def validate_run_id(cls, value, info):
@@ -521,6 +578,8 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("settings_system", mode="after")
     @classmethod
     def validate_settings_system(cls, value):
+        if isinstance(value, pathlib.Path):
+            return str(_path_convert(value))
         return _path_convert(value)
 
     @field_validator("x_service_wait", mode="after")
@@ -544,11 +603,12 @@ class Settings(BaseModel, validate_assignment=True):
             )
         return value
 
-    @field_validator("x_stats_sampling_interval", mode="after")
+    @field_validator("x_stats_neuron_monitor_config_path", mode="before")
     @classmethod
-    def validate_stats_sampling_interval(cls, value):
-        if value < 0.1:
-            raise UsageError("Stats sampling interval cannot be less than 0.1 seconds")
+    def validate_x_stats_neuron_monitor_config_path(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
         return value
 
     @field_validator("x_stats_open_metrics_endpoints", mode="before")
@@ -572,6 +632,13 @@ class Settings(BaseModel, validate_assignment=True):
             return json.loads(value)
         return value
 
+    @field_validator("x_stats_sampling_interval", mode="after")
+    @classmethod
+    def validate_stats_sampling_interval(cls, value):
+        if value < 0.1:
+            raise UsageError("Stats sampling interval cannot be less than 0.1 seconds")
+        return value
+
     @field_validator("sweep_id", mode="after")
     @classmethod
     def validate_sweep_id(cls, value):
@@ -583,6 +650,14 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("Sweep ID cannot start or end with whitespace")
         if not bool(value.strip()):
             raise UsageError("Sweep ID cannot contain only whitespace")
+        return value
+
+    @field_validator("sweep_param_path", mode="before")
+    @classmethod
+    def validate_sweep_param_path(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
         return value
 
     # Computed fields.
