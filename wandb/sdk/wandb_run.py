@@ -1359,11 +1359,28 @@ class Run:
         files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
-    def _serialize_custom_charts(self, data: dict[str, Any]) -> dict[str, Any]:
+    def _serialize_custom_charts(
+        self,
+        data: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Process and replace chart objects with their underlying table values.
+
+        This processes the chart objects passed to `run.log()`, replacing their entries
+        in the given dictionary (which is saved to the run's history) and adding them
+        to the run's config.
+
+        Args:
+            data: Dictionary containing data that may include plot objects
+                Plot objects can be nested in dictionaries, which will be processed recursively.
+            key_prefix: The prefix to add to the keys of the data.
+
+        Returns:
+            The processed dictionary with custom charts transformed into tables.
+        """
         if not data:
             return data
 
-        chart_keys = set()
+        keys_to_replace = set()
         for k, v in data.items():
             if isinstance(v, Visualize):
                 data[k] = v.table
@@ -1373,17 +1390,24 @@ class Run:
                     key=v.spec.config_key,
                 )
             elif isinstance(v, CustomChart):
-                chart_keys.add(k)
+                # If this is a custom chart, we will update our history with the table key.
+                # Allowing for charts to be nested in dictionaries.
+                keys_to_replace.add(k)
                 v.set_key(k)
                 self._config_callback(
-                    key=v.spec.config_key,
                     val=v.spec.config_value,
+                    key=v.spec.config_key,
                 )
+            elif isinstance(v, dict):
+                # Recursively apply the serialization of custom charts to nested dictionaries
+                data[k] = self._serialize_custom_charts(v)
 
-        for k in chart_keys:
-            # remove the chart key from the row
+        for k in keys_to_replace:
+            # Remove the custom chart keys from the history.
             v = data.pop(k)
             if isinstance(v, CustomChart):
+                # Update our history with the table key.
+                # Only the last part of the key is needed when displaying the table.
                 data[v.spec.table_key] = v.table
         return data
 
