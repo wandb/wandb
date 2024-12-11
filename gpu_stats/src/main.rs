@@ -19,7 +19,6 @@ use clap::Parser;
 
 use env_logger::Builder;
 use log::{debug, warn, LevelFilter};
-use wandb_internal::request;
 
 use std::collections::HashMap;
 use std::sync::Arc;
