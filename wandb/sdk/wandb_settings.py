@@ -606,6 +606,13 @@ class Settings(BaseModel, validate_assignment=True):
             )
         return value
 
+    @field_validator("x_stats_gpu_device_ids", mode="before")
+    @classmethod
+    def validate_x_stats_gpu_device_ids(cls, value):
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
     @field_validator("x_stats_neuron_monitor_config_path", mode="before")
     @classmethod
     def validate_x_stats_neuron_monitor_config_path(cls, value):
