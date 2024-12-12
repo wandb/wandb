@@ -33,4 +33,7 @@ ARG WANDB_VERSION=""
 RUN pip install --upgrade pip && \
     if [ -z "$WANDB_VERSION" ]; then pip install wandb -qU; else pip install "wandb==$WANDB_VERSION" -qU; fi
 
+RUN pip install numpy \
+    && pip install soundfile
+
 CMD ["sleep", "10000000"]

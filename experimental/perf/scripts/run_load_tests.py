@@ -14,46 +14,97 @@ def print_help():
         """
 Usage: python run_load_tests.py -t <test case> [options]
   -t test case to run (required)
-     bench_log
-     bench_log_scale_step
-     bench_log_scale_metric
+     log_scalar
+     log_scalar_scale_step
+     log_scalar_scale_metric
+     log_audio
+     mltraq
+     mltraq_scale_step
   -k Wandb API key (optional)
   -m online|offline  Wandb logging mode (optional, default: online)
 
-Example: python run_load_tests.py -t bench_log
+Example: python run_load_tests.py -t log_scalar
 """
     )
 
 
-def run_test_case(test_case: str, log_folder: str, num_of_parallel_runs: int):
-    if test_case == "bench_log":
-        loop_count = 4
-        step_count = 20000
-        logger.info(
-            f"Load testing SDK logging in {loop_count} iterations, "
-            f"each logging {step_count} steps, 100 metrics and metric key size of 10"
-        )
-        test_case_helper.bench_log(
-            log_folder, loop_count, step_count, num_of_parallel_runs
-        )
+def run_test_case(test_case: str, log_folder: str, num_of_parallel_runs: int, data_type: str):
+    if test_case == "log_scalar":
+        test_case_helper.run_perf_tests(
+            loop_count=4,
+            step_count=[20000], 
+            metric_count=[100],
+            root_folder=log_folder,
+            num_of_processes=num_of_parallel_runs,
+            data_type=data_type
+        )    
 
-    elif test_case == "bench_log_scale_step":
-        steps = [1000, 2000, 4000, 8000]
-        logger.info(
-            f"Load testing SDK logging scaling through {steps} steps "
-            "each logging 100 metrics with a metric key size of 10"
-        )
-        test_case_helper.bench_log_scale_step(log_folder, steps, num_of_parallel_runs)
+    elif test_case == "log_scalar_scale_step":
+        test_case_helper.run_perf_tests(
+            loop_count=1,
+            step_count=[1000, 2000, 4000, 8000], 
+            metric_count=[100],
+            root_folder=log_folder,
+            num_of_processes=num_of_parallel_runs,
+            data_type=data_type
+        )    
 
-    elif test_case == "bench_log_scale_metric":
-        metrics = [1000, 2000, 4000, 8000]
-        logger.info(
-            f"Load testing SDK logging scaling through {metrics} metrics, "
-            "in each of the 1000 steps, and a metric key size of 10"
-        )
-        test_case_helper.bench_log_scale_metric(
-            log_folder, metrics, num_of_parallel_runs
-        )
+    elif test_case == "log_scalar_scale_metric":
+        test_case_helper.run_perf_tests(
+            loop_count=1,
+            step_count=[1000], 
+            metric_count=[1000, 2000, 4000, 8000],
+            root_folder=log_folder,
+            num_of_processes=num_of_parallel_runs,
+            data_type=data_type
+        )    
+
+    elif test_case == "log_scalar_scale_metric_large":
+        test_case_helper.run_perf_tests(
+            loop_count=1,
+            step_count=[10], 
+            metric_count=[10000, 20000, 40000, 80000, 160000],
+            root_folder=log_folder,
+            num_of_processes=num_of_parallel_runs,
+            data_type=data_type
+        )    
+    
+    elif test_case == "log_media":
+        test_case_helper.run_perf_tests(
+            loop_count=4,
+            step_count=[2000], 
+            metric_count=[10],
+            root_folder=log_folder,
+            num_of_processes=num_of_parallel_runs,
+            data_type=data_type
+        )    
+
+
+    elif test_case == "mltraq_scale_step":
+        # this test simulate what MLTraq did on 
+        # https://github.com/elehcimd/mltraq/blob/devel/notebooks/07%20Tracking%20speed%20-%20Benchmarks%20rev1.ipynb
+        # setup: log different # of steps, each step with 1 metric
+        test_case_helper.run_perf_tests(
+            loop_count=1,
+            step_count=[10000, 50000, 100000, 500000], 
+            metric_count=[1],
+            root_folder=log_folder,
+            num_of_processes=num_of_parallel_runs,
+            data_type=data_type
+        )    
+
+    elif test_case == "mltraq":
+        # this test simulate MLTraq's looping experiement
+        # setup: measure total time of 10 experiments, with 100 steps, each step with 1 metric
+        test_case_helper.run_perf_tests(
+            loop_count=10,
+            step_count=[100], 
+            metric_count=[1],
+            root_folder=log_folder,
+            num_of_processes=num_of_parallel_runs,
+            data_type=data_type
+        )    
+
 
     else:
         logger.error(f"Unrecognized test case: {test_case}")
@@ -67,15 +118,14 @@ def main():
         "--testcase",
         type=str,
         required=True,
-        help="bench_log | bench_log_scale_step | bench_log_scale_metric",
+        help="log_scalar | log_scalar_scale_step | log_scalar_scale_metric | log_media",
     )
-    parser.add_argument("-k", "--wandb_api_key", help="Wandb API key (optional)")
     parser.add_argument(
-        "-m",
-        "--wandb_mode",
+        "-d",
+        "--data_type",
         type=str,
-        default="online",
-        help="Wandb logging mode (default: online)",
+        help="wandb data type to log. Default \"None\" means scalar.",
+        default="scalar",
     )
     parser.add_argument(
         "-n",
@@ -88,18 +138,13 @@ def main():
     args = parser.parse_args()
 
     testcase = args.testcase
-    wandb_api_key = args.wandb_api_key
-    wandb_mode = args.wandb_mode
     num_of_parallel_runs = args.num_of_parallel_runs
+    data_type = args.data_type
 
     if not testcase:
         logger.error("Test case (-t) is required but not provided.")
         print_help()
         exit(1)
-
-    # Set Wandb environment variables
-    os.environ["WANDB_API_KEY"] = wandb_api_key if wandb_api_key else ""
-    os.environ["WANDB_MODE"] = wandb_mode
 
     # Create root folder for test logs
     log_folder = datetime.datetime.now().strftime("%m%d%YT%H%M%S")
@@ -108,7 +153,7 @@ def main():
     start_time = time.time()
 
     # Run the specified test case
-    run_test_case(testcase, log_folder, num_of_parallel_runs)
+    run_test_case(testcase, log_folder, num_of_parallel_runs, data_type)
 
     end_time = time.time()
     total_time = end_time - start_time

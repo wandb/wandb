@@ -1,8 +1,10 @@
 import logging
+import numpy as np
+from pathlib import Path
 import random
 import string
 import subprocess
-from pathlib import Path
+import wandb
 
 
 def get_logger(name: str, log_file: str = "perf.log") -> logging.Logger:
@@ -41,26 +43,40 @@ def get_logger(name: str, log_file: str = "perf.log") -> logging.Logger:
     return logger
 
 
-def generate_random_dict(num_fields: int, field_size: int) -> dict:
-    """Generates a JSON-like dict with the specified number of fields and field sizes.
+def get_payload(data_type: str, metric_count: int, metric_key_size) -> dict:
+    """Generates a payload based on the data type and parameters
 
     Args:
-        num_fields (int): The number of key-value pairs (fields) in the JSON.
-        field_size (int): The size (in characters) of the field values.
+        data_type (str): scalar | audio - the wandb data type.
+        metric_count (int): The number of metrics.
+        metric_key_size (int): The size (in characters) of the metric.
 
     Returns:
-        str: A JSON-like string with the specified structure.
+        dict: payload for logging in the performance testing.
     """
 
-    def random_key():
-        # Generate a random key with a length "field_size"  characters
-        return "".join(
-            random.choices(string.ascii_letters + string.digits + "_", k=field_size)
-        )
+    if data_type == "audio":
 
-    # Generate the specified number of fields
-    return {random_key(): random.randint(1, 10**6) for _ in range(num_fields)}
+        duration = 5 # make a 5s long audio
+        sample_rate = 44100
+        frequency = 440
+    
+        t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
+        audio_data = np.sin(2 * np.pi * frequency * t)
+        audio_obj = wandb.Audio(audio_data, sample_rate=sample_rate)
+        return {get_random_key(metric_key_size): audio_obj for _ in range(metric_count)}
+    
+    elif data_type == "scalar":
+        return {get_random_key(metric_key_size): random.randint(1, 10**6) for _ in range(metric_count)}
+    
+    return None
 
+
+def get_random_key(field_size: int) -> str:
+    # Generate a random key with a length "field_size"  characters
+    return "".join(
+        random.choices(string.ascii_letters + string.digits + "_", k=field_size)
+    )
 
 def capture_sar_metrics(log_dir: str, iteration: int = 8):
     """Captures sar system metrics in the background and saves them to log files.
