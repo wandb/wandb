@@ -17,7 +17,7 @@ def dynamic_progress_printer(
 
     with progress.progress_printer(
         p.new_printer(),
-        settings=wandb.Settings(_show_operation_stats=True),
+        settings=wandb.Settings(x_show_operation_stats=True),
     ) as progress_printer:
         yield progress_printer
 
@@ -27,7 +27,7 @@ def static_progress_printer() -> Iterator[progress.ProgressPrinter]:
     """A ProgressPrinter that writes to a file or dumb terminal."""
     with progress.progress_printer(
         p.new_printer(),
-        settings=wandb.Settings(_show_operation_stats=True),
+        settings=wandb.Settings(x_show_operation_stats=True),
     ) as progress_printer:
         yield progress_printer
 
