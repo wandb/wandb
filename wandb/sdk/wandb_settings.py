@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import configparser
-import getpass
 import json
 import logging
 import multiprocessing
 import os
+import pathlib
 import platform
 import re
 import shutil
@@ -65,6 +65,15 @@ class Settings(BaseModel, validate_assignment=True):
     # To revert to the old behavior, set this to False.
     allow_offline_artifacts: bool = True
     allow_val_change: bool = False
+    # Controls anonymous data logging. Possible values are:
+    # - "never": requires you to link your W&B account before
+    #    tracking the run, so you don't accidentally create an anonymous
+    #    run.
+    # - "allow": lets a logged-in user track runs with their account, but
+    #    lets someone who is running the script without a W&B account see
+    #    the charts in the UI.
+    # - "must": sends the run to an anonymous account instead of to a
+    #    signed-up user account.
     anonymous: Literal["allow", "must", "never"] | None = None
     # The W&B API key.
     api_key: str | None = None
@@ -126,7 +135,10 @@ class Settings(BaseModel, validate_assignment=True):
     identity_token_file: str | None = None
     # Unix glob patterns relative to `files_dir` to not upload.
     ignore_globs: tuple[str, ...] = ()
+    # Time in seconds to wait for the wandb.init call to complete before timing out.
     init_timeout: float = 90.0
+    # Whether to insecurely disable SSL verification.
+    insecure_disable_ssl: bool = False
     job_name: str | None = None
     job_source: Literal["repo", "artifact", "image"] | None = None
     label_disable: bool = False
@@ -320,6 +332,10 @@ class Settings(BaseModel, validate_assignment=True):
         if platform.system() == "Darwin"
         else ("/",)
     )
+    # GPU device indices to monitor (e.g. [0, 1, 2]).
+    # If not set, captures metrics for all GPUs.
+    # Assumes 0-based indexing matching CUDA/ROCm device enumeration.
+    x_stats_gpu_device_ids: Sequence[int] | None = None
     # Number of system metric samples to buffer in memory in the wandb-core process.
     # Can be accessed via run._system_metrics.
     x_stats_buffer_size: int = 0
@@ -400,6 +416,14 @@ class Settings(BaseModel, validate_assignment=True):
             raise ValueError("http is not secure, please use https://api.wandb.ai")
         return value.rstrip("/")
 
+    @field_validator("code_dir", mode="before")
+    @classmethod
+    def validate_code_dir(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
+
     @field_validator("console", mode="after")
     @classmethod
     def validate_console(cls, value, info):
@@ -416,11 +440,27 @@ class Settings(BaseModel, validate_assignment=True):
             value = "redirect"
         return value
 
+    @field_validator("x_executable", mode="before")
+    @classmethod
+    def validate_x_executable(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
+
     @field_validator("x_file_stream_max_line_bytes", mode="after")
     @classmethod
     def validate_file_stream_max_line_bytes(cls, value):
         if value is not None and value < 1:
             raise ValueError("File stream max line bytes must be greater than 0")
+        return value
+
+    @field_validator("x_files_dir", mode="before")
+    @classmethod
+    def validate_x_files_dir(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
         return value
 
     @field_validator("fork_from", mode="before")
@@ -455,6 +495,30 @@ class Settings(BaseModel, validate_assignment=True):
     @classmethod
     def validate_ignore_globs(cls, value):
         return tuple(value) if not isinstance(value, tuple) else value
+
+    @field_validator("program", mode="before")
+    @classmethod
+    def validate_program(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
+
+    @field_validator("program_abspath", mode="before")
+    @classmethod
+    def validate_program_abspath(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
+
+    @field_validator("program_relpath", mode="before")
+    @classmethod
+    def validate_program_relpath(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
 
     @field_validator("project", mode="after")
     @classmethod
@@ -492,6 +556,14 @@ class Settings(BaseModel, validate_assignment=True):
             )
         return run_moment
 
+    @field_validator("root_dir", mode="before")
+    @classmethod
+    def validate_root_dir(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
+
     @field_validator("run_id", mode="after")
     @classmethod
     def validate_run_id(cls, value, info):
@@ -509,6 +581,8 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("settings_system", mode="after")
     @classmethod
     def validate_settings_system(cls, value):
+        if isinstance(value, pathlib.Path):
+            return str(_path_convert(value))
         return _path_convert(value)
 
     @field_validator("x_service_wait", mode="after")
@@ -516,7 +590,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_service_wait(cls, value):
         if value < 0:
             raise UsageError("Service wait time cannot be negative")
-        return
+        return value
 
     @field_validator("start_method")
     @classmethod
@@ -532,11 +606,19 @@ class Settings(BaseModel, validate_assignment=True):
             )
         return value
 
-    @field_validator("x_stats_sampling_interval", mode="after")
+    @field_validator("x_stats_gpu_device_ids", mode="before")
     @classmethod
-    def validate_stats_sampling_interval(cls, value):
-        if value < 0.1:
-            raise UsageError("Stats sampling interval cannot be less than 0.1 seconds")
+    def validate_x_stats_gpu_device_ids(cls, value):
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
+    @field_validator("x_stats_neuron_monitor_config_path", mode="before")
+    @classmethod
+    def validate_x_stats_neuron_monitor_config_path(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
         return value
 
     @field_validator("x_stats_open_metrics_endpoints", mode="before")
@@ -560,6 +642,13 @@ class Settings(BaseModel, validate_assignment=True):
             return json.loads(value)
         return value
 
+    @field_validator("x_stats_sampling_interval", mode="after")
+    @classmethod
+    def validate_stats_sampling_interval(cls, value):
+        if value < 0.1:
+            raise UsageError("Stats sampling interval cannot be less than 0.1 seconds")
+        return value
+
     @field_validator("sweep_id", mode="after")
     @classmethod
     def validate_sweep_id(cls, value):
@@ -571,6 +660,14 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("Sweep ID cannot start or end with whitespace")
         if not bool(value.strip()):
             raise UsageError("Sweep ID cannot contain only whitespace")
+        return value
+
+    @field_validator("sweep_param_path", mode="before")
+    @classmethod
+    def validate_sweep_param_path(cls, value):
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
         return value
 
     # Computed fields.
@@ -956,14 +1053,6 @@ class Settings(BaseModel, validate_assignment=True):
         # vars exist -- but if they don't, we'll fill them in here
         if self.host is None:
             self.host = socket.gethostname()  # type: ignore
-
-        if self.username is None:
-            try:  # type: ignore
-                self.username = getpass.getuser()
-            except KeyError:
-                # getuser() could raise KeyError in restricted environments like
-                # chroot jails or docker containers. Return user id in these cases.
-                self.username = str(os.getuid())
 
         _executable = (
             self.x_executable

@@ -18,7 +18,7 @@ import platform
 import sys
 import tempfile
 import time
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any, Literal, Sequence
 
 if sys.version_info >= (3, 11):
     from typing import Self
@@ -538,8 +538,19 @@ class _WandbInit:
         The returned Run object has all expected attributes and methods, but they are
         no-op versions that don't perform any actual logging or communication.
         """
+        run_id = runid.generate_id()
         drun = Run(
-            settings=Settings(mode="disabled", x_files_dir=tempfile.gettempdir())
+            settings=Settings(
+                mode="disabled",
+                x_files_dir=tempfile.gettempdir(),
+                run_id=run_id,
+                run_tags=tuple(),
+                run_notes=None,
+                run_group=None,
+                run_name=f"dummy-{run_id}",
+                project="dummy",
+                entity="dummy",
+            )
         )
         # config and summary objects
         drun._config = wandb.sdk.wandb_config.Config()
@@ -600,19 +611,13 @@ class _WandbInit:
 
         drun.log_artifact = _ChainableNoOpField()
         # attributes
-        drun._backend = None
-        drun._step = 0
-        drun._attach_id = None
-        drun._run_obj = None
-        drun._run_id = runid.generate_id()
-        drun._name = "dummy-" + drun.id
-        drun._project = "dummy"
-        drun._entity = "dummy"
-        drun._tags = tuple()
-        drun._notes = None
-        drun._group = None
         drun._start_time = time.time()
         drun._starting_step = 0
+        drun._step = 0
+        drun._attach_id = None
+        drun._backend = None
+
+        # set the disabled run as the global run
         module.set_global(
             run=drun,
             config=drun.config,
@@ -877,9 +882,8 @@ class _WandbInit:
             )
 
         assert backend.interface
-        assert run._run_obj
 
-        run_start_handle = backend.interface.deliver_run_start(run._run_obj)
+        run_start_handle = backend.interface.deliver_run_start(run)
         # TODO: add progress to let user know we are doing something
         run_start_result = run_start_handle.wait(timeout=30)
         if run_start_result is None:
@@ -998,49 +1002,48 @@ def _attach(
 
 
 def init(  # noqa: C901
-    job_type: str | None = None,
-    dir: StrPath | None = None,
-    config: dict | str | None = None,
-    project: str | None = None,
     entity: str | None = None,
-    reinit: bool | None = None,
-    tags: Sequence[str] | None = None,
-    group: str | None = None,
+    project: str | None = None,
+    dir: StrPath | None = None,
+    id: str | None = None,
     name: str | None = None,
     notes: str | None = None,
+    tags: Sequence[str] | None = None,
+    config: dict[str, Any] | str | None = None,
     config_exclude_keys: list[str] | None = None,
     config_include_keys: list[str] | None = None,
-    anonymous: str | None = None,
-    mode: str | None = None,
     allow_val_change: bool | None = None,
-    resume: bool | str | None = None,
+    group: str | None = None,
+    job_type: str | None = None,
+    mode: Literal["online", "offline", "disabled"] | None = None,
     force: bool | None = None,
-    tensorboard: bool | None = None,  # alias for sync_tensorboard
+    anonymous: Literal["never", "allow", "must"] | None = None,
+    reinit: bool | None = None,
+    resume: bool | Literal["allow", "never", "must", "auto"] | None = None,
+    resume_from: str | None = None,
+    fork_from: str | None = None,
+    save_code: bool | None = None,
+    tensorboard: bool | None = None,
     sync_tensorboard: bool | None = None,
     monitor_gym: bool | None = None,
-    save_code: bool | None = None,
-    id: str | None = None,
-    fork_from: str | None = None,
-    resume_from: str | None = None,
-    settings: Settings | dict[str, Any] | None = None) -> Run:
+    settings: Settings | dict[str, Any] | None = None,
+) -> Run:
     r"""Start a new run to track and log to W&B.
 
-    In an ML training pipeline, you could add `wandb.init()`
-    to the beginning of your training script as well as your evaluation
-    script, and each piece would be tracked as a run in W&B.
+    In an ML training pipeline, you could add `wandb.init()` to the beginning of
+    your training script as well as your evaluation script, and each piece would
+    be tracked as a run in W&B.
 
     `wandb.init()` spawns a new background process to log data to a run, and it
-    also syncs data to wandb.ai by default, so you can see live visualizations.
+    also syncs data to https://wandb.ai by default, so you can see your results
+    in real-time.
 
     Call `wandb.init()` to start a run before logging data with `wandb.log()`:
 
-    At the end of your script, we will automatically call `wandb.finish` to
-    finalize and cleanup the run. However, if you call `wandb.init` from a
-    child process, you must explicitly call `wandb.finish` at the end of the
-    child process.
+        # ... your training code here ...
 
-    For more on using `wandb.init()`, including detailed examples, check out our
-    [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
+        run.finish()
+        ```
 
     Args:
         project (Optional[str]): The name of the project where you're sending
@@ -1204,12 +1207,12 @@ def init(  # noqa: C901
     # Set where the run is logged
     import wandb
 
-    user = "geoff"
-    project = "capsules"
-    display_name = "experiment-2021-10-31"
+        config = {"lr": 0.01, "batch_size": 32}
+        with wandb.init(config=config) as run:
+            run.config.update({"architecture": "resnet", "depth": 34})
 
-    wandb.init(entity=user, project=project, name=display_name)
-    ```
+            # ... your training code here ...
+        ```
 
     Pass a dictionary-style object as the `config` keyword argument to add
     metadata, like hyperparameters, to your run.
@@ -1299,4 +1302,4 @@ def init(  # noqa: C901
         # Need to build delay into this sentry capture because our exit hooks
         # mess with sentry's ability to send out errors before the program ends.
         wandb._sentry.reraise(e)
-        raise AssertionError()  # unreachable
+        raise AssertionError()  # should never get here

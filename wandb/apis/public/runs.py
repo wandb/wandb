@@ -779,7 +779,9 @@ class Run(Attrs):
         Example:
             >>> import wandb
             >>> import tempfile
-            >>> with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as tmp:
+            >>> with tempfile.NamedTemporaryFile(
+            ...     mode="w", delete=False, suffix=".txt"
+            ... ) as tmp:
             ...     tmp.write("This is a test artifact")
             ...     tmp_path = tmp.name
             >>> run = wandb.init(project="artifact-example")
