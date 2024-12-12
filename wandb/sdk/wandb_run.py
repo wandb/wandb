@@ -2801,7 +2801,7 @@ class Run:
         return m
 
     def _get_server_feature(self, feature: str) -> ServerFeatureItem:
-        if self.settings.x_require_legacy_service:
+        if self._backend is None or self._backend.interface is None:
             return ServerFeatureItem(
                 name=feature,
                 enabled=False,
