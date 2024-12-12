@@ -9,9 +9,8 @@ import subprocess
 import sys
 import unittest.mock
 import urllib.parse
-from collections.abc import Sequence
 from contextlib import contextmanager
-from typing import Any, Dict, Generator, Iterator, List, Literal, Optional, Union
+from typing import Generator, Iterator, List, Literal, Optional, Union
 
 import pytest
 import requests
@@ -676,58 +675,6 @@ def relay_server(wandb_verbose, local_wandb_backend: LocalWandbBackendAddress):
         print(f"Stopping relay server at {_relay_server.relay_url}")
 
     return relay_server_context
-
-
-@pytest.fixture(scope="function")
-def wandb_init(user, test_settings, request):
-    # mirror wandb.sdk.wandb_init.init args, overriding name and entity defaults
-    def init(
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
-        dir: Optional[str] = None,
-        id: Optional[str] = None,
-        name: Optional[str] = None,
-        notes: Optional[str] = None,
-        tags: Optional[Sequence] = None,
-        config: Union[Dict, str, None] = None,
-        config_exclude_keys: Optional[List[str]] = None,
-        config_include_keys: Optional[List[str]] = None,
-        allow_val_change: Optional[bool] = None,
-        group: Optional[str] = None,
-        job_type: Optional[str] = None,
-        mode: Optional[str] = None,
-        force: Optional[bool] = None,
-        anonymous: Optional[str] = None,
-        reinit: bool = None,
-        resume: Optional[Union[bool, str]] = None,
-        resume_from: Optional[str] = None,
-        fork_from: Optional[str] = None,
-        save_code: Optional[bool] = None,
-        tensorboard: Optional[bool] = None,
-        sync_tensorboard: Optional[bool] = None,
-        monitor_gym: Optional[bool] = None,
-        settings: Union[
-            "wandb.sdk.wandb_settings.Settings", Dict[str, Any], None
-        ] = None,
-    ):
-        kwargs = dict(locals())
-        # drop fixtures from kwargs
-        for key in ("user", "test_settings", "request"):
-            kwargs.pop(key, None)
-        # merge settings from request with test_settings
-        request_settings = kwargs.pop("settings", dict())
-        kwargs["name"] = kwargs.pop("name", request.node.name)
-
-        run = wandb.init(
-            settings=test_settings(request_settings),
-            **kwargs,
-        )
-        return run
-
-    wandb._IS_INTERNAL_PROCESS = False
-    yield init
-    # note: this "simulates" a wandb.init function, so you would have to do
-    # something like: run = wandb_init(...); ...; run.finish()
 
 
 @pytest.fixture(scope="function")
