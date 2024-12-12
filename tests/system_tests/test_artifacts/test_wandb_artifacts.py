@@ -1460,14 +1460,12 @@ def test_http_storage_handler_uses_etag_for_digest(
         assert entry.digest == expected_digest
 
 
-def test_s3_storage_handler_load_path_missing_reference(
-    monkeypatch, wandb_init, artifact
-):
+def test_s3_storage_handler_load_path_missing_reference(monkeypatch, user, artifact):
     # Create an artifact that references a non-existent S3 object.
     mock_boto(artifact, version_id="")
     artifact.add_reference("s3://my-bucket/my_object.pb")
 
-    with wandb_init(project="test") as run:
+    with wandb.init(project="test") as run:
         run.log_artifact(artifact)
     artifact.wait()
 
@@ -1480,27 +1478,27 @@ def test_s3_storage_handler_load_path_missing_reference(
 
     monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
 
-    with wandb_init(project="test") as run:
+    with wandb.init(project="test") as run:
         with pytest.raises(FileNotFoundError, match="Unable to find"):
             artifact.download()
 
 
-def test_change_artifact_collection_type(monkeypatch, wandb_init):
-    with wandb_init() as run:
+def test_change_artifact_collection_type(user):
+    with wandb.init() as run:
         artifact = Artifact("image_data", "data")
         run.log_artifact(artifact)
 
-    with wandb_init() as run:
+    with wandb.init() as run:
         artifact = run.use_artifact("image_data:latest")
         artifact.collection.change_type("lucas_type")
 
-    with wandb_init() as run:
+    with wandb.init() as run:
         artifact = run.use_artifact("image_data:latest")
         assert artifact.type == "lucas_type"
 
 
-def test_save_artifact_sequence(monkeypatch, wandb_init, api):
-    with wandb_init() as run:
+def test_save_artifact_sequence(user, api):
+    with wandb.init() as run:
         artifact = Artifact("sequence_name", "data")
         run.log_artifact(artifact)
         artifact.wait()
@@ -1529,8 +1527,8 @@ def test_save_artifact_sequence(monkeypatch, wandb_init, api):
         assert len(collection.tags) == 1 and collection.tags[0] == "new_tag"
 
 
-def test_save_artifact_portfolio(monkeypatch, wandb_init, api):
-    with wandb_init() as run:
+def test_save_artifact_portfolio(user, api):
+    with wandb.init() as run:
         artifact = Artifact("image_data", "data")
         run.log_artifact(artifact)
         artifact.link("portfolio_name")
@@ -1559,13 +1557,13 @@ def test_save_artifact_portfolio(monkeypatch, wandb_init, api):
 
 
 def test_s3_storage_handler_load_path_missing_reference_allowed(
-    monkeypatch, wandb_init, capsys, artifact
+    monkeypatch, user, capsys, artifact
 ):
     # Create an artifact that references a non-existent S3 object.
     mock_boto(artifact, version_id="")
     artifact.add_reference("s3://my-bucket/my_object.pb")
 
-    with wandb_init(project="test") as run:
+    with wandb.init(project="test") as run:
         run.log_artifact(artifact)
     artifact.wait()
 
@@ -1578,7 +1576,7 @@ def test_s3_storage_handler_load_path_missing_reference_allowed(
 
     monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
 
-    with wandb_init(project="test") as run:
+    with wandb.init(project="test") as run:
         artifact.download(allow_missing_references=True)
 
     # It should still log a warning about skipping the missing reference.
@@ -1653,7 +1651,7 @@ def test_manifest_json_invalid_version(version):
 
 @pytest.mark.flaky
 @pytest.mark.xfail(reason="flaky")
-def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch, artifact):
+def test_cache_cleanup_allows_upload(user, tmp_path, monkeypatch, artifact):
     monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path))
     cache = artifact_file_cache.get_artifact_file_cache()
 
@@ -1669,7 +1667,7 @@ def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch, artifact
     os.remove("test-file")
 
     # We're still able to upload the artifact.
-    with wandb_init() as run:
+    with wandb.init() as run:
         run.log_artifact(artifact)
         artifact.wait()
 

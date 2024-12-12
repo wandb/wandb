@@ -64,7 +64,6 @@ class LinkArtifactExpectation:
 def test_link_artifact_client_handles_registry_paths(
     tmp_path,
     user,
-    wandb_init,
     api,
     link_artifact_path,
     expected,
@@ -79,7 +78,7 @@ def test_link_artifact_client_handles_registry_paths(
     artifact_filepath = tmp_path / "boom.txt"
     artifact_filepath.write_text("testing")
 
-    run = wandb_init(entity=user, project=project)
+    run = wandb.init(entity=user, project=project)
     artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
     artifact.add_file(str(artifact_filepath), "test-name")
 
