@@ -10,7 +10,26 @@ from wandb.errors import CommError
 from wandb.sdk.artifacts.artifact import Artifact
 
 
-def test_fetching_artifact_files(user):
+def stub_server_supports_artifact_tags(wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="ServerFeaturesQuery"),
+        gql.once(
+            content={
+                "data": {
+                    "viewer": {
+                        "featureFlags": [
+                            {"rampKey": "ServerSupportsArtifactTags", "isEnabled": True}
+                        ]
+                    }
+                }
+            },
+            status=200,
+        ),
+    )
+
+
+def test_fetching_artifact_files(user, wandb_init):
     project = "test"
 
     with wandb.init(entity=user, project=project) as run:
@@ -123,7 +142,10 @@ def test_save_tags_after_logging_artifact(
     orig_tags,
     edit_tags_inplace,
     server_supports_artifact_tags,
+    wandb_backend_spy,
 ):
+    stub_server_supports_artifact_tags(wandb_backend_spy)
+
     project = "test"
     artifact_name = "test-artifact"
     artifact_type = "test-type"
@@ -205,8 +227,15 @@ INVALID_TAG_LISTS = (
 
 @pytest.mark.parametrize("tags_to_add", INVALID_TAG_LISTS)
 def test_save_invalid_tags_after_logging_artifact(
-    tmp_path, user, api, tags_to_add, server_supports_artifact_tags
+    tmp_path,
+    user,
+    api,
+    tags_to_add,
+    server_supports_artifact_tags,
+    wandb_backend_spy,
 ):
+    stub_server_supports_artifact_tags(wandb_backend_spy)
+
     project = "test"
     artifact_name = "test-artifact"
     artifact_type = "test-type"
