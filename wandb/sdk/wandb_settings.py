@@ -305,7 +305,7 @@ class Settings(BaseModel, validate_assignment=True):
     x_save_requirements: bool = True
     x_service_transport: str | None = None
     x_service_wait: float = 30.0
-    x_show_operation_stats: bool = False
+    x_show_operation_stats: bool = True
     # The start time of the run in seconds since the Unix epoch.
     x_start_time: float | None = None
     # PID of the process that started the wandb-core process to collect system stats for.
