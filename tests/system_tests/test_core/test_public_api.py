@@ -51,9 +51,9 @@ def test_project_to_html(user):
 @pytest.mark.xfail(
     reason="there is no guarantee that the backend has processed the event"
 )
-def test_run_metadata(wandb_init):
+def test_run_metadata(user):
     project = "test_metadata"
-    run = wandb_init(project=project)
+    run = wandb.init(project=project)
     run.finish()
 
     metadata = Api().run(f"{run.entity}/{project}/{run.id}").metadata
@@ -306,8 +306,8 @@ def test_run_create(user, relay_server):
         assert result["name"] == run.id
 
 
-def test_run_update(user, relay_server, wandb_init):
-    seed_run = wandb_init(config={"foo": "not_bar"})
+def test_run_update(user, relay_server):
+    seed_run = wandb.init(config={"foo": "not_bar"})
     seed_run.log(dict(acc=100, loss=0))
     seed_run.finish()
 
