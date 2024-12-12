@@ -42,6 +42,10 @@ type AzureAccountClient interface {
 	NewListBlobsFlatPager(containerName string, options *azblob.ListBlobsFlatOptions) *runtime.Pager[azblob.ListBlobsFlatResponse]
 }
 
+type AzureBlockBlobClient interface {
+	UploadStream(ctx context.Context, body io.Reader, options *blockblob.UploadStreamOptions) (blockblob.UploadStreamResponse, error)
+}
+
 // AzureClientsMap is a map of account URLs/container names to client objects.
 // Azure clients exist at both the container and account level and support different
 // blob operations, so we store clients only when necessary and reuse them.
@@ -131,27 +135,41 @@ type AzureFileTransfer struct {
 
 	// blobClient is a client for a specific blob
 	blobClient AzureBlobClient
+
+	// blockBlobClient is a client for a specific blob
+	blockBlobClient AzureBlockBlobClient
+}
+
+type AzureClientOverrides struct {
+	AccountClients  *AzureClientsMap[AzureAccountClient]
+	BlobClient      AzureBlobClient
+	BlockBlobClient AzureBlockBlobClient
 }
 
 // NewAzureFileTransfer creates a new fileTransfer.
 func NewAzureFileTransfer(
-	clients *AzureClientsMap[AzureAccountClient],
+	clientOverrides *AzureClientOverrides,
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
-	blobClient AzureBlobClient,
 ) *AzureFileTransfer {
 	ctx := context.Background()
-	if clients == nil {
-		clients = NewAzureClientsMap[AzureAccountClient]()
-	}
-	return &AzureFileTransfer{
+	fileTransfer := &AzureFileTransfer{
 		logger:            logger,
 		fileTransferStats: fileTransferStats,
 		ctx:               ctx,
-		clients:           clients,
+		clients:           NewAzureClientsMap[AzureAccountClient](),
 		containerClients:  NewAzureClientsMap[*container.Client](),
-		blobClient:        blobClient,
+		blobClient:        nil,
+		blockBlobClient:   nil,
 	}
+	if clientOverrides != nil {
+		if clientOverrides.AccountClients != nil {
+			fileTransfer.clients = clientOverrides.AccountClients
+		}
+		fileTransfer.blobClient = clientOverrides.BlobClient
+		fileTransfer.blockBlobClient = clientOverrides.BlockBlobClient
+	}
+	return fileTransfer
 }
 
 // setupBlobClient sets up a client for a specific blob.
@@ -220,9 +238,13 @@ func (ft *AzureFileTransfer) uploadBlob(task *DefaultUploadTask, requestBody io.
 			},
 		},
 	}
-	blobClient, err := blockblob.NewClientWithNoCredential(task.Url, &clientOptions)
-	if err != nil {
-		return nil, err
+	blockBlobClient := ft.blockBlobClient
+	if blockBlobClient == nil {
+		client, err := blockblob.NewClientWithNoCredential(task.Url, &clientOptions)
+		if err != nil {
+			return nil, err
+		}
+		blockBlobClient = client
 	}
 
 	uploadOptions := blockblob.UploadStreamOptions{
@@ -249,7 +271,7 @@ func (ft *AzureFileTransfer) uploadBlob(task *DefaultUploadTask, requestBody io.
 		}
 	}
 
-	resp, err := blobClient.UploadStream(context.Background(), requestBody, &uploadOptions)
+	resp, err := blockBlobClient.UploadStream(context.Background(), requestBody, &uploadOptions)
 	if err != nil {
 		return nil, err
 	}
