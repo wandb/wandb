@@ -324,7 +324,7 @@ class Image(BatchableMedia):
             if data.ndim > 2:
                 data = data.squeeze()  # get rid of trivial dimensions as a convenience
             self._image = pil_image.fromarray(
-                self.to_uint8(data), mode=mode or self._guess_mode(data)
+                self._to_uint8(data), mode=mode or self._guess_mode(data)
             )
         accepted_formats = ["png", "jpg", "jpeg", "bmp"]
         if file_type is None:
@@ -340,7 +340,7 @@ class Image(BatchableMedia):
         self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
-    def from_json(
+    def _from_json(
         cls: Type["Image"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Image":
         classes: Optional[Classes] = None
@@ -376,7 +376,7 @@ class Image(BatchableMedia):
         )
 
     @classmethod
-    def get_media_subdir(cls: Type["Image"]) -> str:
+    def _get_media_subdir(cls: Type["Image"]) -> str:
         return os.path.join("media", "images")
 
     def _bind_to_run(
@@ -489,7 +489,7 @@ class Image(BatchableMedia):
             )
 
     @classmethod
-    def to_uint8(cls, data: "np.ndarray") -> "np.ndarray":
+    def _to_uint8(cls, data: "np.ndarray") -> "np.ndarray":
         """Convert image data to uint8.
 
         Convert floating point image on the range [0,1] and integer images on the range
@@ -514,7 +514,7 @@ class Image(BatchableMedia):
         return data.clip(0, 255).astype(np.uint8)
 
     @classmethod
-    def seq_to_json(
+    def _seq_to_json(
         cls: Type["Image"],
         seq: Sequence["BatchableMedia"],
         run: "LocalRun",
@@ -527,14 +527,14 @@ class Image(BatchableMedia):
 
         jsons = [obj.to_json(run) for obj in seq]
 
-        media_dir = cls.get_media_subdir()
+        media_dir = cls._get_media_subdir()
 
         for obj in jsons:
             expected = LogicalPath(media_dir)
             if "path" in obj and not obj["path"].startswith(expected):
                 raise ValueError(
                     "Files in an array of Image's must be in the {} directory, not {}".format(
-                        cls.get_media_subdir(), obj["path"]
+                        cls._get_media_subdir(), obj["path"]
                     )
                 )
 
@@ -570,17 +570,17 @@ class Image(BatchableMedia):
                 repeat=False,
             )
 
-        captions = Image.all_captions(seq)
+        captions = Image._all_captions(seq)
 
         if captions:
             meta["captions"] = captions
 
-        all_masks = Image.all_masks(seq, run, key, step)
+        all_masks = Image._all_captions(seq, run, key, step)
 
         if all_masks:
             meta["all_masks"] = all_masks
 
-        all_boxes = Image.all_boxes(seq, run, key, step)
+        all_boxes = Image._all_boxes(seq, run, key, step)
 
         if all_boxes:
             meta["all_boxes"] = all_boxes
@@ -588,7 +588,7 @@ class Image(BatchableMedia):
         return meta
 
     @classmethod
-    def all_masks(
+    def _all_captions(
         cls: Type["Image"],
         images: Sequence["Image"],
         run: "LocalRun",
@@ -611,7 +611,7 @@ class Image(BatchableMedia):
             return False
 
     @classmethod
-    def all_boxes(
+    def _all_boxes(
         cls: Type["Image"],
         images: Sequence["Image"],
         run: "LocalRun",
@@ -634,7 +634,7 @@ class Image(BatchableMedia):
             return False
 
     @classmethod
-    def all_captions(
+    def _all_captions(
         cls: Type["Image"], images: Sequence["Media"]
     ) -> Union[bool, Sequence[Optional[str]]]:
         return cls.captions(images)

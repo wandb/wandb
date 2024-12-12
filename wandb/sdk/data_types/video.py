@@ -136,9 +136,9 @@ class Video(BatchableMedia):
                     "wandb.Video accepts a file path or numpy like data as input"
                 )
             fps = fps or 4
-            self.encode(fps=fps)
+            self._encode(fps=fps)
 
-    def encode(self, fps: int = 4) -> None:
+    def _encode(self, fps: int = 4) -> None:
         # Try to import ImageSequenceClip from the appropriate MoviePy module
         mpy = None
         try:
@@ -189,7 +189,7 @@ class Video(BatchableMedia):
         self._set_file(filename, is_tmp=True)
 
     @classmethod
-    def get_media_subdir(cls: Type["Video"]) -> str:
+    def _get_media_subdir(cls: Type["Video"]) -> str:
         return os.path.join("media", "videos")
 
     def _to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
@@ -242,14 +242,14 @@ class Video(BatchableMedia):
         return video
 
     @classmethod
-    def seq_to_json(
+    def _seq_to_json(
         cls: Type["Video"],
         seq: Sequence["BatchableMedia"],
         run: "LocalRun",
         key: str,
         step: Union[int, str],
     ) -> dict:
-        base_path = os.path.join(run.dir, cls.get_media_subdir())
+        base_path = os.path.join(run.dir, cls._get_media_subdir())
         filesystem.mkdir_exists_ok(base_path)
 
         meta = {

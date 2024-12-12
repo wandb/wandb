@@ -329,7 +329,7 @@ class Object3D(BatchableMedia):
             raise ValueError("data must be a numpy array, dict or a file object")
 
     @classmethod
-    def from_file(
+    def _from_file(
         cls,
         data_or_path: Union["TextIO", str],
         file_type: Optional["FileFormat3D"] = None,
@@ -348,7 +348,7 @@ class Object3D(BatchableMedia):
         return cls(data_or_path, file_type=file_type)
 
     @classmethod
-    def from_numpy(cls, data: "np.ndarray") -> "Object3D":
+    def _from_numpy(cls, data: "np.ndarray") -> "Object3D":
         """Initializes Object3D from a numpy array.
 
         Args:
@@ -380,7 +380,7 @@ class Object3D(BatchableMedia):
         return cls(data)
 
     @classmethod
-    def from_point_cloud(
+    def _from_point_cloud(
         cls,
         points: Sequence["Point"],
         boxes: Sequence["Box3D"],
@@ -403,7 +403,7 @@ class Object3D(BatchableMedia):
 
         numpy = wandb.util.get_module(
             "numpy",
-            required="wandb.Object3D.from_point_cloud requires numpy. Install with `pip install numpy`",
+            required="wandb.Object3D._from_point_cloud requires numpy. Install with `pip install numpy`",
         )
 
         data = {
@@ -416,7 +416,7 @@ class Object3D(BatchableMedia):
         return cls(data)
 
     @classmethod
-    def get_media_subdir(cls: Type["Object3D"]) -> str:
+    def _get_media_subdir(cls: Type["Object3D"]) -> str:
         return os.path.join("media", "object3D")
 
     def _to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
@@ -432,7 +432,7 @@ class Object3D(BatchableMedia):
         return json_dict
 
     @classmethod
-    def seq_to_json(
+    def _seq_to_json(
         cls: Type["Object3D"],
         seq: Sequence["BatchableMedia"],
         run: "LocalRun",
@@ -444,7 +444,7 @@ class Object3D(BatchableMedia):
         jsons = [obj._to_json(run) for obj in seq]
 
         for obj in jsons:
-            expected = LogicalPath(cls.get_media_subdir())
+            expected = LogicalPath(cls._get_media_subdir())
             if not obj["path"].startswith(expected):
                 raise ValueError(
                     "Files in an array of Object3D's must be in the {} directory, not {}".format(
@@ -455,7 +455,7 @@ class Object3D(BatchableMedia):
         return {
             "_type": "object3D",
             "filenames": [
-                os.path.relpath(j["path"], cls.get_media_subdir()) for j in jsons
+                os.path.relpath(j["path"], cls._get_media_subdir()) for j in jsons
             ],
             "count": len(jsons),
             "objects": jsons,
