@@ -178,11 +178,13 @@ class WBValue:
         )
         self._artifact_target = _WBValueArtifactTarget(artifact, name)
 
-    def _get_artifact_entry_ref_url(self, run: "LocalRun") -> Optional[str]:
+    def _get_artifact_entry_ref_url(
+        self, run: Optional["LocalRun"] = None
+    ) -> Optional[str]:
         # TODO: update this appropriate with feature name when implemented in backend server
-        server_accepts_client_ids = run.get_server_feature(
-            "ServerAcceptsClientIds"
-        ).enabled
+        server_accepts_client_ids = (
+            run is not None and run.get_server_feature("ServerAcceptsClientIds").enabled
+        )
 
         # If the object is coming from another artifact
         if self._artifact_source and self._artifact_source.name:

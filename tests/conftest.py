@@ -12,6 +12,7 @@ from typing import Any, Callable, Generator, Iterable
 import pyte
 import pyte.modes
 from wandb.errors import term
+from wandb.proto.wandb_internal_pb2 import ServerFeatureItem
 
 # Don't write to Sentry in wandb.
 #
@@ -448,6 +449,11 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
         run._set_backend(
             unittest.mock.MagicMock() if use_magic_mock else mocked_backend
         )
+
+        def mock_server_feature(name: str):
+            return ServerFeatureItem(name=name, enabled=True)
+
+        run.get_server_feature = mock_server_feature
         run._set_globals()
         return run
 
