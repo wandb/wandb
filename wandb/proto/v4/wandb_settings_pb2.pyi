@@ -633,7 +633,11 @@ class Settings(google.protobuf.message.Message):
     def x_show_operation_stats(self) -> google.protobuf.wrappers_pb2.BoolValue:
         """Feature flag controlling the rollout of an improved run.finish() UX.
 
-        Remove after the feature is rolled out.
+        Defaults to true, but is kept now to make this functionality easy to
+        disable. Ignored when using `wandb.require("legacy-service")`.
+
+        Remove a month after the next release after 0.19.0 (probably in
+        January 2025).
         """
     @property
     def x_primary_node(self) -> google.protobuf.wrappers_pb2.BoolValue:

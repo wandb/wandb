@@ -530,7 +530,11 @@ type Settings struct {
 	XRequireLegacyService *wrapperspb.BoolValue `protobuf:"bytes,173,opt,name=x_require_legacy_service,json=xRequireLegacyService,proto3" json:"x_require_legacy_service,omitempty"`
 	// Feature flag controlling the rollout of an improved run.finish() UX.
 	//
-	// Remove after the feature is rolled out.
+	// Defaults to true, but is kept now to make this functionality easy to
+	// disable. Ignored when using `wandb.require("legacy-service")`.
+	//
+	// Remove a month after the next release after 0.19.0 (probably in
+	// January 2025).
 	XShowOperationStats *wrapperspb.BoolValue `protobuf:"bytes,176,opt,name=x_show_operation_stats,json=xShowOperationStats,proto3" json:"x_show_operation_stats,omitempty"`
 	// Determines whether to save internal wandb files and metadata.
 	//
