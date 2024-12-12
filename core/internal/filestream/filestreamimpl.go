@@ -177,34 +177,30 @@ func (fs *fileStream) send(
 func (fs *fileStream) trackUploadOperation(
 	data *FileStreamRequestJSON,
 ) *wboperation.WandbOperation {
-	hasHistory := false
-	hasSummary := false
-	hasConsole := false
-
-	if history, ok := data.Files[HistoryFileName]; ok {
-		hasHistory = len(history.Content) > 0
-	}
-	if summary, ok := data.Files[SummaryFileName]; ok {
-		hasSummary = len(summary.Content) > 0
-	}
-	if console, ok := data.Files[OutputFileName]; ok {
-		hasConsole = len(console.Content) > 0
-	}
-
-	if !hasHistory && !hasSummary && !hasConsole {
-		return nil
-	}
-
 	parts := make([]string, 0, 3)
-	if hasHistory {
-		parts = append(parts, "history")
+
+	if history, ok := data.Files[HistoryFileName]; ok && len(history.Content) > 0 {
+		parts = append(parts,
+			fmt.Sprintf("history steps %d-%d",
+				history.Offset,
+				history.Offset+len(history.Content)-1))
 	}
-	if hasSummary {
+
+	if summary, ok := data.Files[SummaryFileName]; ok && len(summary.Content) > 0 {
 		parts = append(parts, "summary")
 	}
-	if hasConsole {
-		parts = append(parts, "console logs")
+
+	if console, ok := data.Files[OutputFileName]; ok && len(console.Content) > 0 {
+		parts = append(parts,
+			fmt.Sprintf("console lines %d-%d",
+				console.Offset,
+				console.Offset+len(console.Content)-1))
 	}
 
-	return fs.operations.New("uploading " + strings.Join(parts, ", "))
+	if len(parts) == 0 {
+		// Shouldn't happen, but guard against future bugs.
+		return fs.operations.New("uploading data")
+	} else {
+		return fs.operations.New("uploading " + strings.Join(parts, ", "))
+	}
 }

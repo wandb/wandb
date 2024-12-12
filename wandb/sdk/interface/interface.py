@@ -144,11 +144,41 @@ class InterfaceBase:
             update.value_json = json_dumps_safer(json_friendly(val)[0])
         return config
 
-    def _make_run(self, run: "Run") -> pb.RunRecord:
+    def _make_run(self, run: "Run") -> pb.RunRecord:  # noqa: C901
         proto_run = pb.RunRecord()
-        run._make_proto_run(proto_run)
+        if run._settings.entity is not None:
+            proto_run.entity = run._settings.entity
+        if run._settings.project is not None:
+            proto_run.project = run._settings.project
+        if run._settings.run_group is not None:
+            proto_run.run_group = run._settings.run_group
+        if run._settings.run_job_type is not None:
+            proto_run.job_type = run._settings.run_job_type
+        if run._settings.run_id is not None:
+            proto_run.run_id = run._settings.run_id
+        if run._settings.run_name is not None:
+            proto_run.display_name = run._settings.run_name
+        if run._settings.run_notes is not None:
+            proto_run.notes = run._settings.run_notes
+        if run._settings.run_tags is not None:
+            for tag in run._settings.run_tags:
+                proto_run.tags.append(tag)
+        if run._start_time is not None:
+            proto_run.start_time.FromMicroseconds(int(run._start_time * 1e6))
+        if run._starting_step is not None:
+            proto_run.starting_step = run._starting_step
+        if run._settings.git_remote_url is not None:
+            proto_run.git.remote_url = run._settings.git_remote_url
+        if run._settings.git_commit is not None:
+            proto_run.git.commit = run._settings.git_commit
+        if run._settings.sweep_id is not None:
+            proto_run.sweep_id = run._settings.sweep_id
         if run._settings.host:
             proto_run.host = run._settings.host
+        if run._settings.resumed:
+            proto_run.resumed = run._settings.resumed
+        if run._forked:
+            proto_run.forked = run._forked
         if run._config is not None:
             config_dict = run._config._as_dict()  # type: ignore
             self._make_config(data=config_dict, obj=proto_run.config)
@@ -873,9 +903,8 @@ class InterfaceBase:
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
         raise NotImplementedError
 
-    def deliver_run_start(self, run_pb: pb.RunRecord) -> MailboxHandle:
-        run_start = pb.RunStartRequest()
-        run_start.run.CopyFrom(run_pb)
+    def deliver_run_start(self, run: "Run") -> MailboxHandle:
+        run_start = pb.RunStartRequest(run=self._make_run(run))
         return self._deliver_run_start(run_start)
 
     @abstractmethod
@@ -948,6 +977,16 @@ class InterfaceBase:
 
     @abstractmethod
     def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_finish_without_exit(self) -> MailboxHandle:
+        run_finish_without_exit = pb.RunFinishWithoutExitRequest()
+        return self._deliver_finish_without_exit(run_finish_without_exit)
+
+    @abstractmethod
+    def _deliver_finish_without_exit(
+        self, run_finish_without_exit: pb.RunFinishWithoutExitRequest
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_request_sampled_history(self) -> MailboxHandle:

@@ -243,6 +243,11 @@ func (s *Settings) GetHTTPSProxy() string {
 	return s.Proto.HttpsProxy.GetValue()
 }
 
+// Whether to disable SSL verification.
+func (s *Settings) IsInsecureDisableSSL() bool {
+	return s.Proto.InsecureDisableSsl.GetValue()
+}
+
 // Path to the script that created the run, if available.
 func (s *Settings) GetProgram() string {
 	return s.Proto.Program.GetValue()
@@ -369,6 +374,16 @@ func (s *Settings) IsConsoleCaptureEnabled() bool {
 	return s.Proto.Console.GetValue() != "off"
 }
 
+// Whether to capture console logs in multipart format.
+//
+// This is used to make sure we don't overwrite the console log file if it
+// already exists.
+//
+// The format is: logs/output_<optional:Settings.Label>_<timestamp>_<nanoseconds>.log
+func (s *Settings) IsConsoleMultipart() bool {
+	return s.Proto.ConsoleMultipart.GetValue()
+}
+
 // Whether to disable metadata collection.
 func (s *Settings) IsDisableMeta() bool {
 	return s.Proto.XDisableMeta.GetValue()
@@ -419,6 +434,11 @@ func (s *Settings) GetStatsDiskPaths() []string {
 	return s.Proto.XStatsDiskPaths.GetValue()
 }
 
+// The indices of GPU devices to monitor.
+func (s *Settings) GetStatsGpuDeviceIds() []int32 {
+	return s.Proto.XStatsGpuDeviceIds.GetValue()
+}
+
 // The path to the Neuron monitor config file.
 func (s *Settings) GetStatsNeuronMonitorConfigPath() string {
 	return s.Proto.XStatsNeuronMonitorConfigPath.GetValue()
@@ -432,6 +452,11 @@ func (s *Settings) GetStatsOpenMetricsEndpoints() map[string]string {
 // The OpenMetrics filters for the endpoints.
 func (s *Settings) GetStatsOpenMetricsFilters() *spb.OpenMetricsFilters {
 	return s.Proto.XStatsOpenMetricsFilters
+}
+
+// Headers to add to OpenMetrics HTTP requests.
+func (s *Settings) GetStatsOpenMetricsHeaders() map[string]string {
+	return s.Proto.XStatsOpenMetricsHttpHeaders.GetValue()
 }
 
 // The label for the run namespacing for console output and system metrics.

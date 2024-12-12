@@ -1,7 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 
@@ -47,14 +50,18 @@ func withRetryLogging(
 			switch {
 			case resp == nil && err == nil:
 				logger.Error("api: retrying HTTP request, no error or response")
+
 			case err != nil:
 				logger.Info("api: retrying error", "error", err)
+				wboperation.Get(ctx).MarkRetryingError(err)
+
 			case resp.StatusCode >= 400:
-				// TODO: Log the request body.
+
 				logger.Info(
 					"api: retrying HTTP error",
 					"status", resp.StatusCode,
 					"url", resp.Request.URL.String(),
+					"body", readResponseBodyUpToLimit(resp, 1024),
 				)
 
 				// TODO: Report the attempt number & time to next retry.
@@ -64,4 +71,34 @@ func withRetryLogging(
 
 		return willRetry, err
 	}
+}
+
+// readResponseBodyUpToLimit returns the first maxBytes of the response body
+// non-destructively.
+func readResponseBodyUpToLimit(resp *http.Response, maxBytes int64) string {
+	var bodyBuffer bytes.Buffer
+	bodyBytes, err := io.ReadAll(
+		io.LimitReader(
+			io.TeeReader(resp.Body, &bodyBuffer),
+			maxBytes,
+		))
+
+	var body string
+	if err != nil {
+		body = fmt.Sprintf("error reading body: %v", err)
+	} else {
+		body = string(bodyBytes)
+	}
+
+	resp.Body = &readerAndCloser{
+		Reader: io.MultiReader(&bodyBuffer, resp.Body),
+		Closer: resp.Body,
+	}
+
+	return body
+}
+
+type readerAndCloser struct {
+	io.Reader
+	io.Closer
 }

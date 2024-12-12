@@ -37,7 +37,12 @@ def test_resume_tags_add_after_resume(user, test_settings):
     run_id = run.id
     run.finish()
 
-    run = wandb.init(id=run_id, resume="must", project="tags", settings=test_settings())
+    run = wandb.init(
+        id=run_id,
+        resume="must",
+        project="tags",
+        settings=test_settings(),
+    )
     run.tags += ("tag7",)
     assert run.tags == ("tag7",)
     run.finish()
@@ -61,42 +66,36 @@ def test_resume_tags_add_at_resume(user, test_settings):
 
 
 @pytest.mark.wandb_core_only
-def test_resume_output_log(wandb_backend_spy, user, test_settings):
-    run = wandb.init(
+def test_resume_output_log(wandb_backend_spy):
+    with wandb.init(
         project="output",
-        settings=test_settings(
-            {
-                "console": "auto",
-                "console_multipart": True,
-            }
+        settings=wandb.Settings(
+            console="auto",
+            console_multipart=True,
         ),
-    )
-    run_id = run.id
-    print(f"started {run_id}")
-    run.finish()
+    ) as run:
+        run_id = run.id
+        print(f"started {run_id}")
 
-    run = wandb.init(
+    with wandb.init(
         id=run_id,
         resume="must",
         project="output",
-        settings=test_settings(
-            {
-                "console": "auto",
-                "console_multipart": True,
-            }
+        settings=wandb.Settings(
+            console="auto",
+            console_multipart=True,
         ),
-    )
-    print(f"resumed {run_id}")
-    run.log({"metric": 1})
-    run.finish()
+    ) as run:
+        print(f"resumed {run_id}")
+        run.log({"metric": 1})
 
     with wandb_backend_spy.freeze() as snapshot:
         # should produce two files, e.g.:
-        # logs/20240522_144304.516302_output.log and
-        # logs/20240522_144306.374584_output.log
+        # logs/output_20240522_144304_516302.log and
+        # logs/output_20240522_144306_374584.log
         log_files = [
             f
             for f in snapshot.uploaded_files(run_id=run_id)
-            if f.endswith("output.log")
+            if f.startswith("logs/output_") and f.endswith(".log")
         ]
         assert len(log_files) == 2

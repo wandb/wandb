@@ -268,6 +268,8 @@ impl NvidiaGpu {
     /// # Arguments
     ///
     /// * `pid` - The process ID to monitor for GPU usage.
+    /// * `gpu_device_ids` - An optional list of GPU device IDs to monitor. If not provided,
+    ///  all GPUs are monitored.
     ///
     /// # Returns
     ///
@@ -278,7 +280,11 @@ impl NvidiaGpu {
     ///
     /// This function should return an error only if an internal NVML call fails.
     /// ```
-    pub fn get_metrics(&mut self, pid: i32) -> Result<Vec<(String, MetricValue)>, NvmlError> {
+    pub fn get_metrics(
+        &mut self,
+        pid: i32,
+        gpu_device_ids: Option<Vec<i32>>,
+    ) -> Result<Vec<(String, MetricValue)>, NvmlError> {
         let mut metrics: Vec<(String, MetricValue)> = vec![];
 
         metrics.push((
@@ -291,6 +297,14 @@ impl NvidiaGpu {
         ));
 
         for di in 0..self.device_count {
+            // Skip GPU if not in the list of device IDs to monitor.
+            // If no device IDs are provided, monitor all GPUs.
+            if let Some(ref gpu_device_ids) = gpu_device_ids {
+                if !gpu_device_ids.contains(&(di as i32)) {
+                    continue;
+                }
+            }
+
             let device = match self.nvml.device_by_index(di) {
                 Ok(device) => device,
                 Err(_e) => {
@@ -675,13 +689,13 @@ impl NvidiaGpu {
         metadata_request.gpu_count = n_gpu;
         // TODO: do not assume all GPUs are the same
         if let Some(value) = samples.get("_gpu.0.name") {
-            if let MetricValue::String(gpu_name) = value {
-                metadata_request.gpu_type = gpu_name.to_string();
+            if let MetricValue::String(ref gpu_name) = value {
+                metadata_request.gpu_type = gpu_name.clone();
             }
         }
         if let Some(value) = samples.get("_cuda_version") {
-            if let MetricValue::String(cuda_version) = value {
-                metadata_request.cuda_version = cuda_version.to_string();
+            if let MetricValue::String(ref cuda_version) = value {
+                metadata_request.cuda_version = cuda_version.clone();
             }
         }
 
@@ -690,7 +704,9 @@ impl NvidiaGpu {
                 ..Default::default()
             };
             if let Some(value) = samples.get(&format!("_gpu.{}.name", i)) {
-                gpu_nvidia.name = value.to_string();
+                if let MetricValue::String(ref gpu_name) = value {
+                    gpu_nvidia.name = gpu_name.clone();
+                }
             }
             if let Some(value) = samples.get(&format!("_gpu.{}.memoryTotal", i)) {
                 if let MetricValue::Int(memory_total) = value {
@@ -705,7 +721,9 @@ impl NvidiaGpu {
             }
             // architecture
             if let Some(value) = samples.get(&format!("_gpu.{}.architecture", i)) {
-                gpu_nvidia.architecture = value.to_string();
+                if let MetricValue::String(ref architecture) = value {
+                    gpu_nvidia.architecture = architecture.clone();
+                }
             }
             metadata_request.gpu_nvidia.push(gpu_nvidia);
         }

@@ -117,6 +117,7 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 	diskPaths := settings.GetStatsDiskPaths()
 	samplingInterval := settings.GetStatsSamplingInterval()
 	neuronMonitorConfigPath := settings.GetStatsNeuronMonitorConfigPath()
+	gpuDeviceIds := settings.GetStatsGpuDeviceIds()
 
 	// assets to be monitored.
 	if cpu := NewCPU(pid); cpu != nil {
@@ -131,7 +132,7 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 	if network := NewNetwork(); network != nil {
 		sm.assets = append(sm.assets, network)
 	}
-	if gpu := NewGPU(pid); gpu != nil {
+	if gpu := NewGPU(pid, gpuDeviceIds); gpu != nil {
 		sm.assets = append(sm.assets, gpu)
 	}
 	if gpu := NewGPUAMD(sm.logger); gpu != nil {
@@ -151,7 +152,8 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 	if endpoints := settings.GetStatsOpenMetricsEndpoints(); endpoints != nil {
 		for name, url := range endpoints {
 			filters := settings.GetStatsOpenMetricsFilters()
-			if om := NewOpenMetrics(sm.logger, name, url, filters, nil); om != nil {
+			headers := settings.GetStatsOpenMetricsHeaders()
+			if om := NewOpenMetrics(sm.logger, name, url, filters, headers, nil); om != nil {
 				sm.assets = append(sm.assets, om)
 			}
 		}

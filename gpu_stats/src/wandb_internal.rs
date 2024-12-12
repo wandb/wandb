@@ -2572,6 +2572,10 @@ pub struct AppleInfo {
     pub gpu_cores: u32,
     #[prost(uint32, tag = "5")]
     pub memory_gb: u32,
+    #[prost(uint64, tag = "6")]
+    pub swap_total_bytes: u64,
+    #[prost(uint64, tag = "7")]
+    pub ram_total_bytes: u64,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GpuNvidiaInfo {
@@ -2779,12 +2783,18 @@ pub struct JobInputRequest {
     #[prost(string, tag = "4")]
     pub input_schema: ::prost::alloc::string::String,
 }
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetStatsRequest {
     /// Capture the system metrics for the process with this PID, in addition to
     /// system-wide metrics.
     #[prost(int32, tag = "1")]
     pub pid: i32,
+    /// GPU device IDs to capture metrics for.
+    ///
+    /// Should be 0-indexed and match those reported by the CUDA/ROCm runtime environment.
+    /// If not set, metrics for all GPUs will be captured.
+    #[prost(int32, repeated, tag = "2")]
+    pub gpu_device_ids: ::prost::alloc::vec::Vec<i32>,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct GetMetadataRequest {}

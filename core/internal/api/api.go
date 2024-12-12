@@ -3,6 +3,7 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -200,6 +201,12 @@ type ClientOptions struct {
 	//
 	// If Proxy is nil or returns a nil *URL, no proxy will be used.
 	Proxy func(*http.Request) (*url.URL, error)
+
+	// Whether to disable SSL certificate verification.
+	//
+	// This is insecure and should only be used for testing/debugging
+	// or in environments where the backend is trusted.
+	InsecureDisableSSL bool
 }
 
 // Creates a new [Client] for making requests to the [Backend].
@@ -241,6 +248,12 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 	if header := opts.ExtraHeaders["Proxy-Authorization"]; header != "" {
 		transport.ProxyConnectHeader = http.Header{
 			"Proxy-Authorization": []string{header},
+		}
+	}
+
+	if opts.InsecureDisableSSL {
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
 		}
 	}
 

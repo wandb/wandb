@@ -96,8 +96,8 @@ def test_from_path(user):
     assert isinstance(sweep, wandb.apis.public.Sweep)
 
 
-def test_project_sweeps(user, wandb_init):
-    run = wandb_init(entity=user, project="testnosweeps")
+def test_project_sweeps(user):
+    run = wandb.init(entity=user, project="testnosweeps")
     run.finish()
     sweep_id = wandb.sweep(SWEEP_CONFIG_BAYES, entity=user, project="test")
     api = Api()

@@ -76,7 +76,7 @@ class WandbServer:
     def _setup_proctitle(self, sock_port: Optional[int]) -> None:
         # TODO: the internal_process should have a better way to have access to
         # settings.
-        disable_setproctitle = os.environ.get("WANDB__DISABLE_SETPROCTITLE")
+        disable_setproctitle = os.environ.get("WANDB_X_DISABLE_SETPROCTITLE")
         if disable_setproctitle:
             return
 

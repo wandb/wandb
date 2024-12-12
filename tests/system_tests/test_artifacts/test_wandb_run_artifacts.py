@@ -311,7 +311,7 @@ def test_log_code_settings(user):
         pass
 
     artifact_name = wandb.util.make_artifact_name_safe(
-        f"source-{run._project}-{run._settings.program_relpath}"
+        f"source-{run.project}-{run._settings.program_relpath}"
     )
     wandb.Api().artifact(f"{artifact_name}:v0")
 
@@ -339,7 +339,7 @@ def test_log_code_env(wandb_backend_spy, save_code):
             assert run._settings.save_code is save_code
 
         artifact_name = wandb.util.make_artifact_name_safe(
-            f"source-{run._project}-{run._settings.program_relpath}"
+            f"source-{run.project}-{run._settings.program_relpath}"
         )
         if save_code:
             wandb.Api().artifact(f"{artifact_name}:v0")
@@ -349,13 +349,13 @@ def test_log_code_env(wandb_backend_spy, save_code):
 
 
 @pytest.mark.xfail(reason="Backend race condition")
-def test_anonymous_mode_artifact(wandb_init, capsys, local_settings):
+def test_anonymous_mode_artifact(user, capsys, local_settings):
     copied_env = os.environ.copy()
     copied_env.pop("WANDB_API_KEY")
     copied_env.pop("WANDB_USERNAME")
     copied_env.pop("WANDB_ENTITY")
     with mock.patch.dict("os.environ", copied_env, clear=True):
-        run = wandb_init(anonymous="must")
+        run = wandb.init(anonymous="must")
         run.log_artifact(wandb.Artifact("my-arti", type="dataset"))
         run.finish()
 

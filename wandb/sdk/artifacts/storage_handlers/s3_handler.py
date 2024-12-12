@@ -196,8 +196,7 @@ class S3Handler(StorageHandler):
         if multi:
             start_time = time.time()
             termlog(
-                'Generating checksum for up to %i objects in "%s/%s"... '
-                % (max_objects, bucket, key),
+                f'Generating checksum for up to {max_objects} objects in "{bucket}/{key}"... ',
                 newline=False,
             )
             if key != "":
@@ -219,8 +218,7 @@ class S3Handler(StorageHandler):
             termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
         if len(entries) > max_objects:
             raise ValueError(
-                "Exceeded %i objects tracked, pass max_objects to add_reference"
-                % max_objects
+                f"Exceeded {max_objects} objects tracked, pass max_objects to add_reference"
             )
         return entries
 
