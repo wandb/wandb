@@ -161,7 +161,11 @@ impl SystemMonitorImpl {
     }
 
     /// Collect system metrics.
-    async fn sample(&self, pid: i32) -> Vec<(String, metrics::MetricValue)> {
+    async fn sample(
+        &self,
+        pid: i32,
+        gpu_device_ids: Option<Vec<i32>>,
+    ) -> Vec<(String, metrics::MetricValue)> {
         let mut all_metrics = Vec::new();
 
         let timestamp = std::time::SystemTime::now()
@@ -191,7 +195,7 @@ impl SystemMonitorImpl {
         // Nvidia metrics (Linux and Windows only)
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         if let Some(nvidia_gpu) = &self.nvidia_gpu {
-            match nvidia_gpu.lock().await.get_metrics(pid) {
+            match nvidia_gpu.lock().await.get_metrics(pid, gpu_device_ids) {
                 Ok(nvidia_metrics) => {
                     all_metrics.extend(nvidia_metrics);
                 }
@@ -227,7 +231,9 @@ impl SystemMonitor for SystemMonitorImpl {
     ) -> Result<Response<Record>, Status> {
         debug!("Got a request to get metadata: {:?}", request);
 
-        let all_metrics: Vec<(String, metrics::MetricValue)> = self.sample(0).await;
+        // Do not apply any filters for metadata.
+        // TODO: reconsider if necessary.
+        let all_metrics: Vec<(String, metrics::MetricValue)> = self.sample(0, None).await;
         let samples: HashMap<String, &metrics::MetricValue> = all_metrics
             .iter()
             .map(|(name, value)| (name.to_string(), value))
@@ -277,14 +283,26 @@ impl SystemMonitor for SystemMonitorImpl {
     ) -> Result<Response<Record>, Status> {
         debug!("Got a request to get stats: {:?}", request);
 
-        let pid = request.into_inner().pid;
-        let all_metrics = self.sample(pid).await;
+        let request = request.into_inner();
+
+        let pid = request.pid;
+
+        let gpu_device_ids = if request.gpu_device_ids.is_empty() {
+            None
+        } else {
+            Some(request.gpu_device_ids)
+        };
+
+        let all_metrics = self.sample(pid, gpu_device_ids).await;
 
         let stats_items: Vec<StatsItem> = all_metrics
             .iter()
-            .map(|(name, value)| StatsItem {
-                key: name.to_string(),
-                value_json: value.to_string(),
+            .filter(|(name, _)| !name.starts_with('_')) // Skip internal metrics
+            .filter_map(|(name, value)| {
+                serde_json::to_string(value).ok().map(|json_str| StatsItem {
+                    key: name.to_string(),
+                    value_json: json_str,
+                })
             })
             .collect();
 

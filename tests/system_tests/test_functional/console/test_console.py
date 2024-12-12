@@ -45,8 +45,8 @@ def test_emoji(wandb_backend_spy):
 
 
 @pytest.mark.skip(reason="order seems to be wrong")
-def test_tqdm_nested(wandb_init, wandb_backend_spy):
-    with wandb_init(settings={"console": "auto"}) as run:
+def test_tqdm_nested(wandb_backend_spy):
+    with wandb.init(settings={"console": "auto"}) as run:
         print("before progress")
         for outer in tqdm.tqdm([10, 20, 30, 40, 50], desc=" outer", position=0):
             for inner in tqdm.tqdm(

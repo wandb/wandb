@@ -1202,7 +1202,10 @@ class SendManager:
         start_us = self._run.start_time.ToMicroseconds()
         d = dict()
         for item in stats.item:
-            d[item.key] = json.loads(item.value_json)
+            try:
+                d[item.key] = json.loads(item.value_json)
+            except json.JSONDecodeError:
+                logger.error("error decoding stats json: %s", item.value_json)
         row: Dict[str, Any] = dict(system=d)
         self._flatten(row)
         row["_wandb"] = True

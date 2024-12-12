@@ -19,7 +19,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
-from functools import reduce
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, Sequence, TextIO
 
@@ -83,9 +82,7 @@ from .lib import (
     telemetry,
 )
 from .lib.exit_hooks import ExitHooks
-from .lib.gitlib import GitRepo
 from .lib.mailbox import MailboxError, MailboxHandle, MailboxProbe, MailboxProgress
-from .lib.proto_util import message_to_dict
 from .wandb_alerts import AlertLevel
 from .wandb_metadata import Metadata
 from .wandb_settings import Settings
@@ -521,17 +518,7 @@ class Run:
     _telemetry_obj_flushed: bytes
 
     _teardown_hooks: list[TeardownHook]
-    _tags: tuple[Any, ...] | None
 
-    _entity: str | None
-    _project: str | None
-    _group: str | None
-    _job_type: str | None
-    _name: str | None
-    _notes: str | None
-    _sweep_id: str | None
-
-    _run_obj: RunRecord | None
     _backend: wandb.sdk.backend.backend.Backend | None
     _internal_run_interface: wandb.sdk.interface.interface_queue.InterfaceQueue | None
     _wl: _WandbSetup | None
@@ -567,6 +554,8 @@ class Run:
     _is_attached: bool
     _is_finished: bool
     _settings: Settings
+
+    _forked: bool
 
     _launch_artifacts: dict[str, Any] | None
     _printer: printer.Printer
@@ -606,16 +595,15 @@ class Run:
         self._config._set_callback(self._config_callback)
         self._config._set_artifact_callback(self._config_artifact_callback)
         self._config._set_settings(self._settings)
-        self._backend = None
-        self._internal_run_interface = None
+
         # todo: perhaps this should be a property that is a noop on a finished run
         self.summary = wandb_summary.Summary(
             self._summary_get_current_summary_callback,
         )
         self.summary._set_update_callback(self._summary_update_callback)
-        self._step = 0
-        self._torch_history: wandb_torch.TorchHistory | None = None  # type: ignore
 
+        self._step = 0
+        self._starting_step = 0
         # todo: eventually would be nice to make this configurable using self._settings._start_time
         #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
         #  does the total time get calculated right (not as 2 days and 15 minutes)?
@@ -624,35 +612,26 @@ class Run:
         _datatypes_set_callback(self._datatypes_callback)
 
         self._printer = printer.new_printer()
-        self._wl = None
 
-        self._entity = None
-        self._project = None
-        self._group = None
-        self._job_type = None
-        self._run_id = self._settings.run_id
-        self._starting_step = 0
-        self._name = None
-        self._notes = None
-        self._tags = None
-        self._remote_url = None
-        self._commit = None
-        self._sweep_id = None
+        self._torch_history: wandb_torch.TorchHistory | None = None  # type: ignore
+
+        self._backend = None
+        self._internal_run_interface = None
+        self._wl = None
 
         self._hooks = None
         self._teardown_hooks = []
+
+        self._output_writer = None
         self._out_redir = None
         self._err_redir = None
         self._stdout_slave_fd = None
         self._stderr_slave_fd = None
+
         self._exit_code = None
         self._exit_result = None
 
-        self._output_writer = None
         self._used_artifact_slots: dict[str, str] = {}
-
-        # Returned from backend request_run(), set from wandb_init?
-        self._run_obj = None
 
         # Created when the run "starts".
         self._run_status_checker = None
@@ -670,9 +649,6 @@ class Run:
         self._telemetry_obj_dirty = False
 
         self._atexit_cleanup_called = False
-
-        # Pull info from settings
-        self._init_from_settings(self._settings)
 
         # Initial scope setup for sentry.
         # This might get updated when the actual run comes back.
@@ -738,7 +714,7 @@ class Run:
         self._is_finished = False
 
         self._attach_pid = os.getpid()
-
+        self._forked = False
         # for now, use runid as attach id, this could/should be versioned in the future
         if not self._settings.x_disable_service:
             self._attach_id = self._settings.run_id
@@ -814,71 +790,6 @@ class Run:
             raise Exception(f"Attribute {attr} is not supported on Run object.")
         super().__setattr__(attr, value)
 
-    def _update_settings(self, settings: Settings) -> None:
-        self._settings = settings
-        self._init_from_settings(settings)
-
-    def _init_from_settings(self, settings: Settings) -> None:
-        if settings.entity is not None:
-            self._entity = settings.entity
-        if settings.project is not None:
-            self._project = settings.project
-        if settings.run_group is not None:
-            self._group = settings.run_group
-        if settings.run_job_type is not None:
-            self._job_type = settings.run_job_type
-        if settings.run_name is not None:
-            self._name = settings.run_name
-        if settings.run_notes is not None:
-            self._notes = settings.run_notes
-        if settings.run_tags is not None:
-            self._tags = settings.run_tags
-        if settings.sweep_id is not None:
-            self._sweep_id = settings.sweep_id
-
-    def _make_proto_run(self, run: RunRecord) -> None:
-        """Populate protocol buffer RunData for interface/interface."""
-        if self._entity is not None:
-            run.entity = self._entity
-        if self._project is not None:
-            run.project = self._project
-        if self._group is not None:
-            run.run_group = self._group
-        if self._job_type is not None:
-            run.job_type = self._job_type
-        if self._run_id is not None:
-            run.run_id = self._run_id
-        if self._name is not None:
-            run.display_name = self._name
-        if self._notes is not None:
-            run.notes = self._notes
-        if self._tags is not None:
-            for tag in self._tags:
-                run.tags.append(tag)
-        if self._start_time is not None:
-            run.start_time.FromMicroseconds(int(self._start_time * 1e6))
-        if self._remote_url is not None:
-            run.git.remote_url = self._remote_url
-        if self._commit is not None:
-            run.git.commit = self._commit
-        if self._sweep_id is not None:
-            run.sweep_id = self._sweep_id
-        # Note: run.config is set in interface/interface:_make_run()
-
-    def _populate_git_info(self) -> None:
-        # Use user provided git info if available otherwise resolve it from the environment
-        try:
-            repo = GitRepo(
-                root=self._settings.git_root,
-                remote=self._settings.git_remote,
-                remote_url=self._settings.git_remote_url,
-                commit=self._settings.git_commit,
-                lazy=False,
-            )
-            self._remote_url, self._commit = repo.remote_url, repo.last_commit
-        except Exception:
-            wandb.termwarn("Cannot find valid git repo associated with this directory.")
-
     def __deepcopy__(self, memo: dict[int, Any]) -> Run:
         return self
 
@@ -949,18 +860,16 @@ class Run:
         Display names are not guaranteed to be unique and may be descriptive.
         By default, they are randomly generated.
         """
-        if self._name:
-            return self._name
-        if not self._run_obj:
-            return None
-        return self._run_obj.display_name
+        if self._settings.run_name:
+            return self._settings.run_name
+        return None
 
     @name.setter
     @_run_decorator._noop_on_finish()
     def name(self, name: str) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_name = True
-        self._name = name
+        self._settings.run_name = name
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
@@ -972,16 +881,12 @@ class Run:
         Notes can be a multiline string and can also use markdown and latex equations
         inside `$$`, like `$x + 3$`.
         """
-        if self._notes:
-            return self._notes
-        if not self._run_obj:
-            return None
-        return self._run_obj.notes
+        return self._settings.run_notes
 
     @notes.setter
     @_run_decorator._noop_on_finish()
     def notes(self, notes: str) -> None:
-        self._notes = notes
+        self._settings.run_notes = notes
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
@@ -989,18 +894,14 @@ class Run:
     @_run_decorator._attach
     def tags(self) -> tuple | None:
         """Tags associated with the run, if there are any."""
-        if self._tags:
-            return self._tags
-        if self._run_obj:
-            return tuple(self._run_obj.tags)
-        return None
+        return self._settings.run_tags or ()
 
     @tags.setter
     @_run_decorator._noop_on_finish()
     def tags(self, tags: Sequence) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_tags = True
-        self._tags = tuple(tags)
+        self._settings.run_tags = tuple(tags)
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
@@ -1009,22 +910,25 @@ class Run:
     def id(self) -> str:
         """Identifier for this run."""
         if TYPE_CHECKING:
-            assert self._run_id is not None
-        return self._run_id
+            assert self._settings.run_id is not None
+        return self._settings.run_id
 
     @property
     @_run_decorator._attach
     def sweep_id(self) -> str | None:
         """ID of the sweep associated with the run, if there is one."""
-        if not self._run_obj:
-            return None
-        return self._run_obj.sweep_id or None
+        return self._settings.sweep_id
 
     def _get_path(self) -> str:
-        parts = [
-            e for e in [self._entity, self._project, self._run_id] if e is not None
-        ]
-        return "/".join(parts)
+        return "/".join(
+            e
+            for e in [
+                self._settings.entity,
+                self._settings.project,
+                self._settings.run_id,
+            ]
+            if e is not None
+        )
 
     @property
     @_run_decorator._attach
@@ -1036,33 +940,23 @@ class Run:
         """
         return self._get_path()
 
-    def _get_start_time(self) -> float:
-        return (
-            self._start_time
-            if not self._run_obj
-            else (self._run_obj.start_time.ToMicroseconds() / 1e6)
-        )
-
     @property
     @_run_decorator._attach
     def start_time(self) -> float:
         """Unix timestamp (in seconds) of when the run started."""
-        return self._get_start_time()
-
-    def _get_starting_step(self) -> int:
-        return self._starting_step if not self._run_obj else self._run_obj.starting_step
+        return self._start_time
 
     @property
     @_run_decorator._attach
     def starting_step(self) -> int:
         """The first step of the run."""
-        return self._get_starting_step()
+        return self._starting_step
 
     @property
     @_run_decorator._attach
     def resumed(self) -> bool:
         """True if the run was resumed, False otherwise."""
-        return self._run_obj.resumed if self._run_obj else False
+        return self._settings.resumed
 
     @property
     @_run_decorator._attach
@@ -1072,10 +966,6 @@ class Run:
         This counter is incremented by `wandb.log`.
         """
         return self._step
-
-    def project_name(self) -> str:
-        # TODO: deprecate this in favor of project
-        return self._run_obj.project if self._run_obj else ""
 
     @property
     @_run_decorator._attach
@@ -1101,9 +991,6 @@ class Run:
     def disabled(self) -> bool:
         return self._settings._noop
 
-    def _get_group(self) -> str:
-        return self._run_obj.run_group if self._run_obj else ""
-
     @property
     @_run_decorator._attach
     def group(self) -> str:
@@ -1116,12 +1003,16 @@ class Run:
         If you are doing cross-validation you should give all the cross-validation
             folds the same group.
         """
-        return self._get_group()
+        return self._settings.run_group or ""
 
     @property
     @_run_decorator._attach
     def job_type(self) -> str:
-        return self._run_obj.job_type if self._run_obj else ""
+        return self._settings.run_job_type or ""
+
+    def project_name(self) -> str:
+        # TODO: deprecate this in favor of project
+        return self._settings.project or ""
 
     @property
     @_run_decorator._attach
@@ -1187,9 +1078,11 @@ class Run:
                         notebook_name = self.settings.x_jupyter_name
                     else:
                         notebook_name = self.settings.x_jupyter_path
-                name_string = f"{self._project}-{notebook_name}"
+                name_string = f"{self._settings.project}-{notebook_name}"
             else:
-                name_string = f"{self._project}-{self._settings.program_relpath}"
+                name_string = (
+                    f"{self._settings.project}-{self._settings.program_relpath}"
+                )
             name = wandb.util.make_artifact_name_safe(f"source-{name_string}")
         art = wandb.Artifact(name, "code")
         files_added = False
@@ -1214,16 +1107,6 @@ class Run:
 
         return self._log_artifact(art)
 
-    def get_url(self) -> str | None:
-        """Return the url for the W&B run, if there is one.
-
-        Offline runs will not have a url.
-        """
-        if self._settings._offline:
-            wandb.termwarn("URL not available in offline run")
-            return None
-        return self._settings.run_url
-
     def get_project_url(self) -> str | None:
         """Return the url for the W&B project associated with the run, if there is one.
 
@@ -1241,6 +1124,16 @@ class Run:
             return None
         return self._settings.sweep_url
 
+    def get_url(self) -> str | None:
+        """Return the url for the W&B run, if there is one.
+
+        Offline runs will not have a url.
+        """
+        if self._settings._offline:
+            wandb.termwarn("URL not available in offline run")
+            return None
+        return self._settings.run_url
+
     @property
     @_run_decorator._attach
     def url(self) -> str | None:
@@ -1254,7 +1147,7 @@ class Run:
 
         Entity can be a username or the name of a team or organization.
         """
-        return self._entity or ""
+        return self._settings.entity or ""
 
     def _label_internal(
         self,
@@ -1560,13 +1453,13 @@ class Run:
     def _set_teardown_hooks(self, hooks: list[TeardownHook]) -> None:
         self._teardown_hooks = hooks
 
-    def _set_run_obj(self, run_obj: RunRecord) -> None:
-        self._run_obj = run_obj
-        if self.settings._offline:
-            return
+    def _set_run_obj(self, run_obj: RunRecord) -> None:  # noqa: C901
+        if run_obj.starting_step:
+            self._starting_step = run_obj.starting_step
+            self._step = run_obj.starting_step
 
-        self._entity = run_obj.entity
-        self._project = run_obj.project
+        if run_obj.start_time:
+            self._start_time = run_obj.start_time.ToMicroseconds() / 1e6
 
         # Grab the config from resuming
         if run_obj.config:
@@ -1583,39 +1476,60 @@ class Run:
                 summary_dict[orig.key] = json.loads(orig.value_json)
             if summary_dict:
                 self.summary.update(summary_dict)
-        self._step = self._get_starting_step()
 
         # update settings from run_obj
-        run_start_settings = message_to_dict(self._run_obj)
-        param_map = {
-            "run_id": "run_id",
-            "entity": "entity",
-            "project": "project",
-            "run_group": "run_group",
-            "job_type": "run_job_type",
-            "display_name": "run_name",
-            "notes": "run_notes",
-            "tags": "run_tags",
-            "sweep_id": "sweep_id",
-            "host": "host",
-            "resumed": "resumed",
-            "git.remote_url": "git_remote_url",
-            "git.commit": "git_commit",
-        }
-        run_settings = {
-            name: reduce(lambda d, k: d.get(k, {}), attr.split("."), run_start_settings)
-            for attr, name in param_map.items()
-        }
-        run_settings = {key: value for key, value in run_settings.items() if value}
+        if run_obj.run_id:
+            self._settings.run_id = run_obj.run_id
+        if run_obj.entity:
+            self._settings.entity = run_obj.entity
+        if run_obj.project:
+            self._settings.project = run_obj.project
+        if run_obj.run_group:
+            self._settings.run_group = run_obj.run_group
+        if run_obj.job_type:
+            self._settings.run_job_type = run_obj.job_type
+        if run_obj.display_name:
+            self._settings.run_name = run_obj.display_name
+        if run_obj.notes:
+            self._settings.run_notes = run_obj.notes
+        if run_obj.tags:
+            self._settings.run_tags = run_obj.tags
+        if run_obj.sweep_id:
+            self._settings.sweep_id = run_obj.sweep_id
+        if run_obj.host:
+            self._settings.host = run_obj.host
+        if run_obj.resumed:
+            self._settings.resumed = run_obj.resumed
+        if run_obj.git:
+            if run_obj.git.remote_url:
+                self._settings.git_remote_url = run_obj.git.remote_url
+            if run_obj.git.commit:
+                self._settings.git_commit = run_obj.git.commit
 
-        if run_settings:
-            self._settings.update_from_dict(run_settings)
-            self._update_settings(self._settings)
+        if run_obj.forked:
+            self._forked = run_obj.forked
 
         wandb._sentry.configure_scope(
             process_context="user",
             tags=dict(self._settings),
         )
+
+    def _populate_git_info(self) -> None:
+        from .lib.gitlib import GitRepo
+
+        # Use user provided git info if available otherwise resolve it from the environment
+        try:
+            repo = GitRepo(
+                root=self._settings.git_root,
+                remote=self._settings.git_remote,
+                remote_url=self._settings.git_remote_url,
+                commit=self._settings.git_commit,
+                lazy=False,
+            )
+            self._settings.git_remote_url = repo.remote_url
+            self._settings.git_commit = repo.last_commit
+        except Exception:
+            wandb.termwarn("Cannot find valid git repo associated with this directory.")
 
     def _add_singleton(
         self, data_type: str, key: str, value: dict[int | str, str]
@@ -2221,8 +2135,8 @@ class Run:
             #
             # TODO: Why not do this in _atexit_cleanup()?
             service = self._wl and self._wl.service
-            if service and self._run_id:
-                service.inform_finish(run_id=self._run_id)
+            if service and self._settings.run_id:
+                service.inform_finish(run_id=self._settings.run_id)
 
         finally:
             module.unset_globals()
@@ -2535,12 +2449,12 @@ class Run:
 
         import_telemetry_set = telemetry.list_telemetry_imports()
         import_hook_fn = functools.partial(_telemetry_import_hook, self)
-        if not self._run_id:
+        if not self._settings.run_id:
             return
         for module_name in import_telemetry_set:
             register_post_import_hook(
                 import_hook_fn,
-                self._run_id,
+                self._settings.run_id,
                 module_name,
             )
 
@@ -2552,7 +2466,10 @@ class Run:
         self._telemetry_obj_active = True
         self._telemetry_flush()
 
-        self._detect_and_apply_job_inputs()
+        try:
+            self._detect_and_apply_job_inputs()
+        except Exception as e:
+            logger.error("Problem applying launch job inputs", exc_info=e)
 
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
@@ -2733,8 +2650,8 @@ class Run:
         if self._run_status_checker:
             self._run_status_checker.join()
 
-        if self._run_id:
-            self._unregister_telemetry_import_hooks(self._run_id)
+        if self._settings.run_id:
+            self._unregister_telemetry_import_hooks(self._settings.run_id)
 
     @staticmethod
     def _unregister_telemetry_import_hooks(run_id: str) -> None:
@@ -3069,10 +2986,14 @@ class Run:
         """
         if self._settings._offline:
             raise TypeError("Cannot use artifact when in offline mode.")
-        r = self._run_obj
-        assert r is not None
-        api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
-        api.set_current_run_id(self._run_id)
+
+        api = internal.Api(
+            default_settings={
+                "entity": self._settings.entity,
+                "project": self._settings.project,
+            }
+        )
+        api.set_current_run_id(self._settings.run_id)
 
         if isinstance(artifact_or_name, str):
             if self._launch_artifact_mapping:
@@ -3103,8 +3024,8 @@ class Run:
                 self._used_artifact_slots[use_as] = artifact.id
             api.use_artifact(
                 artifact.id,
-                entity_name=r.entity,
-                project_name=r.project,
+                entity_name=self._settings.entity,
+                project_name=self._settings.project,
                 use_as=use_as or artifact_or_name,
             )
         else:
@@ -3229,12 +3150,12 @@ class Run:
         Returns:
             An `Artifact` object.
         """
-        if self._get_group() == "" and distributed_id is None:
+        if self._settings.run_group is None and distributed_id is None:
             raise TypeError(
                 "Cannot upsert artifact unless run is in a group or distributed_id is provided"
             )
         if distributed_id is None:
-            distributed_id = self._get_group()
+            distributed_id = self._settings.run_group or ""
         return self._log_artifact(
             artifact_or_path,
             name=name,
@@ -3282,12 +3203,12 @@ class Run:
         Returns:
             An `Artifact` object.
         """
-        if self._get_group() == "" and distributed_id is None:
+        if self._settings.run_group is None and distributed_id is None:
             raise TypeError(
                 "Cannot finish artifact unless run is in a group or distributed_id is provided"
             )
         if distributed_id is None:
-            distributed_id = self._get_group()
+            distributed_id = self._settings.run_group or ""
 
         return self._log_artifact(
             artifact_or_path,
@@ -3367,10 +3288,10 @@ class Run:
         return artifact
 
     def _public_api(self, overrides: dict[str, str] | None = None) -> PublicApi:
-        overrides = {"run": self._run_id}  # type: ignore
-        if not (self._settings._offline or self._run_obj is None):
-            overrides["entity"] = self._run_obj.entity
-            overrides["project"] = self._run_obj.project
+        overrides = {"run": self._settings.run_id}  # type: ignore
+        if not self._settings._offline:
+            overrides["entity"] = self._settings.entity or ""
+            overrides["project"] = self._settings.project or ""
         return public.Api(overrides)
 
     # TODO(jhr): annotate this
@@ -3413,7 +3334,10 @@ class Run:
         aliases: list[str] | None = None,
     ) -> tuple[Artifact, list[str]]:
         if isinstance(artifact_or_path, (str, os.PathLike)):
-            name = name or f"run-{self._run_id}-{os.path.basename(artifact_or_path)}"
+            name = (
+                name
+                or f"run-{self._settings.run_id}-{os.path.basename(artifact_or_path)}"
+            )
             artifact = wandb.Artifact(name, type or "unspecified")
             if os.path.isfile(artifact_or_path):
                 artifact.add_file(str(artifact_or_path))
