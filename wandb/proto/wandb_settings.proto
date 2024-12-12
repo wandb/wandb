@@ -43,7 +43,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 186
+// Next ID: 187
 message Settings {
   reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137;
 
@@ -70,6 +70,18 @@ message Settings {
 
   // Path to the transaction log file.
   google.protobuf.StringValue sync_file = 134;
+
+  // Whether to sync TensorBoard logs to W&B.
+  google.protobuf.BoolValue sync_tensorboard = 179;
+
+  // Whether to skip saving the run events to the transaction log.
+  //
+  // This is only relevant for online runs. Can be used to reduce the
+  // amount of data written to disk.
+  //
+  // Should be used with caution, as it removes the gurantees about
+  // recoverability.
+  google.protobuf.BoolValue x_skip_transaction_log = 186;
 
   // Whether we are in shared mode.
   //
@@ -357,9 +369,6 @@ message Settings {
   //
   // The format is: logs/output_<optional:Settings.Label>_<timestamp>_<nanoseconds>.log
   google.protobuf.BoolValue console_multipart = 166;
-
-  // Whether to sync TensorBoard logs to W&B.
-  google.protobuf.BoolValue sync_tensorboard = 179;
 
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.BoolValue x_cli_only_mode = 4;
