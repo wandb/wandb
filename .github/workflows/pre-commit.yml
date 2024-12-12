@@ -16,6 +16,7 @@ jobs:
     - uses: actions/setup-go@v5
       with:
         go-version-file: core/go.mod
+        cache-dependency-path: core/go.sum
     - name: setup env
       run: |
         ./core/scripts/code-checks.sh update

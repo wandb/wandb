@@ -10,6 +10,10 @@ message ListStringValue {
   repeated string value = 1;
 }
 
+message ListIntValue {
+  repeated int32 value = 1;
+}
+
 message MapStringKeyStringValue {
   map<string, string> value = 1;
 }
@@ -43,7 +47,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 186
+// Next ID: 187
 message Settings {
   reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137;
 
@@ -305,6 +309,12 @@ message Settings {
 
   // HTTP headers to add to OpenMetrics requests.
   MapStringKeyStringValue x_stats_open_metrics_http_headers = 184;
+
+  // GPU device indices to monitor (e.g. [0, 1, 2]).
+  //
+  // If not set, captures metrics for all GPUs.
+  // Assumes 0-based indexing matching CUDA/ROCm device enumeration.
+  ListIntValue x_stats_gpu_device_ids = 186;
 
   // Label to assign to system metrics and console logs collected for the run
   // to group by on the frontend. Can be used to distinguish data from different

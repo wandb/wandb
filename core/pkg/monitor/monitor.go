@@ -117,6 +117,7 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 	diskPaths := settings.GetStatsDiskPaths()
 	samplingInterval := settings.GetStatsSamplingInterval()
 	neuronMonitorConfigPath := settings.GetStatsNeuronMonitorConfigPath()
+	gpuDeviceIds := settings.GetStatsGpuDeviceIds()
 
 	// assets to be monitored.
 	if cpu := NewCPU(pid); cpu != nil {
@@ -131,7 +132,7 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 	if network := NewNetwork(); network != nil {
 		sm.assets = append(sm.assets, network)
 	}
-	if gpu := NewGPU(pid); gpu != nil {
+	if gpu := NewGPU(pid, gpuDeviceIds); gpu != nil {
 		sm.assets = append(sm.assets, gpu)
 	}
 	if gpu := NewGPUAMD(sm.logger); gpu != nil {
