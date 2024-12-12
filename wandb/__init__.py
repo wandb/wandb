@@ -204,12 +204,6 @@ if "dev" in __version__:
         "false",
     )
 
-    # Enable new features in dev versions.
-    os.environ["WANDB_X_SHOW_OPERATION_STATS"] = os.environ.get(
-        "WANDB_X_SHOW_OPERATION_STATS",
-        "true",
-    )
-
 _sentry = _Sentry()
 _sentry.setup()
 
