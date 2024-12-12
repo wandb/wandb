@@ -20,10 +20,10 @@ class MyModel(keras.Model):
 
 
 @pytest.mark.wandb_core_only
-def test_tb_callback(wandb_init, wandb_backend_spy):
+def test_tb_callback(wandb_backend_spy):
     np.random.seed(42)
 
-    with wandb_init(sync_tensorboard=True) as run:
+    with wandb.init(sync_tensorboard=True) as run:
         model = MyModel()
         model.compile("sgd", "mse")
 
