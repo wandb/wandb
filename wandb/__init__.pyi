@@ -43,7 +43,7 @@ __all__ = (
     "use_model",
     "link_model",
     "define_metric",
-    "Error", # doc:exclude
+    "Error", 
     "termsetup", # doc:exclude
     "termlog", # doc:exclude
     "termerror", # doc:exclude

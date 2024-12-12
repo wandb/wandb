@@ -34,10 +34,10 @@ class Histogram(WBValue):
         ```
 
     Args:
-        sequence: (array_like) input data for histogram
-        np_histogram: (numpy histogram) alternative input of a precomputed histogram
-        num_bins: (int) Number of bins for the histogram.  The default number of bins
-            is 64.  The maximum number of bins is 512
+        sequence (array_like): input data for histogram
+        np_histogram (numpy histogram): alternative input of a precomputed histogram
+        num_bins (int): Number of bins for the histogram.  The default number of bins
+            is 64. The maximum number of bins is 512
 
     Attributes:
         bins: ([float]) edges of bins

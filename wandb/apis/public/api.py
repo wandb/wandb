@@ -98,7 +98,7 @@ class Api:
     """Used for querying the W&B server.
 
     Args:
-        overrides: (dict) You can set `base_url` if you are using a W&B server other than `https://api.wandb.ai`. You can also set defaults for `entity`, `project`, and `run`.
+        overrides (dict): You can set `base_url` if you are using a W&B server other than `https://api.wandb.ai`. You can also set defaults for `entity`, `project`, and `run`.
 
     Examples:
     ```python

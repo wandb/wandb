@@ -76,7 +76,7 @@ class Plotly(Media):
     def get_media_subdir(cls: Type["Plotly"]) -> str:
         return os.path.join("media", "plotly")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
-        json_dict = super().to_json(run_or_artifact)
+    def _to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        json_dict = super()._to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         return json_dict

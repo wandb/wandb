@@ -14,11 +14,11 @@ class Audio(BatchableMedia):
     """Wandb class for audio clips.
 
     Args:
-        data_or_path: (string or numpy array) A path to an audio file
+        data_or_path (string or numpy array): A path to an audio file
             or a numpy array of audio data.
-        sample_rate: (int) Sample rate, required when passing in raw
+        sample_rate (int): Sample rate, required when passing in raw
             numpy array of audio data.
-        caption: (string) Caption to display with audio.
+        caption (string): Caption to display with audio.
     """
 
     _log_type = "audio-file"

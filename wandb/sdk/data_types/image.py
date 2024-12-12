@@ -66,11 +66,11 @@ class Image(BatchableMedia):
     """Format images for logging to W&B.
 
     Args:
-        data_or_path: (numpy array, string, io) Accepts numpy array of
+        data_or_path (numpy array, string, io): Accepts numpy array of
             image data, or a PIL image. The class attempts to infer
             the data format and converts it.
-        mode: (string) The PIL mode for an image. Most common are "L", "RGB", "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
-        caption: (string) Label for display of image.
+        mode (string): The PIL mode for an image. Most common are "L", "RGB", "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
+        caption  (string): Label for display of image.
 
     Note : When logging a `torch.Tensor` as a `wandb.Image`, images are normalized. If you do not want to normalize your images, please convert your tensors to a PIL Image.
 

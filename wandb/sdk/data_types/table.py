@@ -192,18 +192,18 @@ class Table(Media):
     in the UI: https://docs.wandb.ai/guides/data-vis/tables.
 
     Args:
-        columns: (List[str]) Names of the columns in the table.
+        columns (List[str]): Names of the columns in the table.
             Defaults to ["Input", "Output", "Expected"].
-        data: (List[List[any]]) 2D row-oriented array of values.
-        dataframe: (pandas.DataFrame) DataFrame object used to create the table.
+        data (List[List[any]]): 2D row-oriented array of values.
+        dataframe (pandas.DataFrame): DataFrame object used to create the table.
             When set, `data` and `columns` arguments are ignored.
-        optional: (Union[bool,List[bool]]) Determines if `None` values are allowed. Default to True
+        optional (Union[bool,List[bool]]): Determines if `None` values are allowed. Default to True
             - If a singular bool value, then the optionality is enforced for all
             columns specified at construction time
             - If a list of bool values, then the optionality is applied to each
             column - should be the same length as `columns`
             applies to all columns. A list of bool values applies to each respective column.
-        allow_mixed_types: (bool) Determines if columns are allowed to have mixed types
+        allow_mixed_types (bool): Determines if columns are allowed to have mixed types
             (disables type validation). Defaults to False
     """
 
@@ -319,9 +319,9 @@ class Table(Media):
         example object, like an instance of wandb.Image or wandb.Classes.
 
         Args:
-            col_name: (str) - The name of the column to cast.
-            dtype: (class, wandb.wandb_sdk.interface._dtypes.Type, any) - The target dtype.
-            optional: (bool) - If the column should allow Nones.
+            col_name (str): The name of the column to cast.
+            dtype (class, wandb.wandb_sdk.interface._dtypes.Type, any): The target dtype.
+            optional (bool): If the column should allow Nones.
         """
         assert col_name in self.columns
 
@@ -674,13 +674,10 @@ class Table(Media):
     def iterrows(self):
         """Returns the table data by row, showing the index of the row and the relevant data.
 
-        Yields:
-        ------
-        index : int
-            The index of the row. Using this value in other W&B tables
+        Returns:
+        index (int): The index of the row. Using this value in other W&B tables
             will automatically build a relationship between the tables
-        row : List[any]
-            The data of the row.
+        row List[any]: The data of the row.
         """
         for ndx in range(len(self.data)):
             index = _TableIndex(ndx)
@@ -798,9 +795,9 @@ class Table(Media):
         """Adds a column of data to the table.
 
         Args:
-            name: (str) - the unique name of the column
-            data: (list | np.array) - a column of homogeneous data
-            optional: (bool) - if null-like values are permitted
+            name (str): the unique name of the column
+            data (list | np.array): a column of homogeneous data
+            optional (bool): if null-like values are permitted
         """
         assert isinstance(name, str) and name not in self.columns
         is_np = util.is_numpy_array(data)
@@ -839,9 +836,8 @@ class Table(Media):
         """Retrieves a column from the table and optionally converts it to a NumPy object.
 
         Args:
-            name: (str) - the name of the column
-            convert_to: (str, optional)
-                - "numpy": will convert the underlying data to numpy object
+            name (str): the name of the column
+            convert_to (str, optional): "numpy": will convert the underlying data to numpy object
         """
         assert name in self.columns
         assert convert_to is None or convert_to == "numpy"
@@ -972,12 +968,9 @@ class PartitionedTable(Media):
     def iterrows(self):
         """Iterate over rows as (ndx, row).
 
-        Yields:
-        ------
-        index : int
-            The index of the row.
-        row : List[any]
-            The data of the row.
+        Returns:
+        index (int): The index of the row.
+        row (List[any]): The data of the row.
         """
         columns = None
         ndx = 0
