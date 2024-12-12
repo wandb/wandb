@@ -284,8 +284,14 @@ impl SystemMonitor for SystemMonitorImpl {
         let request = request.into_inner();
 
         let pid = request.pid;
-        let gpu_device_ids = request.gpu_device_ids;
-        let all_metrics = self.sample(pid, Some(gpu_device_ids)).await;
+
+        let gpu_device_ids = if request.gpu_device_ids.is_empty() {
+            None
+        } else {
+            Some(request.gpu_device_ids)
+        };
+
+        let all_metrics = self.sample(pid, gpu_device_ids).await;
 
         let stats_items: Vec<StatsItem> = all_metrics
             .iter()
