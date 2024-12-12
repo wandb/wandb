@@ -332,6 +332,10 @@ class Settings(BaseModel, validate_assignment=True):
         if platform.system() == "Darwin"
         else ("/",)
     )
+    # GPU device indices to monitor (e.g. [0, 1, 2]).
+    # If not set, captures metrics for all GPUs.
+    # Assumes 0-based indexing matching CUDA/ROCm device enumeration.
+    x_stats_gpu_device_ids: Sequence[int] | None = None
     # Number of system metric samples to buffer in memory in the wandb-core process.
     # Can be accessed via run._system_metrics.
     x_stats_buffer_size: int = 0
@@ -600,6 +604,13 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError(
                 f"Settings field `start_method`: {value!r} not in {available_methods}"
             )
+        return value
+
+    @field_validator("x_stats_gpu_device_ids", mode="before")
+    @classmethod
+    def validate_x_stats_gpu_device_ids(cls, value):
+        if isinstance(value, str):
+            return json.loads(value)
         return value
 
     @field_validator("x_stats_neuron_monitor_config_path", mode="before")

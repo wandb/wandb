@@ -21,6 +21,12 @@ import (
 type GPU struct {
 	// pid of the process to collect process-specific metrics for.
 	pid int32
+
+	// gpuDeviceIds is a list of GPU IDs to collect metrics for.
+	//
+	// If empty, all GPUs are monitored.
+	gpuDeviceIds []int32
+
 	// gpu_stats process.
 	cmd *exec.Cmd
 	// gRPC client connection and client for GPU metrics.
@@ -28,8 +34,11 @@ type GPU struct {
 	client spb.SystemMonitorClient
 }
 
-func NewGPU(pid int32) *GPU {
-	g := &GPU{pid: pid}
+func NewGPU(
+	pid int32,
+	gpuDeviceIds []int32,
+) *GPU {
+	g := &GPU{pid: pid, gpuDeviceIds: gpuDeviceIds}
 
 	// A portfile is used to communicate the port number of the gRPC service
 	// started by the gpu_stats binary.
@@ -120,7 +129,10 @@ func (g *GPU) IsAvailable() bool {
 //
 // The metrics are collected from the gpu_stats binary via gRPC.
 func (g *GPU) Sample() (*spb.StatsRecord, error) {
-	stats, err := g.client.GetStats(context.Background(), &spb.GetStatsRequest{Pid: g.pid})
+	stats, err := g.client.GetStats(
+		context.Background(),
+		&spb.GetStatsRequest{Pid: g.pid, GpuDeviceIds: g.gpuDeviceIds},
+	)
 	if err != nil {
 		return nil, err
 	}
