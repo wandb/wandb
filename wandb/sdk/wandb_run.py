@@ -1744,49 +1744,18 @@ class Run:
         import numpy as np
         import wandb
 
-<<<<<<< HEAD
         # sample gradients at random from normal distribution
         gradients = np.random.randn(100, 100)
         run = wandb.init()
         run.log({"gradients": wandb.Histogram(gradients)})
         ```
-=======
-            ### Image from PIL
-            <!--yeadoc-test:init-and-log-image-pillow-->
-            ```python
-            import numpy as np
-            from PIL import Image as PILImage
-            import wandb
-
-            run = wandb.init()
-            examples = []
-            for i in range(3):
-                pixels = np.random.randint(
-                    low=0, high=256, size=(100, 100, 3), dtype=np.uint8
-                )
-                pil_image = PILImage.fromarray(pixels, mode="RGB")
-                image = wandb.Image(pil_image, caption=f"random field {i}")
-                examples.append(image)
-            run.log({"examples": examples})
-            ```
->>>>>>> main
 
         <!--yeadoc-test:init-and-log-image-numpy-->
 
-<<<<<<< HEAD
         ```python
         # Image from numpy
         import numpy as np
         import wandb
-=======
-            run = wandb.init()
-            # axes are (time, channel, height, width)
-            frames = np.random.randint(
-                low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8
-            )
-            run.log({"video": wandb.Video(frames, fps=4)})
-            ```
->>>>>>> main
 
         run = wandb.init()
         examples = []
