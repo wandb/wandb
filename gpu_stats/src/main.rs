@@ -231,6 +231,8 @@ impl SystemMonitor for SystemMonitorImpl {
     ) -> Result<Response<Record>, Status> {
         debug!("Got a request to get metadata: {:?}", request);
 
+        // Do not apply any filters for metadata.
+        // TODO: reconsider if necessary.
         let all_metrics: Vec<(String, metrics::MetricValue)> = self.sample(0, None).await;
         let samples: HashMap<String, &metrics::MetricValue> = all_metrics
             .iter()
