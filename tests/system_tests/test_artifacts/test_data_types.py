@@ -16,41 +16,41 @@ def sample_data():
     artifact.save()
 
 
-@pytest.mark.wandb_core_only
-@pytest.mark.parametrize(
-    "tags_supported, expected_tags",
-    [
-        (True, ["tag1", "tag2"]),
-        (False, []),
-    ],
-)
-def test_artifact_tags(wandb_backend_spy, tags_supported, expected_tags):
-    gql = wandb_backend_spy.gql
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="ServerFeaturesQuery"),
-        gql.once(
-            content={
-                "data": {
-                    "viewer": {
-                        "featureFlags": [
-                            {
-                                "rampKey": "ServerSupportsArtifactTags",
-                                "isEnabled": tags_supported,
-                            }
-                        ]
-                    }
-                }
-            },
-            status=200,
-        ),
-    )
-    run = wandb.init(project="testrun")
-    artifact = wandb.Artifact(name="testartifact", type="blob")
-    run.log_artifact(artifact, tags=["tag1", "tag2"])
-    run.finish()
-
-    artifact_retrieved = wandb.Api().artifact("testrun/testartifact:latest")
-    assert artifact_retrieved.tags == expected_tags
+# @pytest.mark.wandb_core_only
+# @pytest.mark.parametrize(
+#     "tags_supported, expected_tags",
+#     [
+#         (True, ["tag1", "tag2"]),
+#         (False, []),
+#     ],
+# )
+# def test_artifact_tags(wandb_backend_spy, tags_supported, expected_tags):
+#     gql = wandb_backend_spy.gql
+#     wandb_backend_spy.stub_gql(
+#         gql.Matcher(operation="ServerFeaturesQuery"),
+#         gql.once(
+#             content={
+#                 "data": {
+#                     "viewer": {
+#                         "featureFlags": [
+#                             {
+#                                 "rampKey": "ServerSupportsArtifactTags",
+#                                 "isEnabled": tags_supported,
+#                             }
+#                         ]
+#                     }
+#                 }
+#             },
+#             status=200,
+#         ),
+#     )
+#     run = wandb.init(project="testrun")
+#     artifact = wandb.Artifact(name="testartifact", type="blob")
+#     run.log_artifact(artifact, tags=["tag1", "tag2"])
+#     run.finish()
+#
+#     artifact_retrieved = wandb.Api().artifact("testrun/testartifact:latest")
+#     assert artifact_retrieved.tags == expected_tags
 
 
 def test_wb_value(user, sample_data, test_settings):

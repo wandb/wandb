@@ -2800,7 +2800,13 @@ class Run:
         m._commit()
         return m
 
-    def get_server_feature(self, feature: str) -> ServerFeatureItem:
+    def _get_server_feature(self, feature: str) -> ServerFeatureItem:
+        if self.settings.x_require_legacy_service:
+            return ServerFeatureItem(
+                name=feature,
+                enabled=False,
+            )
+
         response = self._backend.interface.deliver_request_server_feature(feature)
         response = response.wait(timeout=2)
         if response is None or response.response.server_feature_response is None:

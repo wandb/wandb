@@ -915,7 +915,7 @@ class InterfaceBase:
         attach = pb.AttachRequest(attach_id=attach_id)
         return self._deliver_attach(attach)
 
-    def deliver_request_server_feature(self, features: list[str]) -> MailboxHandle:
+    def deliver_request_server_feature(self, features: List[str]) -> MailboxHandle:
         server_feature = pb.ServerFeatureRequest(features=features)
         return self._deliver_request_server_feature(server_feature)
 

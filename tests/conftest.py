@@ -453,7 +453,7 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
         def mock_server_feature(name: str):
             return ServerFeatureItem(name=name, enabled=True)
 
-        run.get_server_feature = mock_server_feature
+        run._get_server_feature = mock_server_feature
         run._set_globals()
         return run
 

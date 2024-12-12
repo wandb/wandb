@@ -183,7 +183,8 @@ class WBValue:
     ) -> Optional[str]:
         # TODO: update this appropriate with feature name when implemented in backend server
         server_accepts_client_ids = (
-            run is not None and run.get_server_feature("ServerAcceptsClientIds").enabled
+            run is not None
+            and run._get_server_feature("ServerAcceptsClientIds").enabled
         )
 
         # If the object is coming from another artifact
@@ -225,7 +226,7 @@ class WBValue:
 
     def _get_artifact_entry_latest_ref_url(self, run: "LocalRun") -> Optional[str]:
         # TODO: update this appropriate with feature name when implemented in backend server
-        server_accepts_client_ids = run.get_server_feature(
+        server_accepts_client_ids = run._get_server_feature(
             "ServerAcceptsClientIds"
         ).enabled
 
