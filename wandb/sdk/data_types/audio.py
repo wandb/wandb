@@ -55,11 +55,11 @@ class Audio(BatchableMedia):
             self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
-    def get_media_subdir(cls):
+    def _get_media_subdir(cls):
         return os.path.join("media", "audio")
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact):
+    def _from_json(cls, json_obj, source_artifact):
         return cls(
             source_artifact.get_entry(json_obj["path"]).download(),
             caption=json_obj["caption"],
@@ -86,7 +86,7 @@ class Audio(BatchableMedia):
         return json_dict
 
     @classmethod
-    def seq_to_json(cls, seq, run, key, step):
+    def _seq_to_json(cls, seq, run, key, step):
         audio_list = list(seq)
 
         util.get_module(
@@ -100,28 +100,28 @@ class Audio(BatchableMedia):
             "count": len(audio_list),
             "audio": [a._to_json(run) for a in audio_list],
         }
-        sample_rates = cls.sample_rates(audio_list)
+        sample_rates = cls._sample_rates(audio_list)
         if sample_rates:
             meta["sampleRates"] = sample_rates
         durations = cls.durations(audio_list)
         if durations:
             meta["durations"] = durations
-        captions = cls.captions(audio_list)
+        captions = cls._captions(audio_list)
         if captions:
             meta["captions"] = captions
 
         return meta
 
     @classmethod
-    def durations(cls, audio_list):
+    def _durations(cls, audio_list):
         return [a._duration for a in audio_list]
 
     @classmethod
-    def sample_rates(cls, audio_list):
+    def _sample_rates(cls, audio_list):
         return [a._sample_rate for a in audio_list]
 
     @classmethod
-    def captions(cls, audio_list):
+    def _captions(cls, audio_list):
         captions = [a._caption for a in audio_list]
         if all(c is None for c in captions):
             return False

@@ -25,7 +25,7 @@ __all__ = (
     "log",
     "summary",
     "Api",
-    "Graph",
+    "Graph", # doc:exclude
     "Image", 
     "Plotly",
     "Video",

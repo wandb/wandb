@@ -95,7 +95,7 @@ class Molecule(BatchableMedia):
             raise ValueError("Data must be file name or a file object")
 
     @classmethod
-    def from_rdkit(
+    def _from_rdkit(
         cls,
         data_or_path: "RDKitDataType",
         caption: Optional[str] = None,
@@ -128,7 +128,7 @@ class Molecule(BatchableMedia):
             extension = path.suffix.split(".")[-1]
             if extension not in Molecule.SUPPORTED_RDKIT_TYPES:
                 raise ValueError(
-                    "Molecule.from_rdkit only supports files of the type: "
+                    "Molecule._from_rdkit only supports files of the type: "
                     + ", ".join(Molecule.SUPPORTED_RDKIT_TYPES)
                 )
             # use the appropriate method
@@ -159,7 +159,7 @@ class Molecule(BatchableMedia):
         return cls(io.StringIO(pdb_block), caption=caption, file_type="pdb")
 
     @classmethod
-    def from_smiles(
+    def _from_smiles(
         cls,
         data: str,
         caption: Optional[str] = None,
@@ -185,7 +185,7 @@ class Molecule(BatchableMedia):
         if molecule is None:
             raise ValueError("Unable to parse the SMILES string.")
 
-        return cls.from_rdkit(
+        return cls._from_rdkit(
             data_or_path=molecule,
             caption=caption,
             convert_to_3d_and_optimize=convert_to_3d_and_optimize,
@@ -193,7 +193,7 @@ class Molecule(BatchableMedia):
         )
 
     @classmethod
-    def get_media_subdir(cls: Type["Molecule"]) -> str:
+    def _get_media_subdir(cls: Type["Molecule"]) -> str:
         return os.path.join("media", "molecule")
 
     def _to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
@@ -204,7 +204,7 @@ class Molecule(BatchableMedia):
         return json_dict
 
     @classmethod
-    def seq_to_json(
+    def _seq_to_json(
         cls: Type["Molecule"],
         seq: Sequence["BatchableMedia"],
         run: "LocalRun",
@@ -216,11 +216,11 @@ class Molecule(BatchableMedia):
         jsons = [obj._to_json(run) for obj in seq]
 
         for obj in jsons:
-            expected = LogicalPath(cls.get_media_subdir())
+            expected = LogicalPath(cls._get_media_subdir())
             if not obj["path"].startswith(expected):
                 raise ValueError(
                     "Files in an array of Molecule's must be in the {} directory, not {}".format(
-                        cls.get_media_subdir(), obj["path"]
+                        cls._get_media_subdir(), obj["path"]
                     )
                 )
 

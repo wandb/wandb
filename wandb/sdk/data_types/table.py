@@ -493,7 +493,7 @@ class Table(Media):
             logging.warning(f"Truncating wandb.Table object to {max_rows} rows.")
         return {"columns": self.columns, "data": self.data[:max_rows]}
 
-    def bind_to_run(self, *args, **kwargs):
+    def _bind_to_run(self, *args, **kwargs):
         # We set `warn=False` since Tables will now always be logged to both
         # files and artifacts. The file limit will never practically matter and
         # this code path will be ultimately removed. The 10k limit warning confuses
@@ -504,14 +504,14 @@ class Table(Media):
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
             util.json_dump_safer(data, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".table.json")
-        super().bind_to_run(*args, **kwargs)
+        super()._bind_to_run(*args, **kwargs)
 
     @classmethod
     def get_media_subdir(cls):
         return os.path.join("media", "table")
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact):
+    def _from_json(cls, json_obj, source_artifact):
         data = []
         column_types = None
         np_deserialized_columns = {}
@@ -684,12 +684,12 @@ class Table(Media):
             index.set_table(self)
             yield index, self.data[ndx]
 
-    def set_pk(self, col_name):
+    def _set_pk(self, col_name):
         # TODO: Docs
         assert col_name in self.columns
         self.cast(col_name, _PrimaryKeyType())
 
-    def set_fk(self, col_name, table, table_col):
+    def _set_fk(self, col_name, table, table_col):
         # TODO: Docs
         assert col_name in self.columns
         assert col_name != self._pk_col
@@ -873,7 +873,7 @@ class Table(Media):
         )
         return pd.DataFrame.from_records(self.data, columns=self.columns)
 
-    def index_ref(self, index):
+    def _index_ref(self, index):
         """Gets a reference of the index of a row in the table."""
         assert index < len(self.data)
         _index = _TableIndex(index)
