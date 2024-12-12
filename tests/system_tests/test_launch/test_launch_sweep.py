@@ -13,9 +13,7 @@ from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, construct_launch_spec
     "resource",
     ["local-process", None],
 )
-def test_sweeps_on_launch(
-    relay_server, user, wandb_init, test_settings, resource, monkeypatch
-):
+def test_sweeps_on_launch(relay_server, user, resource, monkeypatch):
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
         "validate_docker_installation",
@@ -31,15 +29,15 @@ def test_sweeps_on_launch(
     monkeypatch.setattr(
         wandb.docker,
         "push",
-        lambda reg, tag: None,
+        lambda *_: None,
     )
 
     proj = "test_project2"
     queue = "existing-queue"
-    settings = test_settings({"project": proj})
+    settings = wandb.Settings(project=proj)
 
     with relay_server():
-        wandb_init(settings=settings).finish()
+        wandb.init(settings=settings).finish()
 
         api = wandb.sdk.internal.internal_api.Api()
         api.create_run_queue(entity=user, project=proj, queue_name=queue, access="USER")
@@ -127,13 +125,11 @@ def test_sweeps_on_launch(
 
 
 @pytest.mark.parametrize("max_schedulers", [None, 0, -1, 2.0, "2"])
-def test_launch_agent_scheduler(
-    monkeypatch, user, wandb_init, test_settings, max_schedulers
-):
+def test_launch_agent_scheduler(monkeypatch, user, max_schedulers):
     proj = LAUNCH_DEFAULT_PROJECT
     queue = "queue"
-    settings = test_settings({"project": proj})
-    run = wandb_init(settings=settings)
+    settings = wandb.Settings(project=proj)
+    run = wandb.init(settings=settings)
 
     job_artifact = run._log_job_artifact_with_image("docker_image", args=[])
     job_name = job_artifact.wait().name
@@ -243,14 +239,12 @@ def test_launch_agent_scheduler(
     run.finish()
 
 
-def test_sweep_scheduler_job_with_queue(
-    runner, user, wandb_init, test_settings, mocker
-):
+def test_sweep_scheduler_job_with_queue(runner, user, mocker):
     # cant download artifacts in tests, so patch this
     mocker.patch("wandb.sdk.launch.sweeps.utils.check_job_exists", return_value=True)
     queue = "queue"
-    settings = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
-    run = wandb_init(settings=settings)
+    settings = wandb.Settings(project=LAUNCH_DEFAULT_PROJECT)
+    run = wandb.init(settings=settings)
 
     job_artifact = run._log_job_artifact_with_image("docker_image", args=[])
     job_name = job_artifact.wait().name
