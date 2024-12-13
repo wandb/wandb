@@ -15,8 +15,10 @@ def print_help():
 Usage: python run_load_tests.py -t <test case> [options]
   -t test case to run (required)
      log_scalar
-     log_scalar_scale_step
-     log_scalar_scale_metric
+     log_scale_step
+     log_scale_step_large
+     log_scale_metric
+     log_scale_metric_large
      log_audio
      mltraq
      mltraq_scale_step
