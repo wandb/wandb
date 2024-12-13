@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import sys
 from datetime import datetime, timezone
 
 from google.protobuf.timestamp_pb2 import Timestamp
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from wandb.proto import wandb_internal_pb2
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
 
 
 class DiskInfo(BaseModel, validate_assignment=True):
@@ -250,25 +256,25 @@ class Metadata(BaseModel, validate_assignment=True):
 
     os: str | None = None
     python: str | None = None
-    heartbeat_at: datetime | None = Field(None, alias="heartbeatAt")
-    started_at: datetime | None = Field(None, alias="startedAt")
+    heartbeat_at: datetime | None = None
+    started_at: datetime | None = None
     docker: str | None = None
     cuda: str | None = None
     args: list[str] = Field(default_factory=list)
     state: str | None = None
     program: str | None = None
-    code_path: str | None = Field(None, alias="codePath")
+    code_path: str | None = None
     git: GitRepoRecord | None = None
     email: str | None = None
     root: str | None = None
     host: str | None = None
     username: str | None = None
     executable: str | None = None
-    code_path_local: str | None = Field(None, alias="codePathLocal")
+    code_path_local: str | None = None
     colab: str | None = None
     cpu_count: int | None = None
     cpu_count_logical: int | None = None
-    gpu_type: str | None = Field(None, alias="gpu")
+    gpu_type: str | None = None
     gpu_count: int | None = None
     disk: dict[str, DiskInfo] = Field(default_factory=dict)
     memory: MemoryInfo | None = None
@@ -280,6 +286,16 @@ class Metadata(BaseModel, validate_assignment=True):
     cuda_version: str | None = None
     trainium: TrainiumInfo | None = None
     tpu: TPUInfo | None = None
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self._model_post_update_callback: callable | None = None
+
+    # def _add
+
+    @model_validator(mode="after")
+    def _update_run_metadata(self) -> Self:
+        return self
 
     @classmethod
     def _datetime_to_timestamp(cls, dt: datetime | None) -> Timestamp | None:
@@ -384,7 +400,7 @@ class Metadata(BaseModel, validate_assignment=True):
 
     @classmethod
     def from_proto(cls, proto: wandb_internal_pb2.MetadataRequest) -> Metadata:  # noqa: C901
-        print(proto)
+        # print(proto)
         data = {}
 
         # Handle all scalar fields.
