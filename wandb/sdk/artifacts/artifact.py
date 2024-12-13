@@ -34,6 +34,7 @@ from wandb.sdk.artifacts._validators import (
     ensure_not_finalized,
     validate_aliases,
     validate_tags,
+    is_artifact_registry_project,
 )
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
@@ -544,7 +545,7 @@ class Artifact:
         if self.collection.is_sequence():
             return f"{self._client.app_url}{self._entity}/{self._project}/artifacts/{quote(self._type)}/{quote(self.collection.name)}/{self._version}"
         else:
-            if self._project.startswith("wandb-registry-"):
+            if is_artifact_registry_project(self._project):
                 orgs_from_entity = InternalApi()._fetch_orgs_and_org_entities_from_entity(
                     self._entity
                 )
