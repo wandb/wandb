@@ -122,6 +122,17 @@ def process_sar_files(log_dir: str) -> None:
     Args:
         log_dir (str): The directory containing the log files.
     """
+
+    # Explicitly stop any running sar processes first. Even if they are explicitly
+    # killed, they will exit on their own when done.
+    try:
+        subprocess.run("killall sar", check=True, shell=True)
+        logger.info("kill sar executed successfully.")
+    except FileNotFoundError:
+        logger.error("Command not found. Make sure 'killall' is installed and in your PATH.")
+    except Exception as e:
+        logger.error(f"An unexpected error occurred: {e}")
+
     log_files = ["cpu.log", "mem.log", "network.sock.log", "paging.log"]
 
     pre_processed_network_log = pre_process_network_sar_log(log_dir)

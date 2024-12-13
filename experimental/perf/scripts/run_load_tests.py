@@ -36,10 +36,10 @@ def run_test_case(test_case: str, log_folder: str, num_of_parallel_runs: int, da
             metric_count=[100],
             root_folder=log_folder,
             num_of_processes=num_of_parallel_runs,
-            data_type=data_type
+            data_type="scalar"
         )    
 
-    elif test_case == "log_scalar_scale_step":
+    elif test_case == "log_scale_step":
         test_case_helper.run_perf_tests(
             loop_count=1,
             step_count=[1000, 2000, 4000, 8000], 
@@ -49,7 +49,17 @@ def run_test_case(test_case: str, log_folder: str, num_of_parallel_runs: int, da
             data_type=data_type
         )    
 
-    elif test_case == "log_scalar_scale_metric":
+    elif test_case == "log_scale_step_large":
+        test_case_helper.run_perf_tests(
+            loop_count=1,
+            step_count=[10000, 20000, 40000, 80000], 
+            metric_count=[100],
+            root_folder=log_folder,
+            num_of_processes=num_of_parallel_runs,
+            data_type=data_type
+        )    
+
+    elif test_case == "log_scale_metric":
         test_case_helper.run_perf_tests(
             loop_count=1,
             step_count=[1000], 
@@ -59,7 +69,7 @@ def run_test_case(test_case: str, log_folder: str, num_of_parallel_runs: int, da
             data_type=data_type
         )    
 
-    elif test_case == "log_scalar_scale_metric_large":
+    elif test_case == "log_scale_metric_large":
         test_case_helper.run_perf_tests(
             loop_count=1,
             step_count=[10], 

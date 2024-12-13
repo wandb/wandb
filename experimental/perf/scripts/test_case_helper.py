@@ -5,6 +5,7 @@ from bench_run_log import run_experiment
 from process_sar_helper import process_sar_files
 from setup_helper import capture_sar_metrics, get_logger
 
+import time
 import wandb
 
 logger = get_logger(__name__)
@@ -45,6 +46,8 @@ def run_perf_tests(
                     step, mc, root_folder, sort_key, num_of_processes, data_type
                 )
                 sort_key += 1
+                time.sleep(10) # sleep some time between run to let it finish flushing
+                
 
 
 def run_parallel_experiments_helper(

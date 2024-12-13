@@ -78,7 +78,7 @@ def get_random_key(field_size: int) -> str:
         random.choices(string.ascii_letters + string.digits + "_", k=field_size)
     )
 
-def capture_sar_metrics(log_dir: str, iteration: int = 8):
+def capture_sar_metrics(log_dir: str, iteration: int = 60):
     """Captures sar system metrics in the background and saves them to log files.
 
     This function starts the sar processes in the background in a fire-and-forget

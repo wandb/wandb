@@ -97,7 +97,7 @@ def run_experiment(
         # Setting it to 0.1ms to avoid failing the math.
         log_time = 0.0001
 
-    log_rps = round(step_count // log_time, 2)
+    log_rps = round(step_count / log_time, 2)
     result_data["log_rps"] = log_rps
 
     # Finish W&B run
