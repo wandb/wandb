@@ -23,6 +23,12 @@ message GetStatsRequest {
   // Capture the system metrics for the process with this PID, in addition to
   // system-wide metrics.
   int32 pid = 1;
+
+  // GPU device IDs to capture metrics for.
+  //
+  // Should be 0-indexed and match those reported by the CUDA/ROCm runtime environment.
+  // If not set, metrics for all GPUs will be captured.
+  repeated int32 gpu_device_ids = 2;
 }
 
 message GetMetadataRequest {}

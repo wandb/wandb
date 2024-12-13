@@ -3,11 +3,11 @@ package stream
 // This file contains functions to construct the objects used by a Stream.
 
 import (
+	"crypto/tls"
 	"fmt"
 	"maps"
 	"net/http"
 	"net/url"
-	"os"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -105,20 +105,21 @@ func NewGraphQLClient(
 	// sure that the username setting is populated correctly. Leaving this as is
 	// for now just to avoid breakage in the service account feature.
 	graphqlHeaders := map[string]string{
-		"X-WANDB-USERNAME":   os.Getenv("WANDB_USERNAME"),
-		"X-WANDB-USER-EMAIL": os.Getenv("WANDB_USER_EMAIL"),
+		"X-WANDB-USERNAME":   settings.GetUserName(),
+		"X-WANDB-USER-EMAIL": settings.GetEmail(),
 	}
 	maps.Copy(graphqlHeaders, settings.GetExtraHTTPHeaders())
 
 	opts := api.ClientOptions{
-		RetryPolicy:     clients.CheckRetry,
-		RetryMax:        api.DefaultRetryMax,
-		RetryWaitMin:    api.DefaultRetryWaitMin,
-		RetryWaitMax:    api.DefaultRetryWaitMax,
-		NonRetryTimeout: api.DefaultNonRetryTimeout,
-		ExtraHeaders:    graphqlHeaders,
-		NetworkPeeker:   peeker,
-		Proxy:           ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
+		RetryPolicy:        clients.CheckRetry,
+		RetryMax:           api.DefaultRetryMax,
+		RetryWaitMin:       api.DefaultRetryWaitMin,
+		RetryWaitMax:       api.DefaultRetryWaitMax,
+		NonRetryTimeout:    api.DefaultNonRetryTimeout,
+		ExtraHeaders:       graphqlHeaders,
+		NetworkPeeker:      peeker,
+		Proxy:              ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
+		InsecureDisableSSL: settings.IsInsecureDisableSSL(),
 	}
 	if retryMax := settings.GetGraphQLMaxRetries(); retryMax > 0 {
 		opts.RetryMax = int(retryMax)
@@ -154,14 +155,15 @@ func NewFileStream(
 	}
 
 	opts := api.ClientOptions{
-		RetryPolicy:     filestream.RetryPolicy,
-		RetryMax:        filestream.DefaultRetryMax,
-		RetryWaitMin:    filestream.DefaultRetryWaitMin,
-		RetryWaitMax:    filestream.DefaultRetryWaitMax,
-		NonRetryTimeout: filestream.DefaultNonRetryTimeout,
-		ExtraHeaders:    fileStreamHeaders,
-		NetworkPeeker:   peeker,
-		Proxy:           ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
+		RetryPolicy:        clients.RetryMostFailures,
+		RetryMax:           filestream.DefaultRetryMax,
+		RetryWaitMin:       filestream.DefaultRetryWaitMin,
+		RetryWaitMax:       filestream.DefaultRetryWaitMax,
+		NonRetryTimeout:    filestream.DefaultNonRetryTimeout,
+		ExtraHeaders:       fileStreamHeaders,
+		NetworkPeeker:      peeker,
+		Proxy:              ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
+		InsecureDisableSSL: settings.IsInsecureDisableSSL(),
 	}
 	if retryMax := settings.GetFileStreamMaxRetries(); retryMax > 0 {
 		opts.RetryMax = int(retryMax)
@@ -216,6 +218,14 @@ func NewFileTransferManager(
 	transport := &http.Transport{
 		Proxy: ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
 	}
+
+	// Set the TLS client config to skip SSL verification if the setting is enabled.
+	if settings.IsInsecureDisableSSL() {
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	}
+
 	// Set the "Proxy-Authorization" header for the CONNECT requests
 	// to the proxy server if the header is present in the extra headers.
 	if header, ok := settings.GetExtraHTTPHeaders()["Proxy-Authorization"]; ok {

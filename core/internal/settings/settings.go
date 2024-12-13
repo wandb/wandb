@@ -243,6 +243,11 @@ func (s *Settings) GetHTTPSProxy() string {
 	return s.Proto.HttpsProxy.GetValue()
 }
 
+// Whether to disable SSL verification.
+func (s *Settings) IsInsecureDisableSSL() bool {
+	return s.Proto.InsecureDisableSsl.GetValue()
+}
+
 // Path to the script that created the run, if available.
 func (s *Settings) GetProgram() string {
 	return s.Proto.Program.GetValue()
@@ -427,6 +432,11 @@ func (s *Settings) GetStatsPid() int32 {
 // The disk paths to monitor for system metrics.
 func (s *Settings) GetStatsDiskPaths() []string {
 	return s.Proto.XStatsDiskPaths.GetValue()
+}
+
+// The indices of GPU devices to monitor.
+func (s *Settings) GetStatsGpuDeviceIds() []int32 {
+	return s.Proto.XStatsGpuDeviceIds.GetValue()
 }
 
 // The path to the Neuron monitor config file.

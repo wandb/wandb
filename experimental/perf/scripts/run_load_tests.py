@@ -138,6 +138,7 @@ def main():
         type=str,
         help='wandb data type to log. Default "None" means scalar.',
         default="scalar",
+
     )
     parser.add_argument(
         "-n",
@@ -166,6 +167,7 @@ def main():
 
     # Run the specified test case
     run_test_case(testcase, log_folder, num_of_parallel_runs, data_type)
+
 
     end_time = time.time()
     total_time = end_time - start_time

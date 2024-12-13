@@ -12,8 +12,3 @@ Add here any changes made in a PR that are relevant to end users. Allowed sectio
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
-
-### Changed
-
-- Improved error message for failing tensorboard.patch() calls to show the option to call tensorboard.unpatch() first (@daniel-bogdoll in https://github.com/wandb/wandb/pull/8938)
-- Add projectId to deleteFiles mutation if the server supports it. (@jacobromero in https://github.com/wandb/wandb/pull/8837)
