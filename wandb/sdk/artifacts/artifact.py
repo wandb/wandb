@@ -2345,7 +2345,7 @@ class Artifact:
             raise TypeError(f"metadata must be dict, not {type(metadata)}")
         return cast(
             Dict[str, Any], json.loads(json.dumps(util.json_friendly_val(metadata)))
-
+        )
     def _load_manifest(self, url: str) -> ArtifactManifest:
         with requests.get(url) as response:
             response.raise_for_status()
