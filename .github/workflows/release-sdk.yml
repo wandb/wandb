@@ -213,7 +213,7 @@ jobs:
           # make it invalid, breaking the job.
           #
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_SKIP: cp36-*
+          CIBW_SKIP: cp36-* *musl*
           CIBW_ARCHS_LINUX: x86_64 #aarch64 is handled by build-linux-arm64-wheels
           CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
 
