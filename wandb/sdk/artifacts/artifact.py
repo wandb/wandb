@@ -545,9 +545,9 @@ class Artifact:
         if self.collection.is_sequence():
             return self._construct_standard_url()
         else:
-            if is_artifact_registry_project(self._project):
+            if is_artifact_registry_project(self.project):
                 return self._construct_registry_url()
-            elif self._type == "model" or self._project == "model-registry":
+            elif self._type == "model" or self.project == "model-registry":
                 return self._construct_model_registry_url()
             else:
                 return self._construct_standard_url()
@@ -556,36 +556,36 @@ class Artifact:
         if not self._client or not all(
             [
                 self._client.app_url,
-                self._entity,
-                self._project,
+                self.entity,
+                self.project,
                 self._type,
                 self.collection.name,
                 self._version,
             ]
         ):
             return ""
-        return f"{self._client.app_url}{self._entity}/{self._project}/artifacts/{quote(self._type)}/{quote(self.collection.name)}/{self._version}"
+        return f"{self._client.app_url}{self.entity}/{self.project}/artifacts/{quote(self._type)}/{quote(self.collection.name)}/{self._version}"
 
     def _construct_registry_url(self) -> str:
         if not self._client or not all(
             [
                 self._client.app_url,
-                self._entity,
-                self._project,
+                self.entity,
+                self.project,
                 self.collection.name,
                 self._version,
             ]
         ):
             return ""
         orgs_from_entity = InternalApi()._fetch_orgs_and_org_entities_from_entity(
-            self._entity
+            self.entity
         )
         if len(orgs_from_entity) > 0:
             org = orgs_from_entity[0]
         else:
             return ""
         selection_path = quote(
-            f"{self._entity}/{self._project}/{self.collection.name}", safe=""
+            f"{self.entity}/{self.project}/{self.collection.name}", safe=""
         )
         return f"{self._client.app_url}orgs/{org.display_name}/registry/{self._type}?selectionPath={selection_path}&view=membership&version={self._version}"
 
@@ -593,17 +593,17 @@ class Artifact:
         if not self._client or not all(
             [
                 self._client.app_url,
-                self._entity,
-                self._project,
+                self.entity,
+                self.project,
                 self.collection.name,
                 self._version,
             ]
         ):
             return ""
         selection_path = quote(
-            f"{self._entity}/{self._project}/{self.collection.name}", safe=""
+            f"{self.entity}/{self.project}/{self.collection.name}", safe=""
         )
-        return f"{self._client.app_url}{self._entity}/registry/model?selectionPath={selection_path}&view=membership&version={self._version}"
+        return f"{self._client.app_url}{self.entity}/registry/model?selectionPath={selection_path}&view=membership&version={self._version}"
 
     @property
     def description(self) -> str | None:
