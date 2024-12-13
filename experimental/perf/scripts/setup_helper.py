@@ -46,7 +46,7 @@ def get_logger(name: str, log_file: str = "perf.log") -> logging.Logger:
 
 
 def get_payload(data_type: str, metric_count: int, metric_key_size) -> dict:
-    """Generates a payload based on the data type and parameters
+    """Generates a payload based on the data type and parameters.
 
     Args:
         data_type (str): scalar | audio - the wandb data type.
