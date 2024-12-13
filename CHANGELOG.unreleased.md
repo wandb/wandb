@@ -22,3 +22,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `run.finish()` displays more detailed information in the terminal and in Jupyter notebooks (by @timoffex, enabled in https://github.com/wandb/wandb/pull/9070)
 - Improved error message for failing tensorboard.patch() calls to show the option to call tensorboard.unpatch() first (@daniel-bogdoll in https://github.com/wandb/wandb/pull/8938)
 - Add projectId to deleteFiles mutation if the server supports it. (@jacobromero in https://github.com/wandb/wandb/pull/8837)
+
+### Fixed
+
+- Update docs for `Artifact.used_by()` to clarify the upper limit on returned runs, and emit a `UserWarning` if returning the maximum number of results. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9042)
