@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
@@ -200,21 +201,28 @@ func NewStream(
 		)
 	}
 
+	featureProvider := featurechecker.NewServerFeaturesCache(
+		s.runWork.BeforeEndCtx(),
+		graphqlClientOrNil,
+		s.logger,
+	)
+
 	mailbox := mailbox.New()
 
 	s.handler = NewHandler(
 		HandlerParams{
-			Logger:            s.logger,
-			Operations:        operations,
-			Settings:          s.settings,
+			Commit:            params.Commit,
+			FeatureProvider:   featureProvider,
+			FileTransferStats: fileTransferStats,
 			FwdChan:           make(chan runwork.Work, BufferSize),
+			Logger:            s.logger,
+			Mailbox:           mailbox,
+			Operations:        operations,
 			OutChan:           make(chan *spb.Result, BufferSize),
+			Settings:          s.settings,
 			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings, s.runWork),
 			TBHandler:         tbHandler,
-			FileTransferStats: fileTransferStats,
-			Mailbox:           mailbox,
 			TerminalPrinter:   terminalPrinter,
-			Commit:            params.Commit,
 		},
 	)
 

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/server"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/version"
@@ -18,6 +19,7 @@ func makeHandler(
 	inChan, fwdChan chan runwork.Work,
 	outChan chan *spb.Result,
 	commit string,
+	featureProvider *server.ServerFeatures,
 ) *stream.Handler {
 	h := stream.NewHandler(
 		stream.HandlerParams{
@@ -28,6 +30,7 @@ func makeHandler(
 			TerminalPrinter: observability.NewPrinter(),
 			SkipSummary:     true,
 			Commit:          commit,
+			FeatureProvider: featureProvider,
 		},
 	)
 
@@ -681,7 +684,7 @@ func TestHandlePartialHistory(t *testing.T) {
 			fwdChan := make(chan runwork.Work, stream.BufferSize)
 			outChan := make(chan *spb.Result, stream.BufferSize)
 
-			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
+			makeHandler(inChan, fwdChan, outChan, "" /*commit*/, nil)
 
 			for _, d := range tc.input {
 				record := makePartialHistoryRecord(d)
@@ -781,7 +784,7 @@ func TestHandleHistory(t *testing.T) {
 			fwdChan := make(chan runwork.Work, stream.BufferSize)
 			outChan := make(chan *spb.Result, stream.BufferSize)
 
-			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
+			makeHandler(inChan, fwdChan, outChan, "" /*commit*/, nil)
 
 			for _, d := range tc.input {
 				record := makeHistoryRecord(d)
@@ -817,7 +820,7 @@ func TestHandleHeader(t *testing.T) {
 
 	sha := "2a7314df06ab73a741dcb7bc5ecb50cda150b077"
 
-	makeHandler(inChan, fwdChan, outChan, sha)
+	makeHandler(inChan, fwdChan, outChan, sha, nil)
 
 	record := &spb.Record{
 		RecordType: &spb.Record_Header{
@@ -830,4 +833,77 @@ func TestHandleHeader(t *testing.T) {
 
 	versionInfo := fmt.Sprintf("%s+%s", version.Version, sha)
 	assert.Equal(t, versionInfo, record.GetHeader().GetVersionInfo().GetProducer(), "wrong version info")
+}
+
+func TestHandleServerFeatures(t *testing.T) {
+	inChan := make(chan runwork.Work, 1)
+	fwdChan := make(chan runwork.Work, 1)
+	outChan := make(chan *spb.Result, 1)
+	featureProvider := &server.ServerFeatures{
+		Features: map[string]server.ServerFeature{
+			"enabled_feature":  {Name: "enabled_feature", Enabled: true},
+			"disabled_feature": {Name: "disabled_feature", Enabled: false},
+		},
+	}
+
+	// Create a server feature request record
+	record := &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_ServerFeature{
+					ServerFeature: &spb.ServerFeatureRequest{
+						Features: []string{
+							"enabled_feature",
+							"disabled_feature",
+						},
+					},
+				},
+			},
+		},
+	}
+	inChan <- runwork.WorkRecord{Record: record}
+
+	// Send the record to the handler
+	makeHandler(inChan, fwdChan, outChan, "", featureProvider)
+
+	// Assert the response is the correct value
+	result := <-outChan
+	serverFeatureResponse := result.GetResponse().GetServerFeatureResponse()
+	assert.NotNil(t, serverFeatureResponse)
+	assert.Equal(t, 2, len(serverFeatureResponse.GetFeatures()))
+	assert.True(t, serverFeatureResponse.GetFeatures()["enabled_feature"].GetEnabled())
+	assert.False(t, serverFeatureResponse.GetFeatures()["disabled_feature"].GetEnabled())
+}
+
+func TestHandleServerFeaturesNoFeatures(t *testing.T) {
+	inChan := make(chan runwork.Work, 1)
+	fwdChan := make(chan runwork.Work, 1)
+	outChan := make(chan *spb.Result, 1)
+	featureProvider := &server.ServerFeatures{
+		Features: map[string]server.ServerFeature{},
+	}
+
+	// Create a server feature request record
+	record := &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_ServerFeature{
+					ServerFeature: &spb.ServerFeatureRequest{
+						Features: []string{"unknown_feature"},
+					},
+				},
+			},
+		},
+	}
+	inChan <- runwork.WorkRecord{Record: record}
+
+	// Send the record to the handler
+	makeHandler(inChan, fwdChan, outChan, "", featureProvider)
+
+	// Assert default value enabled is false
+	result := <-outChan
+	serverFeatureResponse := result.GetResponse().GetServerFeatureResponse()
+	assert.NotNil(t, serverFeatureResponse)
+	assert.Equal(t, 1, len(serverFeatureResponse.GetFeatures()))
+	assert.False(t, serverFeatureResponse.GetFeatures()["unknown_feature"].GetEnabled())
 }
