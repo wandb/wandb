@@ -8,11 +8,11 @@ from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 
 
 @pytest.mark.asyncio
-async def test_check_stop_run_not_exist(wandb_init):
+async def test_check_stop_run_not_exist(user):
     job_tracker = JobAndRunStatusTracker(
         "run_queue_item_id", "test-queue", MagicMock(), MagicMock()
     )
-    run = wandb_init(id="testrun")
+    run = wandb.init(id="testrun")
     api = wandb.InternalApi()
     mock_launch_project = MagicMock()
     mock_launch_project.target_entity = run.entity
@@ -26,12 +26,12 @@ async def test_check_stop_run_not_exist(wandb_init):
 
 
 @pytest.mark.asyncio
-async def test_check_stop_run_exist_stopped(user, wandb_init):
+async def test_check_stop_run_exist_stopped(user):
     mock.patch("wandb.sdk.wandb_run.thread.interrupt_main", lambda x: None)
     job_tracker = JobAndRunStatusTracker(
         "run_queue_item_id", "test-queue", MagicMock(), MagicMock()
     )
-    run = wandb_init(id="testrun", entity=user)
+    run = wandb.init(id="testrun", entity=user)
     api = wandb.InternalApi()
     encoded_run_id = base64.standard_b64encode(
         f"Run:v1:testrun:{run.project}:{run.entity}".encode()
