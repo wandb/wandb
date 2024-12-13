@@ -1,7 +1,10 @@
 package api
 
 import (
+	"fmt"
+	"log/slog"
 	"net/http"
+	"net/http/httputil"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -49,6 +52,13 @@ func (transport *RateLimitedTransport) RoundTrip(
 	}
 
 	transport.rlTracker.TrackRequest()
+
+	printedReq, err := httputil.DumpRequest(req, true)
+	if err != nil {
+		panic(fmt.Errorf("RBC DEBUGGING: %v", err))
+	}
+	slog.Info("RBC DEBUGGING: REQUEST", "request", string(printedReq))
+
 	resp, err := transport.delegate.RoundTrip(req)
 
 	if resp != nil {

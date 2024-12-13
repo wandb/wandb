@@ -66,110 +66,110 @@ jobs:
           git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
           git push --no-verify -f origin release-${{ github.event.inputs.version }}
 
-  build-macos-10-wheels:
-    name: Build wheels for MacOS 10.x
-    needs: prepare-release
-    runs-on: macos-14
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
+  # build-macos-10-wheels:
+  #   name: Build wheels for MacOS 10.x
+  #   needs: prepare-release
+  #   runs-on: macos-14
+  #   timeout-minutes: 60
+  #   strategy:
+  #     fail-fast: false
 
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: release-${{ github.event.inputs.version }}
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         ref: release-${{ github.event.inputs.version }}
 
-      ##################################################
-      # Go 1.22 is required for building the wheels on MacOS 10.x.
-      #
-      # See https://github.com/golang/go/issues/64207.
-      ##################################################
-      - name: Downgrade Go version
-        run: |
-          sed -i '' 's/1.23.4/1.22.8/' core/go.mod
+  #     ##################################################
+  #     # Go 1.22 is required for building the wheels on MacOS 10.x.
+  #     #
+  #     # See https://github.com/golang/go/issues/64207.
+  #     ##################################################
+  #     - name: Downgrade Go version
+  #       run: |
+  #         sed -i '' 's/1.23.4/1.22.8/' core/go.mod
 
-      ##################################################
-      # Non-Linux: install Go
-      #
-      # See comment above CIBW_BEFORE_ALL_LINUX.
-      ##################################################
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: core/go.mod
+  #     ##################################################
+  #     # Non-Linux: install Go
+  #     #
+  #     # See comment above CIBW_BEFORE_ALL_LINUX.
+  #     ##################################################
+  #     - name: Set up Go
+  #       uses: actions/setup-go@v5
+  #       with:
+  #         go-version-file: core/go.mod
 
-      ##################################################
-      # All platforms: create wheels
-      ##################################################
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v2.19.2
-        with:
-          package-dir: .
-          output-dir: dist
-        env:
-          # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_BUILD: cp*-macosx* pp*-macosx*
-          CIBW_SKIP: cp36-*
-          CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
+  #     ##################################################
+  #     # All platforms: create wheels
+  #     ##################################################
+  #     - name: Build wheels
+  #       uses: pypa/cibuildwheel@v2.19.2
+  #       with:
+  #         package-dir: .
+  #         output-dir: dist
+  #       env:
+  #         # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
+  #         CIBW_BUILD: cp*-macosx* pp*-macosx*
+  #         CIBW_SKIP: cp36-*
+  #         CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
 
-          # Work around https://github.com/matthew-brett/delocate/issues/204
-          # by adding `--ignore-missing-dependencies` to cibuildwheel's default
-          # repair wheel command.
-          CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
-            delocate-listdeps --all --depending {wheel} &&
-            delocate-wheel \
-              --require-archs {delocate_archs} \
-              --ignore-missing-dependencies \
-              -w {dest_dir} \
-              -v {wheel}
-          CIBW_ENVIRONMENT_MACOS: >
-            MACOSX_DEPLOYMENT_TARGET=10.14
+  #         # Work around https://github.com/matthew-brett/delocate/issues/204
+  #         # by adding `--ignore-missing-dependencies` to cibuildwheel's default
+  #         # repair wheel command.
+  #         CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
+  #           delocate-listdeps --all --depending {wheel} &&
+  #           delocate-wheel \
+  #             --require-archs {delocate_archs} \
+  #             --ignore-missing-dependencies \
+  #             -w {dest_dir} \
+  #             -v {wheel}
+  #         CIBW_ENVIRONMENT_MACOS: >
+  #           MACOSX_DEPLOYMENT_TARGET=10.14
 
-      - uses: actions/upload-artifact@v3
-        with:
-          name: wandb-sdk-distributions
-          path: ./dist
+  #     - uses: actions/upload-artifact@v3
+  #       with:
+  #         name: wandb-sdk-distributions
+  #         path: ./dist
 
-  build-linux-arm64-wheels:
-    name: Build wheels for Linux arm64
-    needs: prepare-release
-    runs-on: linux-arm64-ubuntu24.04-4core # custom runner in wandb org
-    timeout-minutes: 30
+  # build-linux-arm64-wheels:
+  #   name: Build wheels for Linux arm64
+  #   needs: prepare-release
+  #   runs-on: linux-arm64-ubuntu24.04-4core # custom runner in wandb org
+  #   timeout-minutes: 30
 
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: release-${{ github.event.inputs.version }}
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         ref: release-${{ github.event.inputs.version }}
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: core/go.mod
-          cache-dependency-path: core/go.sum
+  #     - name: Set up Go
+  #       uses: actions/setup-go@v5
+  #       with:
+  #         go-version-file: core/go.mod
+  #         cache-dependency-path: core/go.sum
 
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v2.19.2
-        with:
-          package-dir: .
-          output-dir: dist
-        env:
-          # In cp36-*, the wheel name sometimes includes additional dashes that
-          # make it invalid, breaking the job.
-          #
-          # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_SKIP: cp36-*
-          CIBW_ARCHS_LINUX: aarch64
-          CIBW_BEFORE_ALL_LINUX: >
-            export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
-            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-arm64.tar.gz > go.tar.gz &&
-            tar -C /usr/local/ -xzf go.tar.gz &&
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          CIBW_ENVIRONMENT_LINUX: PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
+  #     - name: Build wheels
+  #       uses: pypa/cibuildwheel@v2.19.2
+  #       with:
+  #         package-dir: .
+  #         output-dir: dist
+  #       env:
+  #         # In cp36-*, the wheel name sometimes includes additional dashes that
+  #         # make it invalid, breaking the job.
+  #         #
+  #         # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
+  #         CIBW_SKIP: cp36-*
+  #         CIBW_ARCHS_LINUX: aarch64
+  #         CIBW_BEFORE_ALL_LINUX: >
+  #           export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
+  #           curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-arm64.tar.gz > go.tar.gz &&
+  #           tar -C /usr/local/ -xzf go.tar.gz &&
+  #           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  #         CIBW_ENVIRONMENT_LINUX: PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
-      - uses: actions/upload-artifact@v3
-        with:
-          name: wandb-sdk-distributions
-          path: ./dist
+  #     - uses: actions/upload-artifact@v3
+  #       with:
+  #         name: wandb-sdk-distributions
+  #         path: ./dist
 
   build-platform-wheels:
     name: Build wheels on ${{ matrix.os }}
@@ -181,8 +181,8 @@ jobs:
       matrix:
         os:
           - ubuntu-20.04
-          - windows-2019
-          - macos-14
+          # - windows-2019
+          # - macos-14
 
     steps:
       - uses: actions/checkout@v4
@@ -299,11 +299,10 @@ jobs:
 
   test-pypi-publish:
     name: Publish to TestPyPI
-    needs:
-      [
+    needs: [
         build-platform-wheels,
-        build-linux-arm64-wheels,
-        build-macos-10-wheels,
+        # build-linux-arm64-wheels,
+        # build-macos-10-wheels,
         build-universal-wheel,
         build-sdist,
       ]
