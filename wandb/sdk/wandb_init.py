@@ -1036,14 +1036,10 @@ def init(  # noqa: C901
 
     `wandb.init()` spawns a new background process to log data to a run, and it
     also syncs data to https://wandb.ai by default, so you can see your results
-    in real-time.
+    in real-time. When you're done logging data, call `wandb.finish()` to end the run.
+    If you don't call `wandb.finish()`, the run will end when your script exits.
 
     Call `wandb.init()` to start a run before logging data with `wandb.log()`:
-
-        # ... your training code here ...
-
-        run.finish()
-        ```
 
     Args:
         project (Optional[str]): The name of the project where you're sending
@@ -1177,7 +1173,6 @@ def init(  # noqa: C901
         A `Run` object.
 
     Examples:
-    <!--yeadoc-test:init-method-log-->
 
     ```python
     import wandb
@@ -1189,8 +1184,6 @@ def init(  # noqa: C901
 
     `wandb.init()` returns a run object, and you can also access the run object
     via `wandb.run`:
-
-    <!--yeadoc-test:init-and-assert-global-->
 
     ```python
     import wandb
@@ -1216,8 +1209,6 @@ def init(  # noqa: C901
 
     Pass a dictionary-style object as the `config` keyword argument to add
     metadata, like hyperparameters, to your run.
-
-    <!--yeadoc-test:init-set-config-->
 
     ```python
     # Add metadata about the run to the config

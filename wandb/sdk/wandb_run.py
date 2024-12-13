@@ -453,7 +453,7 @@ class Run:
     """A unit of computation logged by wandb. Typically, this is an ML experiment.
 
     Create a run with `wandb.init()`:
-    <!--yeadoc-test:run-object-basic-->
+
     ```python
     import wandb
 
@@ -462,7 +462,7 @@ class Run:
 
     There is only ever at most one active `wandb.Run` in any process,
     and it is accessible as `wandb.run`:
-    <!--yeadoc-test:global-run-object-->
+
     ```python
     import wandb
 
@@ -477,7 +477,7 @@ class Run:
     If you want to start more runs in the same script or notebook, you'll need to
     finish the run that is in-flight. Runs can be finished with `wandb.finish` or
     by using them in a `with` block:
-    <!--yeadoc-test:run-context-manager-->
+
     ```python
     import wandb
 
@@ -1715,7 +1715,6 @@ class Run:
             ValueError: if invalid data is passed
 
         Examples:
-        <!--yeadoc-test:init-and-log-basic-->
 
         ```python
         # Basic usage
@@ -1724,8 +1723,6 @@ class Run:
         run = wandb.init()
         run.log({"accuracy": 0.9, "epoch": 5})
         ```
-
-        <!--yeadoc-test:init-and-log-incremental-->
 
         ```python
         # Incremental logging
@@ -1737,8 +1734,6 @@ class Run:
         run.log({"accuracy": 0.8})
         ```
 
-        <!--yeadoc-test:init-and-log-histogram-->
-
         ```python
         # Histogram
         import numpy as np
@@ -1749,8 +1744,6 @@ class Run:
         run = wandb.init()
         run.log({"gradients": wandb.Histogram(gradients)})
         ```
-
-        <!--yeadoc-test:init-and-log-image-numpy-->
 
         ```python
         # Image from numpy
@@ -1765,8 +1758,6 @@ class Run:
             examples.append(image)
         run.log({"examples": examples})
         ```
-
-        <!--yeadoc-test:init-and-log-image-pillow-->
 
         ```python
         # Image from PIL
@@ -1784,8 +1775,6 @@ class Run:
         run.log({"examples": examples})
         ```
 
-        <!--yeadoc-test:init-and-log-video-numpy-->
-
         ```python
         # Video from numpy
         import numpy as np
@@ -1796,8 +1785,6 @@ class Run:
         frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
         run.log({"video": wandb.Video(frames, fps=4)})
         ```
-
-        <!--yeadoc-test:init-and-log-matplotlib-->
 
         ```python
         # Matplotlib Plot

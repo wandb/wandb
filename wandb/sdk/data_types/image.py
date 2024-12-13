@@ -75,7 +75,6 @@ class Image(BatchableMedia):
     Note : When logging a `torch.Tensor` as a `wandb.Image`, images are normalized. If you do not want to normalize your images, please convert your tensors to a PIL Image.
 
     Examples:
-    <!--yeadoc-test:log-image-numpy-->
 
     ```python
     # Create a wandb.Image from a numpy array
@@ -90,8 +89,6 @@ class Image(BatchableMedia):
             examples.append(image)
         run.log({"examples": examples})
     ```
-
-    <!--yeadoc-test:log-image-pillow-->
 
     ```python
     # Create a wandb.Image from a PILImage
@@ -108,8 +105,6 @@ class Image(BatchableMedia):
             examples.append(image)
         run.log({"examples": examples})
     ```
-
-    <!--yeadoc-test:log-image-format-->
 
     ```python
     # log .jpg rather than .png (default)

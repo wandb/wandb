@@ -66,8 +66,6 @@ class Video(BatchableMedia):
     Examples:
     Log a numpy array as a video
 
-    <!--yeadoc-test:log-video-numpy-->
-
     ```python
     import numpy as np
     import wandb
