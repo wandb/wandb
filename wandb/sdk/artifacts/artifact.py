@@ -533,6 +533,7 @@ class Artifact:
         return self._type
 
     @property
+    @ensure_logged
     def url(self):
         """
         Constructs the URL of the artifact.
