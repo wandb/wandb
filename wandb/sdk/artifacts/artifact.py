@@ -553,7 +553,7 @@ class Artifact:
                 return self._construct_standard_url()
 
     def _construct_standard_url(self) -> str:
-        if not all(
+        if not self._client or not all(
             [
                 self._client.app_url,
                 self._entity,
@@ -567,7 +567,7 @@ class Artifact:
         return f"{self._client.app_url}{self._entity}/{self._project}/artifacts/{quote(self._type)}/{quote(self.collection.name)}/{self._version}"
 
     def _construct_registry_url(self) -> str:
-        if not all(
+        if not self._client or not all(
             [
                 self._client.app_url,
                 self._entity,
@@ -590,7 +590,7 @@ class Artifact:
         return f"{self._client.app_url}orgs/{org.display_name}/registry/{self._type}?selectionPath={selection_path}&view=membership&version={self._version}"
 
     def _construct_model_registry_url(self) -> str:
-        if not all(
+        if not self._client or not all(
             [
                 self._client.app_url,
                 self._entity,
@@ -2345,7 +2345,6 @@ class Artifact:
             raise TypeError(f"metadata must be dict, not {type(metadata)}")
         return cast(
             Dict[str, Any], json.loads(json.dumps(util.json_friendly_val(metadata)))
-        )
 
     def _load_manifest(self, url: str) -> ArtifactManifest:
         with requests.get(url) as response:
