@@ -101,6 +101,26 @@ def test_image_array_old_wandb(
     monkeypatch,
     mock_wandb_log,
 ):
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="ServerFeaturesQuery"),
+        gql.once(
+            content={
+                "data": {
+                    "viewer": {
+                        "featureFlags": [
+                            {
+                                "rampKey": "ServerAcceptsImageFilenames",
+                                "isEnabled": False,
+                            }
+                        ]
+                    }
+                },
+            },
+            status=200,
+        ),
+    )
+
     monkeypatch.setattr(wandb.util, "_get_max_cli_version", lambda: "0.10.33")
 
     with wandb.init() as run:

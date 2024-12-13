@@ -29,7 +29,7 @@ def stub_server_supports_artifact_tags(wandb_backend_spy):
     )
 
 
-def test_fetching_artifact_files(user, wandb_init):
+def test_fetching_artifact_files(user):
     project = "test"
 
     with wandb.init(entity=user, project=project) as run:

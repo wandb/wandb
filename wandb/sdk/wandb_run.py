@@ -2801,21 +2801,25 @@ class Run:
         return m
 
     def _get_server_feature(self, feature: str) -> ServerFeatureItem:
-        if self._backend is None or self._backend.interface is None:
+        if (
+            self._backend is None
+            or self._backend.interface is None
+            or self.settings.x_require_legacy_service
+        ):
             return ServerFeatureItem(
                 name=feature,
                 enabled=False,
             )
 
         response = self._backend.interface.deliver_request_server_feature(feature)
-        response = response.wait(timeout=2)
+        response = response.wait(timeout=-1)
         if response is None or response.response.server_feature_response is None:
             wandb.termwarn(
                 f"Failed to get server feature {feature}. Defaulting to disabled."
             )
             return ServerFeatureItem(
                 name=feature,
-                enabled=False,
+                enabled=True,
             )
 
         return response.response.server_feature_response.features[feature]
