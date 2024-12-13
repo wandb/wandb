@@ -122,14 +122,15 @@ def process_sar_files(log_dir: str) -> None:
     Args:
         log_dir (str): The directory containing the log files.
     """
-
     # Explicitly stop any running sar processes first. Even if they are explicitly
     # killed, they will exit on their own when done.
     try:
         subprocess.run("killall sar", check=True, shell=True)
         logger.info("kill sar executed successfully.")
     except FileNotFoundError:
-        logger.error("Command not found. Make sure 'killall' is installed and in your PATH.")
+        logger.error(
+            "Command not found. Make sure 'killall' is installed and in your PATH."
+        )
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
 

@@ -1,9 +1,11 @@
 import logging
-import numpy as np
-from pathlib import Path
 import random
 import string
 import subprocess
+from pathlib import Path
+
+import numpy as np
+
 import wandb
 
 
@@ -54,21 +56,22 @@ def get_payload(data_type: str, metric_count: int, metric_key_size) -> dict:
     Returns:
         dict: payload for logging in the performance testing.
     """
-
     if data_type == "audio":
-
-        duration = 5 # make a 5s long audio
+        duration = 5  # make a 5s long audio
         sample_rate = 44100
         frequency = 440
-    
+
         t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
         audio_data = np.sin(2 * np.pi * frequency * t)
         audio_obj = wandb.Audio(audio_data, sample_rate=sample_rate)
         return {get_random_key(metric_key_size): audio_obj for _ in range(metric_count)}
-    
+
     elif data_type == "scalar":
-        return {get_random_key(metric_key_size): random.randint(1, 10**6) for _ in range(metric_count)}
-    
+        return {
+            get_random_key(metric_key_size): random.randint(1, 10**6)
+            for _ in range(metric_count)
+        }
+
     return None
 
 
@@ -77,6 +80,7 @@ def get_random_key(field_size: int) -> str:
     return "".join(
         random.choices(string.ascii_letters + string.digits + "_", k=field_size)
     )
+
 
 def capture_sar_metrics(log_dir: str, iteration: int = 60):
     """Captures sar system metrics in the background and saves them to log files.

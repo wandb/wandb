@@ -1,14 +1,15 @@
 import multiprocessing as mp
+import time
 from pathlib import Path
 
 from bench_run_log import run_experiment
 from process_sar_helper import process_sar_files
 from setup_helper import capture_sar_metrics, get_logger
 
-import time
 import wandb
 
 logger = get_logger(__name__)
+
 
 def run_perf_tests(
     loop_count: int,
@@ -36,7 +37,9 @@ def run_perf_tests(
     for _ in range(loop_count):
         for step in step_count:
             for mc in metric_count:
-                logger.info("##############################################################")
+                logger.info(
+                    "##############################################################"
+                )
                 logger.info(f"The {sort_key}-th run:")
                 logger.info(f"  # of steps in each run: {step_count}")
                 logger.info(f"  # of metrics in each step: {metric_count}")
@@ -46,8 +49,7 @@ def run_perf_tests(
                     step, mc, root_folder, sort_key, num_of_processes, data_type
                 )
                 sort_key += 1
-                time.sleep(10) # sleep some time between run to let it finish flushing
-                
+                time.sleep(10)  # sleep some time between run to let it finish flushing
 
 
 def run_parallel_experiments_helper(
@@ -72,7 +74,9 @@ def run_parallel_experiments_helper(
         None: This function does not return any value. It performs file and metric operations.
 
     """
-    log_folder = Path(root_folder) / f"step{step}_metriccount{mc}_datatype{data_type}_{sort_key}"
+    log_folder = (
+        Path(root_folder) / f"step{step}_metriccount{mc}_datatype{data_type}_{sort_key}"
+    )
 
     log_folder.mkdir(parents=True, exist_ok=True)
 
@@ -89,7 +93,7 @@ def run_parallel_experiments_helper(
                 step_count=step,
                 metric_count=mc,
                 output_file=str(log_folder / f"results.{iter}.json"),
-                data_type=data_type
+                data_type=data_type,
             ),
         )
         p.start()

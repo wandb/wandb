@@ -28,93 +28,93 @@ Example: python run_load_tests.py -t log_scalar
     )
 
 
-def run_test_case(test_case: str, log_folder: str, num_of_parallel_runs: int, data_type: str):
+def run_test_case(
+    test_case: str, log_folder: str, num_of_parallel_runs: int, data_type: str
+):
     if test_case == "log_scalar":
         test_case_helper.run_perf_tests(
             loop_count=4,
-            step_count=[20000], 
+            step_count=[20000],
             metric_count=[100],
             root_folder=log_folder,
             num_of_processes=num_of_parallel_runs,
-            data_type="scalar"
-        )    
+            data_type="scalar",
+        )
 
     elif test_case == "log_scale_step":
         test_case_helper.run_perf_tests(
             loop_count=1,
-            step_count=[1000, 2000, 4000, 8000], 
+            step_count=[1000, 2000, 4000, 8000],
             metric_count=[100],
             root_folder=log_folder,
             num_of_processes=num_of_parallel_runs,
-            data_type=data_type
-        )    
+            data_type=data_type,
+        )
 
     elif test_case == "log_scale_step_large":
         test_case_helper.run_perf_tests(
             loop_count=1,
-            step_count=[10000, 20000, 40000, 80000], 
+            step_count=[10000, 20000, 40000, 80000],
             metric_count=[100],
             root_folder=log_folder,
             num_of_processes=num_of_parallel_runs,
-            data_type=data_type
-        )    
+            data_type=data_type,
+        )
 
     elif test_case == "log_scale_metric":
         test_case_helper.run_perf_tests(
             loop_count=1,
-            step_count=[1000], 
+            step_count=[1000],
             metric_count=[1000, 2000, 4000, 8000],
             root_folder=log_folder,
             num_of_processes=num_of_parallel_runs,
-            data_type=data_type
-        )    
+            data_type=data_type,
+        )
 
     elif test_case == "log_scale_metric_large":
         test_case_helper.run_perf_tests(
             loop_count=1,
-            step_count=[10], 
+            step_count=[10],
             metric_count=[10000, 20000, 40000, 80000, 160000],
             root_folder=log_folder,
             num_of_processes=num_of_parallel_runs,
-            data_type=data_type
-        )    
-    
+            data_type=data_type,
+        )
+
     elif test_case == "log_media":
         test_case_helper.run_perf_tests(
             loop_count=4,
-            step_count=[2000], 
+            step_count=[2000],
             metric_count=[10],
             root_folder=log_folder,
             num_of_processes=num_of_parallel_runs,
-            data_type=data_type
-        )    
-
+            data_type=data_type,
+        )
 
     elif test_case == "mltraq_scale_step":
-        # this test simulate what MLTraq did on 
+        # this test simulate what MLTraq did on
         # https://github.com/elehcimd/mltraq/blob/devel/notebooks/07%20Tracking%20speed%20-%20Benchmarks%20rev1.ipynb
         # setup: log different # of steps, each step with 1 metric
         test_case_helper.run_perf_tests(
             loop_count=1,
-            step_count=[10000, 50000, 100000, 500000], 
+            step_count=[10000, 50000, 100000, 500000],
             metric_count=[1],
             root_folder=log_folder,
             num_of_processes=num_of_parallel_runs,
-            data_type=data_type
-        )    
+            data_type=data_type,
+        )
 
     elif test_case == "mltraq":
         # this test simulate MLTraq's looping experiement
         # setup: measure total time of 10 experiments, with 100 steps, each step with 1 metric
         test_case_helper.run_perf_tests(
             loop_count=10,
-            step_count=[100], 
+            step_count=[100],
             metric_count=[1],
             root_folder=log_folder,
             num_of_processes=num_of_parallel_runs,
-            data_type=data_type
-        )    
-
+            data_type=data_type,
+        )
 
     else:
         logger.error(f"Unrecognized test case: {test_case}")
@@ -134,7 +134,7 @@ def main():
         "-d",
         "--data_type",
         type=str,
-        help="wandb data type to log. Default \"None\" means scalar.",
+        help='wandb data type to log. Default "None" means scalar.',
         default="scalar",
     )
     parser.add_argument(

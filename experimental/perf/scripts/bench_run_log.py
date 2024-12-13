@@ -1,8 +1,9 @@
 import argparse
 import json
-import numpy as np
 from datetime import datetime
+
 from setup_helper import get_logger, get_payload
+
 import wandb
 import wandb.data_types
 
@@ -54,7 +55,6 @@ def log_metrics(steps: int, payload: dict):
 def finish_wandb():
     """Mark W&B run as finished."""
     wandb.finish()
-
 
 
 def run_experiment(
@@ -121,7 +121,11 @@ def run_experiment(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-l", "--loop", type=int, help="number of test iterations to perform.", default=1
+        "-l",
+        "--loop",
+        type=int,
+        help="number of test iterations to perform.",
+        default=1,
     )
     parser.add_argument(
         "-s", "--steps", type=int, help="number of logging steps per run.", default=10
@@ -158,5 +162,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     for _ in range(args.loop):
         run_experiment(
-            args.steps, args.metric_count, args.metric_key_size, args.outfile, args.data_type
+            args.steps,
+            args.metric_count,
+            args.metric_key_size,
+            args.outfile,
+            args.data_type,
         )
