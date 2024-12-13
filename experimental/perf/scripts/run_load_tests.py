@@ -43,6 +43,16 @@ def run_test_case(
             data_type="scalar",
         )
 
+    elif test_case == "log_scalar_1M":
+        test_case_helper.run_perf_tests(
+            loop_count=1,
+            step_count=[1000000],
+            metric_count=[100],
+            root_folder=log_folder,
+            num_of_processes=num_of_parallel_runs,
+            data_type="scalar",
+        )
+
     elif test_case == "log_scale_step":
         test_case_helper.run_perf_tests(
             loop_count=1,
