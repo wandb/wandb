@@ -543,21 +543,38 @@ class Artifact:
             str: The URL of the artifact.
         """
         if self.collection.is_sequence():
-            return f"{self._client.app_url}{self._entity}/{self._project}/artifacts/{quote(self._type)}/{quote(self.collection.name)}/{self._version}"
+            return self._construct_standard_url()
         else:
-            if is_artifact_registry_project(self._project):
-                orgs_from_entity = InternalApi()._fetch_orgs_and_org_entities_from_entity(
-                    self._entity
-                )
-                if len(orgs_from_entity) > 0:
-                  org = orgs_from_entity[0]
-                else:
-                  return ""  
-                return f"{self._client.app_url}orgs/{org.display_name}/registry/{self._type}?selectionPath={self._entity}%2F{self._project}%2F{self.collection.name}&view=membership&version={self._version}"
+            if is_artifact_registry_project(self._project):  
+                return self._construct_registry_url()
             elif self._type == "model" or self._project == "model-registry":
-                return f"{self._client.app_url}{self._entity}/registry/model?selectionPath={self._entity}%2F{self._project}%2F{self.collection.name}&view=membership&version={self._version}"
+                return self._construct_model_registry_url()
             else:
-                return f"{self._client.app_url}{self._entity}/{self._project}/artifacts/{quote(self._type)}/{quote(self.collection.name)}/{self._version}"
+                return self._construct_standard_url()
+    
+    def _construct_standard_url(self) -> str:
+        if not all([self._client.app_url, self._entity, self._project, self._type, self.collection.name, self._version]):
+            return ""
+        return f"{self._client.app_url}{self._entity}/{self._project}/artifacts/{quote(self._type)}/{quote(self.collection.name)}/{self._version}"
+    
+    def _construct_registry_url(self) -> str:
+        if not all([self._client.app_url, self._entity, self._project, self.collection.name, self._version]):
+            return ""
+        orgs_from_entity = InternalApi()._fetch_orgs_and_org_entities_from_entity(
+            self._entity
+        )
+        if len(orgs_from_entity) > 0:
+            org = orgs_from_entity[0]
+        else:
+            return ""
+        selection_path = quote(f"{self._entity}/{self._project}/{self.collection.name}", safe='')
+        return f"{self._client.app_url}orgs/{org.display_name}/registry/{self._type}?selectionPath={selection_path}&view=membership&version={self._version}"
+    
+    def _construct_model_registry_url(self) -> str:
+        if not all([self._client.app_url, self._entity, self._project, self.collection.name, self._version]):
+            return ""
+        selection_path = quote(f"{self._entity}/{self._project}/{self.collection.name}", safe='')
+        return f"{self._client.app_url}{self._entity}/registry/model?selectionPath={selection_path}&view=membership&version={self._version}"
 
     @property
     def description(self) -> str | None:
