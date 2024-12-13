@@ -155,7 +155,7 @@ func NewFileStream(
 	}
 
 	opts := api.ClientOptions{
-		RetryPolicy:        filestream.RetryPolicy,
+		RetryPolicy:        clients.RetryAggressively,
 		RetryMax:           filestream.DefaultRetryMax,
 		RetryWaitMin:       filestream.DefaultRetryWaitMin,
 		RetryWaitMax:       filestream.DefaultRetryWaitMax,
