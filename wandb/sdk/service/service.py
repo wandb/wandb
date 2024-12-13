@@ -15,7 +15,12 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb import _sentry, termlog
-from wandb.env import core_debug, error_reporting_enabled, is_require_legacy_service
+from wandb.env import (
+    core_debug,
+    core_trace_file,
+    error_reporting_enabled,
+    is_require_legacy_service,
+)
 from wandb.errors import Error, WandbCoreNotAvailableError
 from wandb.errors.links import url_registry
 from wandb.util import get_core_path, get_module
@@ -161,6 +166,10 @@ class _Service:
 
                 if core_debug(default="False"):
                     service_args.extend(["--log-level", "-4"])
+
+                if core_trace_file():
+                    service_args.append("--trace-file")
+                    service_args.append(core_trace_file())
 
                 exec_cmd_list = []
                 termlog(
