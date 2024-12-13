@@ -2,9 +2,11 @@ import argparse
 import json
 from datetime import datetime
 
-from setup_helper import generate_random_dict
+from setup_helper import generate_random_dict, get_logger
 
 import wandb
+
+logger = get_logger(__name__)
 
 
 def measure_time(func):
@@ -70,47 +72,49 @@ def run_experiment(
     result_data["metric_count"] = metric_count
     result_data["metric_key_size"] = metric_key_size
 
-    print("##############################################################")
-    print(f"# of training runs: {loop_count}")
-    print(f"# of steps in each run: {step_count}")
-    print(f"# of metrics in each step: {metric_count}")
-    print(f"metric key size: {metric_key_size}")
-    print(f"Test start time: {start_time_str}")
+    logger.info("##############################################################")
+    logger.info(f"# of training runs: {loop_count}")
+    logger.info(f"# of steps in each run: {step_count}")
+    logger.info(f"# of metrics in each step: {metric_count}")
+    logger.info(f"metric key size: {metric_key_size}")
+    logger.info(f"Test start time: {start_time_str}")
 
     payload = generate_random_dict(metric_count, metric_key_size)
     total_start_time = datetime.now()
 
-    for run in range(loop_count):
-        run_id = f"{start_time_str}_{run}"
-        print(f"\n--- Run {run + 1} ---")
+    run_id = f"{start_time_str}"
 
-        # Initialize W&B
-        _, init_time = init_wandb(
-            run_id, loop_count, step_count, metric_count, metric_key_size
-        )
-        result_data["init_time"] = init_time
+    # Initialize W&B
+    _, init_time = init_wandb(
+        run_id, loop_count, step_count, metric_count, metric_key_size
+    )
+    result_data["init_time"] = init_time
 
-        # Log the test metrics
-        _, log_time = log_metrics(step_count, payload)
-        result_data["log_time"] = log_time
+    # Log the test metrics
+    _, log_time = log_metrics(step_count, payload)
+    result_data["log_time"] = log_time
 
-        # Finish W&B run
-        _, finish_time = finish_wandb()
-        result_data["finish_time"] = finish_time
+    # compute the log() throughput rps (request per sec)
+    log_rps = step_count // log_time
+    result_data["log_rps"] = log_rps
 
-        # Display experiment timing
-        run_time = init_time + log_time + finish_time
-        result_data["sdk_run_time"] = run_time
+    # Finish W&B run
+    _, finish_time = finish_wandb()
+    result_data["finish_time"] = finish_time
 
-        # write the result data to a json file
-        with open(output_file, "w") as file:
-            json.dump(result_data, file, indent=4)
+    # Display experiment timing
+    run_time = init_time + log_time + finish_time
+    result_data["sdk_run_time"] = run_time
 
-        print(json.dumps(result_data, indent=4))
+    # write the result data to a json file
+    with open(output_file, "w") as file:
+        json.dump(result_data, file, indent=4)
+
+    logger.info(json.dumps(result_data, indent=4))
 
     total_end_time = datetime.now()
     total_time = total_end_time - total_start_time
-    print(f"\nTotal test duration: {total_time.total_seconds()}")
+    logger.info(f"\nTotal test duration: {total_time.total_seconds()}")
 
 
 if __name__ == "__main__":

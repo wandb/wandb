@@ -4,6 +4,9 @@ import os
 import time
 
 import test_case_helper
+from setup_helper import get_logger
+
+logger = get_logger(__name__)
 
 
 def print_help():
@@ -22,18 +25,38 @@ Example: python run_load_tests.py -t bench_log
     )
 
 
-def run_test_case(test_case, log_folder):
+def run_test_case(test_case: str, log_folder: str, num_of_parallel_runs: int):
     if test_case == "bench_log":
-        test_case_helper.bench_log(log_folder, 4, 10000)
+        loop_count = 4
+        step_count = 20000
+        logger.info(
+            f"Load testing SDK logging in {loop_count} iterations, "
+            f"each logging {step_count} steps, 100 metrics and metric key size of 10"
+        )
+        test_case_helper.bench_log(
+            log_folder, loop_count, step_count, num_of_parallel_runs
+        )
 
     elif test_case == "bench_log_scale_step":
-        test_case_helper.bench_log_scale_step(log_folder, [1000, 2000, 4000, 8000])
+        steps = [1000, 2000, 4000, 8000]
+        logger.info(
+            f"Load testing SDK logging scaling through {steps} steps "
+            "each logging 100 metrics with a metric key size of 10"
+        )
+        test_case_helper.bench_log_scale_step(log_folder, steps, num_of_parallel_runs)
 
     elif test_case == "bench_log_scale_metric":
-        test_case_helper.bench_log_scale_metric(log_folder, [100, 200, 400, 800])
+        metrics = [1000, 2000, 4000, 8000]
+        logger.info(
+            f"Load testing SDK logging scaling through {metrics} metrics, "
+            "in each of the 1000 steps, and a metric key size of 10"
+        )
+        test_case_helper.bench_log_scale_metric(
+            log_folder, metrics, num_of_parallel_runs
+        )
 
     else:
-        print(f"ERROR: Unrecognized test case: {test_case}")
+        logger.error(f"Unrecognized test case: {test_case}")
         exit(1)
 
 
@@ -42,6 +65,7 @@ def main():
     parser.add_argument(
         "-t",
         "--testcase",
+        type=str,
         required=True,
         help="bench_log | bench_log_scale_step | bench_log_scale_metric",
     )
@@ -49,24 +73,29 @@ def main():
     parser.add_argument(
         "-m",
         "--wandb_mode",
+        type=str,
         default="online",
         help="Wandb logging mode (default: online)",
     )
+    parser.add_argument(
+        "-n",
+        "--num_of_parallel_runs",
+        type=int,
+        default=1,
+        help="Number of parallel tests to run (default: 1)",
+    )
+
     args = parser.parse_args()
 
     testcase = args.testcase
     wandb_api_key = args.wandb_api_key
     wandb_mode = args.wandb_mode
+    num_of_parallel_runs = args.num_of_parallel_runs
 
     if not testcase:
-        print("ERROR: Test case (-t) is required but not provided.")
+        logger.error("Test case (-t) is required but not provided.")
         print_help()
         exit(1)
-
-    if not wandb_api_key:
-        print(
-            "WARNING: WANDB_API_KEY not provided. Ensure it's set as an environment variable."
-        )
 
     # Set Wandb environment variables
     os.environ["WANDB_API_KEY"] = wandb_api_key if wandb_api_key else ""
@@ -79,12 +108,12 @@ def main():
     start_time = time.time()
 
     # Run the specified test case
-    run_test_case(testcase, log_folder)
+    run_test_case(testcase, log_folder, num_of_parallel_runs)
 
     end_time = time.time()
     total_time = end_time - start_time
-    print(f"Test completed in {total_time:.2f}s.")
-    print(f"Logs saved to {os.getcwd()}/{log_folder}")
+    logger.info(f"Test completed in {total_time:.2f}s.")
+    logger.info(f"Logs saved to {os.getcwd()}/{log_folder}")
 
 
 if __name__ == "__main__":

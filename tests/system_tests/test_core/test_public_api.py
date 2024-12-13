@@ -51,9 +51,9 @@ def test_project_to_html(user):
 @pytest.mark.xfail(
     reason="there is no guarantee that the backend has processed the event"
 )
-def test_run_metadata(wandb_init):
+def test_run_metadata(user):
     project = "test_metadata"
-    run = wandb_init(project=project)
+    run = wandb.init(project=project)
     run.finish()
 
     metadata = Api().run(f"{run.entity}/{project}/{run.id}").metadata
@@ -78,6 +78,7 @@ def stub_run_gql_once(user, wandb_backend_spy):
         body = {
             "data": {
                 "project": {
+                    "internalId": "testinternalid",
                     "run": {
                         "id": id,
                         "tags": [],
@@ -305,8 +306,8 @@ def test_run_create(user, relay_server):
         assert result["name"] == run.id
 
 
-def test_run_update(user, relay_server, wandb_init):
-    seed_run = wandb_init(config={"foo": "not_bar"})
+def test_run_update(user, relay_server):
+    seed_run = wandb.init(config={"foo": "not_bar"})
     seed_run.log(dict(acc=100, loss=0))
     seed_run.finish()
 
@@ -505,7 +506,11 @@ def test_projects(user, inject_graphql_response, relay_server):
         assert sum([1 for _ in projects]) == 2
 
 
-def test_delete_file(user, stub_run_gql_once, wandb_backend_spy):
+def test_delete_file(
+    user,
+    stub_run_gql_once,
+    wandb_backend_spy,
+):
     stub_run_gql_once()
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
@@ -527,7 +532,7 @@ def test_delete_file(user, stub_run_gql_once, wandb_backend_spy):
                             },
                         },
                     },
-                },
+                }
             }
         ),
     )
@@ -541,7 +546,23 @@ def test_delete_file(user, stub_run_gql_once, wandb_backend_spy):
     file = run.files()[0]
     file.delete()
 
-    assert delete_spy.requests[0].variables == {"files": [file.id]}
+    print(file._server_accepts_project_id_for_delete_file())
+
+    # For system tests on newer server version, the projectId is provided
+    if file._server_accepts_project_id_for_delete_file():
+        assert "projectId" in delete_spy.requests[0].variables
+        assert "projectId" in delete_spy.requests[0].query
+        assert delete_spy.requests[0].variables == {
+            "files": [file.id],
+            "projectId": run._project_internal_id,
+        }
+    # For some older server versions, the projectId is not provided
+    else:
+        assert "projectId" not in delete_spy.requests[0].variables
+        assert "projectId" not in delete_spy.requests[0].query
+        assert delete_spy.requests[0].variables == {
+            "files": [file.id],
+        }
 
 
 def test_nested_summary(user, stub_run_gql_once):

@@ -10,6 +10,10 @@ message ListStringValue {
   repeated string value = 1;
 }
 
+message ListIntValue {
+  repeated int32 value = 1;
+}
+
 message MapStringKeyStringValue {
   map<string, string> value = 1;
 }
@@ -43,7 +47,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 185
+// Next ID: 187
 message Settings {
   reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137;
 
@@ -57,6 +61,9 @@ message Settings {
 
   // Path to file for writing temporary access tokens.
   google.protobuf.StringValue credentials_file = 171;
+
+  // Whether to insecurely disable SSL verification.
+  google.protobuf.BoolValue insecure_disable_ssl = 185;
 
   // Whether we are in offline mode.
   google.protobuf.BoolValue _offline = 30;
@@ -303,6 +310,12 @@ message Settings {
   // HTTP headers to add to OpenMetrics requests.
   MapStringKeyStringValue x_stats_open_metrics_http_headers = 184;
 
+  // GPU device indices to monitor (e.g. [0, 1, 2]).
+  //
+  // If not set, captures metrics for all GPUs.
+  // Assumes 0-based indexing matching CUDA/ROCm device enumeration.
+  ListIntValue x_stats_gpu_device_ids = 186;
+
   // Label to assign to system metrics and console logs collected for the run
   // to group by on the frontend. Can be used to distinguish data from different
   // nodes in a distributed training job.
@@ -313,7 +326,11 @@ message Settings {
 
   // Feature flag controlling the rollout of an improved run.finish() UX.
   //
-  // Remove after the feature is rolled out.
+  // Defaults to true, but is kept now to make this functionality easy to
+  // disable. Ignored when using `wandb.require("legacy-service")`.
+  //
+  // Remove a month after the next release after 0.19.0 (probably in
+  // January 2025).
   google.protobuf.BoolValue x_show_operation_stats = 176;
 
   // Determines whether to save internal wandb files and metadata.
@@ -352,7 +369,7 @@ message Settings {
   // This is used to make sure we don't overwrite the console log file if it
   // already exists.
   //
-  // The format is: logs/<filename>_<timestamp>_<nanoseconds>.log
+  // The format is: logs/output_<optional:Settings.Label>_<timestamp>_<nanoseconds>.log
   google.protobuf.BoolValue console_multipart = 166;
 
   // Whether to sync TensorBoard logs to W&B.

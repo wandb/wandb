@@ -145,7 +145,9 @@ class WandbEvalCallback(Callback, abc.ABC):
             for idx, data in enumerate(dataloader):
                 preds = model.predict(data)
                 self.pred_table.add_data(
-                    self.data_table_ref.data[idx][0], self.data_table_ref.data[idx][1], preds
+                    self.data_table_ref.data[idx][0],
+                    self.data_table_ref.data[idx][1],
+                    preds,
                 )
             ```
         This method is called `on_epoch_end` or equivalent hook.

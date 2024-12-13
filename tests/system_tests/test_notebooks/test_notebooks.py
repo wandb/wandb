@@ -146,9 +146,9 @@ def test_notebook_metadata_kaggle(mocked_module):
         }
 
 
-def test_notebook_not_exists(mocked_ipython, wandb_init, capsys):
+def test_notebook_not_exists(mocked_ipython, user, capsys):
     with mock.patch.dict(os.environ, {"WANDB_NOTEBOOK_NAME": "fake.ipynb"}):
-        run = wandb_init()
+        run = wandb.init()
         _, err = capsys.readouterr()
         assert "WANDB_NOTEBOOK_NAME should be a path" in err
         run.finish()
@@ -166,10 +166,10 @@ def test_databricks_notebook_doesnt_hang_on_wandb_login(mocked_module):
             wandb.login()
 
 
-def test_mocked_notebook_html_default(wandb_init, run_id, mocked_ipython):
+def test_mocked_notebook_html_default(user, run_id, mocked_ipython):
     wandb.load_ipython_extension(mocked_ipython)
     mocked_ipython.register_magics.assert_called_with(wandb.jupyter.WandBMagics)
-    with wandb_init(id=run_id) as run:
+    with wandb.init(id=run_id) as run:
         run.log({"acc": 99, "loss": 0})
         run.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
@@ -179,8 +179,8 @@ def test_mocked_notebook_html_default(wandb_init, run_id, mocked_ipython):
     assert any("Run history:" in html for html in displayed_html)
 
 
-def test_mocked_notebook_html_quiet(wandb_init, run_id, mocked_ipython):
-    run = wandb_init(id=run_id, settings=wandb.Settings(quiet=True))
+def test_mocked_notebook_html_quiet(user, run_id, mocked_ipython):
+    run = wandb.init(id=run_id, settings=wandb.Settings(quiet=True))
     run.log({"acc": 99, "loss": 0})
     run.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]

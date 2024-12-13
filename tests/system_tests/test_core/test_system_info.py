@@ -8,6 +8,7 @@ from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import context
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.system.system_info import SystemInfo
+from wandb.sdk.lib import ipython
 
 
 @pytest.fixture()
@@ -65,36 +66,15 @@ def test_executable_outside_cwd(meta, test_settings):
     assert data["program"] == "asdf.py"
 
 
-@pytest.fixture
-def mocked_ipython(mocker):
-    mocker.patch("wandb.sdk.lib.ipython._get_python_type", lambda: "jupyter")
-    html_mock = mocker.MagicMock()
-    mocker.patch("wandb.sdk.lib.ipython.display_html", html_mock)
-    ipython = unittest.mock.MagicMock()
-    ipython.html = html_mock
-
-    def run_cell(cell):
-        print("Running cell: ", cell)
-        exec(cell)
-
-    ipython.run_cell = run_cell
-    # TODO: this is really unfortunate, for reasons not clear to me, monkeypatch doesn't work
-    orig_get_ipython = wandb.jupyter.get_ipython
-    orig_display = wandb.jupyter.display
-    wandb.jupyter.get_ipython = lambda: ipython
-    wandb.jupyter.display = lambda obj: html_mock(obj._repr_html_())
-    yield ipython
-    wandb.jupyter.get_ipython = orig_get_ipython
-    wandb.jupyter.display = orig_display
-
-
-def test_jupyter_name(meta, test_settings, mocked_ipython):
+def test_jupyter_name(meta, test_settings, monkeypatch):
+    monkeypatch.setattr(ipython, "in_jupyter", lambda: True)
     meta = meta(test_settings(dict(notebook_name="test_nb")))
     data = meta.probe()
     assert data["program"] == "test_nb"
 
 
-def test_jupyter_path(meta, test_settings, mocked_ipython, git_repo):
+def test_jupyter_path(meta, test_settings, monkeypatch, git_repo):
+    monkeypatch.setattr(ipython, "in_jupyter", lambda: True)
     # not actually how jupyter setup works but just to test the meta paths
     meta = meta(test_settings(dict(x_jupyter_path="dummy/path")))
     data = meta.probe()
@@ -108,13 +88,13 @@ def test_jupyter_path(meta, test_settings, mocked_ipython, git_repo):
     platform.system() == "Windows",
     reason="backend sometimes crashes on Windows in CI",
 )
-def test_commit_hash_sent_correctly(wandb_init, git_repo):
+def test_commit_hash_sent_correctly(user, git_repo):
     # disable_git is False is by default
     # so run object should have git info
-    run = wandb_init()
-    assert run._commit is not None
-    assert run._commit == git_repo.last_commit
-    assert run._remote_url is None
+    run = wandb.init()
+    assert run._settings.git_commit is not None
+    assert run._settings.git_commit == git_repo.last_commit
+    assert run._settings.git_remote_url is None
     run.finish()
 
 
@@ -123,9 +103,9 @@ def test_commit_hash_sent_correctly(wandb_init, git_repo):
     platform.system() == "Windows",
     reason="backend sometimes crashes on Windows in CI",
 )
-def test_commit_hash_not_sent_when_disable(wandb_init, git_repo):
+def test_commit_hash_not_sent_when_disable(user, git_repo):
     with unittest.mock.patch.dict("os.environ", WANDB_DISABLE_GIT="true"):
-        run = wandb_init()
+        run = wandb.init()
         assert git_repo.last_commit
-        assert run._commit is None
+        assert run._settings.git_commit is None
         run.finish()
