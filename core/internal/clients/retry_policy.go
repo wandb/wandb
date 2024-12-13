@@ -11,9 +11,9 @@ type ContextKey string
 
 const CtxRetryPolicyKey ContextKey = "retryFunc"
 
-// RetryAggressively is a retry policy that retries most client (4xx) errors,
+// RetryMostFailures is a retry policy that retries most client (4xx) errors,
 // server (5xx) errors, and connection problems.
-func RetryAggressively(
+func RetryMostFailures(
 	ctx context.Context,
 	resp *http.Response,
 	err error,
@@ -77,7 +77,7 @@ func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error
 	case statusCode == http.StatusUnprocessableEntity:
 		return false, err
 	default: // use default retry policy for all other status codes
-		return RetryAggressively(ctx, resp, err)
+		return RetryMostFailures(ctx, resp, err)
 	}
 }
 
@@ -90,7 +90,7 @@ func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, erro
 	retryPolicy, ok := ctx.Value(CtxRetryPolicyKey).(func(context.Context, *http.Response, error) (bool, error))
 	switch {
 	case !ok, retryPolicy == nil:
-		return RetryAggressively(ctx, resp, err)
+		return RetryMostFailures(ctx, resp, err)
 	default:
 		return retryPolicy(ctx, resp, err)
 	}
