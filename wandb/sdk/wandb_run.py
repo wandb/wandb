@@ -1359,6 +1359,35 @@ class Run:
         files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
+    def _pop_all_charts(
+        self,
+        data: dict[str, Any],
+        key_prefix: str | None = None,
+    ) -> dict[str, Any]:
+        """Pops all charts from a dictionary including nested charts.
+
+        This function will return a mapping of the charts and a dot-separated
+        key for each chart. Indicating the path to the chart in the data dictionary.
+        """
+        keys_to_remove = set()
+        charts: dict[str, Any] = {}
+        for k, v in data.items():
+            key = f"{key_prefix}.{k}" if key_prefix else k
+            if isinstance(v, Visualize):
+                keys_to_remove.add(k)
+                charts[key] = v
+            elif isinstance(v, CustomChart):
+                keys_to_remove.add(k)
+                charts[key] = v
+            elif isinstance(v, dict):
+                nested_charts = self._pop_all_charts(v, key)
+                charts.update(nested_charts)
+
+        for k in keys_to_remove:
+            data.pop(k)
+
+        return charts
+
     def _serialize_custom_charts(
         self,
         data: dict[str, Any],
@@ -1372,7 +1401,6 @@ class Run:
         Args:
             data: Dictionary containing data that may include plot objects
                 Plot objects can be nested in dictionaries, which will be processed recursively.
-            key_prefix: The prefix to add to the keys of the data.
 
         Returns:
             The processed dictionary with custom charts transformed into tables.
@@ -1380,35 +1408,19 @@ class Run:
         if not data:
             return data
 
-        keys_to_replace = set()
-        for k, v in data.items():
-            if isinstance(v, Visualize):
-                data[k] = v.table
-                v.set_key(k)
-                self._config_callback(
-                    val=v.spec.config_value,
-                    key=v.spec.config_key,
-                )
-            elif isinstance(v, CustomChart):
-                # If this is a custom chart, we will update our history with the table key.
-                # Allowing for charts to be nested in dictionaries.
-                keys_to_replace.add(k)
-                v.set_key(k)
-                self._config_callback(
-                    val=v.spec.config_value,
-                    key=v.spec.config_key,
-                )
-            elif isinstance(v, dict):
-                # Recursively apply the serialization of custom charts to nested dictionaries
-                data[k] = self._serialize_custom_charts(v)
+        charts = self._pop_all_charts(data)
+        for k, v in charts.items():
+            v.set_key(k)
+            self._config_callback(
+                val=v.spec.config_value,
+                key=v.spec.config_key,
+            )
 
-        for k in keys_to_replace:
-            # Remove the custom chart keys from the history.
-            v = data.pop(k)
             if isinstance(v, CustomChart):
-                # Update our history with the table key.
-                # Only the last part of the key is needed when displaying the table.
                 data[v.spec.table_key] = v.table
+            elif isinstance(v, Visualize):
+                data[k] = v.table
+
         return data
 
     def _partial_history_callback(
