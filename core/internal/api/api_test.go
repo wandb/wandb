@@ -118,7 +118,10 @@ func newClient(
 	baseURL, err := url.Parse(settings.GetBaseURL())
 	require.NoError(t, err)
 
-	credentialProvider, err := api.NewCredentialProvider(settings, observability.NewNoOpLogger().Logger)
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observability.NewNoOpLogger().Logger,
+	)
 	require.NoError(t, err)
 
 	backend := api.New(api.BackendOptions{

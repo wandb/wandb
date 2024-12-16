@@ -63,7 +63,7 @@ func (s *Settings) GetIdentityTokenFile() string {
 	return s.Proto.IdentityTokenFile.GetValue()
 }
 
-// Path to file for writing temporary access tokens
+// Path to file for writing temporary access tokens.
 func (s *Settings) GetCredentialsFile() string {
 	return s.Proto.CredentialsFile.GetValue()
 }

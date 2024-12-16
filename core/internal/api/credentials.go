@@ -24,7 +24,7 @@ type CredentialProvider interface {
 
 // NewCredentialProvider creates a new credential provider based on the SDK
 // settings. Settings for JWT authentication are prioritized above API key
-// authentication
+// authentication.
 func NewCredentialProvider(
 	settings *settings.Settings,
 	logger *slog.Logger,
@@ -53,7 +53,7 @@ func NewAPIKeyCredentialProvider(
 	settings *settings.Settings,
 ) (CredentialProvider, error) {
 	if err := settings.EnsureAPIKey(); err != nil {
-		return nil, fmt.Errorf("couldn't get API key: %v", err)
+		return nil, fmt.Errorf("api: couldn't get API key: %v", err)
 	}
 
 	return &apiKeyCredentialProvider{
@@ -92,7 +92,7 @@ func NewOAuth2CredentialProvider(
 ) (CredentialProvider, error) {
 	identityToken, err := os.ReadFile(identityTokenFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read identity token file: %v", err)
+		return nil, fmt.Errorf("api: failed to read identity token file: %v", err)
 	}
 	return &oauth2CredentialProvider{
 		baseURL:             baseURL,
@@ -104,16 +104,16 @@ func NewOAuth2CredentialProvider(
 }
 
 type oauth2CredentialProvider struct {
-	// The URL of the W&B API
+	// The URL of the W&B API.
 	baseURL string
 
-	// The identity token supplied via the identity token file path
+	// The identity token supplied via the identity token file path.
 	identityToken string
 
-	// The access token and its metadata
+	// The access token and its metadata.
 	tokenInfo accessTokenInfo
 
-	// The file path to the access token and its metadata
+	// The file path to the access token and its metadata.
 	credentialsFilePath string
 
 	tokenMu *sync.RWMutex
@@ -148,10 +148,10 @@ func (e ExpiresAt) MarshalJSON() ([]byte, error) {
 }
 
 type accessTokenInfo struct {
-	// The time at which the access token will expire
+	// The time at which the access token will expire.
 	ExpiresAt ExpiresAt `json:"expires_at"`
 
-	// The access token to use for authentication
+	// The access token to use for authentication.
 	AccessToken string `json:"access_token"`
 }
 
@@ -160,14 +160,14 @@ func (c *accessTokenInfo) IsTokenExpiring() bool {
 }
 
 // CredentialsFile is used when serializing/deserializing JSON data from the
-// credentials file
+// credentials file.
 type CredentialsFile struct {
 	Credentials map[string]accessTokenInfo `json:"credentials"`
 }
 
-// Apply checks if the access token is expiring, and fetches a new one if so.
+// Apply Checks if the access token is expiring, and fetches a new one if so.
 // It then supplies the access token to the request via the Authorization header
-// as a Bearer token
+// as a Bearer token.
 func (c *oauth2CredentialProvider) Apply(req *http.Request) error {
 	if c.shouldRefreshToken() {
 		err := c.loadCredentials()
@@ -190,7 +190,7 @@ func (c *oauth2CredentialProvider) shouldRefreshToken() bool {
 	return c.tokenInfo.IsTokenExpiring()
 }
 
-// loadCredentials ensures the access token is valid by refreshing it if
+// Ensures the access token is valid by refreshing it if
 // necessary, using a mutex to prevent concurrent refreshes. It first checks for
 // a non-expiring token in memory or the credentials file. If none is found, it
 // fetches a new token and saves it.
@@ -223,7 +223,7 @@ func (c *oauth2CredentialProvider) loadCredentials() error {
 	return nil
 }
 
-// tryLoadCredentialsFromFile attempts to load the access token from the credentials file
+// Attempts to load the access token from the credentials file.
 func (c *oauth2CredentialProvider) tryLoadCredentialsFromFile() (CredentialsFile, bool) {
 	var credsFile CredentialsFile
 
@@ -248,7 +248,7 @@ func (c *oauth2CredentialProvider) tryLoadCredentialsFromFile() (CredentialsFile
 	return credsFile, true
 }
 
-// trySaveCredentialsToFile attempts to save the access token to the credentials file
+// Attempts to save the access token to the credentials file.
 func (c *oauth2CredentialProvider) trySaveCredentialsToFile(credentials CredentialsFile) {
 	if credentials.Credentials == nil {
 		credentials.Credentials = make(map[string]accessTokenInfo)
@@ -266,7 +266,7 @@ func (c *oauth2CredentialProvider) trySaveCredentialsToFile(credentials Credenti
 	}
 }
 
-// fetchAccessToken reads the identity token from a file and exchanges it for
+// Reads the identity token from a file and exchanges it for
 // an access token from the authorization server using the JWT Bearer flow defined
 // in OAuth RFC 7523. The access token is then returned with its expiration time.
 func (c *oauth2CredentialProvider) fetchAccessToken() (accessTokenInfo, error) {
@@ -300,8 +300,8 @@ func (c *oauth2CredentialProvider) fetchAccessToken() (accessTokenInfo, error) {
 		return accessTokenInfo{}, err
 	}
 
-	// calculate the time at which the accessTokenInfo will expire from the expires_in seconds
-	// from the response
+	// Calculate the time at which the accessTokenInfo will expire from the expires_in seconds
+	// from the response.
 	expiresAt := time.Now().UTC().Add(time.Duration(tokenResponse.ExpiresIn) * time.Second)
 
 	return accessTokenInfo{
