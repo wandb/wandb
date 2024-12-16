@@ -3,12 +3,9 @@
 import sys
 import time
 
-import coverage
 import wandb
 
 if __name__ == "__main__":
-    coverage.process_startup()
-
     with wandb.init():
         try:
             start_time = time.monotonic()
