@@ -116,6 +116,28 @@ class UserCmd(FixtureCmd):
     admin: bool = False
 
 
+@dataclass(frozen=True)
+class OrgCmd(FixtureCmd):
+    path: ClassVar[str] = "db/organization"
+
+    command: Literal["up", "down", "add_members"]
+
+    orgName: str  # noqa: N815
+    username: str | None = None
+    fixtureData: OrgState | None = None  # noqa: N815
+
+
+@dataclass(frozen=True)
+class OrgState:
+    members: list[OrgMemberState]
+
+
+@dataclass(frozen=True)
+class OrgMemberState:
+    username: str
+    role: Literal["admin", "member", "viewer"]
+
+
 def random_string(alphabet: str = ascii_lowercase + digits, length: int = 12) -> str:
     """Generate a random string of a given length.
 
@@ -165,6 +187,18 @@ class BackendFixtureFactory:
         # Register command(s) to delete the user on cleanup
         self._cleanup_stack.append(
             UserCmd("down", username=name, admin=admin),
+        )
+        return name
+
+    def make_org(self, name: str | None = None, *, username: str) -> str:
+        """Create a new org with the username as a member and return the org name."""
+        name = name or f"org-{self.worker_id}-{random_string()}"
+        self.send_cmds(
+            OrgCmd("up", orgName=name, username=username),
+        )
+        # Register command(s) to delete the org on cleanup
+        self._cleanup_stack.append(
+            OrgCmd("down", orgName=name),
         )
         return name
 
