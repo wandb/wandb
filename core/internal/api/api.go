@@ -204,7 +204,7 @@ type ClientOptions struct {
 	//
 	// If Proxy is nil or returns a nil *URL, no proxy will be used.
 	Proxy func(*http.Request) (*url.URL, error)
-	
+
 	// Whether to disable SSL certificate verification.
 	//
 	// This is insecure and should only be used for testing/debugging
