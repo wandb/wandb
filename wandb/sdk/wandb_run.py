@@ -37,6 +37,7 @@ from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
 from wandb.proto.wandb_internal_pb2 import (
+    MetadataRequest,
     MetricRecord,
     PollExitResponse,
     Result,
@@ -596,15 +597,18 @@ class Run:
         self._config._set_artifact_callback(self._config_artifact_callback)
         self._config._set_settings(self._settings)
 
-        # todo: perhaps this should be a property that is a noop on a finished run
+        # TODO: perhaps this should be a property that is a noop on a finished run
         self.summary = wandb_summary.Summary(
             self._summary_get_current_summary_callback,
         )
         self.summary._set_update_callback(self._summary_update_callback)
 
+        self._metadata = Metadata()
+        self._metadata._set_callback(self._metadata_callback)
+
         self._step = 0
         self._starting_step = 0
-        # todo: eventually would be nice to make this configurable using self._settings._start_time
+        # TODO: eventually would be nice to make this configurable using self._settings._start_time
         #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
         #  does the total time get calculated right (not as 2 days and 15 minutes)?
         self._start_time = time.time()
@@ -3685,9 +3689,24 @@ class Run:
         try:
             response = result.response.get_system_metadata_response
             if response:
-                return Metadata.from_proto(response.metadata)
+                # overwrite values returned from wandb-core with values
+                # stored in the run object
+                response.metadata.MergeFrom(Metadata.to_proto(self._metadata))
+                # reset the stored metadata to the new values
+                self._metadata = Metadata.from_proto(response.metadata)
+                # set the callback to update the stored metadata
+                self._metadata._set_callback(self._metadata_callback)
+                return self._metadata
         except Exception as e:
             logger.error("Error getting system metrics: %s", e)
+
+    @_run_decorator._noop_on_finish()
+    def _metadata_callback(
+        self,
+        metadata: MetadataRequest,
+    ) -> None:
+        if self._backend and self._backend.interface:
+            self._backend.interface.publish_metadata(metadata)
 
     # ------------------------------------------------------------------------------
     # HEADER

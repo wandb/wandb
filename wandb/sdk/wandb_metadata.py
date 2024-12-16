@@ -289,12 +289,20 @@ class Metadata(BaseModel, validate_assignment=True):
 
     def __init__(self, **data):
         super().__init__(**data)
-        self._model_post_update_callback: callable | None = None
+        self._post_update_callback: callable | None = None
 
-    # def _add
+    def _set_callback(self, callback: callable) -> None:
+        self._post_update_callback = callback
 
     @model_validator(mode="after")
-    def _update_run_metadata(self) -> Self:
+    def _callback(self) -> Self:
+        if (
+            hasattr(self, "_post_update_callback")
+            and self._post_update_callback is not None
+        ):
+            print("Calling callback")
+            self._post_update_callback(self.to_proto())
+
         return self
 
     @classmethod
