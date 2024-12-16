@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - Support JWT authentication in wandb-core (@elainaRenee in https://github.com/wandb/wandb/pull/8431)
+- Add support for logging nested custom charts. (@jacobromero in https://github.com/wandb/wandb/pull/8789)
 
 ### Fixed
 
