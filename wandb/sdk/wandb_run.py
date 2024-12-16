@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import _thread as thread
 import atexit
 import functools
 import glob
@@ -73,6 +72,7 @@ from .lib import (
     deprecate,
     filenames,
     filesystem,
+    interrupt,
     ipython,
     module,
     printer,
@@ -287,7 +287,7 @@ class RunStatusChecker:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
                 if not wandb.agents.pyagent.is_running():  # type: ignore
-                    thread.interrupt_main()
+                    interrupt.interrupt_main()
                     return
 
         try:
