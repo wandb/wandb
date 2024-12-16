@@ -12,3 +12,8 @@ Add here any changes made in a PR that are relevant to end users. Allowed sectio
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+
+- The stop button correctly interrupts runs whose main Python thread is running
+  C code, sleeping, etc. (@timoffex in https://github.com/wandb/wandb/pull/9094)
