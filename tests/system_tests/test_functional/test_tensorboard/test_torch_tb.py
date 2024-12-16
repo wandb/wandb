@@ -10,9 +10,6 @@ import wandb
 from torch.utils.tensorboard import SummaryWriter
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard", reason="hangs on processing tensorboard data"
-)
 def test_add_scalar(wandb_backend_spy):
     """Test adding a scalar to TensorBoard and syncing it to W&B."""
 
