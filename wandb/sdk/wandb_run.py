@@ -1359,32 +1359,68 @@ class Run:
         files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
-    def _serialize_custom_charts(self, data: dict[str, Any]) -> dict[str, Any]:
+    def _pop_all_charts(
+        self,
+        data: dict[str, Any],
+        key_prefix: str | None = None,
+    ) -> dict[str, Any]:
+        """Pops all charts from a dictionary including nested charts.
+
+        This function will return a mapping of the charts and a dot-separated
+        key for each chart. Indicating the path to the chart in the data dictionary.
+        """
+        keys_to_remove = set()
+        charts: dict[str, Any] = {}
+        for k, v in data.items():
+            key = f"{key_prefix}.{k}" if key_prefix else k
+            if isinstance(v, Visualize):
+                keys_to_remove.add(k)
+                charts[key] = v
+            elif isinstance(v, CustomChart):
+                keys_to_remove.add(k)
+                charts[key] = v
+            elif isinstance(v, dict):
+                nested_charts = self._pop_all_charts(v, key)
+                charts.update(nested_charts)
+
+        for k in keys_to_remove:
+            data.pop(k)
+
+        return charts
+
+    def _serialize_custom_charts(
+        self,
+        data: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Process and replace chart objects with their underlying table values.
+
+        This processes the chart objects passed to `run.log()`, replacing their entries
+        in the given dictionary (which is saved to the run's history) and adding them
+        to the run's config.
+
+        Args:
+            data: Dictionary containing data that may include plot objects
+                Plot objects can be nested in dictionaries, which will be processed recursively.
+
+        Returns:
+            The processed dictionary with custom charts transformed into tables.
+        """
         if not data:
             return data
 
-        chart_keys = set()
-        for k, v in data.items():
-            if isinstance(v, Visualize):
-                data[k] = v.table
-                v.set_key(k)
-                self._config_callback(
-                    val=v.spec.config_value,
-                    key=v.spec.config_key,
-                )
-            elif isinstance(v, CustomChart):
-                chart_keys.add(k)
-                v.set_key(k)
-                self._config_callback(
-                    key=v.spec.config_key,
-                    val=v.spec.config_value,
-                )
+        charts = self._pop_all_charts(data)
+        for k, v in charts.items():
+            v.set_key(k)
+            self._config_callback(
+                val=v.spec.config_value,
+                key=v.spec.config_key,
+            )
 
-        for k in chart_keys:
-            # remove the chart key from the row
-            v = data.pop(k)
             if isinstance(v, CustomChart):
                 data[v.spec.table_key] = v.table
+            elif isinstance(v, Visualize):
+                data[k] = v.table
+
         return data
 
     def _partial_history_callback(
