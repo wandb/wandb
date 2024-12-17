@@ -1,8 +1,0 @@
-query ServerFeaturesQuery($rampIDType: RampIDType!) {
-  serverInfo {
-    featureFlags(rampIDType: $rampIDType) {
-      rampKey
-      isEnabled
-    }
-  }
-}
