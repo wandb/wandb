@@ -542,15 +542,18 @@ class Artifact:
         Returns:
             str: The URL of the artifact.
         """
+        try:
+            base_url = self._client.app_url
+        except AttributeError:
+            return ""
+
         if self.collection.is_sequence():
-            return self._construct_standard_url()
-        else:
-            if is_artifact_registry_project(self.project):
-                return self._construct_registry_url()
-            elif self._type == "model" or self.project == "model-registry":
-                return self._construct_model_registry_url()
-            else:
-                return self._construct_standard_url()
+            return self._construct_standard_url(base_url)
+        if is_artifact_registry_project(self.project):
+            return self._construct_registry_url(base_url)
+        if self._type == "model" or self.project == "model-registry":
+            return self._construct_model_registry_url(base_url)
+        return self._construct_standard_url(base_url)
 
     def _construct_standard_url(self) -> str:
         if not self._client or not all(
