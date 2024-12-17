@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
 from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Literal, Sequence, Type, cast
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, urljoin, urlparse
 
 import requests
 
