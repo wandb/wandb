@@ -172,10 +172,10 @@ def main():
         required=True,
         help="the name of the test",
         choices=[
-            "log_scalar", 
-            "log_scalar_scale_step", 
-            "log_scalar_scale_metric", 
-            "log_media" 
+            "log_scalar",
+            "log_scalar_scale_step",
+            "log_scalar_scale_metric",
+            "log_media",
         ],
     )
     parser.add_argument(
