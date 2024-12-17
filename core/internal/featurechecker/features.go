@@ -22,10 +22,8 @@ type ServerFeaturesCache struct {
 }
 
 type Feature struct {
-	DefaultValue string
-	Description  string
-	Enabled      bool
-	Name         string
+	Enabled bool
+	Name    string
 }
 
 func NewServerFeaturesCache(
@@ -71,24 +69,18 @@ func (sf *ServerFeaturesCache) loadFeatures() (map[spb.ServerFeature]Feature, er
 	return features, nil
 }
 
-func (sf *ServerFeaturesCache) GetFeature(feature spb.ServerFeature) *spb.ServerFeatureItem {
-	serverFeature := &spb.ServerFeatureItem{
-		Name:    feature.String(),
-		Enabled: false,
-	}
-
+func (sf *ServerFeaturesCache) GetFeature(feature spb.ServerFeature) *Feature {
 	sf.once.Do(func() {
 		sf.Features, _ = sf.loadFeatures()
 	})
 
 	cachedFeature, ok := sf.Features[feature]
 	if !ok {
-		return serverFeature
+		return &Feature{
+			Name:    feature.String(),
+			Enabled: false,
+		}
 	}
 
-	serverFeature.Enabled = cachedFeature.Enabled
-	serverFeature.DefaultValue = cachedFeature.DefaultValue
-	serverFeature.Description = cachedFeature.Description
-
-	return serverFeature
+	return &cachedFeature
 }

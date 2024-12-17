@@ -2,6 +2,7 @@ package featurechecker_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,11 +19,11 @@ func stubServerFeaturesQuery(mockGQL *gqlmock.MockClient) {
 			"serverInfo": {
 				"featureFlags": [
 					{
-						"rampKey": "SERVER_FEATURE_LARGE_FILENAMES",
+						"rampKey": "LARGE_FILENAMES",
 						"isEnabled": true
 					},
 					{
-						"rampKey": "SERVER_FEATURE_ARTIFACT_TAGS",
+						"rampKey": "ARTIFACT_TAGS",
 						"isEnabled": false
 					}
 				]
@@ -45,16 +46,16 @@ func TestServerFeaturesInitialization(t *testing.T) {
 	assert.Equal(t, 0, len(serverFeaturesCache.Features))
 
 	// Act
-	serverFeaturesCache.GetFeature(spb.ServerFeature_SERVER_FEATURE_LARGE_FILENAMES)
+	serverFeaturesCache.GetFeature(spb.ServerFeature_LARGE_FILENAMES)
 
 	// Assert - Features are loaded after Get is called
 	assert.Equal(t, 2, len(serverFeaturesCache.Features))
-	_, ok := serverFeaturesCache.Features[spb.ServerFeature_SERVER_FEATURE_LARGE_FILENAMES]
+	_, ok := serverFeaturesCache.Features[spb.ServerFeature_LARGE_FILENAMES]
 	assert.True(t, ok)
-	assert.True(t, serverFeaturesCache.Features[spb.ServerFeature_SERVER_FEATURE_LARGE_FILENAMES].Enabled)
-	_, ok = serverFeaturesCache.Features[spb.ServerFeature_SERVER_FEATURE_ARTIFACT_TAGS]
+	assert.True(t, serverFeaturesCache.Features[spb.ServerFeature_LARGE_FILENAMES].Enabled)
+	_, ok = serverFeaturesCache.Features[spb.ServerFeature_ARTIFACT_TAGS]
 	assert.True(t, ok)
-	assert.False(t, serverFeaturesCache.Features[spb.ServerFeature_SERVER_FEATURE_ARTIFACT_TAGS].Enabled)
+	assert.False(t, serverFeaturesCache.Features[spb.ServerFeature_ARTIFACT_TAGS].Enabled)
 }
 
 func TestGetFeature(t *testing.T) {
@@ -68,8 +69,8 @@ func TestGetFeature(t *testing.T) {
 	)
 
 	// Act
-	enabledFeatureValue := serverFeaturesCache.GetFeature(spb.ServerFeature_SERVER_FEATURE_LARGE_FILENAMES)
-	disabledFeatureValue := serverFeaturesCache.GetFeature(spb.ServerFeature_SERVER_FEATURE_ARTIFACT_TAGS)
+	enabledFeatureValue := serverFeaturesCache.GetFeature(spb.ServerFeature_LARGE_FILENAMES)
+	disabledFeatureValue := serverFeaturesCache.GetFeature(spb.ServerFeature_ARTIFACT_TAGS)
 
 	// Assert
 	assert.True(t, enabledFeatureValue.Enabled)
@@ -88,9 +89,48 @@ func TestGetFeature_MissingWithDefaultValue(t *testing.T) {
 	)
 
 	// Act
-	missingFeatureValue := serverFeaturesCache.GetFeature(spb.ServerFeature_SERVER_FEATURE_ARTIFACT_TAGS)
+	missingFeatureValue := serverFeaturesCache.GetFeature(spb.ServerFeature_ARTIFACT_TAGS)
 
 	// Assert
 	assert.False(t, missingFeatureValue.Enabled)
+	assert.Equal(t, 1, len(mockGQL.AllRequests()))
+}
+
+func TestCreateFeaturesCache_WithNullGraphQLClient(t *testing.T) {
+	// Arrange
+	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
+		context.Background(),
+		nil,
+		observability.NewNoOpLogger(),
+	)
+
+	// Act
+	feature := serverFeaturesCache.GetFeature(spb.ServerFeature_LARGE_FILENAMES)
+
+	// Assert
+	assert.Equal(t, 0, len(serverFeaturesCache.Features))
+	assert.False(t, feature.Enabled)
+}
+
+func TestGetFeature_GraphQLError(t *testing.T) {
+	// Arrange
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchWithError(
+		gqlmock.WithOpName("ServerFeaturesQuery"),
+		fmt.Errorf("GraphQL Error: Internal Server Error"),
+	)
+
+	// stubServerFeaturesQuery(mockGQL)
+	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
+		context.Background(),
+		mockGQL,
+		observability.NewNoOpLogger(),
+	)
+
+	feature := serverFeaturesCache.GetFeature(spb.ServerFeature_LARGE_FILENAMES)
+
+	// Assert
+	assert.Equal(t, 0, len(serverFeaturesCache.Features))
+	assert.False(t, feature.Enabled)
 	assert.Equal(t, 1, len(mockGQL.AllRequests()))
 }
