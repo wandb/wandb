@@ -592,10 +592,10 @@ class Artifact:
         )
         return f"{self._client.app_url}orgs/{org.display_name}/registry/{self._type}?selectionPath={selection_path}&view=membership&version={self._version}"
 
-    def _construct_model_registry_url(self) -> str:
-        if not self._client or not all(
+    def _construct_model_registry_url(self, base_url: str) -> str:
+        if not all(
             [
-                self._client.app_url,
+                base_url,
                 self.entity,
                 self.project,
                 self.collection.name,
@@ -606,7 +606,10 @@ class Artifact:
         selection_path = quote(
             f"{self.entity}/{self.project}/{self.collection.name}", safe=""
         )
-        return f"{self._client.app_url}{self.entity}/registry/model?selectionPath={selection_path}&view=membership&version={self._version}"
+        return urljoin(
+            base_url,
+            f"{self.entity}/registry/model?selectionPath={selection_path}&view=membership&version={self._version}",
+        )
 
     @property
     def description(self) -> str | None:
