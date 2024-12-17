@@ -894,21 +894,6 @@ func (v *NotifyScriptableRunAlertResponse) GetNotifyScriptableRunAlert() *Notify
 	return v.NotifyScriptableRunAlert
 }
 
-type RampIDType string
-
-const (
-	RampIDTypeNone       RampIDType = "None"
-	RampIDTypeCustomid   RampIDType = "CustomID"
-	RampIDTypeEntityid   RampIDType = "EntityID"
-	RampIDTypeEntityname RampIDType = "EntityName"
-	RampIDTypeOrgname    RampIDType = "OrgName"
-	RampIDTypeOrgid      RampIDType = "OrgID"
-	RampIDTypeUserid     RampIDType = "UserID"
-	RampIDTypeUsername   RampIDType = "UserName"
-	RampIDTypeProjectid  RampIDType = "ProjectID"
-	RampIDTypeApikey     RampIDType = "ApiKey"
-)
-
 // RewindRunResponse is returned by RewindRun on success.
 type RewindRunResponse struct {
 	RewindRun *RewindRunRewindRunRewindRunPayload `json:"rewindRun"`
@@ -1127,27 +1112,25 @@ func (v *ServerFeaturesQueryResponse) GetServerInfo() *ServerFeaturesQueryServer
 
 // ServerFeaturesQueryServerInfo includes the requested fields of the GraphQL type ServerInfo.
 type ServerFeaturesQueryServerInfo struct {
-	FeatureFlags []*ServerFeaturesQueryServerInfoFeatureFlagsFeatureFlag `json:"featureFlags"`
+	Features []*ServerFeaturesQueryServerInfoFeaturesServerFeature `json:"features"`
 }
 
-// GetFeatureFlags returns ServerFeaturesQueryServerInfo.FeatureFlags, and is useful for accessing the field via an interface.
-func (v *ServerFeaturesQueryServerInfo) GetFeatureFlags() []*ServerFeaturesQueryServerInfoFeatureFlagsFeatureFlag {
-	return v.FeatureFlags
+// GetFeatures returns ServerFeaturesQueryServerInfo.Features, and is useful for accessing the field via an interface.
+func (v *ServerFeaturesQueryServerInfo) GetFeatures() []*ServerFeaturesQueryServerInfoFeaturesServerFeature {
+	return v.Features
 }
 
-// ServerFeaturesQueryServerInfoFeatureFlagsFeatureFlag includes the requested fields of the GraphQL type FeatureFlag.
-type ServerFeaturesQueryServerInfoFeatureFlagsFeatureFlag struct {
-	RampKey   string `json:"rampKey"`
+// ServerFeaturesQueryServerInfoFeaturesServerFeature includes the requested fields of the GraphQL type ServerFeature.
+type ServerFeaturesQueryServerInfoFeaturesServerFeature struct {
+	Name      string `json:"name"`
 	IsEnabled bool   `json:"isEnabled"`
 }
 
-// GetRampKey returns ServerFeaturesQueryServerInfoFeatureFlagsFeatureFlag.RampKey, and is useful for accessing the field via an interface.
-func (v *ServerFeaturesQueryServerInfoFeatureFlagsFeatureFlag) GetRampKey() string { return v.RampKey }
+// GetName returns ServerFeaturesQueryServerInfoFeaturesServerFeature.Name, and is useful for accessing the field via an interface.
+func (v *ServerFeaturesQueryServerInfoFeaturesServerFeature) GetName() string { return v.Name }
 
-// GetIsEnabled returns ServerFeaturesQueryServerInfoFeatureFlagsFeatureFlag.IsEnabled, and is useful for accessing the field via an interface.
-func (v *ServerFeaturesQueryServerInfoFeatureFlagsFeatureFlag) GetIsEnabled() bool {
-	return v.IsEnabled
-}
+// GetIsEnabled returns ServerFeaturesQueryServerInfoFeaturesServerFeature.IsEnabled, and is useful for accessing the field via an interface.
+func (v *ServerFeaturesQueryServerInfoFeaturesServerFeature) GetIsEnabled() bool { return v.IsEnabled }
 
 // ServerInfoResponse is returned by ServerInfo on success.
 type ServerInfoResponse struct {
@@ -1826,14 +1809,6 @@ func (v *__RunStoppedStatusInput) GetProjectName() *string { return v.ProjectNam
 
 // GetRunId returns __RunStoppedStatusInput.RunId, and is useful for accessing the field via an interface.
 func (v *__RunStoppedStatusInput) GetRunId() string { return v.RunId }
-
-// __ServerFeaturesQueryInput is used internally by genqlient
-type __ServerFeaturesQueryInput struct {
-	RampIDType RampIDType `json:"rampIDType"`
-}
-
-// GetRampIDType returns __ServerFeaturesQueryInput.RampIDType, and is useful for accessing the field via an interface.
-func (v *__ServerFeaturesQueryInput) GetRampIDType() RampIDType { return v.RampIDType }
 
 // __TypeFieldsInput is used internally by genqlient
 type __TypeFieldsInput struct {
@@ -2771,27 +2746,25 @@ func RunStoppedStatus(
 
 // The query or mutation executed by ServerFeaturesQuery.
 const ServerFeaturesQuery_Operation = `
-query ServerFeaturesQuery ($rampIDType: RampIDType!) {
+query ServerFeaturesQuery {
 	serverInfo {
-		featureFlags(rampIDType: $rampIDType) {
-			rampKey
+		features {
+			name
 			isEnabled
 		}
 	}
 }
 `
 
+// This query is used to fetch the features supported by the server.
+// It is used to determine if certain code paths should be used in the SDK.
 func ServerFeaturesQuery(
 	ctx_ context.Context,
 	client_ graphql.Client,
-	rampIDType RampIDType,
 ) (*ServerFeaturesQueryResponse, error) {
 	req_ := &graphql.Request{
 		OpName: "ServerFeaturesQuery",
 		Query:  ServerFeaturesQuery_Operation,
-		Variables: &__ServerFeaturesQueryInput{
-			RampIDType: rampIDType,
-		},
 	}
 	var err_ error
 
