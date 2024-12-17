@@ -13,9 +13,8 @@ import (
 // ServerFeaturesCache is responsible for providing the capabilities of a server
 // Features and capabilities are retrieved from the server via a GraphQL query
 type ServerFeaturesCache struct {
-	Features map[spb.ServerFeature]Feature
-
 	ctx           context.Context
+	features      map[spb.ServerFeature]Feature
 	graphqlClient graphql.Client
 	logger        *observability.CoreLogger
 	once          sync.Once
@@ -48,7 +47,7 @@ func (sf *ServerFeaturesCache) loadFeatures() (map[spb.ServerFeature]Feature, er
 	}
 
 	// Query the server for the features provided by the server
-	resp, err := gql.ServerFeaturesQuery(sf.ctx, sf.graphqlClient, gql.RampIDTypeUsername)
+	resp, err := gql.ServerFeaturesQuery(sf.ctx, sf.graphqlClient)
 	if err != nil {
 		sf.logger.Error(
 			"Failed to load features, feature will default to disabled",
@@ -58,10 +57,10 @@ func (sf *ServerFeaturesCache) loadFeatures() (map[spb.ServerFeature]Feature, er
 		return features, err
 	}
 
-	for _, f := range resp.ServerInfo.FeatureFlags {
-		featureName := spb.ServerFeature(spb.ServerFeature_value[f.RampKey])
+	for _, f := range resp.ServerInfo.Features {
+		featureName := spb.ServerFeature(spb.ServerFeature_value[f.Name])
 		features[featureName] = Feature{
-			Name:    f.RampKey,
+			Name:    f.Name,
 			Enabled: f.IsEnabled,
 		}
 	}
@@ -71,10 +70,10 @@ func (sf *ServerFeaturesCache) loadFeatures() (map[spb.ServerFeature]Feature, er
 
 func (sf *ServerFeaturesCache) GetFeature(feature spb.ServerFeature) *Feature {
 	sf.once.Do(func() {
-		sf.Features, _ = sf.loadFeatures()
+		sf.features, _ = sf.loadFeatures()
 	})
 
-	cachedFeature, ok := sf.Features[feature]
+	cachedFeature, ok := sf.features[feature]
 	if !ok {
 		return &Feature{
 			Name:    feature.String(),
