@@ -12,3 +12,12 @@ Add here any changes made in a PR that are relevant to end users. Allowed sectio
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Added
+
+- Support JWT authentication in wandb-core (@elainaRenee in https://github.com/wandb/wandb/pull/8431)
+- Add support for logging nested custom charts. (@jacobromero in https://github.com/wandb/wandb/pull/8789)
+
+### Fixed
+
+- The stop button correctly interrupts runs whose main Python thread is running C code, sleeping, etc. (@timoffex in https://github.com/wandb/wandb/pull/9094)
