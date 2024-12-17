@@ -1,6 +1,4 @@
-import os
 import pathlib
-import subprocess
 from typing import Any
 
 
@@ -8,7 +6,7 @@ def _run_stopped_response(stopped: bool) -> dict[str, Any]:
     return {"data": {"project": {"run": {"stopped": stopped}}}}
 
 
-def test_run_stops_if_asked(wandb_backend_spy):
+def test_run_stops_if_asked(check_call_script, wandb_backend_spy):
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
         gql.Matcher(operation="RunStoppedStatus"),
@@ -23,10 +21,4 @@ def test_run_stops_if_asked(wandb_backend_spy):
     )
 
     script = pathlib.Path(__file__).parent / "pass_if_interrupted.py"
-    subprocess.check_call(
-        ["python", str(script)],
-        env={
-            "COVERAGE_PROCESS_START": "1",
-            **os.environ,
-        },
-    )
+    check_call_script(script)
