@@ -23,10 +23,4 @@ def test_run_stops_if_asked(wandb_backend_spy):
     )
 
     script = pathlib.Path(__file__).parent / "pass_if_interrupted.py"
-    subprocess.check_call(
-        ["python", str(script)],
-        env={
-            "COVERAGE_PROCESS_START": "1",
-            **os.environ,
-        },
-    )
+    subprocess.check_call(["python", str(script)])
