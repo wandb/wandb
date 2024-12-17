@@ -535,7 +535,7 @@ class Artifact:
 
     @property
     @ensure_logged
-    def url(self):
+    def url(self) -> str:
         """
         Constructs the URL of the artifact.
 
