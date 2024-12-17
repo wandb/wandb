@@ -603,8 +603,7 @@ class Run:
         )
         self.summary._set_update_callback(self._summary_update_callback)
 
-        self._metadata = Metadata()
-        self._metadata._set_callback(self._metadata_callback)
+        self.__metadata: Metadata | None = None
 
         self._step = 0
         self._starting_step = 0
@@ -3671,7 +3670,7 @@ class Run:
         return {}
 
     @property
-    def metadata(self) -> Metadata | None:
+    def _metadata(self) -> Metadata | None:
         """Returns the metadata associated with this run.
 
         Returns:
@@ -3679,6 +3678,11 @@ class Run:
         """
         if not self._backend or not self._backend.interface:
             return None
+
+        # Initialize the metadata object if it doesn't exist.
+        if self.__metadata is None:
+            self.__metadata = Metadata()
+            self.__metadata._set_callback(self._metadata_callback)
 
         handle = self._backend.interface.deliver_get_system_metadata()
         result = handle.wait(timeout=1)
@@ -3689,14 +3693,14 @@ class Run:
         try:
             response = result.response.get_system_metadata_response
             if response:
-                # overwrite values returned from wandb-core with values
-                # stored in the run object
-                response.metadata.MergeFrom(Metadata.to_proto(self._metadata))
-                # reset the stored metadata to the new values
-                self._metadata = Metadata.from_proto(response.metadata)
-                # set the callback to update the stored metadata
-                self._metadata._set_callback(self._metadata_callback)
-                return self._metadata
+                # Overwrite values returned from wandb-core with values
+                # stored in the run object.
+                response.metadata.MergeFrom(Metadata.to_proto(self.__metadata))
+                # Reset the stored metadata to the new values.
+                self.__metadata = Metadata.from_proto(response.metadata)
+                # Set the callback to update the stored metadata.
+                self.__metadata._set_callback(self._metadata_callback)
+                return self.__metadata
         except Exception as e:
             logger.error("Error getting system metrics: %s", e)
 

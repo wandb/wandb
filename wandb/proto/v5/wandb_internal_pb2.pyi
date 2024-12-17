@@ -4109,6 +4109,7 @@ class MetadataRequest(google.protobuf.message.Message):
     CUDA_VERSION_FIELD_NUMBER: builtins.int
     TRAINIUM_FIELD_NUMBER: builtins.int
     TPU_FIELD_NUMBER: builtins.int
+    _USER_MODIFIED_FIELD_NUMBER: builtins.int
     os: builtins.str
     python: builtins.str
     docker: builtins.str
@@ -4128,6 +4129,8 @@ class MetadataRequest(google.protobuf.message.Message):
     gpu_type: builtins.str
     gpu_count: builtins.int
     cuda_version: builtins.str
+    _user_modified: builtins.bool
+    """Flag indicating whether the request originated from the user."""
     @property
     def heartbeat_at(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
     @property
@@ -4189,9 +4192,11 @@ class MetadataRequest(google.protobuf.message.Message):
         cuda_version: builtins.str = ...,
         trainium: global___TrainiumInfo | None = ...,
         tpu: global___TPUInfo | None = ...,
+        _user_modified: builtins.bool | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["apple", b"apple", "cpu", b"cpu", "git", b"git", "heartbeat_at", b"heartbeat_at", "memory", b"memory", "started_at", b"started_at", "tpu", b"tpu", "trainium", b"trainium"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["apple", b"apple", "args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "heartbeat_at", b"heartbeat_at", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "started_at", b"started_at", "state", b"state", "tpu", b"tpu", "trainium", b"trainium", "username", b"username"]) -> None: ...
+    def HasField(self, field_name: typing.Literal["X_user_modified", b"X_user_modified", "_user_modified", b"_user_modified", "apple", b"apple", "cpu", b"cpu", "git", b"git", "heartbeat_at", b"heartbeat_at", "memory", b"memory", "started_at", b"started_at", "tpu", b"tpu", "trainium", b"trainium"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["X_user_modified", b"X_user_modified", "_user_modified", b"_user_modified", "apple", b"apple", "args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "heartbeat_at", b"heartbeat_at", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "started_at", b"started_at", "state", b"state", "tpu", b"tpu", "trainium", b"trainium", "username", b"username"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["X_user_modified", b"X_user_modified"]) -> typing.Literal["_user_modified"] | None: ...
 
 global___MetadataRequest = MetadataRequest
 

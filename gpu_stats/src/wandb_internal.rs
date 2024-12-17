@@ -2724,6 +2724,9 @@ pub struct MetadataRequest {
     pub trainium: ::core::option::Option<TrainiumInfo>,
     #[prost(message, optional, tag = "32")]
     pub tpu: ::core::option::Option<TpuInfo>,
+    /// Flag indicating whether the request originated from the user.
+    #[prost(bool, optional, tag = "200")]
+    pub user_modified: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PythonPackagesRequest {

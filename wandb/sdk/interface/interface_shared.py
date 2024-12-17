@@ -381,7 +381,6 @@ class InterfaceShared(InterfaceBase):
 
     def _publish_metadata(self, metadata: pb.MetadataRequest) -> None:
         rec = self._make_request(metadata=metadata)
-        print(rec)
         self._publish(rec)
 
     def _publish_summary(self, summary: pb.SummaryRecord) -> None:

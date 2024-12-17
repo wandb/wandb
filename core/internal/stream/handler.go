@@ -683,9 +683,18 @@ func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
 	}
 
 	if h.metadata == nil {
+		// Save the metadata on the first call.
 		h.metadata = proto.Clone(request).(*spb.MetadataRequest)
 	} else {
-		proto.Merge(h.metadata, request)
+		// Merge the metadata on subsequent calls.
+		// The order of the merge depends on the origin of the request.
+		// The request originating from the user should take precedence.
+		if request.GetXUserModified() {
+			proto.Merge(h.metadata, request)
+		} else {
+			proto.Merge(request, h.metadata)
+			h.metadata = request
+		}
 	}
 
 	mo := protojson.MarshalOptions{

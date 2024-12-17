@@ -300,7 +300,6 @@ class Metadata(BaseModel, validate_assignment=True):
             hasattr(self, "_post_update_callback")
             and self._post_update_callback is not None
         ):
-            print("Calling callback")
             self._post_update_callback(self.to_proto())
 
         return self
@@ -328,6 +327,8 @@ class Metadata(BaseModel, validate_assignment=True):
 
     def to_proto(self) -> wandb_internal_pb2.MetadataRequest:  # noqa: C901
         proto = wandb_internal_pb2.MetadataRequest()
+
+        proto._user_modified = True
 
         # Handle all scalar fields
         if self.os is not None:
@@ -408,7 +409,6 @@ class Metadata(BaseModel, validate_assignment=True):
 
     @classmethod
     def from_proto(cls, proto: wandb_internal_pb2.MetadataRequest) -> Metadata:  # noqa: C901
-        # print(proto)
         data = {}
 
         # Handle all scalar fields.
