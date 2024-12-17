@@ -8,6 +8,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"runtime"
+	"runtime/pprof"
 	"runtime/trace"
 
 	"github.com/wandb/wandb/core/internal/observability"
@@ -114,9 +115,19 @@ func main() {
 			slog.Error("failed to create trace output file", "err", err)
 			panic(err)
 		}
+
+		cpuprof, err := os.Create(*traceFile + ".cpu")
+		if err != nil {
+			slog.Error("failed to create trace output file", "err", err)
+			panic(err)
+		}
+
 		defer func() {
 			if err = f.Close(); err != nil {
 				slog.Error("failed to close trace file", "err", err)
+			}
+			if err = cpuprof.Close(); err != nil {
+				slog.Error("failed to close cpu file", "err", err)
 			}
 		}()
 
@@ -124,6 +135,12 @@ func main() {
 			slog.Error("failed to start trace", "err", err)
 			panic(err)
 		}
+		if err = pprof.StartCPUProfile(cpuprof); err != nil {
+			slog.Error("failed to start cpu profiling", "err", err)
+			panic(err)
+		}
+
+		defer pprof.StopCPUProfile()
 		defer trace.Stop()
 	}
 
