@@ -72,7 +72,7 @@ def get_payload(data_type: str, metric_count: int, metric_key_size) -> dict:
             for _ in range(metric_count)
         }
 
-    return None
+    return {}
 
 
 def get_random_key(field_size: int) -> str:

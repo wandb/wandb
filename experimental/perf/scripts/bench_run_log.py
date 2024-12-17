@@ -5,7 +5,6 @@ from datetime import datetime
 from setup_helper import get_logger, get_payload
 
 import wandb
-import wandb.data_types
 
 logger = get_logger(__name__)
 
@@ -58,13 +57,13 @@ def finish_wandb():
 
 
 def run_experiment(
-    step_count=10,
-    metric_count=100,
-    metric_key_size=10,
-    output_file="results.json",
-    data_type=None,
+    step_count: int = 10,
+    metric_count: int = 100,
+    metric_key_size: int = 10,
+    output_file: str = "results.json",
+    data_type: str = "scalar",
 ):
-    """Run the training experiment while measuring initialization, logging, and finishing times."""
+    """Run the training experiment while measuring init(), log(), and finish() times."""
     result_data = {}
     result_data["step_count"] = step_count
     result_data["metric_count"] = metric_count
@@ -84,10 +83,10 @@ def run_experiment(
 
     payload = get_payload(data_type, metric_count, metric_key_size)
     if not payload:
-        logger.error(f"The payload is None for data type: {data_type}. Exiting.")
+        logger.error(f"The payload is empty for data type: {data_type}. Exiting.")
         return
 
-    # Log the same payload in a tight loop
+    # Log the payload $step_count times
     _, log_time = log_metrics(step_count, payload)
     result_data["log_time"] = log_time
 
@@ -157,6 +156,7 @@ if __name__ == "__main__":
         type=str,
         help="wandb data type to log. Default scalar.",
         default="scalar",
+        choices=["scalar", "audio"]
     )
 
     args = parser.parse_args()

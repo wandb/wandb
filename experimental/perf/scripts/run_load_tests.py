@@ -170,7 +170,8 @@ def main():
         "--testcase",
         type=str,
         required=True,
-        help="log_scalar | log_scalar_scale_step | log_scalar_scale_metric | log_media",
+        help="the name of the test",
+        choices=["log_scalar", "log_scalar_scale_step", "log_scalar_scale_metric", "log_media" ]
     )
     parser.add_argument(
         "-d",
@@ -189,11 +190,7 @@ def main():
 
     args = parser.parse_args()
 
-    testcase = args.testcase
-    num_of_parallel_runs = args.num_of_parallel_runs
-    data_type = args.data_type
-
-    if not testcase:
+    if not args.testcase:
         logger.error("Test case (-t) is required but not provided.")
         print_help()
         exit(1)
@@ -205,7 +202,7 @@ def main():
     start_time = time.time()
 
     # Run the specified test case
-    run_test_case(testcase, log_folder, num_of_parallel_runs, data_type)
+    run_test_case(args.testcase, log_folder, args.num_of_parallel_runs, args.data_type)
 
     end_time = time.time()
     total_time = end_time - start_time
