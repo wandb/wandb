@@ -156,7 +156,7 @@ if __name__ == "__main__":
         type=str,
         help="wandb data type to log. Default scalar.",
         default="scalar",
-        choices=["scalar", "audio"]
+        choices=["scalar", "audio"],
     )
 
     args = parser.parse_args()

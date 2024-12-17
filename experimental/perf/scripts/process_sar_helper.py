@@ -24,7 +24,10 @@ def pre_process_network_sar_log(log_dir: str) -> str:
     if network_log.is_file():
         # get the network device name starting with an "e"
         grep_output = subprocess.run(
-            "ls /sys/class/net/ | grep ^e | tail -n 1", shell=True, text=True, capture_output=True
+            "ls /sys/class/net/ | grep ^e | tail -n 1", 
+            shell=True, 
+            text=True, 
+            capture_output=True,
         )
         dev = grep_output.stdout.strip()
         network_dev_specific_log = Path(log_dir) / f"network.dev.{dev}.log"
