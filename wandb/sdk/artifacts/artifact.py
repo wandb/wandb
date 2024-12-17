@@ -572,10 +572,10 @@ class Artifact:
             f"{self.entity}/{self.project}/artifacts/{quote(self._type)}/{quote(self.collection.name)}/{self._version}",
         )
 
-    def _construct_registry_url(self) -> str:
-        if not self._client or not all(
+    def _construct_registry_url(self, base_url: str) -> str:
+        if not all(
             [
-                self._client.app_url,
+                base_url,
                 self.entity,
                 self.project,
                 self.collection.name,
@@ -583,17 +583,21 @@ class Artifact:
             ]
         ):
             return ""
-        orgs_from_entity = InternalApi()._fetch_orgs_and_org_entities_from_entity(
-            self.entity
-        )
-        if len(orgs_from_entity) > 0:
-            org = orgs_from_entity[0]
-        else:
+
+        try:
+            org, *_ = InternalApi()._fetch_orgs_and_org_entities_from_entity(
+                self.entity
+            )
+        except ValueError:
             return ""
+
         selection_path = quote(
             f"{self.entity}/{self.project}/{self.collection.name}", safe=""
         )
-        return f"{self._client.app_url}orgs/{org.display_name}/registry/{self._type}?selectionPath={selection_path}&view=membership&version={self._version}"
+        return urljoin(
+            base_url,
+            f"orgs/{org.display_name}/registry/{self._type}?selectionPath={selection_path}&view=membership&version={self._version}",
+        )
 
     def _construct_model_registry_url(self, base_url: str) -> str:
         if not all(
