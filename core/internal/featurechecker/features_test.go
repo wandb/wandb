@@ -17,13 +17,13 @@ func stubServerFeaturesQuery(mockGQL *gqlmock.MockClient) {
 		gqlmock.WithOpName("ServerFeaturesQuery"),
 		`{
 			"serverInfo": {
-				"featureFlags": [
+				"features": [
 					{
-						"rampKey": "LARGE_FILENAMES",
+						"name": "LARGE_FILENAMES",
 						"isEnabled": true
 					},
 					{
-						"rampKey": "ARTIFACT_TAGS",
+						"name": "ARTIFACT_TAGS",
 						"isEnabled": false
 					}
 				]
@@ -43,19 +43,13 @@ func TestServerFeaturesInitialization(t *testing.T) {
 	)
 
 	// Assert - features are not loaded until Get is called
-	assert.Equal(t, 0, len(serverFeaturesCache.Features))
+	assert.Equal(t, 0, len(mockGQL.AllRequests()))
 
 	// Act
 	serverFeaturesCache.GetFeature(spb.ServerFeature_LARGE_FILENAMES)
 
 	// Assert - Features are loaded after Get is called
-	assert.Equal(t, 2, len(serverFeaturesCache.Features))
-	_, ok := serverFeaturesCache.Features[spb.ServerFeature_LARGE_FILENAMES]
-	assert.True(t, ok)
-	assert.True(t, serverFeaturesCache.Features[spb.ServerFeature_LARGE_FILENAMES].Enabled)
-	_, ok = serverFeaturesCache.Features[spb.ServerFeature_ARTIFACT_TAGS]
-	assert.True(t, ok)
-	assert.False(t, serverFeaturesCache.Features[spb.ServerFeature_ARTIFACT_TAGS].Enabled)
+	assert.Equal(t, 1, len(mockGQL.AllRequests()))
 }
 
 func TestGetFeature(t *testing.T) {
@@ -108,7 +102,6 @@ func TestCreateFeaturesCache_WithNullGraphQLClient(t *testing.T) {
 	feature := serverFeaturesCache.GetFeature(spb.ServerFeature_LARGE_FILENAMES)
 
 	// Assert
-	assert.Equal(t, 0, len(serverFeaturesCache.Features))
 	assert.False(t, feature.Enabled)
 }
 
@@ -130,7 +123,6 @@ func TestGetFeature_GraphQLError(t *testing.T) {
 	feature := serverFeaturesCache.GetFeature(spb.ServerFeature_LARGE_FILENAMES)
 
 	// Assert
-	assert.Equal(t, 0, len(serverFeaturesCache.Features))
 	assert.False(t, feature.Enabled)
 	assert.Equal(t, 1, len(mockGQL.AllRequests()))
 }
