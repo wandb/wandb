@@ -1383,9 +1383,9 @@ message JobInputRequest {
 // ServerFeatures related protobufs
 
 enum ServerFeature {
-  SERVER_FEATURE_LARGE_FILENAMES = 0;
-  SERVER_FEATURE_ARTIFACT_TAGS = 1;
-  SERVER_FEATURE_CLIENT_IDS = 2;
+  LARGE_FILENAMES = 0;
+  ARTIFACT_TAGS = 1;
+  CLIENT_IDS = 2;
 }
 
 /**
@@ -1411,6 +1411,4 @@ message ServerFeatureResponse {
 message ServerFeatureItem {
   string name = 1;
   bool enabled = 2;
-  string default_value = 3;
-  string description = 4;
 }

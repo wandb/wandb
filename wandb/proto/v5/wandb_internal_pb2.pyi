@@ -29,16 +29,16 @@ class _ServerFeature:
 
 class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[_ServerFeature.ValueType], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
-    SERVER_FEATURE_LARGE_FILENAMES: _ServerFeature.ValueType  # 0
-    SERVER_FEATURE_ARTIFACT_TAGS: _ServerFeature.ValueType  # 1
-    SERVER_FEATURE_CLIENT_IDS: _ServerFeature.ValueType  # 2
+    LARGE_FILENAMES: _ServerFeature.ValueType  # 0
+    ARTIFACT_TAGS: _ServerFeature.ValueType  # 1
+    CLIENT_IDS: _ServerFeature.ValueType  # 2
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
     """ServerFeatures related protobufs"""
 
-SERVER_FEATURE_LARGE_FILENAMES: ServerFeature.ValueType  # 0
-SERVER_FEATURE_ARTIFACT_TAGS: ServerFeature.ValueType  # 1
-SERVER_FEATURE_CLIENT_IDS: ServerFeature.ValueType  # 2
+LARGE_FILENAMES: ServerFeature.ValueType  # 0
+ARTIFACT_TAGS: ServerFeature.ValueType  # 1
+CLIENT_IDS: ServerFeature.ValueType  # 2
 global___ServerFeature = ServerFeature
 
 @typing.final
@@ -4378,20 +4378,14 @@ class ServerFeatureItem(google.protobuf.message.Message):
 
     NAME_FIELD_NUMBER: builtins.int
     ENABLED_FIELD_NUMBER: builtins.int
-    DEFAULT_VALUE_FIELD_NUMBER: builtins.int
-    DESCRIPTION_FIELD_NUMBER: builtins.int
     name: builtins.str
     enabled: builtins.bool
-    default_value: builtins.str
-    description: builtins.str
     def __init__(
         self,
         *,
         name: builtins.str = ...,
         enabled: builtins.bool = ...,
-        default_value: builtins.str = ...,
-        description: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["default_value", b"default_value", "description", b"description", "enabled", b"enabled", "name", b"name"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["enabled", b"enabled", "name", b"name"]) -> None: ...
 
 global___ServerFeatureItem = ServerFeatureItem
