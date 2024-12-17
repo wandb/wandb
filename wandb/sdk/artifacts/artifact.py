@@ -555,10 +555,10 @@ class Artifact:
             return self._construct_model_registry_url(base_url)
         return self._construct_standard_url(base_url)
 
-    def _construct_standard_url(self) -> str:
-        if not self._client or not all(
+    def _construct_standard_url(self, base_url: str) -> str:
+        if not all(
             [
-                self._client.app_url,
+                base_url,
                 self.entity,
                 self.project,
                 self._type,
@@ -567,7 +567,10 @@ class Artifact:
             ]
         ):
             return ""
-        return f"{self._client.app_url}{self.entity}/{self.project}/artifacts/{quote(self._type)}/{quote(self.collection.name)}/{self._version}"
+        return urljoin(
+            base_url,
+            f"{self.entity}/{self.project}/artifacts/{quote(self._type)}/{quote(self.collection.name)}/{self._version}",
+        )
 
     def _construct_registry_url(self) -> str:
         if not self._client or not all(
