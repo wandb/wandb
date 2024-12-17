@@ -10,106 +10,85 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// ServerFeatures is responsible for providing the capabilities of a server
+// ServerFeaturesCache is responsible for providing the capabilities of a server
 // Features and capabilities are retrieved from the server via a GraphQL query
-type ServerFeatures struct {
-	Features map[spb.ServerFeature]ServerFeature
+type ServerFeaturesCache struct {
+	Features map[spb.ServerFeature]Feature
 
 	ctx           context.Context
 	graphqlClient graphql.Client
-	mu            sync.Mutex
+	logger        *observability.CoreLogger
+	once          sync.Once
 }
 
-type ServerFeature struct {
+type Feature struct {
 	DefaultValue string
 	Description  string
 	Enabled      bool
 	Name         string
 }
 
-func NewServerFeatures(
+func NewServerFeaturesCache(
 	ctx context.Context,
 	graphqlClient graphql.Client,
-) *ServerFeatures {
-	var features map[spb.ServerFeature]ServerFeature
-
-	// If graphqlClient is nil, we won't ever be able to query the server
-	// So create an empty map which will default to false for all features when a key is not found
-	if graphqlClient == nil {
-		features = make(map[spb.ServerFeature]ServerFeature)
-	}
-
-	return &ServerFeatures{
-		Features:      features,
+	logger *observability.CoreLogger,
+) *ServerFeaturesCache {
+	return &ServerFeaturesCache{
 		ctx:           ctx,
 		graphqlClient: graphqlClient,
-		mu:            sync.Mutex{},
+		logger:        logger,
+		once:          sync.Once{},
 	}
 }
 
-func (sf *ServerFeatures) getServerFeatures() {
-	sf.Features = map[spb.ServerFeature]ServerFeature{}
+func (sf *ServerFeaturesCache) loadFeatures() (map[spb.ServerFeature]Feature, error) {
+	features := make(map[spb.ServerFeature]Feature)
+
+	if sf.graphqlClient == nil {
+		sf.logger.Warn("GraphQL client is nil, skipping feature loading")
+		return features, nil
+	}
 
 	// Query the server for the features provided by the server
-	resp, err := gql.ServerFeaturesQuery(
-		sf.ctx,
-		sf.graphqlClient,
-		gql.RampIDTypeUsername,
-	)
+	resp, err := gql.ServerFeaturesQuery(sf.ctx, sf.graphqlClient, gql.RampIDTypeUsername)
 	if err != nil {
-		return
+		sf.logger.Error(
+			"Failed to load features, feature will default to disabled",
+			"error",
+			err,
+		)
+		return features, err
 	}
 
 	for _, f := range resp.ServerInfo.FeatureFlags {
 		featureName := spb.ServerFeature(spb.ServerFeature_value[f.RampKey])
-		sf.Features[featureName] = ServerFeature{
+		features[featureName] = Feature{
 			Name:    f.RampKey,
 			Enabled: f.IsEnabled,
 		}
 	}
+
+	return features, nil
 }
 
-func (sf *ServerFeatures) GetSingleFeature(name spb.ServerFeature) *spb.ServerFeatureItem {
-	// Lazy load features if not already loaded
-	if sf.Features == nil {
-		sf.mu.Lock()
-		// Check again after acquiring lock in case another goroutine loaded features
-		if sf.Features == nil {
-			sf.getServerFeatures()
-		}
-		sf.mu.Unlock()
-	}
-
-	// Default value, if feature is not in map
+func (sf *ServerFeaturesCache) GetFeature(feature spb.ServerFeature) *spb.ServerFeatureItem {
 	serverFeature := &spb.ServerFeatureItem{
-		Name:    name.String(),
+		Name:    feature.String(),
 		Enabled: false,
 	}
 
-	feature, ok := sf.Features[name]
-	if ok {
-		serverFeature = &spb.ServerFeatureItem{
-			Name:    feature.Name,
-			Enabled: feature.Enabled,
-		}
+	sf.once.Do(func() {
+		sf.Features, _ = sf.loadFeatures()
+	})
+
+	cachedFeature, ok := sf.Features[feature]
+	if !ok {
+		return serverFeature
 	}
+
+	serverFeature.Enabled = cachedFeature.Enabled
+	serverFeature.DefaultValue = cachedFeature.DefaultValue
+	serverFeature.Description = cachedFeature.Description
+
 	return serverFeature
-}
-
-func (sf *ServerFeatures) GetMultipleFeatures(
-	featureNames []spb.ServerFeature,
-	logger *observability.CoreLogger,
-) *spb.ServerFeatureResponse {
-	// Get feature from map or default value
-	features := map[int32]*spb.ServerFeatureItem{}
-	for _, featureName := range featureNames {
-		// Default value, if feature is not in map
-		serverFeature := sf.GetSingleFeature(featureName)
-
-		features[int32(featureName)] = serverFeature
-	}
-
-	return &spb.ServerFeatureResponse{
-		Features: features,
-	}
 }
