@@ -197,7 +197,7 @@ class RecordMaker:
                 # np.NaN gets converted to float("nan"), which is not expected by our system.
                 # If this cast to string (!) is not done, the row will be dropped.
                 if (isinstance(v, float) and math.isnan(v)) or v == "NaN":
-                    v = np.NaN
+                    v = np.nan
 
                 if isinstance(v, bytes):
                     # it's a json string encoded as bytes
