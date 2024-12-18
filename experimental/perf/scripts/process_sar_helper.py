@@ -22,9 +22,12 @@ def pre_process_network_sar_log(log_dir: str) -> str:
     network_log = Path(log_dir) / "network.dev.log"
 
     if network_log.is_file():
-        # get the network device name, always started with an "e"
+        # get the network device name starting with an "e"
         grep_output = subprocess.run(
-            "ls /sys/class/net/ | grep ^e", shell=True, text=True, capture_output=True
+            "ls /sys/class/net/ | grep ^e | tail -n 1",
+            shell=True,
+            text=True,
+            capture_output=True,
         )
         dev = grep_output.stdout.strip()
         network_dev_specific_log = Path(log_dir) / f"network.dev.{dev}.log"
@@ -122,6 +125,18 @@ def process_sar_files(log_dir: str) -> None:
     Args:
         log_dir (str): The directory containing the log files.
     """
+    # Explicitly stop any running sar processes first. Even if they are explicitly
+    # killed, they will exit on their own when done.
+    try:
+        subprocess.run("killall sar", check=True, shell=True)
+        logger.info("kill sar executed successfully.")
+    except FileNotFoundError:
+        logger.error(
+            "Command not found. Make sure 'killall' is installed and in your PATH."
+        )
+    except Exception as e:
+        logger.error(f"An unexpected error occurred: {e}")
+
     log_files = ["cpu.log", "mem.log", "network.sock.log", "paging.log"]
 
     pre_processed_network_log = pre_process_network_sar_log(log_dir)

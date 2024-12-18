@@ -33,4 +33,6 @@ ARG WANDB_VERSION=""
 RUN pip install --upgrade pip && \
     if [ -z "$WANDB_VERSION" ]; then pip install wandb -qU; else pip install "wandb==$WANDB_VERSION" -qU; fi
 
+RUN pip install --no-cache-dir wandb[media]
+
 CMD ["sleep", "10000000"]
