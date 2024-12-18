@@ -221,29 +221,28 @@ ignore-decorators = [
 "wandb/cli/cli.py" = ["C901"]
 "wandb/sklearn/**" = ["B010", "B011", "N803", "N806", "UP031"]
 "wandb/wandb_torch.py" = ["C901", "D", "E741", "F841"]
-"wandb/integration/metaflow/metaflow.py" = ["F811", "T20"]
-"wandb/integration/prodigy/prodigy.py" = ["T20"]
-"wandb/integration/keras/keras.py" = ["T20"]
-"wandb/integration/fastai/__init__.py" = ["T20"]
+"wandb/integration/metaflow/metaflow.py" = ["F811"]
 "wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
 "wandb/old/**" = ["B006", "B020", "D", "F822"]
+"wandb/wandb_controller.py" = ["N806"]
 
+# Launch is planned to be removed in the future
+# so we can avoid fixing these errors
 "wandb/sdk/launch/**" = ["T20"]
-"wandb/docker/**" = ["T20"]
-"wandb/wandb_controller.py" = ["N806", "T20"]
-"wandb/wandb_agent.py" = ["T20"]
-"wandb/sdk/wandb_sweep.py" = ["T20"]
-"wandb/sdk/verify/verify.py" = ["T20"]
-
-"tools/**" = ["T20"]
-"experimental/perf/**" = ["T20"]
-# Don't require docstrings on test functions.
-"tests/**" = ["D"]
-"tests/assets/**" = ["T20"]
-"tests/system_tests/relay.py" = ["T20"]
-"tests/unit_tests/test_cli.py" = ["T20"]
-"tests/system_tests/test_core/test_cli_full.py" = ["T20"]
 "tests/system_tests/test_launch/**" = ["T20"]
+
+"tests/system_tests/relay.py" = [
+    "T20", # relay is for internal use only and planned to be removed
+]
+"tests/**" = [
+    "D", # Don't require docstrings on test functions.
+]
+"tests/assets/**" = [
+    "T20", # assets may include test data that need to use print statements
+]
+"tools/**" = [
+    "T20", # tools is for internal use only
+]
 "landfill/**" = ["F405", "N806", "D415"]
 
 [tool.mypy]
