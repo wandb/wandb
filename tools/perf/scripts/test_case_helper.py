@@ -2,11 +2,10 @@ import multiprocessing as mp
 import time
 from pathlib import Path
 
+import wandb
 from bench_run_log import run_experiment
 from process_sar_helper import process_sar_files
 from setup_helper import capture_sar_metrics, get_logger
-
-import wandb
 
 logger = get_logger(__name__)
 
