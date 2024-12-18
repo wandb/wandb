@@ -233,7 +233,6 @@ ignore-decorators = [
 "wandb/wandb_controller.py" = ["N806", "T20"]
 "wandb/wandb_agent.py" = ["T20"]
 "wandb/sdk/wandb_sweep.py" = ["T20"]
-"wandb/sdk/artifacts/**" = ["T20"]
 "wandb/sdk/verify/verify.py" = ["T20"]
 
 "tools/**" = ["T20"]
