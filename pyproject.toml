@@ -169,7 +169,7 @@ extend-exclude = [
 target-version = "py38"
 
 [tool.ruff.lint]
-select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP"]
+select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP", "T20"]
 ignore = [
     "B904",
     "E501",
@@ -219,7 +219,6 @@ ignore-decorators = [
 "wandb/__init__.pyi" = ["UP006", "UP007"]
 "wandb/__init__.template.pyi" = ["UP006", "UP007", "D415", "N999"]
 "wandb/cli/cli.py" = ["C901"]
-"wandb/wandb_controller.py" = ["N806"]
 "wandb/sklearn/**" = ["B010", "B011", "N803", "N806", "UP031"]
 "wandb/wandb_torch.py" = ["C901", "D", "E741", "F841"]
 "wandb/integration/metaflow/metaflow.py" = ["F811"]
@@ -227,11 +226,31 @@ ignore-decorators = [
 "wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
 "wandb/old/**" = ["B006", "B020", "D", "F822"]
 
+"wandb/wandb_controller.py" = ["N806", "T20"]
+"wandb/wandb_agent.py" = ["T20"]
+"wandb/sdk/wandb_sweep.py" = ["T20"]
+"wandb/sdk/launch/**" = ["T20"]
+"wandb/sdk/artifacts/**" = ["T20"]
+"wandb/sdk/data_types/**" = ["T20"]
+"wandb/integration/**" = ["T20"]
+"wandb/sdk/internal/**" = ["T20"]
+"wandb/sdk/lib/**" = ["T20"]
+"wandb/sdk/interface/**" = ["T20"]
+"wandb/docker/**" = ["T20"]
+"wandb/cli/**" = ["T20"]
+"wandb/apis/public/**" = ["T20"]
+"wandb/sync/sync.py" = ["T20"]
+"wandb/sdk/verify/verify.py" = ["T20"]
+"wandb/sdk/wandb_run.py" = ["T20"]
+"wandb/sdk/wandb_setup.py" = ["T20"]
+"wandb/sdk/service/**" = ["T20"]
+
+"tools/**" = ["T20"]
+"experimental/perf/**" = ["T20"]
 # Don't require docstrings on test functions.
-"tests/**" = ["D"]
+"tests/**" = ["D", "T20"]
 
 "landfill/**" = ["F405", "N806", "D415"]
-
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
