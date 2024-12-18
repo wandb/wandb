@@ -2,9 +2,8 @@ import argparse
 import json
 from datetime import datetime
 
-from setup_helper import get_logger, get_payload
-
 import wandb
+from setup_helper import get_logger, get_payload
 
 logger = get_logger(__name__)
 
