@@ -1,169 +1,311 @@
 import argparse
 import json
+import multiprocessing as mp
+import random
+import string
 from datetime import datetime
+from pathlib import Path
+from typing import Literal
+
+import numpy as np
 
 import wandb
-from setup_helper import get_logger, get_payload
+
+from .setup_helper import get_logger
 
 logger = get_logger(__name__)
 
 
-def measure_time(func):
-    """Decorator to measure and return execution time of a function."""
+class Timer:
+    """A simple timer class to measure execution time."""
 
-    def wrapper(*args, **kwargs):
+    def __init__(self):
+        self.start_time = None
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.stop()
+
+    def start(self):
+        self.start_time = datetime.now()
+
+    def stop(self):
+        return (datetime.now() - self.start_time).total_seconds()
+
+
+class PayloadGenerator:
+    """Generates a payload for logging in the performance testing.
+
+    Args:
+        data_type: The type of data to log.
+        metric_count: The number of metrics.
+        metric_key_size: The size (in characters) of the metric.
+    """
+
+    def __init__(
+        self,
+        data_type: Literal["scalar", "audio"],
+        metric_count: int,
+        metric_key_size: int,
+    ):
+        self.data_type = data_type
+        self.metric_count = metric_count
+        self.metric_key_size = metric_key_size
+
+    def random_string(self, size: int) -> str:
+        """Generates a random string of a given size.
+
+        Args:
+            size: The size of the string.
+
+        Returns:
+            str: A random string of the given size.
+        """
+        return "".join(
+            random.choices(string.ascii_letters + string.digits + "_", k=size)
+        )
+
+    def generate(self) -> dict:
+        """Generates a payload for logging.
+
+        Returns:
+            dict: A dictionary with the payload.
+
+        Raises:
+            ValueError: If the data type is invalid.
+        """
+        if self.data_type == "audio":
+            return self.generate_audio()
+        elif self.data_type == "scalar":
+            return self.generate_scalar()
+        else:
+            raise ValueError(f"Invalid data type: {self.data_type}")
+
+    def generate_audio(self) -> dict[str, wandb.Audio]:
+        """Generates a payload for logging audio data.
+
+        Returns:
+            dict: A dictionary with the audio data.
+        """
+        duration = 5  # make a 5s long audio
+        sample_rate = 44100
+        frequency = 440
+
+        t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
+        audio_data = np.sin(2 * np.pi * frequency * t)
+        audio_obj = wandb.Audio(audio_data, sample_rate=sample_rate)
+        return {
+            self.random_string(self.metric_key_size): audio_obj
+            for _ in range(self.metric_count)
+        }
+
+    def generate_scalar(self) -> dict[str, int]:
+        """Generates a payload for logging scalar data.
+
+        Returns:
+            dict: A dictionary with the scalar data.
+        """
+        return {
+            self.random_string(self.metric_key_size): random.randint(1, 10**6)
+            for _ in range(self.metric_count)
+        }
+
+
+class Experiment:
+    """A class to run the performance test.
+
+    Args:
+        num_steps: The number of logging steps per run.
+        num_metrics: The number of metrics to log per step.
+        metric_key_size: The length of metric names.
+        output_file: The output file to store the performance test results.
+        data_type: The wandb data type to log.
+    """
+
+    def __init__(
+        self,
+        num_steps: int = 10,
+        num_metrics: int = 100,
+        metric_key_size: int = 10,
+        output_file: str = "results.json",
+        data_type: Literal["scalar", "audio"] = "scalar",
+    ):
+        self.num_steps = num_steps
+        self.num_metrics = num_metrics
+        self.metric_key_size = metric_key_size
+        self.output_file = output_file
+        self.data_type = data_type
+
+    def run(self, repeat: int = 1):
+        for _ in range(repeat):
+            self.single_run()
+
+    def single_run(self):
+        """Run a simple experiment to log metrics to W&B.
+
+        Measuring the time for init(), log(), and finish() operations.
+        """
         start_time = datetime.now()
-        result = func(*args, **kwargs)
-        end_time = datetime.now()
-        elapsed_time = end_time - start_time
-        return result, round(elapsed_time.total_seconds(), 2)
+        start_time_str = start_time.strftime("%m%d%YT%H%M%S")
+        logger.info(f"Test start time: {start_time_str}")
 
-    return wrapper
+        result_data = {
+            "num_steps": self.num_steps,
+            "num_metrics": self.num_metrics,
+            "metric_key_size": self.metric_key_size,
+            "data_type": self.data_type,
+        }
+
+        # Initialize W&B
+        with Timer() as timer:
+            run = wandb.init(
+                project="perf-test",
+                name=f"perf_run={start_time_str}_steps={self.num_steps}_metrics={self.num_metrics}",
+                config=result_data,
+            )
+            result_data["init_time"] = timer.stop()
+
+        try:
+            payload = PayloadGenerator(
+                self.data_type, self.num_metrics, self.metric_key_size
+            ).generate()
+        except ValueError as e:
+            logger.error(f"Failed to generate payload: {e}")
+            return
+
+        # Log the payload $step_count times
+        with Timer() as timer:
+            for _ in range(self.num_steps):
+                run.log(payload)
+            result_data["log_time"] = timer.stop()
+
+        # compute the log() throughput rps (request per sec)
+        if result_data["log_time"] == 0:
+            logger.warning("the measured time for log() is 0.")
+            # Setting it to 0.1ms to avoid failing the math.
+            log_time = 0.0001
+
+        result_data["log_rps"] = round(self.num_steps / log_time, 2)
+
+        # Finish W&B run
+        with Timer() as timer:
+            run.finish()
+            result_data["finish_time"] = timer.stop()
+
+        # Display experiment timing
+        run_time = (
+            result_data["init_time"]
+            + result_data["log_time"]
+            + result_data["finish_time"]
+        )
+        result_data["sdk_run_time"] = round(run_time, 2)
+
+        # write the result data to a json file
+        with open(self.output_file, "w") as file:
+            json.dump(result_data, file, indent=4)
+
+        logger.info(json.dumps(result_data, indent=4))
+        total_time = (datetime.now() - start_time).total_seconds()
+        logger.info(f"\nTotal run duration: {total_time:.2f} seconds")
 
 
-@measure_time
-def init_wandb(
-    run_id: str,
-    step_count: int,
-    metric_count: int,
+def run_parallel_experiment(
+    *,
+    num_processes: int,
+    num_steps: int,
+    num_metrics: int,
+    data_type: Literal["scalar", "audio"],
     metric_key_size: int,
-    data_type: str,
+    log_folder: Path,
 ):
-    """Initialize a new W&B run."""
-    wandb.init(
-        project="perf-test",
-        name=f"perf_run{run_id}_steps{step_count}_metriccount{metric_count}",
-        config={
-            "steps": {step_count},
-            "metric_count": {metric_count},
-            "metric_key_size": {metric_key_size},
-            "data_type": {data_type},
-        },
-    )
+    """A helper function to start multiple wandb runs in parallel.
 
+    Args:
+        num_of_processes: Number of parallel wandb runs to start.
+        num_steps: Number of steps within the loop.
+        num_metrics: Number of metrics to log per step.
+        data_type: Wandb data type for the test payload
+        metric_key_size: The length of metric names.
+        log_folder: The root directory where results will be stored.
+    """
+    processes = []
+    for i in range(num_processes):
+        p = mp.Process(
+            target=Experiment(
+                num_steps=num_steps,
+                num_metrics=num_metrics,
+                metric_key_size=metric_key_size,
+                output_file=log_folder / f"results.{i+1}.json",
+                data_type=data_type,
+            ).run,
+            kwargs=dict(
+                repeat=1,
+            ),
+        )
+        p.start()
+        logger.info(f"The {i}-th process (pid: {p.pid}) has started.")
+        processes.append(p)
 
-@measure_time
-def log_metrics(steps: int, payload: dict):
-    """Log to W&B."""
-    for _ in range(steps):
-        wandb.log(payload)
-
-
-@measure_time
-def finish_wandb():
-    """Mark W&B run as finished."""
-    wandb.finish()
-
-
-def run_experiment(
-    step_count: int = 10,
-    metric_count: int = 100,
-    metric_key_size: int = 10,
-    output_file: str = "results.json",
-    data_type: str = "scalar",
-):
-    """Run the training experiment while measuring init(), log(), and finish() times."""
-    result_data = {}
-    result_data["step_count"] = step_count
-    result_data["metric_count"] = metric_count
-    result_data["metric_key_size"] = metric_key_size
-    result_data["data_type"] = data_type
-
-    run_start_time = datetime.now()
-    start_time_str = run_start_time.strftime("%m%d%YT%H%M%S")
-    logger.info(f"Test start time: {start_time_str}")
-    run_id = f"{start_time_str}"
-
-    # Initialize W&B
-    _, init_time = init_wandb(
-        run_id, step_count, metric_count, metric_key_size, data_type
-    )
-    result_data["init_time"] = init_time
-
-    payload = get_payload(data_type, metric_count, metric_key_size)
-    if not payload:
-        logger.error(f"The payload is empty for data type: {data_type}. Exiting.")
-        return
-
-    # Log the payload $step_count times
-    _, log_time = log_metrics(step_count, payload)
-    result_data["log_time"] = log_time
-
-    # compute the log() throughput rps (request per sec)
-    if log_time == 0:
-        logger.warning("the measured time for log() is 0.")
-        # Setting it to 0.1ms to avoid failing the math.
-        log_time = 0.0001
-
-    log_rps = round(step_count / log_time, 2)
-    result_data["log_rps"] = log_rps
-
-    # Finish W&B run
-    _, finish_time = finish_wandb()
-    result_data["finish_time"] = finish_time
-
-    # Display experiment timing
-    run_time = init_time + log_time + finish_time
-    result_data["sdk_run_time"] = round(run_time, 2)
-
-    # write the result data to a json file
-    with open(output_file, "w") as file:
-        json.dump(result_data, file, indent=4)
-
-    logger.info(json.dumps(result_data, indent=4))
-
-    test_run_time = datetime.now() - run_start_time
-    logger.info(f"\nTotal run duration: {test_run_time.total_seconds()} seconds")
+    # now wait for all processes to finish and exit
+    for p in processes:
+        p.join()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-l",
-        "--loop",
+        "-r",
+        "--repeat",
         type=int,
-        help="number of test iterations to perform.",
         default=1,
+        help="The number of times to repeat the experiment.",
     )
     parser.add_argument(
-        "-s", "--steps", type=int, help="number of logging steps per run.", default=10
+        "-s",
+        "--steps",
+        type=int,
+        default=10,
+        help="The number of logging steps per run.",
     )
     parser.add_argument(
         "-n",
-        "--metric_count",
+        "--num-metrics",
         type=int,
-        help="number of metrics to each logging step.",
         default=100,
+        help="The number of metrics to log per step.",
     )
     parser.add_argument(
         "-m",
-        "--metric_key_size",
+        "--metric-key-size",
         type=int,
-        help="length of metric names.",
         default=10,
+        help="The length of metric names.",
     )
     parser.add_argument(
         "-o",
         "--outfile",
         type=str,
-        help="performance test result output file.",
         default="results.json",
+        help="The output file to store the performance test results.",
     )
     parser.add_argument(
         "-d",
-        "--data_type",
+        "--data-type",
         type=str,
-        help="wandb data type to log. Default scalar.",
-        default="scalar",
         choices=["scalar", "audio"],
+        default="scalar",
+        help="The wandb data type to log. Defaults to scalar.",
     )
 
     args = parser.parse_args()
-    for _ in range(args.loop):
-        run_experiment(
-            args.steps,
-            args.metric_count,
-            args.metric_key_size,
-            args.outfile,
-            args.data_type,
-        )
+
+    Experiment(
+        num_steps=args.steps,
+        metric_count=args.num_metrics,
+        metric_key_size=args.metric_key_size,
+        output_file=args.outfile,
+        data_type=args.data_type,
+    ).run(args.repeat)

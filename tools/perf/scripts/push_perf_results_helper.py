@@ -6,39 +6,40 @@ import re
 import wandb
 from setup_helper import get_logger
 
+from .setup_helper import get_logger
+
 logger = get_logger(__name__)
 
 
-def log_to_wandb(args: argparse) -> None:
+def log_to_wandb(args: argparse.Namespace) -> None:
     # Initialize a W&B run
-    run = wandb.init(project=args.project, name=args.run, job_type="performance_test")
+    with wandb.init(
+        project=args.project, name=args.run_name, job_type="performance_test"
+    ) as run:
+        # Loop through each log file in the directory
+        root_log_dir = args.folder
+        dirs = os.listdir(root_log_dir)
 
-    # Loop through each log file in the directory
-    root_log_dir = args.folder
-    dirs = os.listdir(root_log_dir)
+        # Sort the directories based on the last numerical value found which is the sort_key
+        sorted_dirs = sorted(dirs, key=lambda d: int(re.findall(r"\d+", d)[-1]))
+        final_data = {}
+        for dir in sorted_dirs:
+            file_names = []
+            # Either load the specific files from user inputs, or load *.json
+            if args.list is not None:
+                file_names = args.list.split(",")
 
-    # Sort the directories based on the last numerical value found which is the sort_key
-    sorted_dirs = sorted(dirs, key=lambda d: int(re.findall(r"\d+", d)[-1]))
-    final_data = {}
-    for dir in sorted_dirs:
-        file_names = []
-        # Either load the specific files from user inputs, or load *.json
-        if args.list is not None:
-            file_names = args.list.split(",")
+            else:
+                for file_name in os.listdir(os.path.join(root_log_dir, dir)):
+                    if file_name.endswith(".json"):
+                        file_names.append(file_name)
 
-        else:
-            for file_name in os.listdir(os.path.join(root_log_dir, dir)):
-                if file_name.endswith(".json"):
-                    file_names.append(file_name)
+            for file_name in file_names:
+                logger.info(f"logging data from {file_name} in {dir} ...")
+                with open(os.path.join(root_log_dir, dir, file_name)) as f:
+                    final_data.update(json.load(f))
 
-        for file_name in file_names:
-            logger.info(f"logging data from {file_name} in {dir} ...")
-            with open(os.path.join(root_log_dir, dir, file_name)) as f:
-                final_data.update(json.load(f))
-
-        run.log(final_data)
-
-    run.finish()
+            run.log(final_data)
 
 
 if __name__ == "__main__":
@@ -47,14 +48,22 @@ if __name__ == "__main__":
         "-f",
         "--folder",
         type=str,
-        help="Test result ROOT folder (required)",
+        help="The root folder where the test results are stored",
         required=True,
     )
     parser.add_argument(
-        "-n", "--run", type=str, help="Name of this test run", required=True
+        "-n",
+        "--run-name",
+        type=str,
+        help="The name of the run to log to W&B",
+        required=True,
     )
     parser.add_argument(
-        "-p", "--project", type=str, help="W&B project name", required=True
+        "-p",
+        "--project",
+        type=str,
+        help="The W&B project to log to",
+        required=True,
     )
     parser.add_argument(
         "-l",
