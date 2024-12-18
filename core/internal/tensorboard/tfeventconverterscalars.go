@@ -23,32 +23,38 @@ func processScalars(
 	case *tbproto.Summary_Value_Tensor:
 		tensor, err := tensorFromProto(value.Tensor)
 		if err != nil {
-			logger.CaptureError(
-				fmt.Errorf("tensorboard: error parsing tensor: %v", err))
+			logger.Error(
+				"tensorboard: error parsing tensor",
+				"error", err,
+			)
 			return
 		}
 
 		scalar, err := tensor.Scalar()
 		if err != nil {
-			logger.CaptureError(
-				fmt.Errorf("tensorboard: error getting scalar: %v", err))
+			logger.Error(
+				"tensorboard: error getting scalar",
+				"error", err,
+			)
 			return
 		}
 
 		floatJSON, err := simplejsonext.MarshalToString(scalar)
 		if err != nil {
-			logger.CaptureError(
-				fmt.Errorf("tensorboard: error encoding scalar: %v", err))
+			logger.Error(
+				"tensorboard: error encoding scalar",
+				"error", err,
+			)
 			return
 		}
 
 		emitter.EmitHistory(pathtree.PathOf(tag), floatJSON)
 
 	default:
-		logger.CaptureError(
-			fmt.Errorf(
-				"tensorboard: unexpected scalars value type: %T",
-				value))
+		logger.Error(
+			"tensorboard: unexpected scalars value type",
+			"type", fmt.Sprintf("%T", value),
+		)
 	}
 }
 
@@ -61,8 +67,10 @@ func processScalarsSimpleValue(
 ) {
 	floatJSON, err := simplejsonext.MarshalToString(value)
 	if err != nil {
-		logger.CaptureError(
-			fmt.Errorf("tensorboard: error encoding scalar: %v", err))
+		logger.Error(
+			"tensorboard: error encoding scalar",
+			"error", err,
+		)
 		return
 	}
 

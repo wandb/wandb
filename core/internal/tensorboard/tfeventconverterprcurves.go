@@ -35,35 +35,39 @@ func processPRCurves(
 ) {
 	tensorValue, ok := value.GetValue().(*tbproto.Summary_Value_Tensor)
 	if !ok {
-		logger.CaptureError(
-			fmt.Errorf(
-				"tensorboard: expected pr_curves value to be a Tensor"+
-					" but its type is %T",
-				value.GetValue()))
+		logger.Error(
+			"tensorboard: expected pr_curves value to be a Tensor",
+			"type", fmt.Sprintf("%T", value.GetValue()),
+		)
 		return
 	}
 
 	tensor, err := tensorFromProto(tensorValue.Tensor)
 	if err != nil {
-		logger.CaptureError(
-			fmt.Errorf("tensorboard: failed to parse tensor: %v", err))
+		logger.Error(
+			"tensorboard: failed to parse tensor",
+			"error", err,
+		)
 		return
 	}
 
 	precision, err1 := tensor.Row(-2)
 	recall, err2 := tensor.Row(-1)
 	if err1 != nil || err2 != nil {
-		logger.CaptureError(
-			fmt.Errorf(
-				"tensorboard: couldn't read pr_curves row: %v",
-				errors.Join(err1, err2)))
+		logger.Error(
+			"tensorboard: couldn't read pr_curves row",
+			"error", errors.Join(err1, err2),
+		)
 		return
 	}
 
 	if len(precision) != len(recall) {
 		// Shouldn't happen since it's a 2D array.
-		logger.CaptureError(
-			errors.New("tensorboard: len(precision) != len(recall)"))
+		logger.Error(
+			"tensorboard: len(precision) != len(recall)",
+			"len(precision)", len(precision),
+			"len(recall)", len(recall),
+		)
 		return
 	}
 
@@ -78,8 +82,10 @@ func processPRCurves(
 
 	err = emitter.EmitTable(pathtree.PathOf(tag), table)
 	if err != nil {
-		logger.CaptureError(
-			fmt.Errorf("tensorboard: failed to emit pr_curves table: %v", err))
+		logger.Error(
+			"tensorboard: failed to emit pr_curves table",
+			"error", err,
+		)
 	}
 
 	err = emitter.EmitChart(
@@ -91,7 +97,9 @@ func processPRCurves(
 			TableKey: tag,
 		})
 	if err != nil {
-		logger.CaptureError(
-			fmt.Errorf("tensorboard: failed to emit pr_curves chart: %v", err))
+		logger.Error(
+			"tensorboard: failed to emit pr_curves chart",
+			"error", err,
+		)
 	}
 }

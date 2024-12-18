@@ -1,7 +1,6 @@
 package runfiles
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -97,7 +96,11 @@ func newUploader(params UploaderParams) *uploader {
 
 func (u *uploader) Process(record *spb.FilesRecord) {
 	if err := u.lockForOperation("Process"); err != nil {
-		u.logger.CaptureError(err, "record", record)
+		u.logger.Error(
+			"uploader: Process: error locking state",
+			"error", err,
+			"record", record,
+		)
 		return
 	}
 	defer u.stateMu.Unlock()
@@ -112,11 +115,11 @@ func (u *uploader) Process(record *spb.FilesRecord) {
 	for _, file := range record.GetFiles() {
 		maybeRunPath, err := paths.Relative(file.GetPath())
 		if err != nil {
-			u.logger.CaptureError(
-				fmt.Errorf(
-					"runfiles: file path is not relative: %v",
-					err,
-				))
+			u.logger.Error(
+				"runfiles: file path is not relative",
+				"error", err,
+				"record", record,
+			)
 			continue
 		}
 		runPath := *maybeRunPath
@@ -136,12 +139,11 @@ func (u *uploader) Process(record *spb.FilesRecord) {
 			if err := u.watcher.Watch(u.toRealPath(string(runPath)), func() {
 				u.uploadBatcher.Add([]paths.RelativePath{runPath})
 			}); err != nil {
-				u.logger.CaptureError(
-					fmt.Errorf(
-						"runfiles: error watching file: %v",
-						err,
-					),
-					"path", file.GetPath())
+				u.logger.Error(
+					"uploader: error watching file",
+					"error", err,
+					"path", file.GetPath(),
+				)
 			}
 
 		case spb.FilesItem_END:
@@ -168,7 +170,11 @@ func (u *uploader) UploadNow(
 	category filetransfer.RunFileKind,
 ) {
 	if err := u.lockForOperation("UploadNow"); err != nil {
-		u.logger.CaptureError(err, "path", string(path))
+		u.logger.Error(
+			"uploader: UploadNow: error locking state",
+			"error", err,
+			"path", string(path),
+		)
 		return
 	}
 	defer u.stateMu.Unlock()
@@ -182,7 +188,11 @@ func (u *uploader) UploadAtEnd(
 	category filetransfer.RunFileKind,
 ) {
 	if err := u.lockForOperation("UploadAtEnd"); err != nil {
-		u.logger.CaptureError(err, "path", string(path))
+		u.logger.Error(
+			"uploader: UploadAtEnd: error locking state",
+			"error", err,
+			"path", string(path),
+		)
 		return
 	}
 	defer u.stateMu.Unlock()
@@ -193,7 +203,10 @@ func (u *uploader) UploadAtEnd(
 
 func (u *uploader) UploadRemaining() {
 	if err := u.lockForOperation("UploadRemaining"); err != nil {
-		u.logger.CaptureError(err)
+		u.logger.Error(
+			"uploader: UploadRemaining: error locking state",
+			"error", err,
+		)
 		return
 	}
 	defer u.stateMu.Unlock()
@@ -297,17 +310,17 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 			runSlashPaths,
 		)
 		if err != nil {
-			u.logger.CaptureError(
-				fmt.Errorf("runfiles: CreateRunFiles returned error: %v", err))
+			u.logger.Error(
+				"runfiles: CreateRunFiles returned error",
+				"error", err,
+			)
 			u.uploadWG.Add(-len(runPaths))
 			return
 		}
 
 		if len(createRunFilesResponse.CreateRunFiles.Files) != len(runPaths) {
-			u.logger.CaptureError(
-				errors.New(
-					"runfiles: CreateRunFiles returned"+
-						" unexpected number of files"),
+			u.logger.Error(
+				"runfiles: CreateRunFiles returned unexpected number of files",
 				"actual", len(createRunFilesResponse.CreateRunFiles.Files),
 				"expected", len(runPaths),
 			)
@@ -317,7 +330,7 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 
 		for _, f := range createRunFilesResponse.CreateRunFiles.Files {
 			if f.UploadUrl == nil {
-				u.logger.CaptureWarn(
+				u.logger.Warn(
 					"runfiles: CreateRunFiles has empty UploadUrl",
 					"response", createRunFilesResponse)
 				u.uploadWG.Done()
@@ -326,12 +339,11 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 
 			maybeRunPath, err := paths.Relative(filepath.FromSlash(f.Name))
 			if err != nil || !maybeRunPath.IsLocal() {
-				u.logger.CaptureError(
-					fmt.Errorf(
-						"runfiles: CreateRunFiles returned unexpected file name: %v",
-						err,
-					),
-					"response", createRunFilesResponse)
+				u.logger.Error(
+					"runfiles: CreateRunFiles returned unexpected file name",
+					"error", err,
+					"response", createRunFilesResponse,
+				)
 				u.uploadWG.Done()
 				continue
 			}

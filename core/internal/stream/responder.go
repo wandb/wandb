@@ -1,7 +1,6 @@
 package stream
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/observability"
@@ -47,7 +46,7 @@ func (d *Dispatcher) AddResponders(entries ...ResponderEntry) {
 		if _, ok := d.responders[responderId]; !ok {
 			d.responders[responderId] = entry.Responder
 		} else {
-			d.logger.CaptureWarn("Responder already exists", "responder", responderId)
+			d.logger.Warn("Responder already exists", "responder", responderId)
 		}
 	}
 }
@@ -73,7 +72,9 @@ func (d *Dispatcher) handleRespond(result *spb.Result) {
 			},
 		})
 	} else {
-		d.logger.CaptureError(
-			fmt.Errorf("dispatch: no responder found: %s", responderID))
+		d.logger.Error(
+			"dispatch: no responder found",
+			"responder_id", responderID,
+		)
 	}
 }

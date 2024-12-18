@@ -26,11 +26,10 @@ func processHistograms(
 		processHistogramsProto(emitter, tag, value.Histo, logger)
 
 	default:
-		logger.CaptureError(
-			fmt.Errorf(
-				"tensorboard: expected histograms value to be a Tensor"+
-					" or HistogramProto but its type is %T",
-				value))
+		logger.Error(
+			"tensorboard: expected histograms value to be a Tensor or HistogramProto",
+			"type", fmt.Sprintf("%T", value),
+		)
 	}
 }
 
@@ -43,8 +42,10 @@ func processHistogramsTensor(
 ) {
 	tensor, err := tensorFromProto(tensorValue)
 	if err != nil {
-		logger.CaptureError(
-			fmt.Errorf("tensorboard: failed to parse tensor: %v", err))
+		logger.Error(
+			"tensorboard: failed to parse tensor",
+			"error", err,
+		)
 		return
 	}
 
@@ -52,9 +53,10 @@ func processHistogramsTensor(
 	rightEdges, err2 := tensor.Col(1)
 	weights, err3 := tensor.Col(2)
 	if err1 != nil || err2 != nil || err3 != nil {
-		logger.CaptureError(
-			fmt.Errorf("tensorboard: couldn't read histograms row: %v",
-				errors.Join(err1, err2, err3)))
+		logger.Error(
+			"tensorboard: couldn't read histograms row",
+			"error", errors.Join(err1, err2, err3),
+		)
 		return
 	}
 
@@ -83,13 +85,15 @@ func processHistogramsProto(
 	binWeights := histo.Bucket
 
 	if len(rightEdges) == 0 {
-		logger.CaptureError(
-			errors.New("tensorboard: invalid histogram: empty BucketLimit"))
+		logger.Error(
+			"tensorboard: invalid histogram: empty BucketLimit",
+		)
 		return
 	}
 	if len(rightEdges) != len(binWeights) {
-		logger.CaptureError(
-			errors.New("tensorboard: invalid histogram: len(BucketLimit) != len(Bucket)"))
+		logger.Error(
+			"tensorboard: invalid histogram: len(BucketLimit) != len(Bucket)",
+		)
 		return
 	}
 
@@ -110,8 +114,9 @@ func processHistogramsProto(
 		binEdges = append(binEdges, rightEdges...)
 
 	default:
-		logger.CaptureError(
-			errors.New("tensorboard: invalid histogram: histo.Min >= rightEdges[0]"))
+		logger.Error(
+			"tensorboard: invalid histogram: histo.Min >= rightEdges[0]",
+		)
 		return
 	}
 
@@ -126,10 +131,11 @@ func emitHistogram(
 	logger *observability.CoreLogger,
 ) {
 	if len(binEdges) != 1+len(binWeights) {
-		logger.CaptureError(
-			errors.New("tensorboard: invalid histogram"),
+		logger.Error(
+			"tensorboard: invalid histogram",
 			"len(binEdges)", len(binEdges),
-			"len(binWeights)", len(binWeights))
+			"len(binWeights)", len(binWeights),
+		)
 		return
 	}
 
@@ -142,8 +148,10 @@ func emitHistogram(
 		)
 
 		if err != nil {
-			logger.CaptureError(
-				fmt.Errorf("tensorboard: error rebinning histogram: %v", err))
+			logger.Error(
+				"tensorboard: error rebinning histogram",
+				"error", err,
+			)
 			return
 		}
 	}
@@ -153,8 +161,10 @@ func emitHistogram(
 		BinWeights: binWeights,
 	}.HistoryValueJSON()
 	if err != nil {
-		logger.CaptureError(
-			fmt.Errorf("tensorboard: error serializing histogram: %v", err))
+		logger.Error(
+			"tensorboard: error serializing histogram",
+			"error", err,
+		)
 		return
 	}
 

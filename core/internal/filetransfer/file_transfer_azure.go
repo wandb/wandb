@@ -206,12 +206,11 @@ func (ft *AzureFileTransfer) Upload(task *DefaultUploadTask) error {
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
-			ft.logger.CaptureError(
-				fmt.Errorf(
-					"azure file transfer: upload: error closing file %s: %v",
-					task.Path,
-					err,
-				))
+			ft.logger.Error(
+				"azure file transfer: upload: error closing file",
+				"error", err,
+				"path", task.Path,
+			)
 		}
 	}(file)
 

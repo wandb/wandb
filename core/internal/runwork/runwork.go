@@ -151,7 +151,7 @@ func (rw *runWork) AddWorkOrCancel(
 		case <-time.After(10 * time.Minute):
 			// Stop warning after the first hour to minimize spam.
 			if i < 6 {
-				rw.logger.CaptureWarn(
+				rw.logger.Warn(
 					"runwork: taking a long time",
 					"seconds", time.Since(start).Seconds(),
 					"work", work.DebugInfo(),
@@ -160,7 +160,11 @@ func (rw *runWork) AddWorkOrCancel(
 
 		case <-rw.closed:
 			// Here, Close() must have been called, so we should drop the record.
-			rw.logger.CaptureError(errRecordAfterClose, "work", work)
+			rw.logger.Error(
+				"runwork: ignoring record after close",
+				"error", errRecordAfterClose,
+				"work", work.DebugInfo(),
+			)
 			return
 
 		case <-cancel:

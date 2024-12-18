@@ -96,8 +96,10 @@ func emitImages(
 	for _, encodedData := range images {
 		image, err := wbvalue.ImageFromData(width, height, encodedData)
 		if err != nil {
-			logger.CaptureError(
-				fmt.Errorf("tensorboard: failed to read image: %v", err))
+			logger.Error(
+				"tensorboard: failed to read image",
+				"error", err,
+			)
 		} else {
 			wbImages = append(wbImages, image)
 		}
@@ -106,8 +108,10 @@ func emitImages(
 	if len(wbImages) != 0 {
 		err := emitter.EmitImages(pathtree.PathOf(tag), wbImages)
 		if err != nil {
-			logger.CaptureError(
-				fmt.Errorf("tensorboard: couldn't emit image: %v", err))
+			logger.Error(
+				"tensorboard: couldn't emit image",
+				"error", err,
+			)
 		}
 	}
 }

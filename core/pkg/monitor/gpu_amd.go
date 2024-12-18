@@ -112,7 +112,10 @@ func (g *GPUAMD) getCards() (map[int]Stats, error) {
 			}
 			cardStats, ok := value.(map[string]interface{})
 			if !ok {
-				g.logger.CaptureError(fmt.Errorf("gpuamd: type assertion failed for key %s", key))
+				g.logger.Error(
+					"gpuamd: type assertion failed for key",
+					"key", key,
+				)
 				continue
 			}
 			stats := g.ParseStats(cardStats)
@@ -130,7 +133,10 @@ func (g *GPUAMD) Probe() *spb.MetadataRequest {
 
 	rawStats, err := g.GetROCMSMIStatsFunc()
 	if err != nil {
-		g.logger.CaptureError(fmt.Errorf("gpuamd: error getting ROCm SMI stats: %v", err))
+		g.logger.Error(
+			"gpuamd: error getting ROCm SMI stats",
+			"error", err,
+		)
 		return nil
 	}
 
@@ -146,7 +152,10 @@ func (g *GPUAMD) Probe() *spb.MetadataRequest {
 			}
 			stats, ok := value.(map[string]interface{})
 			if !ok {
-				g.logger.CaptureError(fmt.Errorf("gpuamd: type assertion failed for key %s", key))
+				g.logger.Error(
+					"gpuamd: type assertion failed for key",
+					"key", key,
+				)
 				continue
 			}
 			cards[cardID] = stats

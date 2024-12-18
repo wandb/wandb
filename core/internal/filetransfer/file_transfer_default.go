@@ -52,12 +52,11 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
-			ft.logger.CaptureError(
-				fmt.Errorf(
-					"file transfer: upload: error closing file %s: %v",
-					task.Path,
-					err,
-				))
+			ft.logger.Error(
+				"file transfer: upload: error closing file",
+				"error", err,
+				"path", task.Path,
+			)
 		}
 	}(file)
 
@@ -124,22 +123,20 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	}
 	defer func(file *os.File) {
 		if err := file.Close(); err != nil {
-			ft.logger.CaptureError(
-				fmt.Errorf(
-					"file transfer: download: error closing file %s: %v",
-					task.Path,
-					err,
-				))
+			ft.logger.Error(
+				"file transfer: download: error closing file",
+				"error", err,
+				"path", task.Path,
+			)
 		}
 	}(file)
 
 	defer func(file io.ReadCloser) {
 		if err := file.Close(); err != nil {
-			ft.logger.CaptureError(
-				fmt.Errorf(
-					"file transfer: download: error closing response reader: %v",
-					err,
-				))
+			ft.logger.Error(
+				"file transfer: download: error closing response reader",
+				"error", err,
+			)
 		}
 	}(resp.Body)
 
@@ -199,7 +196,10 @@ func getUploadRequestBody(
 
 		progress, err := wboperation.Get(task.Context).NewProgress()
 		if err != nil {
-			logger.CaptureError(fmt.Errorf("file transfer: %v", err))
+			logger.Error(
+				"file transfer: upload: error getting progress",
+				"error", err,
+			)
 		}
 
 		requestBody = NewProgressReader(
