@@ -59,7 +59,7 @@ def mocked_ipython(monkeypatch):
     monkeypatch.setattr(ipython, "in_jupyter", lambda: True)
 
     def run_cell(cell):
-        print("Running cell: ", cell)
+        print("Running cell: ", cell)  # noqa: T201
         exec(cell)
 
     mock_get_ipython_result = MagicMock()
@@ -91,16 +91,16 @@ class WandbNotebookClient(NotebookClient):
                     store_history=False if idx == 0 else store_history,
                 )
             except CellExecutionError as e:
-                print("Cell output before exception:")
-                print("=============================")
+                print("Cell output before exception:")  # noqa: T201
+                print("=============================")  # noqa: T201
                 for output in cell["outputs"]:
                     if output["output_type"] == "stream":
-                        print(output["text"])
+                        print(output["text"])  # noqa: T201
                 raise e
             for output in executed_cell["outputs"]:
                 if output["output_type"] == "error" and nb_cell_id != 0:
-                    print(f"Error in cell: {nb_cell_id}")
-                    print("\n".join(output["traceback"]))
+                    print(f"Error in cell: {nb_cell_id}")  # noqa: T201
+                    print("\n".join(output["traceback"]))  # noqa: T201
                     raise ValueError(output["evalue"])
             executed_cells.append(executed_cell)
 

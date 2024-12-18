@@ -3,9 +3,8 @@ import json
 import os
 import re
 
-from setup_helper import get_logger
-
 import wandb
+from setup_helper import get_logger
 
 logger = get_logger(__name__)
 

@@ -145,7 +145,7 @@ norecursedirs = [
 ]
 
 [tool.coverage.paths]
-source = ["wandb"]
+source = ["wandb/", "**/site-packages/wandb/"]
 
 [tool.coverage.run]
 # branch = true
@@ -169,7 +169,7 @@ extend-exclude = [
 target-version = "py38"
 
 [tool.ruff.lint]
-select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP"]
+select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP", "T20"]
 ignore = [
     "B904",
     "E501",
@@ -219,19 +219,31 @@ ignore-decorators = [
 "wandb/__init__.pyi" = ["UP006", "UP007"]
 "wandb/__init__.template.pyi" = ["UP006", "UP007", "D415", "N999"]
 "wandb/cli/cli.py" = ["C901"]
-"wandb/wandb_controller.py" = ["N806"]
 "wandb/sklearn/**" = ["B010", "B011", "N803", "N806", "UP031"]
 "wandb/wandb_torch.py" = ["C901", "D", "E741", "F841"]
 "wandb/integration/metaflow/metaflow.py" = ["F811"]
-"wandb/integration/magic.py" = ["B026", "F401", "F841", "N806", "N818"]
 "wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
 "wandb/old/**" = ["B006", "B020", "D", "F822"]
+"wandb/wandb_controller.py" = ["N806"]
 
-# Don't require docstrings on test functions.
-"tests/**" = ["D"]
+# Launch is planned to be removed in the future
+# so we can avoid fixing these errors
+"wandb/sdk/launch/**" = ["T20"]
+"tests/system_tests/test_launch/**" = ["T20"]
 
+"tests/system_tests/relay.py" = [
+    "T20", # relay is for internal use only and planned to be removed
+]
+"tests/**" = [
+    "D", # Don't require docstrings on test functions.
+]
+"tests/assets/**" = [
+    "T20", # assets may include test data that need to use print statements
+]
+"tools/**" = [
+    "T20", # tools is for internal use only
+]
 "landfill/**" = ["F405", "N806", "D415"]
-
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
