@@ -1,7 +1,6 @@
 import contextlib
 import dataclasses
 import http.server
-import os
 import ssl
 import threading
 from pathlib import Path
@@ -113,5 +112,4 @@ def test_uses_userspecified_custom_ssl_certs(
         requests.get(url)
 
     with patch.dict("os.environ", make_env(ssl_creds.cert)):
-        print(os.environ)
         assert requests.get(url).status_code == 200

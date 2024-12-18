@@ -15,7 +15,6 @@ from wandb import env
 )
 def test_sync_dir(user):
     with wandb.init(settings={"mode": "offline"}) as run:
-        print(run._settings.sync_dir)
         assert run._settings.sync_dir == os.path.realpath(
             os.path.join(".", "wandb", "latest-run")
         )
