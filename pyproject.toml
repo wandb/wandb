@@ -145,7 +145,7 @@ norecursedirs = [
 ]
 
 [tool.coverage.paths]
-source = ["wandb"]
+source = ["wandb/", "**/site-packages/wandb/"]
 
 [tool.coverage.run]
 # branch = true
