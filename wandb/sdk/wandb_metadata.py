@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 
 from google.protobuf.timestamp_pb2 import Timestamp
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -327,9 +327,9 @@ class Metadata(BaseModel, validate_assignment=True):
 
         # Callback for post-update. This is used in the Run object to trigger
         # a metadata update after the object is modified.
-        self._post_update_callback: callable | None = None
+        self._post_update_callback: Callable | None = None
 
-    def _set_callback(self, callback: callable) -> None:
+    def _set_callback(self, callback: Callable) -> None:
         self._post_update_callback = callback
 
     @contextmanager
@@ -345,7 +345,7 @@ class Metadata(BaseModel, validate_assignment=True):
     @model_validator(mode="after")
     def _callback(self) -> Self:
         if getattr(self, "_post_update_callback", None) is not None:
-            self._post_update_callback(self.to_proto())  # type: ignore
+            self._post_update_callback(self.to_proto())
 
         return self
 
