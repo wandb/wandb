@@ -18,20 +18,11 @@ def empty_netrc(monkeypatch):
     monkeypatch.setattr(netrc, "netrc", lambda *args: FakeNet())
 
 
-# @contextlib.contextmanager
-# def config_dir():
-#     try:
-#         os.environ["WANDB_CONFIG"] = os.getcwd()
-#         yield
-#     finally:
-#         del os.environ["WANDB_CONFIG"]
-
-
 def debug_result(result, prefix=None):
     prefix = prefix or ""
-    print("DEBUG({}) {} = {}".format(prefix, "out", result.output))
-    print("DEBUG({}) {} = {}".format(prefix, "exc", result.exception))
-    print(
+    print("DEBUG({}) {} = {}".format(prefix, "out", result.output))  # noqa: T201
+    print("DEBUG({}) {} = {}".format(prefix, "exc", result.exception))  # noqa: T201
+    print(  # noqa: T201
         "DEBUG({}) {} = {}".format(prefix, "tb", traceback.print_tb(result.exc_info[2]))
     )
 
