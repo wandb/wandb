@@ -45,7 +45,7 @@ def get_logger(name: str, log_file: str = "perf.log") -> logging.Logger:
     return logger
 
 
-def get_payload(data_type: str, metric_count: int, metric_key_size) -> dict:
+def get_payload(data_type: str, metric_count: int, metric_key_size: int) -> dict:
     """Generates a payload based on the data type and parameters.
 
     Args:
