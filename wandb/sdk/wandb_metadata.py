@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -246,12 +247,45 @@ class Metadata(BaseModel, validate_assignment=True):
     """Metadata about the run environment.
 
     NOTE: Definitions must be kept in sync with wandb_internal.proto.
+
+    Attributes:
+        os (str, optional): Operating system.
+        python (str, optional): Python version.
+        heartbeat_at (datetime, optional): Timestamp of last heartbeat.
+        started_at (datetime, optional): Timestamp of run start.
+        docker (str, optional): Docker image.
+        cuda (str, optional): CUDA version.
+        args (List[str]): Command-line arguments.
+        state (str, optional): Run state.
+        program (str, optional): Program name.
+        code_path (str, optional): Path to code.
+        git (GitRepoRecord, optional): Git repository information.
+        email (str, optional): Email address.
+        root (str, optional): Root directory.
+        host (str, optional): Host name.
+        username (str, optional): Username.
+        executable (str, optional): Python executable path.
+        code_path_local (str, optional): Local code path.
+        colab (str, optional): Colab URL.
+        cpu_count (int, optional): CPU count.
+        cpu_count_logical (int, optional): Logical CPU count.
+        gpu_type (str, optional): GPU type.
+        disk (Dict[str, DiskInfo]): Disk information.
+        memory (MemoryInfo, optional): Memory information.
+        cpu (CpuInfo, optional): CPU information.
+        apple (AppleInfo, optional): Apple silicon information.
+        gpu_nvidia (List[GpuNvidiaInfo]): NVIDIA GPU information.
+        gpu_amd (List[GpuAmdInfo]): AMD GPU information.
+        slurm (Dict[str, str]): Slurm environment information.
+        cuda_version (str, optional): CUDA version.
+        trainium (TrainiumInfo, optional): Trainium information.
+        tpu (TPUInfo, optional): TPU information.
     """
 
     # TODO: Pydantic configuration.
     model_config = ConfigDict(
-        # extra="forbid",  # throw an error if extra fields are provided
-        # validate_default=True,  # validate default values
+        extra="forbid",  # throw an error if extra fields are provided
+        validate_default=True,  # validate default values
     )
 
     os: str | None = None
@@ -294,12 +328,19 @@ class Metadata(BaseModel, validate_assignment=True):
     def _set_callback(self, callback: callable) -> None:
         self._post_update_callback = callback
 
+    @contextmanager
+    def disable_callback(self):
+        """Temporarily disable callback."""
+        original_callback = self._post_update_callback
+        self._post_update_callback = None
+        try:
+            yield
+        finally:
+            self._post_update_callback = original_callback
+
     @model_validator(mode="after")
     def _callback(self) -> Self:
-        if (
-            hasattr(self, "_post_update_callback")
-            and self._post_update_callback is not None
-        ):
+        if getattr(self, "_post_update_callback", None) is not None:
             self._post_update_callback(self.to_proto())
 
         return self
@@ -407,8 +448,11 @@ class Metadata(BaseModel, validate_assignment=True):
 
         return proto
 
-    @classmethod
-    def from_proto(cls, proto: wandb_internal_pb2.MetadataRequest) -> Metadata:  # noqa: C901
+    def update_from_proto(  # noqa: C901
+        self,
+        proto: wandb_internal_pb2.MetadataRequest,
+        skip_existing: bool = False,
+    ):
         data = {}
 
         # Handle all scalar fields.
@@ -453,9 +497,9 @@ class Metadata(BaseModel, validate_assignment=True):
 
         # Handle timestamp fields (these are messages, so use HasField)
         if proto.HasField("heartbeat_at"):
-            data["heartbeat_at"] = cls._timestamp_to_datetime(proto.heartbeat_at)
+            data["heartbeat_at"] = self._timestamp_to_datetime(proto.heartbeat_at)
         if proto.HasField("started_at"):
-            data["started_at"] = cls._timestamp_to_datetime(proto.started_at)
+            data["started_at"] = self._timestamp_to_datetime(proto.started_at)
 
         # Handle nested message fields (these have presence)
         if proto.HasField("git"):
@@ -497,4 +541,7 @@ class Metadata(BaseModel, validate_assignment=True):
         else:
             data["slurm"] = {}
 
-        return cls(**data)
+        for k, v in data.items():
+            if skip_existing and getattr(self, k) is not None:
+                continue
+            setattr(self, k, v)

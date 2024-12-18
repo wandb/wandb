@@ -3670,11 +3670,11 @@ class Run:
         return {}
 
     @property
+    @_run_decorator._noop_on_finish()
     def _metadata(self) -> Metadata | None:
-        """Returns the metadata associated with this run.
+        """The metadata associated with this run.
 
-        Returns:
-            The metadata associated with this run.
+        NOTE: Automatically collected metadata can be overridden by the user.
         """
         if not self._backend or not self._backend.interface:
             return None
@@ -3692,15 +3692,17 @@ class Run:
 
         try:
             response = result.response.get_system_metadata_response
-            if response:
-                # Overwrite values returned from wandb-core with values
-                # stored in the run object.
-                response.metadata.MergeFrom(Metadata.to_proto(self.__metadata))
-                # Reset the stored metadata to the new values.
-                self.__metadata = Metadata.from_proto(response.metadata)
-                # Set the callback to update the stored metadata.
-                self.__metadata._set_callback(self._metadata_callback)
-                return self.__metadata
+
+            if not response:
+                return None
+
+            # Temporarily disable the callback to prevent triggering
+            # an update call to wandb-core with the callback.
+            with self.__metadata.disable_callback():
+                # Values stored in the metadata object take precedence.
+                self.__metadata.update_from_proto(response.metadata, skip_existing=True)
+
+            return self.__metadata
         except Exception as e:
             logger.error("Error getting system metrics: %s", e)
 
@@ -3709,6 +3711,7 @@ class Run:
         self,
         metadata: MetadataRequest,
     ) -> None:
+        """Callback to publish Metadata to wandb-core upon user updates."""
         if self._backend and self._backend.interface:
             self._backend.interface.publish_metadata(metadata)
 
