@@ -924,11 +924,6 @@ class Run(Attrs):
         if self.server_provides_internal_id_field is None:
             query = gql(query_string)
             res = self.client.execute(query)
-            print(
-                "internalId"
-                in [x["name"] for x in (res.get("ProjectType", {}).get("fields", [{}]))]
-            )
-
             self.server_provides_internal_id_field = "internalId" in [
                 x["name"] for x in (res.get("ProjectType", {}).get("fields", [{}]))
             ]
