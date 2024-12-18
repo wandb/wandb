@@ -2,8 +2,6 @@
 package runconsolelogs
 
 import (
-	"errors"
-	"fmt"
 	"path/filepath"
 	"time"
 
@@ -98,11 +96,10 @@ func New(params Params) *Sender {
 		)
 
 		if err != nil {
-			params.Logger.CaptureError(
-				fmt.Errorf(
-					"runconsolelogs: cannot write to file: %v",
-					err,
-				))
+			params.Logger.Error(
+				"runconsolelogs: cannot write to file",
+				"error", err,
+			)
 		}
 	}
 
@@ -113,11 +110,10 @@ func New(params Params) *Sender {
 				err := fileWriter.WriteToFile(lines)
 
 				if err != nil {
-					params.Logger.CaptureError(
-						fmt.Errorf(
-							"runconsolelogs: failed to write to file: %v",
-							err,
-						))
+					params.Logger.Error(
+						"runconsolelogs: failed to write to file",
+						"error", err,
+					)
 					fileWriter = nil
 				}
 			}
@@ -180,8 +176,8 @@ func (s *Sender) StreamLogs(record *spb.OutputRawRecord) {
 		s.stderrTerm.Write(record.Line)
 
 	default:
-		s.logger.CaptureError(
-			errors.New("runconsolelogs: invalid OutputRawRecord type"),
+		s.logger.Error(
+			"runconsolelogs: invalid OutputRawRecord type",
 			"type", record.OutputType,
 		)
 	}

@@ -324,7 +324,7 @@ outerLoop:
 
 			case <-time.After(10 * time.Minute):
 				if i < 6 {
-					s.logger.CaptureWarn(
+					s.logger.Warn(
 						"sender: taking a long time",
 						"seconds", time.Since(start).Seconds(),
 						"work", work.DebugInfo(),
@@ -601,8 +601,10 @@ func (s *Sender) sendJobFlush() {
 		"",
 	)
 	if result.Err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to save job artifact: %v", result.Err))
+		s.logger.Error(
+			"sender: failed to save job artifact",
+			"error", result.Err,
+		)
 	}
 }
 
@@ -690,8 +692,9 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 				case s.finishWithoutExitRecord != nil:
 					s.fileStream.FinishWithoutExit()
 				default:
-					s.logger.CaptureError(
-						fmt.Errorf("sender: no exit code on finish"))
+					s.logger.Error(
+						"sender: no exit code on finish",
+					)
 					s.fileStream.FinishWithoutExit()
 				}
 			}
@@ -821,8 +824,9 @@ func (s *Sender) sendForkRun(record *spb.Record, run *spb.RunRecord) {
 	})
 
 	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("send: sendRun: failed to update run state: %s", err),
+		s.logger.Error(
+			"sender: sendRun: failed to update run state",
+			"error", err,
 		)
 		// provide more info about the error to the user
 		if errType, ok := err.(*runbranch.BranchError); ok {
@@ -928,8 +932,9 @@ func (s *Sender) sendResumeRun(record *spb.Record, run *spb.RunRecord) {
 	})
 
 	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("send: sendRun: failed to update run state: %s", err),
+		s.logger.Error(
+			"send: sendRun: failed to update run state",
+			"error", err,
 		)
 		// provide more info about the error to the user
 		if errType, ok := err.(*runbranch.BranchError); ok {
@@ -987,8 +992,10 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 	// resumed config and apply updates on top of it.
 	s.runConfig.ApplyChangeRecord(run.Config,
 		func(err error) {
-			s.logger.CaptureError(
-				fmt.Errorf("error updating run config: %v", err))
+			s.logger.Error(
+				"error updating run config",
+				"error", err,
+			)
 		})
 
 	proto.Merge(s.telemetry, run.Telemetry)
@@ -1205,8 +1212,10 @@ func (s *Sender) streamSummary() {
 
 	// `update` may be non-empty even on error.
 	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("sender: error flattening summary: %v", err))
+		s.logger.Error(
+			"sender: error flattening summary",
+			"error", err,
+		)
 	}
 
 	s.fileStream.StreamUpdate(&fs.SummaryUpdate{
@@ -1217,8 +1226,10 @@ func (s *Sender) streamSummary() {
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 	for _, update := range summary.Update {
 		if err := s.runSummary.SetFromRecord(update); err != nil {
-			s.logger.CaptureError(
-				fmt.Errorf("sender: error updating summary: %v", err))
+			s.logger.Error(
+				"sender: error updating summary",
+				"error", err,
+			)
 		}
 	}
 
@@ -1302,8 +1313,10 @@ func (s *Sender) uploadSummaryFile() {
 
 	summary, err := s.runSummary.Serialize()
 	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to serialize run summary: %v", err))
+		s.logger.Error(
+			"sender: failed to serialize run summary",
+			"error", err,
+		)
 		return
 	}
 
@@ -1312,8 +1325,10 @@ func (s *Sender) uploadSummaryFile() {
 		SummaryFileName,
 		filetransfer.RunFileKindWandb,
 	); err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to upload run summary: %v", err))
+		s.logger.Error(
+			"sender: failed to upload run summary",
+			"error", err,
+		)
 	}
 }
 
@@ -1332,8 +1347,10 @@ func (s *Sender) uploadConfigFile() {
 
 	config, err := s.serializeConfig(runconfig.FormatYaml)
 	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to serialize run config: %v", err))
+		s.logger.Error(
+			"sender: failed to serialize run config",
+			"error", err,
+		)
 		return
 	}
 
@@ -1342,8 +1359,10 @@ func (s *Sender) uploadConfigFile() {
 		ConfigFileName,
 		filetransfer.RunFileKindWandb,
 	); err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to upload run config: %v", err))
+		s.logger.Error(
+			"sender: failed to upload run config",
+			"error", err,
+		)
 	}
 }
 
@@ -1387,8 +1406,10 @@ func (s *Sender) sendConfig(_ *spb.Record, configRecord *spb.ConfigRecord) {
 	if configRecord != nil {
 		s.runConfig.ApplyChangeRecord(configRecord,
 			func(err error) {
-				s.logger.CaptureError(
-					fmt.Errorf("error updating run config: %v", err))
+				s.logger.Error(
+					"sender: error updating run config",
+					"error", err,
+				)
 			})
 	}
 	s.configDebouncer.SetNeedsDebounce()
@@ -1405,8 +1426,8 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 	// when the run is initialized
 	// If it's not set, we log an error and return
 	if s.startState.StartTime.IsZero() {
-		s.logger.CaptureError(
-			fmt.Errorf("sender: sendSystemMetrics: start time not set"),
+		s.logger.Error(
+			"sender: sendSystemMetrics: start time not set",
 			"startState",
 			s.startState,
 		)
@@ -1450,11 +1471,10 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 		&alert.WaitDuration,
 	)
 	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf(
-				"sender: sendAlert: failed to notify scriptable run alert: %v",
-				err,
-			))
+		s.logger.Error(
+			"sender: sendAlert: failed to notify scriptable run alert",
+			"error", err,
+		)
 	} else {
 		s.logger.Info("sender: sendAlert: notified scriptable run alert", "data", data)
 	}
@@ -1465,8 +1485,9 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 // on the server.
 func (s *Sender) sendRequestRunFinishWithoutExit(record *spb.Record, _ *spb.RunFinishWithoutExitRequest) {
 	if s.finishWithoutExitRecord != nil {
-		s.logger.CaptureError(
-			errors.New("sender: received RequestRunFinishWithoutExit more than once, ignoring"))
+		s.logger.Error(
+			"sender: received RequestRunFinishWithoutExit more than once, ignoring",
+		)
 		return
 	}
 
@@ -1527,7 +1548,10 @@ func (s *Sender) sendMetric(metric *spb.MetricRecord) {
 	err := s.runConfigMetrics.ProcessRecord(metric)
 
 	if err != nil {
-		s.logger.CaptureError(fmt.Errorf("sender: sendMetric: %v", err))
+		s.logger.Error(
+			"sender: sendMetric",
+			"error", err,
+		)
 		return
 	}
 
@@ -1537,7 +1561,7 @@ func (s *Sender) sendMetric(metric *spb.MetricRecord) {
 // sendFiles uploads files according to a FilesRecord
 func (s *Sender) sendFiles(_ *spb.Record, filesRecord *spb.FilesRecord) {
 	if s.runfilesUploader == nil {
-		s.logger.CaptureWarn(
+		s.logger.Warn(
 			"sender: tried to sendFiles, but runfiles uploader is nil",
 		)
 		return
@@ -1565,9 +1589,11 @@ func (s *Sender) sendArtifact(_ *spb.Record, msg *spb.ArtifactRecord) {
 		result := <-resultChan
 		op.Finish()
 		if result.Err != nil {
-			s.logger.CaptureError(
-				fmt.Errorf("sender: failed to log artifact: %v", result.Err),
-				"artifactID", result.ArtifactID)
+			s.logger.Error(
+				"sender: failed to log artifact",
+				"error", result.Err,
+				"artifactID", result.ArtifactID,
+			)
 		}
 	}()
 }
@@ -1634,8 +1660,10 @@ func (s *Sender) sendRequestDownloadArtifact(record *spb.Record, msg *spb.Downlo
 		msg.PathPrefix,
 	).Download(); err != nil {
 		// Online mode handling: error during download
-		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to download artifact: %v", err))
+		s.logger.Error(
+			"sender: failed to download artifact",
+			"error", err,
+		)
 		response.ErrorMessage = err.Error()
 	}
 
@@ -1732,11 +1760,10 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 		switch {
 		case err != nil:
 			// if there is an error, we don't know if the run should stop
-			s.logger.CaptureError(
-				fmt.Errorf(
-					"sender: sendStopStatus: failed to get run stopped status: %v",
-					err,
-				))
+			s.logger.Error(
+				"sender: sendStopStatus: failed to get run stopped status",
+				"error", err,
+			)
 			stopResponse = &spb.StopStatusResponse{
 				RunShouldStop: false,
 			}
@@ -1767,11 +1794,10 @@ func (s *Sender) sendRequestSenderRead(_ *spb.Record, _ *spb.SenderReadRequest) 
 		store := NewStore(s.settings.GetTransactionLogPath())
 		err := store.Open(os.O_RDONLY)
 		if err != nil {
-			s.logger.CaptureError(
-				fmt.Errorf(
-					"sender: sendSenderRead: failed to create store: %v",
-					err,
-				))
+			s.logger.Error(
+				"sender: sendSenderRead: failed to create store",
+				"error", err,
+			)
 			return
 		}
 		s.store = store
@@ -1796,11 +1822,12 @@ func (s *Sender) sendRequestSenderRead(_ *spb.Record, _ *spb.SenderReadRequest) 
 			return
 		}
 		if err != nil {
-			s.logger.CaptureError(
-				fmt.Errorf(
-					"sender: sendSenderRead: failed to read record: %v",
-					err,
-				))
+			s.logger.Error(
+				"sender: sendSenderRead: failed to read record",
+				"error", err,
+				"sender: sendSenderRead: failed to read record: %v",
+				err,
+			)
 			return
 		}
 	}

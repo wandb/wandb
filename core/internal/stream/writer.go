@@ -75,17 +75,18 @@ func (w *Writer) startStore() {
 	go func() {
 		for record := range w.storeChan {
 			if err = w.store.Write(record); err != nil {
-				w.logger.CaptureError(
-					fmt.Errorf(
-						"writer: startStore: error storing record: %v",
-						err,
-					))
+				w.logger.Error(
+					"writer: startStore: error storing record",
+					"error", err,
+				)
 			}
 		}
 
 		if err = w.store.Close(); err != nil {
-			w.logger.CaptureError(
-				fmt.Errorf("writer: startStore: error closing store: %v", err))
+			w.logger.Error(
+				"writer: startStore: error closing store",
+				"error", err,
+			)
 		}
 		w.wg.Done()
 	}()

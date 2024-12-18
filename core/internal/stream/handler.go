@@ -396,15 +396,18 @@ func (h *Handler) handleRequestShutdown(record *spb.Record) {
 func (h *Handler) handleMetric(record *spb.Record) {
 	metric := record.GetMetric()
 	if metric == nil {
-		h.logger.CaptureError(
-			errors.New("handler: bad record type for handleMetric"))
+		h.logger.Error(
+			"handler: bad record type for handleMetric",
+		)
 		return
 	}
 
 	if err := h.metricHandler.ProcessRecord(metric); err != nil {
-		h.logger.CaptureError(
-			fmt.Errorf("handler: cannot add metric: %v", err),
-			"metric", metric)
+		h.logger.Error(
+			"handler: cannot add metric",
+			"error", err,
+			"metric", metric,
+		)
 		return
 	}
 
@@ -692,14 +695,18 @@ func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
 	}
 	jsonBytes, err := mo.Marshal(h.metadata)
 	if err != nil {
-		h.logger.CaptureError(
-			fmt.Errorf("error marshalling metadata: %v", err))
+		h.logger.Error(
+			"error marshalling metadata",
+			"error", err,
+		)
 		return
 	}
 	filePath := filepath.Join(h.settings.GetFilesDir(), MetaFileName)
 	if err := os.WriteFile(filePath, jsonBytes, 0644); err != nil {
-		h.logger.CaptureError(
-			fmt.Errorf("error writing metadata file: %v", err))
+		h.logger.Error(
+			"error writing metadata file",
+			"error", err,
+		)
 		return
 	}
 
@@ -803,8 +810,10 @@ func (h *Handler) handleRequestGetSummary(record *spb.Record) {
 	// If there's an error, we still respond with the records we were
 	// able to produce.
 	if err != nil {
-		h.logger.CaptureError(
-			fmt.Errorf("handler: error flattening run summary: %v", err))
+		h.logger.Error(
+			"handler: error flattening run summary",
+			"error", err,
+		)
 	}
 
 	response.ResponseType = &spb.Response_GetSummaryResponse{
@@ -881,8 +890,10 @@ func (h *Handler) handleSummary(summary *spb.SummaryRecord) {
 	for _, update := range summary.Update {
 		err := h.runSummary.SetFromRecord(update)
 		if err != nil {
-			h.logger.CaptureError(
-				fmt.Errorf("handler: error processing summary: %v", err))
+			h.logger.Error(
+				"handler: error processing summary",
+				"error", err,
+			)
 		}
 	}
 
@@ -914,8 +925,10 @@ func (h *Handler) updateRunTiming() {
 
 func (h *Handler) handleTBrecord(record *spb.TBRecord) {
 	if err := h.tbHandler.Handle(record); err != nil {
-		h.logger.CaptureError(
-			fmt.Errorf("handler: failed to handle TB record: %v", err))
+		h.logger.Error(
+			"handler: failed to handle TB record",
+			"error", err,
+		)
 	}
 }
 
@@ -954,9 +967,11 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 		err := h.partialHistory.SetFromRecord(item)
 
 		if err != nil {
-			h.logger.CaptureError(
-				fmt.Errorf("handler: failed to set history metric: %v", err),
-				"item", item)
+			h.logger.Error(
+				"handler: failed to set history metric",
+				"error", err,
+				"item", item,
+			)
 		}
 	}
 
@@ -1003,9 +1018,11 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 	for _, item := range request.GetItem() {
 		err := h.partialHistory.SetFromRecord(item)
 		if err != nil {
-			h.logger.CaptureError(
-				fmt.Errorf("handler: failed to set history metric: %v", err),
-				"item", item)
+			h.logger.Error(
+				"handler: failed to set history metric",
+				"error", err,
+				"item", item,
+			)
 		}
 	}
 
@@ -1089,8 +1106,10 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 
 	// Report errors, but continue anyway to drop as little data as possible.
 	if err != nil {
-		h.logger.CaptureError(
-			fmt.Errorf("handler: error flattening run history: %v", err))
+		h.logger.Error(
+			"handler: error flattening run history",
+			"error", err,
+		)
 		h.terminalPrinter.Writef(
 			"There was an issue processing run metrics in step %d;"+
 				" some data may be missing.",
@@ -1117,8 +1136,10 @@ func (h *Handler) updateSummary() {
 
 	// We continue despite errors to update as much of the summary as we can.
 	if err != nil {
-		h.logger.CaptureError(
-			fmt.Errorf("handler: error updating summary: %v", err))
+		h.logger.Error(
+			"handler: error updating summary",
+			"error", err,
+		)
 	}
 
 	if len(updates) == 0 {

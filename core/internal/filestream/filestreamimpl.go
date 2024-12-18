@@ -156,16 +156,20 @@ func (fs *fileStream) send(
 
 	defer func(Body io.ReadCloser) {
 		if err = Body.Close(); err != nil {
-			fs.logger.CaptureError(
-				fmt.Errorf("filestream: error closing response body: %v", err))
+			fs.logger.Error(
+				"filestream: error closing response body",
+				"error", err,
+			)
 		}
 	}(resp.Body)
 
 	var res map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	if err != nil {
-		fs.logger.CaptureError(
-			fmt.Errorf("filestream: json decode error: %v", err))
+		fs.logger.Error(
+			"filestream: json decode error",
+			"error", err,
+		)
 	}
 	feedbackChan <- res
 	fs.logger.Debug("filestream: post response", "response", res)

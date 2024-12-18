@@ -194,8 +194,9 @@ func (sm *SystemMonitor) GetState() int32 {
 func (sm *SystemMonitor) probe() *spb.Record {
 	defer func() {
 		if err := recover(); err != nil {
-			sm.logger.CaptureError(
-				fmt.Errorf("monitor: panic: %v", err),
+			sm.logger.Error(
+				"monitor: panic",
+				"error", err,
 			)
 		}
 	}()
@@ -284,9 +285,11 @@ func (sm *SystemMonitor) monitorAsset(asset Asset) {
 		sm.wg.Done()
 		if err := recover(); err != nil {
 			if asset != nil {
-				sm.logger.CaptureError(
-					fmt.Errorf("monitor: panic: %v", err),
-					"asset_name", asset.Name())
+				sm.logger.Error(
+					"monitor: panic",
+					"error", err,
+					"asset_name", asset.Name(),
+				)
 			}
 		}
 	}()
@@ -306,8 +309,10 @@ func (sm *SystemMonitor) monitorAsset(asset Asset) {
 
 			metrics, err := asset.Sample()
 			if err != nil {
-				sm.logger.CaptureError(
-					fmt.Errorf("monitor: %v: error sampling metrics: %v", asset.Name(), err),
+				sm.logger.Error(
+					"monitor: error sampling metrics",
+					"error", err,
+					"asset_name", asset.Name(),
 				)
 				// shutdown the asset to be on the safe side
 				if closer, ok := asset.(interface{ Close() }); ok {

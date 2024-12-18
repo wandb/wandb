@@ -20,11 +20,9 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 		err := rh.SetFromRecord(item)
 		if err != nil {
 
-			ctx.Logger.CaptureError(
-				fmt.Errorf(
-					"filestream: failed to apply history record: %v",
-					err,
-				),
+			ctx.Logger.Error(
+				"filestream: failed to apply history record",
+				"error", err,
 				"key", item.Key,
 				"nested_key", item.NestedKey,
 			)
@@ -46,7 +44,7 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 		// We consider this non-blocking. We'll upload a run with some missing
 		// data, but it's better than not uploading anything at all, as long
 		// as we inform the user.
-		ctx.Logger.CaptureWarn(
+		ctx.Logger.Warn(
 			"filestream: run history line too long, skipping",
 			"len", len(line),
 			"max", maxLineBytes,

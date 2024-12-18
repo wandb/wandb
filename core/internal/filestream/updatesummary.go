@@ -18,11 +18,9 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 
 	for _, update := range u.Record.Update {
 		if err := rs.SetFromRecord(update); err != nil {
-			ctx.Logger.CaptureError(
-				fmt.Errorf(
-					"filestream: failed to apply summary record: %v",
-					err,
-				),
+			ctx.Logger.Error(
+				"filestream: failed to apply summary record",
+				"error", err,
 				"key", update.Key,
 				"nested_key", update.NestedKey,
 			)
@@ -49,7 +47,7 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 
 	if len(line) > int(maxLineBytes) {
 		// Failing to upload the summary is non-blocking.
-		ctx.Logger.CaptureWarn(
+		ctx.Logger.Warn(
 			"filestream: run summary line too long, skipping",
 			"len", len(line),
 			"max", maxLineBytes,

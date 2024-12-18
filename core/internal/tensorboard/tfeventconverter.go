@@ -34,7 +34,10 @@ func (h *TFEventConverter) ConvertNext(
 ) {
 	stepKey, err := h.withNamespace("global_step")
 	if err != nil {
-		logger.CaptureError(fmt.Errorf("tensorboard: global_step: %v", err))
+		logger.Error(
+			"tensorboard: global_step",
+			"error", err,
+		)
 	} else {
 		emitter.SetTFStep(pathtree.PathOf(stepKey), event.Step)
 		emitter.SetTFWallTime(event.WallTime)
@@ -43,8 +46,10 @@ func (h *TFEventConverter) ConvertNext(
 	for _, value := range event.GetSummary().GetValue() {
 		tag, err := h.withNamespace(value.GetTag())
 		if err != nil {
-			logger.CaptureError(
-				fmt.Errorf("tensorboard: invalid tag: %v", err))
+			logger.Error(
+				"tensorboard: invalid tag",
+				"error", err,
+			)
 			continue
 		}
 

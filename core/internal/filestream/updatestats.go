@@ -1,7 +1,6 @@
 package filestream
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/wandb/simplejsonext"
@@ -26,8 +25,9 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 	for _, item := range u.Record.Item {
 		val, err := simplejsonext.UnmarshalString(item.ValueJson)
 		if err != nil {
-			ctx.Logger.CaptureError(
-				fmt.Errorf("filestream: failed to marshal StatsItem: %v", err),
+			ctx.Logger.Error(
+				"filestream: failed to marshal StatsItem",
+				"error", err,
 				"key", item.Key,
 			)
 			continue
@@ -47,14 +47,13 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 	switch {
 	case err != nil:
 		// This is a non-blocking failure, so we don't return an error.
-		ctx.Logger.CaptureError(
-			fmt.Errorf(
-				"filestream: failed to marshal system metrics: %v",
-				err,
-			))
+		ctx.Logger.Error(
+			"filestream: failed to marshal system metrics",
+			"error", err,
+		)
 	case len(line) > int(maxLineBytes):
 		// This is a non-blocking failure as well.
-		ctx.Logger.CaptureWarn(
+		ctx.Logger.Warn(
 			"filestream: system metrics line too long, skipping",
 			"len", len(line),
 			"max", maxLineBytes,
