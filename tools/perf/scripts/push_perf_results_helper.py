@@ -4,7 +4,6 @@ import os
 import re
 
 import wandb
-from setup_helper import get_logger
 
 from .setup_helper import get_logger
 

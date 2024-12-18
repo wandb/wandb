@@ -137,22 +137,24 @@ class TestCases:
         argument = self.cases[test_case]
         run_perf_tests(
             loop_count=argument.loop_count,
-            num_steps=argument.step_count,
-            metric_count=argument.metric_count,
+            num_steps_options=argument.step_count,
+            num_metrics_options=argument.metric_count,
             root_folder=argument.root_folder,
-            num_of_processes=argument.num_of_processes,
+            num_processes=argument.num_of_processes,
             data_type=argument.data_type,
         )
 
 
 if __name__ == "__main__":
+    test_cases_instance = TestCases()
+
     parser = argparse.ArgumentParser(description="Run load tests.")
     parser.add_argument(
         "-t",
         "--test-case",
         type=str,
         required=True,
-        choices=list(TestCases.cases.keys()),
+        choices=list(test_cases_instance.cases.keys()),
         help="The name of the test case to run",
     )
     parser.add_argument(

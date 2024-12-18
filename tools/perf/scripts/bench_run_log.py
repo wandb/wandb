@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
-
 import wandb
 
 from .setup_helper import get_logger
@@ -186,9 +185,9 @@ class Experiment:
         if result_data["log_time"] == 0:
             logger.warning("the measured time for log() is 0.")
             # Setting it to 0.1ms to avoid failing the math.
-            log_time = 0.0001
+            result_data["log_time"] = 0.0001
 
-        result_data["log_rps"] = round(self.num_steps / log_time, 2)
+        result_data["log_rps"] = round(self.num_steps / result_data["log_time"], 2)
 
         # Finish W&B run
         with Timer() as timer:
@@ -231,6 +230,7 @@ def run_parallel_experiment(
         metric_key_size: The length of metric names.
         log_folder: The root directory where results will be stored.
     """
+    wandb.setup()
     processes = []
     for i in range(num_processes):
         p = mp.Process(
@@ -304,7 +304,7 @@ if __name__ == "__main__":
 
     Experiment(
         num_steps=args.steps,
-        metric_count=args.num_metrics,
+        num_metrics=args.num_metrics,
         metric_key_size=args.metric_key_size,
         output_file=args.outfile,
         data_type=args.data_type,
