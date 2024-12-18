@@ -1643,11 +1643,11 @@ class Request(google.protobuf.message.Message):
     TELEMETRY_RECORD_FIELD_NUMBER: builtins.int
     JOB_INFO_FIELD_NUMBER: builtins.int
     GET_SYSTEM_METRICS_FIELD_NUMBER: builtins.int
-    SYNC_FIELD_NUMBER: builtins.int
     JOB_INPUT_FIELD_NUMBER: builtins.int
     LINK_ARTIFACT_FIELD_NUMBER: builtins.int
     RUN_FINISH_WITHOUT_EXIT_FIELD_NUMBER: builtins.int
     GET_SYSTEM_METADATA_FIELD_NUMBER: builtins.int
+    SYNC_FINISH_FIELD_NUMBER: builtins.int
     TEST_INJECT_FIELD_NUMBER: builtins.int
     @property
     def stop_status(self) -> global___StopStatusRequest: ...
@@ -1714,8 +1714,6 @@ class Request(google.protobuf.message.Message):
     @property
     def get_system_metrics(self) -> global___GetSystemMetricsRequest: ...
     @property
-    def sync(self) -> global___SyncRequest: ...
-    @property
     def job_input(self) -> global___JobInputRequest: ...
     @property
     def link_artifact(self) -> global___LinkArtifactRequest: ...
@@ -1723,6 +1721,8 @@ class Request(google.protobuf.message.Message):
     def run_finish_without_exit(self) -> global___RunFinishWithoutExitRequest: ...
     @property
     def get_system_metadata(self) -> global___GetSystemMetadataRequest: ...
+    @property
+    def sync_finish(self) -> global___SyncFinishRequest: ...
     @property
     def test_inject(self) -> global___TestInjectRequest: ...
     def __init__(
@@ -1760,16 +1760,16 @@ class Request(google.protobuf.message.Message):
         telemetry_record: global___TelemetryRecordRequest | None = ...,
         job_info: global___JobInfoRequest | None = ...,
         get_system_metrics: global___GetSystemMetricsRequest | None = ...,
-        sync: global___SyncRequest | None = ...,
         job_input: global___JobInputRequest | None = ...,
         link_artifact: global___LinkArtifactRequest | None = ...,
         run_finish_without_exit: global___RunFinishWithoutExitRequest | None = ...,
         get_system_metadata: global___GetSystemMetadataRequest | None = ...,
+        sync_finish: global___SyncFinishRequest | None = ...,
         test_inject: global___TestInjectRequest | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "download_artifact", b"download_artifact", "get_summary", b"get_summary", "get_system_metadata", b"get_system_metadata", "get_system_metrics", b"get_system_metrics", "internal_messages", b"internal_messages", "job_info", b"job_info", "job_input", b"job_input", "keepalive", b"keepalive", "link_artifact", b"link_artifact", "log_artifact", b"log_artifact", "login", b"login", "metadata", b"metadata", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "python_packages", b"python_packages", "request_type", b"request_type", "resume", b"resume", "run_finish_without_exit", b"run_finish_without_exit", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_feature", b"server_feature", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "summary_record", b"summary_record", "sync", b"sync", "telemetry_record", b"telemetry_record", "test_inject", b"test_inject"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "download_artifact", b"download_artifact", "get_summary", b"get_summary", "get_system_metadata", b"get_system_metadata", "get_system_metrics", b"get_system_metrics", "internal_messages", b"internal_messages", "job_info", b"job_info", "job_input", b"job_input", "keepalive", b"keepalive", "link_artifact", b"link_artifact", "log_artifact", b"log_artifact", "login", b"login", "metadata", b"metadata", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "python_packages", b"python_packages", "request_type", b"request_type", "resume", b"resume", "run_finish_without_exit", b"run_finish_without_exit", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_feature", b"server_feature", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "summary_record", b"summary_record", "sync", b"sync", "telemetry_record", b"telemetry_record", "test_inject", b"test_inject"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["request_type", b"request_type"]) -> typing_extensions.Literal["stop_status", "network_status", "defer", "get_summary", "login", "pause", "resume", "poll_exit", "sampled_history", "partial_history", "run_start", "check_version", "log_artifact", "download_artifact", "keepalive", "server_feature", "run_status", "cancel", "metadata", "internal_messages", "python_packages", "shutdown", "attach", "status", "server_info", "sender_mark", "sender_read", "status_report", "summary_record", "telemetry_record", "job_info", "get_system_metrics", "sync", "job_input", "link_artifact", "run_finish_without_exit", "get_system_metadata", "test_inject"] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "download_artifact", b"download_artifact", "get_summary", b"get_summary", "get_system_metadata", b"get_system_metadata", "get_system_metrics", b"get_system_metrics", "internal_messages", b"internal_messages", "job_info", b"job_info", "job_input", b"job_input", "keepalive", b"keepalive", "link_artifact", b"link_artifact", "log_artifact", b"log_artifact", "login", b"login", "metadata", b"metadata", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "python_packages", b"python_packages", "request_type", b"request_type", "resume", b"resume", "run_finish_without_exit", b"run_finish_without_exit", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_feature", b"server_feature", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "summary_record", b"summary_record", "sync_finish", b"sync_finish", "telemetry_record", b"telemetry_record", "test_inject", b"test_inject"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "download_artifact", b"download_artifact", "get_summary", b"get_summary", "get_system_metadata", b"get_system_metadata", "get_system_metrics", b"get_system_metrics", "internal_messages", b"internal_messages", "job_info", b"job_info", "job_input", b"job_input", "keepalive", b"keepalive", "link_artifact", b"link_artifact", "log_artifact", b"log_artifact", "login", b"login", "metadata", b"metadata", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "python_packages", b"python_packages", "request_type", b"request_type", "resume", b"resume", "run_finish_without_exit", b"run_finish_without_exit", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_feature", b"server_feature", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "summary_record", b"summary_record", "sync_finish", b"sync_finish", "telemetry_record", b"telemetry_record", "test_inject", b"test_inject"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["request_type", b"request_type"]) -> typing_extensions.Literal["stop_status", "network_status", "defer", "get_summary", "login", "pause", "resume", "poll_exit", "sampled_history", "partial_history", "run_start", "check_version", "log_artifact", "download_artifact", "keepalive", "server_feature", "run_status", "cancel", "metadata", "internal_messages", "python_packages", "shutdown", "attach", "status", "server_info", "sender_mark", "sender_read", "status_report", "summary_record", "telemetry_record", "job_info", "get_system_metrics", "job_input", "link_artifact", "run_finish_without_exit", "get_system_metadata", "sync_finish", "test_inject"] | None: ...
 
 global___Request = Request
 
@@ -1801,8 +1801,8 @@ class Response(google.protobuf.message.Message):
     SERVER_INFO_RESPONSE_FIELD_NUMBER: builtins.int
     JOB_INFO_RESPONSE_FIELD_NUMBER: builtins.int
     GET_SYSTEM_METRICS_RESPONSE_FIELD_NUMBER: builtins.int
-    SYNC_RESPONSE_FIELD_NUMBER: builtins.int
     LINK_ARTIFACT_RESPONSE_FIELD_NUMBER: builtins.int
+    SYNC_RESPONSE_FIELD_NUMBER: builtins.int
     RUN_FINISH_WITHOUT_EXIT_RESPONSE_FIELD_NUMBER: builtins.int
     GET_SYSTEM_METADATA_RESPONSE_FIELD_NUMBER: builtins.int
     TEST_INJECT_RESPONSE_FIELD_NUMBER: builtins.int
@@ -1849,9 +1849,9 @@ class Response(google.protobuf.message.Message):
     @property
     def get_system_metrics_response(self) -> global___GetSystemMetricsResponse: ...
     @property
-    def sync_response(self) -> global___SyncResponse: ...
-    @property
     def link_artifact_response(self) -> global___LinkArtifactResponse: ...
+    @property
+    def sync_response(self) -> global___SyncResponse: ...
     @property
     def run_finish_without_exit_response(self) -> global___RunFinishWithoutExitResponse: ...
     @property
@@ -1882,15 +1882,15 @@ class Response(google.protobuf.message.Message):
         server_info_response: global___ServerInfoResponse | None = ...,
         job_info_response: global___JobInfoResponse | None = ...,
         get_system_metrics_response: global___GetSystemMetricsResponse | None = ...,
-        sync_response: global___SyncResponse | None = ...,
         link_artifact_response: global___LinkArtifactResponse | None = ...,
+        sync_response: global___SyncResponse | None = ...,
         run_finish_without_exit_response: global___RunFinishWithoutExitResponse | None = ...,
         get_system_metadata_response: global___GetSystemMetadataResponse | None = ...,
         test_inject_response: global___TestInjectResponse | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["attach_response", b"attach_response", "cancel_response", b"cancel_response", "check_version_response", b"check_version_response", "download_artifact_response", b"download_artifact_response", "get_summary_response", b"get_summary_response", "get_system_metadata_response", b"get_system_metadata_response", "get_system_metrics_response", b"get_system_metrics_response", "internal_messages_response", b"internal_messages_response", "job_info_response", b"job_info_response", "keepalive_response", b"keepalive_response", "link_artifact_response", b"link_artifact_response", "log_artifact_response", b"log_artifact_response", "login_response", b"login_response", "network_status_response", b"network_status_response", "poll_exit_response", b"poll_exit_response", "response_type", b"response_type", "run_finish_without_exit_response", b"run_finish_without_exit_response", "run_start_response", b"run_start_response", "run_status_response", b"run_status_response", "sampled_history_response", b"sampled_history_response", "server_feature_response", b"server_feature_response", "server_info_response", b"server_info_response", "shutdown_response", b"shutdown_response", "status_response", b"status_response", "stop_status_response", b"stop_status_response", "sync_response", b"sync_response", "test_inject_response", b"test_inject_response"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["attach_response", b"attach_response", "cancel_response", b"cancel_response", "check_version_response", b"check_version_response", "download_artifact_response", b"download_artifact_response", "get_summary_response", b"get_summary_response", "get_system_metadata_response", b"get_system_metadata_response", "get_system_metrics_response", b"get_system_metrics_response", "internal_messages_response", b"internal_messages_response", "job_info_response", b"job_info_response", "keepalive_response", b"keepalive_response", "link_artifact_response", b"link_artifact_response", "log_artifact_response", b"log_artifact_response", "login_response", b"login_response", "network_status_response", b"network_status_response", "poll_exit_response", b"poll_exit_response", "response_type", b"response_type", "run_finish_without_exit_response", b"run_finish_without_exit_response", "run_start_response", b"run_start_response", "run_status_response", b"run_status_response", "sampled_history_response", b"sampled_history_response", "server_feature_response", b"server_feature_response", "server_info_response", b"server_info_response", "shutdown_response", b"shutdown_response", "status_response", b"status_response", "stop_status_response", b"stop_status_response", "sync_response", b"sync_response", "test_inject_response", b"test_inject_response"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["response_type", b"response_type"]) -> typing_extensions.Literal["keepalive_response", "stop_status_response", "network_status_response", "login_response", "get_summary_response", "poll_exit_response", "sampled_history_response", "run_start_response", "check_version_response", "log_artifact_response", "download_artifact_response", "server_feature_response", "run_status_response", "cancel_response", "internal_messages_response", "shutdown_response", "attach_response", "status_response", "server_info_response", "job_info_response", "get_system_metrics_response", "sync_response", "link_artifact_response", "run_finish_without_exit_response", "get_system_metadata_response", "test_inject_response"] | None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["response_type", b"response_type"]) -> typing_extensions.Literal["keepalive_response", "stop_status_response", "network_status_response", "login_response", "get_summary_response", "poll_exit_response", "sampled_history_response", "run_start_response", "check_version_response", "log_artifact_response", "download_artifact_response", "server_feature_response", "run_status_response", "cancel_response", "internal_messages_response", "shutdown_response", "attach_response", "status_response", "server_info_response", "job_info_response", "get_system_metrics_response", "link_artifact_response", "sync_response", "run_finish_without_exit_response", "get_system_metadata_response", "test_inject_response"] | None: ...
 
 global___Response = Response
 
@@ -2512,45 +2512,11 @@ class Operation(google.protobuf.message.Message):
 
 global___Operation = Operation
 
-class SyncOverwrite(google.protobuf.message.Message):
+class SenderMarkRequest(google.protobuf.message.Message):
     """
     Sender requests
     """
 
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    RUN_ID_FIELD_NUMBER: builtins.int
-    ENTITY_FIELD_NUMBER: builtins.int
-    PROJECT_FIELD_NUMBER: builtins.int
-    run_id: builtins.str
-    entity: builtins.str
-    project: builtins.str
-    def __init__(
-        self,
-        *,
-        run_id: builtins.str = ...,
-        entity: builtins.str = ...,
-        project: builtins.str = ...,
-    ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["entity", b"entity", "project", b"project", "run_id", b"run_id"]) -> None: ...
-
-global___SyncOverwrite = SyncOverwrite
-
-class SyncSkip(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    OUTPUT_RAW_FIELD_NUMBER: builtins.int
-    output_raw: builtins.bool
-    def __init__(
-        self,
-        *,
-        output_raw: builtins.bool = ...,
-    ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["output_raw", b"output_raw"]) -> None: ...
-
-global___SyncSkip = SyncSkip
-
-class SenderMarkRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     def __init__(
@@ -2559,31 +2525,14 @@ class SenderMarkRequest(google.protobuf.message.Message):
 
 global___SenderMarkRequest = SenderMarkRequest
 
-class SyncRequest(google.protobuf.message.Message):
+class SyncFinishRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    START_OFFSET_FIELD_NUMBER: builtins.int
-    FINAL_OFFSET_FIELD_NUMBER: builtins.int
-    OVERWRITE_FIELD_NUMBER: builtins.int
-    SKIP_FIELD_NUMBER: builtins.int
-    start_offset: builtins.int
-    final_offset: builtins.int
-    @property
-    def overwrite(self) -> global___SyncOverwrite: ...
-    @property
-    def skip(self) -> global___SyncSkip: ...
     def __init__(
         self,
-        *,
-        start_offset: builtins.int = ...,
-        final_offset: builtins.int = ...,
-        overwrite: global___SyncOverwrite | None = ...,
-        skip: global___SyncSkip | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["overwrite", b"overwrite", "skip", b"skip"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["final_offset", b"final_offset", "overwrite", b"overwrite", "skip", b"skip", "start_offset", b"start_offset"]) -> None: ...
 
-global___SyncRequest = SyncRequest
+global___SyncFinishRequest = SyncFinishRequest
 
 class SyncResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor

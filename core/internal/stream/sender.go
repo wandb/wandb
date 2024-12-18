@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -67,6 +66,7 @@ type SenderParams struct {
 	RunSummary          *runsummary.RunSummary
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *spb.Result
+	RunWork             runwork.RunWork
 }
 
 type senderSentinel int64
@@ -161,14 +161,11 @@ type Sender struct {
 	// Keep track of exit record to pass to file stream when the time comes
 	exitRecord *spb.Record
 
+	// Keep track of sync finish record to pass to file stream when the time comes
+	syncFinishRecord *spb.Record
+
 	// Keep track of finishWithoutExitRecord to pass to file stream if and when the time comes
 	finishWithoutExitRecord *spb.Record
-
-	// syncService is the sync service syncing offline runs
-	syncService *SyncService
-
-	// store is the store where the transaction log is stored
-	store *Store
 
 	// jobBuilder is the job builder for creating jobs from the run
 	// that allow users to re-run the run with different configurations
@@ -186,7 +183,6 @@ type Sender struct {
 
 // NewSender creates a new Sender with the given settings
 func NewSender(
-	runWork runwork.RunWork,
 	params SenderParams,
 ) *Sender {
 
@@ -242,7 +238,7 @@ func NewSender(
 	}
 
 	s := &Sender{
-		runWork:             runWork,
+		runWork:             params.RunWork,
 		runConfig:           runconfig.New(),
 		telemetry:           &spb.TelemetryRecord{CoreVersion: version.Version},
 		runConfigMetrics:    runmetric.NewRunConfigMetrics(),
@@ -423,16 +419,6 @@ func (s *Sender) respondExit(record *spb.Record, exit *spb.RunExitResult) {
 	s.outChan <- result
 }
 
-// fwdRecord forwards a record to the next component
-// usually the handler
-func (s *Sender) fwdRecord(record *spb.Record) {
-	if record == nil {
-		return
-	}
-
-	s.runWork.AddWork(runwork.WorkFromRecord(record))
-}
-
 func (s *Sender) SendRecord(record *spb.Record) {
 	// this is for testing purposes only yet
 	s.sendRecord(record)
@@ -507,10 +493,10 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 		s.sendLinkArtifact(record, x.LinkArtifact)
 	case *spb.Request_DownloadArtifact:
 		s.sendRequestDownloadArtifact(record, x.DownloadArtifact)
-	case *spb.Request_Sync:
-		s.sendRequestSync(record, x.Sync)
+	case *spb.Request_SyncFinish:
+		s.sendRequestSyncFinish(record, x.SyncFinish)
 	case *spb.Request_SenderRead:
-		s.sendRequestSenderRead(record, x.SenderRead)
+		// TODO: implement this
 	case *spb.Request_StopStatus:
 		s.sendRequestStopStatus(record, x.StopStatus)
 	case *spb.Request_JobInput:
@@ -719,24 +705,35 @@ func (s *Sender) finishRunSync() {
 	// the progress bar shown in Jupyter. Yes, that was the only purpose.
 	s.fileTransferStats.SetDone()
 
-	// If syncing, send the outcome (such as an error) back to the client.
-	s.mu.Lock()
-	s.syncService.Flush()
-	s.mu.Unlock()
-
 	// Respond to the client's exit record, if necessary.
 	//
 	// Not necessary when syncing as the exit record is in the transaction log
 	// and the client is not waiting on a response.
-	if !s.settings.IsSync() {
-		if s.exitRecord != nil {
-			s.respond(s.exitRecord, &spb.RunExitResult{})
-		} else if s.finishWithoutExitRecord != nil {
-			response := &spb.Response{
-				ResponseType: &spb.Response_RunFinishWithoutExitResponse{},
-			}
-			s.respond(s.finishWithoutExitRecord, response)
+	switch {
+	case !s.settings.IsSync() && s.exitRecord != nil:
+		s.respond(s.exitRecord, &spb.RunExitResult{})
+	case !s.settings.IsSync() && s.finishWithoutExitRecord != nil:
+		response := &spb.Response{
+			ResponseType: &spb.Response_RunFinishWithoutExitResponse{},
 		}
+		s.respond(s.finishWithoutExitRecord, response)
+	case s.settings.IsSync() && s.syncFinishRecord != nil:
+		s.respond(s.syncFinishRecord, &spb.Response{
+			ResponseType: &spb.Response_SyncResponse{
+				SyncResponse: &spb.SyncResponse{
+					Url: fmt.Sprintf("%s/%s/%s/runs/%s",
+						s.settings.GetBaseURL(),
+						s.settings.GetEntity(),
+						s.settings.GetProject(),
+						s.settings.GetRunID(),
+					),
+				},
+			},
+		})
+	default:
+		s.logger.Error(
+			"sender: no sync finish record or exit record",
+		)
 	}
 
 	// Prevent any new work from being added.
@@ -1677,65 +1674,6 @@ func (s *Sender) sendRequestDownloadArtifact(record *spb.Record, msg *spb.Downlo
 		})
 }
 
-func (s *Sender) sendRequestSync(record *spb.Record, request *spb.SyncRequest) {
-
-	s.syncService = NewSyncService(
-		s.runWork.BeforeEndCtx(),
-		WithSyncServiceLogger(s.logger),
-		WithSyncServiceSenderFunc(s.sendRecord), // TODO: pass runWork here (as ExtraWork)
-		WithSyncServiceOverwrite(request.GetOverwrite()),
-		WithSyncServiceSkip(request.GetSkip()),
-		WithSyncServiceFlushCallback(func(err error) {
-			var errorInfo *spb.ErrorInfo
-			if err != nil {
-				errorInfo = &spb.ErrorInfo{
-					Message: err.Error(),
-					Code:    spb.ErrorInfo_UNKNOWN,
-				}
-			}
-
-			var url string
-			if !s.startState.Initialized {
-				baseUrl := s.settings.GetBaseURL()
-				baseUrl = strings.Replace(baseUrl, "api.", "", 1)
-				url = fmt.Sprintf("%s/%s/%s/runs/%s",
-					baseUrl,
-					s.startState.Entity,
-					s.startState.Project,
-					s.startState.RunID,
-				)
-			}
-			s.respond(record,
-				&spb.Response{
-					ResponseType: &spb.Response_SyncResponse{
-						SyncResponse: &spb.SyncResponse{
-							Url:   url,
-							Error: errorInfo,
-						},
-					},
-				},
-			)
-		}),
-	)
-	s.syncService.Start()
-
-	rec := &spb.Record{
-		RecordType: &spb.Record_Request{
-			Request: &spb.Request{
-				RequestType: &spb.Request_SenderRead{
-					SenderRead: &spb.SenderReadRequest{
-						StartOffset: request.GetStartOffset(),
-						FinalOffset: request.GetFinalOffset(),
-					},
-				},
-			},
-		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
-	}
-	s.fwdRecord(rec)
-}
-
 func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequest) {
 
 	// TODO: unify everywhere to use settings
@@ -1792,54 +1730,14 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 	)
 }
 
-func (s *Sender) sendRequestSenderRead(_ *spb.Record, _ *spb.SenderReadRequest) {
-	if s.store == nil {
-		store := NewStore(s.settings.GetTransactionLogPath())
-		err := store.Open(os.O_RDONLY)
-		if err != nil {
-			s.logger.CaptureError(
-				fmt.Errorf(
-					"sender: sendSenderRead: failed to create store: %v",
-					err,
-				))
-			return
-		}
-		s.store = store
-	}
-	// TODO:
-	// 1. seek to startOffset
-	//
-	// if err := s.store.reader.SeekRecord(request.GetStartOffset()); err != nil {
-	// 	s.logger.CaptureError("sender: sendSenderRead: failed to seek record", err)
-	// 	return
-	// }
-	// 2. read records until finalOffset
-	//
-	for {
-		record, err := s.store.Read()
-		if s.settings.IsSync() {
-			s.syncService.SyncRecord(record, err)
-		} else if record != nil {
-			s.sendRecord(record)
-		}
-		if err == io.EOF {
-			return
-		}
-		if err != nil {
-			s.logger.CaptureError(
-				fmt.Errorf(
-					"sender: sendSenderRead: failed to read record: %v",
-					err,
-				))
-			return
-		}
-	}
-}
-
 func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {
 	if s.jobBuilder == nil {
 		s.logger.Warn("sender: sendJobInput: job builder disabled, skipping")
 		return
 	}
 	s.jobBuilder.HandleJobInputRequest(request)
+}
+
+func (s *Sender) sendRequestSyncFinish(record *spb.Record, _ *spb.SyncFinishRequest) {
+	s.syncFinishRecord = record
 }

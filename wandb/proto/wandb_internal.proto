@@ -560,7 +560,7 @@ message AlertResult {}
  * Request: all non persistent messages
  */
 message Request {
-  reserved 75;
+  reserved 75, 76;
 
   oneof request_type {
     StopStatusRequest stop_status = 1;
@@ -595,11 +595,11 @@ message Request {
     TelemetryRecordRequest telemetry_record = 72;
     JobInfoRequest job_info = 73;
     GetSystemMetricsRequest get_system_metrics = 74;
-    SyncRequest sync = 76;
     JobInputRequest job_input = 77;
     LinkArtifactRequest link_artifact = 78;
     RunFinishWithoutExitRequest run_finish_without_exit = 79;
     GetSystemMetadataRequest get_system_metadata = 80;
+    SyncFinishRequest sync_finish = 81;
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -630,8 +630,8 @@ message Response {
     ServerInfoResponse server_info_response = 67;
     JobInfoResponse job_info_response = 68;
     GetSystemMetricsResponse get_system_metrics_response = 69;
-    SyncResponse sync_response = 70;
     LinkArtifactResponse link_artifact_response = 71;
+    SyncResponse sync_response = 70;
     RunFinishWithoutExitResponse run_finish_without_exit_response = 72;
     GetSystemMetadataResponse get_system_metadata_response = 73;
     TestInjectResponse test_inject_response = 1000;
@@ -860,24 +860,10 @@ message Operation {
 /*
  * Sender requests
  */
-message SyncOverwrite {
-  string run_id = 1;
-  string entity = 2;
-  string project = 3;
-}
-
-message SyncSkip {
-  bool output_raw = 1;
-}
 
 message SenderMarkRequest {}
 
-message SyncRequest {
-  int64 start_offset = 1;
-  int64 final_offset = 2;
-  SyncOverwrite overwrite = 3;
-  SyncSkip skip = 4;
-}
+message SyncFinishRequest {}
 
 message SyncResponse {
   string url = 1;
