@@ -40,7 +40,7 @@ class Plotly(Media):
     _log_type = "plotly-file"
 
     @classmethod
-    def make_plot_media(
+    def _make_plot_media(
         cls: Type["Plotly"], val: Union["plotly.Figure", "matplotlib.artist.Artist"]
     ) -> Union[Image, "Plotly"]:
         if util.is_matplotlib_typename(util.get_full_typename(val)):
@@ -73,10 +73,10 @@ class Plotly(Media):
         self._set_file(tmp_path, is_tmp=True, extension=".plotly.json")
 
     @classmethod
-    def get_media_subdir(cls: Type["Plotly"]) -> str:
+    def _get_media_subdir(cls: Type["Plotly"]) -> str:
         return os.path.join("media", "plotly")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
-        json_dict = super().to_json(run_or_artifact)
+    def _to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        json_dict = super()._to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         return json_dict

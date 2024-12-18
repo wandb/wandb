@@ -66,64 +66,59 @@ class Image(BatchableMedia):
     """Format images for logging to W&B.
 
     Args:
-        data_or_path: (numpy array, string, io) Accepts numpy array of
+        data_or_path (numpy array, string, io): Accepts numpy array of
             image data, or a PIL image. The class attempts to infer
             the data format and converts it.
-        mode: (string) The PIL mode for an image. Most common are "L", "RGB",
-            "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
-        caption: (string) Label for display of image.
+        mode (string): The PIL mode for an image. Most common are "L", "RGB", "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
+        caption  (string): Label for display of image.
 
     Note : When logging a `torch.Tensor` as a `wandb.Image`, images are normalized. If you do not want to normalize your images, please convert your tensors to a PIL Image.
 
     Examples:
-        ### Create a wandb.Image from a numpy array
-        <!--yeadoc-test:log-image-numpy-->
-        ```python
-        import numpy as np
-        import wandb
 
-        with wandb.init() as run:
-            examples = []
-            for i in range(3):
-                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
-                image = wandb.Image(pixels, caption=f"random field {i}")
-                examples.append(image)
-            run.log({"examples": examples})
-        ```
+    ```python
+    # Create a wandb.Image from a numpy array
+    import numpy as np
+    import wandb
 
-        ### Create a wandb.Image from a PILImage
-        <!--yeadoc-test:log-image-pillow-->
-        ```python
-        import numpy as np
-        from PIL import Image as PILImage
-        import wandb
+    with wandb.init() as run:
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+            image = wandb.Image(pixels, caption=f"random field {i}")
+            examples.append(image)
+        run.log({"examples": examples})
+    ```
 
-        with wandb.init() as run:
-            examples = []
-            for i in range(3):
-                pixels = np.random.randint(
-                    low=0, high=256, size=(100, 100, 3), dtype=np.uint8
-                )
-                pil_image = PILImage.fromarray(pixels, mode="RGB")
-                image = wandb.Image(pil_image, caption=f"random field {i}")
-                examples.append(image)
-            run.log({"examples": examples})
-        ```
+    ```python
+    # Create a wandb.Image from a PILImage
+    import numpy as np
+    from PIL import Image as PILImage
+    import wandb
 
-        ### log .jpg rather than .png (default)
-        <!--yeadoc-test:log-image-format-->
-        ```python
-        import numpy as np
-        import wandb
+    with wandb.init() as run:
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+            pil_image = PILImage.fromarray(pixels, mode="RGB")
+            image = wandb.Image(pil_image, caption=f"random field {i}")
+            examples.append(image)
+        run.log({"examples": examples})
+    ```
 
-        with wandb.init() as run:
-            examples = []
-            for i in range(3):
-                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
-                image = wandb.Image(pixels, caption=f"random field {i}", file_type="jpg")
-                examples.append(image)
-            run.log({"examples": examples})
-        ```
+    ```python
+    # log .jpg rather than .png (default)
+    import numpy as np
+    import wandb
+
+    with wandb.init() as run:
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+            image = wandb.Image(pixels, caption=f"random field {i}", file_type="jpg")
+            examples.append(image)
+        run.log({"examples": examples})
+    ```
     """
 
     MAX_ITEMS = 108
@@ -324,7 +319,7 @@ class Image(BatchableMedia):
             if data.ndim > 2:
                 data = data.squeeze()  # get rid of trivial dimensions as a convenience
             self._image = pil_image.fromarray(
-                self.to_uint8(data), mode=mode or self.guess_mode(data)
+                self._to_uint8(data), mode=mode or self._guess_mode(data)
             )
         accepted_formats = ["png", "jpg", "jpeg", "bmp"]
         if file_type is None:
@@ -340,7 +335,7 @@ class Image(BatchableMedia):
         self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
-    def from_json(
+    def _from_json(
         cls: Type["Image"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Image":
         classes: Optional[Classes] = None
@@ -376,10 +371,10 @@ class Image(BatchableMedia):
         )
 
     @classmethod
-    def get_media_subdir(cls: Type["Image"]) -> str:
+    def _get_media_subdir(cls: Type["Image"]) -> str:
         return os.path.join("media", "images")
 
-    def bind_to_run(
+    def _bind_to_run(
         self,
         run: "LocalRun",
         key: Union[int, str],
@@ -405,25 +400,25 @@ class Image(BatchableMedia):
             not _server_accepts_artifact_path()
             or self._get_artifact_entry_ref_url() is None
         ):
-            super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
+            super()._bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
         if self._boxes is not None:
             for i, k in enumerate(self._boxes):
                 id_ = f"{id_}{i}" if id_ is not None else None
-                self._boxes[k].bind_to_run(
+                self._boxes[k]._bind_to_run(
                     run, key, step, id_, ignore_copy_err=ignore_copy_err
                 )
 
         if self._masks is not None:
             for i, k in enumerate(self._masks):
                 id_ = f"{id_}{i}" if id_ is not None else None
-                self._masks[k].bind_to_run(
+                self._masks[k]._bind_to_run(
                     run, key, step, id_, ignore_copy_err=ignore_copy_err
                 )
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+    def _to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         from wandb.sdk.wandb_run import Run
 
-        json_dict = super().to_json(run_or_artifact)
+        json_dict = super()._to_json(run_or_artifact)
         json_dict["_type"] = Image._log_type
         json_dict["format"] = self.format
 
@@ -462,19 +457,19 @@ class Image(BatchableMedia):
                 }
 
         elif not isinstance(run_or_artifact, Run):
-            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+            raise ValueError("_to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         if self._boxes:
             json_dict["boxes"] = {
-                k: box.to_json(run_or_artifact) for (k, box) in self._boxes.items()
+                k: box._to_json(run_or_artifact) for (k, box) in self._boxes.items()
             }
         if self._masks:
             json_dict["masks"] = {
-                k: mask.to_json(run_or_artifact) for (k, mask) in self._masks.items()
+                k: mask._to_json(run_or_artifact) for (k, mask) in self._masks.items()
             }
         return json_dict
 
-    def guess_mode(self, data: "np.ndarray") -> str:
+    def _guess_mode(self, data: "np.ndarray") -> str:
         """Guess what type of image the np.array is representing."""
         # TODO: do we want to support dimensions being at the beginning of the array?
         if data.ndim == 2:
@@ -489,7 +484,7 @@ class Image(BatchableMedia):
             )
 
     @classmethod
-    def to_uint8(cls, data: "np.ndarray") -> "np.ndarray":
+    def _to_uint8(cls, data: "np.ndarray") -> "np.ndarray":
         """Convert image data to uint8.
 
         Convert floating point image on the range [0,1] and integer images on the range
@@ -514,7 +509,7 @@ class Image(BatchableMedia):
         return data.clip(0, 255).astype(np.uint8)
 
     @classmethod
-    def seq_to_json(
+    def _seq_to_json(
         cls: Type["Image"],
         seq: Sequence["BatchableMedia"],
         run: "LocalRun",
@@ -527,14 +522,14 @@ class Image(BatchableMedia):
 
         jsons = [obj.to_json(run) for obj in seq]
 
-        media_dir = cls.get_media_subdir()
+        media_dir = cls._get_media_subdir()
 
         for obj in jsons:
             expected = LogicalPath(media_dir)
             if "path" in obj and not obj["path"].startswith(expected):
                 raise ValueError(
                     "Files in an array of Image's must be in the {} directory, not {}".format(
-                        cls.get_media_subdir(), obj["path"]
+                        cls._get_media_subdir(), obj["path"]
                     )
                 )
 
@@ -570,17 +565,17 @@ class Image(BatchableMedia):
                 repeat=False,
             )
 
-        captions = Image.all_captions(seq)
+        captions = Image._all_captions(seq)
 
         if captions:
             meta["captions"] = captions
 
-        all_masks = Image.all_masks(seq, run, key, step)
+        all_masks = Image._all_captions(seq, run, key, step)
 
         if all_masks:
             meta["all_masks"] = all_masks
 
-        all_boxes = Image.all_boxes(seq, run, key, step)
+        all_boxes = Image._all_boxes(seq, run, key, step)
 
         if all_boxes:
             meta["all_boxes"] = all_boxes
@@ -588,7 +583,7 @@ class Image(BatchableMedia):
         return meta
 
     @classmethod
-    def all_masks(
+    def _all_captions(
         cls: Type["Image"],
         images: Sequence["Image"],
         run: "LocalRun",
@@ -601,7 +596,7 @@ class Image(BatchableMedia):
                 mask_group = {}
                 for k in image._masks:
                     mask = image._masks[k]
-                    mask_group[k] = mask.to_json(run)
+                    mask_group[k] = mask._to_json(run)
                 all_mask_groups.append(mask_group)
             else:
                 all_mask_groups.append(None)
@@ -611,7 +606,7 @@ class Image(BatchableMedia):
             return False
 
     @classmethod
-    def all_boxes(
+    def _all_boxes(
         cls: Type["Image"],
         images: Sequence["Image"],
         run: "LocalRun",
@@ -624,7 +619,7 @@ class Image(BatchableMedia):
                 box_group = {}
                 for k in image._boxes:
                     box = image._boxes[k]
-                    box_group[k] = box.to_json(run)
+                    box_group[k] = box._to_json(run)
                 all_box_groups.append(box_group)
             else:
                 all_box_groups.append(None)
@@ -634,7 +629,7 @@ class Image(BatchableMedia):
             return False
 
     @classmethod
-    def all_captions(
+    def _all_captions(
         cls: Type["Image"], images: Sequence["Media"]
     ) -> Union[bool, Sequence[Optional[str]]]:
         return cls.captions(images)
@@ -666,7 +661,7 @@ class Image(BatchableMedia):
                 and self._classes == other._classes
             )
 
-    def to_data_array(self) -> List[Any]:
+    def _to_data_array(self) -> List[Any]:
         res = []
         if self.image is not None:
             data = list(self.image.getdata())

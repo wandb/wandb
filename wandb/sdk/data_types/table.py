@@ -192,18 +192,18 @@ class Table(Media):
     in the UI: https://docs.wandb.ai/guides/data-vis/tables.
 
     Args:
-        columns: (List[str]) Names of the columns in the table.
+        columns (List[str]): Names of the columns in the table.
             Defaults to ["Input", "Output", "Expected"].
-        data: (List[List[any]]) 2D row-oriented array of values.
-        dataframe: (pandas.DataFrame) DataFrame object used to create the table.
+        data (List[List[any]]): 2D row-oriented array of values.
+        dataframe (pandas.DataFrame): DataFrame object used to create the table.
             When set, `data` and `columns` arguments are ignored.
-        optional: (Union[bool,List[bool]]) Determines if `None` values are allowed. Default to True
+        optional (Union[bool,List[bool]]): Determines if `None` values are allowed. Default to True
             - If a singular bool value, then the optionality is enforced for all
             columns specified at construction time
             - If a list of bool values, then the optionality is applied to each
             column - should be the same length as `columns`
             applies to all columns. A list of bool values applies to each respective column.
-        allow_mixed_types: (bool) Determines if columns are allowed to have mixed types
+        allow_mixed_types (bool): Determines if columns are allowed to have mixed types
             (disables type validation). Defaults to False
     """
 
@@ -319,9 +319,9 @@ class Table(Media):
         example object, like an instance of wandb.Image or wandb.Classes.
 
         Args:
-            col_name: (str) - The name of the column to cast.
-            dtype: (class, wandb.wandb_sdk.interface._dtypes.Type, any) - The target dtype.
-            optional: (bool) - If the column should allow Nones.
+            col_name (str): The name of the column to cast.
+            dtype (class, wandb.wandb_sdk.interface._dtypes.Type, any): The target dtype.
+            optional (bool): If the column should allow Nones.
         """
         assert col_name in self.columns
 
@@ -493,7 +493,7 @@ class Table(Media):
             logging.warning(f"Truncating wandb.Table object to {max_rows} rows.")
         return {"columns": self.columns, "data": self.data[:max_rows]}
 
-    def bind_to_run(self, *args, **kwargs):
+    def _bind_to_run(self, *args, **kwargs):
         # We set `warn=False` since Tables will now always be logged to both
         # files and artifacts. The file limit will never practically matter and
         # this code path will be ultimately removed. The 10k limit warning confuses
@@ -504,14 +504,14 @@ class Table(Media):
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
             util.json_dump_safer(data, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".table.json")
-        super().bind_to_run(*args, **kwargs)
+        super()._bind_to_run(*args, **kwargs)
 
     @classmethod
     def get_media_subdir(cls):
         return os.path.join("media", "table")
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact):
+    def _from_json(cls, json_obj, source_artifact):
         data = []
         column_types = None
         np_deserialized_columns = {}
@@ -586,8 +586,8 @@ class Table(Media):
         new_obj._update_keys()
         return new_obj
 
-    def to_json(self, run_or_artifact):
-        json_dict = super().to_json(run_or_artifact)
+    def _to_json(self, run_or_artifact):
+        json_dict = super()._to_json(run_or_artifact)
 
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             json_dict.update(
@@ -663,36 +663,33 @@ class Table(Media):
                     "data": mapped_data,
                     "ncols": len(self.columns),
                     "nrows": len(mapped_data),
-                    "column_types": self._column_types.to_json(artifact),
+                    "column_types": self._column_types._to_json(artifact),
                 }
             )
         else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+            raise ValueError("_to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         return json_dict
 
     def iterrows(self):
         """Returns the table data by row, showing the index of the row and the relevant data.
 
-        Yields:
-        ------
-        index : int
-            The index of the row. Using this value in other W&B tables
+        Returns:
+        index (int): The index of the row. Using this value in other W&B tables
             will automatically build a relationship between the tables
-        row : List[any]
-            The data of the row.
+        row List[any]: The data of the row.
         """
         for ndx in range(len(self.data)):
             index = _TableIndex(ndx)
             index.set_table(self)
             yield index, self.data[ndx]
 
-    def set_pk(self, col_name):
+    def _set_pk(self, col_name):
         # TODO: Docs
         assert col_name in self.columns
         self.cast(col_name, _PrimaryKeyType())
 
-    def set_fk(self, col_name, table, table_col):
+    def _set_fk(self, col_name, table, table_col):
         # TODO: Docs
         assert col_name in self.columns
         assert col_name != self._pk_col
@@ -798,9 +795,9 @@ class Table(Media):
         """Adds a column of data to the table.
 
         Args:
-            name: (str) - the unique name of the column
-            data: (list | np.array) - a column of homogeneous data
-            optional: (bool) - if null-like values are permitted
+            name (str): the unique name of the column
+            data (list | np.array): a column of homogeneous data
+            optional (bool): if null-like values are permitted
         """
         assert isinstance(name, str) and name not in self.columns
         is_np = util.is_numpy_array(data)
@@ -839,9 +836,8 @@ class Table(Media):
         """Retrieves a column from the table and optionally converts it to a NumPy object.
 
         Args:
-            name: (str) - the name of the column
-            convert_to: (str, optional)
-                - "numpy": will convert the underlying data to numpy object
+            name (str): the name of the column
+            convert_to (str, optional): "numpy": will convert the underlying data to numpy object
         """
         assert name in self.columns
         assert convert_to is None or convert_to == "numpy"
@@ -877,7 +873,7 @@ class Table(Media):
         )
         return pd.DataFrame.from_records(self.data, columns=self.columns)
 
-    def index_ref(self, index):
+    def _index_ref(self, index):
         """Gets a reference of the index of a row in the table."""
         assert index < len(self.data)
         _index = _TableIndex(index)
@@ -972,12 +968,9 @@ class PartitionedTable(Media):
     def iterrows(self):
         """Iterate over rows as (ndx, row).
 
-        Yields:
-        ------
-        index : int
-            The index of the row.
-        row : List[any]
-            The data of the row.
+        Returns:
+        index (int): The index of the row.
+        row (List[any]): The data of the row.
         """
         columns = None
         ndx = 0

@@ -784,7 +784,8 @@ class Artifact:
     def is_draft(self) -> bool:
         """Check if artifact is not saved.
 
-        Returns: Boolean. `False` if artifact is saved. `True` if artifact is not saved.
+        Returns:
+            Boolean. `False` if artifact is saved. `True` if artifact is not saved.
         """
         return self._state == ArtifactState.PENDING
 
@@ -1912,7 +1913,7 @@ class Artifact:
 
         Args:
             root: The directory to verify. If None artifact will be downloaded to
-                './artifacts/self.name/'
+                `./artifacts/self.name/`
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.

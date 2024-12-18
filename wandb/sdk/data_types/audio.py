@@ -14,11 +14,11 @@ class Audio(BatchableMedia):
     """Wandb class for audio clips.
 
     Args:
-        data_or_path: (string or numpy array) A path to an audio file
+        data_or_path (string or numpy array): A path to an audio file
             or a numpy array of audio data.
-        sample_rate: (int) Sample rate, required when passing in raw
+        sample_rate (int): Sample rate, required when passing in raw
             numpy array of audio data.
-        caption: (string) Caption to display with audio.
+        caption (string): Caption to display with audio.
     """
 
     _log_type = "audio-file"
@@ -55,17 +55,17 @@ class Audio(BatchableMedia):
             self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
-    def get_media_subdir(cls):
+    def _get_media_subdir(cls):
         return os.path.join("media", "audio")
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact):
+    def _from_json(cls, json_obj, source_artifact):
         return cls(
             source_artifact.get_entry(json_obj["path"]).download(),
             caption=json_obj["caption"],
         )
 
-    def bind_to_run(
+    def _bind_to_run(
         self, run, key, step, id_=None, ignore_copy_err: Optional[bool] = None
     ):
         if self.path_is_reference(self._path):
@@ -73,10 +73,10 @@ class Audio(BatchableMedia):
                 "Audio media created by a reference to external storage cannot currently be added to a run"
             )
 
-        return super().bind_to_run(run, key, step, id_, ignore_copy_err)
+        return super()._bind_to_run(run, key, step, id_, ignore_copy_err)
 
-    def to_json(self, run):
-        json_dict = super().to_json(run)
+    def _to_json(self, run):
+        json_dict = super()._to_json(run)
         json_dict.update(
             {
                 "_type": self._log_type,
@@ -86,7 +86,7 @@ class Audio(BatchableMedia):
         return json_dict
 
     @classmethod
-    def seq_to_json(cls, seq, run, key, step):
+    def _seq_to_json(cls, seq, run, key, step):
         audio_list = list(seq)
 
         util.get_module(
@@ -98,37 +98,37 @@ class Audio(BatchableMedia):
         meta = {
             "_type": "audio",
             "count": len(audio_list),
-            "audio": [a.to_json(run) for a in audio_list],
+            "audio": [a._to_json(run) for a in audio_list],
         }
-        sample_rates = cls.sample_rates(audio_list)
+        sample_rates = cls._sample_rates(audio_list)
         if sample_rates:
             meta["sampleRates"] = sample_rates
         durations = cls.durations(audio_list)
         if durations:
             meta["durations"] = durations
-        captions = cls.captions(audio_list)
+        captions = cls._captions(audio_list)
         if captions:
             meta["captions"] = captions
 
         return meta
 
     @classmethod
-    def durations(cls, audio_list):
+    def _durations(cls, audio_list):
         return [a._duration for a in audio_list]
 
     @classmethod
-    def sample_rates(cls, audio_list):
+    def _sample_rates(cls, audio_list):
         return [a._sample_rate for a in audio_list]
 
     @classmethod
-    def captions(cls, audio_list):
+    def _captions(cls, audio_list):
         captions = [a._caption for a in audio_list]
         if all(c is None for c in captions):
             return False
         else:
             return ["" if c is None else c for c in captions]
 
-    def resolve_ref(self):
+    def _resolve_ref(self):
         if self.path_is_reference(self._path):
             # this object was already created using a ref:
             return self._path
@@ -147,7 +147,7 @@ class Audio(BatchableMedia):
             # one or more of these objects is an unresolved reference -- we'll compare
             # their reference paths instead of their SHAs:
             return (
-                self.resolve_ref() == other.resolve_ref()
+                self._resolve_ref() == other._resolve_ref()
                 and self._caption == other._caption
             )
 

@@ -19,8 +19,8 @@ class Html(BatchableMedia):
     """Wandb class for arbitrary html.
 
     Args:
-        data: (string or io object) HTML to display in wandb
-        inject: (boolean) Add a stylesheet to the HTML object.  If set
+        data (string or io object): HTML to display in wandb
+        inject (boolean): Add a stylesheet to the HTML object.  If set
             to False the HTML will pass through unchanged.
     """
 
@@ -45,7 +45,7 @@ class Html(BatchableMedia):
             raise ValueError("data must be a string or an io object")
 
         if inject:
-            self.inject_head()
+            self._inject_head()
 
         if inject or not data_is_path:
             tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".html")
@@ -56,7 +56,7 @@ class Html(BatchableMedia):
         else:
             self._set_file(data_path, is_tmp=False)
 
-    def inject_head(self) -> None:
+    def _inject_head(self) -> None:
         join = ""
         if "<head>" in self.html:
             parts = self.html.split("<head>", 1)
@@ -74,35 +74,35 @@ class Html(BatchableMedia):
         self.html = join.join(parts).strip()
 
     @classmethod
-    def get_media_subdir(cls: Type["Html"]) -> str:
+    def _get_media_subdir(cls: Type["Html"]) -> str:
         return os.path.join("media", "html")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
-        json_dict = super().to_json(run_or_artifact)
+    def _to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        json_dict = super()._to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         return json_dict
 
     @classmethod
-    def from_json(
+    def _from_json(
         cls: Type["Html"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Html":
         return cls(source_artifact.get_entry(json_obj["path"]).download(), inject=False)
 
     @classmethod
-    def seq_to_json(
+    def _seq_to_json(
         cls: Type["Html"],
         seq: Sequence["BatchableMedia"],
         run: "LocalRun",
         key: str,
         step: Union[int, str],
     ) -> dict:
-        base_path = os.path.join(run.dir, cls.get_media_subdir())
+        base_path = os.path.join(run.dir, cls._get_media_subdir())
         filesystem.mkdir_exists_ok(base_path)
 
         meta = {
             "_type": "html",
             "count": len(seq),
-            "html": [h.to_json(run) for h in seq],
+            "html": [h._to_json(run) for h in seq],
         }
         return meta
 
