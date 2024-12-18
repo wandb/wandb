@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from typing import Any
 
 from google.protobuf.timestamp_pb2 import Timestamp
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -246,7 +247,7 @@ class GitRepoRecord(BaseModel, validate_assignment=True):
 class Metadata(BaseModel, validate_assignment=True):
     """Metadata about the run environment.
 
-    NOTE: Definitions must be kept in sync with wandb_internal.proto.
+    NOTE: Definitions must be kept in sync with wandb_internal.proto::MetadataRequest.
 
     Attributes:
         os (str, optional): Operating system.
@@ -323,6 +324,9 @@ class Metadata(BaseModel, validate_assignment=True):
 
     def __init__(self, **data):
         super().__init__(**data)
+
+        # Callback for post-update. This is used in the Run object to trigger
+        # a metadata update after the object is modified.
         self._post_update_callback: callable | None = None
 
     def _set_callback(self, callback: callable) -> None:
@@ -341,12 +345,13 @@ class Metadata(BaseModel, validate_assignment=True):
     @model_validator(mode="after")
     def _callback(self) -> Self:
         if getattr(self, "_post_update_callback", None) is not None:
-            self._post_update_callback(self.to_proto())
+            self._post_update_callback(self.to_proto())  # type: ignore
 
         return self
 
     @classmethod
     def _datetime_to_timestamp(cls, dt: datetime | None) -> Timestamp | None:
+        """Convert a datetime to a protobuf Timestamp."""
         if dt is None:
             return None
         ts = Timestamp()
@@ -360,6 +365,7 @@ class Metadata(BaseModel, validate_assignment=True):
 
     @classmethod
     def _timestamp_to_datetime(cls, ts: Timestamp | None) -> datetime | None:
+        """Convert a protobuf Timestamp to a datetime."""
         if ts is None:
             return None
         # Create UTC datetime from seconds and add microseconds
@@ -367,8 +373,12 @@ class Metadata(BaseModel, validate_assignment=True):
         return dt.replace(microsecond=ts.nanos // 1000)
 
     def to_proto(self) -> wandb_internal_pb2.MetadataRequest:  # noqa: C901
+        """Convert the metadata to a protobuf message."""
         proto = wandb_internal_pb2.MetadataRequest()
 
+        # A flag to indicate that the metadata has been modified by the user.
+        # Updates to the metadata object originating from the user take precedence
+        # over automatic updates.
         proto._user_modified = True
 
         # Handle all scalar fields
@@ -453,7 +463,13 @@ class Metadata(BaseModel, validate_assignment=True):
         proto: wandb_internal_pb2.MetadataRequest,
         skip_existing: bool = False,
     ):
-        data = {}
+        """Update the metadata from a protobuf message.
+
+        Args:
+            proto (wandb_internal_pb2.MetadataRequest): The protobuf message.
+            skip_existing (bool, optional): Skip updating fields that are already set.
+        """
+        data: dict[str, Any] = {}
 
         # Handle all scalar fields.
         if proto.os:

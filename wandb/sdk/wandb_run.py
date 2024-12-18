@@ -3704,7 +3704,9 @@ class Run:
 
             return self.__metadata
         except Exception as e:
-            logger.error("Error getting system metrics: %s", e)
+            logger.error("Error getting run metadata: %s", e)
+
+        return None
 
     @_run_decorator._noop_on_finish()
     def _metadata_callback(
