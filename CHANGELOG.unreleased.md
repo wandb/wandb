@@ -21,3 +21,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - The stop button correctly interrupts runs whose main Python thread is running C code, sleeping, etc. (@timoffex in https://github.com/wandb/wandb/pull/9094)
+- Remove unintentional print that occurs when inspecting `wandb.Api().runs()` (@tomtseng in https://github.com/wandb/wandb/pull/9101)
