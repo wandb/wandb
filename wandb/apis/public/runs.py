@@ -704,7 +704,7 @@ class Run(Attrs):
             if pd:
                 lines = pd.DataFrame.from_records(lines)
             else:
-                print("Unable to load pandas, call history with pandas=False")
+                wandb.termwarn("Unable to load pandas, call history with pandas=False")
         return lines
 
     @normalize_exceptions

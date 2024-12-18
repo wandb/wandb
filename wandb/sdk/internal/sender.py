@@ -323,7 +323,6 @@ class SendManager:
 
         Exclusively used in `sync.py`.
         """
-        print(root_dir)
         files_dir = os.path.join(root_dir, "files")
         settings = wandb.Settings(
             x_files_dir=files_dir,
