@@ -345,7 +345,7 @@ class Metadata(BaseModel, validate_assignment=True):
     @model_validator(mode="after")
     def _callback(self) -> Self:
         if getattr(self, "_post_update_callback", None) is not None:
-            self._post_update_callback(self.to_proto())
+            self._post_update_callback(self.to_proto())  # type: ignore
 
         return self
 
