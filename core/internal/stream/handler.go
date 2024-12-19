@@ -1182,7 +1182,7 @@ func (h *Handler) handleRequestServerFeature(
 			ServerFeatureResponse: &spb.ServerFeatureResponse{
 				Feature: &spb.ServerFeatureItem{
 					Enabled: serverFeatureValue.Enabled,
-					Name:    request.GetFeature(),
+					Name:    serverFeatureValue.Name,
 				},
 			},
 		},
