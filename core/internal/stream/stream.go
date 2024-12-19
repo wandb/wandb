@@ -160,17 +160,6 @@ func NewStream(
 		sentryClient: params.Sentry,
 	}
 
-	hostname, err := os.Hostname()
-	if err != nil {
-		// We log an error but continue anyway with an empty hostname string.
-		// Better behavior would be to inform the user and turn off any
-		// components that rely on the hostname, but it's not easy to do
-		// with our current code structure.
-		s.logger.CaptureError(
-			fmt.Errorf("stream: could not get hostname: %v", err))
-		hostname = ""
-	}
-
 	// TODO: replace this with a logger that can be read by the user
 	peeker := &observability.Peeker{}
 	terminalPrinter := observability.NewPrinter()
@@ -182,7 +171,6 @@ func NewStream(
 		ExtraWork: s.runWork,
 		Logger:    s.logger,
 		Settings:  s.settings,
-		Hostname:  hostname,
 	})
 	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
@@ -217,7 +205,7 @@ func NewStream(
 
 	mailbox := mailbox.New()
 
-	s.handler = NewHandler(params.Commit,
+	s.handler = NewHandler(
 		HandlerParams{
 			Logger:            s.logger,
 			Operations:        operations,
@@ -229,6 +217,7 @@ func NewStream(
 			FileTransferStats: fileTransferStats,
 			Mailbox:           mailbox,
 			TerminalPrinter:   terminalPrinter,
+			Commit:            params.Commit,
 		},
 	)
 

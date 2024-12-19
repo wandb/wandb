@@ -117,6 +117,11 @@ func (s *Settings) GetStartTime() time.Time {
 	return time.UnixMicro(int64(seconds * 1e6))
 }
 
+// The hostname of the machine running the run.
+func (s *Settings) GetHostname() string {
+	return s.Proto.Host.GetValue()
+}
+
 // The root directory that will be used to derive other paths.
 // Such as the wandb directory, and the run directory.
 //
