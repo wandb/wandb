@@ -3706,6 +3706,7 @@ class Run:
         return {}
 
     @property
+    @_run_decorator._attach
     @_run_decorator._noop_on_finish()
     def _metadata(self) -> Metadata | None:
         """The metadata associated with this run.
@@ -3713,7 +3714,7 @@ class Run:
         NOTE: Automatically collected metadata can be overridden by the user.
         """
         if not self._backend or not self._backend.interface:
-            return None
+            return self.__metadata
 
         # Initialize the metadata object if it doesn't exist.
         if self.__metadata is None:
@@ -3745,6 +3746,7 @@ class Run:
         return None
 
     @_run_decorator._noop_on_finish()
+    @_run_decorator._attach
     def _metadata_callback(
         self,
         metadata: MetadataRequest,
