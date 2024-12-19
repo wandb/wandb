@@ -37,7 +37,7 @@ type Sender struct {
 
 	writer *debouncedWriter
 
-	logger                *observability.CoreLogger
+	logger                *observability.Logger
 	runfilesUploaderOrNil runfiles.Uploader
 
 	// captureEnabled indicates whether to capture console output.
@@ -56,7 +56,7 @@ type Params struct {
 	// EnableCapture indicates whether to capture console output.
 	EnableCapture bool
 
-	Logger *observability.CoreLogger
+	Logger *observability.Logger
 
 	RunfilesUploaderOrNil runfiles.Uploader
 

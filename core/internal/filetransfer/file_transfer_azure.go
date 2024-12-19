@@ -119,7 +119,7 @@ func (am *AzureClientsMap[T]) LoadOrStore(
 // AzureFileTransfer uploads or downloads files to/from Azure.
 type AzureFileTransfer struct {
 	// logger is the logger for the file transfer
-	logger *observability.CoreLogger
+	logger *observability.Logger
 
 	// fileTransferStats is used to track upload/download progress
 	fileTransferStats FileTransferStats
@@ -149,7 +149,7 @@ type AzureClientOverrides struct {
 // NewAzureFileTransfer creates a new fileTransfer.
 func NewAzureFileTransfer(
 	clientOverrides *AzureClientOverrides,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 	fileTransferStats FileTransferStats,
 ) *AzureFileTransfer {
 	ctx := context.Background()

@@ -11,12 +11,12 @@ import (
 // outputFileWriter saves run console logs in a local file.
 type outputFileWriter struct {
 	outputFile *lineFile
-	logger     *observability.CoreLogger
+	logger     *observability.Logger
 }
 
 func NewOutputFileWriter(
 	path string,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 ) (*outputFileWriter, error) {
 	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
 		return nil, err

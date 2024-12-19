@@ -166,7 +166,7 @@ type ArtifactInfoForJob struct {
 }
 
 type JobBuilder struct {
-	logger *observability.CoreLogger
+	logger *observability.Logger
 
 	PartialJobID *string
 
@@ -202,7 +202,7 @@ func MakeArtifactNameSafe(name string) string {
 
 }
 
-func NewJobBuilder(settings *spb.Settings, logger *observability.CoreLogger, verbose bool) *JobBuilder {
+func NewJobBuilder(settings *spb.Settings, logger *observability.Logger, verbose bool) *JobBuilder {
 	jobBuilder := JobBuilder{
 		settings:            settings,
 		isNotebookRun:       settings.GetXJupyter().GetValue(),

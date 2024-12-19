@@ -25,7 +25,7 @@ import (
 // uploader is the implementation of the Uploader interface.
 type uploader struct {
 	extraWork     runwork.ExtraWork
-	logger        *observability.CoreLogger
+	logger        *observability.Logger
 	operations    *wboperation.WandbOperations
 	fs            filestream.FileStream
 	ftm           filetransfer.FileTransferManager

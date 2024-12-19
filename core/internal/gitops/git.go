@@ -37,10 +37,10 @@ func runCommandWithOutput(command []string, dir string) ([]byte, error) {
 
 type Git struct {
 	path   string
-	logger *observability.CoreLogger
+	logger *observability.Logger
 }
 
-func New(path string, logger *observability.CoreLogger) *Git {
+func New(path string, logger *observability.Logger) *Git {
 	return &Git{
 		path:   path,
 		logger: logger,

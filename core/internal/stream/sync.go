@@ -13,7 +13,7 @@ import (
 type SyncService struct {
 	ctx        context.Context
 	wg         sync.WaitGroup
-	logger     *observability.CoreLogger
+	logger     *observability.Logger
 	senderFunc func(*spb.Record)
 	inChan     chan *spb.Record
 	// Result of offline sync to pass to the client when syncing is done
@@ -50,7 +50,7 @@ func WithSyncServiceSkip(skip *spb.SyncSkip) SyncServiceOption {
 	}
 }
 
-func WithSyncServiceLogger(logger *observability.CoreLogger) SyncServiceOption {
+func WithSyncServiceLogger(logger *observability.Logger) SyncServiceOption {
 	return func(s *SyncService) {
 		s.logger = logger
 	}

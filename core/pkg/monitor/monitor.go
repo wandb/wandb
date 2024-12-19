@@ -65,14 +65,14 @@ type SystemMonitor struct {
 	samplingInterval time.Duration
 
 	// A logger for internal debug logging.
-	logger *observability.CoreLogger
+	logger *observability.Logger
 }
 
 // NewSystemMonitor initializes and returns a new SystemMonitor instance.
 //
 // It sets up assets based on provided settings and configures the metrics buffer.
 func NewSystemMonitor(
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 	settings *settings.Settings,
 	extraWork runwork.ExtraWork,
 ) *SystemMonitor {

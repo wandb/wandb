@@ -16,7 +16,7 @@ func processHistograms(
 	emitter Emitter,
 	tag string,
 	value *tbproto.Summary_Value,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 ) {
 	switch value := value.GetValue().(type) {
 	case *tbproto.Summary_Value_Tensor:
@@ -39,7 +39,7 @@ func processHistogramsTensor(
 	emitter Emitter,
 	tag string,
 	tensorValue *tbproto.TensorProto,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 ) {
 	tensor, err := tensorFromProto(tensorValue)
 	if err != nil {
@@ -77,7 +77,7 @@ func processHistogramsProto(
 	emitter Emitter,
 	tag string,
 	histo *tbproto.HistogramProto,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 ) {
 	rightEdges := histo.BucketLimit
 	binWeights := histo.Bucket
@@ -123,7 +123,7 @@ func emitHistogram(
 	binWeights []float64,
 	emitter Emitter,
 	tag string,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 ) {
 	if len(binEdges) != 1+len(binWeights) {
 		logger.CaptureError(

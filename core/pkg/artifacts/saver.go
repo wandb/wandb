@@ -42,7 +42,7 @@ const (
 
 // ArtifactSaveManager manages artifact uploads.
 type ArtifactSaveManager struct {
-	logger              *observability.CoreLogger
+	logger              *observability.Logger
 	graphqlClient       graphql.Client
 	fileTransferManager filetransfer.FileTransferManager
 	fileCache           Cache
@@ -53,7 +53,7 @@ type ArtifactSaveManager struct {
 }
 
 func NewArtifactSaveManager(
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 	graphqlClient graphql.Client,
 	fileTransferManager filetransfer.FileTransferManager,
 ) *ArtifactSaveManager {
@@ -121,7 +121,7 @@ func (as *ArtifactSaveManager) Save(
 type ArtifactSaver struct {
 	// Resources.
 	ctx                 context.Context
-	logger              *observability.CoreLogger
+	logger              *observability.Logger
 	graphqlClient       graphql.Client
 	fileTransferManager filetransfer.FileTransferManager
 	fileCache           Cache

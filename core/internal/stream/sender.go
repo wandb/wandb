@@ -52,7 +52,7 @@ const (
 )
 
 type SenderParams struct {
-	Logger              *observability.CoreLogger
+	Logger              *observability.Logger
 	Operations          *wboperation.WandbOperations
 	Settings            *settings.Settings
 	Backend             *api.Backend
@@ -76,7 +76,7 @@ type Sender struct {
 	runWork runwork.RunWork
 
 	// logger is the logger for the sender
-	logger *observability.CoreLogger
+	logger *observability.Logger
 
 	operations *wboperation.WandbOperations
 

@@ -29,7 +29,7 @@ type GCSFileTransfer struct {
 	client GCSClient
 
 	// logger is the logger for the file transfer
-	logger *observability.CoreLogger
+	logger *observability.Logger
 
 	// fileTransferStats is used to track upload/download progress
 	fileTransferStats FileTransferStats
@@ -49,7 +49,7 @@ var ErrObjectIsDirectory = errors.New("object is a directory and cannot be downl
 // NewGCSFileTransfer creates a new fileTransfer
 func NewGCSFileTransfer(
 	client GCSClient,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 	fileTransferStats FileTransferStats,
 ) *GCSFileTransfer {
 	ctx := context.Background()
