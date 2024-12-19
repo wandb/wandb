@@ -46,7 +46,7 @@ class PayloadGenerator:
 
     def __init__(
         self,
-        data_type: Literal["scalar", "audio"],
+        data_type: Literal["scalar", "audio", "video", "image", "table"],
         metric_count: int,
         metric_key_size: int,
     ):
@@ -80,6 +80,13 @@ class PayloadGenerator:
             return self.generate_audio()
         elif self.data_type == "scalar":
             return self.generate_scalar()
+        elif self.data_type == "table":
+            return self.generate_table()
+        elif self.data_type == "image":
+            return self.generate_image()
+        elif self.data_type == "video":
+            return self.generate_video()
+
         else:
             raise ValueError(f"Invalid data type: {self.data_type}")
 
@@ -112,6 +119,62 @@ class PayloadGenerator:
             for _ in range(self.metric_count)
         }
 
+    def generate_table(self) -> dict[str, wandb.Table]:
+        """Generates a payload for logging 1 table.
+
+        For the table, it uses 
+            self.metric_count as the number of columns
+            self.metric_key_size as the number of rows.
+
+        Returns:
+            dict: A dictionary with the table data.
+        """
+        num_of_columns = self.metric_count
+        num_of_rows = self.metric_key_size
+
+        columns = [f"Field_{i+1}" for i in range(num_of_columns)]
+        data = [
+            [
+                self.random_string(self.metric_key_size) 
+                for _ in range(num_of_columns)
+            ]
+            for _ in range(num_of_rows)
+        ]
+        table = wandb.Table(columns=columns, data=data)
+        return {"perf_test_table": table}
+
+    def generate_image(self) -> dict[str, wandb.Image]:
+        """Generates a payload for logging images.
+
+        Returns:
+            dict: A dictionary with image data.
+        """
+        # Create a random RGB image (100x100 pixels)
+        # Each pixel value is an integer between 0 and 255 for RGB channels
+        random_image = np.random.randint(0, 256, (100, 100, 3), dtype=np.uint8)
+        image_obj = wandb.Image(random_image, caption="Random image")
+    
+        return {
+            self.random_string(self.metric_key_size): image_obj
+            for _ in range(self.metric_count)
+        }
+
+    def generate_video(self) -> dict[str, wandb.Video]:
+        """Generates a payload for logging videos.
+
+        Returns:
+            dict: A dictionary with video data.
+        """
+
+        # Create a random video (50 frames, 64x64 pixels, 3 channels for RGB)
+        frames = np.random.randint(0, 256, (50, 64, 64, 3), dtype=np.uint8)
+        video_obj = wandb.Video(frames, fps=10, caption="Randomly generated video")
+    
+        return {
+            self.random_string(self.metric_key_size): video_obj
+            for _ in range(self.metric_count)
+        }
+
 
 class Experiment:
     """A class to run the performance test.
@@ -130,7 +193,7 @@ class Experiment:
         num_metrics: int = 100,
         metric_key_size: int = 10,
         output_file: str = "results.json",
-        data_type: Literal["scalar", "audio"] = "scalar",
+        data_type: Literal["scalar", "audio", "video", "image", "table"] = "scalar",
     ):
         self.num_steps = num_steps
         self.num_metrics = num_metrics
@@ -216,7 +279,7 @@ def run_parallel_experiment(
     num_processes: int,
     num_steps: int,
     num_metrics: int,
-    data_type: Literal["scalar", "audio"],
+    data_type: Literal["scalar", "audio", "video", "image", "table"],
     metric_key_size: int,
     log_folder: Path,
 ):
@@ -295,7 +358,7 @@ if __name__ == "__main__":
         "-d",
         "--data-type",
         type=str,
-        choices=["scalar", "audio"],
+        choices=["scalar", "audio", "video", "image", "table"],
         default="scalar",
         help="The wandb data type to log. Defaults to scalar.",
     )

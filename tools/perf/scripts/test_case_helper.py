@@ -15,7 +15,7 @@ def run_perf_tests(
     num_metrics_options: list[int],
     root_folder: str,
     num_processes: int,
-    data_type: Literal["scalar", "audio"] = "scalar",
+    data_type: Literal["scalar", "audio", "video", "image", "table"] = "scalar",
     metric_key_size: int = 10,
 ) -> None:
     """A helper to start a series of tests.

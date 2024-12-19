@@ -18,7 +18,7 @@ class Arguments:
     metric_count: list[int]
     root_folder: str
     num_of_processes: int
-    data_type: Literal["scalar", "audio"]
+    data_type: Literal["scalar", "audio", "video", "image", "table"]
 
 
 class TestCases:
@@ -26,7 +26,7 @@ class TestCases:
         self,
         log_folder: str | None = None,
         num_of_parallel_runs: int = 1,
-        data_type: Literal["scalar", "audio"] = "scalar",
+        data_type: Literal["scalar", "audio", "video", "image", "table"] = "scalar",
     ):
         self.cases = {
             "log_scalar": Arguments(
@@ -102,7 +102,7 @@ class TestCases:
                 data_type="scalar",
             ),
             "log_media": Arguments(
-                loop_count=4,
+                loop_count=1,
                 step_count=[2000],
                 metric_count=[10],
                 root_folder=log_folder,
@@ -162,7 +162,7 @@ if __name__ == "__main__":
         "--data-type",
         type=str,
         default="scalar",
-        choices=["scalar", "audio"],
+        choices=["scalar", "audio", "video", "image", "table"],
         help="The wandb data type to log. Default is 'scalar'.",
     )
     parser.add_argument(
