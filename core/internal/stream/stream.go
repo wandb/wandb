@@ -68,6 +68,7 @@ func streamLogger(
 	settings *settings.Settings,
 	sentryClient *sentry_ext.Client,
 	loggerPath string,
+	debug bool,
 ) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
@@ -93,7 +94,7 @@ func streamLogger(
 
 	// TODO: add a log level to the settings
 	level := slog.LevelInfo
-	if os.Getenv("WANDB_CORE_DEBUG") != "" {
+	if debug {
 		level = slog.LevelDebug
 	}
 
@@ -132,25 +133,31 @@ func streamLogger(
 	return logger
 }
 
-type StreamOptions struct {
+type StreamParams struct {
 	Commit     string
 	Settings   *settings.Settings
 	Sentry     *sentry_ext.Client
 	LoggerPath string
+	Debug      bool
 }
 
 // NewStream creates a new stream with the given settings and responders.
 func NewStream(
-	opts StreamOptions,
+	params StreamParams,
 ) *Stream {
 	operations := wboperation.NewOperations()
 
-	logger := streamLogger(opts.Settings, opts.Sentry, opts.LoggerPath)
+	logger := streamLogger(
+		params.Settings,
+		params.Sentry,
+		params.LoggerPath,
+		params.Debug,
+	)
 	s := &Stream{
 		runWork:      runwork.New(BufferSize, logger),
 		logger:       logger,
-		settings:     opts.Settings,
-		sentryClient: opts.Sentry,
+		settings:     params.Settings,
+		sentryClient: params.Sentry,
 	}
 
 	hostname, err := os.Hostname()
@@ -168,7 +175,7 @@ func NewStream(
 	peeker := &observability.Peeker{}
 	terminalPrinter := observability.NewPrinter()
 
-	backendOrNil := NewBackend(s.logger, opts.Settings)
+	backendOrNil := NewBackend(s.logger, params.Settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	fileWatcher := watcher.New(watcher.Params{Logger: s.logger})
 	tbHandler := tensorboard.NewTBHandler(tensorboard.Params{
@@ -182,25 +189,25 @@ func NewStream(
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
 	var runfilesUploaderOrNil runfiles.Uploader
 	if backendOrNil != nil {
-		graphqlClientOrNil = NewGraphQLClient(backendOrNil, opts.Settings, peeker)
+		graphqlClientOrNil = NewGraphQLClient(backendOrNil, params.Settings, peeker)
 		fileStreamOrNil = NewFileStream(
 			backendOrNil,
 			s.logger,
 			operations,
 			terminalPrinter,
-			opts.Settings,
+			params.Settings,
 			peeker,
 		)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileTransferStats,
 			s.logger,
-			opts.Settings,
+			params.Settings,
 		)
 		runfilesUploaderOrNil = NewRunfilesUploader(
 			s.runWork,
 			s.logger,
 			operations,
-			opts.Settings,
+			params.Settings,
 			fileStreamOrNil,
 			fileTransferManagerOrNil,
 			fileWatcher,
@@ -210,7 +217,7 @@ func NewStream(
 
 	mailbox := mailbox.New()
 
-	s.handler = NewHandler(opts.Commit,
+	s.handler = NewHandler(params.Commit,
 		HandlerParams{
 			Logger:            s.logger,
 			Operations:        operations,

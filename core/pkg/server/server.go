@@ -26,6 +26,7 @@ type ServerParams struct {
 	SentryClient    *sentry_ext.Client
 	Commit          string
 	LoggerPath      string
+	Debug           bool
 }
 
 // Server is the core server
@@ -55,6 +56,9 @@ type Server struct {
 
 	// loggerPath is the default logger path
 	loggerPath string
+
+	// debug is indicating if debug logging is enabled
+	debug bool
 }
 
 // NewServer creates a new server
@@ -82,6 +86,7 @@ func NewServer(
 		sentryClient: params.SentryClient,
 		commit:       params.Commit,
 		loggerPath:   params.LoggerPath,
+		debug:        params.Debug,
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
@@ -156,12 +161,13 @@ func (s *Server) serve() {
 				NewConnection(
 					s.ctx,
 					s.cancel,
-					ConnectionOptions{
+					ConnectionParams{
 						Conn:         conn,
 						StreamMux:    streamMux,
 						SentryClient: s.sentryClient,
 						Commit:       s.commit,
 						LoggerPath:   s.loggerPath,
+						Debug:        s.debug,
 					},
 				).ManageConnectionData()
 

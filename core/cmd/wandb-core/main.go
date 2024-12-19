@@ -130,6 +130,7 @@ func main() {
 			SentryClient:    sentryClient,
 			Commit:          commit,
 			LoggerPath:      loggerPath,
+			Debug:           *enableDebugLogging,
 		},
 	)
 	if err != nil {
