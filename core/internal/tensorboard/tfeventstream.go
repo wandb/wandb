@@ -17,7 +17,7 @@ import (
 type tfEventStream struct {
 	// readDelay is how long to wait before checking for a new event.
 	readDelay waiting.Delay
-	logger    *observability.CoreLogger
+	logger    *observability.Logger
 
 	reader *TFEventReader
 	events chan *tbproto.TFEvent
@@ -31,7 +31,7 @@ func NewTFEventStream(
 	logDir paths.AbsolutePath,
 	readDelay waiting.Delay,
 	fileFilter TFEventsFileFilter,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 ) *tfEventStream {
 	return &tfEventStream{
 		readDelay: readDelay,

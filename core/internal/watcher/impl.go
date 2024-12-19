@@ -14,7 +14,7 @@ import (
 
 type watcher struct {
 	sync.Mutex
-	logger     *observability.CoreLogger
+	logger     *observability.Logger
 	delegate   *poller.Watcher
 	wg         *sync.WaitGroup
 	handlers   map[string]func(string)

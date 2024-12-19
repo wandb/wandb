@@ -16,7 +16,7 @@ func processImages(
 	emitter Emitter,
 	tag string,
 	value *tbproto.Summary_Value,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 ) {
 	switch x := value.GetValue().(type) {
 	case *tbproto.Summary_Value_Tensor:
@@ -39,7 +39,7 @@ func processImagesTensor(
 	emitter Emitter,
 	tag string,
 	tensorValue *tbproto.TensorProto,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 ) {
 	if len(tensorValue.StringVal) < 3 {
 		logger.CaptureError(
@@ -71,7 +71,7 @@ func processImagesProto(
 	emitter Emitter,
 	tag string,
 	value *tbproto.Summary_Image,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 ) {
 	emitImages(
 		int(value.Width),
@@ -89,7 +89,7 @@ func emitImages(
 	images [][]byte,
 	emitter Emitter,
 	tag string,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 ) {
 	wbImages := []wbvalue.Image{}
 

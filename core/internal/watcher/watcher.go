@@ -35,7 +35,7 @@ type Watcher interface {
 }
 
 type Params struct {
-	Logger *observability.CoreLogger
+	Logger *observability.Logger
 
 	// How often to poll files for updates.
 	//

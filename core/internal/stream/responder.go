@@ -22,10 +22,10 @@ type Responders map[string]Responder
 type Dispatcher struct {
 	sync.RWMutex
 	responders Responders
-	logger     *observability.CoreLogger
+	logger     *observability.Logger
 }
 
-func NewDispatcher(logger *observability.CoreLogger) *Dispatcher {
+func NewDispatcher(logger *observability.Logger) *Dispatcher {
 	return &Dispatcher{
 		RWMutex:    sync.RWMutex{},
 		logger:     logger,

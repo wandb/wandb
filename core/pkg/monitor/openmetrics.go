@@ -86,14 +86,14 @@ type OpenMetrics struct {
 	filters     []Filter
 	headers     map[string]string
 	client      *retryablehttp.Client
-	logger      *observability.CoreLogger
+	logger      *observability.Logger
 	labelMap    map[string]map[string]int    // metricName -> labelHash -> index
 	labelHashes map[string]map[string]string // labelHash -> labels
 	cache       *lru.Cache
 }
 
 func NewOpenMetrics(
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 	name string,
 	url string,
 	filters *spb.OpenMetricsFilters,

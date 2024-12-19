@@ -12,7 +12,7 @@ import (
 )
 
 type WriterParams struct {
-	Logger   *observability.CoreLogger
+	Logger   *observability.Logger
 	Settings *settings.Settings
 	FwdChan  chan runwork.Work
 }
@@ -26,7 +26,7 @@ type Writer struct {
 	settings *settings.Settings
 
 	// logger is the logger for the writer
-	logger *observability.CoreLogger
+	logger *observability.Logger
 
 	// fwdChan is a channel of work to pass to the Sender
 	fwdChan chan runwork.Work

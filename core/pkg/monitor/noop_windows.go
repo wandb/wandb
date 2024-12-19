@@ -29,10 +29,10 @@ func (g *GPUApple) Probe() *spb.MetadataRequest {
 // GPUAMD is a dummy implementation of the Asset interface for AMD GPUs.
 type GPUAMD struct {
 	name   string
-	logger *observability.CoreLogger
+	logger *observability.Logger
 }
 
-func NewGPUAMD(logger *observability.CoreLogger) *GPUAMD {
+func NewGPUAMD(logger *observability.Logger) *GPUAMD {
 	return &GPUAMD{
 		name:   "gpu",
 		logger: logger,
@@ -54,12 +54,12 @@ type Trainium struct {
 	name                    string
 	pid                     int32
 	samplingInterval        float64
-	logger                  *observability.CoreLogger
+	logger                  *observability.Logger
 	neuronMonitorConfigPath string
 }
 
 func NewTrainium(
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 	pid int32,
 	samplingInterval float64,
 	neuronMonitorConfigPath string,
