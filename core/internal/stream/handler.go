@@ -45,7 +45,7 @@ type HandlerParams struct {
 	Settings          *settings.Settings
 	FwdChan           chan runwork.Work
 	OutChan           chan *spb.Result
-	Logger            *observability.CoreLogger
+	Logger            *observability.Logger
 	Operations        *wboperation.WandbOperations
 	Mailbox           *mailbox.Mailbox
 	FileTransferStats filetransfer.FileTransferStats
@@ -75,7 +75,7 @@ type Handler struct {
 	clientID string
 
 	// logger is the logger for the handler
-	logger *observability.CoreLogger
+	logger *observability.Logger
 
 	// pollExitLogRateLimit limits log messages when handling PollExit requests
 	pollExitLogRateLimit *rate.Limiter

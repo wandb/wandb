@@ -90,7 +90,7 @@ type fileStream struct {
 	settings *settings.Settings
 
 	// A logger for internal debug logging.
-	logger *observability.CoreLogger
+	logger *observability.Logger
 
 	// The context in which to track filestream operations.
 	operations *wboperation.WandbOperations
@@ -115,7 +115,7 @@ type fileStream struct {
 
 type FileStreamParams struct {
 	Settings           *settings.Settings
-	Logger             *observability.CoreLogger
+	Logger             *observability.Logger
 	Operations         *wboperation.WandbOperations
 	Printer            *observability.Printer
 	ApiClient          api.Client

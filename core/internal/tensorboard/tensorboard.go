@@ -45,7 +45,7 @@ type TBHandler struct {
 	wg sync.WaitGroup
 
 	extraWork     runwork.ExtraWork
-	logger        *observability.CoreLogger
+	logger        *observability.Logger
 	settings      *settings.Settings
 	hostname      string
 	fileReadDelay waiting.Delay
@@ -73,7 +73,7 @@ type TBHandler struct {
 type Params struct {
 	runwork.ExtraWork
 
-	Logger   *observability.CoreLogger
+	Logger   *observability.Logger
 	Settings *settings.Settings
 
 	Hostname      string

@@ -18,7 +18,7 @@ type savedFile struct {
 
 	fs         filestream.FileStream
 	ftm        filetransfer.FileTransferManager
-	logger     *observability.CoreLogger
+	logger     *observability.Logger
 	operations *wboperation.WandbOperations
 
 	// The path to the actual file.
@@ -53,7 +53,7 @@ type savedFile struct {
 func newSavedFile(
 	fs filestream.FileStream,
 	ftm filetransfer.FileTransferManager,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 	operations *wboperation.WandbOperations,
 	realPath string,
 	runPath paths.RelativePath,

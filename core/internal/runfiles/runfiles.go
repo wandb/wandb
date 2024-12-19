@@ -59,7 +59,7 @@ type UploaderTesting interface {
 
 type UploaderParams struct {
 	ExtraWork    runwork.ExtraWork
-	Logger       *observability.CoreLogger
+	Logger       *observability.Logger
 	Operations   *wboperation.WandbOperations
 	Settings     *settings.Settings
 	FileStream   filestream.FileStream

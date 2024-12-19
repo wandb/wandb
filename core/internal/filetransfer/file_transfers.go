@@ -33,7 +33,7 @@ type FileTransfers struct {
 // NewFileTransfers creates a new fileTransfers
 func NewFileTransfers(
 	client *retryablehttp.Client,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 	fileTransferStats FileTransferStats,
 ) *FileTransfers {
 	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats)

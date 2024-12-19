@@ -77,10 +77,10 @@ type runWork struct {
 	endCtx       context.Context
 	endCtxCancel func()
 
-	logger *observability.CoreLogger
+	logger *observability.Logger
 }
 
-func New(bufferSize int, logger *observability.CoreLogger) RunWork {
+func New(bufferSize int, logger *observability.Logger) RunWork {
 	endCtx, endCtxCancel := context.WithCancel(context.Background())
 
 	return &runWork{

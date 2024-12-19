@@ -18,7 +18,7 @@ type TFEventReader struct {
 	// fileFilter selects the tfevents files to read.
 	fileFilter TFEventsFileFilter
 
-	logger *observability.CoreLogger
+	logger *observability.Logger
 
 	buffer        []byte
 	logDir        paths.AbsolutePath
@@ -29,7 +29,7 @@ type TFEventReader struct {
 func NewTFEventReader(
 	logDir paths.AbsolutePath,
 	fileFilter TFEventsFileFilter,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 ) *TFEventReader {
 	return &TFEventReader{
 		fileFilter: fileFilter,

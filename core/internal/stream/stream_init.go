@@ -28,7 +28,7 @@ import (
 
 // NewBackend returns a Backend or nil if we're offline.
 func NewBackend(
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 	settings *settings.Settings,
 ) *api.Backend {
 	if settings.IsOffline() {
@@ -142,7 +142,7 @@ func NewGraphQLClient(
 
 func NewFileStream(
 	backend *api.Backend,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 	operations *wboperation.WandbOperations,
 	printer *observability.Printer,
 	settings *settings.Settings,
@@ -197,7 +197,7 @@ func NewFileStream(
 
 func NewFileTransferManager(
 	fileTransferStats filetransfer.FileTransferStats,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 	settings *settings.Settings,
 ) filetransfer.FileTransferManager {
 	fileTransferRetryClient := retryablehttp.NewClient()
@@ -259,7 +259,7 @@ func NewFileTransferManager(
 
 func NewRunfilesUploader(
 	extraWork runwork.ExtraWork,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 	operations *wboperation.WandbOperations,
 	settings *settings.Settings,
 	fileStream filestream.FileStream,

@@ -20,7 +20,7 @@ type DefaultFileTransfer struct {
 	client *retryablehttp.Client
 
 	// logger is the logger for the file transfer
-	logger *observability.CoreLogger
+	logger *observability.Logger
 
 	// fileTransferStats is used to track upload/download progress
 	fileTransferStats FileTransferStats
@@ -29,7 +29,7 @@ type DefaultFileTransfer struct {
 // NewDefaultFileTransfer creates a new fileTransfer
 func NewDefaultFileTransfer(
 	client *retryablehttp.Client,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 	fileTransferStats FileTransferStats,
 ) *DefaultFileTransfer {
 	fileTransfer := &DefaultFileTransfer{
@@ -154,7 +154,7 @@ func getUploadRequestBody(
 	task *DefaultUploadTask,
 	file *os.File,
 	fileTransferStats FileTransferStats,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 ) (io.Reader, error) {
 	stat, err := file.Stat()
 	if err != nil {

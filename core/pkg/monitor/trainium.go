@@ -80,7 +80,7 @@ type Trainium struct {
 	neuronMonitorConfigPath string
 	mutex                   sync.RWMutex
 	cmd                     *exec.Cmd
-	logger                  *observability.CoreLogger
+	logger                  *observability.Logger
 	rawStats                map[string]any
 	shutdownEvent           chan struct{}
 	isRunning               bool
@@ -102,7 +102,7 @@ func getNeuronMonitorCmdPath() (string, error) {
 }
 
 func NewTrainium(
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 	pid int32,
 	samplingInterval float64,
 	neuronMonitorConfigPath string,
