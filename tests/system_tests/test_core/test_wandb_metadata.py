@@ -2,10 +2,14 @@ import pytest
 import wandb
 
 
+@pytest.mark.parametrize("disabled", [False, True])
 @pytest.mark.wandb_core_only
-def test_metadata(user):
+def test_metadata(user, disabled: bool):
     run = wandb.init(
-        settings=wandb.Settings(x_stats_sampling_interval=1),
+        settings=wandb.Settings(
+            mode="disabled" if disabled else "online",
+            x_stats_sampling_interval=1,
+        ),
     )
 
     # Run Metadata is stored in wandb-core.
@@ -15,9 +19,10 @@ def test_metadata(user):
     # collection of metadata in wandb-core, therefore run._metadata
     # should not be None.
     assert run._metadata is not None
-    assert run._metadata.email == f"{user}@wandb.com"
-    assert run._metadata.cpu_count != 1337
-    assert run._metadata.gpu_count is None
+    if not disabled:
+        assert run._metadata.email == f"{user}@wandb.com"
+        assert run._metadata.cpu_count != 1337
+        assert run._metadata.gpu_count is None
 
     # updating metadata will trigger an update in wandb-core
     run._metadata.email = "sus@wandb.ai"

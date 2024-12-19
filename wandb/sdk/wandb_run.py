@@ -3725,13 +3725,11 @@ class Run:
         result = handle.wait(timeout=1)
 
         if not result:
+            logger.error("Error getting run metadata: no result")
             return None
 
         try:
             response = result.response.get_system_metadata_response
-
-            if not response:
-                return None
 
             # Temporarily disable the callback to prevent triggering
             # an update call to wandb-core with the callback.
