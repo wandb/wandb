@@ -25,6 +25,21 @@ type Feature struct {
 	Name    string
 }
 
+func NewServerFeaturesCachePreloaded(features map[spb.ServerFeature]Feature) *ServerFeaturesCache {
+	sf := &ServerFeaturesCache{
+		ctx:           context.Background(),
+		graphqlClient: nil,
+		logger:        observability.NewNoOpLogger(),
+		once:          sync.Once{},
+	}
+
+	sf.once.Do(func() {
+		sf.features = features
+	})
+
+	return sf
+}
+
 func NewServerFeaturesCache(
 	ctx context.Context,
 	graphqlClient graphql.Client,
