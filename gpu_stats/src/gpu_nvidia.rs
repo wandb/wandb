@@ -53,11 +53,12 @@ impl Default for GpuMetricAvailability {
             uncorrected_memory_errors: true,
             fan_speed: true,
             encoder_utilization: false, // TODO: questionable utility, expensive to retrieve
-            link_gen: true,
-            link_speed: true,
-            link_width: true,
-            max_link_gen: true,
-            max_link_width: true,
+            // questionable utility, currently not used
+            link_gen: false,
+            link_speed: false,
+            link_width: false,
+            max_link_gen: false,
+            max_link_width: false,
         }
     }
 }
@@ -596,7 +597,7 @@ impl NvidiaGpu {
                 match device.current_pcie_link_gen() {
                     Ok(link_gen) => {
                         metrics.push((
-                            format!("gpu.{}.pcieLinkGen", di),
+                            format!("_gpu.{}.pcieLinkGen", di),
                             MetricValue::Int(link_gen as i64),
                         ));
                     }
