@@ -857,11 +857,11 @@ func (h *Handler) handleRequestGetSystemMetrics(record *spb.Record) {
 }
 
 func (h *Handler) handleRequestGetSystemMetadata(record *spb.Record) {
-	response := &spb.Response{}
-
-	response.ResponseType = &spb.Response_GetSystemMetadataResponse{
-		GetSystemMetadataResponse: &spb.GetSystemMetadataResponse{
-			Metadata: h.metadata,
+	response := &spb.Response{
+		ResponseType: &spb.Response_GetSystemMetadataResponse{
+			GetSystemMetadataResponse: &spb.GetSystemMetadataResponse{
+				Metadata: h.metadata,
+			},
 		},
 	}
 

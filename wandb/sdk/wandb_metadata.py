@@ -22,8 +22,8 @@ class DiskInfo(BaseModel, validate_assignment=True):
 
     def to_proto(self) -> wandb_internal_pb2.DiskInfo:
         return wandb_internal_pb2.DiskInfo(
-            total=self.total if self.total is not None else 0,
-            used=self.used if self.used is not None else 0,
+            total=self.total or 0,
+            used=self.used or 0,
         )
 
     @classmethod
@@ -35,9 +35,7 @@ class MemoryInfo(BaseModel, validate_assignment=True):
     total: int | None = None
 
     def to_proto(self) -> wandb_internal_pb2.MemoryInfo:
-        return wandb_internal_pb2.MemoryInfo(
-            total=self.total if self.total is not None else 0
-        )
+        return wandb_internal_pb2.MemoryInfo(total=self.total or 0)
 
     @classmethod
     def from_proto(cls, proto: wandb_internal_pb2.MemoryInfo) -> MemoryInfo:
@@ -50,8 +48,8 @@ class CpuInfo(BaseModel, validate_assignment=True):
 
     def to_proto(self) -> wandb_internal_pb2.CpuInfo:
         return wandb_internal_pb2.CpuInfo(
-            count=self.count if self.count is not None else 0,
-            count_logical=self.count_logical if self.count_logical is not None else 0,
+            count=self.count or 0,
+            count_logical=self.count_logical or 0,
         )
 
     @classmethod
@@ -70,17 +68,13 @@ class AppleInfo(BaseModel, validate_assignment=True):
 
     def to_proto(self) -> wandb_internal_pb2.AppleInfo:
         return wandb_internal_pb2.AppleInfo(
-            name=self.name if self.name is not None else "",
-            ecpu_cores=self.ecpu_cores if self.ecpu_cores is not None else 0,
-            pcpu_cores=self.pcpu_cores if self.pcpu_cores is not None else 0,
-            gpu_cores=self.gpu_cores if self.gpu_cores is not None else 0,
-            memory_gb=self.memory_gb if self.memory_gb is not None else 0,
-            swap_total_bytes=self.swap_total_bytes
-            if self.swap_total_bytes is not None
-            else 0,
-            ram_total_bytes=self.ram_total_bytes
-            if self.ram_total_bytes is not None
-            else 0,
+            name=self.name or "",
+            ecpu_cores=self.ecpu_cores or 0,
+            pcpu_cores=self.pcpu_cores or 0,
+            gpu_cores=self.gpu_cores or 0,
+            memory_gb=self.memory_gb or 0,
+            swap_total_bytes=self.swap_total_bytes or 0,
+            ram_total_bytes=self.ram_total_bytes or 0,
         )
 
     @classmethod
@@ -104,10 +98,10 @@ class GpuNvidiaInfo(BaseModel, validate_assignment=True):
 
     def to_proto(self) -> wandb_internal_pb2.GpuNvidiaInfo:
         return wandb_internal_pb2.GpuNvidiaInfo(
-            name=self.name if self.name is not None else "",
-            memory_total=self.memory_total if self.memory_total is not None else 0,
-            cuda_cores=self.cuda_cores if self.cuda_cores is not None else 0,
-            architecture=self.architecture if self.architecture is not None else "",
+            name=self.name or "",
+            memory_total=self.memory_total or 0,
+            cuda_cores=self.cuda_cores or 0,
+            architecture=self.architecture or "",
         )
 
     @classmethod
@@ -137,23 +131,19 @@ class GpuAmdInfo(BaseModel, validate_assignment=True):
 
     def to_proto(self) -> wandb_internal_pb2.GpuAmdInfo:
         return wandb_internal_pb2.GpuAmdInfo(
-            id=self.id if self.id is not None else "",
-            unique_id=self.unique_id if self.unique_id is not None else "",
-            vbios_version=self.vbios_version if self.vbios_version is not None else "",
-            performance_level=self.performance_level
-            if self.performance_level is not None
-            else "",
-            gpu_overdrive=self.gpu_overdrive if self.gpu_overdrive is not None else "",
-            gpu_memory_overdrive=self.gpu_memory_overdrive
-            if self.gpu_memory_overdrive is not None
-            else "",
-            max_power=self.max_power if self.max_power is not None else "",
-            series=self.series if self.series is not None else "",
-            model=self.model if self.model is not None else "",
-            vendor=self.vendor if self.vendor is not None else "",
-            sku=self.sku if self.sku is not None else "",
-            sclk_range=self.sclk_range if self.sclk_range is not None else "",
-            mclk_range=self.mclk_range if self.mclk_range is not None else "",
+            id=self.id or "",
+            unique_id=self.unique_id or "",
+            vbios_version=self.vbios_version or "",
+            performance_level=self.performance_level or "",
+            gpu_overdrive=self.gpu_overdrive or "",
+            gpu_memory_overdrive=self.gpu_memory_overdrive or "",
+            max_power=self.max_power or "",
+            series=self.series or "",
+            model=self.model or "",
+            vendor=self.vendor or "",
+            sku=self.sku or "",
+            sclk_range=self.sclk_range or "",
+            mclk_range=self.mclk_range or "",
         )
 
     @classmethod
@@ -183,14 +173,10 @@ class TrainiumInfo(BaseModel, validate_assignment=True):
 
     def to_proto(self) -> wandb_internal_pb2.TrainiumInfo:
         return wandb_internal_pb2.TrainiumInfo(
-            name=self.name if self.name is not None else "",
-            vendor=self.vendor if self.vendor is not None else "",
-            neuron_device_count=self.neuron_device_count
-            if self.neuron_device_count is not None
-            else 0,
-            neuroncore_per_device_count=self.neuroncore_per_device_count
-            if self.neuroncore_per_device_count is not None
-            else 0,
+            name=self.name or "",
+            vendor=self.vendor or "",
+            neuron_device_count=self.neuron_device_count or 0,
+            neuroncore_per_device_count=self.neuroncore_per_device_count or 0,
         )
 
     @classmethod
@@ -211,12 +197,10 @@ class TPUInfo(BaseModel, validate_assignment=True):
 
     def to_proto(self) -> wandb_internal_pb2.TPUInfo:
         return wandb_internal_pb2.TPUInfo(
-            name=self.name if self.name is not None else "",
-            hbm_gib=self.hbm_gib if self.hbm_gib is not None else 0,
-            devices_per_chip=self.devices_per_chip
-            if self.devices_per_chip is not None
-            else 0,
-            count=self.count if self.count is not None else 0,
+            name=self.name or "",
+            hbm_gib=self.hbm_gib or 0,
+            devices_per_chip=self.devices_per_chip or 0,
+            count=self.count or 0,
         )
 
     @classmethod
@@ -235,8 +219,8 @@ class GitRepoRecord(BaseModel, validate_assignment=True):
 
     def to_proto(self) -> wandb_internal_pb2.GitRepoRecord:
         return wandb_internal_pb2.GitRepoRecord(
-            remote_url=self.remote_url if self.remote_url is not None else "",
-            commit=self.commit if self.commit is not None else "",
+            remote_url=self.remote_url or "",
+            commit=self.commit or "",
         )
 
     @classmethod
