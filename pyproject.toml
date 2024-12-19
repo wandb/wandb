@@ -245,6 +245,12 @@ ignore-decorators = [
 ]
 "landfill/**" = ["F405", "N806", "D415"]
 
+# Ignore naming errors on generated code
+"tools/pydantic_codegen/**" = ["N802"]  # ...and select errors on codegen scripts/plugins
+"wandb/sdk/automations/_generated/**" = ["N8"]
+"!wandb/sdk/automations/_generated/**" = ["UP"]  # ...though ensure modern syntax conventions ARE enforced
+
+
 [tool.mypy]
 plugins = ["pydantic.mypy"]
 warn_redundant_casts = true
@@ -277,6 +283,7 @@ module = [
     "wandb.sdk.integration_utils.*",
     "wandb.plot.*",
     "wandb.old.*",
+    "wandb.*._generated.*",
 ]
 ignore_errors = true
 
@@ -310,6 +317,23 @@ strict_equality = true
 implicit_reexport = false
 
 # More wandb/ modules can be added in a similar manner as overrides
+
+# wandb/sdk/automations.*
+[[tool.mypy.overrides]]
+module = "wandb.sdk.automations.*"
+
+follow_imports = "silent"
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+warn_unused_ignores = true
+warn_return_any = true
+no_implicit_reexport = true
+strict_equality = true
 
 # External libraries
 [[tool.mypy.overrides]]
