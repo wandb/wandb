@@ -3713,12 +3713,6 @@ class Run:
 
         NOTE: Automatically collected metadata can be overridden by the user.
         """
-        if self.settings.x_require_legacy_service:
-            wandb.termwarn(
-                "The metadata property is not supported when using the legacy service."
-            )
-            return None
-
         if not self._backend or not self._backend.interface:
             return self.__metadata
 
@@ -3756,9 +3750,19 @@ class Run:
         metadata: MetadataRequest,
     ) -> None:
         """Callback to publish Metadata to wandb-core upon user updates."""
+        if self.settings.x_require_legacy_service:
+            wandb.termwarn(
+                "Metadata updates are are ignored when using the legacy service.",
+                repeat=False,
+            )
+            return
+
         # ignore updates if the attached to another run
         if self._is_attached:
-            wandb.termwarn("Metadata updates are ignored when attached to another run.")
+            wandb.termwarn(
+                "Metadata updates are ignored when attached to another run.",
+                repeat=False,
+            )
             return
 
         if self._backend and self._backend.interface:

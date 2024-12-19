@@ -269,40 +269,40 @@ class Metadata(BaseModel, validate_assignment=True):
 
     # TODO: Pydantic configuration.
     model_config = ConfigDict(
-        extra="forbid",  # throw an error if extra fields are provided
+        extra="ignore",  # ignore extra fields
         validate_default=True,  # validate default values
     )
 
     os: str | None = None
     python: str | None = None
-    heartbeat_at: datetime | None = None
-    started_at: datetime | None = None
+    heartbeat_at: datetime | None = Field(default=None, alias="heartbeatAt")
+    started_at: datetime | None = Field(default=None, alias="startedAt")
     docker: str | None = None
     cuda: str | None = None
     args: list[str] = Field(default_factory=list)
     state: str | None = None
     program: str | None = None
-    code_path: str | None = None
+    code_path: str | None = Field(default=None, alias="codePath")
     git: GitRepoRecord | None = None
     email: str | None = None
     root: str | None = None
     host: str | None = None
     username: str | None = None
     executable: str | None = None
-    code_path_local: str | None = None
+    code_path_local: str | None = Field(default=None, alias="codePathLocal")
     colab: str | None = None
-    cpu_count: int | None = None
-    cpu_count_logical: int | None = None
-    gpu_type: str | None = None
-    gpu_count: int | None = None
+    cpu_count: int | None = Field(default=None, alias="cpuCount")
+    cpu_count_logical: int | None = Field(default=None, alias="cpuCountLogical")
+    gpu_type: str | None = Field(default=None, alias="gpuType")
+    gpu_count: int | None = Field(default=None, alias="gpuCount")
     disk: dict[str, DiskInfo] = Field(default_factory=dict)
     memory: MemoryInfo | None = None
     cpu: CpuInfo | None = None
     apple: AppleInfo | None = None
-    gpu_nvidia: list[GpuNvidiaInfo] = Field(default_factory=list)
-    gpu_amd: list[GpuAmdInfo] = Field(default_factory=list)
+    gpu_nvidia: list[GpuNvidiaInfo] = Field(default_factory=list, alias="gpuNvidia")
+    gpu_amd: list[GpuAmdInfo] = Field(default_factory=list, alias="gpuAmd")
     slurm: dict[str, str] = Field(default_factory=dict)
-    cuda_version: str | None = None
+    cuda_version: str | None = Field(default=None, alias="cudaVersion")
     trainium: TrainiumInfo | None = None
     tpu: TPUInfo | None = None
 
