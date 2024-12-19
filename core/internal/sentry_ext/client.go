@@ -11,6 +11,8 @@ import (
 )
 
 type Params struct {
+	// Enabled is a flag to enable/disable the sentry client
+	Enabled bool
 	// DSN is the Data Source Name for the sentry client
 	DSN string
 	// AttachStacktrace is a flag to attach stacktrace to the sentry event
@@ -43,9 +45,13 @@ func New(params Params) *Client {
 	if params.BeforeSend == nil {
 		params.BeforeSend = RemoveBottomFrames
 	}
+	dsn := params.DSN
+	if !params.Enabled {
+		dsn = ""
+	}
 	if err := sentry.Init(
 		sentry.ClientOptions{
-			Dsn:              params.DSN,
+			Dsn:              dsn,
 			AttachStacktrace: params.AttachStacktrace,
 			Release:          params.Release,
 			Dist:             params.Commit,
