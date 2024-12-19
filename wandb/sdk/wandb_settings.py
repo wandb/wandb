@@ -50,7 +50,176 @@ def _path_convert(*args: str) -> str:
 
 
 class Settings(BaseModel, validate_assignment=True):
-    """Settings for the W&B SDK."""
+    """Settings for the W&B SDK.
+
+    This class manages configuration settings for the W&B SDK,
+    ensuring type safety and validation of all settings. Settings are accessible
+    as attributes and can be initialized programmatically, through environment
+    variables (WANDB_ prefix), or via configuration files.
+
+    The settings are organized into three categories:
+    1. Public settings: Core configuration options that users can safely modify to customize
+       W&B's behavior for their specific needs.
+    2. Internal settings: Settings prefixed with 'x_' that handle low-level SDK behavior.
+       These settings are primarily for internal use and debugging. While they can be modified,
+       they are not considered part of the public API and may change without notice in future
+       versions.
+    3. Computed settings: Read-only settings that are automatically derived from other settings or
+       the environment.
+
+    Attributes:
+        allow_offline_artifacts (bool): Flag to allow table artifacts to be synced in offline mode.
+          To revert to the old behavior, set this to False.
+        allow_val_change (bool): Flag to allow changing of configuration values after they've been set.
+        anonymous (Literal["allow", "must", "never"] | None): Controls anonymous data logging. Possible values are:
+          - "never": requires you to link your W&B account before tracking the run, so you don't accidentally create an anonymous run.
+          - "allow": lets a logged-in user track runs with their account, but lets someone who is running the script without a W&B account see the charts in the UI.
+          - "must": sends the run to an anonymous account instead of to a signed-up user account.
+        api_key (str | None): The W&B API key.
+        azure_account_url_to_access_key (dict[str, str] | None): Mapping of Azure account URLs to their corresponding access keys for Azure integration.
+        base_url (str): The URL of the W&B backend, used for GraphQL and filestream operations.
+        code_dir (str | None): Directory containing the code to be tracked by W&B.
+        config_paths (Sequence[str] | None): Paths to files to load configuration from into the config object.
+        console (Literal["auto", "off", "wrap", "redirect", "wrap_raw", "wrap_emu"]): The type of console capture to be applied. Possible values are:
+          - "auto": Automatically selects the console capture method based on the system environment and settings.
+          - "off": Disables console capture.
+          - "redirect": Redirects low-level file descriptors for capturing output.
+          - "wrap": Overrides the write methods of sys.stdout/sys.stderr. Will be mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
+          - "wrap_raw": Same as "wrap" but captures raw output directly instead of through an emulator.
+          - "wrap_emu": Same as "wrap" but captures output through an emulator.
+        console_multipart (bool): Whether to produce multipart console log files.
+        credentials_file (str): Path to file for writing temporary access tokens.
+        disable_code (bool): Whether to disable code saving.
+        disable_git (bool): Whether to disable capturing the git state.
+        disable_job_creation (bool): Whether to disable the creation of a job artifact for W&B Launch.
+        docker (str | None): The Docker image used to execute the script.
+        email (str | None): The email address of the user.
+        entity (str | None): The W&B entity, like a user or a team.
+        force (bool): If true, the `force` flag will be passed to wandb.login().
+        fork_from (RunMoment | None): Specifies a run to fork from.
+        git_commit (str | None): The git commit hash to associate with the run.
+        git_remote (str): The git remote to use (defaults to "origin").
+        git_remote_url (str | None): The URL of the git remote repository.
+        git_root (str | None): The root directory of the git repository.
+        heartbeat_seconds (int): Interval in seconds between heartbeat signals sent to the W&B servers.
+        host (str | None): The hostname of the machine running the script.
+        http_proxy (str | None): The custom proxy servers for http requests to W&B.
+        https_proxy (str | None): The custom proxy servers for https requests to W&B.
+        identity_token_file (str | None): Path to file containing an identity token (JWT) for authentication.
+        ignore_globs (tuple[str, ...]): Unix glob patterns relative to `files_dir` to not upload.
+        init_timeout (float): Time in seconds to wait for the wandb.init call to complete before timing out.
+        insecure_disable_ssl (bool): Whether to insecurely disable SSL verification.
+        job_name (str | None): Name of the job running the script.
+        job_source (Literal["repo", "artifact", "image"] | None): Source type for Launch.
+        label_disable (bool): Whether to disable automatic labeling features.
+        launch (bool): Flag to indicate if the run is being launched through W&B Launch.
+        launch_config_path (str | None): Path to the launch configuration file.
+        login_timeout (float | None): Time in seconds to wait for login operations before timing out.
+        mode (Literal["online", "offline", "dryrun", "disabled", "run", "shared"]): The operating mode for W&B logging and synchronization.
+        notebook_name (str | None): Name of the notebook if running in a Jupyter-like environment.
+        program (str | None): Path to the script that created the run, if available.
+        program_abspath (str | None): The absolute path from the root repository directory to the script that created the run.
+          Root repository directory is defined as the directory containing the .git directory, if it exists. Otherwise, it's the current working directory.
+        program_relpath (str | None): The relative path to the script that created the run.
+        project (str | None): The W&B project ID.
+        quiet (bool): Flag to suppress non-essential output.
+        reinit (bool): Flag to allow reinitialization of a run.
+        relogin (bool): Flag to force a new login attempt.
+        resume (Literal["allow", "must", "never", "auto"] | None): Specifies the resume behavior for the run. The available options are:
+          - "must": Resumes from an existing run with the same ID. If no such run exists, it will result in failure.
+          - "allow": Attempts to resume from an existing run with the same ID. If none is found, a new run will be created.
+          - "never": Always starts a new run. If a run with the same ID already exists, it will result in failure.
+          - "auto": Automatically resumes from the most recent failed run on the same machine.
+        resume_from (RunMoment | None): Specific point in a previous run to resume from.
+        resumed (bool): Indication from the server about the state of the run. This is different from resume, a user provided flag.
+        root_dir (str): The root directory that will be used to derive other paths, such as the wandb directory, and the run directory.
+        run_group (str | None): Group identifier for related runs. Used for grouping runs in the UI.
+        run_id (str | None): The ID of the run.
+        run_job_type (str | None): Type of job being run (e.g., training, evaluation).
+        run_name (str | None): Human-readable name for the run.
+        run_notes (str | None): Additional notes or description for the run.
+        run_tags (tuple[str, ...] | None): Tags to associate with the run for organization and filtering.
+        sagemaker_disable (bool): Flag to disable SageMaker-specific functionality.
+        save_code (bool | None): Whether to save the code associated with the run.
+        settings_system (str): Path to the system-wide settings file.
+        show_colors (bool | None): Whether to use colored output in the console.
+        show_emoji (bool | None): Whether to show emoji in the console output.
+        show_errors (bool): Whether to display error messages.
+        show_info (bool): Whether to display informational messages.
+        show_warnings (bool): Whether to display warning messages.
+        silent (bool): Flag to suppress all output.
+        start_method (str | None): Method to use for starting subprocesses.
+        strict (bool | None): Whether to enable strict mode for validation and error checking.
+        summary_timeout (int): Time in seconds to wait for summary operations before timing out.
+        summary_warnings (int): Number of summary warnings to show.
+        sweep_id (str | None): Identifier for the sweep this run belongs to.
+        sweep_param_path (str | None): Path to the sweep parameters configuration.
+        symlink (bool): Whether to use symlinks (True by default except on Windows).
+        sync_tensorboard (bool | None): Whether to synchronize TensorBoard logs with W&B.
+        table_raise_on_max_row_limit_exceeded (bool): Whether to raise an exception when table row limits are exceeded.
+        username (str | None): Username.
+
+        # Internal settings.
+        x_cli_only_mode (bool): CLI mode.
+        x_disable_meta (bool): Disable the collection of system metadata.
+        x_disable_service (bool): Pre-wandb-core, this setting was used to disable the (now legacy) wandb service.
+        x_disable_setproctitle (bool): Do not use setproctitle for internal process in legacy service.
+        x_disable_stats (bool): Disable system metrics collection.
+        x_disable_update_check (bool): Disable check for latest version of wandb, from PyPI.
+        x_disable_viewer (bool): Prevent early viewer query.
+        x_disable_machine_info (bool): Disable automatic machine info collection.
+        x_executable (str | None): Python executable.
+        x_extra_http_headers (dict[str, str] | None): Additional headers to add to all outgoing HTTP requests.
+        x_file_stream_max_bytes (int | None): An approximate maximum request size for the filestream API. This applies when wandb-core is enabled. Its purpose is to prevent HTTP requests from failing due to containing too much data.
+        x_file_stream_max_line_bytes (int | None): Max line length for filestream jsonl files.
+        x_file_stream_transmit_interval (float | None): Interval in seconds between filestream transmissions.
+        x_file_stream_retry_max (int | None): Max number of retries for filestream operations.
+        x_file_stream_retry_wait_min_seconds (float | None): Min wait time between retries for filestream operations.
+        x_file_stream_retry_wait_max_seconds (float | None): Max wait time between retries for filestream operations.
+        x_file_stream_timeout_seconds (float | None): Timeout for individual HTTP requests in filestream operations.
+        x_file_transfer_retry_max (int | None): Max number of retries for file transfer operations.
+        x_file_transfer_retry_wait_min_seconds (float | None): Min wait time between retries for file transfer operations.
+        x_file_transfer_retry_wait_max_seconds (float | None): Max wait time between retries for file transfer operations.
+        x_file_transfer_timeout_seconds (float | None): Timeout for file transfer operations.
+        x_files_dir (str | None): Override setting for the computed files_dir.
+        x_flow_control_custom (bool | None): Flag indicating custom flow control for file streaming.
+        x_flow_control_disabled (bool | None): Flag indicating disabled flow control for file streaming.
+        x_graphql_retry_max (int | None): Max number of retries for GraphQL operations.
+        x_graphql_retry_wait_min_seconds (float | None): Min wait time between retries for GraphQL operations.
+        x_graphql_retry_wait_max_seconds (float | None): Max wait time between retries for GraphQL operations.
+        x_graphql_timeout_seconds (float | None): Timeout for GraphQL operations.
+        x_internal_check_process (float): Interval for internal process health checks in seconds.
+        x_jupyter_name (str | None): Name of the Jupyter notebook.
+        x_jupyter_path (str | None): Path to the Jupyter notebook.
+        x_jupyter_root (str | None): Root directory of the Jupyter notebook.
+        x_label (str | None): Label to assign to system metrics and console logs collected for the run to group by on the frontend. Can be used to distinguish data from different nodes in a distributed training job.
+        x_live_policy_rate_limit (int | None): Rate limit for live policy updates in seconds.
+        x_live_policy_wait_time (int | None): Wait time between live policy updates in seconds.
+        x_log_level (int): Logging level for internal operations.
+        x_network_buffer (int | None): Size of the network buffer used in flow control.
+        x_primary_node (bool): Determines whether to save internal wandb files and metadata. In a distributed setting, this is useful for avoiding file overwrites on secondary nodes when only system metrics and logs are needed, as the primary node handles the main logging.
+        x_proxies (dict[str, str] | None): [deprecated, use http(s)_proxy] custom proxy servers for the requests to W&B [scheme -> url].
+        x_runqueue_item_id (str | None): ID of the Launch run queue item being processed.
+        x_require_legacy_service (bool): Force the use of legacy wandb service.
+        x_save_requirements (bool): Whether to save Python package requirements.
+        x_service_transport (str | None): Transport method for communication with the wandb service.
+        x_service_wait (float): Wait time for service operations.
+        x_show_operation_stats (bool): Whether to show statistics about internal operations.
+        x_start_time (float | None): The start time of the run in seconds since the Unix epoch.
+        x_stats_pid (int): PID of the process that started the wandb-core process to collect system stats for.
+        x_stats_sampling_interval (float): Sampling interval for the system monitor in seconds.
+        x_stats_neuron_monitor_config_path (str | None): Path to store the default config file for the neuron-monitor tool used to monitor AWS Trainium devices.
+        x_stats_open_metrics_endpoints (dict[str, str] | None): Open metrics endpoint names and urls.
+        x_stats_open_metrics_filters (dict[str, dict[str, str]] | Sequence[str] | None): Filter to apply to metrics collected from OpenMetrics endpoints. Supports two formats:
+          - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
+          - ("metric regex pattern 1", "metric regex pattern 2", ...)
+        x_stats_open_metrics_http_headers (dict[str, str] | None): HTTP headers to add to OpenMetrics requests.
+        x_stats_disk_paths (Sequence[str] | None): System paths to monitor for disk usage. Defaults to ("/", "/System/Volumes/Data") on macOS and ("/",) on other systems.
+        x_stats_gpu_device_ids (Sequence[int] | None): GPU device indices to monitor (e.g. [0, 1, 2]). If not set, captures metrics for all GPUs. Assumes 0-based indexing matching CUDA/ROCm device enumeration.
+        x_stats_buffer_size (int): Number of system metric samples to buffer in memory in the wandb-core process. Can be accessed via run._system_metrics.
+        x_sync (bool): Flag to indicate whether we are syncing a run from the transaction log.
+        x_update_finish_state (bool): Controls whether this process can update the run's final state (finished/failed) on the server. Set to False in distributed training when only the main process should determine the final state.
+    """
 
     # Pydantic configuration.
     model_config = ConfigDict(
@@ -59,65 +228,27 @@ class Settings(BaseModel, validate_assignment=True):
     )
 
     # Public settings.
-
-    # Flag to allow table artifacts to be synced in offline mode.
-    #
-    # To revert to the old behavior, set this to False.
     allow_offline_artifacts: bool = True
     allow_val_change: bool = False
-    # Controls anonymous data logging. Possible values are:
-    # - "never": requires you to link your W&B account before
-    #    tracking the run, so you don't accidentally create an anonymous
-    #    run.
-    # - "allow": lets a logged-in user track runs with their account, but
-    #    lets someone who is running the script without a W&B account see
-    #    the charts in the UI.
-    # - "must": sends the run to an anonymous account instead of to a
-    #    signed-up user account.
     anonymous: Literal["allow", "must", "never"] | None = None
-    # The W&B API key.
     api_key: str | None = None
     azure_account_url_to_access_key: dict[str, str] | None = None
-    # The URL of the W&B backend, used for GraphQL and filestream operations.
     base_url: str = "https://api.wandb.ai"
     code_dir: str | None = None
     config_paths: Sequence[str] | None = None
-    # The type of console capture to be applied. Possible values are:
-    #  "auto" - Automatically selects the console capture method based on the
-    #   system environment and settings.
-    #
-    #   "off" - Disables console capture.
-    #
-    #   "redirect" - Redirects low-level file descriptors for capturing output.
-    #
-    #   "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
-    #   mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
-    #
-    #   "wrap_raw" - Same as "wrap" but captures raw output directly instead of
-    #   through an emulator.
-    #
-    #   "wrap_emu" - Same as "wrap" but captures output through an emulator.
     console: Literal["auto", "off", "wrap", "redirect", "wrap_raw", "wrap_emu"] = Field(
         default="auto",
         validate_default=True,
     )
-    # Whether to produce multipart console log files.
     console_multipart: bool = False
-    # Path to file for writing temporary access tokens.
     credentials_file: str = Field(
         default_factory=lambda: str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE)
     )
-    # Whether to disable code saving.
     disable_code: bool = False
-    # Whether to disable capturing the git state.
     disable_git: bool = False
-    # Whether to disable the creation of a job artifact for W&B Launch.
     disable_job_creation: bool = True
-    # The Docker image used to execute the script.
     docker: str | None = None
-    # The email address of the user.
     email: str | None = None
-    # The W&B entity, like a user or a team.
     entity: str | None = None
     force: bool = False
     fork_from: RunMoment | None = None
@@ -127,17 +258,11 @@ class Settings(BaseModel, validate_assignment=True):
     git_root: str | None = None
     heartbeat_seconds: int = 30
     host: str | None = None
-    # The custom proxy servers for http requests to W&B.
     http_proxy: str | None = None
-    # The custom proxy servers for https requests to W&B.
     https_proxy: str | None = None
-    # Path to file containing an identity token (JWT) for authentication.
     identity_token_file: str | None = None
-    # Unix glob patterns relative to `files_dir` to not upload.
     ignore_globs: tuple[str, ...] = ()
-    # Time in seconds to wait for the wandb.init call to complete before timing out.
     init_timeout: float = 90.0
-    # Whether to insecurely disable SSL verification.
     insecure_disable_ssl: bool = False
     job_name: str | None = None
     job_source: Literal["repo", "artifact", "image"] | None = None
@@ -150,44 +275,18 @@ class Settings(BaseModel, validate_assignment=True):
         validate_default=True,
     )
     notebook_name: str | None = None
-    # Path to the script that created the run, if available.
     program: str | None = None
-    # The absolute path from the root repository directory to the script that
-    # created the run.
-    #
-    # Root repository directory is defined as the directory containing the
-    # .git directory, if it exists. Otherwise, it's the current working directory.
     program_abspath: str | None = None
     program_relpath: str | None = None
-    # The W&B project ID.
     project: str | None = None
     quiet: bool = False
     reinit: bool = False
     relogin: bool = False
-    # Specifies the resume behavior for the run. The available options are:
-    #
-    #   "must": Resumes from an existing run with the same ID. If no such run exists,
-    #   it will result in failure.
-    #
-    #   "allow": Attempts to resume from an existing run with the same ID. If none is
-    #   found, a new run will be created.
-    #
-    #   "never": Always starts a new run. If a run with the same ID already exists,
-    #   it will result in failure.
-    #
-    #   "auto": Automatically resumes from the most recent failed run on the same
-    #   machine.
     resume: Literal["allow", "must", "never", "auto"] | None = None
     resume_from: RunMoment | None = None
-    # Indication from the server about the state of the run.
-    #
-    # This is different from resume, a user provided flag.
     resumed: bool = False
-    # The root directory that will be used to derive other paths,
-    # such as the wandb directory, and the run directory.
     root_dir: str = Field(default_factory=lambda: os.path.abspath(os.getcwd()))
     run_group: str | None = None
-    # The ID of the run.
     run_id: str | None = None
     run_job_type: str | None = None
     run_name: str | None = None
@@ -220,63 +319,31 @@ class Settings(BaseModel, validate_assignment=True):
     username: str | None = None
 
     # Internal settings.
-    #
-    # These are typically not meant to be set by the user and should not be considered
-    # a part of the public API as they may change or be removed in future versions.
-
-    # CLI mode.
     x_cli_only_mode: bool = False
-    # Disable the collection of system metadata.
     x_disable_meta: bool = False
-    # Pre-wandb-core, this setting was used to disable the (now legacy) wandb service.
-    #
     # TODO: this is deprecated and will be removed in future versions.
     x_disable_service: bool = False
-    # Do not use setproctitle for internal process in legacy service.
     x_disable_setproctitle: bool = False
-    # Disable system metrics collection.
     x_disable_stats: bool = False
-    # Disable check for latest version of wandb, from PyPI.
     x_disable_update_check: bool = False
-    # Prevent early viewer query.
     x_disable_viewer: bool = False
-    # Disable automatic machine info collection.
     x_disable_machine_info: bool = False
-    # Python executable
     x_executable: str | None = None
-    # Additional headers to add to all outgoing HTTP requests.
     x_extra_http_headers: dict[str, str] | None = None
-    # An approximate maximum request size for the filestream API.
-    #
-    # This applies when wandb-core is enabled. Its purpose is to prevent
-    # HTTP requests from failing due to containing too much data.
-    #
-    # This number is approximate: requests will be slightly larger.
     x_file_stream_max_bytes: int | None = None
-    # Max line length for filestream jsonl files.
     x_file_stream_max_line_bytes: int | None = None
-    # Interval in seconds between filestream transmissions.
     x_file_stream_transmit_interval: float | None = None
-    # Filestream retry client configuration.
-    # max number of retries
     x_file_stream_retry_max: int | None = None
-    # min wait time between retries
     x_file_stream_retry_wait_min_seconds: float | None = None
-    # max wait time between retries
     x_file_stream_retry_wait_max_seconds: float | None = None
-    # timeout for individual HTTP requests
     x_file_stream_timeout_seconds: float | None = None
-    # file transfer retry client configuration
     x_file_transfer_retry_max: int | None = None
     x_file_transfer_retry_wait_min_seconds: float | None = None
     x_file_transfer_retry_wait_max_seconds: float | None = None
     x_file_transfer_timeout_seconds: float | None = None
-    # override setting for the computed files_dir
     x_files_dir: str | None = None
-    # flow control configuration for file stream
     x_flow_control_custom: bool | None = None
     x_flow_control_disabled: bool | None = None
-    # graphql retry client configuration
     x_graphql_retry_max: int | None = None
     x_graphql_retry_wait_min_seconds: float | None = None
     x_graphql_retry_wait_max_seconds: float | None = None
@@ -285,20 +352,12 @@ class Settings(BaseModel, validate_assignment=True):
     x_jupyter_name: str | None = None
     x_jupyter_path: str | None = None
     x_jupyter_root: str | None = None
-    # Label to assign to system metrics and console logs collected for the run
-    # to group by on the frontend. Can be used to distinguish data from different
-    # nodes in a distributed training job.
     x_label: str | None = None
     x_live_policy_rate_limit: int | None = None
     x_live_policy_wait_time: int | None = None
     x_log_level: int = logging.INFO
     x_network_buffer: int | None = None
-    # Determines whether to save internal wandb files and metadata.
-    # In a distributed setting, this is useful for avoiding file overwrites on secondary nodes
-    # when only system metrics and logs are needed, as the primary node handles the main logging.
     x_primary_node: bool = True
-    # [deprecated, use http(s)_proxy] custom proxy servers for the requests to W&B
-    # [scheme -> url].
     x_proxies: dict[str, str] | None = None
     x_runqueue_item_id: str | None = None
     x_require_legacy_service: bool = False
@@ -306,43 +365,23 @@ class Settings(BaseModel, validate_assignment=True):
     x_service_transport: str | None = None
     x_service_wait: float = 30.0
     x_show_operation_stats: bool = True
-    # The start time of the run in seconds since the Unix epoch.
     x_start_time: float | None = None
-    # PID of the process that started the wandb-core process to collect system stats for.
     x_stats_pid: int = os.getpid()
-    # Sampling interval for the system monitor in seconds.
     x_stats_sampling_interval: float = Field(default=10.0)
-    # Path to store the default config file for the neuron-monitor tool
-    # used to monitor AWS Trainium devices.
     x_stats_neuron_monitor_config_path: str | None = None
-    # Open metrics endpoint names and urls.
     x_stats_open_metrics_endpoints: dict[str, str] | None = None
-    # Filter to apply to metrics collected from OpenMetrics endpoints.
-    # Supports two formats:
-    # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
-    # - ("metric regex pattern 1", "metric regex pattern 2", ...)
     x_stats_open_metrics_filters: dict[str, dict[str, str]] | Sequence[str] | None = (
         None
     )
-    # HTTP headers to add to OpenMetrics requests.
     x_stats_open_metrics_http_headers: dict[str, str] | None = None
-    # System paths to monitor for disk usage.
     x_stats_disk_paths: Sequence[str] | None = Field(
         default_factory=lambda: ("/", "/System/Volumes/Data")
         if platform.system() == "Darwin"
         else ("/",)
     )
-    # GPU device indices to monitor (e.g. [0, 1, 2]).
-    # If not set, captures metrics for all GPUs.
-    # Assumes 0-based indexing matching CUDA/ROCm device enumeration.
     x_stats_gpu_device_ids: Sequence[int] | None = None
-    # Number of system metric samples to buffer in memory in the wandb-core process.
-    # Can be accessed via run._system_metrics.
     x_stats_buffer_size: int = 0
-    # Flag to indicate whether we are syncing a run from the transaction log.
     x_sync: bool = False
-    # Controls whether this process can update the run's final state (finished/failed) on the server.
-    # Set to False in distributed training when only the main process should determine the final state.
     x_update_finish_state: bool = True
 
     # Model validator to catch legacy settings.
