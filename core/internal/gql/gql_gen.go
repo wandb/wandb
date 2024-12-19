@@ -1100,6 +1100,38 @@ type RunStoppedStatusResponse struct {
 // GetProject returns RunStoppedStatusResponse.Project, and is useful for accessing the field via an interface.
 func (v *RunStoppedStatusResponse) GetProject() *RunStoppedStatusProject { return v.Project }
 
+// ServerFeaturesQueryResponse is returned by ServerFeaturesQuery on success.
+type ServerFeaturesQueryResponse struct {
+	ServerInfo *ServerFeaturesQueryServerInfo `json:"serverInfo"`
+}
+
+// GetServerInfo returns ServerFeaturesQueryResponse.ServerInfo, and is useful for accessing the field via an interface.
+func (v *ServerFeaturesQueryResponse) GetServerInfo() *ServerFeaturesQueryServerInfo {
+	return v.ServerInfo
+}
+
+// ServerFeaturesQueryServerInfo includes the requested fields of the GraphQL type ServerInfo.
+type ServerFeaturesQueryServerInfo struct {
+	Features []*ServerFeaturesQueryServerInfoFeaturesServerFeature `json:"features"`
+}
+
+// GetFeatures returns ServerFeaturesQueryServerInfo.Features, and is useful for accessing the field via an interface.
+func (v *ServerFeaturesQueryServerInfo) GetFeatures() []*ServerFeaturesQueryServerInfoFeaturesServerFeature {
+	return v.Features
+}
+
+// ServerFeaturesQueryServerInfoFeaturesServerFeature includes the requested fields of the GraphQL type ServerFeature.
+type ServerFeaturesQueryServerInfoFeaturesServerFeature struct {
+	Name      string `json:"name"`
+	IsEnabled bool   `json:"isEnabled"`
+}
+
+// GetName returns ServerFeaturesQueryServerInfoFeaturesServerFeature.Name, and is useful for accessing the field via an interface.
+func (v *ServerFeaturesQueryServerInfoFeaturesServerFeature) GetName() string { return v.Name }
+
+// GetIsEnabled returns ServerFeaturesQueryServerInfoFeaturesServerFeature.IsEnabled, and is useful for accessing the field via an interface.
+func (v *ServerFeaturesQueryServerInfoFeaturesServerFeature) GetIsEnabled() bool { return v.IsEnabled }
+
 // ServerInfoResponse is returned by ServerInfo on success.
 type ServerInfoResponse struct {
 	ServerInfo *ServerInfoServerInfo `json:"serverInfo"`
@@ -2701,6 +2733,42 @@ func RunStoppedStatus(
 	var err_ error
 
 	var data_ RunStoppedStatusResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
+
+// The query or mutation executed by ServerFeaturesQuery.
+const ServerFeaturesQuery_Operation = `
+query ServerFeaturesQuery {
+	serverInfo {
+		features {
+			name
+			isEnabled
+		}
+	}
+}
+`
+
+// This query is used to fetch the features supported by the server.
+// It is used to determine if certain code paths should be used in the SDK.
+func ServerFeaturesQuery(
+	ctx_ context.Context,
+	client_ graphql.Client,
+) (*ServerFeaturesQueryResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "ServerFeaturesQuery",
+		Query:  ServerFeaturesQuery_Operation,
+	}
+	var err_ error
+
+	var data_ ServerFeaturesQueryResponse
 	resp_ := &graphql.Response{Data: &data_}
 
 	err_ = client_.MakeRequest(
