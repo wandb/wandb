@@ -3713,6 +3713,12 @@ class Run:
 
         NOTE: Automatically collected metadata can be overridden by the user.
         """
+        if self.settings.x_require_legacy_service:
+            wandb.termwarn(
+                "The metadata property is not supported when using the legacy service."
+            )
+            return None
+
         if not self._backend or not self._backend.interface:
             return self.__metadata
 

@@ -3,14 +3,19 @@ import wandb
 
 
 @pytest.mark.parametrize("disabled", [False, True])
-@pytest.mark.wandb_core_only
-def test_metadata(user, disabled: bool):
+def test_metadata_ops(user, disabled: bool):
     run = wandb.init(
         settings=wandb.Settings(
             mode="disabled" if disabled else "online",
             x_stats_sampling_interval=1,
         ),
     )
+
+    if run.settings.x_require_legacy_service:
+        # Legacy service does not support metadata
+        assert run._metadata is None
+        run.finish()
+        return
 
     # Run Metadata is stored in wandb-core.
     # run._metadata sends a request to wandb-core to get the metadata.
