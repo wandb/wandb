@@ -236,9 +236,9 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             if threading.current_thread() is not threading.main_thread():
                 pass
         elif threading.current_thread().name != "MainThread":
-            print("bad thread2", threading.current_thread().name)
+            wandb.termwarn(f"bad thread2: {threading.current_thread().name}")
         if getattr(sys, "frozen", False):
-            print("frozen, could be trouble")
+            wandb.termwarn("frozen, could be trouble")
 
     def _setup(self) -> None:
         if not self._settings._noop and not self._settings.x_disable_service:

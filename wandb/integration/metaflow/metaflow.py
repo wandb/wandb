@@ -73,8 +73,8 @@ try:
             wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 except ImportError:
-    print(
-        "Warning: `pandas` not installed >> @wandb_log(datasets=True) may not auto log your dataset!"
+    wandb.termwarn(
+        "`pandas` not installed >> @wandb_log(datasets=True) may not auto log your dataset!"
     )
 
 try:
@@ -119,8 +119,8 @@ try:
             wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 except ImportError:
-    print(
-        "Warning: `pytorch` not installed >> @wandb_log(models=True) may not auto log your model!"
+    wandb.termwarn(
+        "`pytorch` not installed >> @wandb_log(models=True) may not auto log your model!"
     )
 
 try:
@@ -164,8 +164,8 @@ try:
             wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 except ImportError:
-    print(
-        "Warning: `sklearn` not installed >> @wandb_log(models=True) may not auto log your model!"
+    wandb.termwarn(
+        "`sklearn` not installed >> @wandb_log(models=True) may not auto log your model!"
     )
 
 
@@ -245,7 +245,7 @@ def wandb_use(name: str, data, *args, **kwargs):
     try:
         return _wandb_use(name, data, *args, **kwargs)
     except wandb.CommError:
-        print(
+        wandb.termwarn(
             f"This artifact ({name}, {type(data)}) does not exist in the wandb datastore!"
             f"If you created an instance inline (e.g. sklearn.ensemble.RandomForestClassifier), then you can safely ignore this"
             f"Otherwise you may want to check your internet connection!"

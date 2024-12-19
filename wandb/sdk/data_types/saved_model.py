@@ -231,7 +231,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
             return cls(obj_or_path, **kwargs)
         except Exception as e:
             if DEBUG_MODE:
-                print(f"{cls}._maybe_init({obj_or_path}) failed: {e}")
+                print(f"{cls}._maybe_init({obj_or_path}) failed: {e}")  # noqa: T201
 
         for child_cls in cls.__subclasses__():
             maybe_instance = child_cls._maybe_init(obj_or_path, **kwargs)

@@ -566,11 +566,11 @@ def fixture_fn_factory():
                 raise NotImplementedError(f"{cmd} is not implemented")
 
             # trigger fixture
-            print(f"Triggering fixture on {endpoint}: {data}", file=sys.stderr)
+            print(f"Triggering fixture on {endpoint}: {data}", file=sys.stderr)  # noqa: T201
             response = getattr(requests, cmd.method)(endpoint, json=data)
 
             if response.status_code != 200:
-                print(response.json(), file=sys.stderr)
+                print(response.json(), file=sys.stderr)  # noqa: T201
                 return False
             return True
 
@@ -664,7 +664,7 @@ def relay_server(wandb_verbose, local_wandb_backend: LocalWandbBackendAddress):
         )
 
         _relay_server.start()
-        print(f"Relay server started at {_relay_server.relay_url}")
+        print(f"Relay server started at {_relay_server.relay_url}")  # noqa: T201
 
         with unittest.mock.patch.dict(
             os.environ,
@@ -672,7 +672,7 @@ def relay_server(wandb_verbose, local_wandb_backend: LocalWandbBackendAddress):
         ):
             yield _relay_server
 
-        print(f"Stopping relay server at {_relay_server.relay_url}")
+        print(f"Stopping relay server at {_relay_server.relay_url}")  # noqa: T201
 
     return relay_server_context
 

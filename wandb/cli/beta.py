@@ -108,7 +108,9 @@ def sync_beta(  # noqa: C901
                     continue
                 wandb_files = [p for p in d.glob("*.wandb") if p.is_file()]
                 if len(wandb_files) > 1:
-                    print(f"Multiple wandb files found in directory {d}, skipping")
+                    wandb.termwarn(
+                        f"Multiple wandb files found in directory {d}, skipping"
+                    )
                 elif len(wandb_files) == 1:
                     paths.add(d)
     else:
@@ -128,7 +130,7 @@ def sync_beta(  # noqa: C901
         for path in paths:
             wandb_synced_files = [p for p in path.glob("*.wandb.synced") if p.is_file()]
             if len(wandb_synced_files) > 1:
-                print(
+                wandb.termwarn(
                     f"Multiple wandb.synced files found in directory {path}, skipping"
                 )
             elif len(wandb_synced_files) == 1:

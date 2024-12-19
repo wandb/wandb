@@ -722,7 +722,7 @@ class InterfaceBase:
             otype = pb.OutputRecord.OutputType.STDERR
         else:
             # TODO(jhr): throw error?
-            print("unknown type")
+            termwarn("unknown type")
         o = pb.OutputRecord(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
         self._publish_output(o)
@@ -742,7 +742,7 @@ class InterfaceBase:
             otype = pb.OutputRawRecord.OutputType.STDERR
         else:
             # TODO(jhr): throw error?
-            print("unknown type")
+            termwarn("unknown type")
         o = pb.OutputRawRecord(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
         self._publish_output_raw(o)

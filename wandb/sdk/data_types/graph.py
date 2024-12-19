@@ -311,9 +311,9 @@ class Graph(Media):
 
     def pprint(self):
         for edge in self.edges:
-            pprint.pprint(edge.attributes)
+            pprint.pprint(edge.attributes)  # noqa: T203
         for node in self.nodes:
-            pprint.pprint(node.attributes)
+            pprint.pprint(node.attributes)  # noqa: T203
 
     def add_node(self, node=None, **node_kwargs):
         if node is None:

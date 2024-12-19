@@ -4,6 +4,7 @@ import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
+import wandb
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.internal.settings_static import SettingsStatic
 
@@ -225,7 +226,7 @@ class DebugThread(threading.Thread):
         while True:
             time.sleep(30)
             for thread in threading.enumerate():
-                print(f"DEBUG: {thread.name}")
+                wandb.termwarn(f"DEBUG: {thread.name}")
 
 
 class SocketServer:

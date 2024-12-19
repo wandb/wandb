@@ -18,20 +18,11 @@ def empty_netrc(monkeypatch):
     monkeypatch.setattr(netrc, "netrc", lambda *args: FakeNet())
 
 
-# @contextlib.contextmanager
-# def config_dir():
-#     try:
-#         os.environ["WANDB_CONFIG"] = os.getcwd()
-#         yield
-#     finally:
-#         del os.environ["WANDB_CONFIG"]
-
-
 def debug_result(result, prefix=None):
     prefix = prefix or ""
-    print("DEBUG({}) {} = {}".format(prefix, "out", result.output))
-    print("DEBUG({}) {} = {}".format(prefix, "exc", result.exception))
-    print(
+    print("DEBUG({}) {} = {}".format(prefix, "out", result.output))  # noqa: T201
+    print("DEBUG({}) {} = {}".format(prefix, "exc", result.exception))  # noqa: T201
+    print(  # noqa: T201
         "DEBUG({}) {} = {}".format(prefix, "tb", traceback.print_tb(result.exc_info[2]))
     )
 
@@ -80,9 +71,6 @@ def test_init_existing_login(runner, user):
         with open("netrc", "w") as f:
             f.write(f"machine localhost\n\tlogin {user}\tpassword {user}")
         result = runner.invoke(cli.init, input="y\nvanpelt\nfoo\n")
-        print(result.output)
-        print(result.exception)
-        print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         with open("wandb/settings") as f:
             generated_wandb = f.read()
@@ -104,9 +92,6 @@ def test_pull(runner, user):
         os.remove(file_name)
 
         result = runner.invoke(cli.pull, [run.id, "--project", project_name])
-        print(result.output)
-        print(result.exception)
-        print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         assert f"Downloading: {project_name}/{run.id}" in result.output
         assert os.path.isfile(file_name)
@@ -172,8 +157,6 @@ def test_sync_wandb_run(runner, wandb_backend_spy, user, copy_asset):
         copy_asset("wandb")
 
         result = runner.invoke(cli.sync, ["--sync-all"])
-        print(result.output)
-        print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
 
         assert f"{user}/code-toad/runs/g9dvvkua ... done." in result.output
@@ -196,8 +179,6 @@ def test_sync_wandb_run_and_tensorboard(runner, wandb_backend_spy, user, copy_as
         copy_asset(tb_file_name, os.path.join(run_dir, tb_file_name))
 
         result = runner.invoke(cli.sync, ["--sync-all"])
-        print(result.output)
-        print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
 
         assert f"{user}/code-toad/runs/g9dvvkua ... done." in result.output

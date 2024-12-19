@@ -237,11 +237,7 @@ def create_table(data):
                         im = Image.open(urllib.request.urlopen(document["image"]))
                         document["image_visual"] = wandb.Image(im)
                     except urllib.error.URLError:
-                        print(
-                            "Warning: Image URL "
-                            + str(document["image"])
-                            + " is invalid."
-                        )
+                        wandb.termwarn(f"Image URL {document['image']} is invalid.")
                         document["image_visual"] = None
                 elif isbase64:
                     # is base64 uri
@@ -252,11 +248,7 @@ def create_table(data):
                         im = Image.open(buf)
                         document["image_visual"] = wandb.Image(im)
                     except base64.binascii.Error:
-                        print(
-                            "Warning: Base64 string "
-                            + str(document["image"])
-                            + " is invalid."
-                        )
+                        wandb.termwarn(f"Base64 string {document['image']} is invalid.")
                         document["image_visual"] = None
                 else:
                     # is data path
@@ -296,4 +288,4 @@ def upload_dataset(dataset_name):
         standardize(data[i], schema, array_dict_types)
     table = create_table(data)
     wandb.log({dataset_name: table})
-    print("Prodigy dataset `" + dataset_name + "` uploaded.")
+    wandb.termlog(f"Prodigy dataset `{dataset_name}` uploaded.")
