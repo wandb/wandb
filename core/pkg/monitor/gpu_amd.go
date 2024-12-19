@@ -37,12 +37,12 @@ type InfoDict map[string]interface{}
 
 type GPUAMD struct {
 	name                string
-	logger              *observability.CoreLogger
+	logger              *observability.Logger
 	GetROCMSMIStatsFunc func() (InfoDict, error)
 	IsAvailableFunc     func() bool
 }
 
-func NewGPUAMD(logger *observability.CoreLogger) *GPUAMD {
+func NewGPUAMD(logger *observability.Logger) *GPUAMD {
 	g := &GPUAMD{
 		name:   "gpu",
 		logger: logger,

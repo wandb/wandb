@@ -14,7 +14,7 @@ import (
 
 type ArtifactLinker struct {
 	Ctx           context.Context
-	Logger        *observability.CoreLogger
+	Logger        *observability.Logger
 	LinkArtifact  *spb.LinkArtifactRequest
 	GraphqlClient graphql.Client
 }

@@ -32,7 +32,7 @@ type S3FileTransfer struct {
 	client S3Client
 
 	// logger is the logger for the file transfer
-	logger *observability.CoreLogger
+	logger *observability.Logger
 
 	// fileTransferStats is used to track upload/download progress
 	fileTransferStats FileTransferStats
@@ -47,7 +47,7 @@ type S3FileTransfer struct {
 // News3FileTransfer creates a new fileTransfer.
 func NewS3FileTransfer(
 	client S3Client,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 	fileTransferStats FileTransferStats,
 ) *S3FileTransfer {
 	ctx := context.Background()

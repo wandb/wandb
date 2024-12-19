@@ -12,14 +12,14 @@ type Debouncer struct {
 	limiter       *rate.Limiter
 	finished      bool
 	needsDebounce bool
-	logger        *observability.CoreLogger
+	logger        *observability.Logger
 }
 
 // NewDebouncer creates a new debouncer
 func NewDebouncer(
 	eventRate rate.Limit,
 	burstSize int,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 ) *Debouncer {
 	return &Debouncer{
 		limiter: rate.NewLimiter(eventRate, burstSize),

@@ -14,7 +14,7 @@ func processScalars(
 	emitter Emitter,
 	tag string,
 	value *tbproto.Summary_Value,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 ) {
 	switch value := value.GetValue().(type) {
 	case *tbproto.Summary_Value_SimpleValue:
@@ -57,7 +57,7 @@ func processScalarsSimpleValue(
 	emitter Emitter,
 	tag string,
 	value float32,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 ) {
 	floatJSON, err := simplejsonext.MarshalToString(value)
 	if err != nil {

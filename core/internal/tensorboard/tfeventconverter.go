@@ -30,7 +30,7 @@ type TFEventConverter struct {
 func (h *TFEventConverter) ConvertNext(
 	emitter Emitter,
 	event *tbproto.TFEvent,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 ) {
 	stepKey, err := h.withNamespace("global_step")
 	if err != nil {

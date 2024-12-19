@@ -40,7 +40,7 @@ type Stream struct {
 	runWork runwork.RunWork
 
 	// logger is the logger for the stream
-	logger *observability.CoreLogger
+	logger *observability.Logger
 
 	// wg is the WaitGroup for the stream
 	wg sync.WaitGroup
@@ -69,7 +69,7 @@ func streamLogger(
 	sentryClient *sentry_ext.Client,
 	loggerPath string,
 	logLevel slog.Level,
-) *observability.CoreLogger {
+) *observability.Logger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
 	if path := loggerPath; path != "" {
@@ -98,7 +98,7 @@ func streamLogger(
 		settings.GetUserName(),
 	)
 
-	logger := observability.NewCoreLogger(
+	logger := observability.NewLogger(
 		slog.New(slog.NewJSONHandler(
 			writer,
 			&slog.HandlerOptions{
@@ -106,10 +106,10 @@ func streamLogger(
 				// AddSource: true,
 			},
 		)),
-		observability.WithTags(observability.Tags{}),
-		observability.WithCaptureMessage(sentryClient.CaptureMessage),
-		observability.WithCaptureException(sentryClient.CaptureException),
-		observability.WithReraise(sentryClient.Reraise),
+		&observability.LoggerParams{
+			Tags:   observability.Tags{},
+			Sentry: sentryClient,
+		},
 	)
 	logger.Info("stream: starting",
 		"core version", version.Version,

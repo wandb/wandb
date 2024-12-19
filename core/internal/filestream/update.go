@@ -17,6 +17,6 @@ type UpdateContext struct {
 
 	Settings *settings.Settings
 
-	Logger  *observability.CoreLogger
+	Logger  *observability.Logger
 	Printer *observability.Printer
 }

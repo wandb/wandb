@@ -31,7 +31,7 @@ func processPRCurves(
 	emitter Emitter,
 	tag string,
 	value *tbproto.Summary_Value,
-	logger *observability.CoreLogger,
+	logger *observability.Logger,
 ) {
 	tensorValue, ok := value.GetValue().(*tbproto.Summary_Value_Tensor)
 	if !ok {

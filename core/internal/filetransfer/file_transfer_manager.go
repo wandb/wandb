@@ -24,7 +24,7 @@ type FileTransferManager interface {
 
 // FileTransferManagerOptions are the parameters for creating a new FileTransferManager
 type FileTransferManagerOptions struct {
-	Logger *observability.CoreLogger
+	Logger *observability.Logger
 
 	FileTransfers *FileTransfers
 
@@ -43,7 +43,7 @@ type fileTransferManager struct {
 	semaphore chan struct{}
 
 	// logger is the logger for the file transfer
-	logger *observability.CoreLogger
+	logger *observability.Logger
 
 	// wg is the wait group
 	wg *sync.WaitGroup
