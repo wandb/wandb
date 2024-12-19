@@ -42,5 +42,9 @@ def test_metadata_legacy(user):
     run = wandb.init()
 
     # Legacy service does not support metadata
-    assert run._metadata is None
+    assert run._metadata is not None
+    run._metadata.gpu_count = 420
+
+    # # Metadata updates are ignored when using legacy service
+    assert run._metadata.gpu_count != 420
     run.finish()
