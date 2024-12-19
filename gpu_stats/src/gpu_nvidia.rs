@@ -53,7 +53,7 @@ impl Default for GpuMetricAvailability {
             uncorrected_memory_errors: true,
             fan_speed: true,
             encoder_utilization: false, // TODO: questionable utility, expensive to retrieve
-            // questionable utility, currently not used
+            // TODO: enable these metrics
             link_gen: false,
             link_speed: false,
             link_width: false,
@@ -597,7 +597,7 @@ impl NvidiaGpu {
                 match device.current_pcie_link_gen() {
                     Ok(link_gen) => {
                         metrics.push((
-                            format!("_gpu.{}.pcieLinkGen", di),
+                            format!("gpu.{}.pcieLinkGen", di),
                             MetricValue::Int(link_gen as i64),
                         ));
                     }
@@ -616,7 +616,7 @@ impl NvidiaGpu {
                 {
                     Ok(link_speed) => {
                         metrics.push((
-                            format!("_gpu.{}.pcieLinkSpeed", di),
+                            format!("gpu.{}.pcieLinkSpeed", di),
                             MetricValue::Int(link_speed as i64),
                         ));
                     }
@@ -631,7 +631,7 @@ impl NvidiaGpu {
                 match device.current_pcie_link_width() {
                     Ok(link_width) => {
                         metrics.push((
-                            format!("_gpu.{}.pcieLinkWidth", di),
+                            format!("gpu.{}.pcieLinkWidth", di),
                             MetricValue::Int(link_width as i64),
                         ));
                     }
@@ -646,7 +646,7 @@ impl NvidiaGpu {
                 match device.max_pcie_link_gen() {
                     Ok(max_link_gen) => {
                         metrics.push((
-                            format!("_gpu.{}.maxPcieLinkGen", di),
+                            format!("gpu.{}.maxPcieLinkGen", di),
                             MetricValue::Int(max_link_gen as i64),
                         ));
                     }
@@ -661,7 +661,7 @@ impl NvidiaGpu {
                 match device.max_pcie_link_width() {
                     Ok(max_link_width) => {
                         metrics.push((
-                            format!("_gpu.{}.maxPcieLinkWidth", di),
+                            format!("gpu.{}.maxPcieLinkWidth", di),
                             MetricValue::Int(max_link_width as i64),
                         ));
                     }
