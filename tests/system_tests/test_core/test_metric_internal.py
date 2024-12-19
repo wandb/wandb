@@ -430,8 +430,6 @@ def test_metric_best(publish_util, mock_run, wandb_backend_spy):
     with wandb_backend_spy.freeze() as snapshot:
         summary = snapshot.summary(run_id=run.id)
         history = snapshot.history(run_id=run.id)
-        print(summary)
-        print(history)
         assert summary["v1"] == {"best": 3}
         assert summary["v2"] == {"best": 2}
         assert history[2]["v1"] == 2

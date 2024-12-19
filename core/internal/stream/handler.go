@@ -53,6 +53,9 @@ type HandlerParams struct {
 	SystemMonitor     *monitor.SystemMonitor
 	TerminalPrinter   *observability.Printer
 
+	// Commit is the W&B Git commit hash
+	Commit string
+
 	// SkipSummary controls whether to skip summary updates.
 	//
 	// This is only useful in a test.
@@ -143,11 +146,10 @@ type Handler struct {
 
 // NewHandler creates a new handler
 func NewHandler(
-	commit string,
 	params HandlerParams,
 ) *Handler {
 	return &Handler{
-		commit:               commit,
+		commit:               params.Commit,
 		runTimer:             timer.New(),
 		terminalPrinter:      params.TerminalPrinter,
 		logger:               params.Logger,

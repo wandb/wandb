@@ -80,8 +80,8 @@ func (ft *GCSFileTransfer) SetupClient() {
 }
 
 // Upload uploads a file to the server.
-func (ft *GCSFileTransfer) Upload(task *ReferenceArtifactUploadTask) error {
-	ft.logger.Debug("GCSFileTransfer: Upload: uploading file", "path", task.PathOrPrefix)
+func (ft *GCSFileTransfer) Upload(task *DefaultUploadTask) error {
+	ft.logger.Debug("GCSFileTransfer: Upload: uploading file", "path", task.Path)
 
 	return fmt.Errorf("not implemented yet")
 }

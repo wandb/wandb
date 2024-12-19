@@ -275,5 +275,4 @@ def test_sweep_scheduler(runner, user):
             cli.launch_sweep,
             ["config.json", "--resume_id", sweep_id],
         )
-        print(res.output)
         assert res.exit_code == 0

@@ -24,7 +24,8 @@ RUN apt-get update && apt-get upgrade -y \
 RUN apt-get update && apt-get install vim -y \
     && apt-get install sysstat -y \
     && apt-get install jq -y \
-    && apt-get install procps -y
+    && apt-get install procps -y \
+    && apt-get install -y libsndfile1 ffmpeg
 
 # Add build argument for wandb version
 ARG WANDB_VERSION=""
@@ -32,5 +33,7 @@ ARG WANDB_VERSION=""
 # Install wandb based on the provided version or the latest if no version is provided
 RUN pip install --upgrade pip && \
     if [ -z "$WANDB_VERSION" ]; then pip install wandb -qU; else pip install "wandb==$WANDB_VERSION" -qU; fi
+
+RUN pip install --no-cache-dir wandb[media]
 
 CMD ["sleep", "10000000"]

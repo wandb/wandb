@@ -1320,7 +1320,6 @@ def test_object3d_textio(mock_run, assets_path):
     obj = wandb.Object3D(io_obj, file_type="obj")
     obj.bind_to_run(run, "object3D", 0)
     assert obj.to_json(run)["_type"] == "object3D-file"
-    print(obj.to_json(run)["path"])
     assert obj.to_json(run)["path"].endswith(".obj")
 
 

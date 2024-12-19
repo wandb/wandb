@@ -509,7 +509,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
         # From Keras
         if mode not in ["auto", "min", "max"]:
-            print(f"WandbCallback mode {mode} is unknown, fallback to auto mode.")
+            wandb.termwarn(
+                f"WandbCallback mode {mode} is unknown, fallback to auto mode."
+            )
             mode = "auto"
 
         if mode == "min":
@@ -632,7 +634,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 )
                 wandb.run.summary["{}{}".format(self.log_best_prefix, "epoch")] = epoch
                 if self.verbose and not self.save_model:
-                    print(
+                    wandb.termlog(
                         f"Epoch {epoch:05d}: {self.monitor} improved from {self.best:.5f} to {self.current:.5f}"
                     )
             if self.save_model:
@@ -1003,7 +1005,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         if wandb.run.disabled:
             return
         if self.verbose > 0:
-            print(
+            wandb.termlog(
                 f"Epoch {epoch:05d}: {self.monitor} improved from {self.best:.5f} to {self.current:.5f}, "
                 f"saving model to {self.filepath}"
             )

@@ -24,10 +24,11 @@ def test_disabled_summary(user):
     run = wandb.init(mode="disabled")
     run.summary["cat"] = 2
     run.summary["nested"] = dict(level=3)
-    print(run.summary["cat"])
-    print(run.summary.cat)
+    assert "cat" in run.summary
+    assert run.summary["cat"] == 2
+    assert run.summary.cat == 2
     with pytest.raises(KeyError):
-        print(run.summary["dog"])
+        _ = run.summary["dog"]
     assert run.summary["nested"]["level"] == 3
 
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 // DefaultTask is the default task to upload/download files
@@ -52,6 +53,9 @@ type DefaultTask struct {
 type DefaultUploadTask DefaultTask
 
 func (t *DefaultUploadTask) Execute(fts *FileTransfers) error {
+	if t.RequiresAzureUpload() {
+		return fts.Azure.Upload(t)
+	}
 	return fts.Default.Upload(t)
 }
 func (t *DefaultUploadTask) Complete(fts FileTransferStats) {
@@ -88,3 +92,12 @@ func (t *DefaultDownloadTask) String() string {
 	)
 }
 func (t *DefaultDownloadTask) SetError(err error) { t.Err = err }
+
+func (t *DefaultUploadTask) RequiresAzureUpload() bool {
+	for _, header := range t.Headers {
+		if strings.Contains(header, "x-ms-blob-type") {
+			return true
+		}
+	}
+	return false
+}

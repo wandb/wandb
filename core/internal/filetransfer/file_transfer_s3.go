@@ -77,8 +77,8 @@ func (ft *S3FileTransfer) SetupClient() {
 }
 
 // Upload uploads a file to the server.
-func (ft *S3FileTransfer) Upload(task *ReferenceArtifactUploadTask) error {
-	ft.logger.Debug("S3 file transfer: uploading file", "path", task.PathOrPrefix)
+func (ft *S3FileTransfer) Upload(task *DefaultUploadTask) error {
+	ft.logger.Debug("S3 file transfer: uploading file", "path", task.Path)
 
 	return nil
 }

@@ -29,7 +29,6 @@ class MockCallback:
         assert self.summary_record is not None
 
         for item in self.summary_record.update:
-            print("item", item.key, item.value)
             if item.key == key and item.value == value:
                 return self
 

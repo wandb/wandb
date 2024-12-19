@@ -3,7 +3,7 @@ import json
 import subprocess
 from pathlib import Path
 
-from setup_helper import get_logger
+from .setup_helper import get_logger
 
 logger = get_logger(__name__)
 
@@ -22,9 +22,12 @@ def pre_process_network_sar_log(log_dir: str) -> str:
     network_log = Path(log_dir) / "network.dev.log"
 
     if network_log.is_file():
-        # get the network device name, always started with an "e"
+        # get the network device name starting with an "e"
         grep_output = subprocess.run(
-            "ls /sys/class/net/ | grep ^e", shell=True, text=True, capture_output=True
+            "ls /sys/class/net/ | grep ^e | tail -n 1",
+            shell=True,
+            text=True,
+            capture_output=True,
         )
         dev = grep_output.stdout.strip()
         network_dev_specific_log = Path(log_dir) / f"network.dev.{dev}.log"
@@ -122,6 +125,18 @@ def process_sar_files(log_dir: str) -> None:
     Args:
         log_dir (str): The directory containing the log files.
     """
+    # Explicitly stop any running sar processes first. Even if they are explicitly
+    # killed, they will exit on their own when done.
+    try:
+        subprocess.run("killall sar", check=True, shell=True)
+        logger.info("kill sar executed successfully.")
+    except FileNotFoundError:
+        logger.error(
+            "Command not found. Make sure 'killall' is installed and in your PATH."
+        )
+    except Exception as e:
+        logger.error(f"An unexpected error occurred: {e}")
+
     log_files = ["cpu.log", "mem.log", "network.sock.log", "paging.log"]
 
     pre_processed_network_log = pre_process_network_sar_log(log_dir)
@@ -184,6 +199,55 @@ def compute_avg_and_max(input_file: Path, output_file: Path) -> None:
         json.dump(result, json_file, indent=4)
 
     logger.debug(f"System metrics written to {output_file}")
+
+
+def capture_sar_metrics(log_dir: str, iteration: int = 60):
+    """Captures sar system metrics in the background and saves them to log files.
+
+    This function starts the sar processes in the background in a fire-and-forget
+    manner. This is because we want to support common scenarios where a load test
+    may finish earlier than the metrics capturing sub-processes. A few things to
+    note:
+
+    1) No need to wait for the subprocesses to finish.
+    Because these processes will exit on their own regardless of the parent
+    process. There won't be any resource leaks. They are meant to be running in the
+    background while the actual load testing runs on the main thread independently.
+
+    2) Safe to have multiple runs
+    Because they write metrics to a different log directory each time, there is no conflict
+    even if multiples of these processes run in parallel.
+
+    3) No need to manage them
+    These sub processes are explicitly allowed to outlive the parent process. Therefore,
+    there is no need to use a context manager to manage them.
+
+    Args:
+        log_dir (str): Directory where the log files will be saved.
+        iteration (int): Number of seconds to capture metrics. Default is 8.
+    """
+    log_path = Path(log_dir)
+    log_path.mkdir(parents=True, exist_ok=True)
+
+    commands = {
+        "cpu.log": ["sar", "-u", "ALL", "1", str(iteration)],
+        "mem.log": ["sar", "-r", "1", str(iteration)],
+        "network.sock.log": ["sar", "-n", "SOCK", "1", str(iteration)],
+        "network.dev.log": ["sar", "-n", "DEV", "1", str(iteration)],
+        "paging.log": ["sar", "-B", "1", str(iteration)],
+        "disk.log": ["sar", "-d", "-p", "1", str(iteration)],
+    }
+
+    for log_file, command in commands.items():
+        log_file_path = log_path / log_file
+        try:
+            subprocess.Popen(
+                command, stdout=open(log_file_path, "w"), stderr=subprocess.PIPE
+            )
+        except Exception as e:
+            print(
+                f"Error spawning subprocess {command} writing to {log_file_path}: {e}"
+            )
 
 
 if __name__ == "__main__":

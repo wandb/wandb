@@ -353,19 +353,19 @@ class _WandbController:
         self._logged += 1
 
     def _error(self, s: str) -> None:
-        print("ERROR:", s)
+        print("ERROR:", s)  # noqa: T201
         self._log()
 
     def _warn(self, s: str) -> None:
-        print("WARN:", s)
+        print("WARN:", s)  # noqa: T201
         self._log()
 
     def _info(self, s: str) -> None:
-        print("INFO:", s)
+        print("INFO:", s)  # noqa: T201
         self._log()
 
     def _debug(self, s: str) -> None:
-        print("DEBUG:", s)
+        print("DEBUG:", s)  # noqa: T201
         self._log()
 
     def _configure_check(self) -> None:
@@ -396,10 +396,10 @@ class _WandbController:
         sweep_id, warnings = self._api.upsert_sweep(self._create)
         handle_sweep_config_violations(warnings)
 
-        print("Create sweep with ID:", sweep_id)
+        print("Create sweep with ID:", sweep_id)  # noqa: T201
         sweep_url = wandb_sweep._get_sweep_url(self._api, sweep_id)
         if sweep_url:
-            print("Sweep URL:", sweep_url)
+            print("Sweep URL:", sweep_url)  # noqa: T201
         self._sweep_id = sweep_id
         self._defer_sweep_creation = False
         return sweep_id
@@ -636,7 +636,7 @@ class _WandbController:
     def print_status(self) -> None:
         status = _sweep_status(self._sweep_obj, self._sweep_config, self._sweep_runs)
         if self._laststatus != status or self._logged:
-            print(status)
+            print(status)  # noqa: T201
         self._laststatus = status
         self._logged = 0
 

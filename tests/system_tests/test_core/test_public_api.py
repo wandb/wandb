@@ -546,8 +546,6 @@ def test_delete_file(
     file = run.files()[0]
     file.delete()
 
-    print(file._server_accepts_project_id_for_delete_file())
-
     # For system tests on newer server version, the projectId is provided
     if file._server_accepts_project_id_for_delete_file():
         assert "projectId" in delete_spy.requests[0].variables

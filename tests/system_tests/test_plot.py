@@ -227,7 +227,6 @@ def test_log_nested_visualize(user, wandb_backend_spy):
 
         assert "layer1.layer2.layer3" in summary
         assert "layer1.layer4.layer5" in summary
-        print(summary)
 
         for visualize, key_path in [
             (visualize1, ["layer1.layer2.layer3"]),

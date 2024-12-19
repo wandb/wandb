@@ -37,17 +37,17 @@ def print_results(
     else:
         color = "red"
     if isinstance(failed_test_or_tests, str):
-        print(RED_X)
-        print(click.style(failed_test_or_tests, fg=color, bold=True))
+        print(RED_X)  # noqa: T201
+        print(click.style(failed_test_or_tests, fg=color, bold=True))  # noqa: T201
     elif isinstance(failed_test_or_tests, list) and len(failed_test_or_tests) > 0:
-        print(RED_X)
-        print(
+        print(RED_X)  # noqa: T201
+        print(  # noqa: T201
             "\n".join(
                 [click.style(f, fg=color, bold=True) for f in failed_test_or_tests]
             )
         )
     else:
-        print(CHECKMARK)
+        print(CHECKMARK)  # noqa: T201
 
 
 def check_host(host: str) -> bool:
@@ -58,7 +58,7 @@ def check_host(host: str) -> bool:
 
 
 def check_logged_in(api: Api, host: str) -> bool:
-    print("Checking if logged in".ljust(72, "."), end="")
+    print("Checking if logged in".ljust(72, "."), end="")  # noqa: T201
     login_doc_url = "https://docs.wandb.ai/ref/cli/wandb-login"
     fail_string = None
     if api.api_key is None:
@@ -83,7 +83,7 @@ def check_logged_in(api: Api, host: str) -> bool:
 
 def check_secure_requests(url: str, test_url_string: str, failure_output: str) -> None:
     # check if request is over https
-    print(test_url_string.ljust(72, "."), end="")
+    print(test_url_string.ljust(72, "."), end="")  # noqa: T201
     fail_string = None
     if not url.startswith("https"):
         fail_string = failure_output
@@ -91,7 +91,7 @@ def check_secure_requests(url: str, test_url_string: str, failure_output: str) -
 
 
 def check_cors_configuration(url: str, origin: str) -> None:
-    print("Checking CORs configuration of the bucket".ljust(72, "."), end="")
+    print("Checking CORs configuration of the bucket".ljust(72, "."), end="")  # noqa: T201
     fail_string = None
     res_get = requests.options(
         url, headers={"Origin": origin, "Access-Control-Request-Method": "GET"}
@@ -107,7 +107,7 @@ def check_cors_configuration(url: str, origin: str) -> None:
 
 
 def check_run(api: Api) -> bool:
-    print(
+    print(  # noqa: T201
         "Checking logged metrics, saving and downloading a file".ljust(72, "."), end=""
     )
     failed_test_strings = []
@@ -308,7 +308,7 @@ def log_use_download_artifact(
 
 
 def check_artifacts() -> bool:
-    print("Checking artifact save and download workflows".ljust(72, "."), end="")
+    print("Checking artifact save and download workflows".ljust(72, "."), end="")  # noqa: T201
     failed_test_strings: List[str] = []
 
     # test checksum
@@ -365,7 +365,7 @@ def check_artifacts() -> bool:
 
 def check_graphql_put(api: Api, host: str) -> Tuple[bool, Optional[str]]:
     # check graphql endpoint using an upload
-    print("Checking signed URL upload".ljust(72, "."), end="")
+    print("Checking signed URL upload".ljust(72, "."), end="")  # noqa: T201
     failed_test_strings = []
     gql_fp = "gql_test_file.txt"
     f = open(gql_fp, "w")
@@ -410,7 +410,7 @@ def check_graphql_put(api: Api, host: str) -> Tuple[bool, Optional[str]]:
 
 
 def check_large_post() -> bool:
-    print(
+    print(  # noqa: T201
         "Checking ability to send large payloads through proxy".ljust(72, "."), end=""
     )
     descy = "a" * int(10**7)
@@ -461,7 +461,7 @@ def check_large_post() -> bool:
 
 
 def check_wandb_version(api: Api) -> None:
-    print("Checking wandb package version is up to date".ljust(72, "."), end="")
+    print("Checking wandb package version is up to date".ljust(72, "."), end="")  # noqa: T201
     _, server_info = api.viewer_server_info()
     fail_string = None
     warning = False

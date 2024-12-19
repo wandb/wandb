@@ -47,7 +47,6 @@ type TBHandler struct {
 	extraWork     runwork.ExtraWork
 	logger        *observability.CoreLogger
 	settings      *settings.Settings
-	hostname      string
 	fileReadDelay waiting.Delay
 
 	// streams is the list of event streams for all tracked directories.
@@ -76,7 +75,6 @@ type Params struct {
 	Logger   *observability.CoreLogger
 	Settings *settings.Settings
 
-	Hostname      string
 	FileReadDelay waiting.Delay
 }
 
@@ -89,7 +87,6 @@ func NewTBHandler(params Params) *TBHandler {
 		extraWork:     params.ExtraWork,
 		logger:        params.Logger,
 		settings:      params.Settings,
-		hostname:      params.Hostname,
 		fileReadDelay: params.FileReadDelay,
 
 		streams: make([]*tfEventStream, 0),
@@ -137,7 +134,7 @@ func (tb *TBHandler) Handle(record *spb.TBRecord) error {
 		tb.fileReadDelay,
 		TFEventsFileFilter{
 			StartTimeSec: tb.settings.GetStartTime().Unix(),
-			Hostname:     tb.hostname,
+			Hostname:     tb.settings.GetHostname(),
 		},
 		tb.logger,
 	)

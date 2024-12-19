@@ -85,10 +85,10 @@ def sweep(
     api = InternalApi()
     sweep_id, warnings = api.upsert_sweep(sweep, prior_runs=prior_runs)
     handle_sweep_config_violations(warnings)
-    print("Create sweep with ID:", sweep_id)
+    print("Create sweep with ID:", sweep_id)  # noqa: T201
     sweep_url = _get_sweep_url(api, sweep_id)
     if sweep_url:
-        print("Sweep URL:", sweep_url)
+        print("Sweep URL:", sweep_url)  # noqa: T201
     return sweep_id
 
 

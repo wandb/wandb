@@ -3468,7 +3468,7 @@ class Api:
                     else open(normal_name, "rb")
                 )
             except OSError:
-                print(f"{file_name} does not exist")
+                print(f"{file_name} does not exist")  # noqa: T201
                 continue
             if progress is False:
                 responses.append(
