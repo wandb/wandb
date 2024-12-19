@@ -3750,6 +3750,11 @@ class Run:
         metadata: MetadataRequest,
     ) -> None:
         """Callback to publish Metadata to wandb-core upon user updates."""
+        # ignore updates if the attached to another run
+        if self._is_attached:
+            wandb.termwarn("Metadata updates are ignored when attached to another run.")
+            return
+
         if self._backend and self._backend.interface:
             self._backend.interface.publish_metadata(metadata)
 
