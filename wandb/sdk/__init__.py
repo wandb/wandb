@@ -19,8 +19,10 @@ __all__ = (
     "sweep",
     "controller",
     "helper",
+    "automations",
 )
 
+from . import automations
 from . import wandb_helper as helper
 from .artifacts.artifact import Artifact
 from .wandb_alerts import AlertLevel
