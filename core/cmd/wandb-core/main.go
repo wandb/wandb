@@ -64,7 +64,6 @@ func main() {
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, observability.Commit, commit)
 
-	var loggerPath string
 	if file, err := observability.GetLoggerPath(); err != nil {
 		slog.Error("failed to get logger path", "error", err)
 	} else {
@@ -86,7 +85,6 @@ func main() {
 			"disable-analytics", *disableAnalytics,
 			"shutdown-on-parent-exit", shutdownOnParentExitEnabled,
 		)
-		loggerPath = file.Name()
 		defer file.Close()
 	}
 
@@ -98,7 +96,6 @@ func main() {
 			ParentPid:       *pid,
 			SentryClient:    sentryClient,
 			Commit:          commit,
-			LoggerPath:      loggerPath,
 			LogLevel:        slog.Level(*logLevel),
 		},
 	)

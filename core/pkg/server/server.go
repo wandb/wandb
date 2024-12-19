@@ -25,7 +25,6 @@ type ServerParams struct {
 	ParentPid       int
 	SentryClient    *sentry_ext.Client
 	Commit          string
-	LoggerPath      string
 	LogLevel        slog.Level
 }
 
@@ -53,9 +52,6 @@ type Server struct {
 
 	// commit is the W&B Git commit hash
 	commit string
-
-	// loggerPath is the default logger path
-	loggerPath string
 
 	// logLevel is the log level
 	logLevel slog.Level
@@ -85,7 +81,6 @@ func NewServer(
 		parentPid:    params.ParentPid,
 		sentryClient: params.SentryClient,
 		commit:       params.Commit,
-		loggerPath:   params.LoggerPath,
 		logLevel:     params.LogLevel,
 	}
 
@@ -166,7 +161,6 @@ func (s *Server) serve() {
 						StreamMux:    streamMux,
 						SentryClient: s.sentryClient,
 						Commit:       s.commit,
-						LoggerPath:   s.loggerPath,
 						LogLevel:     s.logLevel,
 					},
 				).ManageConnectionData()

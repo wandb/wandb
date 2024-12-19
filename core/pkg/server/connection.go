@@ -32,7 +32,6 @@ type ConnectionParams struct {
 	Conn         net.Conn
 	SentryClient *sentry_ext.Client
 	Commit       string
-	LoggerPath   string
 	LogLevel     slog.Level
 }
 
@@ -81,9 +80,6 @@ type Connection struct {
 	// sentryClient is the sentry client
 	sentryClient *sentry_ext.Client
 
-	// loggerPath is the path to the logger
-	loggerPath string
-
 	// logLevel is the log level
 	logLevel slog.Level
 }
@@ -105,7 +101,6 @@ func NewConnection(
 		outChan:      make(chan *spb.ServerResponse, BufferSize),
 		closed:       &atomic.Bool{},
 		sentryClient: params.SentryClient,
-		loggerPath:   params.LoggerPath,
 		logLevel:     params.LogLevel,
 	}
 }
@@ -330,11 +325,10 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 
 	nc.stream = stream.NewStream(
 		stream.StreamParams{
-			Settings:   settings,
-			Commit:     nc.commit,
-			LogLevel:   nc.logLevel,
-			Sentry:     sentryClient,
-			LoggerPath: nc.loggerPath,
+			Settings: settings,
+			Commit:   nc.commit,
+			LogLevel: nc.logLevel,
+			Sentry:   sentryClient,
 		},
 	)
 	nc.stream.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})

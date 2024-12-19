@@ -2,10 +2,8 @@ package stream
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"sync"
 
 	"github.com/Khan/genqlient/graphql"
@@ -64,78 +62,11 @@ type Stream struct {
 	sentryClient *sentry_ext.Client
 }
 
-func streamLogger(
-	settings *settings.Settings,
-	sentryClient *sentry_ext.Client,
-	loggerPath string,
-	logLevel slog.Level,
-) *observability.CoreLogger {
-	// TODO: when we add session concept re-do this to use user provided path
-	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
-	if path := loggerPath; path != "" {
-		// check path exists
-		if _, err := os.Stat(path); !os.IsNotExist(err) {
-			err := os.Symlink(path, targetPath)
-			if err != nil {
-				slog.Error("error creating symlink", "error", err)
-			}
-		}
-	}
-
-	var writers []io.Writer
-	name := settings.GetInternalLogFile()
-	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		slog.Error(fmt.Sprintf("error opening log file: %s", err))
-	} else {
-		writers = append(writers, file)
-	}
-	writer := io.MultiWriter(writers...)
-
-	sentryClient.SetUser(
-		settings.GetEntity(),
-		settings.GetEmail(),
-		settings.GetUserName(),
-	)
-
-	logger := observability.NewCoreLogger(
-		slog.New(slog.NewJSONHandler(
-			writer,
-			&slog.HandlerOptions{
-				Level: logLevel,
-				// AddSource: true,
-			},
-		)),
-		&observability.CoreLoggerParams{
-			Tags:   observability.Tags{},
-			Sentry: sentryClient,
-		},
-	)
-	logger.Info("stream: starting",
-		"core version", version.Version,
-		"symlink path", targetPath,
-	)
-
-	tags := observability.Tags{
-		"run_id":   settings.GetRunID(),
-		"run_url":  settings.GetRunURL(),
-		"project":  settings.GetProject(),
-		"base_url": settings.GetBaseURL(),
-	}
-	if settings.GetSweepURL() != "" {
-		tags["sweep_url"] = settings.GetSweepURL()
-	}
-	logger.SetGlobalTags(tags)
-
-	return logger
-}
-
 type StreamParams struct {
-	Commit     string
-	Settings   *settings.Settings
-	Sentry     *sentry_ext.Client
-	LoggerPath string
-	LogLevel   slog.Level
+	Commit   string
+	Settings *settings.Settings
+	Sentry   *sentry_ext.Client
+	LogLevel slog.Level
 }
 
 // NewStream creates a new stream with the given settings and responders.
@@ -144,12 +75,50 @@ func NewStream(
 ) *Stream {
 	operations := wboperation.NewOperations()
 
-	logger := streamLogger(
-		params.Settings,
-		params.Sentry,
-		params.LoggerPath,
-		params.LogLevel,
+	writer, err := os.OpenFile(
+		params.Settings.GetInternalLogFile(),
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+		0666,
 	)
+	if err != nil {
+		slog.Error(fmt.Sprintf("error opening log file: %s", err))
+	}
+
+	sentry := params.Sentry
+
+	sentry.SetUser(
+		params.Settings.GetEntity(),
+		params.Settings.GetEmail(),
+		params.Settings.GetUserName(),
+	)
+
+	logger := observability.NewCoreLogger(
+		slog.New(slog.NewJSONHandler(
+			writer,
+			&slog.HandlerOptions{
+				Level: params.LogLevel,
+				// AddSource: true,
+			},
+		)),
+		&observability.CoreLoggerParams{
+			Tags: observability.Tags{
+				"run_id":   params.Settings.GetRunID(),
+				"run_url":  params.Settings.GetRunURL(),
+				"project":  params.Settings.GetProject(),
+				"base_url": params.Settings.GetBaseURL(),
+			},
+			Sentry: sentry,
+		},
+	)
+
+	if params.Settings.GetSweepURL() != "" {
+		logger.SetGlobalTags(observability.Tags{
+			"sweep_url": params.Settings.GetSweepURL(),
+		})
+	}
+
+	logger.Info("stream: starting", "core version", version.Version)
+
 	s := &Stream{
 		runWork:      runwork.New(BufferSize, logger),
 		logger:       logger,
