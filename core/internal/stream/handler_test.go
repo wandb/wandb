@@ -20,7 +20,6 @@ func makeHandler(
 	commit string,
 ) *stream.Handler {
 	h := stream.NewHandler(
-		commit,
 		stream.HandlerParams{
 			Logger:          observability.NewNoOpLogger(),
 			Settings:        settings.From(&spb.Settings{}),
@@ -28,6 +27,7 @@ func makeHandler(
 			OutChan:         outChan,
 			TerminalPrinter: observability.NewPrinter(),
 			SkipSummary:     true,
+			Commit:          commit,
 		},
 	)
 
