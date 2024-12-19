@@ -122,6 +122,10 @@ func (rw *runWork) AddWorkOrCancel(
 	rw.incAddWork()
 	defer rw.decAddWork()
 
+	rw.logger.Debug("runwork: got work",
+		"work", work.DebugInfo(),
+		"buffer", len(rw.internalWork))
+
 	// AddWork.A
 
 	select {
