@@ -27,12 +27,13 @@ const (
 	maxMessageSize = 2 * 1024 * 1024 * 1024 // 2GB max message size
 )
 
-type ConnectionOptions struct {
+type ConnectionParams struct {
 	StreamMux    *stream.StreamMux
 	Conn         net.Conn
 	SentryClient *sentry_ext.Client
 	Commit       string
 	LoggerPath   string
+	LogLevel     slog.Level
 }
 
 // Connection represents a client-server connection in the context of a streaming session.
@@ -77,28 +78,35 @@ type Connection struct {
 	// The current W&B Git commit hash, identifying the specific version of the binary.
 	commit string
 
+	// sentryClient is the sentry client
 	sentryClient *sentry_ext.Client
-	loggerPath   string
+
+	// loggerPath is the path to the logger
+	loggerPath string
+
+	// logLevel is the log level
+	logLevel slog.Level
 }
 
 func NewConnection(
 	ctx context.Context,
 	cancel context.CancelFunc,
-	opts ConnectionOptions,
+	params ConnectionParams,
 ) *Connection {
 
 	return &Connection{
 		ctx:          ctx,
 		cancel:       cancel,
-		streamMux:    opts.StreamMux,
-		conn:         opts.Conn,
-		commit:       opts.Commit,
-		id:           opts.Conn.RemoteAddr().String(), // TODO: check if this is properly unique
+		streamMux:    params.StreamMux,
+		conn:         params.Conn,
+		commit:       params.Commit,
+		id:           params.Conn.RemoteAddr().String(), // TODO: check if this is properly unique
 		inChan:       make(chan *spb.ServerRequest, BufferSize),
 		outChan:      make(chan *spb.ServerResponse, BufferSize),
 		closed:       &atomic.Bool{},
-		sentryClient: opts.SentryClient,
-		loggerPath:   opts.LoggerPath,
+		sentryClient: params.SentryClient,
+		loggerPath:   params.LoggerPath,
+		logLevel:     params.LogLevel,
 	}
 }
 
@@ -315,18 +323,20 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	// if we are in offline mode, we don't want to send any data to sentry
 	var sentryClient *sentry_ext.Client
 	if settings.IsOffline() {
-		sentryClient = sentry_ext.New(sentry_ext.Params{DSN: ""})
+		sentryClient = sentry_ext.New(sentry_ext.Params{Disabled: true})
 	} else {
 		sentryClient = nc.sentryClient
 	}
 
 	nc.stream = stream.NewStream(
-		stream.StreamOptions{
-			Commit:     nc.commit,
+		stream.StreamParams{
 			Settings:   settings,
+			Commit:     nc.commit,
+			LogLevel:   nc.logLevel,
 			Sentry:     sentryClient,
 			LoggerPath: nc.loggerPath,
-		})
+		},
+	)
 	nc.stream.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
 	nc.stream.Start()
 	slog.Info("handleInformInit: stream started", "streamId", streamId, "id", nc.id)
