@@ -122,7 +122,7 @@ class PayloadGenerator:
     def generate_table(self) -> dict[str, wandb.Table]:
         """Generates a payload for logging 1 table.
 
-        For the table, it uses 
+        For the table, it uses
             self.metric_count as the number of columns
             self.metric_key_size as the number of rows.
 
@@ -134,10 +134,7 @@ class PayloadGenerator:
 
         columns = [f"Field_{i+1}" for i in range(num_of_columns)]
         data = [
-            [
-                self.random_string(self.metric_key_size) 
-                for _ in range(num_of_columns)
-            ]
+            [self.random_string(self.metric_key_size) for _ in range(num_of_columns)]
             for _ in range(num_of_rows)
         ]
         table = wandb.Table(columns=columns, data=data)
@@ -153,7 +150,7 @@ class PayloadGenerator:
         # Each pixel value is an integer between 0 and 255 for RGB channels
         random_image = np.random.randint(0, 256, (100, 100, 3), dtype=np.uint8)
         image_obj = wandb.Image(random_image, caption="Random image")
-    
+
         return {
             self.random_string(self.metric_key_size): image_obj
             for _ in range(self.metric_count)
@@ -165,11 +162,10 @@ class PayloadGenerator:
         Returns:
             dict: A dictionary with video data.
         """
-
         # Create a random video (50 frames, 64x64 pixels, 3 channels for RGB)
         frames = np.random.randint(0, 256, (50, 64, 64, 3), dtype=np.uint8)
         video_obj = wandb.Video(frames, fps=10, caption="Randomly generated video")
-    
+
         return {
             self.random_string(self.metric_key_size): video_obj
             for _ in range(self.metric_count)
