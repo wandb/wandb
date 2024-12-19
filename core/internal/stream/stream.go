@@ -68,7 +68,7 @@ func streamLogger(
 	settings *settings.Settings,
 	sentryClient *sentry_ext.Client,
 	loggerPath string,
-	debug bool,
+	logLevel slog.Level,
 ) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
@@ -92,17 +92,6 @@ func streamLogger(
 	}
 	writer := io.MultiWriter(writers...)
 
-	// TODO: add a log level to the settings
-	level := slog.LevelInfo
-	if debug {
-		level = slog.LevelDebug
-	}
-
-	opts := &slog.HandlerOptions{
-		Level: level,
-		// AddSource: true,
-	}
-
 	sentryClient.SetUser(
 		settings.GetEntity(),
 		settings.GetEmail(),
@@ -110,14 +99,22 @@ func streamLogger(
 	)
 
 	logger := observability.NewCoreLogger(
-		slog.New(slog.NewJSONHandler(writer, opts)),
+		slog.New(slog.NewJSONHandler(
+			writer,
+			&slog.HandlerOptions{
+				Level: logLevel,
+				// AddSource: true,
+			},
+		)),
 		observability.WithTags(observability.Tags{}),
 		observability.WithCaptureMessage(sentryClient.CaptureMessage),
 		observability.WithCaptureException(sentryClient.CaptureException),
 		observability.WithReraise(sentryClient.Reraise),
 	)
-	logger.Info("using version", "core version", version.Version)
-	logger.Info("created symlink", "path", targetPath)
+	logger.Info("stream: starting",
+		"core version", version.Version,
+		"symlink path", targetPath,
+	)
 
 	tags := observability.Tags{
 		"run_id":   settings.GetRunID(),
@@ -138,7 +135,7 @@ type StreamParams struct {
 	Settings   *settings.Settings
 	Sentry     *sentry_ext.Client
 	LoggerPath string
-	Debug      bool
+	LogLevel   slog.Level
 }
 
 // NewStream creates a new stream with the given settings and responders.
@@ -151,7 +148,7 @@ func NewStream(
 		params.Settings,
 		params.Sentry,
 		params.LoggerPath,
-		params.Debug,
+		params.LogLevel,
 	)
 	s := &Stream{
 		runWork:      runwork.New(BufferSize, logger),
