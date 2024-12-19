@@ -122,10 +122,6 @@ func (rw *runWork) AddWorkOrCancel(
 	rw.incAddWork()
 	defer rw.decAddWork()
 
-	rw.logger.Debug("runwork: got work",
-		"work", work.DebugInfo(),
-		"buffer", len(rw.internalWork))
-
 	// AddWork.A
 
 	select {
@@ -146,6 +142,10 @@ func (rw *runWork) AddWorkOrCancel(
 	// If we're racing with Close(), then it will block on line Close.B
 	// until we exit and decrement addWorkCount---so internalWork
 	// is guaranteed to not be closed until this method returns.
+
+	rw.logger.Debug("runwork: got work",
+		"work", work.DebugInfo(),
+		"buffer", len(rw.internalWork))
 
 	start := time.Now()
 	for i := 0; ; i++ {
