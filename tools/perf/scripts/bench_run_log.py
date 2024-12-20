@@ -191,7 +191,7 @@ class Experiment:
     of the baseline, we scales up the various dimensions (# of steps, # of metrics, metric size, etc) to
     characterize scalability.
 
-    For benchmarking or regression detection, set is_unique_payload to False (default). For stress 
+    For benchmarking or regression detection, set is_unique_payload to False (default). For stress
     testing or simulating huge workload w/ million+ metrics, set is_unique_payload to True.
     """
 
@@ -212,7 +212,6 @@ class Experiment:
         self.data_type = data_type
         self.is_unique_payload = is_unique_payload
         self.time_delay_second = time_delay_second
-
 
     def run(self, repeat: int = 1):
         for _ in range(repeat):
@@ -249,13 +248,13 @@ class Experiment:
                 num_of_unique_payload = self.num_steps
             else:
                 num_of_unique_payload = 1
-            
+
             payloads = [
-                    PayloadGenerator(
-                        self.data_type, self.num_metrics, self.metric_key_size
-                    ).generate()
-                    for _ in range(num_of_unique_payload)
-                ]
+                PayloadGenerator(
+                    self.data_type, self.num_metrics, self.metric_key_size
+                ).generate()
+                for _ in range(num_of_unique_payload)
+            ]
         except ValueError as e:
             logger.error(f"Failed to generate payload: {e}")
             return
@@ -267,16 +266,16 @@ class Experiment:
                     run.log(payloads[s])
                 else:
                     run.log(payloads[0])
-                
+
                 # 12/20/2024 - Wai
                 # HACKAROUND: We ran into issues logging too many unique metrics
                 # returning 500s/502s.  Adding a small sleep between step
                 # works around it for now.
-                
+
                 # Optional sleep time, use it to reproduce real-life
                 # workload where logging steps aren't in a tight loop
                 # Just remember the result_data["log_time"] will include
-                # your sleep time for all the steps. 
+                # your sleep time for all the steps.
                 if self.time_delay_second > 0:
                     time.sleep(self.time_delay_second)
 
@@ -415,7 +414,6 @@ if __name__ == "__main__":
         help="e.g. -t 1.0  Sleep time in seconds between each step.",
     )
 
-
     args = parser.parse_args()
 
     Experiment(
@@ -425,5 +423,5 @@ if __name__ == "__main__":
         output_file=args.outfile,
         data_type=args.data_type,
         is_unique_payload=args.unique_payload,
-        time_delay_second=args.time_delay_second
+        time_delay_second=args.time_delay_second,
     ).run(args.repeat)
