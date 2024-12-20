@@ -1063,7 +1063,8 @@ class Settings(BaseModel, validate_assignment=True):
         )
         self.x_executable = _executable
 
-        self.docker = env.get_docker(util.image_id_from_k8s())
+        if self.docker is None:
+            self.docker = env.get_docker(util.image_id_from_k8s())
 
         # proceed if not in CLI mode
         if self.x_cli_only_mode:
