@@ -3,6 +3,7 @@ import json
 import multiprocessing as mp
 import random
 import string
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -190,12 +191,17 @@ class Experiment:
         metric_key_size: int = 10,
         output_file: str = "results.json",
         data_type: Literal["scalar", "audio", "video", "image", "table"] = "scalar",
+        is_unique_payload: bool = False,
+        time_delay_second: float = 0.0,
     ):
         self.num_steps = num_steps
         self.num_metrics = num_metrics
         self.metric_key_size = metric_key_size
         self.output_file = output_file
         self.data_type = data_type
+        self.is_unique_payload = is_unique_payload
+        self.time_delay_second = time_delay_second
+
 
     def run(self, repeat: int = 1):
         for _ in range(repeat):
@@ -237,7 +243,16 @@ class Experiment:
         # Log the payload $step_count times
         with Timer() as timer:
             for _ in range(self.num_steps):
-                run.log(payload)
+                if not self.is_unique_payload:
+                    run.log(payload)
+                else:
+                    run.log(PayloadGenerator(
+                        self.data_type, self.num_metrics, self.metric_key_size
+                    ).generate())
+                
+                if self.time_delay_second > 0:
+                    time.sleep(self.time_delay_second)
+
             result_data["log_time"] = timer.stop()
 
         # compute the log() throughput rps (request per sec)
@@ -358,6 +373,21 @@ if __name__ == "__main__":
         default="scalar",
         help="The wandb data type to log. Defaults to scalar.",
     )
+    parser.add_argument(
+        "-u",
+        "--unique-payload",
+        type=bool,
+        default=False,
+        help="False - reuse the same payload in each log(), new payload if True.",
+    )
+    parser.add_argument(
+        "-t",
+        "--time-delay-second",
+        type=float,
+        default=0,
+        help="e.g. -t 1.0  Sleep time in seconds between each step.",
+    )
+
 
     args = parser.parse_args()
 
@@ -367,4 +397,6 @@ if __name__ == "__main__":
         metric_key_size=args.metric_key_size,
         output_file=args.outfile,
         data_type=args.data_type,
+        is_unique_payload=args.unique_payload,
+        time_delay_second=args.time_delay_second
     ).run(args.repeat)
