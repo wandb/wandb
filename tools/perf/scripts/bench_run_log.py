@@ -182,6 +182,17 @@ class Experiment:
         metric_key_size: The length of metric names.
         output_file: The output file to store the performance test results.
         data_type: The wandb data type to log.
+        is_unique_payload: Whether to use a new set of metrics or reuse the same set for each step.
+        time_delay_second: Sleep time between step.
+
+    When to set "is_unique_payload" to True?
+
+    Performance benchmarks are usually done on basic use case to form the baseline, then building on top
+    of the baseline, we scales up the various dimensions (# of steps, # of metrics, metric size, etc) to
+    characterize scalability.
+
+    For benchmarking or regression detection, set is_unique_payload to False (default). For stress 
+    testing or simulating huge workload w/ million+ metrics, set is_unique_payload to True.
     """
 
     def __init__(
@@ -232,24 +243,40 @@ class Experiment:
             )
             result_data["init_time"] = timer.stop()
 
+        # pre-generate all the payloads
         try:
-            payload = PayloadGenerator(
-                self.data_type, self.num_metrics, self.metric_key_size
-            ).generate()
+            if self.is_unique_payload:
+                num_of_unique_payload = self.num_steps
+            else:
+                num_of_unique_payload = 1
+            
+            payloads = [
+                    PayloadGenerator(
+                        self.data_type, self.num_metrics, self.metric_key_size
+                    ).generate()
+                    for _ in range(num_of_unique_payload)
+                ]
         except ValueError as e:
             logger.error(f"Failed to generate payload: {e}")
             return
 
         # Log the payload $step_count times
         with Timer() as timer:
-            for _ in range(self.num_steps):
-                if not self.is_unique_payload:
-                    run.log(payload)
+            for s in range(self.num_steps):
+                if self.is_unique_payload:
+                    run.log(payloads[s])
                 else:
-                    run.log(PayloadGenerator(
-                        self.data_type, self.num_metrics, self.metric_key_size
-                    ).generate())
+                    run.log(payloads[0])
                 
+                # 12/20/2024 - Wai
+                # HACKAROUND: We ran into issues logging too many unique metrics
+                # returning 500s/502s.  Adding a small sleep between step
+                # works around it for now.
+                
+                # Optional sleep time, use it to reproduce real-life
+                # workload where logging steps aren't in a tight loop
+                # Just remember the result_data["log_time"] will include
+                # your sleep time for all the steps. 
                 if self.time_delay_second > 0:
                     time.sleep(self.time_delay_second)
 
