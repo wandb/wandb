@@ -187,7 +187,7 @@ type ClientOptions struct {
 	// arbitrary HTTP requests.
 	ExtraHeaders map[string]string
 
-	// Allows the client to peek at the network traffic, can preform any action
+	// Allows the client to peek at the network traffic, can perform any action
 	// on the request and response. Need to make sure that the response body is
 	// available to read by later stages.
 	NetworkPeeker Peeker

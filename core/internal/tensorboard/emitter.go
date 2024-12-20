@@ -300,7 +300,7 @@ func (e *tfEmitter) EmitImages(
 func (e *tfEmitter) verifyAndGetImagesMetadata(
 	images []wbvalue.Image,
 ) (format string, width int, height int, err error) {
-	// All Tensorboard iamges in a summary step should be of the same format.
+	// All Tensorboard images in a summary step should be of the same format.
 	// https://github.com/tensorflow/tensorboard/blob/b56c65521cbccf3097414cbd7e30e55902e08cab/tensorboard/plugins/image/summary.py#L85
 	format = images[0].Format
 
