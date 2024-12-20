@@ -155,6 +155,7 @@ class InterfaceShared(InterfaceBase):
         python_packages: Optional[pb.PythonPackagesRequest] = None,
         job_input: Optional[pb.JobInputRequest] = None,
         run_finish_without_exit: Optional[pb.RunFinishWithoutExitRequest] = None,
+        metadata: Optional[pb.MetadataRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -223,6 +224,8 @@ class InterfaceShared(InterfaceBase):
             request.job_input.CopyFrom(job_input)
         elif run_finish_without_exit:
             request.run_finish_without_exit.CopyFrom(run_finish_without_exit)
+        elif metadata:
+            request.metadata.CopyFrom(metadata)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -378,6 +381,10 @@ class InterfaceShared(InterfaceBase):
 
     def _publish_summary(self, summary: pb.SummaryRecord) -> None:
         rec = self._make_record(summary=summary)
+        self._publish(rec)
+
+    def _publish_metadata(self, metadata: pb.MetadataRequest) -> None:
+        rec = self._make_request(metadata=metadata)
         self._publish(rec)
 
     def _publish_metric(self, metric: pb.MetricRecord) -> None:

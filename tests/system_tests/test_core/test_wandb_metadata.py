@@ -43,9 +43,13 @@ def test_metadata_access(wandb_backend_spy, capsys):
         assert run._metadata is not None
         run._metadata.email = "lol@wandb.ai"
 
+        with open(run.settings.log_internal) as f:
+            debug_log = f.readlines()
+
+        joined = "".join(debug_log)
+
         if run.settings.x_require_legacy_service:
-            captured = capsys.readouterr()
             assert (
-                "WARNING Metadata updates are are ignored when using the legacy service"
-                in captured.err
+                "Metadata updates are are ignored when using the legacy service"
+                in joined
             )

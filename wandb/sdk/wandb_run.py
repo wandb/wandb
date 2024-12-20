@@ -3750,13 +3750,6 @@ class Run:
         metadata: MetadataRequest,
     ) -> None:
         """Callback to publish Metadata to wandb-core upon user updates."""
-        if self.settings.x_require_legacy_service:
-            wandb.termwarn(
-                "Metadata updates are are ignored when using the legacy service.",
-                repeat=False,
-            )
-            return
-
         # ignore updates if the attached to another run
         if self._is_attached:
             wandb.termwarn(

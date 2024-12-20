@@ -178,6 +178,11 @@ class HandleManager:
     def handle_request_cancel(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_request_metadata(self, record: Record) -> None:
+        logger.warning(
+            "Metadata updates are are ignored when using the legacy service."
+        )
+
     def handle_request_defer(self, record: Record) -> None:
         defer = record.request.defer
         state = defer.state
