@@ -268,12 +268,12 @@ class Experiment:
                     run.log(payloads[0])
 
                 # 12/20/2024 - Wai
-                # HACKAROUND: We ran into some 500s and 502s errors when SDK logs 
-                # a million+ unique metrics in a tight loop. Adding a small sleep 
+                # HACKAROUND: We ran into some 500s and 502s errors when SDK logs
+                # a million+ unique metrics in a tight loop. Adding a small sleep
                 # between each step works around the problem for now.
 
-                # Set a sleep time when reproducing real-life workload when logging 
-                # steps aren't in a tight loop. Just remember that the result_data["log_time"] 
+                # Set a sleep time when reproducing real-life workload when logging
+                # steps aren't in a tight loop. Just remember that the result_data["log_time"]
                 # will include the total sleep time from all the steps.
                 if self.time_delay_second > 0:
                     time.sleep(self.time_delay_second)
