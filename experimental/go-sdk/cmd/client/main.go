@@ -2,10 +2,11 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 
-	"github.com/wandb/wandb/experimental/client-go/pkg/runconfig"
-	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
-	"github.com/wandb/wandb/experimental/client-go/pkg/wandb"
+	"github.com/wandb/wandb/experimental/go-sdk/pkg/runconfig"
+	"github.com/wandb/wandb/experimental/go-sdk/pkg/settings"
+	"github.com/wandb/wandb/experimental/go-sdk/pkg/wandb"
 )
 
 func main() {
@@ -13,6 +14,15 @@ func main() {
 	os.Setenv("WANDB_NOTES", "bla bla")
 	os.Setenv("WANDB_CONSOLE", "off")
 	os.Setenv("WANDB_RESUME", "allow")
+
+	// get the core binary path from the current file path
+	coreBinaryPath := filepath.Join(
+		filepath.Dir(os.Args[0]),
+		"wandb-core",
+	)
+	wandb.Setup(&wandb.SessionParams{
+		ServiceCmdPath: coreBinaryPath,
+	})
 
 	run, err := wandb.Init(
 		&wandb.RunParams{

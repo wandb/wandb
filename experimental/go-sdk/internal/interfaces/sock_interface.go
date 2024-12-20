@@ -5,10 +5,10 @@ import (
 	"sync"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/experimental/client-go/internal/connection"
-	"github.com/wandb/wandb/experimental/client-go/internal/mailbox"
-	"github.com/wandb/wandb/experimental/client-go/pkg/runconfig"
-	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
+	"github.com/wandb/wandb/experimental/go-sdk/internal/connection"
+	"github.com/wandb/wandb/experimental/go-sdk/internal/mailbox"
+	"github.com/wandb/wandb/experimental/go-sdk/pkg/runconfig"
+	"github.com/wandb/wandb/experimental/go-sdk/pkg/settings"
 )
 
 type SockInterface struct {
