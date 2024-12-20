@@ -29,7 +29,7 @@ def test_metadata_ops(user, disabled: bool):
     run._metadata.cpu_count = 1337
     run._metadata.gpu_count = 420
 
-    # reading metadata should return the updated values
+    # reading metadata again should return the updated values
     assert run._metadata.email == "sus@wandb.ai"
     assert run._metadata.cpu_count == 1337
     assert run._metadata.gpu_count == 420
@@ -37,11 +37,17 @@ def test_metadata_ops(user, disabled: bool):
     run.finish()
 
 
-@pytest.mark.skip_wandb_core
-def test_metadata_legacy(user):
+def test_metadata_access_modify(user, capsys):
     run = wandb.init()
 
     assert run._metadata is not None
     run._metadata.gpu_count = 420
 
     run.finish()
+
+    if run.settings.x_require_legacy_service:
+        captured = capsys.readouterr()
+        assert (
+            "WARNING Metadata updates are are ignored when using the legacy service"
+            in captured.err
+        )
