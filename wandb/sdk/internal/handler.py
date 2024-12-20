@@ -783,9 +783,6 @@ class HandleManager:
 
         self._respond_result(result)
 
-    def handle_request_metadata(self, record: Record) -> None:
-        self._dispatch_record(record, always_send=False)
-
     def handle_request_get_system_metadata(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
         if self._system_monitor is None or self._metadata is None:
