@@ -383,6 +383,15 @@ func (scope *Scope) ApplyToEvent(event *Event, hint *EventHint, client *Client) 
 		}
 
 		for key, value := range scope.contexts {
+			if key == "trace" && event.Type == transactionType {
+				// Do not override trace context of
+				// transactions, otherwise it breaks the
+				// transaction event representation.
+				// For error events, the trace context is used
+				// to link errors and traces/spans in Sentry.
+				continue
+			}
+
 			// Ensure we are not overwriting event fields
 			if _, ok := event.Contexts[key]; !ok {
 				event.Contexts[key] = cloneContext(value)
@@ -395,7 +404,9 @@ func (scope *Scope) ApplyToEvent(event *Event, hint *EventHint, client *Client) 
 	}
 
 	if scope.span != nil {
-		event.Contexts["trace"] = scope.span.traceContext().Map()
+		if _, ok := event.Contexts["trace"]; !ok {
+			event.Contexts["trace"] = scope.span.traceContext().Map()
+		}
 
 		transaction := scope.span.GetTransaction()
 		if transaction != nil {
@@ -467,7 +478,7 @@ func (scope *Scope) ApplyToEvent(event *Event, hint *EventHint, client *Client) 
 // a proper deep copy: if some context values are pointer types (e.g. maps),
 // they won't be properly copied.
 func cloneContext(c Context) Context {
-	res := Context{}
+	res := make(Context, len(c))
 	for k, v := range c {
 		res[k] = v
 	}

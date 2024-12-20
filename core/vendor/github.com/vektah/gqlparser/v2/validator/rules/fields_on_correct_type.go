@@ -44,7 +44,7 @@ func getSuggestedTypeNames(walker *Walker, parent *ast.Definition, name string) 
 	}
 
 	possibleTypes := walker.Schema.GetPossibleTypes(parent)
-	suggestedObjectTypes := make([]string, 0, len(possibleTypes))
+	var suggestedObjectTypes = make([]string, 0, len(possibleTypes))
 	var suggestedInterfaceTypes []string
 	interfaceUsageCount := map[string]int{}
 
@@ -67,7 +67,7 @@ func getSuggestedTypeNames(walker *Walker, parent *ast.Definition, name string) 
 		}
 	}
 
-	suggestedTypes := concatSlice(suggestedInterfaceTypes, suggestedObjectTypes)
+	suggestedTypes := append(suggestedInterfaceTypes, suggestedObjectTypes...)
 
 	sort.SliceStable(suggestedTypes, func(i, j int) bool {
 		typeA, typeB := suggestedTypes[i], suggestedTypes[j]
@@ -81,16 +81,6 @@ func getSuggestedTypeNames(walker *Walker, parent *ast.Definition, name string) 
 	return suggestedTypes
 }
 
-// By employing a full slice expression (slice[low:high:max]),
-// where max is set to the slice’s length,
-// we ensure that appending elements results
-// in a slice backed by a distinct array.
-// This method prevents the shared array issue
-func concatSlice(first []string, second []string) []string {
-	n := len(first)
-	return append(first[:n:n], second...)
-}
-
 // For the field name provided, determine if there are any similar field names
 // that may be the result of a typo.
 func getSuggestedFieldNames(parent *ast.Definition, name string) []string {
@@ -98,7 +88,7 @@ func getSuggestedFieldNames(parent *ast.Definition, name string) []string {
 		return nil
 	}
 
-	possibleFieldNames := make([]string, 0, len(parent.Fields))
+	var possibleFieldNames = make([]string, 0, len(parent.Fields))
 	for _, field := range parent.Fields {
 		possibleFieldNames = append(possibleFieldNames, field.Name)
 	}

@@ -2,6 +2,7 @@ package sentry
 
 import (
 	"container/ring"
+	"encoding/binary"
 	"strconv"
 
 	"runtime"
@@ -377,13 +378,7 @@ func (p *profileRecorder) addStackTrace(capturedStack traceparser.Trace) int {
 
 			p.stackKeyBuffer = append(p.stackKeyBuffer, 0) // space
 
-			// The following code is just like binary.AppendUvarint() which isn't yet available in Go 1.18.
-			x := uint64(frameIndex) + 1
-			for x >= 0x80 {
-				p.stackKeyBuffer = append(p.stackKeyBuffer, byte(x)|0x80)
-				x >>= 7
-			}
-			p.stackKeyBuffer = append(p.stackKeyBuffer, byte(x))
+			p.stackKeyBuffer = binary.AppendUvarint(p.stackKeyBuffer, uint64(frameIndex)+1)
 		}
 	}
 

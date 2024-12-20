@@ -254,6 +254,7 @@ func (s *Lexer) readNumber() (Token, error) {
 		return s.makeToken(Float)
 	}
 	return s.makeToken(Int)
+
 }
 
 // acceptByte if it matches any of given bytes, returning true if it found anything
@@ -316,8 +317,8 @@ func (s *Lexer) readString() (Token, error) {
 		}
 		switch r {
 		default:
-			char := rune(r)
-			w := 1
+			var char = rune(r)
+			var w = 1
 
 			// skip unicode overhead if we are in the ascii range
 			if r >= 127 {
@@ -439,12 +440,11 @@ func (s *Lexer) readBlockString() (Token, error) {
 			return s.makeError(`Invalid character within String: "\u%04d".`, r)
 		}
 
-		switch {
-		case r == '\\' && s.end+4 <= inputLen && s.Input[s.end:s.end+4] == `\"""`:
+		if r == '\\' && s.end+4 <= inputLen && s.Input[s.end:s.end+4] == `\"""` {
 			buf.WriteString(`"""`)
 			s.end += 4
 			s.endRunes += 4
-		case r == '\r':
+		} else if r == '\r' {
 			if s.end+1 < inputLen && s.Input[s.end+1] == '\n' {
 				s.end++
 				s.endRunes++
@@ -455,9 +455,9 @@ func (s *Lexer) readBlockString() (Token, error) {
 			s.endRunes++
 			s.line++
 			s.lineStartRunes = s.endRunes
-		default:
-			char := rune(r)
-			w := 1
+		} else {
+			var char = rune(r)
+			var w = 1
 
 			// skip unicode overhead if we are in the ascii range
 			if r >= 127 {

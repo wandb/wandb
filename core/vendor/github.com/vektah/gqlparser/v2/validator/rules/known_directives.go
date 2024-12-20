@@ -14,7 +14,7 @@ func init() {
 			Line   int
 			Column int
 		}
-		seen := map[mayNotBeUsedDirective]bool{}
+		var seen = map[mayNotBeUsedDirective]bool{}
 		observers.OnDirective(func(walker *Walker, directive *ast.Directive) {
 			if directive.Definition == nil {
 				addError(

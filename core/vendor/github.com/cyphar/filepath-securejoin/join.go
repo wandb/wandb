@@ -1,5 +1,5 @@
 // Copyright (C) 2014-2015 Docker Inc & Go Authors. All rights reserved.
-// Copyright (C) 2017-2024 SUSE LLC. All rights reserved.
+// Copyright (C) 2017 SUSE LLC. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -11,14 +11,13 @@
 package securejoin
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
 )
-
-const maxSymlinkLimit = 255
 
 // IsNotExist tells you if err is an error that implies that either the path
 // accessed does not exist (or path components don't exist). This is
@@ -41,12 +40,6 @@ func IsNotExist(err error) bool {
 // replaced with symlinks on the filesystem) after this function has returned.
 // Such a symlink race is necessarily out-of-scope of SecureJoin.
 //
-// NOTE: Due to the above limitation, Linux users are strongly encouraged to
-// use OpenInRoot instead, which does safely protect against these kinds of
-// attacks. There is no way to solve this problem with SecureJoinVFS because
-// the API is fundamentally wrong (you cannot return a "safe" path string and
-// guarantee it won't be modified afterwards).
-//
 // Volume names in unsafePath are always discarded, regardless if they are
 // provided via direct input or when evaluating symlinks. Therefore:
 //
@@ -58,69 +51,71 @@ func SecureJoinVFS(root, unsafePath string, vfs VFS) (string, error) {
 	}
 
 	unsafePath = filepath.FromSlash(unsafePath)
-	var (
-		currentPath   string
-		remainingPath = unsafePath
-		linksWalked   int
-	)
-	for remainingPath != "" {
-		if v := filepath.VolumeName(remainingPath); v != "" {
-			remainingPath = remainingPath[len(v):]
+	var path bytes.Buffer
+	n := 0
+	for unsafePath != "" {
+		if n > 255 {
+			return "", &os.PathError{Op: "SecureJoin", Path: root + string(filepath.Separator) + unsafePath, Err: syscall.ELOOP}
 		}
 
-		// Get the next path component.
-		var part string
-		if i := strings.IndexRune(remainingPath, filepath.Separator); i == -1 {
-			part, remainingPath = remainingPath, ""
+		if v := filepath.VolumeName(unsafePath); v != "" {
+			unsafePath = unsafePath[len(v):]
+		}
+
+		// Next path component, p.
+		i := strings.IndexRune(unsafePath, filepath.Separator)
+		var p string
+		if i == -1 {
+			p, unsafePath = unsafePath, ""
 		} else {
-			part, remainingPath = remainingPath[:i], remainingPath[i+1:]
+			p, unsafePath = unsafePath[:i], unsafePath[i+1:]
 		}
 
-		// Apply the component lexically to the path we are building.
-		// currentPath does not contain any symlinks, and we are lexically
-		// dealing with a single component, so it's okay to do a filepath.Clean
-		// here.
-		nextPath := filepath.Join(string(filepath.Separator), currentPath, part)
-		if nextPath == string(filepath.Separator) {
-			currentPath = ""
+		// Create a cleaned path, using the lexical semantics of /../a, to
+		// create a "scoped" path component which can safely be joined to fullP
+		// for evaluation. At this point, path.String() doesn't contain any
+		// symlink components.
+		cleanP := filepath.Clean(string(filepath.Separator) + path.String() + p)
+		if cleanP == string(filepath.Separator) {
+			path.Reset()
 			continue
 		}
-		fullPath := root + string(filepath.Separator) + nextPath
+		fullP := filepath.Clean(root + cleanP)
 
 		// Figure out whether the path is a symlink.
-		fi, err := vfs.Lstat(fullPath)
+		fi, err := vfs.Lstat(fullP)
 		if err != nil && !IsNotExist(err) {
 			return "", err
 		}
 		// Treat non-existent path components the same as non-symlinks (we
 		// can't do any better here).
 		if IsNotExist(err) || fi.Mode()&os.ModeSymlink == 0 {
-			currentPath = nextPath
+			path.WriteString(p)
+			path.WriteRune(filepath.Separator)
 			continue
 		}
 
-		// It's a symlink, so get its contents and expand it by prepending it
-		// to the yet-unparsed path.
-		linksWalked++
-		if linksWalked > maxSymlinkLimit {
-			return "", &os.PathError{Op: "SecureJoin", Path: root + string(filepath.Separator) + unsafePath, Err: syscall.ELOOP}
-		}
+		// Only increment when we actually dereference a link.
+		n++
 
-		dest, err := vfs.Readlink(fullPath)
+		// It's a symlink, expand it by prepending it to the yet-unparsed path.
+		dest, err := vfs.Readlink(fullP)
 		if err != nil {
 			return "", err
 		}
-		remainingPath = dest + string(filepath.Separator) + remainingPath
 		// Absolute symlinks reset any work we've already done.
 		if filepath.IsAbs(dest) {
-			currentPath = ""
+			path.Reset()
 		}
+		unsafePath = dest + string(filepath.Separator) + unsafePath
 	}
 
-	// There should be no lexical components like ".." left in the path here,
-	// but for safety clean up the path before joining it to the root.
-	finalPath := filepath.Join(string(filepath.Separator), currentPath)
-	return filepath.Join(root, finalPath), nil
+	// We have to clean path.String() here because it may contain '..'
+	// components that are entirely lexical, but would be misleading otherwise.
+	// And finally do a final clean to ensure that root is also lexically
+	// clean.
+	fullP := filepath.Clean(string(filepath.Separator) + path.String())
+	return filepath.Clean(root + fullP), nil
 }
 
 // SecureJoin is a wrapper around SecureJoinVFS that just uses the os.* library

@@ -2,6 +2,7 @@
 // cgo -godefs sysconf_defs_linux.go
 
 //go:build linux
+// +build linux
 
 package sysconf
 

@@ -156,7 +156,9 @@ func connectEx(
 	bytesSent *uint32,
 	overlapped *windows.Overlapped,
 ) (err error) {
-	r1, _, e1 := syscall.SyscallN(connectExFunc.addr,
+	// todo: after upgrading to 1.18, switch from syscall.Syscall9 to syscall.SyscallN
+	r1, _, e1 := syscall.Syscall9(connectExFunc.addr,
+		7,
 		uintptr(s),
 		uintptr(name),
 		uintptr(namelen),
@@ -164,8 +166,8 @@ func connectEx(
 		uintptr(sendDataLen),
 		uintptr(unsafe.Pointer(bytesSent)),
 		uintptr(unsafe.Pointer(overlapped)),
-	)
-
+		0,
+		0)
 	if r1 == 0 {
 		if e1 != 0 {
 			err = error(e1)

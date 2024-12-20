@@ -2,6 +2,7 @@
 // cgo -godefs sysconf_defs_darwin.go
 
 //go:build darwin
+// +build darwin
 
 package sysconf
 
@@ -234,6 +235,7 @@ const (
 
 	_PTHREAD_DESTRUCTOR_ITERATIONS = 0x4
 	_PTHREAD_KEYS_MAX              = 0x200
+	_PTHREAD_STACK_MIN             = 0x2000
 )
 
 const (

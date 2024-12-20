@@ -52,7 +52,8 @@ func (pr *pkgReader) later(fn func()) {
 
 // See cmd/compile/internal/noder.derivedInfo.
 type derivedInfo struct {
-	idx pkgbits.Index
+	idx    pkgbits.Index
+	needed bool
 }
 
 // See cmd/compile/internal/noder.typeInfo.
@@ -109,17 +110,13 @@ func readUnifiedPackage(fset *token.FileSet, ctxt *types.Context, imports map[st
 
 	r := pr.newReader(pkgbits.RelocMeta, pkgbits.PublicRootIdx, pkgbits.SyncPublic)
 	pkg := r.pkg()
-	if r.Version().Has(pkgbits.HasInit) {
-		r.Bool()
-	}
+	r.Bool() // has init
 
 	for i, n := 0, r.Len(); i < n; i++ {
 		// As if r.obj(), but avoiding the Scope.Lookup call,
 		// to avoid eager loading of imports.
 		r.Sync(pkgbits.SyncObject)
-		if r.Version().Has(pkgbits.DerivedFuncInstance) {
-			assert(!r.Bool())
-		}
+		assert(!r.Bool())
 		r.p.objIdx(r.Reloc(pkgbits.RelocObj))
 		assert(r.Len() == 0)
 	}
@@ -168,7 +165,7 @@ type readerDict struct {
 	// tparams is a slice of the constructed TypeParams for the element.
 	tparams []*types.TypeParam
 
-	// derived is a slice of types derived from tparams, which may be
+	// devived is a slice of types derived from tparams, which may be
 	// instantiated while reading the current element.
 	derived      []derivedInfo
 	derivedTypes []types.Type // lazily instantiated from derived
@@ -474,9 +471,7 @@ func (r *reader) param() *types.Var {
 func (r *reader) obj() (types.Object, []types.Type) {
 	r.Sync(pkgbits.SyncObject)
 
-	if r.Version().Has(pkgbits.DerivedFuncInstance) {
-		assert(!r.Bool())
-	}
+	assert(!r.Bool())
 
 	pkg, name := r.p.objIdx(r.Reloc(pkgbits.RelocObj))
 	obj := pkgScope(pkg).Lookup(name)
@@ -530,12 +525,8 @@ func (pr *pkgReader) objIdx(idx pkgbits.Index) (*types.Package, string) {
 
 		case pkgbits.ObjAlias:
 			pos := r.pos()
-			var tparams []*types.TypeParam
-			if r.Version().Has(pkgbits.AliasTypeParamNames) {
-				tparams = r.typeParamNames()
-			}
 			typ := r.typ()
-			declare(aliases.NewAlias(r.p.aliases, pos, objPkg, objName, typ, tparams))
+			declare(aliases.NewAlias(r.p.aliases, pos, objPkg, objName, typ))
 
 		case pkgbits.ObjConst:
 			pos := r.pos()
@@ -641,10 +632,7 @@ func (pr *pkgReader) objDictIdx(idx pkgbits.Index) *readerDict {
 		dict.derived = make([]derivedInfo, r.Len())
 		dict.derivedTypes = make([]types.Type, len(dict.derived))
 		for i := range dict.derived {
-			dict.derived[i] = derivedInfo{idx: r.Reloc(pkgbits.RelocType)}
-			if r.Version().Has(pkgbits.DerivedInfoNeeded) {
-				assert(!r.Bool())
-			}
+			dict.derived[i] = derivedInfo{r.Reloc(pkgbits.RelocType), r.Bool()}
 		}
 
 		pr.retireReader(r)
