@@ -37,7 +37,7 @@ def test_metadata_ops(user, disabled: bool):
     run.finish()
 
 
-def test_metadata_access(wandb_backend_spy, capsys):
+def test_metadata_access(user):
     with wandb.init() as run:
         run.log({"acc": 1})
         assert run._metadata is not None
