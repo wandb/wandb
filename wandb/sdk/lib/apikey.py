@@ -250,7 +250,7 @@ def write_key(
         )
 
     if anonymous:
-        api.set_setting("anonymous", "must", globally=True, persist=True)
+        api.set_setting("anonymous", "true", globally=True, persist=True)
     else:
         api.clear_setting("anonymous", globally=True, persist=True)
 
