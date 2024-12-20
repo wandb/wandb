@@ -212,7 +212,7 @@ class Video(BatchableMedia):
         )
         if video.ndim < 4:
             raise ValueError(
-                "Video must be atleast 4 dimensions: time, channels, height, width"
+                "Video must be at least 4 dimensions: time, channels, height, width"
             )
         if video.ndim == 4:
             video = video.reshape(1, *video.shape)
