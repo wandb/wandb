@@ -38,15 +38,14 @@ def test_metadata_ops(user, disabled: bool):
 
 
 def test_metadata_access(wandb_backend_spy, capsys):
-    run = wandb.init()
+    with wandb.init() as run:
+        run.log({"acc": 1},)
+        assert run._metadata is not None
 
-    assert run._metadata is not None
+        if run.settings.x_require_legacy_service:
+            captured = capsys.readouterr()
+            assert (
+                "WARNING Metadata updates are are ignored when using the legacy service"
+                in captured.err
+            )
 
-    if run.settings.x_require_legacy_service:
-        captured = capsys.readouterr()
-        assert (
-            "WARNING Metadata updates are are ignored when using the legacy service"
-            in captured.err
-        )
-
-    run.finish()
