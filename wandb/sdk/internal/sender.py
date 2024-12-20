@@ -411,9 +411,6 @@ class SendManager:
         assert send_handler, f"unknown handle: {handler_str}"
         send_handler(record)
 
-    def send_request_metadata(self, record: "Record") -> None:
-        pass
-
     def _respond_result(self, result: "Result") -> None:
         context_id = context.context_id_from_result(result)
         self._context_keeper.release(context_id)
