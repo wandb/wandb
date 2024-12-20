@@ -33,7 +33,7 @@ type ConnectionParams struct {
 	SentryClient *sentry_ext.Client
 	Commit       string
 	LoggerPath   string
-	Debug        bool
+	LogLevel     slog.Level
 }
 
 // Connection represents a client-server connection in the context of a streaming session.
@@ -84,8 +84,8 @@ type Connection struct {
 	// loggerPath is the path to the logger
 	loggerPath string
 
-	// debug is whether to enable debug logging
-	debug bool
+	// logLevel is the log level
+	logLevel slog.Level
 }
 
 func NewConnection(
@@ -106,7 +106,7 @@ func NewConnection(
 		closed:       &atomic.Bool{},
 		sentryClient: params.SentryClient,
 		loggerPath:   params.LoggerPath,
-		debug:        params.Debug,
+		logLevel:     params.LogLevel,
 	}
 }
 
@@ -323,7 +323,7 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	// if we are in offline mode, we don't want to send any data to sentry
 	var sentryClient *sentry_ext.Client
 	if settings.IsOffline() {
-		sentryClient = sentry_ext.New(sentry_ext.Params{DSN: ""})
+		sentryClient = sentry_ext.New(sentry_ext.Params{Disabled: true})
 	} else {
 		sentryClient = nc.sentryClient
 	}
@@ -332,7 +332,7 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 		stream.StreamParams{
 			Settings:   settings,
 			Commit:     nc.commit,
-			Debug:      nc.debug,
+			LogLevel:   nc.logLevel,
 			Sentry:     sentryClient,
 			LoggerPath: nc.loggerPath,
 		},

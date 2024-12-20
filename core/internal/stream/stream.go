@@ -68,7 +68,7 @@ func streamLogger(
 	settings *settings.Settings,
 	sentryClient *sentry_ext.Client,
 	loggerPath string,
-	debug bool,
+	logLevel slog.Level,
 ) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
@@ -92,17 +92,6 @@ func streamLogger(
 	}
 	writer := io.MultiWriter(writers...)
 
-	// TODO: add a log level to the settings
-	level := slog.LevelInfo
-	if debug {
-		level = slog.LevelDebug
-	}
-
-	opts := &slog.HandlerOptions{
-		Level: level,
-		// AddSource: true,
-	}
-
 	sentryClient.SetUser(
 		settings.GetEntity(),
 		settings.GetEmail(),
@@ -110,14 +99,22 @@ func streamLogger(
 	)
 
 	logger := observability.NewCoreLogger(
-		slog.New(slog.NewJSONHandler(writer, opts)),
-		observability.WithTags(observability.Tags{}),
-		observability.WithCaptureMessage(sentryClient.CaptureMessage),
-		observability.WithCaptureException(sentryClient.CaptureException),
-		observability.WithReraise(sentryClient.Reraise),
+		slog.New(slog.NewJSONHandler(
+			writer,
+			&slog.HandlerOptions{
+				Level: logLevel,
+				// AddSource: true,
+			},
+		)),
+		&observability.CoreLoggerParams{
+			Tags:   observability.Tags{},
+			Sentry: sentryClient,
+		},
 	)
-	logger.Info("using version", "core version", version.Version)
-	logger.Info("created symlink", "path", targetPath)
+	logger.Info("stream: starting",
+		"core version", version.Version,
+		"symlink path", targetPath,
+	)
 
 	tags := observability.Tags{
 		"run_id":   settings.GetRunID(),
@@ -138,7 +135,7 @@ type StreamParams struct {
 	Settings   *settings.Settings
 	Sentry     *sentry_ext.Client
 	LoggerPath string
-	Debug      bool
+	LogLevel   slog.Level
 }
 
 // NewStream creates a new stream with the given settings and responders.
@@ -151,24 +148,13 @@ func NewStream(
 		params.Settings,
 		params.Sentry,
 		params.LoggerPath,
-		params.Debug,
+		params.LogLevel,
 	)
 	s := &Stream{
 		runWork:      runwork.New(BufferSize, logger),
 		logger:       logger,
 		settings:     params.Settings,
 		sentryClient: params.Sentry,
-	}
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		// We log an error but continue anyway with an empty hostname string.
-		// Better behavior would be to inform the user and turn off any
-		// components that rely on the hostname, but it's not easy to do
-		// with our current code structure.
-		s.logger.CaptureError(
-			fmt.Errorf("stream: could not get hostname: %v", err))
-		hostname = ""
 	}
 
 	// TODO: replace this with a logger that can be read by the user
@@ -182,7 +168,6 @@ func NewStream(
 		ExtraWork: s.runWork,
 		Logger:    s.logger,
 		Settings:  s.settings,
-		Hostname:  hostname,
 	})
 	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
@@ -217,7 +202,7 @@ func NewStream(
 
 	mailbox := mailbox.New()
 
-	s.handler = NewHandler(params.Commit,
+	s.handler = NewHandler(
 		HandlerParams{
 			Logger:            s.logger,
 			Operations:        operations,
@@ -229,6 +214,7 @@ func NewStream(
 			FileTransferStats: fileTransferStats,
 			Mailbox:           mailbox,
 			TerminalPrinter:   terminalPrinter,
+			Commit:            params.Commit,
 		},
 	)
 
