@@ -93,7 +93,7 @@ class FsmStateExit(Protocol[T_FsmInputs, T_FsmContext_cov]):
     def on_exit(self, inputs: T_FsmInputs) -> T_FsmContext_cov: ...  # pragma: no cover
 
 
-# It would be nice if python provided optional protocol members, but it doesnt as described here:
+# It would be nice if python provided optional protocol members, but it does not as described here:
 #   https://peps.python.org/pep-0544/#support-optional-protocol-members
 # Until then, we can only enforce that a state at least supports one protocol interface.  This
 # unfortunately will not check the signature of other potential protocols.

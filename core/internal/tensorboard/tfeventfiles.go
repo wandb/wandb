@@ -50,7 +50,7 @@ func nextTFEventsFile(
 		//
 		// It's not clear whether Go's < operator for strings compares runes
 		// (Unicode code points) or bytes, but strings are able to hold
-		// arbitrary bytes, so we explictly compare runes here.
+		// arbitrary bytes, so we explicitly compare runes here.
 		//
 		// In practice it's not clear this will matter, since tfevents file
 		// names are probably ASCII other than the "hostname" portion which

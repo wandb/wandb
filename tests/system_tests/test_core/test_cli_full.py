@@ -107,7 +107,7 @@ def test_pull(runner, user):
             27,
             marks=[
                 pytest.mark.flaky,
-                pytest.mark.xfail(reason="test seems flaky, reenable with WB-5015"),
+                pytest.mark.xfail(reason="test seems flaky, re-enable with WB-5015"),
             ],
         ),
     ],

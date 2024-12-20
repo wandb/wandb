@@ -265,7 +265,7 @@ class SyncThread(threading.Thread):
             root_dir = self._tmp_dir.name if sync_tb else os.path.dirname(sync_item)
 
             # When appending we are allowing a possible resume, ie the run
-            # doesnt have to exist already
+            # does not have to exist already
             resume = "allow" if self._append else None
 
             sm = sender.SendManager.setup(root_dir, resume=resume)

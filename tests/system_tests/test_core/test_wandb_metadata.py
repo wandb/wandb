@@ -50,6 +50,5 @@ def test_metadata_access(user):
 
         if run.settings.x_require_legacy_service:
             assert (
-                "Metadata updates are are ignored when using the legacy service"
-                in joined
+                "Metadata updates are ignored when using the legacy service" in joined
             )
