@@ -43,11 +43,11 @@ def test_metadata_access_modify(wandb_backend_spy, capsys):
     assert run._metadata is not None
     run._metadata.gpu_count = 420
 
-    run.finish()
-
     if run.settings.x_require_legacy_service:
         captured = capsys.readouterr()
         assert (
             "WARNING Metadata updates are are ignored when using the legacy service"
             in captured.err
         )
+
+    run.finish()
