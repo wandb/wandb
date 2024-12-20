@@ -1,4 +1,4 @@
-package rules
+package validator
 
 import (
 	"github.com/vektah/gqlparser/v2/ast"
@@ -7,9 +7,8 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-var UniqueOperationNamesRule = Rule{
-	Name: "UniqueOperationNames",
-	RuleFunc: func(observers *Events, addError AddErrFunc) {
+func init() {
+	AddRule("UniqueOperationNames", func(observers *Events, addError AddErrFunc) {
 		seen := map[string]bool{}
 
 		observers.OnOperation(func(walker *Walker, operation *ast.OperationDefinition) {
@@ -21,9 +20,5 @@ var UniqueOperationNamesRule = Rule{
 			}
 			seen[operation.Name] = true
 		})
-	},
-}
-
-func init() {
-	AddRule(UniqueOperationNamesRule.Name, UniqueOperationNamesRule.RuleFunc)
+	})
 }

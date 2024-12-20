@@ -1,4 +1,4 @@
-package rules
+package validator
 
 import (
 	"github.com/vektah/gqlparser/v2/ast"
@@ -7,9 +7,8 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-var VariablesInAllowedPositionRule = Rule{
-	Name: "VariablesInAllowedPosition",
-	RuleFunc: func(observers *Events, addError AddErrFunc) {
+func init() {
+	AddRule("VariablesInAllowedPosition", func(observers *Events, addError AddErrFunc) {
 		observers.OnValue(func(walker *Walker, value *ast.Value) {
 			if value.Kind != ast.Variable || value.ExpectedType == nil || value.VariableDefinition == nil || walker.CurrentOperation == nil {
 				return
@@ -37,9 +36,5 @@ var VariablesInAllowedPositionRule = Rule{
 				)
 			}
 		})
-	},
-}
-
-func init() {
-	AddRule(VariablesInAllowedPositionRule.Name, VariablesInAllowedPositionRule.RuleFunc)
+	})
 }

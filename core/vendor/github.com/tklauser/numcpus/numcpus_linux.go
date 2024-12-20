@@ -15,7 +15,7 @@
 package numcpus
 
 import (
-	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -24,14 +24,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const (
-	sysfsCPUBasePath = "/sys/devices/system/cpu"
-
-	offline  = "offline"
-	online   = "online"
-	possible = "possible"
-	present  = "present"
-)
+const sysfsCPUBasePath = "/sys/devices/system/cpu"
 
 func getFromCPUAffinity() (int, error) {
 	var cpuSet unix.CPUSet
@@ -41,81 +34,36 @@ func getFromCPUAffinity() (int, error) {
 	return cpuSet.Count(), nil
 }
 
-func readCPURangeWith[T any](file string, f func(cpus string) (T, error)) (T, error) {
-	var zero T
-	buf, err := os.ReadFile(filepath.Join(sysfsCPUBasePath, file))
+func readCPURange(file string) (int, error) {
+	buf, err := ioutil.ReadFile(filepath.Join(sysfsCPUBasePath, file))
 	if err != nil {
-		return zero, err
+		return 0, err
 	}
-	return f(strings.Trim(string(buf), "\n "))
+	return parseCPURange(strings.Trim(string(buf), "\n "))
 }
 
-func countCPURange(cpus string) (int, error) {
-	// Treat empty file as valid. This might be the case if there are no offline CPUs in which
-	// case /sys/devices/system/cpu/offline is empty.
-	if cpus == "" {
-		return 0, nil
-	}
-
+func parseCPURange(cpus string) (int, error) {
 	n := int(0)
 	for _, cpuRange := range strings.Split(cpus, ",") {
-		if cpuRange == "" {
-			return 0, fmt.Errorf("empty CPU range in CPU string %q", cpus)
+		if len(cpuRange) == 0 {
+			continue
 		}
-		from, to, found := strings.Cut(cpuRange, "-")
-		first, err := strconv.ParseUint(from, 10, 32)
+		rangeOp := strings.SplitN(cpuRange, "-", 2)
+		first, err := strconv.ParseUint(rangeOp[0], 10, 32)
 		if err != nil {
 			return 0, err
 		}
-		if !found {
+		if len(rangeOp) == 1 {
 			n++
 			continue
 		}
-		last, err := strconv.ParseUint(to, 10, 32)
+		last, err := strconv.ParseUint(rangeOp[1], 10, 32)
 		if err != nil {
 			return 0, err
-		}
-		if last < first {
-			return 0, fmt.Errorf("last CPU in range (%d) less than first (%d)", last, first)
 		}
 		n += int(last - first + 1)
 	}
 	return n, nil
-}
-
-func listCPURange(cpus string) ([]int, error) {
-	// See comment in countCPURange.
-	if cpus == "" {
-		return []int{}, nil
-	}
-
-	list := []int{}
-	for _, cpuRange := range strings.Split(cpus, ",") {
-		if cpuRange == "" {
-			return nil, fmt.Errorf("empty CPU range in CPU string %q", cpus)
-		}
-		from, to, found := strings.Cut(cpuRange, "-")
-		first, err := strconv.ParseUint(from, 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		if !found {
-			// range containing a single element
-			list = append(list, int(first))
-			continue
-		}
-		last, err := strconv.ParseUint(to, 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		if last < first {
-			return nil, fmt.Errorf("last CPU in range (%d) less than first (%d)", last, first)
-		}
-		for cpu := int(first); cpu <= int(last); cpu++ {
-			list = append(list, cpu)
-		}
-	}
-	return list, nil
 }
 
 func getConfigured() (int, error) {
@@ -141,7 +89,7 @@ func getConfigured() (int, error) {
 }
 
 func getKernelMax() (int, error) {
-	buf, err := os.ReadFile(filepath.Join(sysfsCPUBasePath, "kernel_max"))
+	buf, err := ioutil.ReadFile(filepath.Join(sysfsCPUBasePath, "kernel_max"))
 	if err != nil {
 		return 0, err
 	}
@@ -153,36 +101,20 @@ func getKernelMax() (int, error) {
 }
 
 func getOffline() (int, error) {
-	return readCPURangeWith(offline, countCPURange)
+	return readCPURange("offline")
 }
 
 func getOnline() (int, error) {
 	if n, err := getFromCPUAffinity(); err == nil {
 		return n, nil
 	}
-	return readCPURangeWith(online, countCPURange)
+	return readCPURange("online")
 }
 
 func getPossible() (int, error) {
-	return readCPURangeWith(possible, countCPURange)
+	return readCPURange("possible")
 }
 
 func getPresent() (int, error) {
-	return readCPURangeWith(present, countCPURange)
-}
-
-func listOffline() ([]int, error) {
-	return readCPURangeWith(offline, listCPURange)
-}
-
-func listOnline() ([]int, error) {
-	return readCPURangeWith(online, listCPURange)
-}
-
-func listPossible() ([]int, error) {
-	return readCPURangeWith(possible, listCPURange)
-}
-
-func listPresent() ([]int, error) {
-	return readCPURangeWith(present, listCPURange)
+	return readCPURange("present")
 }

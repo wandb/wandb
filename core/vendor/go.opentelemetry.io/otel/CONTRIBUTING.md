@@ -629,10 +629,6 @@ should be canceled.
 
 ## Approvers and Maintainers
 
-### Triagers
-
-- [Cheng-Zhen Yang](https://github.com/scorpionknifes), Independent
-
 ### Approvers
 
 ### Maintainers
@@ -645,13 +641,13 @@ should be canceled.
 
 ### Emeritus
 
-- [Aaron Clawson](https://github.com/MadVikingGod)
-- [Anthony Mirabella](https://github.com/Aneurysm9)
-- [Chester Cheung](https://github.com/hanyuancheung)
-- [Evan Torrie](https://github.com/evantorrie)
-- [Gustavo Silva Paiva](https://github.com/paivagustavo)
-- [Josh MacDonald](https://github.com/jmacd)
-- [Liz Fong-Jones](https://github.com/lizthegrey)
+- [Aaron Clawson](https://github.com/MadVikingGod), LightStep
+- [Anthony Mirabella](https://github.com/Aneurysm9), AWS
+- [Chester Cheung](https://github.com/hanyuancheung), Tencent
+- [Evan Torrie](https://github.com/evantorrie), Yahoo
+- [Gustavo Silva Paiva](https://github.com/paivagustavo), LightStep
+- [Josh MacDonald](https://github.com/jmacd), LightStep
+- [Liz Fong-Jones](https://github.com/lizthegrey), Honeycomb
 
 ### Become an Approver or a Maintainer
 

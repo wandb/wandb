@@ -1,4 +1,4 @@
-package rules
+package validator
 
 import (
 	"github.com/vektah/gqlparser/v2/ast"
@@ -7,9 +7,9 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-var NoUnusedFragmentsRule = Rule{
-	Name: "NoUnusedFragments",
-	RuleFunc: func(observers *Events, addError AddErrFunc) {
+func init() {
+	AddRule("NoUnusedFragments", func(observers *Events, addError AddErrFunc) {
+
 		inFragmentDefinition := false
 		fragmentNameUsed := make(map[string]bool)
 
@@ -28,9 +28,5 @@ var NoUnusedFragmentsRule = Rule{
 				)
 			}
 		})
-	},
-}
-
-func init() {
-	AddRule(NoUnusedFragmentsRule.Name, NoUnusedFragmentsRule.RuleFunc)
+	})
 }

@@ -14,23 +14,6 @@ var blockEnd = []byte("\n=")
 var newline = []byte("\n")
 var armorEndOfLineOut = []byte("-----\n")
 
-const crc24Init = 0xb704ce
-const crc24Poly = 0x1864cfb
-
-// crc24 calculates the OpenPGP checksum as specified in RFC 4880, section 6.1
-func crc24(crc uint32, d []byte) uint32 {
-	for _, b := range d {
-		crc ^= uint32(b) << 16
-		for i := 0; i < 8; i++ {
-			crc <<= 1
-			if crc&0x1000000 != 0 {
-				crc ^= crc24Poly
-			}
-		}
-	}
-	return crc
-}
-
 // writeSlices writes its arguments to the given Writer.
 func writeSlices(out io.Writer, slices ...[]byte) (err error) {
 	for _, s := range slices {
@@ -116,18 +99,15 @@ func (l *lineBreaker) Close() (err error) {
 //
 //	encoding -> base64 encoder -> lineBreaker -> out
 type encoding struct {
-	out        io.Writer
-	breaker    *lineBreaker
-	b64        io.WriteCloser
-	crc        uint32
-	crcEnabled bool
-	blockType  []byte
+	out       io.Writer
+	breaker   *lineBreaker
+	b64       io.WriteCloser
+	crc       uint32
+	blockType []byte
 }
 
 func (e *encoding) Write(data []byte) (n int, err error) {
-	if e.crcEnabled {
-		e.crc = crc24(e.crc, data)
-	}
+	e.crc = crc24(e.crc, data)
 	return e.b64.Write(data)
 }
 
@@ -138,21 +118,20 @@ func (e *encoding) Close() (err error) {
 	}
 	e.breaker.Close()
 
-	if e.crcEnabled {
-		var checksumBytes [3]byte
-		checksumBytes[0] = byte(e.crc >> 16)
-		checksumBytes[1] = byte(e.crc >> 8)
-		checksumBytes[2] = byte(e.crc)
+	var checksumBytes [3]byte
+	checksumBytes[0] = byte(e.crc >> 16)
+	checksumBytes[1] = byte(e.crc >> 8)
+	checksumBytes[2] = byte(e.crc)
 
-		var b64ChecksumBytes [4]byte
-		base64.StdEncoding.Encode(b64ChecksumBytes[:], checksumBytes[:])
+	var b64ChecksumBytes [4]byte
+	base64.StdEncoding.Encode(b64ChecksumBytes[:], checksumBytes[:])
 
-		return writeSlices(e.out, blockEnd, b64ChecksumBytes[:], newline, armorEnd, e.blockType, armorEndOfLine)
-	}
-	return writeSlices(e.out, newline, armorEnd, e.blockType, armorEndOfLine)
+	return writeSlices(e.out, blockEnd, b64ChecksumBytes[:], newline, armorEnd, e.blockType, armorEndOfLine)
 }
 
-func encode(out io.Writer, blockType string, headers map[string]string, checksum bool) (w io.WriteCloser, err error) {
+// Encode returns a WriteCloser which will encode the data written to it in
+// OpenPGP armor.
+func Encode(out io.Writer, blockType string, headers map[string]string) (w io.WriteCloser, err error) {
 	bType := []byte(blockType)
 	err = writeSlices(out, armorStart, bType, armorEndOfLineOut)
 	if err != nil {
@@ -172,27 +151,11 @@ func encode(out io.Writer, blockType string, headers map[string]string, checksum
 	}
 
 	e := &encoding{
-		out:        out,
-		breaker:    newLineBreaker(out, 64),
-		blockType:  bType,
-		crc:        crc24Init,
-		crcEnabled: checksum,
+		out:       out,
+		breaker:   newLineBreaker(out, 64),
+		crc:       crc24Init,
+		blockType: bType,
 	}
 	e.b64 = base64.NewEncoder(base64.StdEncoding, e.breaker)
 	return e, nil
-}
-
-// Encode returns a WriteCloser which will encode the data written to it in
-// OpenPGP armor.
-func Encode(out io.Writer, blockType string, headers map[string]string) (w io.WriteCloser, err error) {
-	return encode(out, blockType, headers, true)
-}
-
-// EncodeWithChecksumOption returns a WriteCloser which will encode the data written to it in
-// OpenPGP armor and provides the option to include a checksum.
-// When forming ASCII Armor, the CRC24 footer SHOULD NOT be generated,
-// unless interoperability with implementations that require the CRC24 footer
-// to be present is a concern.
-func EncodeWithChecksumOption(out io.Writer, blockType string, headers map[string]string, doChecksum bool) (w io.WriteCloser, err error) {
-	return encode(out, blockType, headers, doChecksum)
 }

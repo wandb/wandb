@@ -1,4 +1,4 @@
-package rules
+package validator
 
 import (
 	"github.com/vektah/gqlparser/v2/ast"
@@ -7,9 +7,8 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-var NoUnusedVariablesRule = Rule{
-	Name: "NoUnusedVariables",
-	RuleFunc: func(observers *Events, addError AddErrFunc) {
+func init() {
+	AddRule("NoUnusedVariables", func(observers *Events, addError AddErrFunc) {
 		observers.OnOperation(func(walker *Walker, operation *ast.OperationDefinition) {
 			for _, varDef := range operation.VariableDefinitions {
 				if varDef.Used {
@@ -29,9 +28,5 @@ var NoUnusedVariablesRule = Rule{
 				}
 			}
 		})
-	},
-}
-
-func init() {
-	AddRule(NoUnusedVariablesRule.Name, NoUnusedVariablesRule.RuleFunc)
+	})
 }

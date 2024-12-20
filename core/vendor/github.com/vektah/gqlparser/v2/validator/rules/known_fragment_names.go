@@ -1,4 +1,4 @@
-package rules
+package validator
 
 import (
 	"github.com/vektah/gqlparser/v2/ast"
@@ -7,9 +7,8 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-var KnownFragmentNamesRule = Rule{
-	Name: "KnownFragmentNames",
-	RuleFunc: func(observers *Events, addError AddErrFunc) {
+func init() {
+	AddRule("KnownFragmentNames", func(observers *Events, addError AddErrFunc) {
 		observers.OnFragmentSpread(func(walker *Walker, fragmentSpread *ast.FragmentSpread) {
 			if fragmentSpread.Definition == nil {
 				addError(
@@ -18,9 +17,5 @@ var KnownFragmentNamesRule = Rule{
 				)
 			}
 		})
-	},
-}
-
-func init() {
-	AddRule(KnownFragmentNamesRule.Name, KnownFragmentNamesRule.RuleFunc)
+	})
 }

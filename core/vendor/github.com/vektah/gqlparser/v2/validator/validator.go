@@ -8,37 +8,22 @@ import (
 
 type AddErrFunc func(options ...ErrorOption)
 
-type RuleFunc func(observers *Events, addError AddErrFunc)
+type ruleFunc func(observers *Events, addError AddErrFunc)
 
-type Rule struct {
-	Name     string
-	RuleFunc RuleFunc
+type rule struct {
+	name string
+	rule ruleFunc
 }
 
-var specifiedRules []Rule
+var rules []rule
 
-// AddRule adds rule to the rule set.
+// addRule to rule set.
 // f is called once each time `Validate` is executed.
-func AddRule(name string, ruleFunc RuleFunc) {
-	specifiedRules = append(specifiedRules, Rule{Name: name, RuleFunc: ruleFunc})
+func AddRule(name string, f ruleFunc) {
+	rules = append(rules, rule{name: name, rule: f})
 }
 
-func RemoveRule(name string) {
-	var result []Rule // nolint:prealloc // using initialized with len(rules) produces a race condition
-	for _, r := range specifiedRules {
-		if r.Name == name {
-			continue
-		}
-		result = append(result, r)
-	}
-	specifiedRules = result
-}
-
-func Validate(schema *Schema, doc *QueryDocument, rules ...Rule) gqlerror.List {
-	if rules == nil {
-		rules = specifiedRules
-	}
-
+func Validate(schema *Schema, doc *QueryDocument) gqlerror.List {
 	var errs gqlerror.List
 	if schema == nil {
 		errs = append(errs, gqlerror.Errorf("cannot validate as Schema is nil"))
@@ -52,9 +37,9 @@ func Validate(schema *Schema, doc *QueryDocument, rules ...Rule) gqlerror.List {
 	observers := &Events{}
 	for i := range rules {
 		rule := rules[i]
-		rule.RuleFunc(observers, func(options ...ErrorOption) {
+		rule.rule(observers, func(options ...ErrorOption) {
 			err := &gqlerror.Error{
-				Rule: rule.Name,
+				Rule: rule.name,
 			}
 			for _, o := range options {
 				o(err)

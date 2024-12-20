@@ -30,12 +30,8 @@ func writeCanonical(cw io.Writer, buf []byte, s *int) (int, error) {
 			if c == '\r' {
 				*s = 1
 			} else if c == '\n' {
-				if _, err := cw.Write(buf[start:i]); err != nil {
-					return 0, err
-				}
-				if _, err := cw.Write(newline); err != nil {
-					return 0, err
-				}
+				cw.Write(buf[start:i])
+				cw.Write(newline)
 				start = i + 1
 			}
 		case 1:
@@ -43,9 +39,7 @@ func writeCanonical(cw io.Writer, buf []byte, s *int) (int, error) {
 		}
 	}
 
-	if _, err := cw.Write(buf[start:]); err != nil {
-		return 0, err
-	}
+	cw.Write(buf[start:])
 	return len(buf), nil
 }
 

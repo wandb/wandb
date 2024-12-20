@@ -6,6 +6,7 @@ package sysconf
 
 import (
 	"bufio"
+	"io/ioutil"
 	"os"
 	"runtime"
 	"strconv"
@@ -25,7 +26,7 @@ const (
 )
 
 func readProcFsInt64(path string, fallback int64) int64 {
-	data, err := os.ReadFile(path)
+	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return fallback
 	}
@@ -85,16 +86,10 @@ func getNprocsProcStat() (int64, error) {
 	s := bufio.NewScanner(f)
 	for s.Scan() {
 		if line := strings.TrimSpace(s.Text()); strings.HasPrefix(line, "cpu") {
-			cpu, _, found := strings.Cut(line, " ")
-			if found {
-				// skip first line with accumulated values
-				if cpu == "cpu" {
-					continue
-				}
-				_, err := strconv.ParseInt(cpu[len("cpu"):], 10, 64)
-				if err == nil {
-					count++
-				}
+			l := strings.SplitN(line, " ", 2)
+			_, err := strconv.ParseInt(l[0][3:], 10, 64)
+			if err == nil {
+				count++
 			}
 		} else {
 			// The current format of /proc/stat has all the
@@ -102,9 +97,6 @@ func getNprocsProcStat() (int64, error) {
 			// stays this way.
 			break
 		}
-	}
-	if err := s.Err(); err != nil {
-		return -1, err
 	}
 	return count, nil
 }

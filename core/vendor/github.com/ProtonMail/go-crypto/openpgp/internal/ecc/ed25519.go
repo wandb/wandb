@@ -2,7 +2,6 @@
 package ecc
 
 import (
-	"bytes"
 	"crypto/subtle"
 	"io"
 
@@ -91,14 +90,7 @@ func (c *ed25519) GenerateEdDSA(rand io.Reader) (pub, priv []byte, err error) {
 }
 
 func getEd25519Sk(publicKey, privateKey []byte) ed25519lib.PrivateKey {
-	privateKeyCap, privateKeyLen, publicKeyLen := cap(privateKey), len(privateKey), len(publicKey)
-
-	if privateKeyCap >= privateKeyLen+publicKeyLen &&
-		bytes.Equal(privateKey[privateKeyLen:privateKeyLen+publicKeyLen], publicKey) {
-		return privateKey[:privateKeyLen+publicKeyLen]
-	}
-
-	return append(privateKey[:privateKeyLen:privateKeyLen], publicKey...)
+	return append(privateKey, publicKey...)
 }
 
 func (c *ed25519) Sign(publicKey, privateKey, message []byte) (sig []byte, err error) {

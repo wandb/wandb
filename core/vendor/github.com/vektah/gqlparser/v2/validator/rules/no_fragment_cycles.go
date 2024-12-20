@@ -1,4 +1,4 @@
-package rules
+package validator
 
 import (
 	"fmt"
@@ -10,9 +10,8 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-var NoFragmentCyclesRule = Rule{
-	Name: "NoFragmentCycles",
-	RuleFunc: func(observers *Events, addError AddErrFunc) {
+func init() {
+	AddRule("NoFragmentCycles", func(observers *Events, addError AddErrFunc) {
 		visitedFrags := make(map[string]bool)
 
 		observers.OnFragment(func(walker *Walker, fragment *ast.FragmentDefinition) {
@@ -68,11 +67,7 @@ var NoFragmentCyclesRule = Rule{
 
 			recursive(fragment)
 		})
-	},
-}
-
-func init() {
-	AddRule(NoFragmentCyclesRule.Name, NoFragmentCyclesRule.RuleFunc)
+	})
 }
 
 func getFragmentSpreads(node ast.SelectionSet) []*ast.FragmentSpread {

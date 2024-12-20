@@ -15,15 +15,11 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
-	"github.com/ProtonMail/go-crypto/openpgp/ed25519"
-	"github.com/ProtonMail/go-crypto/openpgp/ed448"
 	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
-	"github.com/ProtonMail/go-crypto/openpgp/x25519"
-	"github.com/ProtonMail/go-crypto/openpgp/x448"
 )
 
 // NewEntity returns an Entity that contains a fresh RSA/RSA keypair with a
@@ -40,10 +36,8 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		return nil, err
 	}
 	primary := packet.NewSignerPrivateKey(creationTime, primaryPrivRaw)
-	if config.V6() {
-		if err := primary.UpgradeToV6(); err != nil {
-			return nil, err
-		}
+	if config != nil && config.V5Keys {
+		primary.UpgradeToV5()
 	}
 
 	e := &Entity{
@@ -51,25 +45,9 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		PrivateKey: primary,
 		Identities: make(map[string]*Identity),
 		Subkeys:    []Subkey{},
-		Signatures: []*packet.Signature{},
 	}
 
-	if config.V6() {
-		// In v6 keys algorithm preferences should be stored in direct key signatures
-		selfSignature := createSignaturePacket(&primary.PublicKey, packet.SigTypeDirectSignature, config)
-		err = writeKeyProperties(selfSignature, creationTime, keyLifetimeSecs, config)
-		if err != nil {
-			return nil, err
-		}
-		err = selfSignature.SignDirectKeyBinding(&primary.PublicKey, primary, config)
-		if err != nil {
-			return nil, err
-		}
-		e.Signatures = append(e.Signatures, selfSignature)
-		e.SelfSignature = selfSignature
-	}
-
-	err = e.addUserId(name, comment, email, config, creationTime, keyLifetimeSecs, !config.V6())
+	err = e.addUserId(name, comment, email, config, creationTime, keyLifetimeSecs)
 	if err != nil {
 		return nil, err
 	}
@@ -87,19 +65,32 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 func (t *Entity) AddUserId(name, comment, email string, config *packet.Config) error {
 	creationTime := config.Now()
 	keyLifetimeSecs := config.KeyLifetime()
-	return t.addUserId(name, comment, email, config, creationTime, keyLifetimeSecs, !config.V6())
+	return t.addUserId(name, comment, email, config, creationTime, keyLifetimeSecs)
 }
 
-func writeKeyProperties(selfSignature *packet.Signature, creationTime time.Time, keyLifetimeSecs uint32, config *packet.Config) error {
-	advertiseAead := config.AEAD() != nil
+func (t *Entity) addUserId(name, comment, email string, config *packet.Config, creationTime time.Time, keyLifetimeSecs uint32) error {
+	uid := packet.NewUserId(name, comment, email)
+	if uid == nil {
+		return errors.InvalidArgumentError("user id field contained invalid characters")
+	}
 
+	if _, ok := t.Identities[uid.Id]; ok {
+		return errors.InvalidArgumentError("user id exist")
+	}
+
+	primary := t.PrivateKey
+
+	isPrimaryId := len(t.Identities) == 0
+
+	selfSignature := createSignaturePacket(&primary.PublicKey, packet.SigTypePositiveCert, config)
 	selfSignature.CreationTime = creationTime
 	selfSignature.KeyLifetimeSecs = &keyLifetimeSecs
+	selfSignature.IsPrimaryId = &isPrimaryId
 	selfSignature.FlagsValid = true
 	selfSignature.FlagSign = true
 	selfSignature.FlagCertify = true
 	selfSignature.SEIPDv1 = true // true by default, see 5.8 vs. 5.14
-	selfSignature.SEIPDv2 = advertiseAead
+	selfSignature.SEIPDv2 = config.AEAD() != nil
 
 	// Set the PreferredHash for the SelfSignature from the packet.Config.
 	// If it is not the must-implement algorithm from rfc4880bis, append that.
@@ -128,44 +119,18 @@ func writeKeyProperties(selfSignature *packet.Signature, creationTime time.Time,
 		selfSignature.PreferredCompression = append(selfSignature.PreferredCompression, uint8(config.Compression()))
 	}
 
-	if advertiseAead {
-		// Get the preferred AEAD mode from the packet.Config.
-		// If it is not the must-implement algorithm from rfc9580, append that.
-		modes := []uint8{uint8(config.AEAD().Mode())}
-		if config.AEAD().Mode() != packet.AEADModeOCB {
-			modes = append(modes, uint8(packet.AEADModeOCB))
-		}
+	// And for DefaultMode.
+	modes := []uint8{uint8(config.AEAD().Mode())}
+	if config.AEAD().Mode() != packet.AEADModeOCB {
+		modes = append(modes, uint8(packet.AEADModeOCB))
+	}
 
-		// For preferred (AES256, GCM), we'll generate (AES256, GCM), (AES256, OCB), (AES128, GCM), (AES128, OCB)
-		for _, cipher := range selfSignature.PreferredSymmetric {
-			for _, mode := range modes {
-				selfSignature.PreferredCipherSuites = append(selfSignature.PreferredCipherSuites, [2]uint8{cipher, mode})
-			}
+	// For preferred (AES256, GCM), we'll generate (AES256, GCM), (AES256, OCB), (AES128, GCM), (AES128, OCB)
+	for _, cipher := range selfSignature.PreferredSymmetric {
+		for _, mode := range modes {
+			selfSignature.PreferredCipherSuites = append(selfSignature.PreferredCipherSuites, [2]uint8{cipher, mode})
 		}
 	}
-	return nil
-}
-
-func (t *Entity) addUserId(name, comment, email string, config *packet.Config, creationTime time.Time, keyLifetimeSecs uint32, writeProperties bool) error {
-	uid := packet.NewUserId(name, comment, email)
-	if uid == nil {
-		return errors.InvalidArgumentError("user id field contained invalid characters")
-	}
-
-	if _, ok := t.Identities[uid.Id]; ok {
-		return errors.InvalidArgumentError("user id exist")
-	}
-
-	primary := t.PrivateKey
-	isPrimaryId := len(t.Identities) == 0
-	selfSignature := createSignaturePacket(&primary.PublicKey, packet.SigTypePositiveCert, config)
-	if writeProperties {
-		err := writeKeyProperties(selfSignature, creationTime, keyLifetimeSecs, config)
-		if err != nil {
-			return err
-		}
-	}
-	selfSignature.IsPrimaryId = &isPrimaryId
 
 	// User ID binding signature
 	err := selfSignature.SignUserId(uid.Id, &primary.PublicKey, primary, config)
@@ -193,10 +158,8 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 	}
 	sub := packet.NewSignerPrivateKey(creationTime, subPrivRaw)
 	sub.IsSubkey = true
-	if config.V6() {
-		if err := sub.UpgradeToV6(); err != nil {
-			return err
-		}
+	if config != nil && config.V5Keys {
+		sub.UpgradeToV5()
 	}
 
 	subkey := Subkey{
@@ -240,10 +203,8 @@ func (e *Entity) addEncryptionSubkey(config *packet.Config, creationTime time.Ti
 	}
 	sub := packet.NewDecrypterPrivateKey(creationTime, subPrivRaw)
 	sub.IsSubkey = true
-	if config.V6() {
-		if err := sub.UpgradeToV6(); err != nil {
-			return err
-		}
+	if config != nil && config.V5Keys {
+		sub.UpgradeToV5()
 	}
 
 	subkey := Subkey{
@@ -281,11 +242,6 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 		}
 		return rsa.GenerateKey(config.Random(), bits)
 	case packet.PubKeyAlgoEdDSA:
-		if config.V6() {
-			// Implementations MUST NOT accept or generate v6 key material
-			// using the deprecated OIDs.
-			return nil, errors.InvalidArgumentError("EdDSALegacy cannot be used for v6 keys")
-		}
 		curve := ecc.FindEdDSAByGenName(string(config.CurveName()))
 		if curve == nil {
 			return nil, errors.InvalidArgumentError("unsupported curve")
@@ -303,18 +259,6 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 		}
 
 		priv, err := ecdsa.GenerateKey(config.Random(), curve)
-		if err != nil {
-			return nil, err
-		}
-		return priv, nil
-	case packet.PubKeyAlgoEd25519:
-		priv, err := ed25519.GenerateKey(config.Random())
-		if err != nil {
-			return nil, err
-		}
-		return priv, nil
-	case packet.PubKeyAlgoEd448:
-		priv, err := ed448.GenerateKey(config.Random())
 		if err != nil {
 			return nil, err
 		}
@@ -341,13 +285,6 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 	case packet.PubKeyAlgoEdDSA, packet.PubKeyAlgoECDSA:
 		fallthrough // When passing EdDSA or ECDSA, we generate an ECDH subkey
 	case packet.PubKeyAlgoECDH:
-		if config.V6() &&
-			(config.CurveName() == packet.Curve25519 ||
-				config.CurveName() == packet.Curve448) {
-			// Implementations MUST NOT accept or generate v6 key material
-			// using the deprecated OIDs.
-			return nil, errors.InvalidArgumentError("ECDH with Curve25519/448 legacy cannot be used for v6 keys")
-		}
 		var kdf = ecdh.KDF{
 			Hash:   algorithm.SHA512,
 			Cipher: algorithm.AES256,
@@ -357,10 +294,6 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 			return nil, errors.InvalidArgumentError("unsupported curve")
 		}
 		return ecdh.GenerateKey(config.Random(), curve, kdf)
-	case packet.PubKeyAlgoEd25519, packet.PubKeyAlgoX25519: // When passing Ed25519, we generate an x25519 subkey
-		return x25519.GenerateKey(config.Random())
-	case packet.PubKeyAlgoEd448, packet.PubKeyAlgoX448: // When passing Ed448, we generate an x448 subkey
-		return x448.GenerateKey(config.Random())
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}
@@ -369,7 +302,7 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 var bigOne = big.NewInt(1)
 
 // generateRSAKeyWithPrimes generates a multi-prime RSA keypair of the
-// given bit size, using the given random source and pre-populated primes.
+// given bit size, using the given random source and prepopulated primes.
 func generateRSAKeyWithPrimes(random io.Reader, nprimes int, bits int, prepopulatedPrimes []*big.Int) (*rsa.PrivateKey, error) {
 	priv := new(rsa.PrivateKey)
 	priv.E = 65537

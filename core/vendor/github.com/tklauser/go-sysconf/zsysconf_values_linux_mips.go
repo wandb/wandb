@@ -2,6 +2,7 @@
 // cgo -godefs sysconf_values_linux.go
 
 //go:build linux && mips
+// +build linux,mips
 
 package sysconf
 

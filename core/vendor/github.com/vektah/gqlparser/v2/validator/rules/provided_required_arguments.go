@@ -1,14 +1,14 @@
-package rules
+package validator
 
 import (
-	//nolint:revive // Validator rules each use dot imports for convenience.
 	"github.com/vektah/gqlparser/v2/ast"
+
+	//nolint:revive // Validator rules each use dot imports for convenience.
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-var ProvidedRequiredArgumentsRule = Rule{
-	Name: "ProvidedRequiredArguments",
-	RuleFunc: func(observers *Events, addError AddErrFunc) {
+func init() {
+	AddRule("ProvidedRequiredArguments", func(observers *Events, addError AddErrFunc) {
 		observers.OnField(func(walker *Walker, field *ast.Field) {
 			if field.Definition == nil {
 				return
@@ -60,9 +60,5 @@ var ProvidedRequiredArgumentsRule = Rule{
 				)
 			}
 		})
-	},
-}
-
-func init() {
-	AddRule(ProvidedRequiredArgumentsRule.Name, ProvidedRequiredArgumentsRule.RuleFunc)
+	})
 }

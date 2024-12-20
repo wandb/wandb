@@ -8,10 +8,9 @@ import (
 	"compress/bzip2"
 	"compress/flate"
 	"compress/zlib"
+	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"io"
 	"strconv"
-
-	"github.com/ProtonMail/go-crypto/openpgp/errors"
 )
 
 // Compressed represents a compressed OpenPGP packet. The decompressed contents
@@ -40,37 +39,6 @@ type CompressionConfig struct {
 	Level int
 }
 
-// decompressionReader ensures that the whole compression packet is read.
-type decompressionReader struct {
-	compressed   io.Reader
-	decompressed io.ReadCloser
-	readAll      bool
-}
-
-func newDecompressionReader(r io.Reader, decompressor io.ReadCloser) *decompressionReader {
-	return &decompressionReader{
-		compressed:   r,
-		decompressed: decompressor,
-	}
-}
-
-func (dr *decompressionReader) Read(data []byte) (n int, err error) {
-	if dr.readAll {
-		return 0, io.EOF
-	}
-	n, err = dr.decompressed.Read(data)
-	if err == io.EOF {
-		dr.readAll = true
-		// Close the decompressor.
-		if errDec := dr.decompressed.Close(); errDec != nil {
-			return n, errDec
-		}
-		// Consume all remaining data from the compressed packet.
-		consumeAll(dr.compressed)
-	}
-	return n, err
-}
-
 func (c *Compressed) parse(r io.Reader) error {
 	var buf [1]byte
 	_, err := readFull(r, buf[:])
@@ -82,15 +50,11 @@ func (c *Compressed) parse(r io.Reader) error {
 	case 0:
 		c.Body = r
 	case 1:
-		c.Body = newDecompressionReader(r, flate.NewReader(r))
+		c.Body = flate.NewReader(r)
 	case 2:
-		decompressor, err := zlib.NewReader(r)
-		if err != nil {
-			return err
-		}
-		c.Body = newDecompressionReader(r, decompressor)
+		c.Body, err = zlib.NewReader(r)
 	case 3:
-		c.Body = newDecompressionReader(r, io.NopCloser(bzip2.NewReader(r)))
+		c.Body = bzip2.NewReader(r)
 	default:
 		err = errors.UnsupportedError("unknown compression algorithm: " + strconv.Itoa(int(buf[0])))
 	}

@@ -6,7 +6,6 @@ package openpgp
 
 import (
 	goerrors "errors"
-	"fmt"
 	"io"
 	"time"
 
@@ -25,13 +24,11 @@ var PrivateKeyType = "PGP PRIVATE KEY BLOCK"
 // (which must be a signing key), one or more identities claimed by that key,
 // and zero or more subkeys, which may be encryption keys.
 type Entity struct {
-	PrimaryKey    *packet.PublicKey
-	PrivateKey    *packet.PrivateKey
-	Identities    map[string]*Identity // indexed by Identity.Name
-	Revocations   []*packet.Signature
-	Subkeys       []Subkey
-	SelfSignature *packet.Signature   // Direct-key self signature of the PrimaryKey (contains primary key properties in v6)
-	Signatures    []*packet.Signature // all (potentially unverified) self-signatures, revocations, and third-party signatures
+	PrimaryKey  *packet.PublicKey
+	PrivateKey  *packet.PrivateKey
+	Identities  map[string]*Identity // indexed by Identity.Name
+	Revocations []*packet.Signature
+	Subkeys     []Subkey
 }
 
 // An Identity represents an identity claimed by an Entity and zero or more
@@ -123,12 +120,12 @@ func shouldPreferIdentity(existingId, potentialNewId *Identity) bool {
 // given Entity.
 func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 	// Fail to find any encryption key if the...
-	primarySelfSignature, primaryIdentity := e.PrimarySelfSignature()
-	if primarySelfSignature == nil || // no self-signature found
-		e.PrimaryKey.KeyExpired(primarySelfSignature, now) || // primary key has expired
+	i := e.PrimaryIdentity()
+	if e.PrimaryKey.KeyExpired(i.SelfSignature, now) || // primary key has expired
+		i.SelfSignature == nil || // user ID has no self-signature
+		i.SelfSignature.SigExpired(now) || // user ID self-signature has expired
 		e.Revoked(now) || // primary key has been revoked
-		primarySelfSignature.SigExpired(now) || // user ID or or direct self-signature has expired
-		(primaryIdentity != nil && primaryIdentity.Revoked(now)) { // user ID has been revoked (for v4 keys)
+		i.Revoked(now) { // user ID has been revoked
 		return Key{}, false
 	}
 
@@ -155,9 +152,9 @@ func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 
 	// If we don't have any subkeys for encryption and the primary key
 	// is marked as OK to encrypt with, then we can use it.
-	if primarySelfSignature.FlagsValid && primarySelfSignature.FlagEncryptCommunications &&
+	if i.SelfSignature.FlagsValid && i.SelfSignature.FlagEncryptCommunications &&
 		e.PrimaryKey.PubKeyAlgo.CanEncrypt() {
-		return Key{e, e.PrimaryKey, e.PrivateKey, primarySelfSignature, e.Revocations}, true
+		return Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature, e.Revocations}, true
 	}
 
 	return Key{}, false
@@ -189,12 +186,12 @@ func (e *Entity) SigningKeyById(now time.Time, id uint64) (Key, bool) {
 
 func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int) (Key, bool) {
 	// Fail to find any signing key if the...
-	primarySelfSignature, primaryIdentity := e.PrimarySelfSignature()
-	if primarySelfSignature == nil || // no self-signature found
-		e.PrimaryKey.KeyExpired(primarySelfSignature, now) || // primary key has expired
+	i := e.PrimaryIdentity()
+	if e.PrimaryKey.KeyExpired(i.SelfSignature, now) || // primary key has expired
+		i.SelfSignature == nil || // user ID has no self-signature
+		i.SelfSignature.SigExpired(now) || // user ID self-signature has expired
 		e.Revoked(now) || // primary key has been revoked
-		primarySelfSignature.SigExpired(now) || // user ID or direct self-signature has expired
-		(primaryIdentity != nil && primaryIdentity.Revoked(now)) { // user ID has been revoked (for v4 keys)
+		i.Revoked(now) { // user ID has been revoked
 		return Key{}, false
 	}
 
@@ -223,12 +220,12 @@ func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int) (Key, 
 
 	// If we don't have any subkeys for signing and the primary key
 	// is marked as OK to sign with, then we can use it.
-	if primarySelfSignature.FlagsValid &&
-		(flags&packet.KeyFlagCertify == 0 || primarySelfSignature.FlagCertify) &&
-		(flags&packet.KeyFlagSign == 0 || primarySelfSignature.FlagSign) &&
+	if i.SelfSignature.FlagsValid &&
+		(flags&packet.KeyFlagCertify == 0 || i.SelfSignature.FlagCertify) &&
+		(flags&packet.KeyFlagSign == 0 || i.SelfSignature.FlagSign) &&
 		e.PrimaryKey.PubKeyAlgo.CanSign() &&
 		(id == 0 || e.PrimaryKey.KeyId == id) {
-		return Key{e, e.PrimaryKey, e.PrivateKey, primarySelfSignature, e.Revocations}, true
+		return Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature, e.Revocations}, true
 	}
 
 	// No keys with a valid Signing Flag or no keys matched the id passed in
@@ -262,7 +259,7 @@ func (e *Entity) EncryptPrivateKeys(passphrase []byte, config *packet.Config) er
 	var keysToEncrypt []*packet.PrivateKey
 	// Add entity private key to encrypt.
 	if e.PrivateKey != nil && !e.PrivateKey.Dummy() && !e.PrivateKey.Encrypted {
-		keysToEncrypt = append(keysToEncrypt, e.PrivateKey)
+		keysToEncrypt = append(keysToEncrypt,  e.PrivateKey)
 	}
 
 	// Add subkeys to encrypt.
@@ -274,7 +271,7 @@ func (e *Entity) EncryptPrivateKeys(passphrase []byte, config *packet.Config) er
 	return packet.EncryptPrivateKeys(keysToEncrypt, passphrase, config)
 }
 
-// DecryptPrivateKeys decrypts all encrypted keys in the entity with the given passphrase.
+// DecryptPrivateKeys decrypts all encrypted keys in the entitiy with the given passphrase.
 // Avoids recomputation of similar s2k key derivations. Public keys and dummy keys are ignored,
 // and don't cause an error to be returned.
 func (e *Entity) DecryptPrivateKeys(passphrase []byte) error {
@@ -287,7 +284,7 @@ func (e *Entity) DecryptPrivateKeys(passphrase []byte) error {
 	// Add subkeys to decrypt.
 	for _, sub := range e.Subkeys {
 		if sub.PrivateKey != nil && !sub.PrivateKey.Dummy() && sub.PrivateKey.Encrypted {
-			keysToDecrypt = append(keysToDecrypt, sub.PrivateKey)
+			keysToDecrypt = append(keysToDecrypt,  sub.PrivateKey)
 		}
 	}
 	return packet.DecryptPrivateKeys(keysToDecrypt, passphrase)
@@ -321,7 +318,8 @@ type EntityList []*Entity
 func (el EntityList) KeysById(id uint64) (keys []Key) {
 	for _, e := range el {
 		if e.PrimaryKey.KeyId == id {
-			selfSig, _ := e.PrimarySelfSignature()
+			ident := e.PrimaryIdentity()
+			selfSig := ident.SelfSignature
 			keys = append(keys, Key{e, e.PrimaryKey, e.PrivateKey, selfSig, e.Revocations})
 		}
 
@@ -443,6 +441,7 @@ func readToNextPublicKey(packets *packet.Reader) (err error) {
 			return
 		} else if err != nil {
 			if _, ok := err.(errors.UnsupportedError); ok {
+				err = nil
 				continue
 			}
 			return
@@ -480,7 +479,6 @@ func ReadEntity(packets *packet.Reader) (*Entity, error) {
 	}
 
 	var revocations []*packet.Signature
-	var directSignatures []*packet.Signature
 EachPacket:
 	for {
 		p, err := packets.Next()
@@ -499,7 +497,9 @@ EachPacket:
 			if pkt.SigType == packet.SigTypeKeyRevocation {
 				revocations = append(revocations, pkt)
 			} else if pkt.SigType == packet.SigTypeDirectSignature {
-				directSignatures = append(directSignatures, pkt)
+				// TODO: RFC4880 5.2.1 permits signatures
+				// directly on keys (eg. to bind additional
+				// revocation keys).
 			}
 			// Else, ignoring the signature as it does not follow anything
 			// we would know to attach it to.
@@ -522,39 +522,12 @@ EachPacket:
 				return nil, err
 			}
 		default:
-			// we ignore unknown packets.
+			// we ignore unknown packets
 		}
 	}
 
-	if len(e.Identities) == 0 && e.PrimaryKey.Version < 6 {
-		return nil, errors.StructuralError(fmt.Sprintf("v%d entity without any identities", e.PrimaryKey.Version))
-	}
-
-	// An implementation MUST ensure that a valid direct-key signature is present before using a v6 key.
-	if e.PrimaryKey.Version == 6 {
-		if len(directSignatures) == 0 {
-			return nil, errors.StructuralError("v6 entity without a valid direct-key signature")
-		}
-		// Select main direct key signature.
-		var mainDirectKeySelfSignature *packet.Signature
-		for _, directSignature := range directSignatures {
-			if directSignature.SigType == packet.SigTypeDirectSignature &&
-				directSignature.CheckKeyIdOrFingerprint(e.PrimaryKey) &&
-				(mainDirectKeySelfSignature == nil ||
-					directSignature.CreationTime.After(mainDirectKeySelfSignature.CreationTime)) {
-				mainDirectKeySelfSignature = directSignature
-			}
-		}
-		if mainDirectKeySelfSignature == nil {
-			return nil, errors.StructuralError("no valid direct-key self-signature for v6 primary key found")
-		}
-		// Check that the main self-signature is valid.
-		err = e.PrimaryKey.VerifyDirectKeySignature(mainDirectKeySelfSignature)
-		if err != nil {
-			return nil, errors.StructuralError("invalid direct-key self-signature for v6 primary key")
-		}
-		e.SelfSignature = mainDirectKeySelfSignature
-		e.Signatures = directSignatures
+	if len(e.Identities) == 0 {
+		return nil, errors.StructuralError("entity without any identities")
 	}
 
 	for _, revocation := range revocations {
@@ -699,12 +672,6 @@ func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign boo
 			return err
 		}
 	}
-	for _, directSignature := range e.Signatures {
-		err := directSignature.Serialize(w)
-		if err != nil {
-			return err
-		}
-	}
 	for _, ident := range e.Identities {
 		err = ident.UserId.Serialize(w)
 		if err != nil {
@@ -767,12 +734,6 @@ func (e *Entity) Serialize(w io.Writer) error {
 	}
 	for _, revocation := range e.Revocations {
 		err := revocation.Serialize(w)
-		if err != nil {
-			return err
-		}
-	}
-	for _, directSignature := range e.Signatures {
-		err := directSignature.Serialize(w)
 		if err != nil {
 			return err
 		}
@@ -878,24 +839,4 @@ func (e *Entity) RevokeSubkey(sk *Subkey, reason packet.ReasonForRevocation, rea
 
 	sk.Revocations = append(sk.Revocations, revSig)
 	return nil
-}
-
-func (e *Entity) primaryDirectSignature() *packet.Signature {
-	return e.SelfSignature
-}
-
-// PrimarySelfSignature searches the entity for the self-signature that stores key preferences.
-// For V4 keys, returns the self-signature of the primary identity, and the identity.
-// For V6 keys, returns the latest valid direct-key self-signature, and no identity (nil).
-// This self-signature is to be used to check the key expiration,
-// algorithm preferences, and so on.
-func (e *Entity) PrimarySelfSignature() (*packet.Signature, *Identity) {
-	if e.PrimaryKey.Version == 6 {
-		return e.primaryDirectSignature(), nil
-	}
-	primaryIdentity := e.PrimaryIdentity()
-	if primaryIdentity == nil {
-		return nil, nil
-	}
-	return primaryIdentity.SelfSignature, primaryIdentity
 }

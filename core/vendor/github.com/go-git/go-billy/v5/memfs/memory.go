@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/go-git/go-billy/v5"
@@ -19,19 +18,16 @@ import (
 
 const separator = filepath.Separator
 
-var errNotLink = errors.New("not a link")
-
-// Memory a very convenient filesystem based on memory files.
+// Memory a very convenient filesystem based on memory files
 type Memory struct {
 	s *storage
 
 	tempCount int
 }
 
-// New returns a new Memory filesystem.
+//New returns a new Memory filesystem.
 func New() billy.Filesystem {
 	fs := &Memory{s: newStorage()}
-	fs.s.New("/", 0755|os.ModeDir, 0)
 	return chroot.New(fs, string(separator))
 }
 
@@ -61,9 +57,7 @@ func (fs *Memory) OpenFile(filename string, flag int, perm os.FileMode) (billy.F
 		}
 
 		if target, isLink := fs.resolveLink(filename, f); isLink {
-			if target != filename {
-				return fs.OpenFile(target, flag, perm)
-			}
+			return fs.OpenFile(target, flag, perm)
 		}
 	}
 
@@ -73,6 +67,8 @@ func (fs *Memory) OpenFile(filename string, flag int, perm os.FileMode) (billy.F
 
 	return f.Duplicate(filename, perm, flag), nil
 }
+
+var errNotLink = errors.New("not a link")
 
 func (fs *Memory) resolveLink(fullpath string, f *file) (target string, isLink bool) {
 	if !isSymlink(f.mode) {
@@ -135,12 +131,8 @@ func (a ByName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (fs *Memory) ReadDir(path string) ([]os.FileInfo, error) {
 	if f, has := fs.s.Get(path); has {
 		if target, isLink := fs.resolveLink(path, f); isLink {
-			if target != path {
-				return fs.ReadDir(target)
-			}
+			return fs.ReadDir(target)
 		}
-	} else {
-		return nil, &os.PathError{Op: "open", Path: path, Err: syscall.ENOENT}
 	}
 
 	var entries []os.FileInfo
@@ -177,19 +169,17 @@ func (fs *Memory) Remove(filename string) error {
 	return fs.s.Remove(filename)
 }
 
-// Falls back to Go's filepath.Join, which works differently depending on the
-// OS where the code is being executed.
 func (fs *Memory) Join(elem ...string) string {
 	return filepath.Join(elem...)
 }
 
 func (fs *Memory) Symlink(target, link string) error {
-	_, err := fs.Lstat(link)
+	_, err := fs.Stat(link)
 	if err == nil {
 		return os.ErrExist
 	}
 
-	if !errors.Is(err, os.ErrNotExist) {
+	if !os.IsNotExist(err) {
 		return err
 	}
 
@@ -240,7 +230,7 @@ func (f *file) Read(b []byte) (int, error) {
 	n, err := f.ReadAt(b, f.position)
 	f.position += int64(n)
 
-	if errors.Is(err, io.EOF) && n != 0 {
+	if err == io.EOF && n != 0 {
 		err = nil
 	}
 
@@ -279,10 +269,6 @@ func (f *file) Seek(offset int64, whence int) (int64, error) {
 }
 
 func (f *file) Write(p []byte) (int, error) {
-	return f.WriteAt(p, f.position)
-}
-
-func (f *file) WriteAt(p []byte, off int64) (int, error) {
 	if f.isClosed {
 		return 0, os.ErrClosed
 	}
@@ -291,8 +277,8 @@ func (f *file) WriteAt(p []byte, off int64) (int, error) {
 		return 0, errors.New("write not supported")
 	}
 
-	n, err := f.content.WriteAt(p, off)
-	f.position = off + int64(n)
+	n, err := f.content.WriteAt(p, f.position)
+	f.position += int64(n)
 
 	return n, err
 }

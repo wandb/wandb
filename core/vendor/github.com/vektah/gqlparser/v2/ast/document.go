@@ -26,10 +26,9 @@ func (d *SchemaDocument) Merge(other *SchemaDocument) {
 }
 
 type Schema struct {
-	Query            *Definition
-	Mutation         *Definition
-	Subscription     *Definition
-	SchemaDirectives DirectiveList
+	Query        *Definition
+	Mutation     *Definition
+	Subscription *Definition
 
 	Types      map[string]*Definition
 	Directives map[string]*DirectiveDefinition

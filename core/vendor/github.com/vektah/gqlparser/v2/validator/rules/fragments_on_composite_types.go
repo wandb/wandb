@@ -1,4 +1,4 @@
-package rules
+package validator
 
 import (
 	"fmt"
@@ -9,9 +9,8 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-var FragmentsOnCompositeTypesRule = Rule{
-	Name: "FragmentsOnCompositeTypes",
-	RuleFunc: func(observers *Events, addError AddErrFunc) {
+func init() {
+	AddRule("FragmentsOnCompositeTypes", func(observers *Events, addError AddErrFunc) {
 		observers.OnInlineFragment(func(walker *Walker, inlineFragment *ast.InlineFragment) {
 			fragmentType := walker.Schema.Types[inlineFragment.TypeCondition]
 			if fragmentType == nil || fragmentType.IsCompositeType() {
@@ -21,7 +20,7 @@ var FragmentsOnCompositeTypesRule = Rule{
 			message := fmt.Sprintf(`Fragment cannot condition on non composite type "%s".`, inlineFragment.TypeCondition)
 
 			addError(
-				Message("%s", message),
+				Message(message),
 				At(inlineFragment.Position),
 			)
 		})
@@ -34,13 +33,9 @@ var FragmentsOnCompositeTypesRule = Rule{
 			message := fmt.Sprintf(`Fragment "%s" cannot condition on non composite type "%s".`, fragment.Name, fragment.TypeCondition)
 
 			addError(
-				Message("%s", message),
+				Message(message),
 				At(fragment.Position),
 			)
 		})
-	},
-}
-
-func init() {
-	AddRule(FragmentsOnCompositeTypesRule.Name, FragmentsOnCompositeTypesRule.RuleFunc)
+	})
 }

@@ -1,5 +1,5 @@
-//go:build !plan9 && !windows && !wasm
-// +build !plan9,!windows,!wasm
+//go:build !plan9 && !windows && !js
+// +build !plan9,!windows,!js
 
 package osfs
 

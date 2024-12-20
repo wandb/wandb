@@ -1,4 +1,4 @@
-package rules
+package validator
 
 import (
 	"github.com/vektah/gqlparser/v2/ast"
@@ -7,9 +7,8 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-var UniqueArgumentNamesRule = Rule{
-	Name: "UniqueArgumentNames",
-	RuleFunc: func(observers *Events, addError AddErrFunc) {
+func init() {
+	AddRule("UniqueArgumentNames", func(observers *Events, addError AddErrFunc) {
 		observers.OnField(func(walker *Walker, field *ast.Field) {
 			checkUniqueArgs(field.Arguments, addError)
 		})
@@ -17,11 +16,7 @@ var UniqueArgumentNamesRule = Rule{
 		observers.OnDirective(func(walker *Walker, directive *ast.Directive) {
 			checkUniqueArgs(directive.Arguments, addError)
 		})
-	},
-}
-
-func init() {
-	AddRule(UniqueArgumentNamesRule.Name, UniqueArgumentNamesRule.RuleFunc)
+	})
 }
 
 func checkUniqueArgs(args ast.ArgumentList, addError AddErrFunc) {

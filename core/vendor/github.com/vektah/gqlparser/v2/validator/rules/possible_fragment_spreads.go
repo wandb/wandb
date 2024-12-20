@@ -1,4 +1,4 @@
-package rules
+package validator
 
 import (
 	"github.com/vektah/gqlparser/v2/ast"
@@ -7,9 +7,9 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-var PossibleFragmentSpreadsRule = Rule{
-	Name: "PossibleFragmentSpreads",
-	RuleFunc: func(observers *Events, addError AddErrFunc) {
+func init() {
+	AddRule("PossibleFragmentSpreads", func(observers *Events, addError AddErrFunc) {
+
 		validate := func(walker *Walker, parentDef *ast.Definition, fragmentName string, emitError func()) {
 			if parentDef == nil {
 				return
@@ -66,9 +66,5 @@ var PossibleFragmentSpreadsRule = Rule{
 				)
 			})
 		})
-	},
-}
-
-func init() {
-	AddRule(PossibleFragmentSpreadsRule.Name, PossibleFragmentSpreadsRule.RuleFunc)
+	})
 }
