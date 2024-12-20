@@ -41,6 +41,7 @@ def test_metadata_access(wandb_backend_spy, capsys):
     with wandb.init() as run:
         run.log({"acc": 1})
         assert run._metadata is not None
+        run._metadata.email = "lol@wandb.ai"
 
         if run.settings.x_require_legacy_service:
             captured = capsys.readouterr()
