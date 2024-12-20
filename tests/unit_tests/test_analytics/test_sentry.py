@@ -90,7 +90,7 @@ def test_wandb_sentry_init_after_client_init(relay: MetricRelayServer):
     """
     This test ensures proper isolation between the Sentry instances initialized by another client and by wandb's client.
 
-    This test initializes the Sentry client first using `sentry_sdk.init()`, follwed by initializing wandb's Sentry client.
+    This test initializes the Sentry client first using `sentry_sdk.init()`, followed by initializing wandb's Sentry client.
     Both instances contain unique sessions and tags
     """
     expected_other_sentry_response = SentryResponse(
@@ -388,7 +388,7 @@ def test_wandb_sentry_exception(relay: MetricRelayServer):
     This test ensures proper isolation between the Sentry instances initialized by another client and by wandb's client.
     In the event that a client sends an exception event to Sentry.
 
-    This test initializes the Sentry client first using `sentry_sdk.init()`, follwed by initializing wandb's Sentry client.
+    This test initializes the Sentry client first using `sentry_sdk.init()`, followed by initializing wandb's Sentry client.
     After, both clients send an exception event to Sentry.
     """
     expected_other_sentry_response = SentryResponse(
@@ -538,7 +538,7 @@ def test_wandb_configure_without_tags_does_not_create_session(relay: MetricRelay
         wandb_sentry.setup()
         wandb_sentry.configure_scope()
 
-        # Asert session is not created when no tags are provided
+        # Assert session is not created when no tags are provided
         assert wandb_sentry.scope._session is None  # type: ignore
 
 

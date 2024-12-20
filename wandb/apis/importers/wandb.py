@@ -1483,7 +1483,7 @@ def _get_run_or_dummy_from_art(art: Artifact, api=None):
         run = art.logged_by()
     except ValueError as e:
         logger.warn(
-            f"Can't log artifact because run does't exist, {art=}, {run=}, {e=}"
+            f"Can't log artifact because run doesn't exist, {art=}, {run=}, {e=}"
         )
 
     if run is not None:
