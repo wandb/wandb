@@ -3722,7 +3722,7 @@ class Run:
             self.__metadata._set_callback(self._metadata_callback)
 
         handle = self._backend.interface.deliver_get_system_metadata()
-        result = handle.wait(timeout=1)
+        result = handle.wait(timeout=2)
 
         if not result:
             logger.error("Error getting run metadata: no result")
