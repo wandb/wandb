@@ -668,7 +668,7 @@ class _WandbInit:
                 )
 
             latest_run = self._wl._global_run_stack[-1]
-            logger.info(f"found existing run on stack: {latest_run._run_id}")
+            logger.info(f"found existing run on stack: {latest_run.id}")
             latest_run.finish()
         elif isinstance(wandb.run, Run):
             service = self._wl.service
