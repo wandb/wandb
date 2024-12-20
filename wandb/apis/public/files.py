@@ -233,7 +233,7 @@ class File(Attrs):
     def _server_accepts_project_id_for_delete_file(self) -> bool:
         """Returns True if the server supports deleting files with a projectId.
 
-        This check is done by utilizing GraphQL introspection in the avaiable fields on the DeleteFiles API.
+        This check is done by utilizing GraphQL introspection in the available fields on the DeleteFiles API.
         """
         query_string = """
            query ProbeDeleteFilesProjectIdInput {

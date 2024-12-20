@@ -41,7 +41,7 @@ def connect_to_service(
 
 
 def _try_connect_to_existing_service() -> ServiceConnection | None:
-    """Attemps to connect to an existing service process."""
+    """Attempts to connect to an existing service process."""
     token = service_token.get_service_token()
     if not token:
         return None

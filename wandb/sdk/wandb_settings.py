@@ -349,7 +349,7 @@ class Settings(BaseModel, validate_assignment=True):
     @model_validator(mode="before")
     @classmethod
     def catch_private_settings(cls, values):
-        """Check if a private field is provided and assign to the corrsponding public one.
+        """Check if a private field is provided and assign to the corresponding public one.
 
         This is a compatibility layer to handle previous versions of the settings.
         """

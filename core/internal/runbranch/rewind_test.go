@@ -129,7 +129,7 @@ func TestRewindApplyChangesWithResponse(t *testing.T) {
 	assert.Equal(t, "runid", params.RunID, "RunID should be set")
 	assert.Equal(t, int64(11), params.StartingStep, "DisplayName should be set")
 	assert.Equal(t, 10, params.FileStreamOffset[filestream.HistoryChunk], "FileStreamOffset should be set")
-	assert.True(t, params.Forked, "Intialized should be set")
+	assert.True(t, params.Forked, "Initialized should be set")
 	assert.Equal(t, "rewound", params.DisplayName, "DisplayName should be set")
 	assert.Equal(t, "sweep", params.SweepID, "SweepID should be set")
 	assert.Equal(t, "storageid", params.StorageID, "StorageID should be set")

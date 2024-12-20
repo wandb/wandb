@@ -88,7 +88,7 @@ def test_log_with_back_slash_windows(user):
     with wandb.init() as run:
         wb_image = wandb.Image(np.zeros((28, 28)))
 
-        # windows doesnt allow a backslash in media keys right now
+        # Windows does not allow a backslash in media keys right now
         if platform.system() == "Windows":
             with pytest.raises(ValueError):
                 run.log({r"train\image": wb_image})
