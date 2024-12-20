@@ -311,7 +311,7 @@ class Metadata(BaseModel, validate_assignment=True):
 
         # Callback for post-update. This is used in the Run object to trigger
         # a metadata update after the object is modified.
-        self._post_update_callback: Callable | None = None
+        self._post_update_callback: Callable | None = None  # type: ignore
 
     def _set_callback(self, callback: Callable) -> None:
         self._post_update_callback = callback

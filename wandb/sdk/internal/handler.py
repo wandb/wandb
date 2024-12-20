@@ -120,7 +120,7 @@ class HandleManager:
 
         self._tb_watcher = None
         self._system_monitor = None
-        self._metadata = None
+        self._metadata: Optional[Metadata] = None
         self._step = 0
 
         self._track_time = None
@@ -788,7 +788,7 @@ class HandleManager:
 
     def handle_request_get_system_metadata(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
-        if self._system_monitor is None:
+        if self._system_monitor is None or self._metadata is None:
             return
 
         result.response.get_system_metadata_response.metadata.CopyFrom(

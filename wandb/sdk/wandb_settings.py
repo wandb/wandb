@@ -54,7 +54,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     # Pydantic configuration.
     model_config = ConfigDict(
-        extra="forbid",  # throw an error if extra fields are provided
+        extra="ignore",  # TODO: throw an error if extra fields are provided?
         # validate_default=True,  # validate default values
     )
 
