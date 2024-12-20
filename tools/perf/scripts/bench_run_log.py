@@ -187,12 +187,12 @@ class Experiment:
 
     When to set "is_unique_payload" to True?
 
-    Performance benchmarks are usually done on basic use case to form the baseline, then building on top
-    of the baseline, we scales up the various dimensions (# of steps, # of metrics, metric size, etc) to
-    characterize scalability.
+    Performance benchmarks are usually done on the basic use case to form the baseline, then on top
+    of it, scale tests of various dimensions are run (# of steps, # of metrics, metric size, etc) to
+    characterize its scalability.
 
-    For benchmarking or regression detection, set is_unique_payload to False (default). For stress
-    testing or simulating huge workload w/ million+ metrics, set is_unique_payload to True.
+    For benchmarks or regression detection testings, set is_unique_payload to False (default). For stress
+    testings or simulating huge workload w/ million+ metrics, set is_unique_payload to True.
     """
 
     def __init__(
@@ -268,14 +268,13 @@ class Experiment:
                     run.log(payloads[0])
 
                 # 12/20/2024 - Wai
-                # HACKAROUND: We ran into issues logging too many unique metrics
-                # returning 500s/502s.  Adding a small sleep between step
-                # works around it for now.
+                # HACKAROUND: We ran into some 500s and 502s errors when SDK logs 
+                # a million+ unique metrics in a tight loop. Adding a small sleep 
+                # between each step works around the problem for now.
 
-                # Optional sleep time, use it to reproduce real-life
-                # workload where logging steps aren't in a tight loop
-                # Just remember the result_data["log_time"] will include
-                # your sleep time for all the steps.
+                # Set a sleep time when reproducing real-life workload when logging 
+                # steps aren't in a tight loop. Just remember that the result_data["log_time"] 
+                # will include the total sleep time from all the steps.
                 if self.time_delay_second > 0:
                     time.sleep(self.time_delay_second)
 
