@@ -40,6 +40,13 @@ type Work interface {
 	// If this is a Record proto, the given function is called.
 	Process(func(*spb.Record))
 
+	// Sentinel returns the value passed to NewSentinel, or nil.
+	//
+	// This is used as a synchronization mechanism: by pushing a Sentinel
+	// into the work stream and waiting to receive it, one can wait until all
+	// work buffered by a certain time has been processed.
+	Sentinel() any
+
 	// DebugInfo returns a short string describing the work
 	// that can be logged for debugging.
 	DebugInfo() string
@@ -99,6 +106,8 @@ func (wr WorkRecord) BypassOfflineMode() bool {
 func (wr WorkRecord) Process(fn func(*spb.Record)) {
 	fn(wr.Record)
 }
+
+func (wr WorkRecord) Sentinel() any { return nil }
 
 func (wr WorkRecord) DebugInfo() string {
 	var recordType string
