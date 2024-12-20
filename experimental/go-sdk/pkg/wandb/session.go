@@ -13,10 +13,10 @@ import (
 )
 
 type SessionParams struct {
-	ServiceBinary  []byte
-	ServiceCmdPath string
-	Address        string
-	Settings       *settings.Settings
+	CoreBinary   []byte
+	CoreExecPath string
+	Address      string
+	Settings     *settings.Settings
 }
 
 type Session struct {
@@ -33,8 +33,8 @@ func newSession(params *SessionParams) *Session {
 	return &Session{
 		ctx:      context.Background(),
 		address:  params.Address,
-		binary:   params.ServiceBinary,
-		excePath: params.ServiceCmdPath,
+		binary:   params.CoreBinary,
+		excePath: params.CoreExecPath,
 		settings: params.Settings,
 	}
 }

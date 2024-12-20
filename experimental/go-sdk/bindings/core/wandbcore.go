@@ -29,7 +29,7 @@ func wandbcoreSetup() {
 		return
 	}
 	var err error
-	session, err = wandb.Setup(&wandb.SessionParams{ServiceBinary: coreBinary})
+	session, err = wandb.Setup(&wandb.SessionParams{CoreBinary: coreBinary})
 	if err != nil {
 		panic(err)
 	}
