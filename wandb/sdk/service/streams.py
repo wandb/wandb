@@ -6,13 +6,15 @@ StreamAction: Lightweight record for stream ops for thread safety
 StreamMux: Container for dictionary of stream threads per runid
 """
 
+from __future__ import annotations
+
 import functools
 import multiprocessing
 import queue
 import threading
 import time
 from threading import Event
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable
 
 import psutil
 
@@ -38,7 +40,7 @@ from ..interface.interface_relay import InterfaceRelay
 class StreamThread(threading.Thread):
     """Class to running internal process as a thread."""
 
-    def __init__(self, target: Callable, kwargs: Dict[str, Any]) -> None:
+    def __init__(self, target: Callable, kwargs: dict[str, Any]) -> None:
         threading.Thread.__init__(self)
         self.name = "StreamThr"
         self._target = target
@@ -51,9 +53,9 @@ class StreamThread(threading.Thread):
 
 
 class StreamRecord:
-    _record_q: "queue.Queue[pb.Record]"
-    _result_q: "queue.Queue[pb.Result]"
-    _relay_q: "queue.Queue[pb.Result]"
+    _record_q: queue.Queue[pb.Record]
+    _result_q: queue.Queue[pb.Result]
+    _relay_q: queue.Queue[pb.Result]
     _iface: InterfaceRelay
     _thread: StreamThread
     _settings: SettingsStatic
@@ -111,7 +113,7 @@ class StreamAction:
     _processed: Event
     _data: Any
 
-    def __init__(self, action: str, stream_id: str, data: Optional[Any] = None):
+    def __init__(self, action: str, stream_id: str, data: Any | None = None):
         self._action = action
         self._stream_id = stream_id
         self._data = data
@@ -133,12 +135,12 @@ class StreamAction:
 
 class StreamMux:
     _streams_lock: threading.Lock
-    _streams: Dict[str, StreamRecord]
-    _port: Optional[int]
-    _pid: Optional[int]
-    _action_q: "queue.Queue[StreamAction]"
+    _streams: dict[str, StreamRecord]
+    _port: int | None
+    _pid: int | None
+    _action_q: queue.Queue[StreamAction]
     _stopped: Event
-    _pid_checked_ts: Optional[float]
+    _pid_checked_ts: float | None
     _mailbox: Mailbox
 
     def __init__(self) -> None:
@@ -152,7 +154,7 @@ class StreamMux:
         self._mailbox = Mailbox()
         self._mailbox.enable_keepalive()
 
-    def _get_stopped_event(self) -> "Event":
+    def _get_stopped_event(self) -> Event:
         # TODO: clean this up, there should be a better way to abstract this
         return self._stopped
 
@@ -192,7 +194,7 @@ class StreamMux:
         self._action_q.put(action)
         action.wait_handled()
 
-    def stream_names(self) -> List[str]:
+    def stream_names(self) -> list[str]:
         with self._streams_lock:
             names = list(self._streams.keys())
             return names
@@ -273,7 +275,7 @@ class StreamMux:
         if self._check_orphaned():
             self._stopped.set()
 
-        poll_exit_responses: List[pb.PollExitResponse] = []
+        poll_exit_responses: list[pb.PollExitResponse] = []
         for probe_handle in probe_handles:
             result = probe_handle.get_probe_result()
             if result:
@@ -281,7 +283,7 @@ class StreamMux:
 
         progress_printer.update(poll_exit_responses)
 
-    def _finish_all(self, streams: Dict[str, StreamRecord], exit_code: int) -> None:
+    def _finish_all(self, streams: dict[str, StreamRecord], exit_code: int) -> None:
         if not streams:
             return
 
@@ -292,8 +294,8 @@ class StreamMux:
         exit_handles = []
 
         # only finish started streams, non started streams failed early
-        started_streams: Dict[str, StreamRecord] = {}
-        not_started_streams: Dict[str, StreamRecord] = {}
+        started_streams: dict[str, StreamRecord] = {}
+        not_started_streams: dict[str, StreamRecord] = {}
         for stream_id, stream in streams.items():
             d = started_streams if stream._started else not_started_streams
             d[stream_id] = stream
