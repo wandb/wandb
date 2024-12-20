@@ -36,6 +36,7 @@ from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
 from wandb.proto.wandb_internal_pb2 import (
+    MetadataRequest,
     MetricRecord,
     PollExitResponse,
     Result,
@@ -84,6 +85,7 @@ from .lib import (
 from .lib.exit_hooks import ExitHooks
 from .lib.mailbox import MailboxError, MailboxHandle, MailboxProbe, MailboxProgress
 from .wandb_alerts import AlertLevel
+from .wandb_metadata import Metadata
 from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
 
@@ -595,15 +597,17 @@ class Run:
         self._config._set_artifact_callback(self._config_artifact_callback)
         self._config._set_settings(self._settings)
 
-        # todo: perhaps this should be a property that is a noop on a finished run
+        # TODO: perhaps this should be a property that is a noop on a finished run
         self.summary = wandb_summary.Summary(
             self._summary_get_current_summary_callback,
         )
         self.summary._set_update_callback(self._summary_update_callback)
 
+        self.__metadata: Metadata | None = None
+
         self._step = 0
         self._starting_step = 0
-        # todo: eventually would be nice to make this configurable using self._settings._start_time
+        # TODO: eventually would be nice to make this configurable using self._settings._start_time
         #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
         #  does the total time get calculated right (not as 2 days and 15 minutes)?
         self._start_time = time.time()
@@ -3700,6 +3704,62 @@ class Run:
             except Exception as e:
                 logger.error("Error getting system metrics: %s", e)
         return {}
+
+    @property
+    @_run_decorator._attach
+    @_run_decorator._noop_on_finish()
+    def _metadata(self) -> Metadata | None:
+        """The metadata associated with this run.
+
+        NOTE: Automatically collected metadata can be overridden by the user.
+        """
+        if not self._backend or not self._backend.interface:
+            return self.__metadata
+
+        # Initialize the metadata object if it doesn't exist.
+        if self.__metadata is None:
+            self.__metadata = Metadata()
+            self.__metadata._set_callback(self._metadata_callback)
+
+        handle = self._backend.interface.deliver_get_system_metadata()
+        result = handle.wait(timeout=1)
+
+        if not result:
+            logger.error("Error getting run metadata: no result")
+            return None
+
+        try:
+            response = result.response.get_system_metadata_response
+
+            # Temporarily disable the callback to prevent triggering
+            # an update call to wandb-core with the callback.
+            with self.__metadata.disable_callback():
+                # Values stored in the metadata object take precedence.
+                self.__metadata.update_from_proto(response.metadata, skip_existing=True)
+
+            return self.__metadata
+        except Exception as e:
+            logger.error("Error getting run metadata: %s", e)
+
+        return None
+
+    @_run_decorator._noop_on_finish()
+    @_run_decorator._attach
+    def _metadata_callback(
+        self,
+        metadata: MetadataRequest,
+    ) -> None:
+        """Callback to publish Metadata to wandb-core upon user updates."""
+        # ignore updates if the attached to another run
+        if self._is_attached:
+            wandb.termwarn(
+                "Metadata updates are ignored when attached to another run.",
+                repeat=False,
+            )
+            return
+
+        if self._backend and self._backend.interface:
+            self._backend.interface.publish_metadata(metadata)
 
     # ------------------------------------------------------------------------------
     # HEADER
