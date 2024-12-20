@@ -20,7 +20,40 @@ func ParseSchemas(inputs ...*Source) (*SchemaDocument, error) {
 
 func ParseSchema(source *Source) (*SchemaDocument, error) {
 	p := parser{
-		lexer: lexer.New(source),
+		lexer:         lexer.New(source),
+		maxTokenLimit: 0, // default value is unlimited
+	}
+	sd, err := p.parseSchemaDocument(), p.err
+	if err != nil {
+		return nil, err
+	}
+
+	for _, def := range sd.Definitions {
+		def.BuiltIn = source.BuiltIn
+	}
+	for _, def := range sd.Extensions {
+		def.BuiltIn = source.BuiltIn
+	}
+
+	return sd, nil
+}
+
+func ParseSchemasWithLimit(maxTokenLimit int, inputs ...*Source) (*SchemaDocument, error) {
+	sd := &SchemaDocument{}
+	for _, input := range inputs {
+		inputAst, err := ParseSchemaWithLimit(input, maxTokenLimit)
+		if err != nil {
+			return nil, err
+		}
+		sd.Merge(inputAst)
+	}
+	return sd, nil
+}
+
+func ParseSchemaWithLimit(source *Source, maxTokenLimit int) (*SchemaDocument, error) {
+	p := parser{
+		lexer:         lexer.New(source),
+		maxTokenLimit: maxTokenLimit, // 0 is unlimited
 	}
 	sd, err := p.parseSchemaDocument(), p.err
 	if err != nil {

@@ -1,4 +1,4 @@
-package validator
+package rules
 
 import (
 	"github.com/vektah/gqlparser/v2/ast"
@@ -7,14 +7,15 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-func init() {
-	AddRule("KnownDirectives", func(observers *Events, addError AddErrFunc) {
+var KnownDirectivesRule = Rule{
+	Name: "KnownDirectives",
+	RuleFunc: func(observers *Events, addError AddErrFunc) {
 		type mayNotBeUsedDirective struct {
 			Name   string
 			Line   int
 			Column int
 		}
-		var seen = map[mayNotBeUsedDirective]bool{}
+		seen := map[mayNotBeUsedDirective]bool{}
 		observers.OnDirective(func(walker *Walker, directive *ast.Directive) {
 			if directive.Definition == nil {
 				addError(
@@ -45,5 +46,9 @@ func init() {
 				seen[tmp] = true
 			}
 		})
-	})
+	},
+}
+
+func init() {
+	AddRule(KnownDirectivesRule.Name, KnownDirectivesRule.RuleFunc)
 }

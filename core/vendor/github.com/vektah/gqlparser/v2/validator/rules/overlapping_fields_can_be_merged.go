@@ -1,4 +1,4 @@
-package validator
+package rules
 
 import (
 	"bytes"
@@ -11,9 +11,9 @@ import (
 	. "github.com/vektah/gqlparser/v2/validator"
 )
 
-func init() {
-
-	AddRule("OverlappingFieldsCanBeMerged", func(observers *Events, addError AddErrFunc) {
+var OverlappingFieldsCanBeMergedRule = Rule{
+	Name: "OverlappingFieldsCanBeMerged",
+	RuleFunc: func(observers *Events, addError AddErrFunc) {
 		/**
 		 * Algorithm:
 		 *
@@ -42,7 +42,7 @@ func init() {
 		 *
 		 * D) When comparing "between" a set of fields and a referenced fragment, first
 		 * a comparison is made between each field in the original set of fields and
-		 * each field in the the referenced set of fields.
+		 * each field in the referenced set of fields.
 		 *
 		 * E) Also, if any fragment is referenced in the referenced selection set,
 		 * then a comparison is made "between" the original set of fields and the
@@ -105,7 +105,11 @@ func init() {
 				conflict.addFieldsConflictMessage(addError)
 			}
 		})
-	})
+	},
+}
+
+func init() {
+	AddRule(OverlappingFieldsCanBeMergedRule.Name, OverlappingFieldsCanBeMergedRule.RuleFunc)
 }
 
 type pairSet struct {
@@ -304,10 +308,8 @@ func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetweenFieldsAndFr
 }
 
 func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetweenFragments(conflicts *conflictMessageContainer, areMutuallyExclusive bool, fragmentSpreadA *ast.FragmentSpread, fragmentSpreadB *ast.FragmentSpread) {
-
 	var check func(fragmentSpreadA *ast.FragmentSpread, fragmentSpreadB *ast.FragmentSpread)
 	check = func(fragmentSpreadA *ast.FragmentSpread, fragmentSpreadB *ast.FragmentSpread) {
-
 		if fragmentSpreadA.Name == fragmentSpreadB.Name {
 			return
 		}

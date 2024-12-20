@@ -80,6 +80,15 @@ object types:
       message: 'Name "__id" must not begin with "__", which is reserved by GraphQL introspection.'
       locations: [{line: 2, column: 3}]
 
+  - name: field argument list must not be empty
+    input: |
+      type FooBar {
+        foo(): ID
+      }
+    error:
+      message: 'expected at least one definition, found )'
+      locations: [{line: 2, column: 7}]
+
   - name: check reserved names on type field argument
     input: |
       type FooBar {

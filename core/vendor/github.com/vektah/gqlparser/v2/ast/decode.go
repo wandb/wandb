@@ -11,7 +11,7 @@ func UnmarshalSelectionSet(b []byte) (SelectionSet, error) {
 		return nil, err
 	}
 
-	var result = make([]Selection, 0)
+	result := make([]Selection, 0)
 	for _, item := range tmp {
 		var field Field
 		if err := json.Unmarshal(item, &field); err == nil {

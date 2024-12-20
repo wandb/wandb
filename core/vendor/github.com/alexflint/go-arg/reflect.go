@@ -13,9 +13,9 @@ import (
 var textUnmarshalerType = reflect.TypeOf([]encoding.TextUnmarshaler{}).Elem()
 
 // cardinality tracks how many tokens are expected for a given spec
-//  - zero is a boolean, which does to expect any value
-//  - one is an ordinary option that will be parsed from a single token
-//  - multiple is a slice or map that can accept zero or more tokens
+//   - zero is a boolean, which does to expect any value
+//   - one is an ordinary option that will be parsed from a single token
+//   - multiple is a slice or map that can accept zero or more tokens
 type cardinality int
 
 const (
@@ -74,10 +74,10 @@ func cardinalityOf(t reflect.Type) (cardinality, error) {
 	}
 }
 
-// isBoolean returns true if the type can be parsed from a single string
+// isBoolean returns true if the type is a boolean or a pointer to a boolean
 func isBoolean(t reflect.Type) bool {
 	switch {
-	case t.Implements(textUnmarshalerType):
+	case isTextUnmarshaler(t):
 		return false
 	case t.Kind() == reflect.Bool:
 		return true
@@ -86,6 +86,11 @@ func isBoolean(t reflect.Type) bool {
 	default:
 		return false
 	}
+}
+
+// isTextUnmarshaler returns true if the type or its pointer implements encoding.TextUnmarshaler
+func isTextUnmarshaler(t reflect.Type) bool {
+	return t.Implements(textUnmarshalerType) || reflect.PtrTo(t).Implements(textUnmarshalerType)
 }
 
 // isExported returns true if the struct field name is exported
@@ -97,7 +102,7 @@ func isExported(field string) bool {
 // isZero returns true if v contains the zero value for its type
 func isZero(v reflect.Value) bool {
 	t := v.Type()
-	if t.Kind() == reflect.Slice || t.Kind() == reflect.Map {
+	if t.Kind() == reflect.Ptr || t.Kind() == reflect.Slice || t.Kind() == reflect.Map || t.Kind() == reflect.Chan || t.Kind() == reflect.Interface {
 		return v.IsNil()
 	}
 	if !t.Comparable() {

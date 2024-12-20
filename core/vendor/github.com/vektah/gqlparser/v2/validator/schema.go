@@ -13,7 +13,6 @@ import (
 
 func LoadSchema(inputs ...*Source) (*Schema, error) {
 	sd, err := parser.ParseSchemas(inputs...)
-
 	if err != nil {
 		return nil, gqlerror.WrapIfUnwrapped(err)
 	}
@@ -123,6 +122,10 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 				schema.Subscription = def
 			}
 		}
+		if err := validateDirectives(&schema, sd.Schema[0].Directives, LocationSchema, nil); err != nil {
+			return nil, err
+		}
+		schema.SchemaDirectives = append(schema.SchemaDirectives, sd.Schema[0].Directives...)
 	}
 
 	for _, ext := range sd.SchemaExtension {
@@ -140,6 +143,10 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 				schema.Subscription = def
 			}
 		}
+		if err := validateDirectives(&schema, ext.Directives, LocationSchema, nil); err != nil {
+			return nil, err
+		}
+		schema.SchemaDirectives = append(schema.SchemaDirectives, ext.Directives...)
 	}
 
 	if err := validateTypeDefinitions(&schema); err != nil {

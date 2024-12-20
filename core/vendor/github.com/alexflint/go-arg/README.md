@@ -134,10 +134,10 @@ arg.MustParse(&args)
 
 ```shell
 $ ./example -h
-Usage: [--verbose] [--dataset DATASET] [--optimize OPTIMIZE] [--help] INPUT [OUTPUT [OUTPUT ...]] 
+Usage: [--verbose] [--dataset DATASET] [--optimize OPTIMIZE] [--help] INPUT [OUTPUT [OUTPUT ...]]
 
 Positional arguments:
-  INPUT 
+  INPUT
   OUTPUT
 
 Options:
@@ -167,6 +167,35 @@ var args struct {
 }
 arg.Foo = "abc"
 arg.MustParse(&args)
+```
+
+### Combining command line options, environment variables, and default values
+
+You can combine command line arguments, environment variables, and default values. Command line arguments take precedence over environment variables, which take precedence over default values. This means that we check whether a certain option was provided on the command line, then if not, we check for an environment variable (only if an `env` tag was provided), then if none is found, we check for a `default` tag containing a default value.
+
+```go
+var args struct {
+    Test  string `arg:"-t,env:TEST" default:"something"`
+}
+arg.MustParse(&args)
+```
+
+#### Ignoring environment variables and/or default values
+
+The values in an existing structure can be kept in-tact by ignoring environment
+variables and/or default values.
+
+```go
+var args struct {
+    Test  string `arg:"-t,env:TEST" default:"something"`
+}
+
+p, err := arg.NewParser(arg.Config{
+    IgnoreEnv: true,
+    IgnoreDefault: true,
+}, &args)
+
+err = p.Parse(os.Args)
 ```
 
 ### Arguments with multiple values
@@ -308,6 +337,22 @@ func main() {
 
 As usual, any field tagged with `arg:"-"` is ignored.
 
+### Supported types
+
+The following types may be used as arguments:
+- built-in integer types: `int, int8, int16, int32, int64, byte, rune`
+- built-in floating point types: `float32, float64`
+- strings
+- booleans
+- URLs represented as `url.URL`
+- time durations represented as `time.Duration`
+- email addresses represented as `mail.Address`
+- MAC addresses represented as `net.HardwareAddr`
+- pointers to any of the above
+- slices of any of the above
+- maps using any of the above as keys and values
+- any type that implements `encoding.TextUnmarshaler`
+
 ### Custom parsing
 
 Implement `encoding.TextUnmarshaler` to define your own parsing logic.
@@ -417,6 +462,9 @@ Options:
 
 ### Description strings
 
+A descriptive message can be added at the top of the help text by implementing
+a `Description` function that returns a string.
+
 ```go
 type args struct {
 	Foo string
@@ -440,6 +488,35 @@ Usage: example [--foo FOO]
 Options:
   --foo FOO
   --help, -h             display this help and exit
+```
+
+Similarly an epilogue can be added at the end of the help text by implementing
+the `Epilogue` function.
+
+```go
+type args struct {
+	Foo string
+}
+
+func (args) Epilogue() string {
+	return "For more information visit github.com/alexflint/go-arg"
+}
+
+func main() {
+	var args args
+	arg.MustParse(&args)
+}
+```
+
+```shell
+$ ./example -h
+Usage: example [--foo FOO]
+
+Options:
+  --foo FOO
+  --help, -h             display this help and exit
+
+For more information visit github.com/alexflint/go-arg
 ```
 
 ### Subcommands

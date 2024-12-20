@@ -67,7 +67,6 @@ func VariableValues(schema *ast.Schema, op *ast.OperationDefinition, variables m
 							return nil, gqlerror.ErrorPathf(validator.path, "cannot use value %f as %s", f, v.Type.NamedType)
 						}
 						rv = reflect.ValueOf(f)
-
 					}
 				}
 				if rv.Kind() == reflect.Ptr || rv.Kind() == reflect.Interface {
@@ -181,7 +180,7 @@ func (v *varValidator) validateVarType(typ *ast.Type, val reflect.Value) (reflec
 		return val, gqlerror.ErrorPathf(v.path, "cannot use %s as %s", kind.String(), typ.NamedType)
 	case ast.InputObject:
 		if val.Kind() != reflect.Map {
-			return val, gqlerror.ErrorPathf(v.path, "must be a %s", def.Name)
+			return val, gqlerror.ErrorPathf(v.path, "must be a %s, not a %s", def.Name, val.Kind())
 		}
 
 		// check for unknown fields
@@ -222,7 +221,7 @@ func (v *varValidator) validateVarType(typ *ast.Type, val reflect.Value) (reflec
 				if fieldDef.Type.NonNull && field.IsNil() {
 					return val, gqlerror.ErrorPathf(v.path, "cannot be null")
 				}
-				//allow null object field and skip it
+				// allow null object field and skip it
 				if !fieldDef.Type.NonNull && field.IsNil() {
 					continue
 				}
