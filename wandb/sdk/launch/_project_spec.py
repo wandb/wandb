@@ -45,9 +45,9 @@ class LaunchSource(enum.IntEnum):
         SCHEDULER: Source is a wandb sweep scheduler command.
     """
 
-    DOCKER: int = 1
-    JOB: int = 2
-    SCHEDULER: int = 3
+    DOCKER = 1
+    JOB = 2
+    SCHEDULER = 3
 
 
 class LaunchProject:
