@@ -284,7 +284,7 @@ class Experiment:
             logger.warning("the measured time for log() is 0.")
             # Setting it to 0.1ms to avoid failing the math.
             result_data["log_time"] = 0.01
-        
+
         # adjust for the sleep time injected
         if self.time_delay_second > 0:
             result_data["log_time"] -= self.time_delay_second * self.num_steps
