@@ -33,7 +33,7 @@ class Timer:
         self.start_time = datetime.now()
 
     def stop(self):
-        return (datetime.now() - self.start_time).total_seconds()
+        return round((datetime.now() - self.start_time).total_seconds(), 2)
 
 
 class PayloadGenerator:
@@ -273,8 +273,7 @@ class Experiment:
                 # between each step works around the problem for now.
 
                 # Set a sleep time when reproducing real-life workload when logging
-                # steps aren't in a tight loop. Just remember that the result_data["log_time"]
-                # will include the total sleep time from all the steps.
+                # steps aren't in a tight loop.
                 if self.time_delay_second > 0:
                     time.sleep(self.time_delay_second)
 
@@ -284,7 +283,11 @@ class Experiment:
         if result_data["log_time"] == 0:
             logger.warning("the measured time for log() is 0.")
             # Setting it to 0.1ms to avoid failing the math.
-            result_data["log_time"] = 0.0001
+            result_data["log_time"] = 0.01
+        
+        # adjust for the sleep time injected
+        if self.time_delay_second > 0:
+            result_data["log_time"] -= self.time_delay_second * self.num_steps
 
         result_data["log_rps"] = round(self.num_steps / result_data["log_time"], 2)
 
