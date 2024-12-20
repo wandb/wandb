@@ -908,7 +908,7 @@ class Run(Attrs):
     def _server_provides_internal_id_for_project(self) -> bool:
         """Returns True if the server allows us to query the internalId field for a project.
 
-        This check is done by utilizing GraphQL introspection in the avaiable fields on the Project type.
+        This check is done by utilizing GraphQL introspection in the available fields on the Project type.
         """
         query_string = """
            query ProbeProjectInput {

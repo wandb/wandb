@@ -92,7 +92,7 @@ class AgentProcess:
 
     def wait(self):
         if self._popen:
-            # if on windows, wait() will block and we wont be able to interrupt
+            # if on windows, wait() will block and we won't be able to interrupt
             if platform.system() == "Windows":
                 try:
                     while True:

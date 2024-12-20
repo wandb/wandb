@@ -240,7 +240,7 @@ def test_launch_agent_scheduler(monkeypatch, user, max_schedulers):
 
 
 def test_sweep_scheduler_job_with_queue(runner, user, mocker):
-    # cant download artifacts in tests, so patch this
+    # Can't download artifacts in tests, so patch this
     mocker.patch("wandb.sdk.launch.sweeps.utils.check_job_exists", return_value=True)
     queue = "queue"
     settings = wandb.Settings(project=LAUNCH_DEFAULT_PROJECT)
