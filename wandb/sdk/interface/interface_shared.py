@@ -151,9 +151,11 @@ class InterfaceShared(InterfaceBase):
         summary_record: Optional[pb.SummaryRecordRequest] = None,
         telemetry_record: Optional[pb.TelemetryRecordRequest] = None,
         get_system_metrics: Optional[pb.GetSystemMetricsRequest] = None,
+        get_system_metadata: Optional[pb.GetSystemMetadataRequest] = None,
         python_packages: Optional[pb.PythonPackagesRequest] = None,
         job_input: Optional[pb.JobInputRequest] = None,
         run_finish_without_exit: Optional[pb.RunFinishWithoutExitRequest] = None,
+        metadata: Optional[pb.MetadataRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -212,6 +214,8 @@ class InterfaceShared(InterfaceBase):
             request.telemetry_record.CopyFrom(telemetry_record)
         elif get_system_metrics:
             request.get_system_metrics.CopyFrom(get_system_metrics)
+        elif get_system_metadata:
+            request.get_system_metadata.CopyFrom(get_system_metadata)
         elif sync:
             request.sync.CopyFrom(sync)
         elif python_packages:
@@ -220,6 +224,8 @@ class InterfaceShared(InterfaceBase):
             request.job_input.CopyFrom(job_input)
         elif run_finish_without_exit:
             request.run_finish_without_exit.CopyFrom(run_finish_without_exit)
+        elif metadata:
+            request.metadata.CopyFrom(metadata)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -377,6 +383,10 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(summary=summary)
         self._publish(rec)
 
+    def _publish_metadata(self, metadata: pb.MetadataRequest) -> None:
+        rec = self._make_request(metadata=metadata)
+        self._publish(rec)
+
     def _publish_metric(self, metric: pb.MetricRecord) -> None:
         rec = self._make_record(metric=metric)
         self._publish(rec)
@@ -475,6 +485,12 @@ class InterfaceShared(InterfaceBase):
         self, get_system_metrics: pb.GetSystemMetricsRequest
     ) -> MailboxHandle:
         record = self._make_request(get_system_metrics=get_system_metrics)
+        return self._deliver_record(record)
+
+    def _deliver_get_system_metadata(
+        self, get_system_metadata: pb.GetSystemMetadataRequest
+    ) -> MailboxHandle:
+        record = self._make_request(get_system_metadata=get_system_metadata)
         return self._deliver_record(record)
 
     def _deliver_exit(self, exit_data: pb.RunExitRecord) -> MailboxHandle:

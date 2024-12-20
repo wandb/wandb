@@ -552,11 +552,13 @@ class _WandbInit:
                 entity="dummy",
             )
         )
-        # config and summary objects
+        # config, summary, and metadata objects
         drun._config = wandb.sdk.wandb_config.Config()
         drun._config.update(self.sweep_config)
         drun._config.update(self.config)
         drun.summary = SummaryDisabled()  # type: ignore
+        drun._Run__metadata = wandb.sdk.wandb_metadata.Metadata()
+
         # methods
         drun.log = lambda data, *_, **__: drun.summary.update(data)  # type: ignore
         drun.finish = lambda *_, **__: module.unset_globals()  # type: ignore
@@ -666,7 +668,7 @@ class _WandbInit:
                 )
 
             latest_run = self._wl._global_run_stack[-1]
-            logger.info(f"found existing run on stack: {latest_run._run_id}")
+            logger.info(f"found existing run on stack: {latest_run.id}")
             latest_run.finish()
         elif isinstance(wandb.run, Run):
             service = self._wl.service

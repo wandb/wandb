@@ -106,10 +106,10 @@ func streamLogger(
 				// AddSource: true,
 			},
 		)),
-		observability.WithTags(observability.Tags{}),
-		observability.WithCaptureMessage(sentryClient.CaptureMessage),
-		observability.WithCaptureException(sentryClient.CaptureException),
-		observability.WithReraise(sentryClient.Reraise),
+		&observability.CoreLoggerParams{
+			Tags:   observability.Tags{},
+			Sentry: sentryClient,
+		},
 	)
 	logger.Info("stream: starting",
 		"core version", version.Version,
