@@ -6,33 +6,36 @@ import (
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 
-	"github.com/wandb/wandb/experimental/client-go/internal/connection"
-	"github.com/wandb/wandb/experimental/client-go/internal/execbin"
-	"github.com/wandb/wandb/experimental/client-go/internal/launcher"
-	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
+	"github.com/wandb/wandb/experimental/go-sdk/internal/connection"
+	"github.com/wandb/wandb/experimental/go-sdk/internal/execbin"
+	"github.com/wandb/wandb/experimental/go-sdk/internal/launcher"
+	"github.com/wandb/wandb/experimental/go-sdk/pkg/settings"
 )
 
 type SessionParams struct {
-	CoreBinary []byte
-	Address    string
-	Settings   *settings.Settings
+	ServiceBinary  []byte
+	ServiceCmdPath string
+	Address        string
+	Settings       *settings.Settings
 }
 
 type Session struct {
 	ctx context.Context
 
-	execCmd    *execbin.ForkExecCmd
-	coreBinary []byte
-	address    string
-	settings   *settings.Settings
+	execCmd  *execbin.ForkExecCmd
+	binary   []byte
+	excePath string
+	address  string
+	settings *settings.Settings
 }
 
 func newSession(params *SessionParams) *Session {
 	return &Session{
-		ctx:        context.Background(),
-		address:    params.Address,
-		coreBinary: params.CoreBinary,
-		settings:   params.Settings,
+		ctx:      context.Background(),
+		address:  params.Address,
+		binary:   params.ServiceBinary,
+		excePath: params.ServiceCmdPath,
+		settings: params.Settings,
 	}
 }
 
@@ -45,9 +48,12 @@ func (s *Session) start() {
 	var err error
 
 	launch := launcher.NewLauncher()
-	if len(s.coreBinary) != 0 {
-		execCmd, err = launch.LaunchBinary(s.coreBinary)
-	} else {
+	switch {
+	case len(s.binary) != 0:
+		execCmd, err = launch.LaunchBinary(s.binary)
+	case s.excePath != "":
+		execCmd, err = launch.LaunchCommand(s.excePath)
+	default:
 		execCmd, err = launch.LaunchCommand("wandb-core")
 	}
 	if err != nil {
