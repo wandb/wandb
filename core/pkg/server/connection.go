@@ -359,7 +359,7 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 			GPUResourceManager: nc.gpuResourceManager,
 		},
 	)
-	strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
+	strm.RegisterResponder(stream.ResponderEntry{Responder: nc, ID: nc.id})
 	strm.Start()
 	slog.Info("handleInformInit: stream started", "streamId", streamId, "id", nc.id)
 
@@ -413,7 +413,7 @@ func (nc *Connection) handleInformAttach(
 			"handleInformAttach: error getting stream",
 			"err", err, "id", nc.id)
 	} else {
-		strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
+		strm.RegisterResponder(stream.ResponderEntry{Responder: nc, ID: nc.id})
 		// TODO: we should redo this attach logic, so that the stream handles
 		//       the attach logic
 		resp := &spb.ServerResponse{
