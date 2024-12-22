@@ -14,6 +14,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/pfxout"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -352,10 +353,45 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 
 	s.Close()
 
-	if s.settings.IsOffline() {
-		PrintFooterOffline(s.settings.Proto)
+	printFooter(s.settings)
+}
+
+func printFooter(settings *settings.Settings) {
+	formatter := pfxout.New(
+		pfxout.WithColor("wandb", pfxout.BrightBlue),
+	)
+
+	formatter.Println("")
+	if settings.IsOffline() {
+		formatter.Println("You can sync this run to the cloud by running:")
+		formatter.Println(
+			pfxout.WithStyle(
+				fmt.Sprintf("wandb sync %v", settings.GetSyncDir()),
+				pfxout.Bold,
+			),
+		)
 	} else {
-		run := s.handler.GetRun()
-		PrintFooterOnline(run, s.settings.Proto)
+		formatter.Println(
+			fmt.Sprintf(
+				"🚀 View run %v at: %v",
+				pfxout.WithColor(settings.GetDisplayName(), pfxout.Yellow),
+				pfxout.WithColor(settings.GetRunURL(), pfxout.Blue),
+			),
+		)
 	}
+
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return
+	}
+	relLogDir, err := filepath.Rel(currentDir, settings.GetLogDir())
+	if err != nil {
+		return
+	}
+	formatter.Println(
+		fmt.Sprintf(
+			"Find logs at: %v",
+			pfxout.WithColor(relLogDir, pfxout.BrightMagenta),
+		),
+	)
 }
