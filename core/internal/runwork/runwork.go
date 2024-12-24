@@ -143,6 +143,10 @@ func (rw *runWork) AddWorkOrCancel(
 	// until we exit and decrement addWorkCount---so internalWork
 	// is guaranteed to not be closed until this method returns.
 
+	rw.logger.Debug("runwork: got work",
+		"work", work.DebugInfo(),
+		"buffer", len(rw.internalWork))
+
 	start := time.Now()
 	for i := 0; ; i++ {
 		select {
