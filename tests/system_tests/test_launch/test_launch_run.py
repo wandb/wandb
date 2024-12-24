@@ -8,7 +8,7 @@ from wandb.sdk.launch._project_spec import _inject_wandb_config_env_vars
 from wandb.util import make_artifact_name_safe
 
 
-def test_run_use_job_env_var(runner, relay_server, user):
+def test_run_use_job_env_var(runner, wandb_backend_spy, user):
     art_name = "job-my-test-image"
     artifact_name = f"{user}/uncategorized/{art_name}"
     artifact_env = json.dumps({"_wandb_job": f"{artifact_name}:latest"})
@@ -23,17 +23,24 @@ def test_run_use_job_env_var(runner, relay_server, user):
         with wandb.init(entity=user) as run:
             run.log_artifact(artifact)
             artifact.wait()
-        with relay_server() as relay:
-            with wandb.init(entity=user, settings=wandb.Settings(launch=True)) as run:
-                run.log({"x": 2})
-            use_count = 0
-            for data in relay.context.raw_data:
-                assert "mutation CreateArtifact(" not in data.get("request", {}).get(
-                    "query", ""
-                )
-                if "mutation UseArtifact(" in data.get("request", {}).get("query", ""):
-                    use_count += 1
-        assert use_count == 1
+
+        gql = wandb_backend_spy.gql
+        create_artifact_spy = gql.Capture()
+        use_artifact_spy = gql.Capture()
+        wandb_backend_spy.stub_gql(
+            gql.Matcher(operation="CreateArtifact"),
+            create_artifact_spy,
+        )
+        wandb_backend_spy.stub_gql(
+            gql.Matcher(operation="UseArtifact"),
+            use_artifact_spy,
+        )
+
+        with wandb.init(entity=user, settings=wandb.Settings(launch=True)) as run:
+            run.log({"x": 2})
+
+        assert create_artifact_spy.total_calls == 0
+        assert use_artifact_spy.total_calls == 1
 
 
 def test_run_in_launch_context_with_multi_config_env_var(runner, monkeypatch, user):
