@@ -587,23 +587,24 @@ def mypy_report(session: nox.Session) -> None:
     If the report parameter is set to True, it will also generate an html report.
     """
     session.install(
-        # https://github.com/python/mypy/issues/17166
-        "mypy != 1.10.0",
-        "pip",
-        "pydantic",
-        "pycobertura",
         "ipython",
         "lxml",
+        # https://github.com/python/mypy/issues/17166
+        "mypy != 1.10.0",
+        "numpy",
         "pandas-stubs",
+        "pip",
         "platformdirs",
+        "pydantic",
+        "pycobertura",
         "types-jsonschema",
         "types-openpyxl",
-        "types-python-dateutil",
         "types-Pillow",
-        "types-PyYAML",
-        "types-Pygments",
         "types-protobuf",
+        "types-Pygments",
+        "types-python-dateutil",
         "types-pytz",
+        "types-PyYAML",
         "types-requests",
         "types-setuptools",
         "types-six",

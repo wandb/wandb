@@ -328,7 +328,7 @@ class _WandbInit:
 
         # TODO: remove this once we refactor the client. This is a temporary
         # fix to make sure that we use the same project name for wandb-core.
-        # The reason this is not going throught the settings object is to
+        # The reason this is not going through the settings object is to
         # avoid failure cases in other parts of the code that will be
         # removed with the switch to wandb-core.
         if settings.project is None:
@@ -407,7 +407,7 @@ class _WandbInit:
     def _safe_symlink(
         self, base: str, target: str, name: str, delete: bool = False
     ) -> None:
-        # TODO(jhr): do this with relpaths, but i cant figure it out on no sleep
+        # TODO(jhr): do this with relpaths, but i can't figure it out on no sleep
         if not hasattr(os, "symlink"):
             return
 
@@ -552,11 +552,13 @@ class _WandbInit:
                 entity="dummy",
             )
         )
-        # config and summary objects
+        # config, summary, and metadata objects
         drun._config = wandb.sdk.wandb_config.Config()
         drun._config.update(self.sweep_config)
         drun._config.update(self.config)
         drun.summary = SummaryDisabled()  # type: ignore
+        drun._Run__metadata = wandb.sdk.wandb_metadata.Metadata()
+
         # methods
         drun.log = lambda data, *_, **__: drun.summary.update(data)  # type: ignore
         drun.finish = lambda *_, **__: module.unset_globals()  # type: ignore
@@ -666,7 +668,7 @@ class _WandbInit:
                 )
 
             latest_run = self._wl._global_run_stack[-1]
-            logger.info(f"found existing run on stack: {latest_run._run_id}")
+            logger.info(f"found existing run on stack: {latest_run.id}")
             latest_run.finish()
         elif isinstance(wandb.run, Run):
             service = self._wl.service
@@ -1081,7 +1083,7 @@ def init(  # noqa: C901
         entity: The username or team name under which the runs will be logged.
             The entity must already exist, so ensure you’ve created your account
             or team in the UI before starting to log runs. If not specified, the
-            run will default your defualt entity. To change the default entity,
+            run will default your default entity. To change the default entity,
             go to [your settings](https://wandb.ai/settings) and update the
             "Default location to create new projects" under "Default team".
         project: The name of the project under which this run will be logged.

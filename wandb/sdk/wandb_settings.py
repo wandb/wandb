@@ -349,7 +349,7 @@ class Settings(BaseModel, validate_assignment=True):
     @model_validator(mode="before")
     @classmethod
     def catch_private_settings(cls, values):
-        """Check if a private field is provided and assign to the corrsponding public one.
+        """Check if a private field is provided and assign to the corresponding public one.
 
         This is a compatibility layer to handle previous versions of the settings.
         """
@@ -1063,7 +1063,8 @@ class Settings(BaseModel, validate_assignment=True):
         )
         self.x_executable = _executable
 
-        self.docker = env.get_docker(util.image_id_from_k8s())
+        if self.docker is None:
+            self.docker = env.get_docker(util.image_id_from_k8s())
 
         # proceed if not in CLI mode
         if self.x_cli_only_mode:
