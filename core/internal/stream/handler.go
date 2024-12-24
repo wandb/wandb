@@ -44,7 +44,7 @@ const (
 type HandlerParams struct {
 	Settings          *settings.Settings
 	FwdChan           chan runwork.Work
-	OutChan           chan *spb.Result
+	OutChan           chan<- *spb.Result
 	Logger            *observability.CoreLogger
 	Operations        *wboperation.WandbOperations
 	Mailbox           *mailbox.Mailbox
@@ -90,7 +90,7 @@ type Handler struct {
 	fwdChan chan runwork.Work
 
 	// outChan is the channel for sending results to the client
-	outChan chan *spb.Result
+	outChan chan<- *spb.Result
 
 	// runTimer is used to track the run start and execution times
 	runTimer *timer.Timer
@@ -191,7 +191,6 @@ func (h *Handler) Do(allWork <-chan runwork.Work) {
 }
 
 func (h *Handler) Close() {
-	close(h.outChan)
 	close(h.fwdChan)
 	h.logger.Info("handler: closed", "stream_id", h.settings.GetRunID())
 }

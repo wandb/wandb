@@ -202,13 +202,15 @@ func NewStream(
 
 	mailbox := mailbox.New()
 
+	s.dispatcher = NewDispatcher(s.logger)
+
 	s.handler = NewHandler(
 		HandlerParams{
 			Logger:            s.logger,
 			Operations:        operations,
 			Settings:          s.settings,
 			FwdChan:           make(chan runwork.Work, BufferSize),
-			OutChan:           make(chan *spb.Result, BufferSize),
+			OutChan:           s.dispatcher.Chan(),
 			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings, s.runWork),
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
@@ -242,20 +244,18 @@ func NewStream(
 			Peeker:              peeker,
 			RunSummary:          runsummary.New(),
 			GraphqlClient:       graphqlClientOrNil,
-			OutChan:             make(chan *spb.Result, BufferSize),
+			OutChan:             s.dispatcher.Chan(),
 			Mailbox:             mailbox,
 		},
 	)
-
-	s.dispatcher = NewDispatcher(s.logger)
 
 	s.logger.Info("created new stream", "id", s.settings.GetRunID())
 	return s
 }
 
 // AddResponders adds the given responders to the stream's dispatcher.
-func (s *Stream) AddResponders(entries ...ResponderEntry) {
-	s.dispatcher.AddResponders(entries...)
+func (s *Stream) RegisterResponder(entry ResponderEntry) {
+	s.dispatcher.RegisterResponder(entry)
 }
 
 // UpdateSettings updates the stream's settings with the given settings.
@@ -302,15 +302,7 @@ func (s *Stream) Start() {
 	}()
 
 	// handle dispatching between components
-	for _, ch := range []chan *spb.Result{s.handler.outChan, s.sender.outChan} {
-		s.wg.Add(1)
-		go func(ch chan *spb.Result) {
-			for result := range ch {
-				s.dispatcher.handleRespond(result)
-			}
-			s.wg.Done()
-		}(ch)
-	}
+	go s.dispatcher.Do()
 
 	s.logger.Info("stream: started", "id", s.settings.GetRunID())
 }
@@ -326,6 +318,7 @@ func (s *Stream) Close() {
 	s.logger.Info("stream: closing", "id", s.settings.GetRunID())
 	s.runWork.Close()
 	s.wg.Wait()
+	s.dispatcher.Close()
 	s.logger.Info("stream: closed", "id", s.settings.GetRunID())
 }
 

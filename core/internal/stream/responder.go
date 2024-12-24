@@ -17,39 +17,54 @@ type ResponderEntry struct {
 	ID        string
 }
 
-type Responders map[string]Responder
-
 type Dispatcher struct {
-	sync.RWMutex
-	responders Responders
+	mu         sync.RWMutex
+	responders map[string]Responder
 	logger     *observability.CoreLogger
+	ch         chan *spb.Result
+	done       chan struct{}
 }
 
 func NewDispatcher(logger *observability.CoreLogger) *Dispatcher {
 	return &Dispatcher{
-		RWMutex:    sync.RWMutex{},
+		mu:         sync.RWMutex{},
 		logger:     logger,
-		responders: make(Responders),
+		responders: make(map[string]Responder),
+		ch:         make(chan *spb.Result, BufferSize),
+		done:       make(chan struct{}),
 	}
 }
 
-// AddResponders adds the given responders to the stream's dispatcher.
-func (d *Dispatcher) AddResponders(entries ...ResponderEntry) {
-	d.Lock()
-	defer d.Unlock()
+// RegisterResponder adds the given responders to the stream's dispatcher.
+func (d *Dispatcher) RegisterResponder(entry ResponderEntry) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
-	if d.responders == nil {
-		d.responders = make(map[string]Responder)
+	responderId := entry.ID
+	if _, ok := d.responders[responderId]; !ok {
+		d.responders[responderId] = entry.Responder
+	} else {
+		d.logger.CaptureWarn("Responder already exists", "responder", responderId)
 	}
+}
 
-	for _, entry := range entries {
-		responderId := entry.ID
-		if _, ok := d.responders[responderId]; !ok {
-			d.responders[responderId] = entry.Responder
-		} else {
-			d.logger.CaptureWarn("Responder already exists", "responder", responderId)
-		}
+func (d *Dispatcher) UnregisterResponder(id string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	delete(d.responders, id)
+}
+
+func (d *Dispatcher) Do() {
+	for result := range d.ch {
+		d.handleRespond(result)
 	}
+	close(d.done)
+}
+
+func (d *Dispatcher) Close() {
+	close(d.ch)
+	<-d.done
 }
 
 // handleRespond sends the given result to the appropriate responder.
@@ -62,9 +77,9 @@ func (d *Dispatcher) handleRespond(result *spb.Result) {
 		return
 	}
 
-	d.RLock()
+	d.mu.RLock()
 	responder, ok := d.responders[responderID]
-	d.RUnlock()
+	d.mu.RUnlock()
 
 	if ok {
 		responder.Respond(&spb.ServerResponse{
@@ -76,4 +91,8 @@ func (d *Dispatcher) handleRespond(result *spb.Result) {
 		d.logger.CaptureError(
 			fmt.Errorf("dispatch: no responder found: %s", responderID))
 	}
+}
+
+func (d *Dispatcher) Chan() chan<- *spb.Result {
+	return d.ch
 }
