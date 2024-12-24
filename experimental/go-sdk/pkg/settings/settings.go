@@ -10,7 +10,7 @@ import (
 	"time"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/experimental/client-go/internal/uid"
+	"github.com/wandb/wandb/experimental/go-sdk/internal/uid"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -85,8 +85,7 @@ type Settings struct {
 	timeSpec              time.Time
 	resumed               bool
 	FileStreamTimeout     float64 `env:"WANDB_FILE_STREAM_TIMEOUT"`
-	StatsSampleRate       float64 `env:"WANDB_STATS_SAMPLE_RATE"`
-	StatsSamplesToAverage int32   `env:"WANDB_STATS_SAMPLES_TO_AVERAGE"`
+	StatsSamplingInterval float64 `env:"WANDB_X_STATS_SAMPLING_INTERVAL"`
 }
 
 // New creates a new Settings object with default values.
@@ -254,11 +253,8 @@ func (s *Settings) ToProto() *spb.Settings {
 		XFileStreamTimeoutSeconds: &wrapperspb.DoubleValue{
 			Value: s.FileStreamTimeout,
 		},
-		XStatsSampleRateSeconds: &wrapperspb.DoubleValue{
-			Value: s.StatsSampleRate,
-		},
-		XStatsSamplesToAverage: &wrapperspb.Int32Value{
-			Value: s.StatsSamplesToAverage,
+		XStatsSamplingInterval: &wrapperspb.DoubleValue{
+			Value: s.StatsSamplingInterval,
 		},
 	}
 }
