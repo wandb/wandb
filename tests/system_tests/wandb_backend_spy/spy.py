@@ -160,7 +160,17 @@ class WandbBackendSpy:
         if "mutation UpsertBucket" not in query:
             return
 
-        run_id = variables["name"]
+        # "name" is the usual run ID (part of the run URL),
+        # and "id" is the "storage ID" which is sometimes used in
+        # the public API. We use both interchangeably in tests to keep
+        # usage simple.
+        if "name" in variables:
+            run_id = variables["name"]
+        elif "id" in variables:
+            run_id = variables["id"]
+        else:
+            raise KeyError("Unexpected UpsertBucket without name or id")
+
         run = self._runs.setdefault(run_id, _RunData())
 
         config = variables.get("config")
@@ -182,6 +192,14 @@ class WandbBackendSpy:
         sweep = variables.get("sweep")
         if sweep is not None:
             run._sweep_name = sweep
+
+        summary_metrics = variables.get("summaryMetrics")
+        if summary_metrics is not None:
+            # We use the wandb-summary.json file of the FileStream API
+            # as the source of truth for the run's summary.
+            summary = run._file_stream_files.setdefault("wandb-summary.json", {})
+            last_line_offset = max(summary.keys(), default=0)
+            summary[last_line_offset] = summary_metrics
 
     def post_file_stream(
         self,
