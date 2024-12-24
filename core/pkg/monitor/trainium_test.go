@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/pkg/monitor"
 )
 
@@ -62,13 +63,18 @@ func TestTrainiumSample(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, sample)
 
+	metrics := make(map[string]any)
+	for _, item := range sample.Item {
+		metrics[item.Key], _ = simplejsonext.UnmarshalString(item.ValueJson)
+	}
+
 	// Check for some expected keys and values
-	assert.Equal(t, float64(610705408), sample["trn.host_total_memory_usage"])
-	assert.Equal(t, float64(102298328), sample["trn.neuron_device_total_memory_usage"])
-	assert.Equal(t, float64(609656832), sample["trn.host_memory_usage.application_memory"])
+	assert.Equal(t, float64(610705408), metrics["trn.host_total_memory_usage"])
+	assert.Equal(t, float64(102298328), metrics["trn.neuron_device_total_memory_usage"])
+	assert.Equal(t, float64(609656832), metrics["trn.host_memory_usage.application_memory"])
 
 	// Check that keys are properly prefixed with "trn."
-	for key := range sample {
-		assert.True(t, len(key) > 4 && key[:4] == "trn.")
+	for _, item := range sample.Item {
+		assert.True(t, len(item.Key) > 4 && item.Key[:4] == "trn.")
 	}
 }

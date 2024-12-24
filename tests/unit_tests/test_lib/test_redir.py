@@ -41,7 +41,7 @@ def test_basic(cls, capfd):
         out = CapList()
         redir = cls("stdout", cbs=[out.append])
         redir.install()
-        print("Test")
+        print("Test")  # noqa: T201
         redir.uninstall()
         assert out == [b"Test"]
 
@@ -53,13 +53,13 @@ def test_reinstall(cls, capfd):
         r1 = cls("stdout", cbs=[o1.append])
         r2 = cls("stdout", cbs=[o2.append])
         r1.install()
-        print("ABCD")
+        print("ABCD")  # noqa: T201
         r2.install()
-        print("WXYZ")
+        print("WXYZ")  # noqa: T201
         r1.install()
-        print("1234")
+        print("1234")  # noqa: T201
         r2.install()
-        print("5678")
+        print("5678")  # noqa: T201
         r2.uninstall()
         assert o1 == [b"ABCD", b"1234"]
         assert o2 == [b"WXYZ", b"5678"]
@@ -83,7 +83,7 @@ def test_formatting(cls, capfd):
         o = CapList()
         r = cls("stdout", cbs=[o.append])
         r.install()
-        print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m")
+        print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m")  # noqa: T201
         r.uninstall()
         assert o == [b"\x1b[31m\x1b[40m\x1b[1mHello"]
 
@@ -114,7 +114,7 @@ def test_cursor(cls, capfd):
         s += "\r"
         s += "WXYZ"
         s += "\x1b[2K"
-        print(s)
+        print(s)  # noqa: T201
         r.uninstall()
         assert o == [b"1234", b"EFGH", b"IJKL", b"QRST"]
 
@@ -132,14 +132,14 @@ def test_erase_screen(cls, capfd):
         s += "\x1b[A"
         s += "\r"
         s += "\x1b[1J"
-        print(s)
+        print(s)  # noqa: T201
         r.uninstall()
         assert o == [b" UIOP"]
         o = CapList()
         r = cls("stdout", cbs=[o.append])
         r.install()
-        print("QWERT\nYUIOP\n12345")
-        print("\x1b[2J")
+        print("QWERT\nYUIOP\n12345")  # noqa: T201
+        print("\x1b[2J")  # noqa: T201
         r.uninstall()
         assert o == []
 
@@ -178,7 +178,7 @@ def test_numpy(cls, capfd):
     with capfd.disabled():
         r = cls("stdout", [lambda _: None])
         r.install()
-        print(np.random.randint(64, size=(40, 40, 40, 40)))
+        print(np.random.randint(64, size=(40, 40, 40, 40)))  # noqa: T201
         r.uninstall()
 
 
@@ -195,12 +195,12 @@ def test_print_torch_model(cls, capfd):
             torch.nn.Conv2d(1, 1, 1, bias=False) for _ in range(1000)
         )
         start = time.time()
-        print(model)
+        print(model)  # noqa: T201
         end = time.time()
         t1 = end - start
         r.install()
         start = time.time()
-        print(model)
+        print(model)  # noqa: T201
         end = time.time()
         t2 = end - start
         overhead = t2 - t1

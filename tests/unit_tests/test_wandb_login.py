@@ -83,7 +83,7 @@ def test_login_timeout(mock_tty):
 
 @pytest.mark.skipif(
     platform.system() == "Windows",
-    reason="mock_tty doesnt support windows input yet",
+    reason="mock_tty does not support windows input yet",
 )
 def test_login_timeout_choose(mock_tty):
     mock_tty("3\n")
@@ -120,9 +120,7 @@ def test_login_key(capsys):
     wandb.login(key="A" * 40)
     # TODO: this was a bug when tests were leaking out to the global config
     # wandb.api.set_setting("base_url", "http://localhost:8080")
-    out, err = capsys.readouterr()
-    print(out)
-    print(err)
+    _, err = capsys.readouterr()
     assert "Appending key" in err
     #  WTF is happening?
     assert wandb.api.api_key == "A" * 40

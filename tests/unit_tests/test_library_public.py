@@ -156,7 +156,6 @@ SYMBOLS_ANALYTICS = {"analytics", "_Sentry", "_sentry"}
 def test_library_root():
     symbol_list = dir(wandb)
     symbol_public_set = {s for s in symbol_list if not s.startswith("_")}
-    print("symbols", symbol_public_set)
     symbol_unknown = (
         symbol_public_set
         - SYMBOLS_ROOT_DATATYPES
@@ -236,7 +235,6 @@ def test_library_run():
     Run = wandb.wandb_sdk.wandb_run.Run  # noqa: N806
     symbol_list = dir(Run)
     symbol_public_set = {s for s in symbol_list if not s.startswith("_")}
-    print("symbols", symbol_public_set)
     symbol_unknown = (
         symbol_public_set
         - SYMBOLS_RUN
@@ -269,7 +267,6 @@ def test_library_config():
     Config = wandb.wandb_sdk.wandb_config.Config  # noqa: N806
     symbol_list = dir(Config)
     symbol_public_set = {s for s in symbol_list if not s.startswith("_")}
-    print("symbols", symbol_public_set)
     symbol_unknown = (
         symbol_public_set - SYMBOLS_CONFIG - SYMBOLS_CONFIG_OTHER - SYMBOLS_TYPING
     )
@@ -307,5 +304,4 @@ SYMBOLS_WANDB_INIT = {
 
 def test_library_init():
     init_params = set(inspect.signature(wandb.init).parameters)
-    print("init_params", init_params)
     assert init_params == SYMBOLS_WANDB_INIT

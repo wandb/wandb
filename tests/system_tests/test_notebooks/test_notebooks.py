@@ -35,7 +35,6 @@ def test_one_cell(notebook, run_id):
     with notebook("one_cell.ipynb") as nb:
         nb.execute_all()
         output = nb.cell_output_html(2)
-        print(output)
         assert run_id in output
 
 
@@ -46,7 +45,7 @@ def test_magic(notebook):
         text = ""
         for c, cell in enumerate(nb.cells):
             for i, out in enumerate(cell["outputs"]):
-                print(f"CELL {c} output {i}: ", out)
+                print(f"CELL {c} output {i}: ", out)  # noqa: T201
                 if not out.get("data", {}).get("text/html"):
                     continue
                 if c == 0 and i == 0:
@@ -106,7 +105,6 @@ def test_notebook_metadata_colab(mocked_module):
     colab._message.blocking_request.return_value = {
         "ipynb": {"metadata": {"colab": {"name": "koalab.ipynb"}}}
     }
-    print(wandb.jupyter.logger)
     with mock.patch.object(
         wandb.jupyter,
         "notebook_metadata_from_jupyter_servers_and_kernel_id",
@@ -116,7 +114,7 @@ def test_notebook_metadata_colab(mocked_module):
             "name": "colab.ipynb",
         },
     ):
-        print(wandb.jupyter.notebook_metadata_from_jupyter_servers_and_kernel_id())
+        wandb.jupyter.notebook_metadata_from_jupyter_servers_and_kernel_id()
         meta = wandb.jupyter.notebook_metadata(False)
         assert meta == {
             "root": "/content",
@@ -146,9 +144,9 @@ def test_notebook_metadata_kaggle(mocked_module):
         }
 
 
-def test_notebook_not_exists(mocked_ipython, wandb_init, capsys):
+def test_notebook_not_exists(mocked_ipython, user, capsys):
     with mock.patch.dict(os.environ, {"WANDB_NOTEBOOK_NAME": "fake.ipynb"}):
-        run = wandb_init()
+        run = wandb.init()
         _, err = capsys.readouterr()
         assert "WANDB_NOTEBOOK_NAME should be a path" in err
         run.finish()
@@ -166,26 +164,26 @@ def test_databricks_notebook_doesnt_hang_on_wandb_login(mocked_module):
             wandb.login()
 
 
-def test_mocked_notebook_html_default(wandb_init, run_id, mocked_ipython):
+def test_mocked_notebook_html_default(user, run_id, mocked_ipython):
     wandb.load_ipython_extension(mocked_ipython)
     mocked_ipython.register_magics.assert_called_with(wandb.jupyter.WandBMagics)
-    with wandb_init(id=run_id) as run:
+    with wandb.init(id=run_id) as run:
         run.log({"acc": 99, "loss": 0})
         run.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
-        print(f"[{i}]: {html}")
+        print(f"[{i}]: {html}")  # noqa: T201
     assert any(run_id in html for html in displayed_html)
     assert any("Run history:" in html for html in displayed_html)
 
 
-def test_mocked_notebook_html_quiet(wandb_init, run_id, mocked_ipython):
-    run = wandb_init(id=run_id, settings=wandb.Settings(quiet=True))
+def test_mocked_notebook_html_quiet(user, run_id, mocked_ipython):
+    run = wandb.init(id=run_id, settings=wandb.Settings(quiet=True))
     run.log({"acc": 99, "loss": 0})
     run.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
-        print(f"[{i}]: {html}")
+        print(f"[{i}]: {html}")  # noqa: T201
     assert any(run_id in html for html in displayed_html)
     assert not any("Run history:" in html for html in displayed_html)
 
@@ -195,7 +193,7 @@ def test_mocked_notebook_run_display(user, mocked_ipython):
         run.display()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
-        print(f"[{i}]: {html}")
+        print(f"[{i}]: {html}")  # noqa: T201
     assert any("<iframe" in html for html in displayed_html)
 
 
@@ -215,14 +213,14 @@ def test_mocked_notebook_magic(user, run_id, mocked_ipython):
     )
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
-        print(f"[{i}]: {html}")
+        print(f"[{i}]: {html}")  # noqa: T201
     assert wandb.jupyter.__IFrame is None
     assert any("<iframe" in html for html in displayed_html)
     run_uri = f"{user}/uncategorized/runs/{run_id}"
     magic.wandb(run_uri)
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
-        print(f"[{i}]: {html}")
+        print(f"[{i}]: {html}")  # noqa: T201
     assert any(f"{run_uri}?jupyter=true" in html for html in displayed_html)
 
 

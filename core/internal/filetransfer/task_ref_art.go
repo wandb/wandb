@@ -24,7 +24,7 @@ type ReferenceArtifactTask struct {
 	// Error, if any.
 	Err error
 
-	// Reference to the artifact being transfered
+	// Reference to the artifact being transferred
 	Reference string
 
 	// VersionId is the version of the file we want to download. Different
@@ -39,37 +39,6 @@ type ReferenceArtifactTask struct {
 	// that has Reference as a prefix.
 	Digest string
 }
-
-// ReferenceArtifactUploadTask uploads a reference artifact
-type ReferenceArtifactUploadTask ReferenceArtifactTask
-
-func (t *ReferenceArtifactUploadTask) Execute(fts *FileTransfers) error {
-	ft, err := getStorageProvider(t.Reference, fts)
-	if err != nil {
-		return err
-	}
-
-	err = ft.Upload(t)
-	return err
-}
-func (t *ReferenceArtifactUploadTask) Complete(fts FileTransferStats) {
-	t.OnComplete.Complete()
-	if fts != nil {
-		fts.UpdateUploadStats(FileUploadInfo{
-			FileKind:      t.FileKind,
-			Path:          t.PathOrPrefix,
-			UploadedBytes: t.Size,
-			TotalBytes:    t.Size,
-		})
-	}
-}
-func (t *ReferenceArtifactUploadTask) String() string {
-	return fmt.Sprintf(
-		"ReferenceArtifactUploadTask{Path: %s, Ref: %s, Size: %d}",
-		t.PathOrPrefix, t.Reference, t.Size,
-	)
-}
-func (t *ReferenceArtifactUploadTask) SetError(err error) { t.Err = err }
 
 // ReferenceArtifactUploadTask downloads a reference artifact
 type ReferenceArtifactDownloadTask ReferenceArtifactTask
@@ -122,7 +91,7 @@ func (t *ReferenceArtifactDownloadTask) VersionIDString() (string, bool) {
 	return strVersionId, ok
 }
 
-func getStorageProvider(ref string, fts *FileTransfers) (ReferenceArtifactFileTransfer, error) {
+func getStorageProvider(ref string, fts *FileTransfers) (ArtifactFileTransfer, error) {
 	uriParts, err := url.Parse(ref)
 	switch {
 	case err != nil:
@@ -131,6 +100,10 @@ func getStorageProvider(ref string, fts *FileTransfers) (ReferenceArtifactFileTr
 		return fts.GCS, nil
 	case uriParts.Scheme == "s3":
 		return fts.S3, nil
+	// azure blob storage urls have the following format:
+	// https://<storage-account-name>.blob.core.windows.net/<container-name>/<blob-name>
+	case uriParts.Scheme == "https" && strings.HasSuffix(uriParts.Host, ".blob.core.windows.net"):
+		return fts.Azure, nil
 	default:
 		return nil, fmt.Errorf("reference artifact task: unknown reference type: %s", ref)
 	}

@@ -6,6 +6,7 @@ import contextlib
 from typing import Iterable, Iterator
 
 import wandb
+from wandb import env
 from wandb.proto import wandb_internal_pb2 as pb
 
 from . import printer as p
@@ -50,7 +51,12 @@ class ProgressPrinter:
         progress_text_area: p.DynamicText | None,
         settings: wandb.Settings | None,
     ) -> None:
-        self._show_operation_stats = settings and settings.x_show_operation_stats
+        self._show_operation_stats = (
+            settings
+            and settings.x_show_operation_stats
+            # Not implemented by the legacy service.
+            and not env.is_require_legacy_service()
+        )
         self._printer = printer
         self._progress_text_area = progress_text_area
         self._tick = 0
@@ -189,8 +195,7 @@ class _DynamicOperationStatsPrinter:
             total_operations += stats.total_operations
 
         if self._ops_shown < total_operations:
-            # NOTE: In Python 3.8, we'd use a chained comparison here.
-            if 1 <= self._max_lines and self._max_lines <= len(self._lines):
+            if 1 <= self._max_lines <= len(self._lines):
                 self._lines.pop()
 
             remaining = total_operations - self._ops_shown

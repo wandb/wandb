@@ -9,9 +9,8 @@ import subprocess
 import sys
 import unittest.mock
 import urllib.parse
-from collections.abc import Sequence
 from contextlib import contextmanager
-from typing import Any, Dict, Generator, Iterator, List, Optional, Union
+from typing import Generator, Iterator, List, Literal, Optional, Union
 
 import pytest
 import requests
@@ -26,11 +25,6 @@ from .relay import (
     TokenizedCircularPattern,
 )
 from .wandb_backend_spy import WandbBackendProxy, WandbBackendSpy, spy_proxy
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 
 class ConsoleFormatter:
@@ -572,11 +566,11 @@ def fixture_fn_factory():
                 raise NotImplementedError(f"{cmd} is not implemented")
 
             # trigger fixture
-            print(f"Triggering fixture on {endpoint}: {data}", file=sys.stderr)
+            print(f"Triggering fixture on {endpoint}: {data}", file=sys.stderr)  # noqa: T201
             response = getattr(requests, cmd.method)(endpoint, json=data)
 
             if response.status_code != 200:
-                print(response.json(), file=sys.stderr)
+                print(response.json(), file=sys.stderr)  # noqa: T201
                 return False
             return True
 
@@ -670,7 +664,7 @@ def relay_server(wandb_verbose, local_wandb_backend: LocalWandbBackendAddress):
         )
 
         _relay_server.start()
-        print(f"Relay server started at {_relay_server.relay_url}")
+        print(f"Relay server started at {_relay_server.relay_url}")  # noqa: T201
 
         with unittest.mock.patch.dict(
             os.environ,
@@ -678,61 +672,9 @@ def relay_server(wandb_verbose, local_wandb_backend: LocalWandbBackendAddress):
         ):
             yield _relay_server
 
-        print(f"Stopping relay server at {_relay_server.relay_url}")
+        print(f"Stopping relay server at {_relay_server.relay_url}")  # noqa: T201
 
     return relay_server_context
-
-
-@pytest.fixture(scope="function")
-def wandb_init(user, test_settings, request):
-    # mirror wandb.sdk.wandb_init.init args, overriding name and entity defaults
-    def init(
-        job_type: Optional[str] = None,
-        dir: Optional[str] = None,
-        config: Union[Dict, str, None] = None,
-        project: Optional[str] = None,
-        entity: Optional[str] = None,
-        reinit: bool = None,
-        tags: Optional[Sequence] = None,
-        group: Optional[str] = None,
-        name: Optional[str] = None,
-        notes: Optional[str] = None,
-        config_exclude_keys: Optional[List[str]] = None,
-        config_include_keys: Optional[List[str]] = None,
-        anonymous: Optional[str] = None,
-        mode: Optional[str] = None,
-        allow_val_change: Optional[bool] = None,
-        resume: Optional[Union[bool, str]] = None,
-        force: Optional[bool] = None,
-        tensorboard: Optional[bool] = None,
-        sync_tensorboard: Optional[bool] = None,
-        monitor_gym: Optional[bool] = None,
-        save_code: Optional[bool] = None,
-        id: Optional[str] = None,
-        fork_from: Optional[str] = None,
-        resume_from: Optional[str] = None,
-        settings: Union[
-            "wandb.sdk.wandb_settings.Settings", Dict[str, Any], None
-        ] = None,
-    ):
-        kwargs = dict(locals())
-        # drop fixtures from kwargs
-        for key in ("user", "test_settings", "request"):
-            kwargs.pop(key, None)
-        # merge settings from request with test_settings
-        request_settings = kwargs.pop("settings", dict())
-        kwargs["name"] = kwargs.pop("name", request.node.name)
-
-        run = wandb.init(
-            settings=test_settings(request_settings),
-            **kwargs,
-        )
-        return run
-
-    wandb._IS_INTERNAL_PROCESS = False
-    yield init
-    # note: this "simulates" a wandb.init function, so you would have to do
-    # something like: run = wandb_init(...); ...; run.finish()
 
 
 @pytest.fixture(scope="function")

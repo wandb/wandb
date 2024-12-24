@@ -63,6 +63,11 @@ func (s *Settings) GetIdentityTokenFile() string {
 	return s.Proto.IdentityTokenFile.GetValue()
 }
 
+// Path to file for writing temporary access tokens.
+func (s *Settings) GetCredentialsFile() string {
+	return s.Proto.CredentialsFile.GetValue()
+}
+
 // Whether we are in offline mode.
 func (s *Settings) IsOffline() bool {
 	return s.Proto.XOffline.GetValue()
@@ -110,6 +115,11 @@ func (s *Settings) GetEntity() string {
 func (s *Settings) GetStartTime() time.Time {
 	seconds := s.Proto.XStartTime.GetValue()
 	return time.UnixMicro(int64(seconds * 1e6))
+}
+
+// The hostname of the machine running the run.
+func (s *Settings) GetHostname() string {
+	return s.Proto.Host.GetValue()
 }
 
 // The root directory that will be used to derive other paths.
@@ -243,6 +253,11 @@ func (s *Settings) GetHTTPSProxy() string {
 	return s.Proto.HttpsProxy.GetValue()
 }
 
+// Whether to disable SSL verification.
+func (s *Settings) IsInsecureDisableSSL() bool {
+	return s.Proto.InsecureDisableSsl.GetValue()
+}
+
 // Path to the script that created the run, if available.
 func (s *Settings) GetProgram() string {
 	return s.Proto.Program.GetValue()
@@ -353,14 +368,14 @@ func (s *Settings) GetForkFrom() *spb.RunMoment {
 	return s.Proto.ForkFrom
 }
 
-// The W&B sweep URL.
-func (s *Settings) GetSweepURL() string {
-	return s.Proto.SweepUrl.GetValue()
-}
-
 // Whether to create a job artifact for W&B Launch.
 func (s *Settings) IsJobCreationDisabled() bool {
 	return s.Proto.DisableJobCreation.GetValue() || s.Proto.XDisableMachineInfo.GetValue()
+}
+
+// The W&B sweep URL.
+func (s *Settings) GetSweepURL() string {
+	return s.Proto.SweepUrl.GetValue()
 }
 
 // Checks whether console capture is enabled. If it is, stdout and stderr
@@ -369,9 +384,14 @@ func (s *Settings) IsConsoleCaptureEnabled() bool {
 	return s.Proto.Console.GetValue() != "off"
 }
 
-// Whether to disable system metrics collection.
-func (s *Settings) IsDisableStats() bool {
-	return s.Proto.XDisableStats.GetValue()
+// Whether to capture console logs in multipart format.
+//
+// This is used to make sure we don't overwrite the console log file if it
+// already exists.
+//
+// The format is: logs/output_<optional:Settings.Label>_<timestamp>_<nanoseconds>.log
+func (s *Settings) IsConsoleMultipart() bool {
+	return s.Proto.ConsoleMultipart.GetValue()
 }
 
 // Whether to disable metadata collection.
@@ -389,9 +409,69 @@ func (s *Settings) IsDisableGit() bool {
 	return s.Proto.DisableGit.GetValue()
 }
 
-// Whether to disable machine info collection, such as hostname and hardware specs.
-func (s *Settings) GetDisableMachineInfo() bool {
+// Whether to disable machine info collection, such as hostname and hardware
+// spec.
+func (s *Settings) IsDisableMachineInfo() bool {
 	return s.Proto.XDisableMachineInfo.GetValue()
+}
+
+// Whether to disable system metrics collection.
+func (s *Settings) IsDisableStats() bool {
+	return s.Proto.XDisableStats.GetValue()
+}
+
+func (s *Settings) IsPrimaryNode() bool {
+	return s.Proto.XPrimaryNode.GetValue()
+}
+
+// The size of the buffer for system metrics.
+func (s *Settings) GetStatsBufferSize() int32 {
+	return s.Proto.XStatsBufferSize.GetValue()
+}
+
+// The sampling interval for system metrics.
+func (s *Settings) GetStatsSamplingInterval() float64 {
+	return s.Proto.XStatsSamplingInterval.GetValue()
+}
+
+// The PID to monitor for system metrics.
+func (s *Settings) GetStatsPid() int32 {
+	return s.Proto.XStatsPid.GetValue()
+}
+
+// The disk paths to monitor for system metrics.
+func (s *Settings) GetStatsDiskPaths() []string {
+	return s.Proto.XStatsDiskPaths.GetValue()
+}
+
+// The indices of GPU devices to monitor.
+func (s *Settings) GetStatsGpuDeviceIds() []int32 {
+	return s.Proto.XStatsGpuDeviceIds.GetValue()
+}
+
+// The path to the Neuron monitor config file.
+func (s *Settings) GetStatsNeuronMonitorConfigPath() string {
+	return s.Proto.XStatsNeuronMonitorConfigPath.GetValue()
+}
+
+// The OpenMetrics endpoints to monitor.
+func (s *Settings) GetStatsOpenMetricsEndpoints() map[string]string {
+	return s.Proto.XStatsOpenMetricsEndpoints.GetValue()
+}
+
+// The OpenMetrics filters for the endpoints.
+func (s *Settings) GetStatsOpenMetricsFilters() *spb.OpenMetricsFilters {
+	return s.Proto.XStatsOpenMetricsFilters
+}
+
+// Headers to add to OpenMetrics HTTP requests.
+func (s *Settings) GetStatsOpenMetricsHeaders() map[string]string {
+	return s.Proto.XStatsOpenMetricsHttpHeaders.GetValue()
+}
+
+// The label for the run namespacing for console output and system metrics.
+func (s *Settings) GetLabel() string {
+	return s.Proto.XLabel.GetValue()
 }
 
 // Update methods.

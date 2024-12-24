@@ -1,6 +1,7 @@
 import copy
 import json
 import os
+import pathlib
 import subprocess
 import sys
 import tempfile
@@ -493,3 +494,8 @@ def test_mutual_exclusion_of_branching_args():
     run_id = "test"
     with pytest.raises(ValueError):
         Settings(run_id=run_id, resume_from=f"{run_id}?_step=10", resume="allow")
+
+
+def test_root_dir_pathlib_path():
+    settings = Settings(root_dir=pathlib.Path("foo"))
+    assert settings.root_dir == "foo"

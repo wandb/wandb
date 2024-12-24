@@ -5,7 +5,7 @@ import (
 	"hash/crc32"
 	"math"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -223,7 +223,7 @@ func (am abstractMetric) SerializeTags() string {
 	for k := range am.tags {
 		values = append(values, k)
 	}
-	sortSlice(values)
+	slices.Sort(values)
 
 	for _, key := range values {
 		val := sanitizeValue(am.tags[key])
@@ -375,7 +375,7 @@ func (s SetMetric[T]) SerializeValue() string {
 	for k := range s.values {
 		values = append(values, k)
 	}
-	sortSlice(values)
+	slices.Sort(values)
 
 	var sb strings.Builder
 	for _, el := range values {
@@ -418,10 +418,4 @@ func sanitizeValue(s string) string {
 
 type Ordered interface {
 	~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr | ~float32 | ~float64 | ~string
-}
-
-func sortSlice[T Ordered](s []T) {
-	sort.Slice(s, func(i, j int) bool {
-		return s[i] < s[j]
-	})
 }

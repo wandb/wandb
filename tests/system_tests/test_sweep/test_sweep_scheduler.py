@@ -182,12 +182,12 @@ def test_sweep_scheduler_sweep_id_no_job(user, monkeypatch):
     assert scheduler.state == SchedulerState.FAILED
 
 
-def test_sweep_scheduler_sweep_id_with_job(user, wandb_init, monkeypatch):
+def test_sweep_scheduler_sweep_id_with_job(user, monkeypatch):
     _patch_wandb_run(monkeypatch)
     sweep_config = VALID_SWEEP_CONFIGS_MINIMAL[0]
 
     # make a job
-    run = wandb_init()
+    run = wandb.init()
     job_artifact = run._log_job_artifact_with_image("ljadnfakehbbr", args=[])
     job_name = job_artifact.wait().name
     sweep_config["job"] = job_name
@@ -626,13 +626,11 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
     assert "mock-run-id-1" not in _scheduler._runs
 
 
-def test_launch_sweep_scheduler_try_executable_works(
-    user, wandb_init, test_settings, monkeypatch
-):
+def test_launch_sweep_scheduler_try_executable_works(user, test_settings, monkeypatch):
     _patch_wandb_run(monkeypatch)
     _project = "test-project"
     settings = test_settings({"project": _project})
-    run = wandb_init(settings=settings)
+    run = wandb.init(settings=settings)
     job_artifact = run._log_job_artifact_with_image("lala-docker-123", args=[])
     job_name = f"{user}/{_project}/{job_artifact.wait().name}"
 

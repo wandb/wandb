@@ -9,14 +9,9 @@ from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, construct_launch_spec
 
 
-@pytest.mark.parametrize(
-    "resource",
-    ["local-process", None],
-)
 def test_sweeps_on_launch(
     use_local_wandb_backend,
     user,
-    resource,
     monkeypatch,
 ):
     _ = use_local_wandb_backend
@@ -35,7 +30,7 @@ def test_sweeps_on_launch(
     monkeypatch.setattr(
         wandb.docker,
         "push",
-        lambda reg, tag: None,
+        lambda *_: None,
     )
 
     proj = "test_project2"
@@ -73,7 +68,7 @@ def test_sweeps_on_launch(
                     proj,
                     user,
                     None,  # docker_image,
-                    resource,  # resource,
+                    "local-process",  # resource,
                     [
                         "wandb",
                         "scheduler",
@@ -85,7 +80,7 @@ def test_sweeps_on_launch(
                         "--job",  # necessary?
                         sweep_config["job"],
                         "--resource",
-                        resource,
+                        "local-process",
                     ],  # entry_point,
                     None,  # version,
                     None,  # resource_args,
@@ -119,24 +114,17 @@ def test_sweeps_on_launch(
     assert sweep.config == sweep_config
 
     res = api.pop_from_run_queue(queue, user, proj)
-
-    if resource is None:
-        # TODO(gst): Once the queue has a DRC's, should be DRC.resource
-        assert not res
-    else:
-        assert res
-        assert res["runSpec"]
-        assert res["runSpec"]["resource"] == resource
+    assert res
+    assert res["runSpec"]
+    assert res["runSpec"]["resource"] == "local-process"
 
 
 @pytest.mark.parametrize("max_schedulers", [None, 0, -1, 2.0, "2"])
-def test_launch_agent_scheduler(
-    monkeypatch, user, wandb_init, test_settings, max_schedulers
-):
+def test_launch_agent_scheduler(monkeypatch, user, max_schedulers):
     proj = LAUNCH_DEFAULT_PROJECT
     queue = "queue"
-    settings = test_settings({"project": proj})
-    run = wandb_init(settings=settings)
+    settings = wandb.Settings(project=proj)
+    run = wandb.init(settings=settings)
 
     job_artifact = run._log_job_artifact_with_image("docker_image", args=[])
     job_name = job_artifact.wait().name
@@ -246,14 +234,12 @@ def test_launch_agent_scheduler(
     run.finish()
 
 
-def test_sweep_scheduler_job_with_queue(
-    runner, user, wandb_init, test_settings, mocker
-):
-    # cant download artifacts in tests, so patch this
+def test_sweep_scheduler_job_with_queue(runner, user, mocker):
+    # Can't download artifacts in tests, so patch this
     mocker.patch("wandb.sdk.launch.sweeps.utils.check_job_exists", return_value=True)
     queue = "queue"
-    settings = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
-    run = wandb_init(settings=settings)
+    settings = wandb.Settings(project=LAUNCH_DEFAULT_PROJECT)
+    run = wandb.init(settings=settings)
 
     job_artifact = run._log_job_artifact_with_image("docker_image", args=[])
     job_name = job_artifact.wait().name

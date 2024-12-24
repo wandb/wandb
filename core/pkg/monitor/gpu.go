@@ -2,13 +2,11 @@ package monitor
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -23,6 +21,12 @@ import (
 type GPU struct {
 	// pid of the process to collect process-specific metrics for.
 	pid int32
+
+	// gpuDeviceIds is a list of GPU IDs to collect metrics for.
+	//
+	// If empty, all GPUs are monitored.
+	gpuDeviceIds []int32
+
 	// gpu_stats process.
 	cmd *exec.Cmd
 	// gRPC client connection and client for GPU metrics.
@@ -30,8 +34,11 @@ type GPU struct {
 	client spb.SystemMonitorClient
 }
 
-func NewGPU(pid int32) *GPU {
-	g := &GPU{pid: pid}
+func NewGPU(
+	pid int32,
+	gpuDeviceIds []int32,
+) *GPU {
+	g := &GPU{pid: pid, gpuDeviceIds: gpuDeviceIds}
 
 	// A portfile is used to communicate the port number of the gRPC service
 	// started by the gpu_stats binary.
@@ -120,28 +127,19 @@ func (g *GPU) IsAvailable() bool {
 
 // Sample returns GPU metrics such as power usage, temperature, and utilization.
 //
-// TODO: The metrics are collected from the gpu_stats binary via gRPC.
-// This function is a temporary adapter that adds extra ser/de ops.
-// Will refactor to use the protobuf message directly.
-func (g *GPU) Sample() (map[string]any, error) {
-	stats, err := g.client.GetStats(context.Background(), &spb.GetStatsRequest{Pid: g.pid})
+// The metrics are collected from the gpu_stats binary via gRPC.
+func (g *GPU) Sample() (*spb.StatsRecord, error) {
+	stats, err := g.client.GetStats(
+		context.Background(),
+		&spb.GetStatsRequest{Pid: g.pid, GpuDeviceIds: g.gpuDeviceIds},
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	// convert stats record into a map
-	metrics := make(map[string]any)
-	for _, item := range stats.GetStats().GetItem() {
-		var unmarshalled any
-		err = json.Unmarshal([]byte(item.ValueJson), &unmarshalled)
-		if err != nil {
-			continue
-		}
-		// skip underscored keys
-		if strings.HasPrefix(item.Key, "_") {
-			continue
-		}
-		metrics[item.Key] = unmarshalled
+	metrics := stats.GetStats()
+	if len(metrics.Item) == 0 {
+		return nil, nil
 	}
 
 	return metrics, nil

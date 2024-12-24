@@ -6,6 +6,7 @@
 <p align="center">
 <a href="https://pypi.python.org/pypi/wandb"><img src="https://img.shields.io/pypi/v/wandb" /></a>
 <a href="https://anaconda.org/conda-forge/wandb"><img src="https://img.shields.io/conda/vn/conda-forge/wandb" /></a>
+<a href="https://pypi.python.org/pypi/wandb"><img src="https://img.shields.io/pypi/pyversions/wandb" /></a>
 <a href="https://circleci.com/gh/wandb/wandb"><img src="https://img.shields.io/circleci/build/github/wandb/wandb/main" /></a>
 <a href="https://codecov.io/gh/wandb/wandb"><img src="https://img.shields.io/codecov/c/gh/wandb/wandb" /></a>
 </p>
@@ -26,57 +27,50 @@ Building an LLM app? Track, debug, evaluate, and monitor LLM apps with [Weave](h
 <p align='center'>
 <a target="_blank" href="https://docs.wandb.ai/guides/track?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/experiments-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/experiments-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/experiments-dark.svg" width="12.5%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/experiments-light.svg" width="12.5%">
   <img alt="Weights and Biases Experiments" src="">
 </picture>
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/reports?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/reports-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/reports-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/reports-dark.svg" width="12.5%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/reports-light.svg" width="12.5%">
   <img alt="Weights and Biases Reports" src="">
 </picture>
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/artifacts?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/artifacts-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/artifacts-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/artifacts-dark.svg" width="12.5%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/artifacts-light.svg" width="12.5%">
   <img alt="Weights and Biases Artifacts" src="">
 </picture>
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/tables?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/tables-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/tables-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/tables-dark.svg" width="12.5%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/tables-light.svg" width="12.5%">
   <img alt="Weights and Biases Tables" src="">
 </picture>
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/sweeps?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/sweeps-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/sweeps-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/sweeps-dark.svg" width="12.5%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/sweeps-light.svg" width="12.5%">
   <img alt="Weights and Biases Sweeps" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/launch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/launch-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/launch-light.svg" width="14.0%">
-  <img alt="Weights and Biases Launch" src="">
 </picture>
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/model_registry?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/model-registry-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/model-registry-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/model-registry-dark.svg" width="12.5%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/model-registry-light.svg" width="12.5%">
   <img alt="Weights and Biases Model Management" src="">
 </picture>
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/artifacts/project-scoped-automations?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/automations-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/automations-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/automations-dark.svg" width="12.5%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/automations-light.svg" width="12.5%">
   <img alt="Weights and Biases Prompts" src="">
 </picture>
 </p>
@@ -588,6 +582,15 @@ See the [Hosting documentation](https://docs.wandb.ai/guides/hosting?utm_source=
 Explore example Colab Notebooks at [wandb/examples GitHub repository](https://github.com/wandb/examples/tree/master/colabs). Here are some of our favorites:
 
 [INSERT] -->
+
+&nbsp;
+
+
+# Python Version Support
+
+We are committed to supporting our minimum required Python version for *at least* six months after its official end-of-life (EOL) date, as defined by the Python Software Foundation. You can find a list of Python EOL dates [here](https://devguide.python.org/versions/).
+
+When we discontinue support for a Python version, we will increment the library’s minor version number to reflect this change.
 
 &nbsp;
 

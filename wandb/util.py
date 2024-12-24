@@ -1879,14 +1879,8 @@ class InstalledDistribution:
 
 
 def working_set() -> Iterable[InstalledDistribution]:
-    """Return the working set of installed distributions.
-
-    Uses importlib.metadata in Python versions above 3.7, and importlib_metadata otherwise.
-    """
-    try:
-        from importlib.metadata import distributions
-    except ImportError:
-        from importlib_metadata import distributions  # type: ignore
+    """Return the working set of installed distributions."""
+    from importlib.metadata import distributions
 
     for d in distributions():
         try:
@@ -1945,8 +1939,8 @@ def get_core_path() -> str:
     if not bin_path.exists():
         raise WandbCoreNotAvailableError(
             f"File not found: {bin_path}."
-            "Please contact support at support@wandb.com."
-            f"Your platform is: {platform.platform()}."
+            " Please contact support at support@wandb.com."
+            f" Your platform is: {platform.platform()}."
         )
 
     return str(bin_path)

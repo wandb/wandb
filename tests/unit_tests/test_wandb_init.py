@@ -56,15 +56,15 @@ def test_init_reinit(test_settings):
         wandbinit.kwargs = {}
         wandbinit.settings = test_settings({"reinit": True, "run_id": "test"})
         wandbinit.init_artifact_config = {}
-        wandbinit._reporter = MagicMock()
         last_run_instance = MagicMock()
         wandbinit._wl = MagicMock(
             _global_run_stack=[last_run_instance],
             _get_manager=MagicMock(side_effect=lambda: MagicMock()),
         )
 
-        with patch("wandb.sdk.wandb_init.ipython", autospec=True), patch(
-            "wandb.sdk.lib.ipython._get_python_type", side_effect=lambda: "jupyter"
+        with patch(
+            "wandb.sdk.lib.ipython._get_python_type",
+            side_effect=lambda: "jupyter",
         ):
             wandbinit.init()
 
@@ -101,7 +101,6 @@ def test_init_internal_error(test_settings):
         wandbinit = _WandbInit()
         wandbinit.kwargs = {}
         wandbinit.settings = test_settings({"run_id": "test"})
-        wandbinit._reporter = MagicMock()
         wandbinit._wl = MagicMock(
             _get_manager=MagicMock(side_effect=lambda: MagicMock()),
         )

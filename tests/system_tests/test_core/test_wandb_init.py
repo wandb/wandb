@@ -88,32 +88,46 @@ def test_resume_allow_success(wandb_backend_spy):
         assert history[1]["_step"] == 16
 
 
-def test_resume_never_failure(wandb_init):
-    run = wandb_init(project="project")
+def test_resume_never_failure(user):
+    run = wandb.init(project="project")
     run_id = run.id
     run.finish()
 
     with pytest.raises(UsageError):
-        wandb_init(resume="never", id=run_id, project="project")
+        wandb.init(resume="never", id=run_id, project="project")
 
 
-def test_resume_must_failure(wandb_init):
+def test_resume_must_failure(user):
     with pytest.raises(UsageError):
-        wandb_init(resume="must", project="project")
+        wandb.init(resume="must", project="project")
 
 
-def test_resume_auto_failure(wandb_init, tmp_path):
+def test_resume_auto_failure(user, tmp_path):
     # env vars have a higher priority than the BASE settings
     # so that if that is set (e.g. by some other test/fixture),
     # test_settings.wandb_dir != run_settings.wandb_dir
     # and this test will fail
     with mock.patch.dict(os.environ, {"WANDB_DIR": str(tmp_path.absolute())}):
-        run = wandb_init(project="project", id="resume-me")
+        run = wandb.init(project="project", id="resume-me")
         run.finish()
         resume_fname = run._settings.resume_fname
         with open(resume_fname, "w") as f:
             f.write(json.dumps({"run_id": "resume-me"}))
-        run = wandb_init(resume="auto", project="project")
+        run = wandb.init(resume="auto", project="project")
         assert run.id == "resume-me"
         run.finish(exit_code=3)
         assert os.path.exists(resume_fname)
+
+
+def test_reinit_existing_run_with_reinit_true():
+    """Test that reinit with an existing run returns a new run."""
+    original_run = wandb.init(mode="offline")
+    new_run = wandb.init(mode="offline", reinit=True)
+    assert new_run != original_run
+
+
+def test_reinit_existing_run_with_reinit_false():
+    """Test that reinit with a run active returns the same run."""
+    original_run = wandb.init(mode="offline")
+    new_run = wandb.init(mode="offline", reinit=False)
+    assert new_run == original_run

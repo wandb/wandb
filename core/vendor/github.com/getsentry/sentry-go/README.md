@@ -75,8 +75,10 @@ checkout the official documentation:
   - [net/http](https://docs.sentry.io/platforms/go/guides/http/)
   - [echo](https://docs.sentry.io/platforms/go/guides/echo/)
   - [fasthttp](https://docs.sentry.io/platforms/go/guides/fasthttp/)
+  - [fiber](https://docs.sentry.io/platforms/go/guides/fiber/)
   - [gin](https://docs.sentry.io/platforms/go/guides/gin/)
   - [iris](https://docs.sentry.io/platforms/go/guides/iris/)
+  - [logrus](https://docs.sentry.io/platforms/go/guides/logrus/)
   - [negroni](https://docs.sentry.io/platforms/go/guides/negroni/)
 
 ## Resources

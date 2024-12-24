@@ -202,7 +202,8 @@ type Bucket struct {
 // [Directory buckets]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-buckets-overview.html
 type BucketInfo struct {
 
-	// The number of Availability Zone that's used for redundancy for the bucket.
+	// The number of Zone (Availability Zone or Local Zone) that's used for redundancy
+	// for the bucket.
 	DataRedundancy DataRedundancy
 
 	// The type of bucket.
@@ -570,9 +571,15 @@ type CreateBucketConfiguration struct {
 
 	// Specifies the location where the bucket will be created.
 	//
-	// For directory buckets, the location type is Availability Zone.
+	// Directory buckets - The location type is Availability Zone or Local Zone. When
+	// the location type is Local Zone, your Local Zone must be in opt-in status.
+	// Otherwise, you get an HTTP 400 Bad Request error with the error code Access
+	// denied . To learn more about opt-in Local Zones, see [Opt-in Dedicated Local Zones]in the Amazon S3 User
+	// Guide.
 	//
 	// This functionality is only supported by directory buckets.
+	//
+	// [Opt-in Dedicated Local Zones]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/opt-in-directory-bucket-lz.html
 	Location *LocationInfo
 
 	// Specifies the Region where the bucket will be created. You might choose a
@@ -1689,6 +1696,87 @@ type Error struct {
 	noSmithyDocumentSerde
 }
 
+//	If the CreateBucketMetadataTableConfiguration request succeeds, but S3
+//
+// Metadata was unable to create the table, this structure contains the error code
+// and error message.
+type ErrorDetails struct {
+
+	//  If the CreateBucketMetadataTableConfiguration request succeeds, but S3
+	// Metadata was unable to create the table, this structure contains the error code.
+	// The possible error codes and error messages are as follows:
+	//
+	//   - AccessDeniedCreatingResources - You don't have sufficient permissions to
+	//   create the required resources. Make sure that you have
+	//   s3tables:CreateNamespace , s3tables:CreateTable , s3tables:GetTable and
+	//   s3tables:PutTablePolicy permissions, and then try again. To create a new
+	//   metadata table, you must delete the metadata configuration for this bucket, and
+	//   then create a new metadata configuration.
+	//
+	//   - AccessDeniedWritingToTable - Unable to write to the metadata table because
+	//   of missing resource permissions. To fix the resource policy, Amazon S3 needs to
+	//   create a new metadata table. To create a new metadata table, you must delete the
+	//   metadata configuration for this bucket, and then create a new metadata
+	//   configuration.
+	//
+	//   - DestinationTableNotFound - The destination table doesn't exist. To create a
+	//   new metadata table, you must delete the metadata configuration for this bucket,
+	//   and then create a new metadata configuration.
+	//
+	//   - ServerInternalError - An internal error has occurred. To create a new
+	//   metadata table, you must delete the metadata configuration for this bucket, and
+	//   then create a new metadata configuration.
+	//
+	//   - TableAlreadyExists - The table that you specified already exists in the
+	//   table bucket's namespace. Specify a different table name. To create a new
+	//   metadata table, you must delete the metadata configuration for this bucket, and
+	//   then create a new metadata configuration.
+	//
+	//   - TableBucketNotFound - The table bucket that you specified doesn't exist in
+	//   this Amazon Web Services Region and account. Create or choose a different table
+	//   bucket. To create a new metadata table, you must delete the metadata
+	//   configuration for this bucket, and then create a new metadata configuration.
+	ErrorCode *string
+
+	//  If the CreateBucketMetadataTableConfiguration request succeeds, but S3
+	// Metadata was unable to create the table, this structure contains the error
+	// message. The possible error codes and error messages are as follows:
+	//
+	//   - AccessDeniedCreatingResources - You don't have sufficient permissions to
+	//   create the required resources. Make sure that you have
+	//   s3tables:CreateNamespace , s3tables:CreateTable , s3tables:GetTable and
+	//   s3tables:PutTablePolicy permissions, and then try again. To create a new
+	//   metadata table, you must delete the metadata configuration for this bucket, and
+	//   then create a new metadata configuration.
+	//
+	//   - AccessDeniedWritingToTable - Unable to write to the metadata table because
+	//   of missing resource permissions. To fix the resource policy, Amazon S3 needs to
+	//   create a new metadata table. To create a new metadata table, you must delete the
+	//   metadata configuration for this bucket, and then create a new metadata
+	//   configuration.
+	//
+	//   - DestinationTableNotFound - The destination table doesn't exist. To create a
+	//   new metadata table, you must delete the metadata configuration for this bucket,
+	//   and then create a new metadata configuration.
+	//
+	//   - ServerInternalError - An internal error has occurred. To create a new
+	//   metadata table, you must delete the metadata configuration for this bucket, and
+	//   then create a new metadata configuration.
+	//
+	//   - TableAlreadyExists - The table that you specified already exists in the
+	//   table bucket's namespace. Specify a different table name. To create a new
+	//   metadata table, you must delete the metadata configuration for this bucket, and
+	//   then create a new metadata configuration.
+	//
+	//   - TableBucketNotFound - The table bucket that you specified doesn't exist in
+	//   this Amazon Web Services Region and account. Create or choose a different table
+	//   bucket. To create a new metadata table, you must delete the metadata
+	//   configuration for this bucket, and then create a new metadata configuration.
+	ErrorMessage *string
+
+	noSmithyDocumentSerde
+}
+
 // The error information.
 type ErrorDocument struct {
 
@@ -1747,6 +1835,36 @@ type FilterRule struct {
 
 	// The value that the filter searches for in object key names.
 	Value *string
+
+	noSmithyDocumentSerde
+}
+
+// The metadata table configuration for a general purpose bucket.
+type GetBucketMetadataTableConfigurationResult struct {
+
+	//  The metadata table configuration for a general purpose bucket.
+	//
+	// This member is required.
+	MetadataTableConfigurationResult *MetadataTableConfigurationResult
+
+	//  The status of the metadata table. The status values are:
+	//
+	//   - CREATING - The metadata table is in the process of being created in the
+	//   specified table bucket.
+	//
+	//   - ACTIVE - The metadata table has been created successfully and records are
+	//   being delivered to the table.
+	//
+	//   - FAILED - Amazon S3 is unable to create the metadata table, or Amazon S3 is
+	//   unable to deliver records. See ErrorDetails for details.
+	//
+	// This member is required.
+	Status *string
+
+	//  If the CreateBucketMetadataTableConfiguration request succeeds, but S3
+	// Metadata was unable to create the table, this structure contains the error code
+	// and error message.
+	Error *ErrorDetails
 
 	noSmithyDocumentSerde
 }
@@ -2168,6 +2286,9 @@ type LifecycleExpiration struct {
 
 	// Indicates at what date the object is to be moved or deleted. The date value
 	// must conform to the ISO 8601 format. The time is always midnight UTC.
+	//
+	// This parameter applies to general purpose buckets only. It is not supported for
+	// directory bucket lifecycle configurations.
 	Date *time.Time
 
 	// Indicates the lifetime, in days, of the objects that are subject to the rule.
@@ -2178,6 +2299,9 @@ type LifecycleExpiration struct {
 	// versions. If set to true, the delete marker will be expired; if set to false the
 	// policy takes no action. This cannot be specified with Days or Date in a
 	// Lifecycle Expiration Policy.
+	//
+	// This parameter applies to general purpose buckets only. It is not supported for
+	// directory bucket lifecycle configurations.
 	ExpiredObjectDeleteMarker *bool
 
 	noSmithyDocumentSerde
@@ -2210,6 +2334,8 @@ type LifecycleRule struct {
 	// The Filter is used to identify objects that a Lifecycle Rule applies to. A
 	// Filter must have exactly one of Prefix , Tag , or And specified. Filter is
 	// required if the LifecycleRule does not contain a Prefix element.
+	//
+	// Tag filters are not supported for directory buckets.
 	Filter *LifecycleRuleFilter
 
 	// Unique identifier for the rule. The value cannot be longer than 255 characters.
@@ -2220,13 +2346,19 @@ type LifecycleRule struct {
 	// configuration action on a bucket that has versioning enabled (or suspended) to
 	// request that Amazon S3 delete noncurrent object versions at a specific period in
 	// the object's lifetime.
+	//
+	// This parameter applies to general purpose buckets only. It is not supported for
+	// directory bucket lifecycle configurations.
 	NoncurrentVersionExpiration *NoncurrentVersionExpiration
 
-	//  Specifies the transition rule for the lifecycle rule that describes when
+	// Specifies the transition rule for the lifecycle rule that describes when
 	// noncurrent objects transition to a specific storage class. If your bucket is
 	// versioning-enabled (or versioning is suspended), you can set this action to
 	// request that Amazon S3 transition noncurrent object versions to a specific
 	// storage class at a set period in the object's lifetime.
+	//
+	// This parameter applies to general purpose buckets only. It is not supported for
+	// directory bucket lifecycle configurations.
 	NoncurrentVersionTransitions []NoncurrentVersionTransition
 
 	// Prefix identifying one or more objects to which the rule applies. This is no
@@ -2241,6 +2373,9 @@ type LifecycleRule struct {
 	Prefix *string
 
 	// Specifies when an Amazon S3 object transitions to a specified storage class.
+	//
+	// This parameter applies to general purpose buckets only. It is not supported for
+	// directory bucket lifecycle configurations.
 	Transitions []Transition
 
 	noSmithyDocumentSerde
@@ -2293,6 +2428,9 @@ type LifecycleRuleFilter struct {
 	Prefix *string
 
 	// This tag must exist in the object's tag set in order for the rule to apply.
+	//
+	// This parameter applies to general purpose buckets only. It is not supported for
+	// directory bucket lifecycle configurations.
 	Tag *Tag
 
 	noSmithyDocumentSerde
@@ -2300,8 +2438,8 @@ type LifecycleRuleFilter struct {
 
 // Specifies the location where the bucket will be created.
 //
-// For directory buckets, the location type is Availability Zone. For more
-// information about directory buckets, see [Directory buckets]in the Amazon S3 User Guide.
+// For directory buckets, the location type is Availability Zone or Local Zone.
+// For more information about directory buckets, see [Directory buckets]in the Amazon S3 User Guide.
 //
 // This functionality is only supported by directory buckets.
 //
@@ -2310,9 +2448,9 @@ type LocationInfo struct {
 
 	// The name of the location where the bucket will be created.
 	//
-	// For directory buckets, the name of the location is the AZ ID of the
-	// Availability Zone where the bucket will be created. An example AZ ID value is
-	// usw2-az1 .
+	// For directory buckets, the name of the location is the Zone ID of the
+	// Availability Zone (AZ) or Local Zone (LZ) where the bucket will be created. An
+	// example AZ ID value is usw2-az1 .
 	Name *string
 
 	// The type of location where the bucket will be created.
@@ -2367,6 +2505,38 @@ type MetadataEntry struct {
 
 	// Value of the object.
 	Value *string
+
+	noSmithyDocumentSerde
+}
+
+// The metadata table configuration for a general purpose bucket.
+type MetadataTableConfiguration struct {
+
+	//  The destination information for the metadata table configuration. The
+	// destination table bucket must be in the same Region and Amazon Web Services
+	// account as the general purpose bucket. The specified metadata table name must be
+	// unique within the aws_s3_metadata namespace in the destination table bucket.
+	//
+	// This member is required.
+	S3TablesDestination *S3TablesDestination
+
+	noSmithyDocumentSerde
+}
+
+//	The metadata table configuration for a general purpose bucket. The destination
+//
+// table bucket must be in the same Region and Amazon Web Services account as the
+// general purpose bucket. The specified metadata table name must be unique within
+// the aws_s3_metadata namespace in the destination table bucket.
+type MetadataTableConfigurationResult struct {
+
+	//  The destination information for the metadata table configuration. The
+	// destination table bucket must be in the same Region and Amazon Web Services
+	// account as the general purpose bucket. The specified metadata table name must be
+	// unique within the aws_s3_metadata namespace in the destination table bucket.
+	//
+	// This member is required.
+	S3TablesDestinationResult *S3TablesDestinationResult
 
 	noSmithyDocumentSerde
 }
@@ -2521,12 +2691,18 @@ type MultipartUpload struct {
 // configuration action on a bucket that has versioning enabled (or suspended) to
 // request that Amazon S3 delete noncurrent object versions at a specific period in
 // the object's lifetime.
+//
+// This parameter applies to general purpose buckets only. It is not supported for
+// directory bucket lifecycle configurations.
 type NoncurrentVersionExpiration struct {
 
 	// Specifies how many noncurrent versions Amazon S3 will retain. You can specify
 	// up to 100 noncurrent versions to retain. Amazon S3 will permanently delete any
 	// additional noncurrent versions beyond the specified number to retain. For more
 	// information about noncurrent versions, see [Lifecycle configuration elements]in the Amazon S3 User Guide.
+	//
+	// This parameter applies to general purpose buckets only. It is not supported for
+	// directory bucket lifecycle configurations.
 	//
 	// [Lifecycle configuration elements]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/intro-lifecycle-rules.html
 	NewerNoncurrentVersions *int32
@@ -2535,6 +2711,9 @@ type NoncurrentVersionExpiration struct {
 	// perform the associated action. The value must be a non-zero positive integer.
 	// For information about the noncurrent days calculations, see [How Amazon S3 Calculates When an Object Became Noncurrent]in the Amazon S3
 	// User Guide.
+	//
+	// This parameter applies to general purpose buckets only. It is not supported for
+	// directory bucket lifecycle configurations.
 	//
 	// [How Amazon S3 Calculates When an Object Became Noncurrent]: https://docs.aws.amazon.com/AmazonS3/latest/dev/intro-lifecycle-rules.html#non-current-days-calculations
 	NoncurrentDays *int32
@@ -2682,6 +2861,26 @@ type ObjectIdentifier struct {
 	//
 	// This member is required.
 	Key *string
+
+	// An entity tag (ETag) is an identifier assigned by a web server to a specific
+	// version of a resource found at a URL. This header field makes the request method
+	// conditional on ETags .
+	//
+	// Entity tags (ETags) for S3 Express One Zone are random alphanumeric strings
+	// unique to the object.
+	ETag *string
+
+	// If present, the objects are deleted only if its modification times matches the
+	// provided Timestamp .
+	//
+	// This functionality is only supported for directory buckets.
+	LastModifiedTime *time.Time
+
+	// If present, the objects are deleted only if its size matches the provided size
+	// in bytes.
+	//
+	// This functionality is only supported for directory buckets.
+	Size *int64
 
 	// Version ID for the specific version of the object to delete.
 	//
@@ -3453,13 +3652,23 @@ type RestoreRequest struct {
 	// Describes the location where the restore job's output is stored.
 	OutputLocation *OutputLocation
 
+	// Amazon S3 Select is no longer available to new customers. Existing customers of
+	// Amazon S3 Select can continue to use the feature as usual. [Learn more]
+	//
 	// Describes the parameters for Select job types.
+	//
+	// [Learn more]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
 	SelectParameters *SelectParameters
 
 	// Retrieval tier at which the restore will be processed.
 	Tier Tier
 
+	// Amazon S3 Select is no longer available to new customers. Existing customers of
+	// Amazon S3 Select can continue to use the feature as usual. [Learn more]
+	//
 	// Type of restore request.
+	//
+	// [Learn more]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
 	Type RestoreRequestType
 
 	noSmithyDocumentSerde
@@ -3567,6 +3776,69 @@ type S3Location struct {
 	noSmithyDocumentSerde
 }
 
+//	The destination information for the metadata table configuration. The
+//
+// destination table bucket must be in the same Region and Amazon Web Services
+// account as the general purpose bucket. The specified metadata table name must be
+// unique within the aws_s3_metadata namespace in the destination table bucket.
+type S3TablesDestination struct {
+
+	//  The Amazon Resource Name (ARN) for the table bucket that's specified as the
+	// destination in the metadata table configuration. The destination table bucket
+	// must be in the same Region and Amazon Web Services account as the general
+	// purpose bucket.
+	//
+	// This member is required.
+	TableBucketArn *string
+
+	//  The name for the metadata table in your metadata table configuration. The
+	// specified metadata table name must be unique within the aws_s3_metadata
+	// namespace in the destination table bucket.
+	//
+	// This member is required.
+	TableName *string
+
+	noSmithyDocumentSerde
+}
+
+//	The destination information for the metadata table configuration. The
+//
+// destination table bucket must be in the same Region and Amazon Web Services
+// account as the general purpose bucket. The specified metadata table name must be
+// unique within the aws_s3_metadata namespace in the destination table bucket.
+type S3TablesDestinationResult struct {
+
+	//  The Amazon Resource Name (ARN) for the metadata table in the metadata table
+	// configuration. The specified metadata table name must be unique within the
+	// aws_s3_metadata namespace in the destination table bucket.
+	//
+	// This member is required.
+	TableArn *string
+
+	//  The Amazon Resource Name (ARN) for the table bucket that's specified as the
+	// destination in the metadata table configuration. The destination table bucket
+	// must be in the same Region and Amazon Web Services account as the general
+	// purpose bucket.
+	//
+	// This member is required.
+	TableBucketArn *string
+
+	//  The name for the metadata table in your metadata table configuration. The
+	// specified metadata table name must be unique within the aws_s3_metadata
+	// namespace in the destination table bucket.
+	//
+	// This member is required.
+	TableName *string
+
+	//  The table bucket namespace for the metadata table in your metadata table
+	// configuration. This value is always aws_s3_metadata .
+	//
+	// This member is required.
+	TableNamespace *string
+
+	noSmithyDocumentSerde
+}
+
 // Specifies the byte range of the object to get the records from. A record is
 // processed when its first byte is contained by the range. This parameter is
 // optional, but when specified, it must not be empty. See RFC 2616, Section
@@ -3646,10 +3918,25 @@ type SelectObjectContentEventStreamMemberStats struct {
 
 func (*SelectObjectContentEventStreamMemberStats) isSelectObjectContentEventStream() {}
 
+// Amazon S3 Select is no longer available to new customers. Existing customers of
+// Amazon S3 Select can continue to use the feature as usual. [Learn more]
+//
 // Describes the parameters for Select job types.
+//
+// Learn [How to optimize querying your data in Amazon S3] using [Amazon Athena], [S3 Object Lambda], or client-side filtering.
+//
+// [Learn more]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
+// [How to optimize querying your data in Amazon S3]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
+// [Amazon Athena]: https://docs.aws.amazon.com/athena/latest/ug/what-is.html
+// [S3 Object Lambda]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/transforming-objects.html
 type SelectParameters struct {
 
+	// Amazon S3 Select is no longer available to new customers. Existing customers of
+	// Amazon S3 Select can continue to use the feature as usual. [Learn more]
+	//
 	// The expression that is used to query the object.
+	//
+	// [Learn more]: http://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
 	//
 	// This member is required.
 	Expression *string

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import platform
 import shutil
 import time
 import unittest.mock
@@ -38,10 +39,14 @@ from wandb.sdk.lib.paths import StrPath  # noqa: E402
 @pytest.fixture
 def disable_memray(pytestconfig):
     """Disables the memray plugin for the duration of the test."""
-    memray_plugin = pytestconfig.pluginmanager.get_plugin("memray_manager")
-    pytestconfig.pluginmanager.unregister(memray_plugin)
-    yield
-    pytestconfig.pluginmanager.register(memray_plugin, "memray_manager")
+    if platform.system() == "Windows":
+        # noop on Windows
+        yield
+    else:
+        memray_plugin = pytestconfig.pluginmanager.get_plugin("memray_manager")
+        pytestconfig.pluginmanager.unregister(memray_plugin)
+        yield
+        pytestconfig.pluginmanager.register(memray_plugin, "memray_manager")
 
 
 @pytest.fixture(autouse=True)
@@ -49,7 +54,7 @@ def setup_wandb_env_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     """Configures wandb env variables to suitable defaults for tests."""
     # Set the _network_buffer setting to 1000 to increase the likelihood
     # of triggering flow control logic.
-    monkeypatch.setenv("WANDB__NETWORK_BUFFER", "1000")
+    monkeypatch.setenv("WANDB_X_NETWORK_BUFFER", "1000")
 
 
 @pytest.fixture(autouse=True)
@@ -57,11 +62,11 @@ def toggle_legacy_service(
     monkeypatch: pytest.MonkeyPatch,
     request: pytest.FixtureRequest,
 ) -> None:
-    """Sets WANDB__REQUIRE_LEGACY_SERVICE in each test.
+    """Sets WANDB_X_REQUIRE_LEGACY_SERVICE in each test.
 
     This fixture is used to run each test both with and without wandb-core.
     """
-    monkeypatch.setenv("WANDB__REQUIRE_LEGACY_SERVICE", str(request.param))
+    monkeypatch.setenv("WANDB_X_REQUIRE_LEGACY_SERVICE", str(request.param))
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:

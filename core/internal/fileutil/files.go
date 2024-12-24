@@ -6,6 +6,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
+	"unicode"
 )
 
 // FileExists checks if a file exists at the given path.
@@ -90,4 +93,65 @@ func CopyReaderToFile(reader io.Reader, dst string) error {
 	}
 
 	return nil
+}
+
+// SanitizeWindowsFilename removes or replaces invalid characters from a
+// filename for Windows.
+func SanitizeWindowsFilename(filename string) string {
+	// Forbidden characters
+	forbiddenChars := []rune{'<', '>', ':', '"', '/', '\\', '|', '?', '*'}
+
+	// Replace forbidden characters with an underscore
+	for _, char := range forbiddenChars {
+		filename = strings.ReplaceAll(filename, string(char), "_")
+	}
+
+	// Trim trailing spaces and dots
+	filename = strings.TrimRightFunc(filename, func(r rune) bool {
+		return r == ' ' || r == '.'
+	})
+
+	// Reserved names (case-insensitive)
+	reservedNames := map[string]bool{
+		"CON": true, "PRN": true, "AUX": true, "NUL": true,
+		"COM1": true, "COM2": true, "COM3": true, "COM4": true,
+		"COM5": true, "COM6": true, "COM7": true, "COM8": true, "COM9": true,
+		"LPT1": true, "LPT2": true, "LPT3": true, "LPT4": true, "LPT5": true,
+		"LPT6": true, "LPT7": true, "LPT8": true, "LPT9": true,
+	}
+
+	upperFilename := strings.ToUpper(filename)
+	if reservedNames[upperFilename] {
+		filename += "_safe" // Add a suffix to reserved names
+	}
+
+	return filename
+}
+
+// SanitizeLinuxFilename removes or replaces problematic characters for Linux
+// filenames.
+func SanitizeLinuxFilename(filename string) string {
+	var sanitized strings.Builder
+	for _, r := range filename {
+		switch {
+		case r == '/', r == '\x00': // Forbidden characters
+			sanitized.WriteRune('_')
+		case unicode.IsControl(r): // Control characters
+			continue
+		default:
+			sanitized.WriteRune(r)
+		}
+	}
+
+	// Trim leading/trailing spaces and dots
+	return strings.TrimSpace(strings.TrimRight(sanitized.String(), "."))
+}
+
+// SanitizeFilename removes or replaces problematic characters from a filename
+// for the current operating system.
+func SanitizeFilename(filename string) string {
+	if runtime.GOOS == "windows" {
+		return SanitizeWindowsFilename(filename)
+	}
+	return SanitizeLinuxFilename(filename)
 }

@@ -3,6 +3,7 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -89,6 +90,9 @@ type clientImpl struct {
 
 	// Headers to pass in every request.
 	extraHeaders map[string]string
+
+	// Credentials to apply on every request.
+	credentialProvider CredentialProvider
 }
 
 // An HTTP request to the W&B backend.
@@ -183,7 +187,7 @@ type ClientOptions struct {
 	// arbitrary HTTP requests.
 	ExtraHeaders map[string]string
 
-	// Allows the client to peek at the network traffic, can preform any action
+	// Allows the client to peek at the network traffic, can perform any action
 	// on the request and response. Need to make sure that the response body is
 	// available to read by later stages.
 	NetworkPeeker Peeker
@@ -200,6 +204,19 @@ type ClientOptions struct {
 	//
 	// If Proxy is nil or returns a nil *URL, no proxy will be used.
 	Proxy func(*http.Request) (*url.URL, error)
+
+	// Whether to disable SSL certificate verification.
+	//
+	// This is insecure and should only be used for testing/debugging
+	// or in environments where the backend is trusted.
+	InsecureDisableSSL bool
+
+	// Adds credentials to http requests.
+	CredentialProvider CredentialProvider
+
+	// Function that gets called before the retry operation and prepares the
+	// request for retry
+	PrepareRetry func(*http.Request) error
 }
 
 // Creates a new [Client] for making requests to the [Backend].
@@ -210,6 +227,15 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 	retryableHTTP.RetryWaitMin = opts.RetryWaitMin
 	retryableHTTP.RetryWaitMax = opts.RetryWaitMax
 	retryableHTTP.HTTPClient.Timeout = opts.NonRetryTimeout
+
+	// Set the PrepareRetry function on the client
+	prepareRetry := opts.PrepareRetry
+	if prepareRetry == nil {
+		prepareRetry = func(req *http.Request) error {
+			return backend.credentialProvider.Apply(req)
+		}
+	}
+	retryableHTTP.PrepareRetry = prepareRetry
 
 	// Set the retry policy with debug logging if possible.
 	retryPolicy := opts.RetryPolicy
@@ -229,6 +255,17 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 		)
 	}
 
+	// PrepareRetry gets called before the retry attempt
+	retryableHTTP.PrepareRetry = func(req *http.Request) error {
+		if opts.PrepareRetry != nil {
+			if err := opts.PrepareRetry(req); err != nil {
+				return err
+			}
+		}
+		// credentials can expire, so ensure retries have fresh credentials
+		return backend.credentialProvider.Apply(req)
+	}
+
 	// Set the Proxy function on the HTTP client.
 	transport := &http.Transport{
 		Proxy: opts.Proxy,
@@ -244,6 +281,12 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 		}
 	}
 
+	if opts.InsecureDisableSSL {
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	}
+
 	retryableHTTP.HTTPClient.Transport =
 		NewPeekingTransport(
 			opts.NetworkPeeker,
@@ -251,8 +294,9 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 		)
 
 	return &clientImpl{
-		backend:       backend,
-		retryableHTTP: retryableHTTP,
-		extraHeaders:  opts.ExtraHeaders,
+		backend:            backend,
+		retryableHTTP:      retryableHTTP,
+		extraHeaders:       opts.ExtraHeaders,
+		credentialProvider: opts.CredentialProvider,
 	}
 }

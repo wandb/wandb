@@ -1,15 +1,9 @@
 import re
 import sys
-from typing import Optional
+from typing import Literal, Optional
 
 import wandb
 import wandb.util
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
-
 
 _gym_version_lt_0_26: Optional[bool] = None
 _gymnasium_version_lt_1_0_0: Optional[bool] = None

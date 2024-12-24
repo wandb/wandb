@@ -190,10 +190,10 @@ class Disk:
         disk_metrics = {}
         for disk_path in disk_paths:
             try:
-                # total disk space in GB:
-                total = psutil.disk_usage(disk_path).total / 1024 / 1024 / 1024
-                # total disk space used in GB:
-                used = psutil.disk_usage(disk_path).used / 1024 / 1024 / 1024
+                # total disk space in Bytes:
+                total = psutil.disk_usage(disk_path).total
+                # total disk space used in Bytes:
+                used = psutil.disk_usage(disk_path).used
                 disk_metrics[disk_path] = {
                     "total": total,
                     "used": used,

@@ -39,7 +39,6 @@ const (
 	DiffFileName         = "diff.patch"
 	RequirementsFileName = "requirements.txt"
 	ConfigFileName       = "config.yaml"
-	LatestOutputFileName = "output.log"
 )
 
 type HandlerParams struct {
@@ -53,6 +52,9 @@ type HandlerParams struct {
 	TBHandler         *tensorboard.TBHandler
 	SystemMonitor     *monitor.SystemMonitor
 	TerminalPrinter   *observability.Printer
+
+	// Commit is the W&B Git commit hash
+	Commit string
 
 	// SkipSummary controls whether to skip summary updates.
 	//
@@ -144,11 +146,10 @@ type Handler struct {
 
 // NewHandler creates a new handler
 func NewHandler(
-	commit string,
 	params HandlerParams,
 ) *Handler {
 	return &Handler{
-		commit:               commit,
+		commit:               params.Commit,
 		runTimer:             timer.New(),
 		terminalPrinter:      params.TerminalPrinter,
 		logger:               params.Logger,
@@ -347,6 +348,8 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestCancel(x.Cancel)
 	case *spb.Request_GetSystemMetrics:
 		h.handleRequestGetSystemMetrics(record)
+	case *spb.Request_GetSystemMetadata:
+		h.handleRequestGetSystemMetadata(record)
 	case *spb.Request_InternalMessages:
 		h.handleRequestInternalMessages(record)
 	case *spb.Request_Sync:
@@ -532,12 +535,12 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 	h.handleMetadata(metadata)
 
 	// start the system monitor
-	if !h.settings.IsDisableStats() && !h.settings.GetDisableMachineInfo() {
+	if !h.settings.IsDisableStats() && !h.settings.IsDisableMachineInfo() {
 		h.systemMonitor.Start()
 	}
 
 	// save code and patch
-	if h.settings.IsSaveCode() && !h.settings.GetDisableMachineInfo() {
+	if h.settings.IsSaveCode() && !h.settings.IsDisableMachineInfo() {
 		h.handleCodeSave()
 		h.handlePatchSave()
 	}
@@ -546,6 +549,9 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 }
 
 func (h *Handler) handleRequestPythonPackages(_ *spb.Record, request *spb.PythonPackagesRequest) {
+	if !h.settings.IsPrimaryNode() {
+		return
+	}
 	// write all requirements to a file
 	// send the file as a Files record
 	filename := filepath.Join(h.settings.GetFilesDir(), RequirementsFileName)
@@ -585,6 +591,10 @@ func (h *Handler) handleRequestPythonPackages(_ *spb.Record, request *spb.Python
 }
 
 func (h *Handler) handleCodeSave() {
+	if !h.settings.IsPrimaryNode() {
+		return
+	}
+
 	programRelative := h.settings.GetProgramRelativePath()
 	if programRelative == "" {
 		h.logger.Warn("handleCodeSave: program relative path is empty")
@@ -624,7 +634,7 @@ func (h *Handler) handleCodeSave() {
 
 func (h *Handler) handlePatchSave() {
 	// capture git state
-	if h.settings.IsDisableGit() || h.settings.GetDisableMachineInfo() {
+	if h.settings.IsDisableGit() || h.settings.IsDisableMachineInfo() || !h.settings.IsPrimaryNode() {
 		return
 	}
 
@@ -670,16 +680,23 @@ func (h *Handler) handlePatchSave() {
 }
 
 func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
-	// TODO: Sending metadata as a request for now, eventually this should be turned into
-	//  a record and stored in the transaction log
-	if h.settings.IsDisableMeta() || h.settings.GetDisableMachineInfo() {
+	if h.settings.IsDisableMeta() || h.settings.IsDisableMachineInfo() || !h.settings.IsPrimaryNode() {
 		return
 	}
 
 	if h.metadata == nil {
+		// Save the metadata on the first call.
 		h.metadata = proto.Clone(request).(*spb.MetadataRequest)
 	} else {
-		proto.Merge(h.metadata, request)
+		// Merge the metadata on subsequent calls.
+		// The order of the merge depends on the origin of the request.
+		// The request originating from the user should take precedence.
+		if request.GetXUserModified() {
+			proto.Merge(h.metadata, request)
+		} else {
+			proto.Merge(request, h.metadata)
+			h.metadata = request
+		}
 	}
 
 	mo := protojson.MarshalOptions{
@@ -836,6 +853,18 @@ func (h *Handler) handleRequestGetSystemMetrics(record *spb.Record) {
 		response.GetGetSystemMetricsResponse().SystemMetrics[key] = &spb.SystemMetricsBuffer{
 			Record: buffer,
 		}
+	}
+
+	h.respond(record, response)
+}
+
+func (h *Handler) handleRequestGetSystemMetadata(record *spb.Record) {
+	response := &spb.Response{
+		ResponseType: &spb.Response_GetSystemMetadataResponse{
+			GetSystemMetadataResponse: &spb.GetSystemMetadataResponse{
+				Metadata: h.metadata,
+			},
+		},
 	}
 
 	h.respond(record, response)

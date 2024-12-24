@@ -61,8 +61,8 @@ class Config:
 
         Using absl flags
         ```
-        flags.DEFINE_string("model", None, "model to run") # name, default, help
-        wandb.config.update(flags.FLAGS) # adds all absl flags to config
+        flags.DEFINE_string("model", None, "model to run")  # name, default, help
+        wandb.config.update(flags.FLAGS)  # adds all absl flags to config
         ```
 
         Argparse flags
