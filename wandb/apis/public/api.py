@@ -550,14 +550,17 @@ class Api:
 
     @property
     def client(self) -> RetryingClient:
+        """Returns the client object."""
         return self._client
 
     @property
     def user_agent(self) -> str:
+        """Returns W&B publi user agent."""
         return "W&B Public Client {}".format(wandb.__version__)
 
     @property
     def api_key(self) -> Optional[str]:
+        """Returns W&B API key."""
         # just use thread local api key if it's set
         if _thread_local_api_settings.api_key:
             return _thread_local_api_settings.api_key
@@ -575,6 +578,7 @@ class Api:
 
     @property
     def default_entity(self) -> Optional[str]:
+        """Returns the default W&B entity."""
         if self._default_entity is None:
             res = self._client.execute(self.DEFAULT_ENTITY_QUERY)
             self._default_entity = (res.get("viewer") or {}).get("entity")
@@ -582,6 +586,7 @@ class Api:
 
     @property
     def viewer(self) -> "public.User":
+        """Returns the viewer object."""
         if self._viewer is None:
             self._viewer = public.User(
                 self._client, self._client.execute(self.VIEWER_QUERY).get("viewer")
