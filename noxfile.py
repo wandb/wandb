@@ -13,7 +13,7 @@ import nox
 
 nox.options.default_venv_backend = "uv"
 
-_SUPPORTED_PYTHONS = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+_SUPPORTED_PYTHONS = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
 # Directories in which to create temporary per-session directories
 # containing test results and pytest/Go coverage.
@@ -113,10 +113,11 @@ def run_pytest(
     # Print 20 slowest tests.
     pytest_opts.append(f"--durations={opts.get('durations', 20)}")
 
-    # Track and report memory usage with memray.
-    pytest_opts.append("--memray")
-    # Show the 5 tests that allocate most memory.
-    pytest_opts.append("--most-allocations=5")
+    if platform.system() != "Windows":  # memray is not supported on Windows.
+        # Track and report memory usage with memray.
+        pytest_opts.append("--memray")
+        # Show the 5 tests that allocate most memory.
+        pytest_opts.append("--most-allocations=5")
 
     # Output test results for tooling.
     junitxml = _NOX_PYTEST_RESULTS_DIR / session_file_name / "junit.xml"
@@ -496,7 +497,6 @@ def proto_python(session: nox.Session, pb: int) -> None:
     The pb argument is the major version of the protobuf package to use.
 
     Tested with Python 3.10 on a Mac with an M1 chip.
-    Absolutely does not work with Python 3.7.
     """
     _generate_proto_python(session, pb=pb)
 
@@ -587,22 +587,24 @@ def mypy_report(session: nox.Session) -> None:
     If the report parameter is set to True, it will also generate an html report.
     """
     session.install(
+        "ipython",
+        "lxml",
         # https://github.com/python/mypy/issues/17166
         "mypy != 1.10.0",
+        "numpy",
+        "pandas-stubs",
         "pip",
+        "platformdirs",
         "pydantic",
         "pycobertura",
-        "lxml",
-        "pandas-stubs",
-        "platformdirs",
         "types-jsonschema",
         "types-openpyxl",
-        "types-python-dateutil",
         "types-Pillow",
-        "types-PyYAML",
-        "types-Pygments",
         "types-protobuf",
+        "types-Pygments",
+        "types-python-dateutil",
         "types-pytz",
+        "types-PyYAML",
         "types-requests",
         "types-setuptools",
         "types-six",
@@ -794,9 +796,8 @@ def importer_tests(session: nox.Session, importer: str):
         session.install(".[workspaces]", "pydantic>=2")
     elif importer == "mlflow":
         session.install("pydantic<2")
-    if session.python != "3.7":
-        session.install("polyfactory")
     session.install(
+        "polyfactory",
         "polars<=1.2.1",
         "rich",
         "filelock",

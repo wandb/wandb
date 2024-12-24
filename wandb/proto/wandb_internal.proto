@@ -598,6 +598,7 @@ message Request {
     JobInputRequest job_input = 77;
     LinkArtifactRequest link_artifact = 78;
     RunFinishWithoutExitRequest run_finish_without_exit = 79;
+    GetSystemMetadataRequest get_system_metadata = 80;
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -630,6 +631,7 @@ message Response {
     SyncResponse sync_response = 70;
     LinkArtifactResponse link_artifact_response = 71;
     RunFinishWithoutExitResponse run_finish_without_exit_response = 72;
+    GetSystemMetadataResponse get_system_metadata_response = 73;
     TestInjectResponse test_inject_response = 1000;
   }
 }
@@ -718,6 +720,17 @@ message SystemMetricsBuffer {
 
 message GetSystemMetricsResponse {
   map<string, SystemMetricsBuffer> system_metrics = 1;
+}
+
+/*
+ * GetSystemMetadataRequest: request system metadata
+ */
+message GetSystemMetadataRequest {
+  _RequestInfo _info = 200;
+}
+
+message GetSystemMetadataResponse {
+  MetadataRequest metadata = 1;
 }
 
 /*
@@ -1235,6 +1248,8 @@ message AppleInfo {
   uint32 pcpu_cores = 3;
   uint32 gpu_cores = 4;
   uint32 memory_gb = 5;
+  uint64 swap_total_bytes = 6;
+  uint64 ram_total_bytes = 7;
 }
 
 message GpuNvidiaInfo {
@@ -1277,8 +1292,8 @@ message TPUInfo {
 message MetadataRequest {
   string os = 1;
   string python = 2;
-  google.protobuf.Timestamp heartbeatAt = 3;
-  google.protobuf.Timestamp startedAt = 4;
+  google.protobuf.Timestamp heartbeat_at = 3 [json_name = "heartbeatAt"];
+  google.protobuf.Timestamp started_at = 4 [json_name = "startedAt"];
   string docker = 5;
   string cuda = 6;
   repeated string args = 7;
@@ -1307,6 +1322,9 @@ message MetadataRequest {
   string cuda_version = 30;
   TrainiumInfo trainium = 31;
   TPUInfo tpu = 32;
+
+  // Flag indicating whether the request originated from the user.
+  optional bool _user_modified = 200 [json_name = "_user_modified"];
 }
 
 message PythonPackagesRequest {

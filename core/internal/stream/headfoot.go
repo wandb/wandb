@@ -1,4 +1,4 @@
-// This file should be depreacted and removed in the future, in favor of printing the footer in the client
+// This file should be deprecated and removed in the future, in favor of printing the footer in the client
 package stream
 
 import (

@@ -3,14 +3,8 @@
 import json
 import os
 import shutil
-import sys
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Mapping, Optional
 
 from wandb_gql import gql
 
@@ -413,7 +407,7 @@ class QueuedRun:
                     self._run_id = item["associatedRunId"]
                     return self._run
                 except ValueError as e:
-                    print(e)
+                    wandb.termwarn(e)
             elif item:
                 wandb.termlog("Waiting for run to start")
 

@@ -138,10 +138,21 @@ class Video(BatchableMedia):
             self.encode(fps=fps)
 
     def encode(self, fps: int = 4) -> None:
-        mpy = util.get_module(
-            "moviepy.editor",
-            required='wandb.Video requires moviepy when passing raw data.  Install with "pip install wandb[media]"',
-        )
+        # Try to import ImageSequenceClip from the appropriate MoviePy module
+        mpy = None
+        try:
+            # Attempt to load moviepy.editor for MoviePy < 2.0
+            mpy = util.get_module(
+                "moviepy.editor",
+                required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
+            )
+        except wandb.Error:
+            # Fallback to moviepy for MoviePy >= 2.0
+            mpy = util.get_module(
+                "moviepy",
+                required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
+            )
+
         tensor = self._prepare_video(self.data)
         _, self._height, self._width, self._channels = tensor.shape  # type: ignore
 
@@ -201,7 +212,7 @@ class Video(BatchableMedia):
         )
         if video.ndim < 4:
             raise ValueError(
-                "Video must be atleast 4 dimensions: time, channels, height, width"
+                "Video must be at least 4 dimensions: time, channels, height, width"
             )
         if video.ndim == 4:
             video = video.reshape(1, *video.shape)

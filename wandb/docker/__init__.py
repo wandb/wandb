@@ -62,7 +62,7 @@ def shell(cmd: List[str]) -> Optional[str]:
             .strip()
         )
     except subprocess.CalledProcessError as e:
-        print(e)
+        print(e)  # noqa: T201
         return None
 
 
@@ -140,12 +140,12 @@ def run_command_live_output(args: List[Any]) -> str:
                 break
             index = chunk.find(b"\r")
             if index != -1:
-                print(chunk.decode(), end="")
+                print(chunk.decode(), end="")  # noqa: T201
             else:
                 stdout += chunk.decode()
-                print(chunk.decode(), end="\r")
+                print(chunk.decode(), end="\r")  # noqa: T201
 
-        print(stdout)
+        print(stdout)  # noqa: T201
 
     return_code = process.wait()
     if return_code != 0:

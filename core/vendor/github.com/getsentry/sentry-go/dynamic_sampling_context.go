@@ -100,15 +100,17 @@ func (d DynamicSamplingContext) String() string {
 		}
 		members = append(members, member)
 	}
-	if len(members) > 0 {
-		baggage, err := baggage.New(members...)
-		if err != nil {
-			return ""
-		}
-		return baggage.String()
+
+	if len(members) == 0 {
+		return ""
 	}
 
-	return ""
+	baggage, err := baggage.New(members...)
+	if err != nil {
+		return ""
+	}
+
+	return baggage.String()
 }
 
 // Constructs a new DynamicSamplingContext using a scope and client. Accessing

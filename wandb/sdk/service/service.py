@@ -97,7 +97,7 @@ class _Service:
                     f"The wandb service process exited with {proc.returncode}. "
                     "Ensure that `sys.executable` is a valid python interpreter. "
                     "You can override it with the `_executable` setting "
-                    "or with the `WANDB__EXECUTABLE` environment variable."
+                    "or with the `WANDB_X_EXECUTABLE` environment variable."
                     f"\n{context}",
                     context=context,
                 )
@@ -160,7 +160,7 @@ class _Service:
                     service_args.append("--no-observability")
 
                 if core_debug(default="False"):
-                    service_args.append("--debug")
+                    service_args.extend(["--log-level", "-4"])
 
                 exec_cmd_list = []
                 termlog(

@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import queue
-import sys
 import threading
 import time
 import traceback
@@ -19,6 +18,7 @@ from typing import (
     Dict,
     Generator,
     List,
+    Literal,
     Optional,
     Tuple,
     Type,
@@ -56,11 +56,6 @@ from wandb.sdk.lib import (
 )
 from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
@@ -328,7 +323,6 @@ class SendManager:
 
         Exclusively used in `sync.py`.
         """
-        print(root_dir)
         files_dir = os.path.join(root_dir, "files")
         settings = wandb.Settings(
             x_files_dir=files_dir,
@@ -1207,7 +1201,10 @@ class SendManager:
         start_us = self._run.start_time.ToMicroseconds()
         d = dict()
         for item in stats.item:
-            d[item.key] = json.loads(item.value_json)
+            try:
+                d[item.key] = json.loads(item.value_json)
+            except json.JSONDecodeError:
+                logger.error("error decoding stats json: %s", item.value_json)
         row: Dict[str, Any] = dict(system=d)
         self._flatten(row)
         row["_wandb"] = True
@@ -1341,7 +1338,7 @@ class SendManager:
         if not line.endswith("\n"):
             self._partial_output.setdefault(stream, "")
             if line.startswith("\r"):
-                # TODO: maybe we shouldnt just drop this, what if there was some \ns in the partial
+                # TODO: maybe we shouldn't just drop this, what if there was some \ns in the partial
                 # that should probably be the check instead of not line.endswith(\n")
                 # logger.info(f"Dropping data {self._partial_output[stream]}")
                 self._partial_output[stream] = ""

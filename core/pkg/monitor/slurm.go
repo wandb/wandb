@@ -34,7 +34,7 @@ func NewSLURM() *SLURM {
 
 func (g *SLURM) Name() string { return g.name }
 
-func (g *SLURM) Sample() (map[string]any, error) { return nil, nil }
+func (g *SLURM) Sample() (*spb.StatsRecord, error) { return nil, nil }
 
 func (g *SLURM) IsAvailable() bool { return false }
 

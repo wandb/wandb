@@ -492,7 +492,7 @@ class TBHistory:
                     self._step, len(dropped_keys)
                 )
             )
-            print("\t" + ("\n\t".join(dropped_keys)))
+            print("\t" + ("\n\t".join(dropped_keys)))  # noqa: T201
         self._data["_step"] = self._step
         self._added.append(self._data)
         self._step += 1

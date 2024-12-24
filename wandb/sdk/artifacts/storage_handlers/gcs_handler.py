@@ -133,8 +133,7 @@ class GCSHandler(StorageHandler):
         if multi:
             start_time = time.time()
             termlog(
-                'Generating checksum for up to %i objects with prefix "%s"... '
-                % (max_objects, key),
+                f'Generating checksum for up to {max_objects} objects with prefix "{key}"... ',
                 newline=False,
             )
             objects = self._client.bucket(bucket).list_blobs(
@@ -152,8 +151,7 @@ class GCSHandler(StorageHandler):
             termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
         if len(entries) > max_objects:
             raise ValueError(
-                "Exceeded %i objects tracked, pass max_objects to add_reference"
-                % max_objects
+                f"Exceeded {max_objects} objects tracked, pass max_objects to add_reference"
             )
         return entries
 

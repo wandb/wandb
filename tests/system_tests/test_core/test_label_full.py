@@ -4,10 +4,11 @@ import inspect
 import sys
 
 import pytest
+import wandb
 
 
 @pytest.fixture()
-def doc_inject(wandb_init):
+def doc_inject(user):
     m = sys.modules.get("__main__")
     main_doc = getattr(m, "__doc__", None)
 
@@ -16,7 +17,7 @@ def doc_inject(wandb_init):
         # clean up leading whitespace
         if new_doc is not None:
             m.__doc__ = inspect.cleandoc(new_doc)
-        with wandb_init(**init_kwargs) as run:
+        with wandb.init(**init_kwargs) as run:
             if labels:
                 run._label(**labels)
 

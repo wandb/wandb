@@ -27,6 +27,16 @@ const (
 	//
 	// See https://github.com/wandb/core/pull/7339 for history.
 	defaultMaxFileLineBytes = (10 << 20) - (100 << 10)
+
+	// Retry filestream requests for 7 days before dropping chunk
+	// retry_count = seconds_in_7_days / max_retry_time + num_retries_until_max_60_sec
+	//             = 7 * 86400 / 60 + ceil(log2(60/2))
+	//             = 10080 + 5
+	DefaultRetryMax     = 10085
+	DefaultRetryWaitMin = 2 * time.Second
+	DefaultRetryWaitMax = 60 * time.Second
+	// A 3-minute timeout for all filestream post requests
+	DefaultNonRetryTimeout = 180 * time.Second
 )
 
 type ChunkTypeEnum int8

@@ -226,7 +226,7 @@ class GitRepo:
         try:
             return self.repo.create_tag(f"wandb/{name}", message=message, force=True)
         except GitCommandError:
-            print("Failed to tag repository.")
+            logger.debug("Failed to tag repository.")
             return None
 
     def push(self, name: str) -> Any:

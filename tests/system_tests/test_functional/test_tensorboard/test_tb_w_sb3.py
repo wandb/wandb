@@ -1,14 +1,15 @@
 """Test stable_baselines3 integration."""
 
 import gymnasium as gym
+import wandb
 from stable_baselines3 import PPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 
 
-def test_sb3_tensorboard(wandb_init, wandb_backend_spy):
+def test_sb3_tensorboard(wandb_backend_spy):
     """Integration test for Stable Baselines 3 TensorBoard callback."""
-    with wandb_init(sync_tensorboard=True) as run:
+    with wandb.init(sync_tensorboard=True) as run:
         PPO(
             "MlpPolicy",
             DummyVecEnv(
