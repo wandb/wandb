@@ -3,6 +3,7 @@ import json
 import multiprocessing as mp
 import random
 import string
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -32,7 +33,7 @@ class Timer:
         self.start_time = datetime.now()
 
     def stop(self):
-        return (datetime.now() - self.start_time).total_seconds()
+        return round((datetime.now() - self.start_time).total_seconds(), 2)
 
 
 class PayloadGenerator:
@@ -181,6 +182,17 @@ class Experiment:
         metric_key_size: The length of metric names.
         output_file: The output file to store the performance test results.
         data_type: The wandb data type to log.
+        is_unique_payload: Whether to use a new set of metrics or reuse the same set for each step.
+        time_delay_second: Sleep time between step.
+
+    When to set "is_unique_payload" to True?
+
+    Performance benchmarks are usually done on the basic use case to form the baseline, then on top
+    of it, scale tests of various dimensions are run (# of steps, # of metrics, metric size, etc) to
+    characterize its scalability.
+
+    For benchmarks or regression detection testings, set is_unique_payload to False (default). For stress
+    testings or simulating huge workload w/ million+ metrics, set is_unique_payload to True.
     """
 
     def __init__(
@@ -190,12 +202,16 @@ class Experiment:
         metric_key_size: int = 10,
         output_file: str = "results.json",
         data_type: Literal["scalar", "audio", "video", "image", "table"] = "scalar",
+        is_unique_payload: bool = False,
+        time_delay_second: float = 0.0,
     ):
         self.num_steps = num_steps
         self.num_metrics = num_metrics
         self.metric_key_size = metric_key_size
         self.output_file = output_file
         self.data_type = data_type
+        self.is_unique_payload = is_unique_payload
+        self.time_delay_second = time_delay_second
 
     def run(self, repeat: int = 1):
         for _ in range(repeat):
@@ -226,25 +242,52 @@ class Experiment:
             )
             result_data["init_time"] = timer.stop()
 
+        # pre-generate all the payloads
         try:
-            payload = PayloadGenerator(
-                self.data_type, self.num_metrics, self.metric_key_size
-            ).generate()
+            if self.is_unique_payload:
+                num_of_unique_payload = self.num_steps
+            else:
+                num_of_unique_payload = 1
+
+            payloads = [
+                PayloadGenerator(
+                    self.data_type, self.num_metrics, self.metric_key_size
+                ).generate()
+                for _ in range(num_of_unique_payload)
+            ]
         except ValueError as e:
             logger.error(f"Failed to generate payload: {e}")
             return
 
         # Log the payload $step_count times
         with Timer() as timer:
-            for _ in range(self.num_steps):
-                run.log(payload)
+            for s in range(self.num_steps):
+                if self.is_unique_payload:
+                    run.log(payloads[s])
+                else:
+                    run.log(payloads[0])
+
+                # 12/20/2024 - Wai
+                # HACKAROUND: We ran into some 500s and 502s errors when SDK logs
+                # a million+ unique metrics in a tight loop. Adding a small sleep
+                # between each step works around the problem for now.
+
+                # Set a sleep time when reproducing real-life workload when logging
+                # steps aren't in a tight loop.
+                if self.time_delay_second > 0:
+                    time.sleep(self.time_delay_second)
+
             result_data["log_time"] = timer.stop()
 
         # compute the log() throughput rps (request per sec)
         if result_data["log_time"] == 0:
             logger.warning("the measured time for log() is 0.")
             # Setting it to 0.1ms to avoid failing the math.
-            result_data["log_time"] = 0.0001
+            result_data["log_time"] = 0.01
+
+        # adjust for the sleep time injected
+        if self.time_delay_second > 0:
+            result_data["log_time"] -= self.time_delay_second * self.num_steps
 
         result_data["log_rps"] = round(self.num_steps / result_data["log_time"], 2)
 
@@ -358,6 +401,20 @@ if __name__ == "__main__":
         default="scalar",
         help="The wandb data type to log. Defaults to scalar.",
     )
+    parser.add_argument(
+        "-u",
+        "--unique-payload",
+        type=bool,
+        default=False,
+        help="False - reuse the same payload in each log(), new payload if True.",
+    )
+    parser.add_argument(
+        "-t",
+        "--time-delay-second",
+        type=float,
+        default=0,
+        help="e.g. -t 1.0  Sleep time in seconds between each step.",
+    )
 
     args = parser.parse_args()
 
@@ -367,4 +424,6 @@ if __name__ == "__main__":
         metric_key_size=args.metric_key_size,
         output_file=args.outfile,
         data_type=args.data_type,
+        is_unique_payload=args.unique_payload,
+        time_delay_second=args.time_delay_second,
     ).run(args.repeat)
