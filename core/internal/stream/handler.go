@@ -297,6 +297,7 @@ func (h *Handler) handleRequest(record *spb.Record) {
 
 	case *spb.Request_ServerInfo:
 	case *spb.Request_CheckVersion:
+	case *spb.Request_Defer:
 		// The above been removed from the client but are kept here for now.
 		// Should be removed in the future.
 
@@ -314,8 +315,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestStatusReport(record)
 	case *spb.Request_Shutdown:
 		h.handleRequestShutdown(record)
-	case *spb.Request_Defer:
-		h.handleRequestDefer(record, x.Defer)
 	case *spb.Request_GetSummary:
 		h.handleRequestGetSummary(record)
 	case *spb.Request_NetworkStatus:
@@ -360,6 +359,7 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestJobInput(record)
 	case *spb.Request_RunFinishWithoutExit:
 		h.handleRequestRunFinishWithoutExit(record)
+
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRequest: request type is nil"))
@@ -415,19 +415,6 @@ func (h *Handler) handleMetric(record *spb.Record) {
 	if len(metric.Name) > 0 {
 		h.metricHandler.UpdateSummary(metric.Name, h.runSummary)
 	}
-}
-
-func (h *Handler) handleRequestDefer(record *spb.Record, _ *spb.DeferRequest) {
-	// Need to clone the record to avoid race condition with the writer
-	record = proto.Clone(record).(*spb.Record)
-	h.fwdRecordWithControl(record,
-		func(control *spb.Control) {
-			control.AlwaysSend = true
-		},
-		func(control *spb.Control) {
-			control.Local = true
-		},
-	)
 }
 
 func (h *Handler) handleRequestStopStatus(record *spb.Record) {
