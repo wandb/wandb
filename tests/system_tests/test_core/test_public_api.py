@@ -286,15 +286,13 @@ def test_run_history_keys_bad_arg(stub_run_gql_once, mock_wandb_log):
     mock_wandb_log.errored("keys argument must be a list of strings")
 
 
-def test_run_summary(user, relay_server):
+def test_run_summary(wandb_backend_spy):
     seed_run = Api().create_run()
+    run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+    run.summary.update({"cool": 1000})
 
-    with relay_server() as relay:
-        run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
-        run.summary.update({"cool": 1000})
-
-        result = json.loads(relay.context.get_run(run.storage_id)["summaryMetrics"])
-        assert result["cool"] == 1000
+    with wandb_backend_spy.freeze() as snapshot:
+        assert snapshot.summary(run_id=run.storage_id)["cool"] == 1000
 
 
 def test_run_create(user, relay_server):
