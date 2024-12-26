@@ -6,7 +6,7 @@ set -e  # Exit immediately if a command exits with a non-zero status
 # relative to the root of this project
 REL_OUTPUT_BIN=$1
 
-#Get the absolute path of the script
+# Get the absolute path of the script
 PROJECT_ROOT=$(realpath "$(dirname "$0")/..")
 
 # Change directory to the root of the wandb core project so we can build the
