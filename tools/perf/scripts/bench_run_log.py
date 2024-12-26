@@ -256,7 +256,7 @@ class Experiment:
                     id=self.run_id,
                     resume=self.resume_mode,
                 )
-            
+
             result_data["init_time"] = timer.stop()
 
         # pre-generate all the payloads
