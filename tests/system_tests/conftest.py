@@ -611,8 +611,6 @@ def wandb_backend_spy(
     This patches WANDB_BASE_URL and creates a fake user for the test
     setting auth-related environment variables.
 
-    NOTE: This replaces the `relay_server` fixture.
-
     Usage:
 
         def test_something(wandb_backend_spy):
