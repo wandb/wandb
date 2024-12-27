@@ -14,9 +14,6 @@ from typing import Generator, Literal, Optional
 
 import pytest
 import requests
-import wandb
-import wandb.old.settings
-import wandb.util
 
 from .wandb_backend_spy import WandbBackendProxy, WandbBackendSpy, spy_proxy
 
