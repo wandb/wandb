@@ -589,7 +589,7 @@ def fake_search_users_response(
     api_keys: Dict[str, str],
     teams: List[str],
     count: int = 1,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     """Returns a fake response to a SearchUsers GraphQL query."""
     return {
         "data": {
