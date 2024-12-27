@@ -10,7 +10,7 @@ import sys
 import unittest.mock
 import urllib.parse
 from contextlib import contextmanager
-from typing import Generator, Iterator, List, Literal, Optional, Union
+from typing import Generator, Literal, Optional
 
 import pytest
 import requests
@@ -18,12 +18,6 @@ import wandb
 import wandb.old.settings
 import wandb.util
 
-from .relay import (
-    DeliberateHTTPError,
-    InjectedResponse,
-    RelayServer,
-    TokenizedCircularPattern,
-)
 from .wandb_backend_spy import WandbBackendProxy, WandbBackendSpy, spy_proxy
 
 
@@ -644,40 +638,6 @@ def wandb_backend_spy(
 
 
 @pytest.fixture(scope="function")
-def relay_server(wandb_verbose, local_wandb_backend: LocalWandbBackendAddress):
-    """A context manager in which the backend is a RelayServer.
-
-    NOTE: This is deprecated. Please use `wandb_backend_spy` instead.
-
-    This returns a context manager that creates a RelayServer and monkey-patches
-    WANDB_BASE_URL to point to it.
-    """
-
-    @contextmanager
-    def relay_server_context(
-        inject: Optional[List[InjectedResponse]] = None,
-    ) -> Iterator[RelayServer]:
-        _relay_server = RelayServer(
-            base_url=local_wandb_backend.base_url,
-            inject=inject,
-            verbose=wandb_verbose,
-        )
-
-        _relay_server.start()
-        print(f"Relay server started at {_relay_server.relay_url}")  # noqa: T201
-
-        with unittest.mock.patch.dict(
-            os.environ,
-            {"WANDB_BASE_URL": _relay_server.relay_url},
-        ):
-            yield _relay_server
-
-        print(f"Stopping relay server at {_relay_server.relay_url}")  # noqa: T201
-
-    return relay_server_context
-
-
-@pytest.fixture(scope="function")
 def server_context(local_wandb_backend: LocalWandbBackendAddress):
     class ServerContext:
         def __init__(self) -> None:
@@ -689,38 +649,3 @@ def server_context(local_wandb_backend: LocalWandbBackendAddress):
             return self.api.run(run.path)
 
     yield ServerContext()
-
-
-@pytest.fixture(scope="function")
-def inject_graphql_response(local_wandb_backend, user):
-    def helper(
-        body: Union[str, Exception] = "{}",
-        status: int = 200,
-        query_match_fn=None,
-        application_pattern: str = "1",
-    ) -> InjectedResponse:
-        def match(self, request):
-            body = json.loads(request.body)
-            return query_match_fn(body["query"], body.get("variables"))
-
-        if status > 299:
-            message = body if isinstance(body, str) else "::".join(body.args)
-            body = DeliberateHTTPError(status_code=status, message=message)
-
-        return InjectedResponse(
-            # request
-            method="POST",
-            url=urllib.parse.urljoin(local_wandb_backend.base_url, "/graphql"),
-            custom_match_fn=match if query_match_fn else None,
-            application_pattern=TokenizedCircularPattern(application_pattern),
-            # response
-            body=body,
-            status=status,
-        )
-
-    yield helper
-
-
-@pytest.fixture(scope="function")
-def tokenized_circular_pattern():
-    return TokenizedCircularPattern
