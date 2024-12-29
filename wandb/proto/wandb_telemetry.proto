@@ -262,6 +262,11 @@ message Deprecated {
   bool run__define_metric_best_goal = 18;
 
   bool run__finish_quiet = 19;  // wandb.run.finish(quiet=...) called
+
+  bool run__get_url = 20;          // wandb.run.get_url() called
+  bool run__project_name = 21;     // wandb.run.project_name() called
+  bool run__get_project_url = 22;  // wandb.run.get_project_url() called
+  bool run__get_sweep_url = 23;    // wandb.run.get_sweep_url() called
 }
 
 message Issues {
