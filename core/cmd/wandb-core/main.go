@@ -5,7 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	_ "net/http/pprof"
 	"os"
+	"runtime"
+	"runtime/trace"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/processlib"
@@ -30,6 +33,8 @@ func main() {
 		"Disables observability features such as metrics and logging analytics.")
 	enableOsPidShutdown := flag.Bool("os-pid-shutdown", false,
 		"Enables automatic server shutdown when the external process identified by the PID terminates.")
+	traceFile := flag.String("trace-file", "",
+		"Specifies the file to write the trace to, if empty, profiling is disabled.")
 
 	// Custom usage function to add a header, version, and commit info
 	flag.Usage = func() {
@@ -88,6 +93,26 @@ func main() {
 		)
 		loggerPath = file.Name()
 		defer file.Close()
+	}
+
+	if *traceFile != "" {
+		runtime.SetBlockProfileRate(1)
+		f, err := os.Create(*traceFile)
+		if err != nil {
+			slog.Error("failed to create trace output file", "err", err)
+			panic(err)
+		}
+		defer func() {
+			if err = f.Close(); err != nil {
+				slog.Error("failed to close trace file", "err", err)
+			}
+		}()
+
+		if err = trace.Start(f); err != nil {
+			slog.Error("failed to start trace", "err", err)
+			panic(err)
+		}
+		defer trace.Stop()
 	}
 
 	srv, err := server.NewServer(
