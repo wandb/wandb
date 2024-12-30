@@ -216,6 +216,13 @@ class InterfaceBase:
     def _publish_config(self, cfg: pb.ConfigRecord) -> None:
         raise NotImplementedError
 
+    def publish_metadata(self, metadata: pb.MetadataRequest) -> None:
+        self._publish_metadata(metadata)
+
+    @abstractmethod
+    def _publish_metadata(self, metadata: pb.MetadataRequest) -> None:
+        raise NotImplementedError
+
     @abstractmethod
     def _publish_metric(self, metric: pb.MetricRecord) -> None:
         raise NotImplementedError
@@ -722,7 +729,7 @@ class InterfaceBase:
             otype = pb.OutputRecord.OutputType.STDERR
         else:
             # TODO(jhr): throw error?
-            print("unknown type")
+            termwarn("unknown type")
         o = pb.OutputRecord(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
         self._publish_output(o)
@@ -742,7 +749,7 @@ class InterfaceBase:
             otype = pb.OutputRawRecord.OutputType.STDERR
         else:
             # TODO(jhr): throw error?
-            print("unknown type")
+            termwarn("unknown type")
         o = pb.OutputRawRecord(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
         self._publish_output_raw(o)
@@ -954,12 +961,22 @@ class InterfaceBase:
         raise NotImplementedError
 
     def deliver_get_system_metrics(self) -> MailboxHandle:
-        get_summary = pb.GetSystemMetricsRequest()
-        return self._deliver_get_system_metrics(get_summary)
+        get_system_metrics = pb.GetSystemMetricsRequest()
+        return self._deliver_get_system_metrics(get_system_metrics)
 
     @abstractmethod
     def _deliver_get_system_metrics(
         self, get_summary: pb.GetSystemMetricsRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_get_system_metadata(self) -> MailboxHandle:
+        get_system_metadata = pb.GetSystemMetadataRequest()
+        return self._deliver_get_system_metadata(get_system_metadata)
+
+    @abstractmethod
+    def _deliver_get_system_metadata(
+        self, get_system_metadata: pb.GetSystemMetadataRequest
     ) -> MailboxHandle:
         raise NotImplementedError
 

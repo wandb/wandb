@@ -53,6 +53,9 @@ type HandlerParams struct {
 	SystemMonitor     *monitor.SystemMonitor
 	TerminalPrinter   *observability.Printer
 
+	// Commit is the W&B Git commit hash
+	Commit string
+
 	// SkipSummary controls whether to skip summary updates.
 	//
 	// This is only useful in a test.
@@ -143,11 +146,10 @@ type Handler struct {
 
 // NewHandler creates a new handler
 func NewHandler(
-	commit string,
 	params HandlerParams,
 ) *Handler {
 	return &Handler{
-		commit:               commit,
+		commit:               params.Commit,
 		runTimer:             timer.New(),
 		terminalPrinter:      params.TerminalPrinter,
 		logger:               params.Logger,
@@ -295,6 +297,7 @@ func (h *Handler) handleRequest(record *spb.Record) {
 
 	case *spb.Request_ServerInfo:
 	case *spb.Request_CheckVersion:
+	case *spb.Request_Defer:
 		// The above been removed from the client but are kept here for now.
 		// Should be removed in the future.
 
@@ -312,8 +315,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestStatusReport(record)
 	case *spb.Request_Shutdown:
 		h.handleRequestShutdown(record)
-	case *spb.Request_Defer:
-		h.handleRequestDefer(record, x.Defer)
 	case *spb.Request_GetSummary:
 		h.handleRequestGetSummary(record)
 	case *spb.Request_NetworkStatus:
@@ -346,6 +347,8 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestCancel(x.Cancel)
 	case *spb.Request_GetSystemMetrics:
 		h.handleRequestGetSystemMetrics(record)
+	case *spb.Request_GetSystemMetadata:
+		h.handleRequestGetSystemMetadata(record)
 	case *spb.Request_InternalMessages:
 		h.handleRequestInternalMessages(record)
 	case *spb.Request_Sync:
@@ -356,6 +359,7 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestJobInput(record)
 	case *spb.Request_RunFinishWithoutExit:
 		h.handleRequestRunFinishWithoutExit(record)
+
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRequest: request type is nil"))
@@ -411,19 +415,6 @@ func (h *Handler) handleMetric(record *spb.Record) {
 	if len(metric.Name) > 0 {
 		h.metricHandler.UpdateSummary(metric.Name, h.runSummary)
 	}
-}
-
-func (h *Handler) handleRequestDefer(record *spb.Record, _ *spb.DeferRequest) {
-	// Need to clone the record to avoid race condition with the writer
-	record = proto.Clone(record).(*spb.Record)
-	h.fwdRecordWithControl(record,
-		func(control *spb.Control) {
-			control.AlwaysSend = true
-		},
-		func(control *spb.Control) {
-			control.Local = true
-		},
-	)
 }
 
 func (h *Handler) handleRequestStopStatus(record *spb.Record) {
@@ -681,9 +672,18 @@ func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
 	}
 
 	if h.metadata == nil {
+		// Save the metadata on the first call.
 		h.metadata = proto.Clone(request).(*spb.MetadataRequest)
 	} else {
-		proto.Merge(h.metadata, request)
+		// Merge the metadata on subsequent calls.
+		// The order of the merge depends on the origin of the request.
+		// The request originating from the user should take precedence.
+		if request.GetXUserModified() {
+			proto.Merge(h.metadata, request)
+		} else {
+			proto.Merge(request, h.metadata)
+			h.metadata = request
+		}
 	}
 
 	mo := protojson.MarshalOptions{
@@ -840,6 +840,18 @@ func (h *Handler) handleRequestGetSystemMetrics(record *spb.Record) {
 		response.GetGetSystemMetricsResponse().SystemMetrics[key] = &spb.SystemMetricsBuffer{
 			Record: buffer,
 		}
+	}
+
+	h.respond(record, response)
+}
+
+func (h *Handler) handleRequestGetSystemMetadata(record *spb.Record) {
+	response := &spb.Response{
+		ResponseType: &spb.Response_GetSystemMetadataResponse{
+			GetSystemMetadataResponse: &spb.GetSystemMetadataResponse{
+				Metadata: h.metadata,
+			},
+		},
 	}
 
 	h.respond(record, response)

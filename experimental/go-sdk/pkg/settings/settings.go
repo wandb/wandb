@@ -97,7 +97,7 @@ func New() (*Settings, error) {
 		return nil, err
 	}
 
-	// Default to ".wandb" if "wandb" dir doesnt exist
+	// Default to ".wandb" if "wandb" dir does not exist
 	wandbDir := filepath.Join(rootDir, "wandb")
 	if _, err := os.Stat(wandbDir); os.IsNotExist(err) {
 		wandbDir = filepath.Join(rootDir, ".wandb")

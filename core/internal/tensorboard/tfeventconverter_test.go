@@ -530,7 +530,7 @@ func TestConvertImage_NotPNG(t *testing.T) {
 		summaryEvent(123, 0.345,
 			tensorValueStrings("my_img", "images",
 				"2", "4", "not a PNG")),
-		observability.NewCoreLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+		observability.NewCoreLogger(slog.New(slog.NewTextHandler(&logs, nil)), nil),
 	)
 
 	assert.Empty(t, emitter.EmitImagesCalls)
@@ -547,7 +547,7 @@ func TestConvertImage_BadDims(t *testing.T) {
 		summaryEvent(123, 0.345,
 			tensorValueStrings("my_img", "images",
 				"2a", "4x", "\x89PNG\x0D\x0A\x1A\x0Acontent")),
-		observability.NewCoreLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+		observability.NewCoreLogger(slog.New(slog.NewTextHandler(&logs, nil)), nil),
 	)
 
 	assert.Empty(t, emitter.EmitImagesCalls)
@@ -565,7 +565,7 @@ func TestConvertImage_UnknownTBFormat(t *testing.T) {
 		emitter,
 		summaryEvent(123, 0.345,
 			tensorValueStrings("my_img", "images", "not enough strings")),
-		observability.NewCoreLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+		observability.NewCoreLogger(slog.New(slog.NewTextHandler(&logs, nil)), nil),
 	)
 
 	assert.Empty(t, emitter.EmitImagesCalls)

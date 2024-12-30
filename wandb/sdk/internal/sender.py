@@ -323,7 +323,6 @@ class SendManager:
 
         Exclusively used in `sync.py`.
         """
-        print(root_dir)
         files_dir = os.path.join(root_dir, "files")
         settings = wandb.Settings(
             x_files_dir=files_dir,
@@ -1339,7 +1338,7 @@ class SendManager:
         if not line.endswith("\n"):
             self._partial_output.setdefault(stream, "")
             if line.startswith("\r"):
-                # TODO: maybe we shouldnt just drop this, what if there was some \ns in the partial
+                # TODO: maybe we shouldn't just drop this, what if there was some \ns in the partial
                 # that should probably be the check instead of not line.endswith(\n")
                 # logger.info(f"Dropping data {self._partial_output[stream]}")
                 self._partial_output[stream] = ""

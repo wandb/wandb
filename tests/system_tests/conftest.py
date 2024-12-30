@@ -1,19 +1,14 @@
-import dataclasses
+from __future__ import annotations
+
 import json
 import os
-import pathlib
-import platform
-import secrets
-import string
-import subprocess
-import sys
 import unittest.mock
-import urllib.parse
 from contextlib import contextmanager
-from typing import Generator, Iterator, List, Literal, Optional, Union
+from pathlib import Path
+from typing import Generator, Iterator
+from urllib.parse import urljoin
 
 import pytest
-import requests
 import wandb
 import wandb.old.settings
 import wandb.util
@@ -25,6 +20,9 @@ from .relay import (
     TokenizedCircularPattern,
 )
 from .wandb_backend_spy import WandbBackendProxy, WandbBackendSpy, spy_proxy
+
+#: See https://docs.pytest.org/en/stable/how-to/plugins.html#requiring-loading-plugins-in-a-test-module-or-conftest-file
+pytest_plugins = ("tests.system_tests.backend_fixtures",)
 
 
 class ConsoleFormatter:
@@ -44,7 +42,6 @@ class ConsoleFormatter:
 # Fixtures for internal test point
 # --------------------------------
 import threading  # noqa: E402
-from pathlib import Path  # noqa: E402
 from queue import Empty, Queue  # noqa: E402
 
 from wandb.sdk.interface.interface_queue import InterfaceQueue  # noqa: E402
@@ -56,45 +53,45 @@ from wandb.sdk.internal.writer import WriteManager  # noqa: E402
 from wandb.sdk.lib.mailbox import Mailbox  # noqa: E402
 
 
-@pytest.fixture()
+@pytest.fixture
 def internal_result_q():
     return Queue()
 
 
-@pytest.fixture()
+@pytest.fixture
 def internal_sender_q():
     return Queue()
 
 
-@pytest.fixture()
-def internal_writer_q():
+@pytest.fixture
+def internal_writer_q() -> Queue:
     return Queue()
 
 
-@pytest.fixture()
-def internal_record_q():
+@pytest.fixture
+def internal_record_q() -> Queue:
     return Queue()
 
 
-@pytest.fixture()
-def internal_process():
+@pytest.fixture
+def internal_process() -> MockProcess:
     return MockProcess()
 
 
 class MockProcess:
-    def __init__(self):
+    def __init__(self) -> None:
         self._alive = True
 
-    def is_alive(self):
+    def is_alive(self) -> bool:
         return self._alive
 
 
-@pytest.fixture()
-def _internal_mailbox():
+@pytest.fixture
+def _internal_mailbox() -> Mailbox:
     return Mailbox()
 
 
-@pytest.fixture()
+@pytest.fixture
 def _internal_sender(
     internal_record_q, internal_result_q, internal_process, _internal_mailbox
 ):
@@ -106,13 +103,13 @@ def _internal_sender(
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def _internal_context_keeper():
     context_keeper = context.ContextKeeper()
     yield context_keeper
 
 
-@pytest.fixture()
+@pytest.fixture
 def internal_sm(
     runner,
     internal_sender_q,
@@ -134,13 +131,13 @@ def internal_sm(
     yield helper
 
 
-@pytest.fixture()
+@pytest.fixture
 def stopped_event():
     stopped = threading.Event()
     yield stopped
 
 
-@pytest.fixture()
+@pytest.fixture
 def internal_hm(
     runner,
     internal_record_q,
@@ -166,7 +163,7 @@ def internal_hm(
     yield helper
 
 
-@pytest.fixture()
+@pytest.fixture
 def internal_wm(
     runner,
     internal_writer_q,
@@ -198,7 +195,7 @@ def internal_wm(
     yield helper
 
 
-@pytest.fixture()
+@pytest.fixture
 def internal_get_record():
     def _get_record(input_q, timeout=None):
         try:
@@ -210,7 +207,7 @@ def internal_get_record():
     return _get_record
 
 
-@pytest.fixture()
+@pytest.fixture
 def start_send_thread(
     internal_sender_q, internal_get_record, stopped_event, internal_process
 ):
@@ -239,7 +236,7 @@ def start_send_thread(
     stopped_event.set()
 
 
-@pytest.fixture()
+@pytest.fixture
 def start_write_thread(
     internal_writer_q, internal_get_record, stopped_event, internal_process
 ):
@@ -268,7 +265,7 @@ def start_write_thread(
     stopped_event.set()
 
 
-@pytest.fixture()
+@pytest.fixture
 def start_handle_thread(internal_record_q, internal_get_record, stopped_event):
     def start_handle(handle_manager):
         def target():
@@ -289,7 +286,7 @@ def start_handle_thread(internal_record_q, internal_get_record, stopped_event):
     stopped_event.set()
 
 
-@pytest.fixture()
+@pytest.fixture
 def _start_backend(
     internal_hm,
     internal_sm,
@@ -318,7 +315,7 @@ def _start_backend(
     yield start_backend_func
 
 
-@pytest.fixture()
+@pytest.fixture
 def _stop_backend(
     _internal_sender,
     # collect_responses,
@@ -336,7 +333,7 @@ def _stop_backend(
     yield stop_backend_func
 
 
-@pytest.fixture()
+@pytest.fixture
 def backend_interface(_start_backend, _stop_backend, _internal_sender):
     @contextmanager
     def backend_context(run, initial_run=True, initial_start=True):
@@ -409,81 +406,6 @@ def pytest_addoption(parser: pytest.Parser):
     )
 
 
-@dataclasses.dataclass(frozen=True)
-class LocalWandbBackendAddress:
-    _host: str
-    _base_port: int
-    _fixture_port: int
-
-    @property
-    def base_url(self) -> str:
-        return f"http://{self._host}:{self._base_port}"
-
-    @property
-    def fixture_service_url(self) -> str:
-        return f"http://{self._host}:{self._fixture_port}"
-
-
-@pytest.fixture(scope="session")
-def local_wandb_backend() -> LocalWandbBackendAddress:
-    """Fixture that starts up or connects to the local-testcontainer.
-
-    This does not patch WANDB_BASE_URL! Use `use_local_wandb_backend` instead.
-    """
-    return _local_wandb_backend(name="wandb-local-testcontainer")
-
-
-@pytest.fixture(scope="session")
-def local_wandb_backend_importers() -> LocalWandbBackendAddress:
-    """Fixture that starts up or connects to a second local-testcontainer.
-
-    This is used by importer tests, to move data between two backends.
-    """
-    return _local_wandb_backend(name="wandb-local-testcontainer-importers")
-
-
-def _local_wandb_backend(name: str) -> LocalWandbBackendAddress:
-    repo_root = pathlib.Path(__file__).parent.parent.parent
-    tool_file = repo_root / "tools" / "local_wandb_server.py"
-
-    result = subprocess.run(
-        [
-            "python",
-            tool_file,
-            "connect",
-            f"--name={name}",
-        ],
-        stdout=subprocess.PIPE,
-    )
-
-    if result.returncode != 0:
-        raise AssertionError(
-            "`python tools/local_wandb_server.py connect` failed. See stderr."
-            " Did you run `python tools/local_wandb_server.py start`?"
-        )
-
-    output = json.loads(result.stdout)
-    address = LocalWandbBackendAddress(
-        _host="localhost",
-        _base_port=int(output["base_port"]),
-        _fixture_port=int(output["fixture_port"]),
-    )
-    return address
-
-
-@pytest.fixture(scope="function")
-def use_local_wandb_backend(
-    local_wandb_backend: LocalWandbBackendAddress,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Fixture that patches WANDB_BASE_URL to point to the local container.
-
-    Unlike `local_wandb_backend`, this is function-scoped, so cannot be used
-    in session-scoped fixtures.
-    """
-    monkeypatch.setenv("WANDB_BASE_URL", local_wandb_backend.base_url)
-
-
 def determine_scope(fixture_name, config):
     return config.getoption("--user-scope")
 
@@ -493,115 +415,26 @@ def wandb_verbose(request):
     return request.config.getoption("--wandb-verbose", default=False)
 
 
-@dataclasses.dataclass
-class UserFixtureCommand:
-    command: Literal["up", "down", "down_all", "logout", "login", "password"]
-    username: Optional[str] = None
-    password: Optional[str] = None
-    admin: bool = False
-    method: Literal["post"] = "post"
-
-    def address(self, addr: LocalWandbBackendAddress) -> str:
-        return urllib.parse.urljoin(addr.fixture_service_url, "db/user")
-
-
-def random_string(length: int = 12) -> str:
-    """Generate a random string of a given length.
-
-    :param length: Length of the string to generate.
-    :return: Random string.
-    """
-    return "".join(
-        secrets.choice(string.ascii_lowercase + string.digits) for _ in range(length)
-    )
-
-
-@pytest.fixture(scope="session")
-def user_factory(worker_id: str):
-    def _user_factory(fixture_fn):
-        username = f"user-{worker_id}-{random_string()}"
-        command = UserFixtureCommand(command="up", username=username)
-        fixture_fn(command)
-        command = UserFixtureCommand(
-            command="password",
-            username=username,
-            password=username,
-        )
-        fixture_fn(command)
-
-        with unittest.mock.patch.dict(
-            os.environ,
-            {
-                "WANDB_API_KEY": username,
-                "WANDB_ENTITY": username,
-                "WANDB_USERNAME": username,
-            },
-        ):
-            yield username
-
-            command = UserFixtureCommand(
-                command="down",
-                username=username,
-            )
-            fixture_fn(command)
-
-    yield _user_factory
-
-
-@pytest.fixture(scope="session")
-def fixture_fn_factory():
-    def _fixture_fn_factory(address: LocalWandbBackendAddress):
-        def fixture_util(cmd: UserFixtureCommand) -> bool:
-            endpoint = cmd.address(address)
-
-            if isinstance(cmd, UserFixtureCommand):
-                data = {"command": cmd.command}
-                if cmd.username:
-                    data["username"] = cmd.username
-                if cmd.password:
-                    data["password"] = cmd.password
-                if cmd.admin is not None:
-                    data["admin"] = cmd.admin
-            else:
-                raise NotImplementedError(f"{cmd} is not implemented")
-
-            # trigger fixture
-            print(f"Triggering fixture on {endpoint}: {data}", file=sys.stderr)
-            response = getattr(requests, cmd.method)(endpoint, json=data)
-
-            if response.status_code != 200:
-                print(response.json(), file=sys.stderr)
-                return False
-            return True
-
-        # todo: remove this once testcontainer is available on Win
-        if platform.system() == "Windows":
-            pytest.skip("testcontainer is not available on Win")
-
-        yield fixture_util
-
-    yield _fixture_fn_factory
-
-
-@pytest.fixture(scope="session")
-def fixture_fn(fixture_fn_factory, local_wandb_backend):
-    yield from fixture_fn_factory(local_wandb_backend)
-
-
 @pytest.fixture(scope=determine_scope)
-def user(user_factory, fixture_fn, use_local_wandb_backend):
-    _ = use_local_wandb_backend
-    yield from user_factory(fixture_fn)
+def user(mocker, backend_fixture_factory) -> Iterator[str]:
+    username = backend_fixture_factory.make_user()
+    envvars = {
+        "WANDB_API_KEY": username,
+        "WANDB_ENTITY": username,
+        "WANDB_USERNAME": username,
+    }
+    mocker.patch.dict(os.environ, envvars)
+    yield username
 
 
 @pytest.fixture(scope="session")
 def wandb_backend_proxy_server(
-    local_wandb_backend: LocalWandbBackendAddress,
+    local_wandb_backend,
 ) -> Generator[WandbBackendProxy, None, None]:
     """Session fixture that starts up a proxy server for the W&B backend."""
     with spy_proxy(
-        target_host=local_wandb_backend._host,
-        target_port=local_wandb_backend._base_port,
+        target_host=local_wandb_backend.host,
+        target_port=local_wandb_backend.base_port,
     ) as proxy:
         yield proxy
 
@@ -644,7 +477,7 @@ def wandb_backend_spy(
 
 
 @pytest.fixture(scope="function")
-def relay_server(wandb_verbose, local_wandb_backend: LocalWandbBackendAddress):
+def relay_server(wandb_verbose, local_wandb_backend):
     """A context manager in which the backend is a RelayServer.
 
     NOTE: This is deprecated. Please use `wandb_backend_spy` instead.
@@ -655,7 +488,7 @@ def relay_server(wandb_verbose, local_wandb_backend: LocalWandbBackendAddress):
 
     @contextmanager
     def relay_server_context(
-        inject: Optional[List[InjectedResponse]] = None,
+        inject: list[InjectedResponse] | None = None,
     ) -> Iterator[RelayServer]:
         _relay_server = RelayServer(
             base_url=local_wandb_backend.base_url,
@@ -664,7 +497,7 @@ def relay_server(wandb_verbose, local_wandb_backend: LocalWandbBackendAddress):
         )
 
         _relay_server.start()
-        print(f"Relay server started at {_relay_server.relay_url}")
+        print(f"Relay server started at {_relay_server.relay_url}")  # noqa: T201
 
         with unittest.mock.patch.dict(
             os.environ,
@@ -672,20 +505,20 @@ def relay_server(wandb_verbose, local_wandb_backend: LocalWandbBackendAddress):
         ):
             yield _relay_server
 
-        print(f"Stopping relay server at {_relay_server.relay_url}")
+        print(f"Stopping relay server at {_relay_server.relay_url}")  # noqa: T201
 
     return relay_server_context
 
 
 @pytest.fixture(scope="function")
-def server_context(local_wandb_backend: LocalWandbBackendAddress):
+def server_context(local_wandb_backend):
     class ServerContext:
         def __init__(self) -> None:
             self.api = wandb.Api(
                 overrides={"base_url": local_wandb_backend.base_url},
             )
 
-        def get_run(self, run: "wandb.sdk.wandb_run.Run") -> "wandb.apis.public.Run":
+        def get_run(self, run: wandb.sdk.wandb_run.Run) -> wandb.apis.public.Run:
             return self.api.run(run.path)
 
     yield ServerContext()
@@ -694,7 +527,7 @@ def server_context(local_wandb_backend: LocalWandbBackendAddress):
 @pytest.fixture(scope="function")
 def inject_graphql_response(local_wandb_backend, user):
     def helper(
-        body: Union[str, Exception] = "{}",
+        body: str | Exception = "{}",
         status: int = 200,
         query_match_fn=None,
         application_pattern: str = "1",
@@ -710,7 +543,7 @@ def inject_graphql_response(local_wandb_backend, user):
         return InjectedResponse(
             # request
             method="POST",
-            url=urllib.parse.urljoin(local_wandb_backend.base_url, "/graphql"),
+            url=urljoin(local_wandb_backend.base_url, "/graphql"),
             custom_match_fn=match if query_match_fn else None,
             application_pattern=TokenizedCircularPattern(application_pattern),
             # response

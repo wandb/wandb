@@ -2027,7 +2027,7 @@ class Artifact:
             else:
                 ref_count += 1
         if ref_count > 0:
-            print("Warning: skipped verification of {} refs".format(ref_count))
+            termwarn(f"skipped verification of {ref_count} refs")
 
     @ensure_logged
     def file(self, root: str | None = None) -> StrPath:

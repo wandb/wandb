@@ -68,6 +68,7 @@ func streamLogger(
 	settings *settings.Settings,
 	sentryClient *sentry_ext.Client,
 	loggerPath string,
+	logLevel slog.Level,
 ) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
@@ -91,17 +92,6 @@ func streamLogger(
 	}
 	writer := io.MultiWriter(writers...)
 
-	// TODO: add a log level to the settings
-	level := slog.LevelInfo
-	if os.Getenv("WANDB_CORE_DEBUG") != "" {
-		level = slog.LevelDebug
-	}
-
-	opts := &slog.HandlerOptions{
-		Level: level,
-		// AddSource: true,
-	}
-
 	sentryClient.SetUser(
 		settings.GetEntity(),
 		settings.GetEmail(),
@@ -109,14 +99,22 @@ func streamLogger(
 	)
 
 	logger := observability.NewCoreLogger(
-		slog.New(slog.NewJSONHandler(writer, opts)),
-		observability.WithTags(observability.Tags{}),
-		observability.WithCaptureMessage(sentryClient.CaptureMessage),
-		observability.WithCaptureException(sentryClient.CaptureException),
-		observability.WithReraise(sentryClient.Reraise),
+		slog.New(slog.NewJSONHandler(
+			writer,
+			&slog.HandlerOptions{
+				Level: logLevel,
+				// AddSource: true,
+			},
+		)),
+		&observability.CoreLoggerParams{
+			Tags:   observability.Tags{},
+			Sentry: sentryClient,
+		},
 	)
-	logger.Info("using version", "core version", version.Version)
-	logger.Info("created symlink", "path", targetPath)
+	logger.Info("stream: starting",
+		"core version", version.Version,
+		"symlink path", targetPath,
+	)
 
 	tags := observability.Tags{
 		"run_id":   settings.GetRunID(),
@@ -132,75 +130,69 @@ func streamLogger(
 	return logger
 }
 
-type StreamOptions struct {
+type StreamParams struct {
 	Commit     string
 	Settings   *settings.Settings
 	Sentry     *sentry_ext.Client
 	LoggerPath string
+	LogLevel   slog.Level
 }
 
 // NewStream creates a new stream with the given settings and responders.
 func NewStream(
-	opts StreamOptions,
+	params StreamParams,
 ) *Stream {
 	operations := wboperation.NewOperations()
 
-	logger := streamLogger(opts.Settings, opts.Sentry, opts.LoggerPath)
+	logger := streamLogger(
+		params.Settings,
+		params.Sentry,
+		params.LoggerPath,
+		params.LogLevel,
+	)
 	s := &Stream{
 		runWork:      runwork.New(BufferSize, logger),
 		logger:       logger,
-		settings:     opts.Settings,
-		sentryClient: opts.Sentry,
-	}
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		// We log an error but continue anyway with an empty hostname string.
-		// Better behavior would be to inform the user and turn off any
-		// components that rely on the hostname, but it's not easy to do
-		// with our current code structure.
-		s.logger.CaptureError(
-			fmt.Errorf("stream: could not get hostname: %v", err))
-		hostname = ""
+		settings:     params.Settings,
+		sentryClient: params.Sentry,
 	}
 
 	// TODO: replace this with a logger that can be read by the user
 	peeker := &observability.Peeker{}
 	terminalPrinter := observability.NewPrinter()
 
-	backendOrNil := NewBackend(s.logger, opts.Settings)
+	backendOrNil := NewBackend(s.logger, params.Settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	fileWatcher := watcher.New(watcher.Params{Logger: s.logger})
 	tbHandler := tensorboard.NewTBHandler(tensorboard.Params{
 		ExtraWork: s.runWork,
 		Logger:    s.logger,
 		Settings:  s.settings,
-		Hostname:  hostname,
 	})
 	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
 	var runfilesUploaderOrNil runfiles.Uploader
 	if backendOrNil != nil {
-		graphqlClientOrNil = NewGraphQLClient(backendOrNil, opts.Settings, peeker)
+		graphqlClientOrNil = NewGraphQLClient(backendOrNil, params.Settings, peeker)
 		fileStreamOrNil = NewFileStream(
 			backendOrNil,
 			s.logger,
 			operations,
 			terminalPrinter,
-			opts.Settings,
+			params.Settings,
 			peeker,
 		)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileTransferStats,
 			s.logger,
-			opts.Settings,
+			params.Settings,
 		)
 		runfilesUploaderOrNil = NewRunfilesUploader(
 			s.runWork,
 			s.logger,
 			operations,
-			opts.Settings,
+			params.Settings,
 			fileStreamOrNil,
 			fileTransferManagerOrNil,
 			fileWatcher,
@@ -210,7 +202,7 @@ func NewStream(
 
 	mailbox := mailbox.New()
 
-	s.handler = NewHandler(opts.Commit,
+	s.handler = NewHandler(
 		HandlerParams{
 			Logger:            s.logger,
 			Operations:        operations,
@@ -222,6 +214,7 @@ func NewStream(
 			FileTransferStats: fileTransferStats,
 			Mailbox:           mailbox,
 			TerminalPrinter:   terminalPrinter,
+			Commit:            params.Commit,
 		},
 	)
 

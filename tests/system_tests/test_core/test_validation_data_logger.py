@@ -10,7 +10,6 @@ from wandb.sdk.integration_utils.data_logging import (
 
 def test_data_logger_val_data_lists(user):
     run = wandb.init()
-    print(run.settings)
     vd = ValidationDataLogger(
         inputs=np.array([[i, i, i] for i in range(10)]),
         targets=np.array([[i] for i in range(10)]),

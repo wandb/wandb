@@ -286,15 +286,13 @@ def test_run_history_keys_bad_arg(stub_run_gql_once, mock_wandb_log):
     mock_wandb_log.errored("keys argument must be a list of strings")
 
 
-def test_run_summary(user, relay_server):
+def test_run_summary(wandb_backend_spy):
     seed_run = Api().create_run()
+    run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+    run.summary.update({"cool": 1000})
 
-    with relay_server() as relay:
-        run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
-        run.summary.update({"cool": 1000})
-
-        result = json.loads(relay.context.get_run(run.storage_id)["summaryMetrics"])
-        assert result["cool"] == 1000
+    with wandb_backend_spy.freeze() as snapshot:
+        assert snapshot.summary(run_id=run.storage_id)["cool"] == 1000
 
 
 def test_run_create(user, relay_server):
@@ -429,7 +427,7 @@ def test_runs_from_path_index(wandb_backend_spy):
     assert len(runs.objects) == num_runs
 
 
-def test_runs_from_path(user, inject_graphql_response, relay_server):
+def test_runs_from_path(user, wandb_backend_spy):
     num_runs, per_page = 4, 2
     ratio = num_runs // per_page
     summary_metrics = {"acc": 100, "loss": 0}
@@ -459,23 +457,22 @@ def test_runs_from_path(user, inject_graphql_response, relay_server):
             },
         },
     }
-    inject_response = inject_graphql_response(
-        body=json.dumps(body),
-        query_match_fn=lambda query, _: "query Runs(" in query,
-        application_pattern="1" * ratio + "2",  # apply once and stop
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="Runs"),
+        gql.Constant(content=body),
     )
 
-    with relay_server(inject=[inject_response]):
-        runs = Api().runs(f"{user}/test", per_page=per_page)
+    runs = Api().runs(f"{user}/test", per_page=per_page)
 
-        assert len(runs) == 4
-        assert len(runs.objects) == 2
-        assert runs[0].summary_metrics == summary_metrics
-        assert runs[0].group == group
-        assert runs[0].job_type == job_type
+    assert len(runs) == 4
+    assert len(runs.objects) == 2
+    assert runs[0].summary_metrics == summary_metrics
+    assert runs[0].group == group
+    assert runs[0].job_type == job_type
 
 
-def test_projects(user, inject_graphql_response, relay_server):
+def test_projects(user, wandb_backend_spy):
     num_projects = 2
     body = {
         "data": {
@@ -492,18 +489,17 @@ def test_projects(user, inject_graphql_response, relay_server):
             },
         },
     }
-
-    inject_response = inject_graphql_response(
-        body=json.dumps(body),
-        query_match_fn=lambda query, _: "query Projects(" in query,
-        application_pattern="1",  # apply once and stop
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="Projects"),
+        gql.Constant(content=body),
     )
 
-    with relay_server(inject=[inject_response]):
-        projects = Api().projects(user)
-        # projects doesn't provide a length for now, so we iterate
-        # them all to count
-        assert sum([1 for _ in projects]) == 2
+    projects = Api().projects(user)
+
+    # projects doesn't provide a length for now, so we iterate
+    # them all to count
+    assert sum([1 for _ in projects]) == 2
 
 
 def test_delete_file(
@@ -545,8 +541,6 @@ def test_delete_file(
     run = Api().run(f"{user}/test/test")
     file = run.files()[0]
     file.delete()
-
-    print(file._server_accepts_project_id_for_delete_file())
 
     # For system tests on newer server version, the projectId is provided
     if file._server_accepts_project_id_for_delete_file():
@@ -609,16 +603,15 @@ def test_create_service_account(user, relay_server):
             team.create_service_account("My service account")
 
 
-def test_create_team_exists(relay_server, inject_graphql_response):
-    inject_response = inject_graphql_response(
-        body=json.dumps({"error": "resource already exists"}),
-        status=409,
-        query_match_fn=lambda query, _: True,
-        application_pattern="1",
+def test_create_team_exists(wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.any(),
+        gql.Constant(content={"error": "resource already exists"}, status=409),
     )
-    with relay_server(inject=[inject_response]):
-        with pytest.raises(requests.exceptions.HTTPError):
-            Api().create_team("test")
+
+    with pytest.raises(requests.exceptions.HTTPError):
+        Api().create_team("test")
 
 
 def test_query_user(relay_server, inject_users):
@@ -634,10 +627,12 @@ def test_query_user(relay_server, inject_users):
         assert repr(u) == f"<User {email}>"
 
 
-def test_create_team(relay_server, inject_graphql_response):
-    inject_response = inject_graphql_response(
-        body=json.dumps(
-            {
+def test_create_team(wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="CreateTeam"),
+        gql.Constant(
+            content={
                 "data": {
                     "createTeam": {
                         "team": {
@@ -645,15 +640,14 @@ def test_create_team(relay_server, inject_graphql_response):
                         },
                     },
                 },
-            },
+            }
         ),
-        query_match_fn=lambda query, _: "mutation CreateTeam(" in query,
-        application_pattern="1",
     )
-    with relay_server(inject=[inject_response]):
-        t = Api().create_team("test")
-        assert t.name == "test"
-        assert repr(t) == "<Team test>"
+
+    t = Api().create_team("test")
+
+    assert t.name == "test"
+    assert repr(t) == "<Team test>"
 
 
 def test_delete_api_key(relay_server, inject_users, inject_graphql_response):

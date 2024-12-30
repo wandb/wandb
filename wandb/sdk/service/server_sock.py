@@ -4,6 +4,7 @@ import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
+import wandb
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.internal.settings_static import SettingsStatic
 
@@ -225,7 +226,7 @@ class DebugThread(threading.Thread):
         while True:
             time.sleep(30)
             for thread in threading.enumerate():
-                print(f"DEBUG: {thread.name}")
+                wandb.termwarn(f"DEBUG: {thread.name}")
 
 
 class SocketServer:
@@ -266,7 +267,7 @@ class SocketServer:
                 # socket.shutdown() is a more heavy handed approach to interrupting socket.accept()
                 # in the future we might want to consider a more graceful shutdown which would involve setting
                 # a threading Event and then initiating one last connection just to close down the thread
-                # The advantage of the heavy handed approach is that it doesnt depend on the threads functioning
+                # The advantage of the heavy handed approach is that it does not depend on the threads functioning
                 # properly, that is, if something has gone wrong, we probably want to use this hammer to shut things down
                 self._sock.shutdown(socket.SHUT_RDWR)
             except OSError:
