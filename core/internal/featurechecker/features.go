@@ -10,8 +10,10 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// ServerFeaturesCache is responsible for providing the capabilities of a server
-// Features and capabilities are retrieved from the server via a GraphQL query
+// ServerFeaturesCache is responsible for providing the capabilities of a server.
+//
+// Server features are loaded only once per stream and cached for the lifetime of the stream.
+// This prevents unnecessary network.
 type ServerFeaturesCache struct {
 	ctx           context.Context
 	features      map[spb.ServerFeature]Feature
@@ -20,9 +22,28 @@ type ServerFeaturesCache struct {
 	once          sync.Once
 }
 
+// Feature represents a server capability that is either enabled or disabled.
+//
+// This is used to determine if certain functionality is available on the server,
+// and gate code paths within the SDK.
 type Feature struct {
 	Enabled bool
 	Name    string
+}
+
+func NewServerFeaturesCachePreloaded(features map[spb.ServerFeature]Feature) *ServerFeaturesCache {
+	sf := &ServerFeaturesCache{
+		ctx:           context.Background(),
+		graphqlClient: nil,
+		logger:        observability.NewNoOpLogger(),
+		once:          sync.Once{},
+	}
+
+	sf.once.Do(func() {
+		sf.features = features
+	})
+
+	return sf
 }
 
 func NewServerFeaturesCache(
