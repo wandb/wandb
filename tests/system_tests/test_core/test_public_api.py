@@ -611,7 +611,7 @@ def fake_search_users_response(
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def stub_search_users(wandb_backend_spy):
     """Fixture to stub a SearchUsers GraphQL query."""
     gql = wandb_backend_spy.gql
