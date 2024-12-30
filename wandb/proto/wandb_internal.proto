@@ -1380,8 +1380,6 @@ message JobInputRequest {
   string input_schema = 4;
 }
 
-// ServerFeatures related protobufs
-
 enum ServerFeature {
   LARGE_FILENAMES = 0;
   ARTIFACT_TAGS = 1;
@@ -1389,8 +1387,7 @@ enum ServerFeature {
 }
 
 /**
- * ServerFeatureRequest: request to the backend server for the features it supports.
- * including the details of the feature provided by the server.
+ * A request to the backend process for the features supported by the server.
  */
 message ServerFeatureRequest {
   ServerFeature feature = 1;
@@ -1398,15 +1395,14 @@ message ServerFeatureRequest {
 }
 
 /**
- * ServerFeatureResponse: response from the backend server for the features it
- * supports. including the details of the feature provided by the server.
+ * A response to a ServerFeatureRequest with the status of each requested feature.
  */
 message ServerFeatureResponse {
   ServerFeatureItem feature = 1;
 }
 
 /**
- * ServerFeatureItem: details of a feature provided by the server.
+ * The feature details to be requested in a ServerFeatureRequest.
  */
 message ServerFeatureItem {
   string name = 1;
