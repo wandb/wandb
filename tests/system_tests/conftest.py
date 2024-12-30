@@ -6,9 +6,6 @@ from pathlib import Path
 from typing import Generator, Iterator
 
 import pytest
-import wandb
-import wandb.old.settings
-import wandb.util
 
 from .wandb_backend_spy import WandbBackendProxy, WandbBackendSpy, spy_proxy
 
@@ -463,17 +460,3 @@ def wandb_backend_spy(
 
     with wandb_backend_proxy_server.spy() as spy:
         yield spy
-
-
-@pytest.fixture(scope="function")
-def server_context(local_wandb_backend):
-    class ServerContext:
-        def __init__(self) -> None:
-            self.api = wandb.Api(
-                overrides={"base_url": local_wandb_backend.base_url},
-            )
-
-        def get_run(self, run: wandb.sdk.wandb_run.Run) -> wandb.apis.public.Run:
-            return self.api.run(run.path)
-
-    yield ServerContext()
