@@ -3,10 +3,11 @@ from unittest import mock
 
 import pytest
 import wandb
+from pytest_mock import MockerFixture
 
 
 @pytest.fixture
-def sample_data():
+def sample_data() -> wandb.Artifact:
     artifact = wandb.Artifact("boom-data", type="dataset")
     artifact.save()
     artifact.wait()
@@ -227,6 +228,54 @@ def test_use_artifact(user, test_settings):
         run.use_artifact(artifact)
         artifact.wait()
         assert artifact.digest == "64e7c61456b10382e2f3b571ac24b659"
+
+
+@pytest.mark.filterwarnings("error::UserWarning")
+def test_artifact_used_by_warns_on_returning_max_results(mocker: MockerFixture, user):
+    from wandb.apis import public
+
+    max_results = wandb.Artifact._MAX_USEDBY_RUNS
+
+    # Log the artifact in an initial run
+    with wandb.init() as run0:
+        artifact = wandb.Artifact("test-artifact", type="test-type")
+        run0.log_artifact(artifact)
+        artifact.wait()
+
+    # WORKAROUND: Ideally, we'd test the emitted warning after using the artifact from 500 separate runs.
+    # However, at the time of implementation, there is not an obvious quick AND race-condition safe way to create ~500 new runs during setup.
+    #
+    # As an acceptable workaround, we'll patch the GQL response parsed by `Artifact.used_by()` to return a fake response with ~500 placeholder
+    # runs instead.
+    def make_mock_run_edge_data(i: int) -> dict:
+        return {
+            "node": {
+                "name": f"run-{i}",
+                "project": {"name": "uncategorized", "entityName": user},
+            }
+        }
+
+    mock_response_data = {
+        "artifact": {
+            "usedBy": {
+                "edges": [make_mock_run_edge_data(i) for i in range(max_results)]
+            }
+        }
+    }
+
+    patched_client_execute = mocker.patch.object(
+        artifact._client,
+        "execute",
+        return_value=mock_response_data,
+    )
+    # WORKAROUND: Patch Run.load() which is called on instantiation but irrelevant to behavior being tested here
+    patched_run_load = mocker.patch.object(public.runs.Run, "load", autospec=True)
+
+    with pytest.warns(UserWarning):
+        assert len(artifact.used_by()) == max_results
+
+    mocker.stop(patched_run_load)
+    mocker.stop(patched_client_execute)
 
 
 def test_public_artifact_run_config_init(user, sample_data, test_settings):
