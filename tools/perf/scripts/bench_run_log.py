@@ -184,6 +184,8 @@ class Experiment:
         data_type: The wandb data type to log.
         is_unique_payload: Whether to use a new set of metrics or reuse the same set for each step.
         time_delay_second: Sleep time between step.
+        run_id: ID of the existing run to resume from.
+        resume_mode: The mode of resuming. Used when run_id is passed in.
 
     When to set "is_unique_payload" to True?
 
@@ -204,6 +206,8 @@ class Experiment:
         data_type: Literal["scalar", "audio", "video", "image", "table"] = "scalar",
         is_unique_payload: bool = False,
         time_delay_second: float = 0.0,
+        run_id: str = "",
+        resume_mode: str = "must",
     ):
         self.num_steps = num_steps
         self.num_metrics = num_metrics
@@ -212,6 +216,8 @@ class Experiment:
         self.data_type = data_type
         self.is_unique_payload = is_unique_payload
         self.time_delay_second = time_delay_second
+        self.run_id = run_id
+        self.resume_mode = resume_mode
 
     def run(self, repeat: int = 1):
         for _ in range(repeat):
@@ -235,11 +241,22 @@ class Experiment:
 
         # Initialize W&B
         with Timer() as timer:
-            run = wandb.init(
-                project="perf-test",
-                name=f"perf_run={start_time_str}_steps={self.num_steps}_metrics={self.num_metrics}",
-                config=result_data,
-            )
+            if self.run_id == "":
+                run = wandb.init(
+                    project="perf-test",
+                    name=f"perf_run={start_time_str}_steps={self.num_steps}_metrics={self.num_metrics}",
+                    config=result_data,
+                )
+                logger.info(f"New run {run.id} initialized")
+
+            else:
+                logger.info(f"Resuming run {self.run_id} with {self.resume_mode}.")
+                run = wandb.init(
+                    project="perf-test",
+                    id=self.run_id,
+                    resume=self.resume_mode,
+                )
+
             result_data["init_time"] = timer.stop()
 
         # pre-generate all the payloads
@@ -416,6 +433,23 @@ if __name__ == "__main__":
         help="e.g. -t 1.0  Sleep time in seconds between each step.",
     )
 
+    parser.add_argument(
+        "-i",
+        "--run-id",
+        type=str,
+        default="",
+        help="e.g. -i 123abc to resume this run id. Run ID must exist.",
+    )
+
+    parser.add_argument(
+        "-j",
+        "--resume-mode",
+        type=str,
+        choices=["must", "allow", "never"],
+        default="must",
+        help="Use with --run-id. The resume mode.",
+    )
+
     args = parser.parse_args()
 
     Experiment(
@@ -426,4 +460,6 @@ if __name__ == "__main__":
         data_type=args.data_type,
         is_unique_payload=args.unique_payload,
         time_delay_second=args.time_delay_second,
+        run_id=args.run_id,
+        resume_mode=args.resume_mode,
     ).run(args.repeat)

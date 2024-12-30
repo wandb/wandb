@@ -20,14 +20,9 @@ def determine_scope(fixture_name, config):
     return config.getoption("--user-scope")
 
 
-@pytest.fixture(scope="session")
-def fixture_fn2(local_wandb_backend_importers, fixture_fn_factory):
-    yield from fixture_fn_factory(local_wandb_backend_importers)
-
-
 @pytest.fixture(scope=determine_scope)
-def user2(user_factory, fixture_fn2):
-    yield from user_factory(fixture_fn2)
+def user2(backend_importers_fixture_factory):
+    return backend_importers_fixture_factory.make_user()
 
 
 @pytest.fixture
