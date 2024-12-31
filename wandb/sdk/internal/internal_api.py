@@ -484,7 +484,8 @@ class Api:
                 {
                     "entity": "models",
                     "base_url": "https://api.wandb.ai",
-                    "project": None
+                    "project": None,
+                    "organization": "my-org",
                 }
         """
         result = self.default_settings.copy()
@@ -496,6 +497,14 @@ class Api:
                         Settings.DEFAULT_SECTION,
                         "entity",
                         fallback=result.get("entity"),
+                    ),
+                    env=self._environ,
+                ),
+                "organization": env.get_organization(
+                    self._settings.get(
+                        Settings.DEFAULT_SECTION,
+                        "organization",
+                        fallback=result.get("organization"),
                     ),
                     env=self._environ,
                 ),
