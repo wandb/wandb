@@ -2428,10 +2428,6 @@ class Run:
             self._output_writer.close()
             self._output_writer = None
 
-    def _on_init(self) -> None:
-        if self._settings._offline:
-            return
-
     def _on_start(self) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
         # (we want to do the set globals after attach)
