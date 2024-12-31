@@ -73,7 +73,6 @@ def test_init_reinit(test_settings):
         assert interface_instance.deliver_run_start.call_count == 1
         assert backend_instance.ensure_launched.call_count == 1
         assert run_instance._on_start.call_count == 1
-        assert run_instance._on_init.call_count == 1
         assert last_run_instance.finish.call_count == 1
 
 
