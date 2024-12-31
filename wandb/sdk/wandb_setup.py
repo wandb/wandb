@@ -82,8 +82,8 @@ def _set_logger(log_object: Logger) -> None:
     logger = log_object
 
 
-class _WandbSetup__WandbSetup:  # noqa: N801
-    """Inner class of _WandbSetup."""
+class _WandbSetup:
+    """W&B library singleton."""
 
     def __init__(
         self,
@@ -284,31 +284,11 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         return self._connection
 
 
-class _WandbSetup:
-    """Wandb singleton class.
+_singleton: _WandbSetup | None = None
+"""The W&B library singleton, or None if not yet set up.
 
-    Note: This is a process local singleton.
-    (Forked processes will get a new copy of the object)
-    """
-
-    _instance: _WandbSetup__WandbSetup | None = None
-
-    def __init__(self, settings: Settings | None = None) -> None:
-        pid = os.getpid()
-        if _WandbSetup._instance and _WandbSetup._instance._pid == pid:
-            _WandbSetup._instance._update(settings=settings)
-            return
-        _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid)
-
-    @property
-    def service(self) -> ServiceConnection | None:
-        """Returns a connection to the service process, if it exists."""
-        if not self._instance:
-            return None
-        return self._instance.service
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._instance, name)
+The value is invalid and must not be used if `os.getpid() != _singleton._pid`.
+"""
 
 
 def _setup(
@@ -316,12 +296,20 @@ def _setup(
     _reset: bool = False,
 ) -> _WandbSetup | None:
     """Set up library context."""
+    global _singleton
+
     if _reset:
         teardown()
         return None
 
-    wl = _WandbSetup(settings=settings)
-    return wl
+    pid = os.getpid()
+
+    if _singleton and _singleton._pid == pid:
+        _singleton._update(settings=settings)
+        return _singleton
+    else:
+        _singleton = _WandbSetup(settings=settings, pid=pid)
+        return _singleton
 
 
 def setup(settings: Settings | None = None) -> _WandbSetup | None:
@@ -395,8 +383,10 @@ def teardown(exit_code: int | None = None) -> None:
     in an `atexit` hook, but this is not reliable in certain setups
     such as when using Python's `multiprocessing` module.
     """
-    setup_instance = _WandbSetup._instance
-    _WandbSetup._instance = None
+    global _singleton
 
-    if setup_instance:
-        setup_instance._teardown(exit_code=exit_code)
+    orig_singleton = _singleton
+    _singleton = None
+
+    if orig_singleton:
+        orig_singleton._teardown(exit_code=exit_code)
