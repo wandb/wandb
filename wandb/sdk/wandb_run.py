@@ -3267,7 +3267,7 @@ class Run:
         use_after_commit: bool = False,
     ) -> Artifact:
         api = internal.Api()
-        if api.settings().get("anonymous") == "true":
+        if api.settings().get("anonymous") in ["allow", "must"]:
             wandb.termwarn(
                 "Artifacts logged anonymously cannot be claimed and expire after 7 days."
             )
@@ -3864,8 +3864,8 @@ class Run:
             f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
         )
 
-        # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
-        if run_name and Api().api.settings().get("anonymous") == "true":
+        # TODO(settings) use `wandb_settings` (if self.settings.anonymous in ["allow", "must"]:)
+        if run_name and Api().api.settings().get("anonymous") in ["allow", "must"]:
             printer.display(
                 (
                     "Do NOT share these links with anyone."
