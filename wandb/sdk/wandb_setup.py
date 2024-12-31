@@ -291,6 +291,17 @@ The value is invalid and must not be used if `os.getpid() != _singleton._pid`.
 """
 
 
+def singleton() -> _WandbSetup | None:
+    """Returns the W&B singleton if it exists for the current process.
+
+    Unlike setup(), this does not create the singleton if it doesn't exist.
+    """
+    if _singleton and _singleton._pid == os.getpid():
+        return _singleton
+    else:
+        return None
+
+
 def _setup(
     settings: Settings | None = None,
     _reset: bool = False,
