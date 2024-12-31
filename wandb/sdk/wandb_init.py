@@ -871,8 +871,6 @@ class _WandbInit:
                 tel.feature.resumed = run_result.run.resumed
         run._set_run_obj(run_result.run)
 
-        run._on_init()
-
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
 
