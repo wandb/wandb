@@ -48,10 +48,10 @@ from .wandb_settings import Settings
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2 as pb
 
-logger: logging.Logger | None = None  # logger configured during wandb.init()
+logger: wandb_setup.Logger | None = None  # logger configured during wandb.init()
 
 
-def _set_logger(log_object: logging.Logger) -> None:
+def _set_logger(log_object: wandb_setup.Logger | None) -> None:
     """Configure module logger."""
     global logger
     logger = log_object
@@ -139,7 +139,7 @@ class _WandbInit:
         Any settings from environment variables set after the singleton is initialized
         (via login/setup/etc.) will be ignored.
         """
-        singleton = wandb_setup._WandbSetup._instance
+        singleton = wandb_setup.singleton()
         if singleton is None:
             return
 
@@ -379,7 +379,7 @@ class _WandbInit:
         )
 
         handler.setFormatter(formatter)
-        assert logger is not None
+        assert isinstance(logger, logging.Logger)
         logger.propagate = False
         logger.addHandler(handler)
         # TODO: make me configurable
