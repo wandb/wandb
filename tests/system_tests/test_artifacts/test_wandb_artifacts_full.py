@@ -11,6 +11,7 @@ import wandb
 from wandb import Api, Artifact
 from wandb.errors import CommError
 from wandb.sdk.artifacts import artifact_file_cache
+from wandb.sdk.artifacts._validators import ARTIFACT_NAME_MAXLEN
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib.hashutil import md5_string
@@ -72,6 +73,29 @@ def test_artifact_error_for_invalid_aliases(user):
         run.log_artifact(artifact, aliases=aliases)
 
     run.finish()
+
+
+@pytest.mark.parametrize(
+    "invalid_name",
+    [
+        "a" * (ARTIFACT_NAME_MAXLEN + 1),  # Name too long
+        "my/artifact",  # Invalid character(s)
+    ],
+)
+def test_artifact_error_for_invalid_name(tmp_path, user, api, invalid_name):
+    """When logging a *file*, passing an invalid artifact name to `Run.log_artifact()` should raise an error."""
+    file_path = tmp_path / "test.txt"
+    file_path.write_text("test data")
+
+    # It should not be possible to log the artifact
+    with pytest.raises(ValueError):
+        with wandb.init() as run:
+            logged = run.log_artifact(file_path, name=invalid_name)
+            logged.wait()
+
+    # It should not be possible to retrieve the artifact either
+    with pytest.raises(CommError):
+        _ = api.artifact(f"{invalid_name}:latest")
 
 
 def test_artifact_upsert_no_id(user):
