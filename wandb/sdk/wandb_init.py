@@ -48,10 +48,10 @@ from .wandb_settings import Settings
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2 as pb
 
-logger: logging.Logger | None = None  # logger configured during wandb.init()
+logger: wandb_setup.Logger | None = None  # logger configured during wandb.init()
 
 
-def _set_logger(log_object: logging.Logger) -> None:
+def _set_logger(log_object: wandb_setup.Logger | None) -> None:
     """Configure module logger."""
     global logger
     logger = log_object
@@ -139,7 +139,7 @@ class _WandbInit:
         Any settings from environment variables set after the singleton is initialized
         (via login/setup/etc.) will be ignored.
         """
-        singleton = wandb_setup._WandbSetup._instance
+        singleton = wandb_setup.singleton()
         if singleton is None:
             return
 
@@ -364,7 +364,7 @@ class _WandbInit:
             else:
                 config_target.setdefault(k, v)
 
-    def _enable_logging(self, log_fname: str, run_id: str | None = None) -> None:
+    def _enable_logging(self, log_fname: str) -> None:
         """Enable logging to the global debug log.
 
         This adds a run_id to the log, in case of multiple processes on the same machine.
@@ -373,26 +373,13 @@ class _WandbInit:
         handler = logging.FileHandler(log_fname)
         handler.setLevel(logging.INFO)
 
-        class WBFilter(logging.Filter):
-            def filter(self, record: logging.LogRecord) -> bool:
-                record.run_id = run_id
-                return True
-
-        if run_id:
-            formatter = logging.Formatter(
-                "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
-                "[%(run_id)s:%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
-            )
-        else:
-            formatter = logging.Formatter(
-                "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
-                "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
-            )
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
+            "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
+        )
 
         handler.setFormatter(formatter)
-        if run_id:
-            handler.addFilter(WBFilter())
-        assert logger is not None
+        assert isinstance(logger, logging.Logger)
         logger.propagate = False
         logger.addHandler(handler)
         # TODO: make me configurable
@@ -870,8 +857,6 @@ class _WandbInit:
             with telemetry.context(run=run) as tel:
                 tel.feature.resumed = run_result.run.resumed
         run._set_run_obj(run_result.run)
-
-        run._on_init()
 
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
