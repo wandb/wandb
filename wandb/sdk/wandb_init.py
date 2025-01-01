@@ -364,7 +364,7 @@ class _WandbInit:
             else:
                 config_target.setdefault(k, v)
 
-    def _enable_logging(self, log_fname: str, run_id: str | None = None) -> None:
+    def _enable_logging(self, log_fname: str) -> None:
         """Enable logging to the global debug log.
 
         This adds a run_id to the log, in case of multiple processes on the same machine.
@@ -373,25 +373,12 @@ class _WandbInit:
         handler = logging.FileHandler(log_fname)
         handler.setLevel(logging.INFO)
 
-        class WBFilter(logging.Filter):
-            def filter(self, record: logging.LogRecord) -> bool:
-                record.run_id = run_id
-                return True
-
-        if run_id:
-            formatter = logging.Formatter(
-                "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
-                "[%(run_id)s:%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
-            )
-        else:
-            formatter = logging.Formatter(
-                "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
-                "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
-            )
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
+            "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
+        )
 
         handler.setFormatter(formatter)
-        if run_id:
-            handler.addFilter(WBFilter())
         assert logger is not None
         logger.propagate = False
         logger.addHandler(handler)
