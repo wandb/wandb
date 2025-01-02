@@ -199,7 +199,7 @@ class _WandbInit:
         _set_logger(self._wl._get_logger())
 
         # Start with settings from wandb library singleton
-        settings = self._wl.settings.copy()
+        settings = self._wl.settings.model_copy()
 
         # handle custom sweep- and launch-related logic for init settings
         if settings.sweep_id:

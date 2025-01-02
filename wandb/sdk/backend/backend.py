@@ -145,7 +145,7 @@ class Backend:
             return
 
         assert self._settings
-        settings = self._settings.copy()
+        settings = self._settings.model_copy()
         settings.x_log_level = self._log_level or logging.DEBUG
 
         start_method = settings.start_method
