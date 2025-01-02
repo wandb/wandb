@@ -26,6 +26,7 @@ from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
+from wandb.apis.public.registry import Registries
 from wandb.apis.public.utils import PathType, parse_org_from_registry_path
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -1388,3 +1389,13 @@ class Api:
             return True
         except wandb.errors.CommError:
             return False
+
+    def registries(
+        self, organization_name: Optional[str], filter: Optional[Dict[str, Any]] = None
+    ) -> Registries:
+        """Return a registry iterator. TODO add more docs."""
+        if organization_name is None:
+            organization_name = self.settings["organization"]
+        if organization_name is None:
+            raise ValueError("No organization name specified")
+        return Registries(self.client, organization_name, filter)
