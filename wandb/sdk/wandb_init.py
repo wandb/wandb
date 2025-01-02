@@ -182,20 +182,8 @@ class _WandbInit:
         """
         self.warn_env_vars_change_after_setup()
 
-        # mode="disabled" is a special case where we don't want to start wandb-core
-        setup_settings_dict: dict[str, Any] = {}
-        if init_settings.mode == "disabled":
-            setup_settings_dict["mode"] = init_settings.mode
-        # TODO: x_disable_service is deprecated, remove this once officially deprecated
-        if init_settings.x_disable_service:
-            setup_settings_dict["x_disable_service"] = init_settings.x_disable_service
-        setup_settings = (
-            wandb.Settings(**setup_settings_dict) if setup_settings_dict else None
-        )
+        self._wl = wandb.setup()
 
-        self._wl = wandb.setup(settings=setup_settings)
-
-        assert self._wl is not None
         _set_logger(self._wl._get_logger())
 
         # Start with settings from wandb library singleton
