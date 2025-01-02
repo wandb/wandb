@@ -961,7 +961,7 @@ class Settings(BaseModel, validate_assignment=True):
     # The Settings class does not track the source of the settings,
     # so it is up to the developer to ensure that the settings are applied
     # in the correct order. Most of the updates are done in
-    # wandb/sdk/wandb_setup.py::_WandbSetup__WandbSetup._settings_setup.
+    # wandb/sdk/wandb_setup.py::_WandbSetup._settings_setup.
 
     def update_from_system_config_file(self):
         """Update settings from the system config file."""
