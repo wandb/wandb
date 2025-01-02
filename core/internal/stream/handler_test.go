@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -18,6 +19,7 @@ func makeHandler(
 	inChan, fwdChan chan runwork.Work,
 	outChan chan *spb.Result,
 	commit string,
+	featureProvider *featurechecker.ServerFeaturesCache,
 ) *stream.Handler {
 	h := stream.NewHandler(
 		stream.HandlerParams{
@@ -28,6 +30,7 @@ func makeHandler(
 			TerminalPrinter: observability.NewPrinter(),
 			SkipSummary:     true,
 			Commit:          commit,
+			FeatureProvider: featureProvider,
 		},
 	)
 
@@ -681,7 +684,7 @@ func TestHandlePartialHistory(t *testing.T) {
 			fwdChan := make(chan runwork.Work, stream.BufferSize)
 			outChan := make(chan *spb.Result, stream.BufferSize)
 
-			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
+			makeHandler(inChan, fwdChan, outChan, "" /*commit*/, nil)
 
 			for _, d := range tc.input {
 				record := makePartialHistoryRecord(d)
@@ -781,7 +784,7 @@ func TestHandleHistory(t *testing.T) {
 			fwdChan := make(chan runwork.Work, stream.BufferSize)
 			outChan := make(chan *spb.Result, stream.BufferSize)
 
-			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
+			makeHandler(inChan, fwdChan, outChan, "" /*commit*/, nil)
 
 			for _, d := range tc.input {
 				record := makeHistoryRecord(d)
@@ -817,7 +820,7 @@ func TestHandleHeader(t *testing.T) {
 
 	sha := "2a7314df06ab73a741dcb7bc5ecb50cda150b077"
 
-	makeHandler(inChan, fwdChan, outChan, sha)
+	makeHandler(inChan, fwdChan, outChan, sha, nil)
 
 	record := &spb.Record{
 		RecordType: &spb.Record_Header{
@@ -830,4 +833,93 @@ func TestHandleHeader(t *testing.T) {
 
 	versionInfo := fmt.Sprintf("%s+%s", version.Version, sha)
 	assert.Equal(t, versionInfo, record.GetHeader().GetVersionInfo().GetProducer(), "wrong version info")
+}
+
+func TestHandleServerFeatures(t *testing.T) {
+	featureProvider := featurechecker.NewServerFeaturesCachePreloaded(
+		map[spb.ServerFeature]featurechecker.Feature{
+			spb.ServerFeature_LARGE_FILENAMES: {Enabled: true},
+			spb.ServerFeature_ARTIFACT_TAGS:   {Enabled: false},
+		},
+	)
+
+	inChan := make(chan runwork.Work, 2)
+	outChan := make(chan *spb.Result, 2)
+
+	// Create and send server feature request record
+	inChan <- runwork.WorkRecord{Record: &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_ServerFeature{
+					ServerFeature: &spb.ServerFeatureRequest{
+						Feature: spb.ServerFeature_LARGE_FILENAMES,
+					},
+				},
+			},
+		},
+	}}
+
+	inChan <- runwork.WorkRecord{Record: &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_ServerFeature{
+					ServerFeature: &spb.ServerFeatureRequest{
+						Feature: spb.ServerFeature_ARTIFACT_TAGS,
+					},
+				},
+			},
+		},
+	}}
+
+	// Send the record to the handler
+	// Use nil for fwdChan because we expect the handler to not forward any records
+	makeHandler(inChan, nil, outChan, "", featureProvider)
+
+	// Assert the response is the correct value
+	result := <-outChan
+	enabledFeatureResponse := result.GetResponse().GetServerFeatureResponse()
+	assert.NotNil(t, enabledFeatureResponse)
+	assert.True(t, enabledFeatureResponse.GetFeature().Enabled)
+
+	result = <-outChan
+	disabledFeatureResponse := result.GetResponse().GetServerFeatureResponse()
+	assert.NotNil(t, disabledFeatureResponse)
+	assert.False(t, disabledFeatureResponse.GetFeature().Enabled)
+}
+
+func TestHandleServerFeaturesNoFeatures(t *testing.T) {
+	const UNKNOWN_FEATURE = -1
+
+	inChan := make(chan runwork.Work, 1)
+	outChan := make(chan *spb.Result, 1)
+	featureProvider := featurechecker.NewServerFeaturesCachePreloaded(
+		map[spb.ServerFeature]featurechecker.Feature{
+			spb.ServerFeature_LARGE_FILENAMES: {Enabled: true},
+			spb.ServerFeature_ARTIFACT_TAGS:   {Enabled: false},
+		},
+	)
+
+	// Create and send server feature request record
+	inChan <- runwork.WorkRecord{Record: &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_ServerFeature{
+					ServerFeature: &spb.ServerFeatureRequest{
+						Feature: UNKNOWN_FEATURE,
+					},
+				},
+			},
+		},
+	}}
+
+	// Send the record to the handler
+	// Use nil for fwdChan because we expect the handler to not forward any records
+	makeHandler(inChan, nil, outChan, "", featureProvider)
+
+	// Assert default value enabled is false
+	result := <-outChan
+	fmt.Println(result)
+	serverFeatureResponse := result.GetResponse().GetServerFeatureResponse()
+	assert.NotNil(t, serverFeatureResponse)
+	assert.False(t, serverFeatureResponse.GetFeature().Enabled)
 }

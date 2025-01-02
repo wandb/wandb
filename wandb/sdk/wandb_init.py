@@ -193,13 +193,13 @@ class _WandbInit:
             wandb.Settings(**setup_settings_dict) if setup_settings_dict else None
         )
 
-        self._wl = wandb_setup.setup(settings=setup_settings)
+        self._wl = wandb.setup(settings=setup_settings)
 
         assert self._wl is not None
         _set_logger(self._wl._get_logger())
 
         # Start with settings from wandb library singleton
-        settings = self._wl.settings.copy()
+        settings = self._wl.settings.model_copy()
 
         # handle custom sweep- and launch-related logic for init settings
         if settings.sweep_id:
@@ -296,7 +296,6 @@ class _WandbInit:
 
         # apply updated global state after login was handled
         wl = wandb.setup()
-        assert wl is not None
         login_settings = {
             k: v
             for k, v in {
@@ -930,8 +929,7 @@ def _attach(
         )
     wandb._assert_is_user_process()  # type: ignore
 
-    _wl = wandb_setup._setup()
-    assert _wl
+    _wl = wandb.setup()
 
     _set_logger(_wl._get_logger())
     if logger is None:
