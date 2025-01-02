@@ -1,7 +1,6 @@
 """Public API: regsitries."""
 
 import json
-from dataclasses import dataclass
 from typing import Any, Dict, Iterator, Optional
 
 from wandb_gql import gql
