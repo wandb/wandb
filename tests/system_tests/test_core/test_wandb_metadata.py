@@ -37,7 +37,6 @@ def test_metadata_ops(user, disabled: bool):
     run.finish()
 
 
-@pytest.mark.wandb_core_only
 def test_metadata_access(user):
     with wandb.init() as run:
         run.log({"acc": 1})
