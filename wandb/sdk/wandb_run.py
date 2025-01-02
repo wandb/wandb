@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import atexit
 import functools
 import glob
 import json
@@ -2413,6 +2414,12 @@ class Run:
     def _console_start(self) -> None:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
+
+        if self._wl and self._wl.settings.x_disable_service:
+            self._hooks.hook()
+            # NB: manager will perform atexit hook like behavior for outstanding runs
+            atexit.register(lambda: self._atexit_cleanup())
+
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self) -> None:
