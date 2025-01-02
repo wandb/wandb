@@ -125,7 +125,7 @@ def _get_cling_api(reset=None):
     global _api
     if reset:
         _api = None
-        wandb_sdk.wandb_setup._setup(_reset=True)
+        wandb.teardown()
     if _api is None:
         # TODO(jhr): make a settings object that is better for non runs.
         # only override the necessary setting

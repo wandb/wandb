@@ -1686,10 +1686,7 @@ class Artifact:
 
         if wandb.run is None:
             # ensure wandb-core is up and running
-            from wandb.sdk import wandb_setup
-
-            wl = wandb_setup.setup()
-            assert wl is not None
+            wl = wandb.setup()
 
             stream_id = generate_id()
 
