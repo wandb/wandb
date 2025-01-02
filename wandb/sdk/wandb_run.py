@@ -2173,8 +2173,9 @@ class Run:
             # Inform the service that we're done sending messages for this run.
             #
             # TODO: Why not do this in _atexit_cleanup()?
-            service = self._wl and self._wl.service
-            if service and self._settings.run_id:
+            if self._settings.run_id:
+                assert self._wl
+                service = self._wl.assert_service()
                 service.inform_finish(run_id=self._settings.run_id)
 
         finally:
@@ -2413,13 +2414,6 @@ class Run:
     def _console_start(self) -> None:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
-
-        service = self._wl and self._wl.service
-        if not service:
-            self._hooks.hook()
-            # NB: manager will perform atexit hook like behavior for outstanding runs
-            atexit.register(lambda: self._atexit_cleanup())
-
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self) -> None:
