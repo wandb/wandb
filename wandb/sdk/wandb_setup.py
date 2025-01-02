@@ -302,16 +302,9 @@ def singleton() -> _WandbSetup | None:
         return None
 
 
-def _setup(
-    settings: Settings | None = None,
-    _reset: bool = False,
-) -> _WandbSetup | None:
+def _setup(settings: Settings | None = None) -> _WandbSetup:
     """Set up library context."""
     global _singleton
-
-    if _reset:
-        teardown()
-        return None
 
     pid = os.getpid()
 
@@ -323,7 +316,7 @@ def _setup(
         return _singleton
 
 
-def setup(settings: Settings | None = None) -> _WandbSetup | None:
+def setup(settings: Settings | None = None) -> _WandbSetup:
     """Prepares W&B for use in the current process and its children.
 
     You can usually ignore this as it is implicitly called by `wandb.init()`.
@@ -379,8 +372,7 @@ def setup(settings: Settings | None = None) -> _WandbSetup | None:
             wandb.teardown()
         ```
     """
-    ret = _setup(settings=settings)
-    return ret
+    return _setup(settings=settings)
 
 
 def teardown(exit_code: int | None = None) -> None:
