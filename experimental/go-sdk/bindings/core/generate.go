@@ -6,6 +6,6 @@ import (
 
 // generate core binary and embed into this package
 //
-//go:generate go build -C ../.. -o lib/core/embed-core.bin cmd/core/main.go
+//go:generate ./../../scripts/build_embed.sh bindings/core/embed-core.bin
 //go:embed embed-core.bin
 var coreBinary []byte
