@@ -1685,7 +1685,6 @@ class Artifact:
         from wandb.sdk.backend.backend import Backend
 
         if wandb.run is None:
-            # ensure wandb-core is up and running
             wl = wandb.setup()
 
             stream_id = generate_id()
@@ -1699,9 +1698,7 @@ class Artifact:
             settings.files_dir.value = str(tmp_dir / "files")
             settings.run_id.value = stream_id
 
-            service = wl.service
-            assert service
-
+            service = wl.ensure_service()
             service.inform_init(settings=settings, run_id=stream_id)
 
             mailbox = Mailbox()
