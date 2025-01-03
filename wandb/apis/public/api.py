@@ -14,10 +14,12 @@ For more on using the Public API, check out [our guide](https://docs.wandb.com/g
 import json
 import logging
 import os
-import urllib
-from typing import Any, Dict, List, Optional
+import urllib.parse
+from http import HTTPStatus
+from typing import Any, Dict, Iterator, List, Literal, Optional, Union
 
 import requests
+from pydantic import ValidationError
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
@@ -25,9 +27,25 @@ import wandb
 from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
+from wandb.apis.public.automations import Automations, Integrations
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.utils import PathType, parse_org_from_registry_path
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
+from wandb.sdk.automations import Automation, NewAutomation
+from wandb.sdk.automations._generated import (
+    CREATE_FILTER_TRIGGER_GQL,
+    DELETE_TRIGGER_GQL,
+    INTEGRATIONS_FOR_ENTITY_GQL,
+    PROJECT_TRIGGERS_FOR_ENTITY_GQL,
+    PROJECT_TRIGGERS_GQL,
+    CreateFilterTrigger,
+    DeleteTrigger,
+    DeleteTriggerResult,
+    SlackIntegration,
+    WebhookIntegration,
+)
+from wandb.sdk.automations._utils import prepare_create_automation_input
+from wandb.sdk.automations.automations import PartialNewAutomation
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
@@ -1385,3 +1403,248 @@ class Api:
             return True
         except wandb.errors.CommError:
             return False
+
+    def integrations(
+        self,
+        kind: Literal["webhook", "slack"],
+        entity: Optional[str] = None,
+        *,
+        per_page: int = 50,
+    ) -> Union[Iterator[WebhookIntegration], Iterator[SlackIntegration]]:
+        """Return an iterator of integrations for an entity, if given, or the user's default entity otherwise.
+
+        Args:
+            kind (Literal["webhook", "slack"]): The kind of integrations to fetch.
+            entity (str, optional): The entity to fetch integrations for.
+            per_page (int, optional): The number of integrations to fetch per page. Defaults to 50.
+
+        Raises:
+            ValueError: If any responses cannot be parsed.
+
+        Yields:
+            Iterator[WebhookIntegration | SlackIntegration]: An iterator of integrations.
+        """
+        entity = entity or self.default_entity
+
+        query = gql(INTEGRATIONS_FOR_ENTITY_GQL)
+
+        page_path = ("entity", "integrations")
+        kind = kind.casefold()
+        if kind == "webhook":
+            query_vars = {"entityName": entity, "includeWebhook": True}
+            result_cls = WebhookIntegration
+        elif kind == "slack":
+            query_vars = {"entityName": entity, "includeSlack": True}
+            result_cls = SlackIntegration
+        else:
+            raise ValueError(f"Invalid integration kind: {kind!r}")
+
+        return Integrations[result_cls](
+            client=self.client,
+            query=query,
+            variables=query_vars,
+            page_path=page_path,
+            per_page=per_page,
+        )
+
+    def webhook_integration(self, entity: Optional[str] = None) -> WebhookIntegration:
+        """Get the webhook integration for an entity, if given, or the user's default entity otherwise.
+
+        Args:
+            entity (str, optional): The entity to fetch the webhook integration for.
+
+        Raises:
+            ValueError: If zero or multiple webhook integrations are found, or if any responses cannot be parsed.
+        """
+        results = list(self.integrations(kind="webhook", entity=entity))
+
+        try:
+            [result] = results
+        except ValueError:
+            if results:
+                raise ValueError(
+                    f"Multiple ({len(results)}) webhook integrations found"
+                )
+            else:
+                raise ValueError("No webhook integration found")
+
+        return result
+
+    def slack_integration(self, entity: Optional[str] = None) -> SlackIntegration:
+        """Get the Slack integration for an entity, if given, or the user's default entity otherwise.
+
+        Args:
+            entity (str, optional): The entity to fetch the Slack integration for.
+
+        Raises:
+            ValueError: If zero or multiple Slack integrations are found, or if any responses cannot be parsed.
+        """
+        results = list(self.integrations(kind="slack", entity=entity))
+
+        try:
+            [result] = results
+        except ValueError:
+            if results:
+                raise ValueError(f"Multiple ({len(results)}) Slack integrations found")
+            else:
+                raise ValueError("No Slack integration found")
+
+        return result
+
+    def automation(
+        self,
+        *,
+        entity: Optional[str] = None,
+        name: Optional[str] = None,
+        created_by: Optional[str] = None,
+    ) -> Automation:
+        """Return the only Automation matching the given parameters, if possible.
+
+        Args:
+            entity (str, optional): The entity to fetch the automation for.
+            name (str, optional): The name of the automation to fetch.
+            created_by (str, optional): The username of the user who created the automation.
+
+        Raises:
+            ValueError: If zero or multiple Automations match the search criteria.
+        """
+        results = list(
+            self.automations(entity=entity, name=name, created_by=created_by)
+        )
+
+        try:
+            [result] = results
+        except ValueError:
+            if results:
+                raise ValueError(f"Multiple ({len(results)}) automations found")
+            else:
+                raise ValueError("No automation found")
+
+        return result
+
+    def automations(
+        self,
+        entity: Optional[str] = None,
+        *,
+        name: Optional[str] = None,
+        created_by: Optional[str] = None,
+        per_page: int = 50,
+    ) -> Iterator[Automation]:
+        """Return all Automations, filtering by the given search criteria if any.
+
+        Args:
+            entity (str, optional): The entity to fetch the automations for.
+            name (str, optional): The name of the automation to fetch.
+            created_by (str, optional): The username of the user who created the automation.
+            per_page (int, optional): The number of automations to fetch per page.  Defaults to 50.
+
+        Returns:
+            A list of automations.
+        """
+
+        # Crude client-side filtering
+        # TODO: we should handle this in the backend instead
+        def _should_keep(obj: Automation) -> bool:
+            return ((name is None) or (obj.name == name)) and (
+                (created_by is None) or (obj.created_by.username == created_by)
+            )
+
+        # For now, we need to use queries depending on whether entity is given
+        if entity is None:
+            query = gql(PROJECT_TRIGGERS_GQL)
+            query_vars = {}
+            page_path = ("viewer", "projects")
+        else:
+            query = gql(PROJECT_TRIGGERS_FOR_ENTITY_GQL)
+            query_vars = {"entityName": entity}
+            page_path = ("entity", "projects")
+
+        paginator = Automations(
+            client=self.client,
+            query=query,
+            variables=query_vars,
+            page_path=page_path,
+            per_page=per_page,
+        )
+        yield from filter(_should_keep, paginator)
+
+    def create_automation(
+        self,
+        obj: Union[NewAutomation, PartialNewAutomation],
+        *,
+        fetch_existing: bool = False,
+        **updates: Any,
+    ) -> Automation:
+        """Create a new Automation.
+
+        Args:
+            obj:
+                The automation to create.
+            fetch_existing (bool, optional):
+                If True, and a conflicting automation already exists, attempt to fetch the existing automation.
+            updates:
+                Any final updates to apply to the new automation before creating and saving it.  These will override previously-defined values, if any.
+
+        Returns:
+            The created automation after it has been saved to the server.
+        """
+        current = obj.model_dump(exclude_none=True, exclude_unset=True)
+        obj_ = NewAutomation.model_validate({**current, **updates})
+        params = prepare_create_automation_input(obj_).model_dump()
+
+        # keep the automation name on hand -- needed later to report on / recover from an existing automation with the same name
+        name = obj_.name
+
+        mutation = gql(CREATE_FILTER_TRIGGER_GQL)
+        variables = {"params": params}
+
+        try:
+            data = self.client.execute(mutation, variable_values=variables)
+        except requests.HTTPError as e:
+            status = HTTPStatus(e.response.status_code)
+            if status is HTTPStatus.CONFLICT:  # 409
+                if fetch_existing:
+                    wandb.termlog(
+                        f"An automation {obj_.name!r} already exists.  Skipping creation and fetching existing..."
+                    )
+                    return self.automation(name=name)
+                else:
+                    wandb.termerror(f"An automation {obj_.name!r} already exists.")
+
+            # Not a (known) recoverable HTTP error
+            wandb.termerror(f"Got response status {status!r}: {e.response.text!r}")
+            raise e
+
+        try:
+            result = CreateFilterTrigger.model_validate(data).create_filter_trigger
+            return Automation.model_validate(result.trigger)
+        except (ValidationError, AttributeError) as e:
+            raise ValueError(f"Unexpected response data: {data!r}") from e
+
+    def delete_automation(self, obj: Union[str, Automation]) -> DeleteTriggerResult:
+        """Delete an automation.
+
+        Args:
+            obj (str | Automation): The automation to delete, or its ID.
+
+        Returns:
+            The result of the deletion.
+        """
+        mutation = gql(DELETE_TRIGGER_GQL)
+        variables = {"id": _parse_obj_id(obj)}
+
+        data = self.client.execute(mutation, variable_values=variables)
+
+        try:
+            result = DeleteTrigger.model_validate(data).delete_trigger
+            return DeleteTriggerResult.model_validate(result)
+        except (ValidationError, AttributeError) as e:
+            raise ValueError(f"Unexpected response data: {data!r}") from e
+
+
+def _parse_obj_id(obj: Any) -> str:
+    if isinstance(obj, Automation):
+        return obj.id
+    if isinstance(obj, str):
+        return obj
+    raise TypeError(f"Cannot parse automation ID from type: {type(obj).__qualname__!r}")
