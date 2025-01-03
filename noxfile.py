@@ -49,11 +49,6 @@ def install_wandb(session: nox.Session):
         install_timed(session, "--force-reinstall", ".")
 
 
-def install_protoc(session: nox.Session):
-    """Installs protoc."""
-    session.run("./core/api/proto/install-protoc.sh", "23.4", external=True)
-
-
 def get_session_file_name(session: nox.Session) -> str:
     """Returns the session name transformed to be usable in a file name."""
     return re.sub(r"[\(\)=\"\'\.]", "_", session.name)
@@ -171,7 +166,6 @@ def unit_tests(session: nox.Session) -> None:
     By default this runs all unit tests, but specific tests can be selected
     by passing them via positional arguments.
     """
-    install_protoc(session)
     install_wandb(session)
 
     install_timed(
@@ -193,7 +187,6 @@ def unit_tests(session: nox.Session) -> None:
 
 @nox.session(python=_SUPPORTED_PYTHONS)
 def system_tests(session: nox.Session) -> None:
-    install_protoc(session)
     install_wandb(session)
     install_timed(
         session,
@@ -221,7 +214,6 @@ def system_tests(session: nox.Session) -> None:
 
 @nox.session(python=_SUPPORTED_PYTHONS)
 def notebook_tests(session: nox.Session) -> None:
-    install_protoc(session)
     install_wandb(session)
     install_timed(
         session,
@@ -257,7 +249,6 @@ def notebook_tests(session: nox.Session) -> None:
 @nox.session(python=_SUPPORTED_PYTHONS)
 def functional_tests(session: nox.Session):
     """Runs functional tests using pytest."""
-    install_protoc(session)
     install_wandb(session)
     install_timed(
         session,
@@ -279,7 +270,6 @@ def functional_tests(session: nox.Session):
 @nox.session(python=_SUPPORTED_PYTHONS)
 def experimental_tests(session: nox.Session):
     """Runs functional tests of experimental clients in different languages using pytest."""
-    install_protoc(session)
     install_wandb(session)
     install_timed(
         session,
@@ -487,6 +477,15 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     subprocess.check_call(["gcrane", "cp", source_image, target_image])
 
     session.log(f"Successfully copied image {target_image}")
+
+
+@nox.session(python=False, name="proto-rust", tags=["proto"])
+def proto_rust(session: nox.Session) -> None:
+    """Generate Rust bindings for protobufs."""
+    session.run("./core/api/proto/install-protoc.sh", "23.4", external=True)
+    # cargo run --bin build_proto
+    session.cd("gpu_stats")
+    session.run("cargo", "run", "--bin", "build_proto", external=True)
 
 
 @nox.session(python=False, name="proto-go", tags=["proto"])

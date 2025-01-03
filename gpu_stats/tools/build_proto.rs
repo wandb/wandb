@@ -4,12 +4,23 @@ use std::path::Path;
 use tempfile::tempdir;
 
 fn main() -> Result<()> {
-    let protos = [
-        "../wandb/proto/wandb_base.proto",
-        "../wandb/proto/wandb_telemetry.proto",
-        "../wandb/proto/wandb_internal.proto",
-        "../wandb/proto/wandb_system_monitor.proto",
+    let current_dir = Path::new(file!()).parent().unwrap();
+    let project_root = current_dir.join("..").canonicalize().unwrap();
+    let proto_dir = project_root.join("../wandb/proto");
+    let src_dir = project_root.join("src");
+    // let descriptor = src_dir.join("descriptor.bin");
+
+    let proto_files = [
+        "wandb_base.proto",
+        "wandb_telemetry.proto",
+        "wandb_internal.proto",
+        "wandb_system_monitor.proto",
     ];
+
+    let protos: Vec<_> = proto_files
+        .iter()
+        .map(|file| proto_dir.join(file))
+        .collect();
 
     // Remove the "wandb/proto/" prefix from the import statements in the proto files.
     let temp_dir = tempdir().expect("Could not create temp dir");
@@ -33,8 +44,8 @@ fn main() -> Result<()> {
     // Use tonic_build to compile .proto files and generate gRPC code
     tonic_build::configure()
         .build_server(true) // Generate server code
-        .out_dir("src") // Specify the output directory
-        // .file_descriptor_set_path("src/descriptor.bin") // Save the descriptor
+        .out_dir(&src_dir) // Specify the output directory
+        // .file_descriptor_set_path(&descriptor) // Save the descriptor
         .compile_protos(&temp_paths, &includes)
         .unwrap_or_else(|e| panic!("Failed to compile protos {:?}", e));
 
