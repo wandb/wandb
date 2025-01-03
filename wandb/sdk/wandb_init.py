@@ -11,6 +11,7 @@ For more on using `wandb.init()`, including code snippets, check out our
 from __future__ import annotations
 
 import copy
+import functools
 import json
 import logging
 import os
@@ -133,6 +134,13 @@ class _WandbInit:
 
         self.deprecated_features_used: dict[str, str] = dict()
 
+    # NOTE: This is lazily evaluated as it may print warnings,
+    #   which we want to avoid if the user disabled SageMaker.
+    @functools.cached_property
+    def _sagemaker_config(self) -> dict[str, Any]:
+        """SageMaker configuration, or an empty dict."""
+        return sagemaker.parse_sm_config()
+
     def warn_env_vars_change_after_setup(self) -> None:
         """Warn if environment variables change after wandb singleton is initialized.
 
@@ -221,24 +229,23 @@ class _WandbInit:
 
         self.clear_run_path_if_sweep_or_launch(init_settings)
 
-        # Start with settings from wandb library singleton
+        # Inherit global settings.
         settings = self._wl.settings.model_copy()
 
-        # Apply settings from wandb.init() call
+        # Apply settings from wandb.init() call.
         settings.update_from_settings(init_settings)
 
-        sagemaker_config: dict = (
-            dict() if settings.sagemaker_disable else sagemaker.parse_sm_config()
-        )
-        if sagemaker_config:
-            sagemaker_api_key = sagemaker_config.get("wandb_api_key", None)
-            sagemaker_run, sagemaker_env = sagemaker.parse_sm_resources()
-            if sagemaker_env:
-                if sagemaker_api_key:
-                    sagemaker_env["WANDB_API_KEY"] = sagemaker_api_key
-                settings.update_from_env_vars(sagemaker_env)
-                wandb.setup(settings=settings)
-            settings.update_from_dict(sagemaker_run)
+        # Apply settings from SageMaker.
+        if not settings.sagemaker_disable and self._sagemaker_config:
+            sagemaker.update_run_settings(settings)
+
+            # The SageMaker config may contain an API key, in which case it
+            # takes precedence over the value in the secrets. It's unclear
+            # whether this is by design, or by accident; we keep it for
+            # backward compatibility for now.
+            if api_key := self._sagemaker_config.get("wandb_api_key"):
+                settings.api_key = api_key
+
             with telemetry.context(obj=self._init_telemetry_obj) as tel:
                 tel.feature.sagemaker = True
 
@@ -273,7 +280,6 @@ class _WandbInit:
         self.config = dict()
         self.init_artifact_config: dict[str, Any] = dict()
         for config_data in (
-            sagemaker_config,
             self._wl._config,
             config,
         ):
@@ -286,6 +292,15 @@ class _WandbInit:
 
         if sweep_config:
             self._split_artifacts_from_config(sweep_config, self.sweep_config)
+
+        if not settings.sagemaker_disable and self._sagemaker_config:
+            self._split_artifacts_from_config(
+                self._sagemaker_config,
+                self.config,
+            )
+
+            with telemetry.context(obj=self._init_telemetry_obj) as tel:
+                tel.feature.sagemaker = True
 
         if monitor_gym and len(wandb.patched["gym"]) == 0:
             wandb.gym.monitor()  # type: ignore

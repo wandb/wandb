@@ -1,13 +1,14 @@
+from __future__ import annotations
+
 import os
 import secrets
 import socket
 import string
-from typing import Dict, Tuple
 
 from . import files as sm_files
 
 
-def parse_sm_secrets() -> Dict[str, str]:
+def parse_sm_secrets() -> dict[str, str]:
     """We read our api_key from secrets.env in SageMaker."""
     env_dict = dict()
     # Set secret variables
@@ -18,17 +19,23 @@ def parse_sm_secrets() -> Dict[str, str]:
     return env_dict
 
 
-def parse_sm_resources() -> Tuple[Dict[str, str], Dict[str, str]]:
-    run_dict = dict()
-    run_id = os.getenv("TRAINING_JOB_NAME")
+def run_id_and_group() -> tuple[str, str] | None:
+    """Returns a new ID and group for a run using SageMaker."""
+    # Added in https://github.com/wandb/wandb/pull/3290.
+    #
+    # Prevents SageMaker from overriding the run ID configured
+    # in environment variables. Note, however, that it will still
+    # override a run ID passed explicitly to `wandb.init()`.
+    if os.getenv("WANDB_RUN_ID"):
+        return None
 
-    if run_id and os.getenv("WANDB_RUN_ID") is None:
-        suffix = "".join(
-            secrets.choice(string.ascii_lowercase + string.digits) for _ in range(6)
-        )
-        run_dict["run_id"] = "-".join(
-            [run_id, suffix, os.getenv("CURRENT_HOST", socket.gethostname())]
-        )
-    run_dict["run_group"] = os.getenv("TRAINING_JOB_NAME")
-    env_dict = parse_sm_secrets()
-    return run_dict, env_dict
+    run_group = os.getenv("TRAINING_JOB_NAME")
+    if not run_group:
+        return None
+
+    alphanumeric = string.ascii_lowercase + string.digits
+    random = "".join(secrets.choice(alphanumeric) for _ in range(6))
+
+    host = os.getenv("CURRENT_HOST", socket.gethostbyname())
+
+    return f"{run_group}-{random}-{host}", run_group
