@@ -400,9 +400,6 @@ class Api:
                 wandb.termerror(f"Error while calling W&B API: {error} ({response})")
             raise
 
-    def disabled(self) -> Union[str, bool]:
-        return self._settings.get(Settings.DEFAULT_SECTION, "disabled", fallback=False)  # type: ignore
-
     def set_current_run_id(self, run_id: str) -> None:
         self._current_run_id = run_id
 
