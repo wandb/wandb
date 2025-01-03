@@ -310,15 +310,14 @@ class _WandbInit:
             )
 
         # apply updated global state after login was handled
-        wl = wandb.setup()
         login_settings = {
             k: v
             for k, v in {
-                "anonymous": wl.settings.anonymous,
-                "api_key": wl.settings.api_key,
-                "base_url": wl.settings.base_url,
-                "force": wl.settings.force,
-                "login_timeout": wl.settings.login_timeout,
+                "anonymous": self._wl.settings.anonymous,
+                "api_key": self._wl.settings.api_key,
+                "base_url": self._wl.settings.base_url,
+                "force": self._wl.settings.force,
+                "login_timeout": self._wl.settings.login_timeout,
             }.items()
             if v is not None
         }
