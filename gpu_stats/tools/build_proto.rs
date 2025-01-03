@@ -1,3 +1,4 @@
+//! Generate protobuf bindings for the wandb proto files for the System Metrics service.
 use std::fs;
 use std::io::Result;
 use std::path::Path;
@@ -41,7 +42,7 @@ fn main() -> Result<()> {
     let temp_paths: Vec<_> = temp_files.iter().map(|f| f.to_str().unwrap()).collect();
     let includes = [temp_dir.path().to_str().unwrap()];
 
-    // Use tonic_build to compile .proto files and generate gRPC code
+    // The generated code will be written to the src/wandb_internal.rs file.
     tonic_build::configure()
         .build_server(true) // Generate server code
         .out_dir(&src_dir) // Specify the output directory
