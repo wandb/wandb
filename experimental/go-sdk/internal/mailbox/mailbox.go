@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/experimental/client-go/internal/uid"
+	"github.com/wandb/wandb/experimental/go-sdk/internal/uid"
 )
 
 type MailboxHandle struct {
