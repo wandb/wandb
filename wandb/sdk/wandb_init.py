@@ -274,24 +274,9 @@ class _WandbInit:
             exclude=config_exclude_keys,
         )
 
-        # merge config with sweep or sagemaker (or config file)
-        self.sweep_config = dict()
-        sweep_config = self._wl._sweep_config or dict()
+        # Construct the run's config.
         self.config = dict()
         self.init_artifact_config: dict[str, Any] = dict()
-        for config_data in (
-            self._wl._config,
-            config,
-        ):
-            if not config_data:
-                continue
-            # split out artifacts, since when inserted into
-            # config they will trigger use_artifact
-            # but the run is not yet upserted
-            self._split_artifacts_from_config(config_data, self.config)  # type: ignore
-
-        if sweep_config:
-            self._split_artifacts_from_config(sweep_config, self.sweep_config)
 
         if not settings.sagemaker_disable and self._sagemaker_config:
             self._split_artifacts_from_config(
@@ -301,6 +286,17 @@ class _WandbInit:
 
             with telemetry.context(obj=self._init_telemetry_obj) as tel:
                 tel.feature.sagemaker = True
+
+        if self._wl._config:
+            self._split_artifacts_from_config(self._wl._config, self.config)
+
+        if config and isinstance(config, dict):
+            self._split_artifacts_from_config(config, self.config)
+
+        self.sweep_config = dict()
+        sweep_config = self._wl._sweep_config or dict()
+        if sweep_config:
+            self._split_artifacts_from_config(sweep_config, self.sweep_config)
 
         if monitor_gym and len(wandb.patched["gym"]) == 0:
             wandb.gym.monitor()  # type: ignore
