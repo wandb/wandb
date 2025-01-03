@@ -18,6 +18,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Support JWT authentication in wandb-core (@elainaRenee in https://github.com/wandb/wandb/pull/8431)
 - Add support for logging nested custom charts. (@jacobromero in https://github.com/wandb/wandb/pull/8789)
 
+### Changed
+
+- Calling `wandb.init(mode="disabled")` no longer disables all later runs by default. Use `wandb.setup(settings=wandb.Settings(mode="disabled"))` for this instead, or set `mode="disabled"` explicitly in each call to `wandb.init()`. (@timoffex in https://github.com/wandb/wandb/pull/9172)
+
 ### Fixed
 
 - The stop button correctly interrupts runs whose main Python thread is running C code, sleeping, etc. (@timoffex in https://github.com/wandb/wandb/pull/9094)

@@ -38,9 +38,7 @@ def _sync(
     if append:
         settings.resume.value = "allow"
 
-    service = wl.service
-    assert service
-
+    service = wl.ensure_service()
     service.inform_init(settings=settings, run_id=stream_id)
 
     mailbox = Mailbox()

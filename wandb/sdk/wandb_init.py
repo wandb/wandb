@@ -182,20 +182,8 @@ class _WandbInit:
         """
         self.warn_env_vars_change_after_setup()
 
-        # mode="disabled" is a special case where we don't want to start wandb-core
-        setup_settings_dict: dict[str, Any] = {}
-        if init_settings.mode == "disabled":
-            setup_settings_dict["mode"] = init_settings.mode
-        # TODO: x_disable_service is deprecated, remove this once officially deprecated
-        if init_settings.x_disable_service:
-            setup_settings_dict["x_disable_service"] = init_settings.x_disable_service
-        setup_settings = (
-            wandb.Settings(**setup_settings_dict) if setup_settings_dict else None
-        )
+        self._wl = wandb.setup()
 
-        self._wl = wandb.setup(settings=setup_settings)
-
-        assert self._wl is not None
         _set_logger(self._wl._get_logger())
 
         # Start with settings from wandb library singleton
@@ -656,24 +644,23 @@ class _WandbInit:
             latest_run = self._wl._global_run_stack[-1]
             logger.info(f"found existing run on stack: {latest_run.id}")
             latest_run.finish()
-        elif isinstance(wandb.run, Run):
-            service = self._wl.service
-            # We shouldn't return a stale global run if we are in a new pid
-            if not service or os.getpid() == wandb.run._init_pid:
-                logger.info("wandb.init() called when a run is still active")
-                with telemetry.context() as tel:
-                    tel.feature.init_return_run = True
-                return wandb.run
+        elif wandb.run is not None and os.getpid() == wandb.run._init_pid:
+            logger.info("wandb.init() called when a run is still active")
+            with telemetry.context() as tel:
+                tel.feature.init_return_run = True
+            return wandb.run
 
         logger.info("starting backend")
 
-        service = self._wl.service
-        if service:
+        if not self.settings.x_disable_service:
+            service = self._wl.ensure_service()
             logger.info("sending inform_init request")
             service.inform_init(
                 settings=self.settings.to_proto(),
                 run_id=self.settings.run_id,  # type: ignore
             )
+        else:
+            service = None
 
         mailbox = Mailbox()
         backend = Backend(
@@ -935,9 +922,7 @@ def _attach(
     if logger is None:
         raise UsageError("logger is not initialized")
 
-    service = _wl.service
-    if not service:
-        raise UsageError(f"Unable to attach to run {attach_id} (no service process)")
+    service = _wl.ensure_service()
 
     try:
         attach_settings = service.inform_attach(attach_id=attach_id)
