@@ -4,7 +4,6 @@ use std::path::Path;
 use tempfile::tempdir;
 
 fn main() -> Result<()> {
-    // Paths to your .proto files
     let protos = [
         "../wandb/proto/wandb_base.proto",
         "../wandb/proto/wandb_telemetry.proto",
@@ -12,7 +11,7 @@ fn main() -> Result<()> {
         "../wandb/proto/wandb_system_monitor.proto",
     ];
 
-    // Create a temporary directory to store modified .proto files
+    // Remove the "wandb/proto/" prefix from the import statements in the proto files.
     let temp_dir = tempdir().expect("Could not create temp dir");
     let mut temp_files = Vec::new();
 
@@ -34,9 +33,8 @@ fn main() -> Result<()> {
     // Use tonic_build to compile .proto files and generate gRPC code
     tonic_build::configure()
         .build_server(true) // Generate server code
-        // .build_client(true) // Generate client code
         .out_dir("src") // Specify the output directory
-        .file_descriptor_set_path("src/descriptor.bin") // Save the descriptor
+        // .file_descriptor_set_path("src/descriptor.bin") // Save the descriptor
         .compile_protos(&temp_paths, &includes)
         .unwrap_or_else(|e| panic!("Failed to compile protos {:?}", e));
 
