@@ -6,8 +6,8 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
-	"github.com/wandb/wandb/experimental/client-go/pkg/wandb"
+	"github.com/wandb/wandb/experimental/go-sdk/pkg/settings"
+	"github.com/wandb/wandb/experimental/go-sdk/pkg/wandb"
 )
 
 type BenchOpts struct {
