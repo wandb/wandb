@@ -241,11 +241,6 @@ class _WandbSetup:
             wandb.termwarn("frozen, could be trouble")
 
     def _setup(self) -> None:
-        if not self._settings._noop and not self._settings.x_disable_service:
-            from wandb.sdk.lib import service_connection
-
-            self._connection = service_connection.connect_to_service(self._settings)
-
         sweep_path = self._settings.sweep_param_path
         if sweep_path:
             self._sweep_config = config_util.dict_from_config_file(
@@ -278,9 +273,25 @@ class _WandbSetup:
         if internal_exit_code != 0:
             sys.exit(internal_exit_code)
 
-    @property
-    def service(self) -> ServiceConnection | None:
-        """Returns a connection to the service process, if it exists."""
+    def ensure_service(self) -> ServiceConnection:
+        """Returns a connection to the service process creating it if needed."""
+        if self._connection:
+            return self._connection
+
+        from wandb.sdk.lib import service_connection
+
+        self._connection = service_connection.connect_to_service(self._settings)
+        return self._connection
+
+    def assert_service(self) -> ServiceConnection:
+        """Returns a connection to the service process, asserting it exists.
+
+        Unlike ensure_service(), this will not start up a service process
+        if it didn't already exist.
+        """
+        if not self._connection:
+            raise AssertionError("Expected service process to exist.")
+
         return self._connection
 
 
