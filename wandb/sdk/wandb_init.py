@@ -125,7 +125,7 @@ class _WandbInit:
         self.backend: Backend | None = None
 
         self._teardown_hooks: list[TeardownHook] = []
-        self._wl: wandb_setup._WandbSetup | None = None
+        self._wl = wandb.setup()
         self.notebook: wandb.jupyter.Notebook | None = None  # type: ignore
         self.printer = printer.new_printer()
 
@@ -167,6 +167,41 @@ class _WandbInit:
             )
             self.printer.display(line, level="warn")
 
+    def clear_run_path_if_sweep_or_launch(
+        self,
+        init_settings: Settings,
+    ) -> None:
+        """Clear project/entity/run_id keys if in a Sweep or a Launch context.
+
+        Args:
+            init_settings: Settings specified in the call to `wandb.init()`.
+        """
+        when_doing_thing = ""
+
+        if self._wl.settings.sweep_id:
+            when_doing_thing = "when running a sweep"
+        elif self._wl.settings.launch:
+            when_doing_thing = "when running from a wandb launch context"
+
+        if not when_doing_thing:
+            return
+
+        def warn(key: str, value: str) -> None:
+            self.printer.display(
+                f"Ignoring {key} {value!r} {when_doing_thing}.",
+                level="warn",
+            )
+
+        if init_settings.project is not None:
+            warn("project", init_settings.project)
+            init_settings.project = None
+        if init_settings.entity is not None:
+            warn("entity", init_settings.entity)
+            init_settings.entity = None
+        if init_settings.run_id is not None:
+            warn("run_id", init_settings.run_id)
+            init_settings.run_id = None
+
     def setup(  # noqa: C901
         self,
         init_settings: Settings,
@@ -182,20 +217,12 @@ class _WandbInit:
         """
         self.warn_env_vars_change_after_setup()
 
-        self._wl = wandb.setup()
-
         _set_logger(self._wl._get_logger())
+
+        self.clear_run_path_if_sweep_or_launch(init_settings)
 
         # Start with settings from wandb library singleton
         settings = self._wl.settings.model_copy()
-
-        # handle custom sweep- and launch-related logic for init settings
-        if settings.sweep_id:
-            init_settings.sweep_id = settings.sweep_id
-            init_settings.handle_sweep_logic()
-        if settings.launch:
-            init_settings.launch = settings.launch
-            init_settings.handle_launch_logic()
 
         # Apply settings from wandb.init() call
         settings.update_from_settings(init_settings)
