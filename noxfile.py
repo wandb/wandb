@@ -283,48 +283,6 @@ def experimental_tests(session: nox.Session):
     )
 
 
-@nox.session(python=False, name="build-rust")
-def build_rust(session: nox.Session) -> None:
-    """Builds the wandb-core wheel with maturin."""
-    with session.chdir("client"):
-        session.run(
-            "maturin",
-            "build",
-            "--release",
-            "--strip",
-            external=True,
-        )
-
-
-@nox.session(python=False, name="install")
-def install(session: nox.Session) -> None:
-    # find latest wheel file in ./target/wheels/:
-    wheel_file = [
-        f
-        for f in os.listdir("./client/target/wheels/")
-        if f.startswith("wandb_core-") and f.endswith(".whl")
-    ][0]
-    session.run(
-        "pip",
-        "install",
-        "--force-reinstall",
-        f"./client/target/wheels/{wheel_file}",
-        external=True,
-    )
-
-
-@nox.session(python=False, name="develop")
-def develop(session: nox.Session) -> None:
-    with session.chdir("client"):
-        session.run(
-            "maturin",
-            "develop",
-            "--release",
-            "--strip",
-            external=True,
-        )
-
-
 @nox.session(python=False, name="graphql-codegen-schema-change")
 def graphql_codegen_schema_change(session: nox.Session) -> None:
     """Runs the GraphQL codegen script and saves the previous api version.
@@ -483,7 +441,6 @@ def local_testcontainer_registry(session: nox.Session) -> None:
 def proto_rust(session: nox.Session) -> None:
     """Generate Rust bindings for protobufs."""
     session.run("./core/api/proto/install-protoc.sh", "23.4", external=True)
-    # cargo run --bin build_proto
     session.cd("gpu_stats")
     session.run("cargo", "run", "--bin", "build_proto", external=True)
 
