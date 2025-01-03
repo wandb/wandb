@@ -679,13 +679,15 @@ class _WandbInit:
 
         logger.info("starting backend")
 
-        service = self._wl.ensure_service()
-
-        logger.info("sending inform_init request")
-        service.inform_init(
-            settings=self.settings.to_proto(),
-            run_id=self.settings.run_id,  # type: ignore
-        )
+        if not self.settings.x_disable_service:
+            service = self._wl.ensure_service()
+            logger.info("sending inform_init request")
+            service.inform_init(
+                settings=self.settings.to_proto(),
+                run_id=self.settings.run_id,  # type: ignore
+            )
+        else:
+            service = None
 
         mailbox = Mailbox()
         backend = Backend(
