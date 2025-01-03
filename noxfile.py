@@ -479,6 +479,15 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     session.log(f"Successfully copied image {target_image}")
 
 
+@nox.session(python=False, name="proto-rust", tags=["proto"])
+def proto_rust(session: nox.Session) -> None:
+    """Generate Rust bindings for protobufs."""
+    session.run("./core/api/proto/install-protoc.sh", "23.4", external=True)
+    # cargo run --bin build_proto
+    session.cd("gpu_stats")
+    session.run("cargo", "run", "--bin", "build_proto", external=True)
+
+
 @nox.session(python=False, name="proto-go", tags=["proto"])
 def proto_go(session: nox.Session) -> None:
     """Generate Go bindings for protobufs."""
