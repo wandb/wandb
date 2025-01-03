@@ -35,6 +35,7 @@ type Transport interface {
 	Flush(timeout time.Duration) bool
 	Configure(options ClientOptions)
 	SendEvent(event *Event)
+	Close()
 }
 
 func getProxyConfig(options ClientOptions) func(*http.Request) (*url.URL, error) {
@@ -92,55 +93,6 @@ func getRequestBodyFromEvent(event *Event) []byte {
 	// Juuust in case something, somehow goes utterly wrong.
 	Logger.Println("Event couldn't be marshaled, even with stripped contextual data. Skipping delivery. " +
 		"Please notify the SDK owners with possibly broken payload.")
-	return nil
-}
-
-func marshalMetrics(metrics []Metric) []byte {
-	var b bytes.Buffer
-	for i, metric := range metrics {
-		b.WriteString(metric.GetKey())
-		if unit := metric.GetUnit(); unit != "" {
-			b.WriteString(fmt.Sprintf("@%s", unit))
-		}
-		b.WriteString(fmt.Sprintf("%s|%s", metric.SerializeValue(), metric.GetType()))
-		if serializedTags := metric.SerializeTags(); serializedTags != "" {
-			b.WriteString(fmt.Sprintf("|#%s", serializedTags))
-		}
-		b.WriteString(fmt.Sprintf("|T%d", metric.GetTimestamp()))
-
-		if i < len(metrics)-1 {
-			b.WriteString("\n")
-		}
-	}
-	return b.Bytes()
-}
-
-func encodeMetric(enc *json.Encoder, b io.Writer, metrics []Metric) error {
-	body := marshalMetrics(metrics)
-	// Item header
-	err := enc.Encode(struct {
-		Type   string `json:"type"`
-		Length int    `json:"length"`
-	}{
-		Type:   metricType,
-		Length: len(body),
-	})
-	if err != nil {
-		return err
-	}
-
-	// metric payload
-	if _, err = b.Write(body); err != nil {
-		return err
-	}
-
-	// "Envelopes should be terminated with a trailing newline."
-	//
-	// [1]: https://develop.sentry.dev/sdk/envelopes/#envelopes
-	if _, err := b.Write([]byte("\n")); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -228,8 +180,6 @@ func envelopeFromBody(event *Event, dsn *Dsn, sentAt time.Time, body json.RawMes
 	switch event.Type {
 	case transactionType, checkInType:
 		err = encodeEnvelopeItem(enc, event.Type, body)
-	case metricType:
-		err = encodeMetric(enc, &b, event.Metrics)
 	default:
 		err = encodeEnvelopeItem(enc, eventType, body)
 	}
@@ -241,18 +191,6 @@ func envelopeFromBody(event *Event, dsn *Dsn, sentAt time.Time, body json.RawMes
 	// Attachments
 	for _, attachment := range event.Attachments {
 		if err := encodeAttachment(enc, &b, attachment); err != nil {
-			return nil, err
-		}
-	}
-
-	// Profile data
-	if event.sdkMetaData.transactionProfile != nil {
-		body, err = json.Marshal(event.sdkMetaData.transactionProfile)
-		if err != nil {
-			return nil, err
-		}
-		err = encodeEnvelopeItem(enc, profileType, body)
-		if err != nil {
 			return nil, err
 		}
 	}
@@ -352,6 +290,9 @@ type HTTPTransport struct {
 
 	mu     sync.RWMutex
 	limits ratelimit.Map
+
+	// receiving signal will terminate worker.
+	done chan struct{}
 }
 
 // NewHTTPTransport returns a new pre-configured instance of HTTPTransport.
@@ -359,6 +300,7 @@ func NewHTTPTransport() *HTTPTransport {
 	transport := HTTPTransport{
 		BufferSize: defaultBufferSize,
 		Timeout:    defaultTimeout,
+		done:       make(chan struct{}),
 	}
 	return &transport
 }
@@ -524,6 +466,15 @@ fail:
 	return false
 }
 
+// Close will terminate events sending loop.
+// It useful to prevent goroutines leak in case of multiple HTTPTransport instances initiated.
+//
+// Close should be called after Flush and before terminating the program
+// otherwise some events may be lost.
+func (t *HTTPTransport) Close() {
+	close(t.done)
+}
+
 func (t *HTTPTransport) worker() {
 	for b := range t.buffer {
 		// Signal that processing of the current batch has started.
@@ -534,35 +485,44 @@ func (t *HTTPTransport) worker() {
 		t.buffer <- b
 
 		// Process all batch items.
-		for item := range b.items {
-			if t.disabled(item.category) {
-				continue
-			}
-
-			response, err := t.client.Do(item.request)
-			if err != nil {
-				Logger.Printf("There was an issue with sending an event: %v", err)
-				continue
-			}
-			if response.StatusCode >= 400 && response.StatusCode <= 599 {
-				b, err := io.ReadAll(response.Body)
-				if err != nil {
-					Logger.Printf("Error while reading response code: %v", err)
+	loop:
+		for {
+			select {
+			case <-t.done:
+				return
+			case item, open := <-b.items:
+				if !open {
+					break loop
 				}
-				Logger.Printf("Sending %s failed with the following error: %s", eventType, string(b))
-			}
+				if t.disabled(item.category) {
+					continue
+				}
 
-			t.mu.Lock()
-			if t.limits == nil {
-				t.limits = make(ratelimit.Map)
-			}
-			t.limits.Merge(ratelimit.FromResponse(response))
-			t.mu.Unlock()
+				response, err := t.client.Do(item.request)
+				if err != nil {
+					Logger.Printf("There was an issue with sending an event: %v", err)
+					continue
+				}
+				if response.StatusCode >= 400 && response.StatusCode <= 599 {
+					b, err := io.ReadAll(response.Body)
+					if err != nil {
+						Logger.Printf("Error while reading response code: %v", err)
+					}
+					Logger.Printf("Sending %s failed with the following error: %s", eventType, string(b))
+				}
 
-			// Drain body up to a limit and close it, allowing the
-			// transport to reuse TCP connections.
-			_, _ = io.CopyN(io.Discard, response.Body, maxDrainResponseBytes)
-			response.Body.Close()
+				t.mu.Lock()
+				if t.limits == nil {
+					t.limits = make(ratelimit.Map)
+				}
+				t.limits.Merge(ratelimit.FromResponse(response))
+				t.mu.Unlock()
+
+				// Drain body up to a limit and close it, allowing the
+				// transport to reuse TCP connections.
+				_, _ = io.CopyN(io.Discard, response.Body, maxDrainResponseBytes)
+				response.Body.Close()
+			}
 		}
 
 		// Signal that processing of the batch is done.
@@ -650,6 +610,8 @@ func (t *HTTPSyncTransport) SendEvent(event *Event) {
 	t.SendEventWithContext(context.Background(), event)
 }
 
+func (t *HTTPSyncTransport) Close() {}
+
 // SendEventWithContext assembles a new packet out of Event and sends it to the remote server.
 func (t *HTTPSyncTransport) SendEventWithContext(ctx context.Context, event *Event) {
 	if t.dsn == nil {
@@ -669,8 +631,6 @@ func (t *HTTPSyncTransport) SendEventWithContext(ctx context.Context, event *Eve
 	switch {
 	case event.Type == transactionType:
 		eventType = "transaction"
-	case event.Type == metricType:
-		eventType = metricType
 	default:
 		eventType = fmt.Sprintf("%s event", event.Level)
 	}
@@ -745,3 +705,5 @@ func (noopTransport) SendEvent(*Event) {
 func (noopTransport) Flush(time.Duration) bool {
 	return true
 }
+
+func (noopTransport) Close() {}
