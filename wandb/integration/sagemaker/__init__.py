@@ -1,11 +1,13 @@
 """wandb integration sagemaker module."""
 
 from .auth import sagemaker_auth
-from .config import parse_sm_config
-from .settings import update_run_settings
+from .config import is_using_sagemaker, parse_sm_config
+from .resources import set_global_settings, set_run_id
 
 __all__ = [
     "sagemaker_auth",
+    "is_using_sagemaker",
     "parse_sm_config",
-    "update_run_settings",
+    "set_global_settings",
+    "set_run_id",
 ]

@@ -9,6 +9,14 @@ from typing import Any
 from . import files as sm_files
 
 
+def is_using_sagemaker() -> bool:
+    """Returns whether we're in a SageMaker environment."""
+    return (
+        os.path.exists(sm_files.SM_PARAM_CONFIG)  #
+        or "SM_TRAINING_ENV" in os.environ
+    )
+
+
 def parse_sm_config() -> dict[str, Any]:
     """Parses SageMaker configuration.
 
