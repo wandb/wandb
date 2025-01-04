@@ -125,7 +125,7 @@ class _WandbInit:
         self.backend: Backend | None = None
 
         self._teardown_hooks: list[TeardownHook] = []
-        self._wl: wandb_setup._WandbSetup | None = None
+        self._wl = wandb.setup()
         self.notebook: wandb.jupyter.Notebook | None = None  # type: ignore
         self.printer = printer.new_printer()
 
@@ -167,6 +167,41 @@ class _WandbInit:
             )
             self.printer.display(line, level="warn")
 
+    def clear_run_path_if_sweep_or_launch(
+        self,
+        init_settings: Settings,
+    ) -> None:
+        """Clear project/entity/run_id keys if in a Sweep or a Launch context.
+
+        Args:
+            init_settings: Settings specified in the call to `wandb.init()`.
+        """
+        when_doing_thing = ""
+
+        if self._wl.settings.sweep_id:
+            when_doing_thing = "when running a sweep"
+        elif self._wl.settings.launch:
+            when_doing_thing = "when running from a wandb launch context"
+
+        if not when_doing_thing:
+            return
+
+        def warn(key: str, value: str) -> None:
+            self.printer.display(
+                f"Ignoring {key} {value!r} {when_doing_thing}.",
+                level="warn",
+            )
+
+        if init_settings.project is not None:
+            warn("project", init_settings.project)
+            init_settings.project = None
+        if init_settings.entity is not None:
+            warn("entity", init_settings.entity)
+            init_settings.entity = None
+        if init_settings.run_id is not None:
+            warn("run_id", init_settings.run_id)
+            init_settings.run_id = None
+
     def setup(  # noqa: C901
         self,
         init_settings: Settings,
@@ -182,32 +217,12 @@ class _WandbInit:
         """
         self.warn_env_vars_change_after_setup()
 
-        # mode="disabled" is a special case where we don't want to start wandb-core
-        setup_settings_dict: dict[str, Any] = {}
-        if init_settings.mode == "disabled":
-            setup_settings_dict["mode"] = init_settings.mode
-        # TODO: x_disable_service is deprecated, remove this once officially deprecated
-        if init_settings.x_disable_service:
-            setup_settings_dict["x_disable_service"] = init_settings.x_disable_service
-        setup_settings = (
-            wandb.Settings(**setup_settings_dict) if setup_settings_dict else None
-        )
-
-        self._wl = wandb.setup(settings=setup_settings)
-
-        assert self._wl is not None
         _set_logger(self._wl._get_logger())
+
+        self.clear_run_path_if_sweep_or_launch(init_settings)
 
         # Start with settings from wandb library singleton
         settings = self._wl.settings.model_copy()
-
-        # handle custom sweep- and launch-related logic for init settings
-        if settings.sweep_id:
-            init_settings.sweep_id = settings.sweep_id
-            init_settings.handle_sweep_logic()
-        if settings.launch:
-            init_settings.launch = settings.launch
-            init_settings.handle_launch_logic()
 
         # Apply settings from wandb.init() call
         settings.update_from_settings(init_settings)
@@ -295,15 +310,14 @@ class _WandbInit:
             )
 
         # apply updated global state after login was handled
-        wl = wandb.setup()
         login_settings = {
             k: v
             for k, v in {
-                "anonymous": wl.settings.anonymous,
-                "api_key": wl.settings.api_key,
-                "base_url": wl.settings.base_url,
-                "force": wl.settings.force,
-                "login_timeout": wl.settings.login_timeout,
+                "anonymous": self._wl.settings.anonymous,
+                "api_key": self._wl.settings.api_key,
+                "base_url": self._wl.settings.base_url,
+                "force": self._wl.settings.force,
+                "login_timeout": self._wl.settings.login_timeout,
             }.items()
             if v is not None
         }
@@ -656,24 +670,23 @@ class _WandbInit:
             latest_run = self._wl._global_run_stack[-1]
             logger.info(f"found existing run on stack: {latest_run.id}")
             latest_run.finish()
-        elif isinstance(wandb.run, Run):
-            service = self._wl.service
-            # We shouldn't return a stale global run if we are in a new pid
-            if not service or os.getpid() == wandb.run._init_pid:
-                logger.info("wandb.init() called when a run is still active")
-                with telemetry.context() as tel:
-                    tel.feature.init_return_run = True
-                return wandb.run
+        elif wandb.run is not None and os.getpid() == wandb.run._init_pid:
+            logger.info("wandb.init() called when a run is still active")
+            with telemetry.context() as tel:
+                tel.feature.init_return_run = True
+            return wandb.run
 
         logger.info("starting backend")
 
-        service = self._wl.service
-        if service:
+        if not self.settings.x_disable_service:
+            service = self._wl.ensure_service()
             logger.info("sending inform_init request")
             service.inform_init(
                 settings=self.settings.to_proto(),
                 run_id=self.settings.run_id,  # type: ignore
             )
+        else:
+            service = None
 
         mailbox = Mailbox()
         backend = Backend(
@@ -935,9 +948,7 @@ def _attach(
     if logger is None:
         raise UsageError("logger is not initialized")
 
-    service = _wl.service
-    if not service:
-        raise UsageError(f"Unable to attach to run {attach_id} (no service process)")
+    service = _wl.ensure_service()
 
     try:
         attach_settings = service.inform_attach(attach_id=attach_id)
