@@ -13,14 +13,15 @@ use crate::{
     wandb_internal::{GpuAmdInfo, MetadataRequest},
 };
 
+// AMD GPU stats are collecting using the rocm-smi tool.
 // TODO: Port the relevant parts of
 // https://github.com/ROCm/rocm_smi_lib/blob/amd-staging/include/rocm_smi/rocm_smi.h
 // https://github.com/ROCm/rocm_smi_lib/blob/amd-staging/python_smi_tools/rsmiBindings.py
-// to Rust and use it to get GPU stats.
+// to Rust and use it to get GPU stats directly.
 
-// const ROCM_SMI_DEFAULT_PATH: &str = "/usr/bin/rocm-smi";
-const ROCM_SMI_DEFAULT_PATH: &str = "/Users/dimaduev/dev/sdk/junk/rocm_smi.py";
+const ROCM_SMI_DEFAULT_PATH: &str = "/usr/bin/rocm-smi";
 
+/// Struct to hold AMD GPU stats and metadata.
 #[derive(Debug, Default, Clone, Serialize)]
 pub struct GpuStats {
     // dynamic data
@@ -48,6 +49,10 @@ pub struct GpuStats {
 }
 
 impl GpuStats {
+    /// Convert the stats into a Vec of (metric_name, metric_value) tuples.
+    ///
+    /// The keys are formatted as `gpu.<gpu_index>.<metric_name>`, which
+    /// is the format expected by the Weights & Biases UI.
     pub fn to_vec(&self, index: String) -> Vec<(String, MetricValue)> {
         vec![
             (
@@ -83,6 +88,7 @@ impl GpuStats {
 }
 
 impl From<&serde_json::Map<String, Value>> for GpuStats {
+    /// Convert the JSON stats returned by rocm-smi into GpuStats.
     fn from(stats: &serde_json::Map<String, Value>) -> Self {
         let mut gpu_stats = GpuStats::default();
 
@@ -228,10 +234,12 @@ impl From<&serde_json::Map<String, Value>> for GpuStats {
     }
 }
 
+/// Parse a value from a string, removing the trailing '%' if present.
 fn parse_value(s: &str) -> f64 {
     s.trim_end_matches('%').parse().unwrap_or_default()
 }
 
+/// Struct to collect AMD GPU stats and metadata using rocm-smi.
 pub struct GpuAmd {
     pub rocm_smi_path: String,
 }
@@ -250,20 +258,19 @@ impl GpuAmd {
             })
     }
 
+    /// Get GPU metrics using rocm-smi.
     pub fn get_metrics(&self) -> Result<Vec<(String, MetricValue)>, std::io::Error> {
         let raw_stats = self.get_rocm_smi_stats()?;
-        println!("Raw stats: {:#?}", raw_stats);
 
         let metrics: Vec<(String, MetricValue)> = raw_stats
             .iter()
             .flat_map(|(k, v)| v.to_vec(k.clone()))
             .collect();
 
-        println!("{:?}", metrics);
-
         Ok(metrics)
     }
 
+    /// Get GPU metadata using rocm-smi.
     pub fn get_metadata(&self) -> Result<MetadataRequest, std::io::Error> {
         let raw_stats = self.get_rocm_smi_stats()?;
 
@@ -315,8 +322,6 @@ impl GpuAmd {
             })
             .collect();
 
-        println!("{:?}", gpu_amd);
-
         Ok(MetadataRequest {
             gpu_count: raw_stats.len() as u32,
             // TODO: add GPU type
@@ -325,6 +330,7 @@ impl GpuAmd {
         })
     }
 
+    /// Call rocm-smi to get GPU stats.
     fn get_rocm_smi_stats(&self) -> Result<HashMap<String, GpuStats>, std::io::Error> {
         let output = Command::new(&self.rocm_smi_path)
             .args(["-a", "--json"])
@@ -353,10 +359,11 @@ impl GpuAmd {
     }
 }
 
+/// Find the rocm-smi binary.
 fn find_rocm_smi() -> Result<String, String> {
     // Try to find rocm_smi in PATH
     if let Ok(rocm_path) = which("rocm-smi") {
-        println!("Found rocm-smi at {}", rocm_path.display());
+        debug!("Found rocm-smi at {}", rocm_path.display());
         if let Some(p) = rocm_path.to_str() {
             return Ok(p.to_string());
         }
@@ -364,20 +371,20 @@ fn find_rocm_smi() -> Result<String, String> {
 
     // Fall back to default path
     if let Ok(path) = which(ROCM_SMI_DEFAULT_PATH) {
-        println!("Found rocm-smi at {}", path.display());
+        debug!("Found rocm-smi at {}", path.display());
         return Ok(ROCM_SMI_DEFAULT_PATH.to_string());
     }
 
     Err("rocm_smi not found".to_string())
 }
 
+/// Check if the AMD GPU driver is installed and loaded.
 fn is_driver_installed() -> bool {
     // Inspired by rocm_smi_lib, see
     // https://github.com/ROCm/rocm_smi_lib/blob/6f51cd651e4116b04c2df6a2afe8859558bdba66/python_smi_tools/rocm_smi.py#L89
-    true
-    // std::fs::read_to_string("/sys/module/amdgpu/initstate")
-    //     .map(|content| content.contains("live"))
-    //     .unwrap_or(false)
+    std::fs::read_to_string("/sys/module/amdgpu/initstate")
+        .map(|content| content.contains("live"))
+        .unwrap_or(false)
 }
 
 #[cfg(test)]
@@ -424,6 +431,7 @@ mod tests {
         }
     }
 
+    /// Mock GPU stats for two AMD GPUs using ROCM 5 format.
     fn get_rocm_smi_stats_rocm5_mock() -> HashMap<String, GpuStats> {
         let json_str = r#"{
             "card0": {
@@ -476,6 +484,7 @@ mod tests {
             .collect()
     }
 
+    /// Mock GPU stats for one AMD GPU using ROCM 6 format.
     fn get_rocm_smi_stats_rocm6_mock() -> HashMap<String, GpuStats> {
         let json_str = r#"{
             "card0": {
@@ -524,6 +533,7 @@ mod tests {
     }
 
     #[test]
+    /// Test that the AMD GPU stats in ROCM 5 format are parsed correctly.
     fn test_parse_stats_rocm5() {
         let stats = serde_json::Map::from_iter(vec![
             ("GPU use (%)".to_string(), json!("10")),
@@ -546,6 +556,7 @@ mod tests {
     }
 
     #[test]
+    /// Test that the AMD GPU stats in ROCM 6 format are parsed correctly.
     fn test_parse_stats_rocm6() {
         let stats = serde_json::Map::from_iter(vec![
             ("GPU use (%)".to_string(), json!("10")),
@@ -568,6 +579,7 @@ mod tests {
     }
 
     #[test]
+    /// Test that the AMD GPU stats in ROCM 6 format are parsed correctly for MI300X GPUs.
     fn test_parse_stats_rocm6_mi300x() {
         let stats = serde_json::Map::from_iter(vec![
             ("GPU use (%)".to_string(), json!("10")),
@@ -590,6 +602,7 @@ mod tests {
     }
 
     #[test]
+    /// Test that the AMD GPU stats are converted to metrics correctly.
     fn test_get_metrics() {
         let gpu = GpuAmd {
             rocm_smi_path: "mock_path".to_string(),
@@ -613,6 +626,7 @@ mod tests {
     }
 
     #[test]
+    /// Test that the AMD GPU stats are converted to metadata correctly.
     fn test_get_metadata() {
         let gpu = GpuAmd {
             rocm_smi_path: "mock_path".to_string(),

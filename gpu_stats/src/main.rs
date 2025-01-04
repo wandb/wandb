@@ -5,7 +5,9 @@
 //! Metrics are collected from the following sources:
 //! - Nvidia GPUs (Linux and Windows only)
 //! - Apple ARM Mac GPUs and CPUs (ARM Mac only)
+//! - AMD GPUs (Linux only)
 mod analytics;
+#[cfg(target_os = "linux")]
 mod gpu_amd;
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 mod gpu_apple;
@@ -30,6 +32,8 @@ use tonic;
 use tonic::{transport::Server, Request, Response, Status};
 
 use chrono::Utc;
+#[cfg(target_os = "linux")]
+use gpu_amd::GpuAmd;
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 use gpu_apple::ThreadSafeSampler;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
@@ -97,8 +101,8 @@ pub struct SystemMonitorImpl {
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     nvidia_gpu: Option<tokio::sync::Mutex<NvidiaGpu>>,
     /// AMD GPU monitor (Linux only).
-    // #[cfg(target_os = "linux")]
-    amd_gpu: Option<gpu_amd::GpuAmd>,
+    #[cfg(target_os = "linux")]
+    amd_gpu: Option<GpuAmd>,
 }
 
 impl SystemMonitorImpl {
@@ -133,8 +137,8 @@ impl SystemMonitorImpl {
         };
 
         // Initialize the AMD GPU monitor (Linux only)
-        // #[cfg(target_os = "linux")]
-        let amd_gpu = match gpu_amd::GpuAmd::new() {
+        #[cfg(target_os = "linux")]
+        let amd_gpu = match GpuAmd::new() {
             Some(gpu) => {
                 debug!("Successfully initialized AMD GPU monitoring");
                 let _ = gpu.get_metrics();
@@ -154,7 +158,7 @@ impl SystemMonitorImpl {
             apple_sampler,
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             nvidia_gpu,
-            // #[cfg(target_os = "linux")]
+            #[cfg(target_os = "linux")]
             amd_gpu,
         };
 
@@ -227,7 +231,7 @@ impl SystemMonitorImpl {
         }
 
         // AMD GPU metrics
-        // #[cfg(target_os = "linux")]
+        #[cfg(target_os = "linux")]
         if let Some(amd_gpu) = &self.amd_gpu {
             match amd_gpu.get_metrics() {
                 Ok(amd_metrics) => {
@@ -301,7 +305,7 @@ impl SystemMonitor for SystemMonitorImpl {
         }
 
         // AMD GPU metadata (Linux only)
-        // #[cfg(target_os = "linux")]
+        #[cfg(target_os = "linux")]
         {
             if let Some(amd_gpu) = &self.amd_gpu {
                 if let Ok(amd_metadata) = amd_gpu.get_metadata() {
