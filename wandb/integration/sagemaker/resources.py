@@ -40,7 +40,7 @@ def set_run_id(run_settings: wandb.Settings) -> bool:
 
 def set_global_settings(settings: wandb.Settings) -> None:
     """Set global W&B settings based on the SageMaker environment."""
-    if env := _parse_sm_secrets():
+    if env := parse_sm_secrets():
         settings.update_from_env_vars(env)
 
     # The SageMaker config may contain an API key, in which case it
@@ -52,7 +52,7 @@ def set_global_settings(settings: wandb.Settings) -> None:
         settings.api_key = api_key
 
 
-def _parse_sm_secrets() -> dict[str, str]:
+def parse_sm_secrets() -> dict[str, str]:
     """We read our api_key from secrets.env in SageMaker."""
     env_dict = dict()
     # Set secret variables
