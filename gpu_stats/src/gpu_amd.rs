@@ -1,3 +1,4 @@
+use log::debug;
 use std::{
     collections::HashMap,
     io::{Error, ErrorKind},
