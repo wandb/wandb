@@ -325,7 +325,7 @@ impl GpuAmd {
 
         Ok(MetadataRequest {
             gpu_count: raw_stats.len() as u32,
-            // TODO: add GPU type
+            gpu_type: gpu_amd[0].series.clone(),
             gpu_amd: gpu_amd,
             ..Default::default()
         })

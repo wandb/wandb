@@ -131,7 +131,7 @@ impl SystemMonitorImpl {
                 Some(tokio::sync::Mutex::new(gpu))
             }
             Err(e) => {
-                warn!("Failed to initialize NVIDIA GPU monitoring: {}", e);
+                debug!("Failed to initialize NVIDIA GPU monitoring: {}", e);
                 None
             }
         };
@@ -141,8 +141,6 @@ impl SystemMonitorImpl {
         let amd_gpu = match GpuAmd::new() {
             Some(gpu) => {
                 debug!("Successfully initialized AMD GPU monitoring");
-                let _ = gpu.get_metrics();
-                let _ = gpu.get_metadata();
                 Some(gpu)
             }
             None => {
