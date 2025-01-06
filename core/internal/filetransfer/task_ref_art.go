@@ -24,7 +24,7 @@ type ReferenceArtifactTask struct {
 	// Error, if any.
 	Err error
 
-	// Reference to the artifact being transfered
+	// Reference to the artifact being transferred
 	Reference string
 
 	// VersionId is the version of the file we want to download. Different

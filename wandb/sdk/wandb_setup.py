@@ -20,6 +20,7 @@ import threading
 from typing import TYPE_CHECKING, Any, Union
 
 import wandb
+import wandb.integration.sagemaker as sagemaker
 from wandb.sdk.lib import import_hooks
 
 from . import wandb_settings
@@ -82,8 +83,8 @@ def _set_logger(log_object: Logger) -> None:
     logger = log_object
 
 
-class _WandbSetup__WandbSetup:  # noqa: N801
-    """Inner class of _WandbSetup."""
+class _WandbSetup:
+    """W&B library singleton."""
 
     def __init__(
         self,
@@ -145,6 +146,16 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
         # infer settings from the system environment
         s.update_from_system_environment()
+
+        # load SageMaker settings
+        check_sagemaker_env = not s.sagemaker_disable
+        if settings and settings.sagemaker_disable:
+            check_sagemaker_env = False
+        if check_sagemaker_env and sagemaker.is_using_sagemaker():
+            if early_logger:
+                early_logger.info("Loading SageMaker settings")
+
+            sagemaker.set_global_settings(s)
 
         # load settings from the passed init/setup settings
         if settings:
@@ -241,11 +252,6 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             wandb.termwarn("frozen, could be trouble")
 
     def _setup(self) -> None:
-        if not self._settings._noop and not self._settings.x_disable_service:
-            from wandb.sdk.lib import service_connection
-
-            self._connection = service_connection.connect_to_service(self._settings)
-
         sweep_path = self._settings.sweep_param_path
         if sweep_path:
             self._sweep_config = config_util.dict_from_config_file(
@@ -278,53 +284,61 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         if internal_exit_code != 0:
             sys.exit(internal_exit_code)
 
-    @property
-    def service(self) -> ServiceConnection | None:
-        """Returns a connection to the service process, if it exists."""
+    def ensure_service(self) -> ServiceConnection:
+        """Returns a connection to the service process creating it if needed."""
+        if self._connection:
+            return self._connection
+
+        from wandb.sdk.lib import service_connection
+
+        self._connection = service_connection.connect_to_service(self._settings)
+        return self._connection
+
+    def assert_service(self) -> ServiceConnection:
+        """Returns a connection to the service process, asserting it exists.
+
+        Unlike ensure_service(), this will not start up a service process
+        if it didn't already exist.
+        """
+        if not self._connection:
+            raise AssertionError("Expected service process to exist.")
+
         return self._connection
 
 
-class _WandbSetup:
-    """Wandb singleton class.
+_singleton: _WandbSetup | None = None
+"""The W&B library singleton, or None if not yet set up.
 
-    Note: This is a process local singleton.
-    (Forked processes will get a new copy of the object)
+The value is invalid and must not be used if `os.getpid() != _singleton._pid`.
+"""
+
+
+def singleton() -> _WandbSetup | None:
+    """Returns the W&B singleton if it exists for the current process.
+
+    Unlike setup(), this does not create the singleton if it doesn't exist.
     """
-
-    _instance: _WandbSetup__WandbSetup | None = None
-
-    def __init__(self, settings: Settings | None = None) -> None:
-        pid = os.getpid()
-        if _WandbSetup._instance and _WandbSetup._instance._pid == pid:
-            _WandbSetup._instance._update(settings=settings)
-            return
-        _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid)
-
-    @property
-    def service(self) -> ServiceConnection | None:
-        """Returns a connection to the service process, if it exists."""
-        if not self._instance:
-            return None
-        return self._instance.service
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._instance, name)
-
-
-def _setup(
-    settings: Settings | None = None,
-    _reset: bool = False,
-) -> _WandbSetup | None:
-    """Set up library context."""
-    if _reset:
-        teardown()
+    if _singleton and _singleton._pid == os.getpid():
+        return _singleton
+    else:
         return None
 
-    wl = _WandbSetup(settings=settings)
-    return wl
+
+def _setup(settings: Settings | None = None) -> _WandbSetup:
+    """Set up library context."""
+    global _singleton
+
+    pid = os.getpid()
+
+    if _singleton and _singleton._pid == pid:
+        _singleton._update(settings=settings)
+        return _singleton
+    else:
+        _singleton = _WandbSetup(settings=settings, pid=pid)
+        return _singleton
 
 
-def setup(settings: Settings | None = None) -> _WandbSetup | None:
+def setup(settings: Settings | None = None) -> _WandbSetup:
     """Prepares W&B for use in the current process and its children.
 
     You can usually ignore this as it is implicitly called by `wandb.init()`.
@@ -380,8 +394,7 @@ def setup(settings: Settings | None = None) -> _WandbSetup | None:
             wandb.teardown()
         ```
     """
-    ret = _setup(settings=settings)
-    return ret
+    return _setup(settings=settings)
 
 
 def teardown(exit_code: int | None = None) -> None:
@@ -395,8 +408,10 @@ def teardown(exit_code: int | None = None) -> None:
     in an `atexit` hook, but this is not reliable in certain setups
     such as when using Python's `multiprocessing` module.
     """
-    setup_instance = _WandbSetup._instance
-    _WandbSetup._instance = None
+    global _singleton
 
-    if setup_instance:
-        setup_instance._teardown(exit_code=exit_code)
+    orig_singleton = _singleton
+    _singleton = None
+
+    if orig_singleton:
+        orig_singleton._teardown(exit_code=exit_code)

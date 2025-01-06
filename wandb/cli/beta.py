@@ -153,7 +153,7 @@ def sync_beta(  # noqa: C901
     if dry_run:
         return
 
-    wandb.sdk.wandb_setup.setup()
+    wandb.setup()
 
     # TODO: make it thread-safe in the Rust code
     with concurrent.futures.ProcessPoolExecutor(

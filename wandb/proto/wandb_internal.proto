@@ -578,6 +578,7 @@ message Request {
     LogArtifactRequest log_artifact = 13;
     DownloadArtifactRequest download_artifact = 14;
     KeepaliveRequest keepalive = 17;
+    ServerFeatureRequest server_feature = 18;
     RunStatusRequest run_status = 20;
     CancelRequest cancel = 21;
     MetadataRequest metadata = 22;
@@ -598,6 +599,7 @@ message Request {
     JobInputRequest job_input = 77;
     LinkArtifactRequest link_artifact = 78;
     RunFinishWithoutExitRequest run_finish_without_exit = 79;
+    GetSystemMetadataRequest get_system_metadata = 80;
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -618,6 +620,7 @@ message Response {
     CheckVersionResponse check_version_response = 29;
     LogArtifactResponse log_artifact_response = 30;
     DownloadArtifactResponse download_artifact_response = 31;
+    ServerFeatureResponse server_feature_response = 32;
     RunStatusResponse run_status_response = 35;
     CancelResponse cancel_response = 36;
     InternalMessagesResponse internal_messages_response = 37;
@@ -630,6 +633,7 @@ message Response {
     SyncResponse sync_response = 70;
     LinkArtifactResponse link_artifact_response = 71;
     RunFinishWithoutExitResponse run_finish_without_exit_response = 72;
+    GetSystemMetadataResponse get_system_metadata_response = 73;
     TestInjectResponse test_inject_response = 1000;
   }
 }
@@ -718,6 +722,17 @@ message SystemMetricsBuffer {
 
 message GetSystemMetricsResponse {
   map<string, SystemMetricsBuffer> system_metrics = 1;
+}
+
+/*
+ * GetSystemMetadataRequest: request system metadata
+ */
+message GetSystemMetadataRequest {
+  _RequestInfo _info = 200;
+}
+
+message GetSystemMetadataResponse {
+  MetadataRequest metadata = 1;
 }
 
 /*
@@ -1309,6 +1324,9 @@ message MetadataRequest {
   string cuda_version = 30;
   TrainiumInfo trainium = 31;
   TPUInfo tpu = 32;
+
+  // Flag indicating whether the request originated from the user.
+  optional bool _user_modified = 200 [json_name = "_user_modified"];
 }
 
 message PythonPackagesRequest {
@@ -1360,4 +1378,33 @@ message JobInputRequest {
   repeated JobInputPath include_paths = 2;
   repeated JobInputPath exclude_paths = 3;
   string input_schema = 4;
+}
+
+enum ServerFeature {
+  LARGE_FILENAMES = 0;
+  ARTIFACT_TAGS = 1;
+  CLIENT_IDS = 2;
+}
+
+/**
+ * A request to the backend process for the features supported by the server.
+ */
+message ServerFeatureRequest {
+  ServerFeature feature = 1;
+  _RequestInfo _info = 200;
+}
+
+/**
+ * A response to a ServerFeatureRequest with the status of each requested feature.
+ */
+message ServerFeatureResponse {
+  ServerFeatureItem feature = 1;
+}
+
+/**
+ * The feature details to be requested in a ServerFeatureRequest.
+ */
+message ServerFeatureItem {
+  string name = 1;
+  bool enabled = 2;
 }

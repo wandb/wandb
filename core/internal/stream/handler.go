@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gitops"
@@ -42,31 +43,29 @@ const (
 )
 
 type HandlerParams struct {
-	Settings          *settings.Settings
-	FwdChan           chan runwork.Work
-	OutChan           chan *spb.Result
-	Logger            *observability.CoreLogger
-	Operations        *wboperation.WandbOperations
-	Mailbox           *mailbox.Mailbox
+	// Commit is the W&B Git commit hash
+	Commit            string
+	FeatureProvider   *featurechecker.ServerFeaturesCache
 	FileTransferStats filetransfer.FileTransferStats
-	TBHandler         *tensorboard.TBHandler
-	SystemMonitor     *monitor.SystemMonitor
-	TerminalPrinter   *observability.Printer
+	FwdChan           chan runwork.Work
+	Logger            *observability.CoreLogger
+	Mailbox           *mailbox.Mailbox
+	Operations        *wboperation.WandbOperations
+	OutChan           chan *spb.Result
+	Settings          *settings.Settings
 
 	// SkipSummary controls whether to skip summary updates.
 	//
 	// This is only useful in a test.
 	SkipSummary bool
+
+	SystemMonitor   *monitor.SystemMonitor
+	TBHandler       *tensorboard.TBHandler
+	TerminalPrinter *observability.Printer
 }
 
 // Handler handles the incoming messages, processes them, and passes them to the writer.
 type Handler struct {
-	// commit is the W&B Git commit hash
-	commit string
-
-	// settings is the settings for the handler
-	settings *settings.Settings
-
 	// clientID is an ID for this process.
 	//
 	// This identifies the process that uploaded a set of metrics when
@@ -74,26 +73,34 @@ type Handler struct {
 	// the same run.
 	clientID string
 
-	// logger is the logger for the handler
-	logger *observability.CoreLogger
+	// commit is the W&B Git commit hash
+	commit string
 
-	// pollExitLogRateLimit limits log messages when handling PollExit requests
-	pollExitLogRateLimit *rate.Limiter
+	// featureProvider provides server features and capabilities
+	featureProvider *featurechecker.ServerFeaturesCache
 
-	// operations tracks the status of the run's uploads
-	operations *wboperation.WandbOperations
+	// fileTransferStats reports file upload/download statistics
+	fileTransferStats filetransfer.FileTransferStats
 
 	// fwdChan is the channel for forwarding messages to the next component
 	fwdChan chan runwork.Work
 
+	// logger is the logger for the handler
+	logger *observability.CoreLogger
+
+	mailbox *mailbox.Mailbox
+
+	// metadata stores the run metadata including system stats
+	metadata *spb.MetadataRequest
+
+	// metricHandler is the metric handler for the stream
+	metricHandler *runmetric.MetricHandler
+
+	// operations tracks the status of the run's uploads
+	operations *wboperation.WandbOperations
+
 	// outChan is the channel for sending results to the client
 	outChan chan *spb.Result
-
-	// runTimer is used to track the run start and execution times
-	runTimer *timer.Timer
-
-	// runRecord is the runRecord record received from the server
-	runRecord *spb.RunRecord
 
 	// partialHistory is a set of run metrics accumulated for the current step.
 	partialHistory *runhistory.RunHistory
@@ -102,14 +109,17 @@ type Handler struct {
 	// when not running in shared mode.
 	partialHistoryStep int64
 
+	// pollExitLogRateLimit limits log messages when handling PollExit requests
+	pollExitLogRateLimit *rate.Limiter
+
 	// runHistorySampler tracks samples of all metrics in the run's history.
 	//
 	// This is used to display the sparkline in the terminal at the end of
 	// the run.
 	runHistorySampler *runhistory.RunHistorySampler
 
-	// metricHandler is the metric handler for the stream
-	metricHandler *runmetric.MetricHandler
+	// runRecord is the runRecord record received from the server
+	runRecord *spb.RunRecord
 
 	// runSummary contains summaries of the run's metrics.
 	//
@@ -119,6 +129,12 @@ type Handler struct {
 	// which may be arbitrarily far behind the Handler.
 	runSummary *runsummary.RunSummary
 
+	// runTimer is used to track the run start and execution times
+	runTimer *timer.Timer
+
+	// settings is the settings for the handler
+	settings *settings.Settings
+
 	// skipSummary is set in tests where certain summary records should be
 	// ignored.
 	skipSummary bool
@@ -126,45 +142,37 @@ type Handler struct {
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
-	// metadata stores the run metadata including system stats
-	metadata *spb.MetadataRequest
-
 	// tbHandler is the tensorboard handler
 	tbHandler *tensorboard.TBHandler
 
-	// fileTransferStats reports file upload/download statistics
-	fileTransferStats filetransfer.FileTransferStats
-
 	// terminalPrinter gathers terminal messages to send back to the user process
 	terminalPrinter *observability.Printer
-
-	mailbox *mailbox.Mailbox
 }
 
 // NewHandler creates a new handler
 func NewHandler(
-	commit string,
 	params HandlerParams,
 ) *Handler {
 	return &Handler{
-		commit:               commit,
-		runTimer:             timer.New(),
-		terminalPrinter:      params.TerminalPrinter,
-		logger:               params.Logger,
-		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
-		operations:           params.Operations,
-		settings:             params.Settings,
 		clientID:             randomid.GenerateUniqueID(32),
-		fwdChan:              params.FwdChan,
-		outChan:              params.OutChan,
-		mailbox:              params.Mailbox,
-		runSummary:           runsummary.New(),
-		skipSummary:          params.SkipSummary,
-		runHistorySampler:    runhistory.NewRunHistorySampler(),
-		metricHandler:        runmetric.New(),
+		commit:               params.Commit,
+		featureProvider:      params.FeatureProvider,
 		fileTransferStats:    params.FileTransferStats,
-		tbHandler:            params.TBHandler,
+		fwdChan:              params.FwdChan,
+		logger:               params.Logger,
+		mailbox:              params.Mailbox,
+		metricHandler:        runmetric.New(),
+		operations:           params.Operations,
+		outChan:              params.OutChan,
+		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
+		runHistorySampler:    runhistory.NewRunHistorySampler(),
+		runSummary:           runsummary.New(),
+		runTimer:             timer.New(),
+		settings:             params.Settings,
+		skipSummary:          params.SkipSummary,
 		systemMonitor:        params.SystemMonitor,
+		tbHandler:            params.TBHandler,
+		terminalPrinter:      params.TerminalPrinter,
 	}
 }
 
@@ -295,6 +303,7 @@ func (h *Handler) handleRequest(record *spb.Record) {
 
 	case *spb.Request_ServerInfo:
 	case *spb.Request_CheckVersion:
+	case *spb.Request_Defer:
 		// The above been removed from the client but are kept here for now.
 		// Should be removed in the future.
 
@@ -312,8 +321,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestStatusReport(record)
 	case *spb.Request_Shutdown:
 		h.handleRequestShutdown(record)
-	case *spb.Request_Defer:
-		h.handleRequestDefer(record, x.Defer)
 	case *spb.Request_GetSummary:
 		h.handleRequestGetSummary(record)
 	case *spb.Request_NetworkStatus:
@@ -346,6 +353,8 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestCancel(x.Cancel)
 	case *spb.Request_GetSystemMetrics:
 		h.handleRequestGetSystemMetrics(record)
+	case *spb.Request_GetSystemMetadata:
+		h.handleRequestGetSystemMetadata(record)
 	case *spb.Request_InternalMessages:
 		h.handleRequestInternalMessages(record)
 	case *spb.Request_Sync:
@@ -356,6 +365,8 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestJobInput(record)
 	case *spb.Request_RunFinishWithoutExit:
 		h.handleRequestRunFinishWithoutExit(record)
+	case *spb.Request_ServerFeature:
+		h.handleRequestServerFeature(record, x.ServerFeature)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRequest: request type is nil"))
@@ -411,19 +422,6 @@ func (h *Handler) handleMetric(record *spb.Record) {
 	if len(metric.Name) > 0 {
 		h.metricHandler.UpdateSummary(metric.Name, h.runSummary)
 	}
-}
-
-func (h *Handler) handleRequestDefer(record *spb.Record, _ *spb.DeferRequest) {
-	// Need to clone the record to avoid race condition with the writer
-	record = proto.Clone(record).(*spb.Record)
-	h.fwdRecordWithControl(record,
-		func(control *spb.Control) {
-			control.AlwaysSend = true
-		},
-		func(control *spb.Control) {
-			control.Local = true
-		},
-	)
 }
 
 func (h *Handler) handleRequestStopStatus(record *spb.Record) {
@@ -681,9 +679,18 @@ func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
 	}
 
 	if h.metadata == nil {
+		// Save the metadata on the first call.
 		h.metadata = proto.Clone(request).(*spb.MetadataRequest)
 	} else {
-		proto.Merge(h.metadata, request)
+		// Merge the metadata on subsequent calls.
+		// The order of the merge depends on the origin of the request.
+		// The request originating from the user should take precedence.
+		if request.GetXUserModified() {
+			proto.Merge(h.metadata, request)
+		} else {
+			proto.Merge(request, h.metadata)
+			h.metadata = request
+		}
 	}
 
 	mo := protojson.MarshalOptions{
@@ -840,6 +847,18 @@ func (h *Handler) handleRequestGetSystemMetrics(record *spb.Record) {
 		response.GetGetSystemMetricsResponse().SystemMetrics[key] = &spb.SystemMetricsBuffer{
 			Record: buffer,
 		}
+	}
+
+	h.respond(record, response)
+}
+
+func (h *Handler) handleRequestGetSystemMetadata(record *spb.Record) {
+	response := &spb.Response{
+		ResponseType: &spb.Response_GetSystemMetadataResponse{
+			GetSystemMetadataResponse: &spb.GetSystemMetadataResponse{
+				Metadata: h.metadata,
+			},
+		},
 	}
 
 	h.respond(record, response)
@@ -1146,6 +1165,25 @@ func (h *Handler) handleRequestSampledHistory(record *spb.Record) {
 		ResponseType: &spb.Response_SampledHistoryResponse{
 			SampledHistoryResponse: &spb.SampledHistoryResponse{
 				Item: h.runHistorySampler.Get(),
+			},
+		},
+	})
+}
+
+// handleRequestServerFeature gets the server features requested by the client,
+// and responds with the details of the feature provided by the server.
+func (h *Handler) handleRequestServerFeature(
+	record *spb.Record,
+	request *spb.ServerFeatureRequest,
+) {
+	serverFeatureValue := h.featureProvider.GetFeature(request.GetFeature())
+	h.respond(record, &spb.Response{
+		ResponseType: &spb.Response_ServerFeatureResponse{
+			ServerFeatureResponse: &spb.ServerFeatureResponse{
+				Feature: &spb.ServerFeatureItem{
+					Enabled: serverFeatureValue.Enabled,
+					Name:    serverFeatureValue.Name,
+				},
 			},
 		},
 	})

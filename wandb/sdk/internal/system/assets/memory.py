@@ -161,6 +161,6 @@ class Memory:
         # total available memory in gigabytes
         return {
             "memory": {
-                "total": psutil.virtual_memory().total / 1024 / 1024 / 1024,
+                "total": psutil.virtual_memory().total,
             }
         }

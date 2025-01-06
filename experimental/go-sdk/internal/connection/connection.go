@@ -8,7 +8,7 @@ import (
 
 	"github.com/wandb/wandb/core/pkg/server"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/experimental/client-go/internal/mailbox"
+	"github.com/wandb/wandb/experimental/go-sdk/internal/mailbox"
 
 	"net"
 

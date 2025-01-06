@@ -139,7 +139,7 @@ def test_except_hook(user, test_settings):
 
     sys.excepthook = hook
 
-    # We cant use raise statement in pytest context
+    # We can't use raise statement in pytest context
     def raise_(exc):
         return sys.excepthook(type(exc), exc, None)
 

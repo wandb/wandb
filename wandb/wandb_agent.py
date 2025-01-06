@@ -92,7 +92,7 @@ class AgentProcess:
 
     def wait(self):
         if self._popen:
-            # if on windows, wait() will block and we wont be able to interrupt
+            # if on windows, wait() will block and we won't be able to interrupt
             if platform.system() == "Windows":
                 try:
                     while True:
@@ -392,7 +392,7 @@ class Agent:
 
         if self._function:
             # make sure that each run regenerates setup singleton
-            wandb_sdk.wandb_setup._setup(_reset=True)
+            wandb.teardown()
             proc = AgentProcess(
                 function=self._function,
                 env=env,

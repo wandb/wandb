@@ -160,7 +160,7 @@ class _Service:
                     service_args.append("--no-observability")
 
                 if core_debug(default="False"):
-                    service_args.append("--debug")
+                    service_args.extend(["--log-level", "-4"])
 
                 exec_cmd_list = []
                 termlog(
