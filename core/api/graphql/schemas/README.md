@@ -1,6 +1,7 @@
-Copy the current schema to this directory at:
-schema-latest.graphql
+# GraphQL Schema
 
-    For now we don't want this checked in
+This directory contains the latest GraphQL schema for the W&B API.
 
-https://github.com/wandb/core/blob/ca53c9eb6d90a1efc26fe619914ed96ef478ecb9/services/gorilla/api/schema/schema.graphql
+## To update the schema:
+1. Update the commit hash in `./core/api/graphql/schemas/commit.hash.txt`
+2. Re-run `./core/api/graphql/generate-graphql.sh`
