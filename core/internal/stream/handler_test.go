@@ -918,7 +918,6 @@ func TestHandleServerFeaturesNoFeatures(t *testing.T) {
 
 	// Assert default value enabled is false
 	result := <-outChan
-	fmt.Println(result)
 	serverFeatureResponse := result.GetResponse().GetServerFeatureResponse()
 	assert.NotNil(t, serverFeatureResponse)
 	assert.False(t, serverFeatureResponse.GetFeature().Enabled)

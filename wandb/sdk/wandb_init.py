@@ -218,29 +218,22 @@ class _WandbInit:
         self.warn_env_vars_change_after_setup()
 
         _set_logger(self._wl._get_logger())
+        assert logger
 
         self.clear_run_path_if_sweep_or_launch(init_settings)
 
-        # Start with settings from wandb library singleton
+        # Inherit global settings.
         settings = self._wl.settings.model_copy()
 
-        # Apply settings from wandb.init() call
+        # Apply settings from wandb.init() call.
         settings.update_from_settings(init_settings)
 
-        sagemaker_config: dict = (
-            dict() if settings.sagemaker_disable else sagemaker.parse_sm_config()
-        )
-        if sagemaker_config:
-            sagemaker_api_key = sagemaker_config.get("wandb_api_key", None)
-            sagemaker_run, sagemaker_env = sagemaker.parse_sm_resources()
-            if sagemaker_env:
-                if sagemaker_api_key:
-                    sagemaker_env["WANDB_API_KEY"] = sagemaker_api_key
-                settings.update_from_env_vars(sagemaker_env)
-                wandb.setup(settings=settings)
-            settings.update_from_dict(sagemaker_run)
-            with telemetry.context(obj=self._init_telemetry_obj) as tel:
-                tel.feature.sagemaker = True
+        # Infer the run ID from SageMaker.
+        if not settings.sagemaker_disable and sagemaker.is_using_sagemaker():
+            if sagemaker.set_run_id(settings):
+                logger.info("set run ID and group based on SageMaker")
+                with telemetry.context(obj=self._init_telemetry_obj) as tel:
+                    tel.feature.sagemaker = True
 
         with telemetry.context(obj=self._init_telemetry_obj) as tel:
             if config is not None:
@@ -267,23 +260,25 @@ class _WandbInit:
             exclude=config_exclude_keys,
         )
 
-        # merge config with sweep or sagemaker (or config file)
-        self.sweep_config = dict()
-        sweep_config = self._wl._sweep_config or dict()
+        # Construct the run's config.
         self.config = dict()
         self.init_artifact_config: dict[str, Any] = dict()
-        for config_data in (
-            sagemaker_config,
-            self._wl._config,
-            config,
-        ):
-            if not config_data:
-                continue
-            # split out artifacts, since when inserted into
-            # config they will trigger use_artifact
-            # but the run is not yet upserted
-            self._split_artifacts_from_config(config_data, self.config)  # type: ignore
 
+        if not settings.sagemaker_disable and sagemaker.is_using_sagemaker():
+            sagemaker_config = sagemaker.parse_sm_config()
+            self._split_artifacts_from_config(sagemaker_config, self.config)
+
+            with telemetry.context(obj=self._init_telemetry_obj) as tel:
+                tel.feature.sagemaker = True
+
+        if self._wl._config:
+            self._split_artifacts_from_config(self._wl._config, self.config)
+
+        if config and isinstance(config, dict):
+            self._split_artifacts_from_config(config, self.config)
+
+        self.sweep_config = dict()
+        sweep_config = self._wl._sweep_config or dict()
         if sweep_config:
             self._split_artifacts_from_config(sweep_config, self.sweep_config)
 
