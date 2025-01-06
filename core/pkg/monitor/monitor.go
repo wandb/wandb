@@ -135,9 +135,6 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 	if gpu := NewGPU(pid, gpuDeviceIds); gpu != nil {
 		sm.assets = append(sm.assets, gpu)
 	}
-	if gpu := NewGPUAMD(sm.logger); gpu != nil {
-		sm.assets = append(sm.assets, gpu)
-	}
 	if tpu := NewTPU(); tpu != nil {
 		sm.assets = append(sm.assets, tpu)
 	}
