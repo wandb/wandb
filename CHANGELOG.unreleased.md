@@ -29,6 +29,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Fix uploading large artifacts when using Azure Blob Storage. (@amulya-musipatla in https://github.com/wandb/wandb/pull/8946)
 - Fix error when reinitializing a run, caused by accessing a removed attribute. (@MathisTLD in https://github.com/wandb/wandb/pull/8912)
 - Fixed occasional deadlock when using `multiprocessing` to update a single run from multiple processes (@timoffex in https://github.com/wandb/wandb/pull/9126)
+- Prevent errors from bugs in older versions of `botocore < 1.5.76` (@amusipatla-wandb, @tonyyli-wandb in https://github.com/wandb/wandb/pull/9015)
 
 ### Removed
 
