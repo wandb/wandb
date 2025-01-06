@@ -31,7 +31,7 @@ def set_run_id(run_settings: wandb.Settings) -> bool:
     alphanumeric = string.ascii_lowercase + string.digits
     random = "".join(secrets.choice(alphanumeric) for _ in range(6))
 
-    host = os.getenv("CURRENT_HOST", socket.gethostbyname())
+    host = os.getenv("CURRENT_HOST", socket.gethostname())
 
     run_settings.run_id = f"{run_group}-{random}-{host}"
     run_settings.run_group = run_group

@@ -1,4 +1,4 @@
-//go:build freebsd
+//go:build darwin || freebsd || windows
 
 package monitor
 
@@ -6,29 +6,6 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
-
-// GPUAMD is a dummy implementation of the Asset interface for AMD GPUs.
-type GPUAMD struct {
-	name   string
-	logger *observability.CoreLogger
-}
-
-func NewGPUAMD(logger *observability.CoreLogger) *GPUAMD {
-	return &GPUAMD{
-		name:   "gpu",
-		logger: logger,
-	}
-}
-
-func (g *GPUAMD) Name() string { return g.name }
-
-func (g *GPUAMD) Sample() (*spb.StatsRecord, error) { return nil, nil }
-
-func (g *GPUAMD) IsAvailable() bool { return false }
-
-func (g *GPUAMD) Probe() *spb.MetadataRequest {
-	return nil
-}
 
 // Trainium is a dummy implementation of the Asset interface for Trainium.
 type Trainium struct {
