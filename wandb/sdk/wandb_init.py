@@ -125,7 +125,7 @@ class _WandbInit:
         self.backend: Backend | None = None
 
         self._teardown_hooks: list[TeardownHook] = []
-        self._wl: wandb_setup._WandbSetup | None = None
+        self._wl = wandb.setup()
         self.notebook: wandb.jupyter.Notebook | None = None  # type: ignore
         self.printer = printer.new_printer()
 
@@ -167,6 +167,41 @@ class _WandbInit:
             )
             self.printer.display(line, level="warn")
 
+    def clear_run_path_if_sweep_or_launch(
+        self,
+        init_settings: Settings,
+    ) -> None:
+        """Clear project/entity/run_id keys if in a Sweep or a Launch context.
+
+        Args:
+            init_settings: Settings specified in the call to `wandb.init()`.
+        """
+        when_doing_thing = ""
+
+        if self._wl.settings.sweep_id:
+            when_doing_thing = "when running a sweep"
+        elif self._wl.settings.launch:
+            when_doing_thing = "when running from a wandb launch context"
+
+        if not when_doing_thing:
+            return
+
+        def warn(key: str, value: str) -> None:
+            self.printer.display(
+                f"Ignoring {key} {value!r} {when_doing_thing}.",
+                level="warn",
+            )
+
+        if init_settings.project is not None:
+            warn("project", init_settings.project)
+            init_settings.project = None
+        if init_settings.entity is not None:
+            warn("entity", init_settings.entity)
+            init_settings.entity = None
+        if init_settings.run_id is not None:
+            warn("run_id", init_settings.run_id)
+            init_settings.run_id = None
+
     def setup(  # noqa: C901
         self,
         init_settings: Settings,
@@ -182,38 +217,23 @@ class _WandbInit:
         """
         self.warn_env_vars_change_after_setup()
 
-        self._wl = wandb.setup()
-
         _set_logger(self._wl._get_logger())
+        assert logger
 
-        # Start with settings from wandb library singleton
+        self.clear_run_path_if_sweep_or_launch(init_settings)
+
+        # Inherit global settings.
         settings = self._wl.settings.model_copy()
 
-        # handle custom sweep- and launch-related logic for init settings
-        if settings.sweep_id:
-            init_settings.sweep_id = settings.sweep_id
-            init_settings.handle_sweep_logic()
-        if settings.launch:
-            init_settings.launch = settings.launch
-            init_settings.handle_launch_logic()
-
-        # Apply settings from wandb.init() call
+        # Apply settings from wandb.init() call.
         settings.update_from_settings(init_settings)
 
-        sagemaker_config: dict = (
-            dict() if settings.sagemaker_disable else sagemaker.parse_sm_config()
-        )
-        if sagemaker_config:
-            sagemaker_api_key = sagemaker_config.get("wandb_api_key", None)
-            sagemaker_run, sagemaker_env = sagemaker.parse_sm_resources()
-            if sagemaker_env:
-                if sagemaker_api_key:
-                    sagemaker_env["WANDB_API_KEY"] = sagemaker_api_key
-                settings.update_from_env_vars(sagemaker_env)
-                wandb.setup(settings=settings)
-            settings.update_from_dict(sagemaker_run)
-            with telemetry.context(obj=self._init_telemetry_obj) as tel:
-                tel.feature.sagemaker = True
+        # Infer the run ID from SageMaker.
+        if not settings.sagemaker_disable and sagemaker.is_using_sagemaker():
+            if sagemaker.set_run_id(settings):
+                logger.info("set run ID and group based on SageMaker")
+                with telemetry.context(obj=self._init_telemetry_obj) as tel:
+                    tel.feature.sagemaker = True
 
         with telemetry.context(obj=self._init_telemetry_obj) as tel:
             if config is not None:
@@ -240,23 +260,25 @@ class _WandbInit:
             exclude=config_exclude_keys,
         )
 
-        # merge config with sweep or sagemaker (or config file)
-        self.sweep_config = dict()
-        sweep_config = self._wl._sweep_config or dict()
+        # Construct the run's config.
         self.config = dict()
         self.init_artifact_config: dict[str, Any] = dict()
-        for config_data in (
-            sagemaker_config,
-            self._wl._config,
-            config,
-        ):
-            if not config_data:
-                continue
-            # split out artifacts, since when inserted into
-            # config they will trigger use_artifact
-            # but the run is not yet upserted
-            self._split_artifacts_from_config(config_data, self.config)  # type: ignore
 
+        if not settings.sagemaker_disable and sagemaker.is_using_sagemaker():
+            sagemaker_config = sagemaker.parse_sm_config()
+            self._split_artifacts_from_config(sagemaker_config, self.config)
+
+            with telemetry.context(obj=self._init_telemetry_obj) as tel:
+                tel.feature.sagemaker = True
+
+        if self._wl._config:
+            self._split_artifacts_from_config(self._wl._config, self.config)
+
+        if config and isinstance(config, dict):
+            self._split_artifacts_from_config(config, self.config)
+
+        self.sweep_config = dict()
+        sweep_config = self._wl._sweep_config or dict()
         if sweep_config:
             self._split_artifacts_from_config(sweep_config, self.sweep_config)
 
@@ -283,15 +305,14 @@ class _WandbInit:
             )
 
         # apply updated global state after login was handled
-        wl = wandb.setup()
         login_settings = {
             k: v
             for k, v in {
-                "anonymous": wl.settings.anonymous,
-                "api_key": wl.settings.api_key,
-                "base_url": wl.settings.base_url,
-                "force": wl.settings.force,
-                "login_timeout": wl.settings.login_timeout,
+                "anonymous": self._wl.settings.anonymous,
+                "api_key": self._wl.settings.api_key,
+                "base_url": self._wl.settings.base_url,
+                "force": self._wl.settings.force,
+                "login_timeout": self._wl.settings.login_timeout,
             }.items()
             if v is not None
         }

@@ -20,6 +20,7 @@ import threading
 from typing import TYPE_CHECKING, Any, Union
 
 import wandb
+import wandb.integration.sagemaker as sagemaker
 from wandb.sdk.lib import import_hooks
 
 from . import wandb_settings
@@ -145,6 +146,16 @@ class _WandbSetup:
 
         # infer settings from the system environment
         s.update_from_system_environment()
+
+        # load SageMaker settings
+        check_sagemaker_env = not s.sagemaker_disable
+        if settings and settings.sagemaker_disable:
+            check_sagemaker_env = False
+        if check_sagemaker_env and sagemaker.is_using_sagemaker():
+            if early_logger:
+                early_logger.info("Loading SageMaker settings")
+
+            sagemaker.set_global_settings(s)
 
         # load settings from the passed init/setup settings
         if settings:

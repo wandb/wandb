@@ -2415,7 +2415,7 @@ class Run:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
 
-        if not self._wl or self._wl.settings.x_disable_service:
+        if self.settings.x_disable_service:
             self._hooks.hook()
             # NB: manager will perform atexit hook like behavior for outstanding runs
             atexit.register(lambda: self._atexit_cleanup())
