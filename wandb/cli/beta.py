@@ -12,6 +12,7 @@ import click
 
 import wandb
 from wandb.errors import UsageError, WandbCoreNotAvailableError
+from wandb.sdk.wandb_sync import _sync
 from wandb.util import get_core_path
 
 
@@ -164,7 +165,7 @@ def sync_beta(  # noqa: C901
             # we already know there is only one wandb file in the directory
             wandb_file = [p for p in path.glob("*.wandb") if p.is_file()][0]
             future = executor.submit(
-                wandb._sync,
+                _sync,
                 wandb_file,
                 run_id=run_id,
                 project=project,

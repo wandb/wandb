@@ -50,6 +50,9 @@ type Stream struct {
 	// settings is the settings for the stream
 	settings *settings.Settings
 
+	// reader is the reader for the stream
+	reader *Reader
+
 	// handler is the handler for the stream
 	handler *Handler
 
@@ -209,6 +212,19 @@ func NewStream(
 	)
 
 	mailbox := mailbox.New()
+	if s.settings.IsSync() {
+		s.reader = NewReader(ReaderParams{
+			Logger:   s.logger,
+			Settings: s.settings,
+			RunWork:  s.runWork,
+		})
+	} else {
+		s.writer = NewWriter(WriterParams{
+			Logger:   s.logger,
+			Settings: s.settings,
+			FwdChan:  make(chan runwork.Work, BufferSize),
+		})
+	}
 
 	s.handler = NewHandler(
 		HandlerParams{
@@ -227,16 +243,7 @@ func NewStream(
 		},
 	)
 
-	s.writer = NewWriter(
-		WriterParams{
-			Logger:   s.logger,
-			Settings: s.settings,
-			FwdChan:  make(chan runwork.Work, BufferSize),
-		},
-	)
-
 	s.sender = NewSender(
-		s.runWork,
 		SenderParams{
 			Logger:              s.logger,
 			Operations:          operations,
@@ -253,6 +260,7 @@ func NewStream(
 			GraphqlClient:       graphqlClientOrNil,
 			OutChan:             make(chan *spb.Result, BufferSize),
 			Mailbox:             mailbox,
+			RunWork:             s.runWork,
 		},
 	)
 
@@ -289,6 +297,7 @@ func (s *Stream) UpdateRunURLTag() {
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
 func (s *Stream) Start() {
+
 	// handle the client requests with the handler
 	s.wg.Add(1)
 	go func() {
@@ -297,18 +306,34 @@ func (s *Stream) Start() {
 	}()
 
 	// write the data to a transaction log
-	s.wg.Add(1)
-	go func() {
-		s.writer.Do(s.handler.fwdChan)
-		s.wg.Done()
-	}()
+	if !s.settings.IsSync() {
 
-	// send the data to the server
-	s.wg.Add(1)
-	go func() {
-		s.sender.Do(s.writer.fwdChan)
-		s.wg.Done()
-	}()
+		s.wg.Add(1)
+		go func() {
+			s.writer.Do(s.handler.fwdChan)
+			s.wg.Done()
+		}()
+
+		// send the data to the server
+		s.wg.Add(1)
+		go func() {
+			s.sender.Do(s.writer.fwdChan)
+			s.wg.Done()
+		}()
+
+	} else {
+		s.wg.Add(1)
+		go func() {
+			s.reader.Do()
+			s.wg.Done()
+		}()
+
+		s.wg.Add(1)
+		go func() {
+			s.sender.Do(s.handler.fwdChan)
+			s.wg.Done()
+		}()
+	}
 
 	// handle dispatching between components
 	for _, ch := range []chan *spb.Result{s.handler.outChan, s.sender.outChan} {
@@ -325,9 +350,9 @@ func (s *Stream) Start() {
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
-func (s *Stream) HandleRecord(rec *spb.Record) {
-	s.logger.Debug("handling record", "record", rec)
-	s.runWork.AddWork(runwork.WorkFromRecord(rec))
+func (s *Stream) HandleRecord(record *spb.Record) {
+	s.logger.Debug("handling record", "record", record.GetRecordType())
+	s.runWork.AddWork(runwork.WorkFromRecord(record))
 }
 
 // Close waits for all run messages to be fully processed.

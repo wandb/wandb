@@ -357,10 +357,10 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestGetSystemMetadata(record)
 	case *spb.Request_InternalMessages:
 		h.handleRequestInternalMessages(record)
-	case *spb.Request_Sync:
-		h.handleRequestSync(record)
+	case *spb.Request_SyncFinish:
+		h.handleRequestSyncFinish(record)
 	case *spb.Request_SenderRead:
-		h.handleRequestSenderRead(record)
+		// TODO: implement this
 	case *spb.Request_JobInput:
 		h.handleRequestJobInput(record)
 	case *spb.Request_RunFinishWithoutExit:
@@ -484,6 +484,13 @@ func (h *Handler) handleHeader(record *spb.Record) {
 }
 
 func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStartRequest) {
+	// if sync is enabled, we don't need to do anything just forward the record
+	// to the sender so it can start the relevant components
+	if h.settings.IsSync() {
+		h.fwdRecord(record)
+		return
+	}
+
 	var ok bool
 	run := request.Run
 
@@ -794,10 +801,6 @@ func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
 	h.fwdRecordWithControl(record,
 		func(control *spb.Control) {
 			control.AlwaysSend = true
-			// do not write to the transaction log when syncing an offline run
-			if h.settings.IsSync() {
-				control.Local = true
-			}
 		},
 	)
 }
@@ -878,11 +881,7 @@ func (h *Handler) handleRequestInternalMessages(record *spb.Record) {
 	h.respond(record, response)
 }
 
-func (h *Handler) handleRequestSync(record *spb.Record) {
-	h.fwdRecord(record)
-}
-
-func (h *Handler) handleRequestSenderRead(record *spb.Record) {
+func (h *Handler) handleRequestSyncFinish(record *spb.Record) {
 	h.fwdRecord(record)
 }
 

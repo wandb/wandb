@@ -1583,7 +1583,7 @@ pub struct AlertResult {}
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 76, 77, 78, 79, 80, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 80, 81, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1655,8 +1655,6 @@ pub mod request {
         JobInfo(super::JobInfoRequest),
         #[prost(message, tag = "74")]
         GetSystemMetrics(super::GetSystemMetricsRequest),
-        #[prost(message, tag = "76")]
-        Sync(super::SyncRequest),
         #[prost(message, tag = "77")]
         JobInput(super::JobInputRequest),
         #[prost(message, tag = "78")]
@@ -1665,6 +1663,8 @@ pub mod request {
         RunFinishWithoutExit(super::RunFinishWithoutExitRequest),
         #[prost(message, tag = "80")]
         GetSystemMetadata(super::GetSystemMetadataRequest),
+        #[prost(message, tag = "81")]
+        SyncFinish(super::SyncFinishRequest),
         #[prost(message, tag = "1000")]
         TestInject(super::TestInjectRequest),
     }
@@ -1675,7 +1675,7 @@ pub mod request {
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 73, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1725,10 +1725,10 @@ pub mod response {
         JobInfoResponse(super::JobInfoResponse),
         #[prost(message, tag = "69")]
         GetSystemMetricsResponse(super::GetSystemMetricsResponse),
-        #[prost(message, tag = "70")]
-        SyncResponse(super::SyncResponse),
         #[prost(message, tag = "71")]
         LinkArtifactResponse(super::LinkArtifactResponse),
+        #[prost(message, tag = "70")]
+        SyncResponse(super::SyncResponse),
         #[prost(message, tag = "72")]
         RunFinishWithoutExitResponse(super::RunFinishWithoutExitResponse),
         #[prost(message, tag = "73")]
@@ -2044,35 +2044,10 @@ pub struct Operation {
     #[prost(message, repeated, tag = "5")]
     pub subtasks: ::prost::alloc::vec::Vec<Operation>,
 }
-///
-/// Sender requests
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SyncOverwrite {
-    #[prost(string, tag = "1")]
-    pub run_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub entity: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub project: ::prost::alloc::string::String,
-}
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct SyncSkip {
-    #[prost(bool, tag = "1")]
-    pub output_raw: bool,
-}
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct SenderMarkRequest {}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SyncRequest {
-    #[prost(int64, tag = "1")]
-    pub start_offset: i64,
-    #[prost(int64, tag = "2")]
-    pub final_offset: i64,
-    #[prost(message, optional, tag = "3")]
-    pub overwrite: ::core::option::Option<SyncOverwrite>,
-    #[prost(message, optional, tag = "4")]
-    pub skip: ::core::option::Option<SyncSkip>,
-}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct SyncFinishRequest {}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SyncResponse {
     #[prost(string, tag = "1")]
