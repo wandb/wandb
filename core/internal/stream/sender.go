@@ -709,6 +709,9 @@ func (s *Sender) finishRunSync() {
 	//
 	// Not necessary when syncing as the exit record is in the transaction log
 	// and the client is not waiting on a response.
+	//
+	// TODO: add logic to handle the case where the exit record is not present
+	//       in the transaction log.
 	switch {
 	case !s.settings.IsSync() && s.exitRecord != nil:
 		s.respond(s.exitRecord, &spb.RunExitResult{})
