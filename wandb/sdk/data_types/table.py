@@ -14,7 +14,7 @@ from ._private import MEDIA_TMP
 from .base_types.media import Media, _numpy_arrays_to_lists
 from .base_types.wb_value import WBValue
 from .utils import _json_helper
-
+from typing import TYPE_CHECKING, Optional
 
 class _TableLinkMixin:
     def set_table(self, table):
@@ -795,9 +795,9 @@ class Table(Media):
         """Adds a column of data to the table.
 
         Args:
-            name (str): the unique name of the column
-            data (list | np.array): a column of homogeneous data
-            optional (bool): if null-like values are permitted
+            name: the unique name of the column
+            data: a column of homogeneous data
+            optional: if null-like values are permitted
         """
         assert isinstance(name, str) and name not in self.columns
         is_np = util.is_numpy_array(data)
@@ -832,12 +832,12 @@ class Table(Media):
                 self.columns = self.columns[:-1]
             raise err
 
-    def get_column(self, name, convert_to=None):
+    def get_column(self, name:str , convert_to: Optional[str]=None):
         """Retrieves a column from the table and optionally converts it to a NumPy object.
 
         Args:
-            name (str): the name of the column
-            convert_to (str, optional): "numpy": will convert the underlying data to numpy object
+            name: the name of the column
+            convert_to: "numpy": will convert the underlying data to numpy object
         """
         assert name in self.columns
         assert convert_to is None or convert_to == "numpy"

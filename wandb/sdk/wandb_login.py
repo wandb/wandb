@@ -53,17 +53,17 @@ def login(
     `verify=True`.
 
     Args:
-        anonymous (Optional[Literal["must", "allow", "never"]]): Set to `must`, `allow`, or `never`.
+        anonymous: Set to `must`, `allow`, or `never`.
             If set to `must`, always log a user in anonymously. If set to
             "allow", only create an anonymous user if the user
             isn't already logged in. If set to `never`, never log a
             user anonymously. Default set to `never`.
-        key (Optional[str]): The API key to use.
-        relogin (Optional[bool]): If true, will re-prompt for API key.
-        host (Optional[str]): The host to connect to.
-        force (Optional[bool]): If true, will force a relogin.
-        timeout (Optional[int]): Number of seconds to wait for user input.
-        verify (bool): Verify the credentials with the W&B server.
+        key: The API key to use.
+        relogin: If true, will re-prompt for API key.
+        host: The host to connect to.
+        force: If true, will force a relogin.
+        timeout: Number of seconds to wait for user input.
+        verify: Verify the credentials with the W&B server.
 
     Returns:
         bool: if key is configured

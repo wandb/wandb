@@ -1042,16 +1042,16 @@ def init(  # noqa: C901
     Call `wandb.init()` to start a run before logging data with `wandb.log()`:
 
     Args:
-        project (Optional[str]): The name of the project where you're sending
+        project: The name of the project where you're sending
             the new run. If the project is not specified, we will try to infer
             the project name from git root or the current program file. If we
             can't infer the project name, we will default to `"uncategorized"`.
-        entity (Optional[str]): An entity is a username or team name where
+        entity: An entity is a username or team name where
             you're sending runs. This entity must exist before you can send runs
             there, so make sure to create your account or team in the UI before
             starting to log runs. If you don't specify an entity, the run is
             sent to your default entity.
-        config (dict, argparse, absl.flags, str, optional): This sets `wandb.config`,
+        config: This sets `wandb.config`,
             a dictionary-like object for saving inputs
             to your job, like hyperparameters for a model or settings for a data
             preprocessing job. The config will show up in a table in the UI that
@@ -1061,23 +1061,23 @@ def init(  # noqa: C901
                 the `wandb.config` object.
             If `str`, will look for a yaml file by that name, and load config from
                 that file into the `wandb.config` object.
-        save_code (bool, optional): Turn this on to save the main script or
+        save_code: Turn this on to save the main script or
             notebook to W&B. This is valuable for improving experiment
             reproducibility and to diff code across experiments in the UI. By
             default this is off, but you can flip the default behavior to on
             in your account's settings page.
-        group (Optional[str]): Specify a group to organize individual runs into
+        group: Specify a group to organize individual runs into
             a larger experiment. For example, you might be doing cross
             validation, or you might have multiple jobs that train and evaluate
             a model against different test sets. Group gives you a way to
             organize runs together into a larger whole, and you can toggle this
             on and off in the UI.
-        job_type (Optional[str]): Specify the type of run, which is useful when
+        job_type: Specify the type of run, which is useful when
             you're grouping runs together into larger experiments using group.
             For example, you might have multiple jobs in a group, with job types
             like train and eval. Setting this makes it easy to filter and group
             similar runs together in the UI so you can compare apples to apples.
-        tags (list, optional): A list of strings, which will populate the list
+        tags: A list of strings, which will populate the list
             of tags on this run in the UI. Tags are useful for organizing runs
             together, or applying temporary labels like "baseline" or
             "production". It's easy to add and remove tags in the UI, or filter
@@ -1086,20 +1086,20 @@ def init(  # noqa: C901
             you pass to `wandb.init()`. If you want to add tags to a resumed run
             without overwriting its existing tags, use `run.tags += ["new_tag"]`
             after `wandb.init()`.
-        name (Optional[str]): A short display name for this run, which is how
+        name: A short display name for this run, which is how
             you'll identify this run in the UI. By default, we generate a random
             two-word name that lets you easily cross-reference runs from the
             table to charts. Keeping these run names short makes the chart
             legends and tables easier to read. If you're looking for a place to
             save your hyperparameters, we recommend saving those in config.
-        notes (Optional[str]): A longer description of the run, like a `-m` commit
+        notes: A longer description of the run, like a `-m` commit
             message in git. This helps you remember what you were doing when you
             ran this run.
-        dir (str or pathlib.Path, optional): An absolute path to a directory where
+        dir: An absolute path to a directory where
             metadata will be stored. When you call `download()` on an artifact,
             this is the directory where downloaded files will be saved. By default,
             this is the `./wandb` directory.
-        resume (bool, str, optional): Sets the resuming behavior. Options:
+        resume: Sets the resuming behavior. Options:
             `"allow"`, `"must"`, `"never"`, `"auto"` or `None`. Defaults to `None`.
         - `None` (default): If the new run has the same ID as a previous run,
             this run overwrites that data.
@@ -1116,13 +1116,13 @@ def init(  # noqa: C901
             `WANDB_RUN_ID="UNIQUE_ID"` and it is identical to a previous run,
             wandb will automatically resume the run with the id. Otherwise,
             wandb will crash.
-        reinit (bool, optional): Allow multiple `wandb.init()` calls in the same
+        reinit: Allow multiple `wandb.init()` calls in the same
             process. Defaults to `False`.
-        config_exclude_keys (list, optional): string keys to exclude from
+        config_exclude_keys: string keys to exclude from
             `wandb.config`.
-        config_include_keys (list, optional): string keys to include in
+        config_include_keys: string keys to include in
             `wandb.config`.
-        anonymous (Optional[str]): Controls anonymous data logging.
+        anonymous: Controls anonymous data logging.
         - `"never"` By default, you must link your W&B account before
             tracking the run, so you don't accidentally create an anonymous
             run.
@@ -1131,36 +1131,36 @@ def init(  # noqa: C901
             the charts in the UI.
         - `"must"`: sends the run to an anonymous account instead of to a
             signed-up user account.
-        mode  (Optional[str]): Can be `"online"`, `"offline"` or `"disabled"`. Defaults to
+        mode: Can be `"online"`, `"offline"` or `"disabled"`. Defaults to
             online.
-        allow_val_change (bool, optional): Whether to allow config values to
+        allow_val_change: Whether to allow config values to
             change after setting the keys once. By default, we throw an exception
             if a config value is overwritten. If you want to track something
             like a varying learning rate at multiple times during training, use
             `wandb.log()` instead. By default, set to `False` in scripts, `True` in Jupyter.
-        force (bool, optional): If `True`, this crashes the script if a user isn't
+        force: If `True`, this crashes the script if a user isn't
             logged in to W&B. If `False`, this will let the script run in offline
             mode if a user isn't logged in to W&B. Default to `False`.
-        sync_tensorboard (bool, optional): Synchronize wandb logs from tensorboard or
+        sync_tensorboard: Synchronize wandb logs from tensorboard or
             tensorboardX and save the relevant events file. Defaults to `False`.
-        tensorboard (bool, optional): Alias for `sync_tensorboard`, deprecated.
-        monitor_gym (bool, optional): Automatically log videos of environment when
+        tensorboard: Alias for `sync_tensorboard`, deprecated.
+        monitor_gym: Automatically log videos of environment when
             using OpenAI Gym. Defaults to `False`.
-        id (Optional[str]): A unique ID for this run, used for resuming. It must
+        id: A unique ID for this run, used for resuming. It must
             be unique in the project, and if you delete a run you can't reuse
             the ID. Use the `name` field for a short descriptive name, or `config`
             for saving hyperparameters to compare across runs. The ID cannot
             contain the following special characters `/\#?%` or :.
-        fork_from (Optional[str]): A string with the format `{run_id}?_step={step}` describing
+        fork_from: A string with the format `{run_id}?_step={step}` describing
             a moment in a previous run to fork a new run from. Creates a new run that picks up
             logging history from the specified run at the specified moment. The target run must
             be in the current project.
-        resume_from (Optional[str]): A string with the format `{run_id}?_step={step}` describing
+        resume_from: A string with the format `{run_id}?_step={step}` describing
             a moment in a previous run to resume a run from. This allows users to truncate
             the history logged to a run at an intermediate step and resume logging from that step.
             It uses run forking under the hood. The target run must be in the
             current project.
-        settings (dict, wandb.Settings, optional): Settings to use for this run. Defaults to `None`.
+        settings: Settings to use for this run. Defaults to `None`.
 
     Raises:
         Error: if some unknown or internal error happened during the run initialization.
@@ -1205,7 +1205,7 @@ def init(  # noqa: C901
             run.config.update({"architecture": "resnet", "depth": 34})
 
             # ... your training code here ...
-        ```
+    ```
 
     Pass a dictionary-style object as the `config` keyword argument to add
     metadata, like hyperparameters, to your run.

@@ -81,22 +81,22 @@ class Artifact:
     `wandb.log_artifact()` to log it.
 
     Args:
-        name: A human-readable name for the artifact. Use the name to identify
+        name (str): A human-readable name for the artifact. Use the name to identify
             a specific artifact in the W&B App UI or programmatically. You can
             interactively reference an artifact with the `use_artifact` Public API.
             A name can contain letters, numbers, underscores, hyphens, and dots.
             The name must be unique across a project.
-        type: The artifact's type. Use the type of an artifact to both organize
+        type (str): The artifact's type. Use the type of an artifact to both organize
             and differentiate artifacts. You can use any string that contains letters,
             numbers, underscores, hyphens, and dots. Common types include `dataset` or `model`.
             Include `model` within your type string if you want to link the artifact
             to the W&B Model Registry.
-        description: A description of the artifact. For Model or Dataset Artifacts,
+        description (str | None) = None: A description of the artifact. For Model or Dataset Artifacts,
             add documentation for your standardized team model or dataset card. View
             an artifact's description programmatically with the `Artifact.description`
             attribute or programmatically with the W&B App UI. W&B renders the
             description as markdown in the W&B App.
-        metadata: Additional information about an artifact. Specify metadata as a
+        metadata (dict[str, Any] | None) = None: Additional information about an artifact. Specify metadata as a
             dictionary of key-value pairs. You can specify no more than 100 total keys.
 
     Returns:

@@ -1036,7 +1036,7 @@ class Run:
 
         Args:
             root: The relative (to `os.getcwd()`) or absolute path to recursively find code from.
-            name: (Optional[str]) The name of our code artifact. By default, we'll name
+            name: The name of our code artifact. By default, we'll name
                 the artifact `source-$PROJECT_ID-$ENTRYPOINT_RELPATH`. There may be scenarios where you want
                 many runs to share the same artifact. Specifying name allows you to achieve that.
             include_fn: A callable that accepts a file path and (optionally) root path and
@@ -2802,14 +2802,13 @@ class Run:
         extended to support arbitrary machine learning models in the future.
 
         Args:
-            models (Union[torch.nn.Module, Sequence[torch.nn.Module]]): A single model or a
-            sequence of models to be monitored.
-            criterion (Optional[torch.F]): The loss function being optimized (optional).
-            log (Optional[Literal["gradients", "parameters", "all"]]): Specifies whether
+            models: A single model or a sequence of models to be monitored.
+            criterion: The loss function being optimized (optional).
+            log: Specifies whether
                 to log "gradients", "parameters", or "all". Set to None to disable logging. (default="gradients")
-            log_freq (int): Frequency (in batches) to log gradients and parameters. (default=1000)
-            idx (Optional[int]): Index used when tracking multiple models with `wandb.watch`. (default=None)
-            log_graph (bool): Whether to log the model's computational graph. (default=False)
+            log_freq: Frequency (in batches) to log gradients and parameters. (default=1000)
+            idx: Index used when tracking multiple models with `wandb.watch`. (default=None)
+            log_graph: Whether to log the model's computational graph. (default=False)
 
         Raises:
             ValueError:
@@ -2825,8 +2824,7 @@ class Run:
         """Remove pytorch model topology, gradient and parameter hooks.
 
         Args:
-            models: (torch.nn.Module | Sequence[torch.nn.Module])
-                Optional list of pytorch models that have had watch called on them
+            models: Optional list of pytorch models that have had watch called on them
         """
         wandb.sdk._unwatch(self, models=models)
 
@@ -2882,7 +2880,7 @@ class Run:
 
         Args:
             artifact: the (public or local) artifact which will be linked
-            target_path: `str` - takes the following forms: `{portfolio}`, `{project}/{portfolio}`,
+            target_path: takes the following forms: `{portfolio}`, `{project}/{portfolio}`,
                 or `{entity}/{project}/{portfolio}`
             aliases: `List[str]` - optional alias(es) that will only be applied on this linked artifact
                                    inside the portfolio.
@@ -2950,16 +2948,16 @@ class Run:
         Call `download` or `file` on the returned object to get the contents locally.
 
         Args:
-            artifact_or_name (str or Artifact):  An artifact name.
+            artifact_or_name: An artifact name.
                 May be prefixed with project/ or entity/project/. You can also pass an Artifact object
                 created by calling `wandb.Artifact`.
                 If no entity is specified in the name, the Run or API setting's entity is used.
                 Valid names can be in the following forms:
             - name:version
             - name:alias
-            type(Optional[str]): The type of artifact to use.
-            aliases (list, optional): Aliases to apply to this artifact
-            use_as (Optional[str]): Optional string indicating what purpose the artifact was used with.
+            type: The type of artifact to use.
+            aliases: Aliases to apply to this artifact
+            use_as: Optional string indicating what purpose the artifact was used with.
                                        Will be shown in UI.
 
         Returns:
@@ -3063,7 +3061,7 @@ class Run:
         """Declare an artifact as an output of a run.
 
         Args:
-            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+            artifact_or_path: A path to the contents of this artifact,
                 can be in the following forms
             - `/local/directory`
             - `/local/directory/file.txt`
@@ -3073,10 +3071,10 @@ class Run:
             - name:version
             - name:alias
             - digest
-            type (str): The type of artifact to log, examples include `dataset`, `model`
-            aliases (list, optional): Aliases to apply to this artifact,
+            type: The type of artifact to log, examples include `dataset`, `model`
+            aliases: Aliases to apply to this artifact,
                 defaults to `["latest"]`
-            tags (list, optional): Tags to apply to this artifact, if any.
+            tags: Tags to apply to this artifact, if any.
 
         Returns:
             An `Artifact` object.
@@ -3105,24 +3103,24 @@ class Run:
         This is useful when distributed jobs need to all contribute to the same artifact.
 
         Args:
-            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
+            artifact_or_path: A path to the contents of this artifact,
                 can be in the following forms:
                     - `/local/directory`
                     - `/local/directory/file.txt`
                     - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name: (Optional[str]) An artifact name. May be prefixed with entity/project.
+            name: An artifact name. May be prefixed with entity/project.
                 Valid names can be in the following forms:
                     - name:version
                     - name:alias
                     - digest
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            type: (str) The type of artifact to log, examples include `dataset`, `model`
-            aliases: (list, optional) Aliases to apply to this artifact,
+            type: The type of artifact to log, examples include `dataset`, `model`
+            aliases: Aliases to apply to this artifact,
                 defaults to `["latest"]`
-            distributed_id: (string, optional) Unique string that all distributed jobs share. If None,
+            distributed_id: Unique string that all distributed jobs share. If None,
                 defaults to the run's group name.
 
         Returns:
@@ -3158,24 +3156,24 @@ class Run:
         Subsequent "upserts" with the same distributed ID will result in a new version.
 
         Args:
-            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
+            artifact_or_path: A path to the contents of this artifact,
                 can be in the following forms:
                     - `/local/directory`
                     - `/local/directory/file.txt`
                     - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name: (Optional[str]) An artifact name. May be prefixed with entity/project.
+            name: An artifact name. May be prefixed with entity/project.
                 Valid names can be in the following forms:
                     - name:version
                     - name:alias
                     - digest
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            type: (str) The type of artifact to log, examples include `dataset`, `model`
-            aliases: (list, optional) Aliases to apply to this artifact,
+            type: The type of artifact to log, examples include `dataset`, `model`
+            aliases: Aliases to apply to this artifact,
                 defaults to `["latest"]`
-            distributed_id: (string, optional) Unique string that all distributed jobs share. If None,
+            distributed_id: Unique string that all distributed jobs share. If None,
                 defaults to the run's group name.
 
         Returns:
@@ -3350,15 +3348,15 @@ class Run:
         """Logs a model artifact containing the contents inside the `path` to a run and marks it as an output to this run.
 
         Args:
-            path (str): A path to the contents of this model, can be in the following forms
+            path: A path to the contents of this model, can be in the following forms
             - `/local/directory`
             - `/local/directory/file.txt`
             - `s3://bucket/path`
-            name (Optional[str]): A name to assign to the model artifact that the file contents will be added to.
+            name: A name to assign to the model artifact that the file contents will be added to.
                 The string must contain only the following alphanumeric characters: dashes, underscores, and dots.
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            aliases (list, optional): Aliases to apply to the created model artifact,
+            aliases: Aliases to apply to the created model artifact,
                     defaults to `["latest"]`
 
         Returns:
@@ -3396,7 +3394,7 @@ class Run:
         """Download the files logged in a model artifact `name`.
 
         Args:
-            name (str): A model artifact name. `name` must match the name of an existing logged
+            name: A model artifact name. `name` must match the name of an existing logged
                 model artifact. May be prefixed with entity/project/. Valid names
                 can be in the following forms:
             - model_artifact_name:version
@@ -3406,7 +3404,7 @@ class Run:
             AssertionError: if model artifact `name` is of a type that does not contain the substring 'model'.
 
         Returns:
-            path (str): path to downloaded model artifact file(s).
+            path: path to downloaded model artifact file(s).
 
         Examples:
         ```python
@@ -3467,21 +3465,21 @@ class Run:
         - Attach aliases from 'aliases' list to the newly linked model artifact version.
 
         Args:
-            path (str): A path to the contents of this model, can be in the following forms:
+            path: A path to the contents of this model, can be in the following forms:
             - `/local/directory`
             - `/local/directory/file.txt`
             - `s3://bucket/path`
-            registered_model_name (str): the name of the registered model that the model is to be linked to.
+            registered_model_name: the name of the registered model that the model is to be linked to.
                 A registered model is a collection of model versions linked to the model registry, typically representing a
                 team's specific ML Task. The entity that this registered model belongs to will be derived from the run
-            name (Optional[str]): the name of the model artifact that files in `path` will be logged to. This will
+            name: the name of the model artifact that files in `path` will be logged to. This will
                 default to the basename of the path prepended with the current run id  if not specified.
-            aliases (List[str], optional): alias(es) that will only be applied on this linked artifact
+            aliases: alias(es) that will only be applied on this linked artifact
                 inside the registered model.
                 The alias "latest" will always be applied to the latest version of an artifact that is linked.
 
         Raises:
-            AssertionError: if registered_model_name is a path or
+            AssertionError: If registered_model_name is a path or
                 if model artifact `name` is of a type that does not contain the substring 'model'
             ValueError: if name has invalid special characters
 
@@ -3550,10 +3548,10 @@ class Run:
         """Launch an alert with the given title and text.
 
         Args:
-            title: (str) The title of the alert, must be less than 64 characters long.
-            text: (str) The text body of the alert.
-            level: (str or AlertLevel, optional) The alert level to use, either: `INFO`, `WARN`, or `ERROR`.
-            wait_duration: (int, float, or timedelta, optional) The time to wait (in seconds) before sending another
+            title: The title of the alert, must be less than 64 characters long.
+            text: The text body of the alert.
+            level: The alert level to use, either: `INFO`, `WARN`, or `ERROR`.
+            wait_duration: The time to wait (in seconds) before sending another
                 alert with this title.
         """
         level = level or AlertLevel.INFO
