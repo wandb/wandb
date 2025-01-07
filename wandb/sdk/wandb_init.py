@@ -285,7 +285,6 @@ class _WandbInit:
         monitor_gym: bool | None = None,
     ) -> None:
         """Compute the run's config and some telemetry."""
-
         with telemetry.context(obj=self._init_telemetry_obj) as tel:
             if config is not None:
                 tel.feature.set_init_config = True
