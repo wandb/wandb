@@ -271,6 +271,9 @@ class _WandbInit:
 
         settings.x_start_time = time.time()
 
+        # handle custom resume logic
+        settings.handle_resume_logic()
+
         return settings
 
     def setup(
@@ -282,8 +285,6 @@ class _WandbInit:
         monitor_gym: bool | None = None,
     ) -> None:
         """Compute the run's config and some telemetry."""
-        # handle custom resume logic
-        settings.handle_resume_logic()
 
         with telemetry.context(obj=self._init_telemetry_obj) as tel:
             if config is not None:
