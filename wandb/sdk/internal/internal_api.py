@@ -2318,7 +2318,9 @@ class Api:
             "commit": commit,
             "displayName": display_name,
             "notes": notes,
-            "host": None if self.settings().get("anonymous") == "true" else host,
+            "host": None
+            if self.settings().get("anonymous") in ["allow", "must"]
+            else host,
             "debug": env.is_debug(env=self._environ),
             "repo": repo,
             "program": program_path,
