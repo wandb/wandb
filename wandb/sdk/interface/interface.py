@@ -879,31 +879,14 @@ class InterfaceBase:
         run_record = self._make_run(run)
         return self._deliver_run(run_record)
 
-    def deliver_sync(
+    def deliver_finish_sync(
         self,
-        start_offset: int,
-        final_offset: int,
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
-        run_id: Optional[str] = None,
-        skip_output_raw: Optional[bool] = None,
     ) -> MailboxHandle:
-        sync = pb.SyncRequest(
-            start_offset=start_offset,
-            final_offset=final_offset,
-        )
-        if entity:
-            sync.overwrite.entity = entity
-        if project:
-            sync.overwrite.project = project
-        if run_id:
-            sync.overwrite.run_id = run_id
-        if skip_output_raw:
-            sync.skip.output_raw = skip_output_raw
-        return self._deliver_sync(sync)
+        sync = pb.SyncFinishRequest()
+        return self._deliver_finish_sync(sync)
 
     @abstractmethod
-    def _deliver_sync(self, sync: pb.SyncRequest) -> MailboxHandle:
+    def _deliver_finish_sync(self, sync: pb.SyncFinishRequest) -> MailboxHandle:
         raise NotImplementedError
 
     @abstractmethod

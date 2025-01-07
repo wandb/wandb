@@ -133,9 +133,6 @@ type ClientOptions struct {
 	TracesSampleRate float64
 	// Used to customize the sampling of traces, overrides TracesSampleRate.
 	TracesSampler TracesSampler
-	// The sample rate for profiling traces in the range [0.0, 1.0].
-	// This is relative to TracesSampleRate - it is a ratio of profiled traces out of all sampled traces.
-	ProfilesSampleRate float64
 	// List of regexp strings that will be used to match against event's message
 	// and if applicable, caught errors type and value.
 	// If the match is found, then a whole event will be dropped.
@@ -513,6 +510,14 @@ func (client *Client) Flush(timeout time.Duration) bool {
 	return client.Transport.Flush(timeout)
 }
 
+// Close clean up underlying Transport resources.
+//
+// Close should be called after Flush and before terminating the program
+// otherwise some events may be lost.
+func (client *Client) Close() {
+	client.Transport.Close()
+}
+
 // EventFromMessage creates an event from the given message string.
 func (client *Client) EventFromMessage(message string, level Level) *Event {
 	if message == "" {
@@ -699,10 +704,6 @@ func (client *Client) prepareEvent(event *Event, hint *EventHint, scope EventMod
 			Logger.Printf("Event dropped by one of the Global EventProcessors: %s\n", id)
 			return nil
 		}
-	}
-
-	if event.sdkMetaData.transactionProfile != nil {
-		event.sdkMetaData.transactionProfile.UpdateFromEvent(event)
 	}
 
 	return event

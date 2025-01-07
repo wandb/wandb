@@ -125,7 +125,7 @@ def _get_cling_api(reset=None):
     global _api
     if reset:
         _api = None
-        wandb_sdk.wandb_setup._setup(_reset=True)
+        wandb.teardown()
     if _api is None:
         # TODO(jhr): make a settings object that is better for non runs.
         # only override the necessary setting
@@ -2664,7 +2664,6 @@ Run `git clone {}` and restore from there or pass the --no-git flag.""".format(r
 def online():
     api = InternalApi()
     try:
-        api.clear_setting("disabled", persist=True)
         api.clear_setting("mode", persist=True)
     except configparser.Error:
         pass
@@ -2678,7 +2677,6 @@ def online():
 def offline():
     api = InternalApi()
     try:
-        api.set_setting("disabled", "true", persist=True)
         api.set_setting("mode", "offline", persist=True)
         click.echo(
             "W&B offline. Running your script from this directory will only write metadata locally. Use wandb disabled to completely turn off W&B."

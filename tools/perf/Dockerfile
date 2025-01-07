@@ -25,7 +25,9 @@ RUN apt-get update && apt-get install vim -y \
     && apt-get install sysstat -y \
     && apt-get install jq -y \
     && apt-get install procps -y \
-    && apt-get install -y libsndfile1 ffmpeg
+    && apt-get install -y libsndfile1 ffmpeg \
+    && apt-get install -y linux-perf
+
 
 # Add build argument for wandb version
 ARG WANDB_VERSION=""
@@ -35,5 +37,12 @@ RUN pip install --upgrade pip && \
     if [ -z "$WANDB_VERSION" ]; then pip install wandb -qU; else pip install "wandb==$WANDB_VERSION" -qU; fi
 
 RUN pip install --no-cache-dir wandb[media]
+
+# Install Go pprof
+RUN go install github.com/google/pprof@latest
+
+# Install py-spy
+RUN pip install --no-cache-dir py-spy
+
 
 CMD ["sleep", "10000000"]

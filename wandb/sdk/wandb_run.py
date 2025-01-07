@@ -2173,8 +2173,9 @@ class Run:
             # Inform the service that we're done sending messages for this run.
             #
             # TODO: Why not do this in _atexit_cleanup()?
-            service = self._wl and self._wl.service
-            if service and self._settings.run_id:
+            if self._settings.run_id:
+                assert self._wl
+                service = self._wl.assert_service()
                 service.inform_finish(run_id=self._settings.run_id)
 
         finally:
@@ -2414,8 +2415,7 @@ class Run:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
 
-        service = self._wl and self._wl.service
-        if not service:
+        if self.settings.x_disable_service:
             self._hooks.hook()
             # NB: manager will perform atexit hook like behavior for outstanding runs
             atexit.register(lambda: self._atexit_cleanup())
@@ -2427,10 +2427,6 @@ class Run:
         if self._output_writer:
             self._output_writer.close()
             self._output_writer = None
-
-    def _on_init(self) -> None:
-        if self._settings._offline:
-            return
 
     def _on_start(self) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
