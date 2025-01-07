@@ -281,10 +281,7 @@ class _WandbInit:
         config_include_keys: list[str] | None = None,
         monitor_gym: bool | None = None,
     ) -> None:
-        """Complete setup for `wandb.init()`.
-
-        This includes parsing all arguments, applying them with settings and enabling logging.
-        """
+        """Compute the run's config and some telemetry."""
         # handle custom resume logic
         settings.handle_resume_logic()
 
