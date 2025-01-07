@@ -14,8 +14,8 @@ For more on using the Public API, check out [our guide](https://docs.wandb.com/g
 import json
 import logging
 import os
-import urllib
-from typing import Any, Dict, List, Optional
+import urllib.parse
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 import requests
 from wandb_gql import Client, gql
@@ -26,6 +26,13 @@ from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
+from wandb.apis.public.integrations import (
+    Integrations,
+    SlackIntegration,
+    SlackIntegrations,
+    WebhookIntegration,
+    WebhookIntegrations,
+)
 from wandb.apis.public.utils import PathType, parse_org_from_registry_path
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -1442,3 +1449,73 @@ class Api:
             return True
         except wandb.errors.CommError:
             return False
+
+    def integrations(
+        self,
+        entity: Optional[str] = None,
+        *,
+        per_page: int = 50,
+    ) -> Union[Iterator[WebhookIntegration], Iterator[SlackIntegration]]:
+        """Return an iterator of all integrations for an entity.
+
+        Args:
+            entity (str, optional): The entity (e.g. team name) for which to
+                fetch integrations.  If not provided, the user's default entity
+                will be used.
+            per_page (int, optional): Number of integrations to fetch per page.
+                Defaults to 50.
+
+        Yields:
+            Iterator[WebhookIntegration | SlackIntegration]: An iterator of integrations.
+        """
+        return Integrations(
+            client=self.client,
+            variables={
+                "entityName": entity or self.default_entity,
+                "includeWebhook": True,
+                "includeSlack": True,
+            },
+            per_page=per_page,
+        )
+
+    def webhook_integrations(
+        self, entity: Optional[str] = None, *, per_page: int = 50
+    ) -> Iterator[WebhookIntegration]:
+        """Return an iterator of webhook integrations for an entity.
+
+        Args:
+            entity (str, optional): The entity (e.g. team name) for which to
+                fetch integrations.  If not provided, the user's default entity
+                will be used.
+            per_page (int, optional): Number of integrations to fetch per page.
+                Defaults to 50.
+        """
+        return WebhookIntegrations(
+            client=self.client,
+            variables={
+                "entityName": entity or self.default_entity,
+                "includeWebhook": True,
+            },
+            per_page=per_page,
+        )
+
+    def slack_integrations(
+        self, entity: Optional[str] = None, *, per_page: int = 50
+    ) -> Iterator[SlackIntegration]:
+        """Return an iterator of Slack integrations for an entity.
+
+        Args:
+            entity (str, optional): The entity (e.g. team name) for which to
+                fetch integrations.  If not provided, the user's default entity
+                will be used.
+            per_page (int, optional): Number of integrations to fetch per page.
+                Defaults to 50.
+        """
+        return SlackIntegrations(
+            client=self.client,
+            variables={
+                "entityName": entity or self.default_entity,
+                "includeSlack": True,
+            },
+            per_page=per_page,
+        )
