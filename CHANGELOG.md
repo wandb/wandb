@@ -25,6 +25,10 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 ## [0.19.0] - 2024-12-05
 
+### Notable Changes
+
+This version drops Python 3.7 and removes the `wandb.Run.plot_table` method.
+
 ### Changed
 
 - Set default behavior to not create a W&B Job (@KyleGoyette in https://github.com/wandb/wandb/pull/8907)
@@ -156,6 +160,10 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 ## [0.18.0] - 2024-09-11
 
+### Notable Changes
+
+This version switches `wandb` to a new backend by enabling `wandb.require("core")` by default. This should not be a breaking change, but the new backend may have unexpected differences in behavior for legacy functionality and rare edge cases.
+
 ### Added
 
 - Add support for artifact tags, via `Artifact.tags` and `Run.log_artifact()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8085)
@@ -166,9 +174,7 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 ### Changed
 
-- The new "core" backend, previously activated using wandb.require("core"), is now used by default. To revert to the legacy behavior,
-  add `wandb.require("legacy-service")` at the beginning of your script. Note: In the upcoming minor release, the option
-  to disable this new behavior will be removed (@kptkin in https://github.com/wandb/wandb/pull/7777)
+- The new "core" backend, previously activated using wandb.require("core"), is now used by default. To revert to the legacy behavior, add `wandb.require("legacy-service")` at the beginning of your script. Note: In a future minor release, the option to disable this new behavior will be removed (@kptkin in https://github.com/wandb/wandb/pull/7777)
 
 ## [0.17.9] - 2024-09-05
 
@@ -319,6 +325,12 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 - Deprecated `ArtifactCollection.change_type()` in favor of `ArtifactCollection.save()` by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
 
 ## [0.17.0] - 2024-05-07
+
+### Notable Changes
+
+Renamed `wandb.plots` to `wandb.plot`, renamed all integrations from `wandb.<name>` to `wandb.integration.<name>`, and removed the `[async]` extra.
+
+This version packages the `wandb-core` binary, formerly installed by the `wandb-core` Python package on PyPI. The `wandb-core` package is now unused and can be uninstalled.
 
 ### Added
 
