@@ -129,6 +129,32 @@ class _WandbInit:
     def _logger(self) -> wandb_setup.Logger:
         return self._wl._get_logger()
 
+    def maybe_login(self, init_settings: Settings) -> None:
+        """Log in if we are not creating an offline or disabled run.
+
+        Args:
+            init_settings: Settings passed to `wandb.init()` or set via
+                keyword arguments.
+        """
+        # Allow settings passed to init() to override inferred values.
+        #
+        # Calling login() will change some settings on the singleton,
+        # so these may not be the final run settings, but the settings
+        # we rely on here will be unchanged.
+        run_settings = self._wl.settings.model_copy()
+        run_settings.update_from_settings(init_settings)
+
+        if run_settings._noop or run_settings._offline:
+            return
+
+        wandb_login._login(
+            anonymous=run_settings.anonymous,
+            force=run_settings.force,
+            _disable_warning=True,
+            _silent=run_settings.quiet or run_settings.silent,
+            _entity=run_settings.entity,
+        )
+
     def warn_env_vars_change_after_setup(self) -> None:
         """Warn if environment variables change after wandb singleton is initialized.
 
@@ -198,15 +224,12 @@ class _WandbInit:
             warn("run_id", init_settings.run_id)
             init_settings.run_id = None
 
-    def login_and_compute_run_settings(
-        self,
-        init_settings: Settings,
-    ) -> Settings:
-        """Returns the run's settings after logging in if necessary.
+    def compute_run_settings(self, init_settings: Settings) -> Settings:
+        """Returns the run's settings.
 
         Args:
-            init_settings: Settings passed to `wandb.init()` or set via explicit
-                parameters.
+            init_settings: Settings passed to `wandb.init()` or set via
+                keyword arguments.
         """
         self.warn_env_vars_change_after_setup()
 
@@ -224,30 +247,6 @@ class _WandbInit:
                 self._logger.info("set run ID and group based on SageMaker")
                 with telemetry.context(obj=self._init_telemetry_obj) as tel:
                     tel.feature.sagemaker = True
-
-        if not settings._offline and not settings._noop:
-            wandb_login._login(
-                anonymous=settings.anonymous,
-                force=settings.force,
-                _disable_warning=True,
-                _silent=settings.quiet or settings.silent,
-                _entity=settings.entity,
-            )
-
-        # apply updated global state after login was handled
-        login_settings = {
-            k: v
-            for k, v in {
-                "anonymous": self._wl.settings.anonymous,
-                "api_key": self._wl.settings.api_key,
-                "base_url": self._wl.settings.base_url,
-                "force": self._wl.settings.force,
-                "login_timeout": self._wl.settings.login_timeout,
-            }.items()
-            if v is not None
-        }
-        if login_settings:
-            settings.update_from_dict(login_settings)
 
         # handle custom resume logic
         settings.handle_resume_logic()
@@ -1008,7 +1007,7 @@ def init(  # noqa: C901
     tensorboard: bool | None = None,
     sync_tensorboard: bool | None = None,
     monitor_gym: bool | None = None,
-    settings: Settings | dict[str, Any] | None = None,
+    run_settings: Settings | dict[str, Any] | None = None,
 ) -> Run:
     r"""Start a new run to track and log to W&B.
 
@@ -1221,10 +1220,10 @@ def init(  # noqa: C901
     wandb._assert_is_user_process()  # type: ignore
 
     init_settings = Settings()
-    if isinstance(settings, dict):
-        init_settings = Settings(**settings)
-    elif isinstance(settings, Settings):
-        init_settings = settings
+    if isinstance(run_settings, dict):
+        init_settings = Settings(**run_settings)
+    elif isinstance(run_settings, Settings):
+        init_settings = run_settings
 
     # Explicit function arguments take precedence over settings
     if job_type is not None:
@@ -1274,17 +1273,18 @@ def init(  # noqa: C901
 
         wi = _WandbInit(wl)
 
-        settings = wi.login_and_compute_run_settings(init_settings)
+        wi.maybe_login(init_settings)
+        run_settings = wi.compute_run_settings(init_settings)
 
         wi.setup(
-            settings=settings,
+            settings=run_settings,
             config=config,
             config_exclude_keys=config_exclude_keys,
             config_include_keys=config_include_keys,
             monitor_gym=monitor_gym,
         )
 
-        return wi.init(settings)
+        return wi.init(run_settings)
 
     except KeyboardInterrupt as e:
         if wl:
