@@ -1007,7 +1007,7 @@ def init(  # noqa: C901
     tensorboard: bool | None = None,
     sync_tensorboard: bool | None = None,
     monitor_gym: bool | None = None,
-    run_settings: Settings | dict[str, Any] | None = None,
+    settings: Settings | dict[str, Any] | None = None,
 ) -> Run:
     r"""Start a new run to track and log to W&B.
 
@@ -1220,10 +1220,10 @@ def init(  # noqa: C901
     wandb._assert_is_user_process()  # type: ignore
 
     init_settings = Settings()
-    if isinstance(run_settings, dict):
-        init_settings = Settings(**run_settings)
-    elif isinstance(run_settings, Settings):
-        init_settings = run_settings
+    if isinstance(settings, dict):
+        init_settings = Settings(**settings)
+    elif isinstance(settings, Settings):
+        init_settings = settings
 
     # Explicit function arguments take precedence over settings
     if job_type is not None:
