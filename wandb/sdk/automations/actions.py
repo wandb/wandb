@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from typing import Any, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 from pydantic import AliasChoices, BeforeValidator, Field, JsonValue, model_validator
 
@@ -23,10 +23,13 @@ from ._generated import (
 )
 from ._validators import pydantic_isinstance, uppercase_if_str
 
+if TYPE_CHECKING:
+    from wandb.apis.public.integrations import SlackIntegration, WebhookIntegration
+
 if sys.version_info >= (3, 12):
-    from typing import Annotated
+    from typing import Annotated, Self
 else:
-    from typing_extensions import Annotated
+    from typing_extensions import Annotated, Self
 
 
 # NOTE: Name shortened for readability and defined publicly for easier access
@@ -107,6 +110,23 @@ class DoNotification(NotificationActionInput, _InputAction):
             )
         return v
 
+    @classmethod
+    def from_integration(
+        cls,
+        integration: SlackIntegration,
+        *,
+        title: _NotificationTitleT = "",
+        text: _NotificationMessageT = "",
+        level: _NotificationSeverityT = AlertSeverity.INFO,
+    ) -> Self:
+        """Define a notification action that sends to the given (Slack) integration."""
+        from wandb.apis.public.integrations import SlackIntegration
+
+        integration = SlackIntegration.model_validate(integration)
+        return cls(
+            integration_id=integration.id, title=title, message=text, severity=level
+        )
+
 
 # Annotations for GenericWebhookActionInput params
 _WebhookPayloadT = Annotated[
@@ -134,6 +154,19 @@ class DoWebhook(GenericWebhookActionInput, _InputAction):
                 integration_id=v.integration.id, request_payload=v.request_payload
             )
         return v
+
+    @classmethod
+    def from_integration(
+        cls,
+        integration: WebhookIntegration,
+        *,
+        payload: _WebhookPayloadT = None,
+    ) -> Self:
+        """Define a webhook action that sends to the given (webhook) integration."""
+        from wandb.apis.public.integrations import WebhookIntegration
+
+        integration = WebhookIntegration.model_validate(integration)
+        return cls(integration_id=integration.id, request_payload=payload)
 
 
 class DoNothing(NoOpTriggeredActionInput, _InputAction):
