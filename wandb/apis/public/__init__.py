@@ -12,6 +12,12 @@ from wandb.apis.public.artifacts import (
 )
 from wandb.apis.public.files import FILE_FRAGMENT, File, Files
 from wandb.apis.public.history import HistoryScan, SampledHistoryScan
+from wandb.apis.public.integrations import (
+    SlackIntegration,
+    SlackIntegrations,
+    WebhookIntegration,
+    WebhookIntegrations,
+)
 from wandb.apis.public.jobs import (
     Job,
     QueuedRun,
