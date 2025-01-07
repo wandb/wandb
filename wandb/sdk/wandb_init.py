@@ -273,7 +273,7 @@ class _WandbInit:
 
         return settings
 
-    def setup(  # noqa: C901
+    def setup(
         self,
         settings: Settings,
         config: dict | str | None = None,
