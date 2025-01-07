@@ -195,3 +195,13 @@ def test_sync_wandb_run_and_tensorboard(runner, wandb_backend_spy, user, copy_as
             "WARNING Found .wandb file, not streaming tensorboard metrics"
             in result.output
         )
+
+
+def test_cli_offline(user, runner):
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.offline)
+        assert result.exit_code == 0
+
+        with wandb.init() as run:
+            assert run.settings._offline
+            assert run.settings.mode == "offline"

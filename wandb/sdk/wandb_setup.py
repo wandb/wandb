@@ -62,25 +62,15 @@ class _EarlyLogger:
     def log(self, level: str, msg: str, *args: Any, **kwargs: Any) -> None:
         self._log.append((level, msg, args, kwargs))
 
-    def _flush(self) -> None:
-        assert self is not logger
-        assert logger is not None
+    def _flush(self, new_logger: Logger) -> None:
+        assert self is not new_logger
         for level, msg, args, kwargs in self._log:
-            logger.log(level, msg, *args, **kwargs)
+            new_logger.log(level, msg, *args, **kwargs)
         for msg, args, kwargs in self._exception:
-            logger.exception(msg, *args, **kwargs)
+            new_logger.exception(msg, *args, **kwargs)
 
 
 Logger = Union[logging.Logger, _EarlyLogger]
-
-# logger will be configured to be either a standard logger instance or _EarlyLogger
-logger: Logger | None = None
-
-
-def _set_logger(log_object: Logger) -> None:
-    """Configure module logger."""
-    global logger
-    logger = log_object
 
 
 class _WandbSetup:
@@ -105,43 +95,39 @@ class _WandbSetup:
 
         # TODO(jhr): defer strict checks until settings are fully initialized
         #            and logging is ready
-        self._early_logger = _EarlyLogger()
-        _set_logger(self._early_logger)
+        self._logger: Logger = _EarlyLogger()
 
-        self._settings = self._settings_setup(settings, self._early_logger)
+        self._settings = self._settings_setup(settings)
 
-        wandb.termsetup(self._settings, logger)
+        wandb.termsetup(self._settings, None)
 
         self._check()
         self._setup()
 
     def _settings_setup(
         self,
-        settings: Settings | None = None,
-        early_logger: _EarlyLogger | None = None,
+        settings: Settings | None,
     ) -> wandb_settings.Settings:
         s = wandb_settings.Settings()
 
         # the pid of the process to monitor for system stats
         pid = os.getpid()
-        if early_logger:
-            early_logger.info(f"Current SDK version is {wandb.__version__}")
-            early_logger.info(f"Configure stats pid to {pid}")
+        self._logger.info(f"Current SDK version is {wandb.__version__}")
+        self._logger.info(f"Configure stats pid to {pid}")
         s.x_stats_pid = pid
 
         # load settings from the system config
-        if s.settings_system and early_logger:
-            early_logger.info(f"Loading settings from {s.settings_system}")
+        if s.settings_system:
+            self._logger.info(f"Loading settings from {s.settings_system}")
         s.update_from_system_config_file()
 
         # load settings from the workspace config
-        if s.settings_workspace and early_logger:
-            early_logger.info(f"Loading settings from {s.settings_workspace}")
+        if s.settings_workspace:
+            self._logger.info(f"Loading settings from {s.settings_workspace}")
         s.update_from_workspace_config_file()
 
         # load settings from the environment variables
-        if early_logger:
-            early_logger.info("Loading settings from environment variables")
+        self._logger.info("Loading settings from environment variables")
         s.update_from_env_vars(self._environ)
 
         # infer settings from the system environment
@@ -152,9 +138,7 @@ class _WandbSetup:
         if settings and settings.sagemaker_disable:
             check_sagemaker_env = False
         if check_sagemaker_env and sagemaker.is_using_sagemaker():
-            if early_logger:
-                early_logger.info("Loading SageMaker settings")
-
+            self._logger.info("Loading SageMaker settings")
             sagemaker.set_global_settings(s)
 
         # load settings from the passed init/setup settings
@@ -176,13 +160,15 @@ class _WandbSetup:
             self._settings.update_from_dict(user_settings)
 
     def _early_logger_flush(self, new_logger: Logger) -> None:
-        if not self._early_logger:
+        if self._logger is new_logger:
             return
-        _set_logger(new_logger)
-        self._early_logger._flush()
 
-    def _get_logger(self) -> Logger | None:
-        return logger
+        if isinstance(self._logger, _EarlyLogger):
+            self._logger._flush(new_logger)
+        self._logger = new_logger
+
+    def _get_logger(self) -> Logger:
+        return self._logger
 
     @property
     def settings(self) -> wandb_settings.Settings:
