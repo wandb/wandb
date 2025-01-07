@@ -17,7 +17,7 @@ PROJECT_FRAGMENT = """fragment ProjectFragment on Project {
 }"""
 
 
-class Projects(Paginator):
+class Projects(Paginator["Project"]):
     """An iterable collection of `Project` objects."""
 
     QUERY = gql(
@@ -49,7 +49,8 @@ class Projects(Paginator):
         super().__init__(client, variables, per_page)
 
     @property
-    def length(self):
+    def length(self) -> None:
+        # For backwards compatibility, even though this isn't a SizedPaginator
         return None
 
     @property
