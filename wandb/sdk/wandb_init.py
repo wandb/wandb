@@ -1137,10 +1137,11 @@ def init(  # noqa: C901
             change after setting the keys once. By default, we throw an exception
             if a config value is overwritten. If you want to track something
             like a varying learning rate at multiple times during training, use
-            `wandb.log()` instead. By default, set to `False` in scripts, `True` in Jupyter.
+            `wandb.log()` instead. By default, set to `False` in scripts,
+            `True` in Jupyter.
         force: If `True`, this crashes the script if a user isn't
-            logged in to W&B. If `False`, this will let the script run in offline
-            mode if a user isn't logged in to W&B. Default to `False`.
+            logged in to W&B. If `False`, this will let the script run in
+            offline mode if a user isn't logged in to W&B. Default to `False`.
         sync_tensorboard: Synchronize wandb logs from tensorboard or
             tensorboardX and save the relevant events file. Defaults to `False`.
         tensorboard: Alias for `sync_tensorboard`, deprecated.
@@ -1152,18 +1153,20 @@ def init(  # noqa: C901
             for saving hyperparameters to compare across runs. The ID cannot
             contain the following special characters `/\#?%` or :.
         fork_from: A string with the format `{run_id}?_step={step}` describing
-            a moment in a previous run to fork a new run from. Creates a new run that picks up
-            logging history from the specified run at the specified moment. The target run must
-            be in the current project.
-        resume_from: A string with the format `{run_id}?_step={step}` describing
-            a moment in a previous run to resume a run from. This allows users to truncate
-            the history logged to a run at an intermediate step and resume logging from that step.
-            It uses run forking under the hood. The target run must be in the
-            current project.
+            a moment in a previous run to fork a new run from. Creates a new
+            run that picks up logging history from the specified run at the
+            specified moment. The target run must be in the current project.
+        resume_from: A string with the format `{run_id}?_step={step}`
+            describing a moment in a previous run to resume a run from.
+            This allows users to truncate the history logged to a run at an
+            intermediate step and resume logging from that step. It uses run
+            forking under the hood. The target run must be in the current
+            project.
         settings: Settings to use for this run. Defaults to `None`.
 
     Raises:
-        Error: if some unknown or internal error happened during the run initialization.
+        Error: if some unknown or internal error happened during the run
+            initialization.
         AuthenticationError: if the user failed to provide valid credentials.
         CommError: if there was a problem communicating with the WandB server.
         UsageError: if the user provided invalid arguments.
@@ -1172,8 +1175,8 @@ def init(  # noqa: C901
     Returns:
         A `Run` object.
 
-    Examples:
 
+    Examples:
     ```python
     import wandb
 
@@ -1183,7 +1186,7 @@ def init(  # noqa: C901
     ```
 
     `wandb.init()` returns a run object, and you can also access the run object
-    via `wandb.run`:
+    with `wandb.run`:
 
     ```python
     import wandb

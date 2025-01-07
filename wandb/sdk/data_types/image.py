@@ -65,14 +65,20 @@ def _server_accepts_artifact_path() -> bool:
 class Image(BatchableMedia):
     """Format images for logging to W&B.
 
+    See https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
+    for more information on modes.
+
     Args:
         data_or_path (numpy array, string, io): Accepts numpy array of
             image data, or a PIL image. The class attempts to infer
             the data format and converts it.
-        mode (string): The PIL mode for an image. Most common are "L", "RGB", "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
+        mode (string): The PIL mode for an image.
+            Most common are "L", "RGB", "RGBA".
         caption  (string): Label for display of image.
 
-    Note : When logging a `torch.Tensor` as a `wandb.Image`, images are normalized. If you do not want to normalize your images, please convert your tensors to a PIL Image.
+    When logging a `torch.Tensor` as a `wandb.Image`, images are
+    normalized. If you do not want to normalize your images,
+    convert your tensors to a PIL Image.
 
     Examples:
 
@@ -99,7 +105,9 @@ class Image(BatchableMedia):
     with wandb.init() as run:
         examples = []
         for i in range(3):
-            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+            pixels = np.random.randint(
+                low=0, high=256, size=(100, 100, 3), dtype=np.uint8
+            )
             pil_image = PILImage.fromarray(pixels, mode="RGB")
             image = wandb.Image(pil_image, caption=f"random field {i}")
             examples.append(image)
@@ -457,7 +465,9 @@ class Image(BatchableMedia):
                 }
 
         elif not isinstance(run_or_artifact, Run):
-            raise ValueError("_to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+            raise ValueError(
+                "_to_json accepts wandb_run.Run or wandb_artifact.Artifact"
+            )
 
         if self._boxes:
             json_dict["boxes"] = {

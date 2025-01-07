@@ -8,13 +8,13 @@ import os
 import wandb
 from wandb import util
 from wandb.sdk.lib import runid
+from typing import Optional
 
 from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import Media, _numpy_arrays_to_lists
 from .base_types.wb_value import WBValue
 from .utils import _json_helper
-from typing import TYPE_CHECKING, Optional
 
 class _TableLinkMixin:
     def set_table(self, table):

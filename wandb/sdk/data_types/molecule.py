@@ -171,11 +171,16 @@ class Molecule(BatchableMedia):
 
         Args:
             data (string): SMILES string.
-            caption (Optional[str]): Caption associated with the molecule for display
-            sanitize (bool): Check if the molecule is chemically reasonable by the RDKit's definition.
-            convert_to_3d_and_optimize (bool): Convert to rdkit.Chem.rdchem.Mol with 3D coordinates.
-                This is an expensive operation that may take a long time for complicated molecules.
-            mmff_optimize_molecule_max_iterations (int): Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
+            caption (Optional[str]): Caption associated with the molecule
+                for display
+            sanitize (bool): Check if the molecule is chemically reasonable
+                by the RDKit's definition.
+            convert_to_3d_and_optimize (bool): Convert to
+                rdkit.Chem.rdchem.Mol with 3D coordinates. This is an
+                computationally intensive operation that can take a
+                long time for complicated molecules.
+            mmff_optimize_molecule_max_iterations (int): Number of iterations
+                to use in `rdkit.Chem.AllChem.MMFFOptimizeMolecule`
         """
         rdkit_chem = util.get_module(
             "rdkit.Chem",

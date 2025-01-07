@@ -181,6 +181,7 @@ ignore = [
     "D106",  # Allow missing docstrings in nested classes.
     "D107",  # Allow missing docstrings in __init__ methods.
     "UP032", # Allow using format instead of f-string.
+    "D412",  # Allow missing blank line after last section.
 ]
 
 [tool.ruff.format]

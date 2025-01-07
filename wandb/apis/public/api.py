@@ -98,11 +98,14 @@ class Api:
     """Used for querying the W&B server.
 
     Args:
-        overrides Optional[Dict[str, Any]]: You can set `base_url` if you are using a W&B server other than `https://api.wandb.ai`. You can also set defaults for `entity`, `project`, and `run`.
+        overrides Optional[Dict[str, Any]]: You can set `base_url` if you are
+        using a W&B server other than `https://api.wandb.ai`. You can also set
+        defaults for `entity`, `project`, and `run`.
 
     Examples:
     ```python
     import wandb
+
     wandb.Api()
     ```
     """
@@ -299,10 +302,12 @@ class Api:
         """Create a new run.
 
         Args:
-            run_id: The ID to assign to the run. If not specified, W&B creates random ID.
+            run_id: The ID to assign to the run. If not specified, W&B
+                creates random ID.
             project: The project where to log the run to. If no project is specified,
                 log the run to a project called "Uncategorized".
-            entity: The entity that owns the project. If no entity is specified, log the run to the default entity.
+            entity: The entity that owns the project. If no entity is
+                specified, log the run to the default entity.
 
         Returns:
             The newly created `Run`.
@@ -324,11 +329,17 @@ class Api:
 
         Args:
             name: Name of the queue to create
-            type: Type of resource to be used for the queue. One of "local-container", "local-process", "kubernetes", "sagemaker", or "gcp-vertex".
-            entity: Name of the entity to create the queue. If None, will use the configured or default entity.
-            prioritization_mode: Version of prioritization to use. Either "V0" or None
-            config: Default resource configuration to be used for the queue. Use handlebars (eg. `{{var}}`) to specify template variables.
-            template_variables: A dictionary of template variable schemas to be used with the config.
+            type: Type of resource to be used for the queue. One of
+                "local-container", "local-process", "kubernetes","sagemaker",
+                or "gcp-vertex".
+            entity: Name of the entity to create the queue. If `None`, use
+                the configured or default entity.
+            prioritization_mode: Version of prioritization to use.
+                Either "V0" or `None`.
+            config: Default resource configuration to be used for the queue.
+                Use handlebars (eg. `{{var}}`) to specify template variables.
+            template_variables: A dictionary of template variable schemas to
+                use with the config.
 
         Returns:
             The newly created `RunQueue`.
@@ -426,12 +437,20 @@ class Api:
 
         Args:
             name: Name of the queue to create
-            entity: Optional name of the entity to create the queue. If None, will use the configured or default entity.
-            resource_config: Optional default resource configuration to be used for the queue. Use handlebars (eg. `{{var}}`) to specify template variables.
-            resource_type: Type of resource to be used for the queue. One of "local-container", "local-process", "kubernetes", "sagemaker", or "gcp-vertex".
-            template_variables: A dictionary of template variable schemas to be used with the config.
-            external_links: Optional dictionary of external links to be used with the queue.
-            prioritization_mode: Optional version of prioritization to use. Either "V0" or None
+            entity: Optional name of the entity to create the queue. If `None`,
+                use the configured or default entity.
+            resource_config: Optional default resource configuration to be used
+                for the queue. Use handlebars (eg. `{{var}}`) to specify
+                template variables.
+            resource_type: Type of resource to be used for the queue. One of
+                "local-container", "local-process", "kubernetes", "sagemaker",
+                or "gcp-vertex".
+            template_variables: A dictionary of template variable schemas to
+                be used with the config.
+            external_links: Optional dictionary of external links to be used
+                with the queue.
+            prioritization_mode: Optional version of prioritization to use.
+                Either "V0" or None
 
         Returns:
             The upserted `RunQueue`.
@@ -513,7 +532,7 @@ class Api:
             entity=entity,
         )
 
-    def create_user(self, email: str, admin: Optional[bool]=False):
+    def create_user(self, email: str, admin: Optional[bool] = False):
         """Create a new user.
 
         Args:
@@ -598,9 +617,9 @@ class Api:
     def flush(self):
         """Flush the local cache.
 
-        The api object keeps a local cache of runs, so if the state of the run may
-        change while executing your script you must clear the local cache with
-        `api.flush()` to get the latest values associated with the run.
+        The api object keeps a local cache of runs, so if the state of the run
+        may change while executing your script you must clear the local cache
+        with `api.flush()` to get the latest values associated with the run.
         """
         self._runs = {}
 
@@ -614,13 +633,13 @@ class Api:
             A `Project`, `Run`, `Sweep`, or `BetaReport` instance.
 
         Raises:
-            `wandb.Error` if path is invalid or the object doesn't exist
+            `wandb.Error` if path is invalid or the object doesn't exist.
 
         Examples:
 
         In the proceeding code snippets "project", "team", "run_id", "sweep_id",
-        and "report_name" are placeholders for the project, team, run ID, sweep ID,
-        and the name of a specific report, respectively.
+        and "report_name" are placeholders for the project, team, run ID,
+        sweep ID, and the name of a specific report, respectively.
 
         ```python
         import wandb
@@ -633,8 +652,6 @@ class Api:
         sweep = api.from_path("team/project/sweeps/sweep_id")
         report = api.from_path("team/project/reports/report_name")
         ```
-
-
         """
         parts = path.strip("/ ").split("/")
         if len(parts) == 1:
@@ -742,13 +759,14 @@ class Api:
         """Get projects for a given entity.
 
         Args:
-            entity: Name of the entity requested.  If None, will fall back to the
-                default entity passed to `Api`.  If no default entity, will raise a `ValueError`.
-            per_page: Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            entity: Name of the entity requested.  If None, will fall back to
+                the default entity passed to `Api`.  If no default entity,
+                will raise a `ValueError`.
+            per_page: Sets the page size for query pagination. If set to `None`,
+                use the default size. Usually there is no reason to change this.
 
         Returns:
-            A `Projects` object which is an iterable collection of `Project` objects.
+            A `Projects` object which is an iterable collection of `Project`objects.
         """
         if entity is None:
             entity = self.settings["entity"] or self.default_entity
@@ -768,7 +786,8 @@ class Api:
         Args:
             name: The project name.
             entity: Name of the entity requested.  If None, will fall back to the
-                default entity passed to `Api`.  If no default entity, will raise a `ValueError`.
+                default entity passed to `Api`.  If no default entity, will
+                raise a `ValueError`.
 
         Returns:
             A `Project` object.
@@ -792,17 +811,21 @@ class Api:
     ) -> "public.Reports":
         """Get reports for a given project path.
 
-        Note: `wandb.Api.reports()` API is in beta and will likely change in a future releases.
+        Note: `wandb.Api.reports()` API is in beta and will likely change in
+        future releases.
 
         Args:
-            path: The path to project the report resides in. Specify the entity that created
-                the project as a prefix followed by a forward slash.
+            path: The path to project the report resides in. Specify the
+                entity that created the project as a prefix followed by a
+                forward slash.
             name: Name of the report requested.
-            per_page: Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            per_page: Sets the page size for query pagination. If set to
+                `None`, use the default size. Usually there is no reason to
+                change this.
 
         Returns:
-            A `Reports` object which is an iterable collection of `BetaReport` objects.
+            A `Reports` object which is an iterable collection of
+                `BetaReport` objects.
 
         Examples:
 
@@ -830,12 +853,15 @@ class Api:
             )
         return self._reports[key]
 
-    def create_team(self, team: str, admin_username: Optional[str] = None) -> "public.Team":
+    def create_team(
+        self, team: str, admin_username: Optional[str] = None
+    ) -> "public.Team":
         """Create a new team.
 
         Args:
             team: The name of the team
-            admin_username: Username of the admin user of the team. Defaults to the current user.
+            admin_username: Username of the admin user of the team.
+                Defaults to the current user.
 
         Returns:
             A `Team` object.
@@ -856,7 +882,8 @@ class Api:
     def user(self, username_or_email: str) -> Optional["public.User"]:
         """Return a user from a username or email address.
 
-        This function only works for local administrators. Use `api.viewer` to get your own user object.
+        This function only works for local administrators. Use `api.viewer`
+            to get your own user object.
 
         Args:
             username_or_email: The username or email address of the user.
@@ -878,7 +905,8 @@ class Api:
     def users(self, username_or_email: str) -> List["public.User"]:
         """Return all users from a partial username or email address query.
 
-        This function only works for local administrators. Use `api.viewer` to get your own user object.
+        This function only works for local administrators. Use `api.viewer`
+            to get your own user object.
 
         Args:
             username_or_email: The prefix or suffix of the user you want to find.
@@ -901,17 +929,20 @@ class Api:
     ):
         """Return a set of runs from a project that match the filters provided.
 
-        You can filter by `config.*`, `summary_metrics.*`, `tags`, `state`, `entity`, `createdAt`, and so
-        forth. You can also compose operations to make more complicated queries. For  more information,
-        see Query and Project Operators MongoDb Reference at https://docs.mongodb.com/manual/reference/operator/query.
+        You can filter by `config.*`, `summary_metrics.*`, `tags`, `state`,
+        `entity`, `createdAt`, and so forth. You can also compose operations
+        to make more complicated queries. For  more information,
+        see Query and Project Operators MongoDb Reference
+        at https://docs.mongodb.com/manual/reference/operator/query.
 
         Args:
             path: Path to project, should be in the form: "entity/project"
             filters: Queries for specific runs using the MongoDB query language.
-            order: Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
-                If you prepend order with a `+` order is ascending.
-                If you prepend order with a `-` order is descending (default).
-                The default order is run.created_at from oldest to newest.
+            order: Order can be `created_at`, `heartbeat_at`, `config.*.value`,
+                or `summary_metrics.*`. If you prepend order with a `+` order
+                is ascending. If you prepend order with a `-` order is
+                descending (default). The default order is `run.created_at`
+                from oldest to newest.
             per_page: Sets the page size for query pagination.
             include_sweeps: Whether to include the sweep runs in the results.
 
@@ -919,6 +950,7 @@ class Api:
             A `Runs` object, which is an iterable collection of `Run` objects.
 
         Examples:
+
         ```python
         # Find runs in project where config.experiment_name has been set to "foo"
         api.runs(path="my_entity/project", filters={"config.experiment_name": "foo"})
@@ -928,23 +960,29 @@ class Api:
         # Find runs in project where config.experiment_name has been set to "foo" or "bar"
         api.runs(
             path="my_entity/project",
-            filters={"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]}
+            filters={
+                "$or": [
+                    {"config.experiment_name": "foo"},
+                    {"config.experiment_name": "bar"},
+                ]
+            },
         )
         ```
 
         ```python
-        # Find runs in project where config.experiment_name matches a regex (anchors are not supported)
+        # Find runs in project where config.experiment_name matches a regex
+        # (anchors are not supported)
         api.runs(
             path="my_entity/project",
-            filters={"config.experiment_name": {"$regex": "b.*"}}
+            filters={"config.experiment_name": {"$regex": "b.*"}},
         )
         ```
 
         ```python
-        # Find runs in project where the run name matches a regex (anchors are not supported)
+        # Find runs in project where the run name matches a regex
+        # (anchors are not supported)
         api.runs(
-            path="my_entity/project",
-            filters={"display_name": {"$regex": "^foo.*"}}
+            path="my_entity/project", filters={"display_name": {"$regex": "^foo.*"}}
         )
         ```
 
@@ -1028,8 +1066,9 @@ class Api:
         """Return a sweep by parsing path in the form `entity/project/sweep_id`.
 
         Args:
-            path: Path to sweep in the form entity/project/sweep_id.  If `api.entity`
-                is set, this can be in the form project/sweep_id and if `api.project` is set
+            path: Path to sweep in the form entity/project/sweep_id.
+                If `api.entity` is set, this can be in the form
+                project/sweep_id and if `api.project` is set
                 this can just be the sweep_id.
 
         Returns:
@@ -1116,28 +1155,33 @@ class Api:
     def artifact_collection(
         self, type_name: str, name: str
     ) -> "public.ArtifactCollection":
-        """Returns a single artifact collection by type. You can use the returned `ArtifactCollection` object to retrieve
+        """Returns a single artifact collection by type.
+
+        You can use the returned `ArtifactCollection` object to retrieve
         information about specific artifacts in that collection, and more.
 
         Args:
             type_name: The type of artifact collection to fetch.
-            name: An artifact collection name. Optionally append the entity that logged the artifact as a prefix followed by a forward slash.
+            name: An artifact collection name. Optionally append the entity
+                that logged the artifact as a prefix followed by a forward
+                slash.
 
         Returns:
             An `ArtifactCollection` object.
 
         Examples:
 
-        In the proceeding code snippet "type", "entity", "project", and "artifact_name" are placeholders
-        for the collection type, your W&B entity, name of the project the artifact is in, and the name of the artifact, respectively.
+        In the proceeding code snippet "type", "entity", "project", and
+        "artifact_name" are placeholders for the collection type, your W&B
+        entity, name of the project the artifact is in, and the name of
+        the artifact, respectively.
 
         ```python
         import wandb
-        
+
         collections = wandb.Api().artifact_collection(
-                type_name = "type", 
-                name= "entity/project/artifact_name"
-            )
+            type_name="type", name="entity/project/artifact_name"
+        )
 
         # Get the first artifact in the collection
         artifact_example = collections.artifacts()[0]
@@ -1145,7 +1189,6 @@ class Api:
         # Download the contents of the artifact to the specified root directory.
         artifact_example.download()
         ```
-
         """
         entity, project, collection_name = self._parse_artifact_path(name)
         # If its an Registry artifact, the entity is considered to be an org instead
@@ -1183,10 +1226,12 @@ class Api:
 
         Args:
             type_name: The type of artifacts to fetch.
-            name: The artifact's collection name. Optionally append the entity that
-                logged the artifact as a prefix followed by a forward slash.
-            per_page: Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            name: The artifact's collection name. Optionally append the
+                entity that logged the artifact as a prefix followed by
+                a forward slash.
+            per_page: Sets the page size for query pagination. If set to
+                `None`, use the default size. Usually there is no reason
+                to change this.
             tags: Only return artifacts with all of these tags.
 
         Returns:
@@ -1194,17 +1239,15 @@ class Api:
 
         Examples:
 
-        In the proceeding code snippet, "type", "entity", "project", and "artifact_name"
-        are placeholders for the artifact type, W&B entity, name of the project the artifact was logged to,
+        In the proceeding code snippet, "type", "entity", "project", and
+        "artifact_name" are placeholders for the artifact type, W&B entity,
+        name of the project the artifact was logged to,
         and the name of the artifact, respectively.
 
         ```python
         import wandb
 
-        wandb.Api().artifacts(
-            type_name = "type", 
-            name = "entity/project/artifact_name"
-            )
+        wandb.Api().artifacts(type_name="type", name="entity/project/artifact_name")
         ```
         """
         entity, project, collection_name = self._parse_artifact_path(name)
@@ -1261,10 +1304,13 @@ class Api:
         """Returns a single artifact.
 
         Args:
-            name: The artifact's name. The name of an artifact resembles a filepath that consists, at a minimum,
-                the name of the project the artifact was logged to, the name of the artifact, and the artifact's version
-                or alias. Optionally append the entity that logged the artifact as a prefix followed by a forward slash. 
-                If no entity is specified in the name, the Run or API setting's entity is used.
+            name: The artifact's name. The name of an artifact resembles a
+                filepath that consists, at a minimum, the name of the project
+                the artifact was logged to, the name of the artifact, and the
+                artifact's version or alias. Optionally append the entity that
+                logged the artifact as a prefix followed by a forward slash.
+                If no entity is specified in the name, the Run or API
+                setting's entity is used.
             type: The type of artifact to fetch.
 
         Returns:
@@ -1272,28 +1318,30 @@ class Api:
 
         Raises:
             ValueError: If the artifact name is not specified.
-            ValueError: If the artifact type is specified but does not match the type of the fetched artifact.
+            ValueError: If the artifact type is specified but does not
+                match the type of the fetched artifact.
 
         Examples:
 
         In the proceeding code snippets "entity", "project", "artifact",
-        "version", and "alias" are placeholders for your W&B entity, name of the project
-        the artifact is in, the name of the artifact, and artifact's version, respectively.
+        "version", and "alias" are placeholders for your W&B entity, name
+        of the project the artifact is in, the name of the artifact,
+        and artifact's version, respectively.
 
         ```python
         import wandb
 
         # Specify the project, artifact's name, and the artifact's alias
-        wandb.Api().artifact(name = "project/artifact:alias")
+        wandb.Api().artifact(name="project/artifact:alias")
 
         # Specify the project, artifact's name, and a specific artifact version
-        wandb.Api().artifact(name = "project/artifact:version")
+        wandb.Api().artifact(name="project/artifact:version")
 
         # Specify the entity, project, artifact's name, and the artifact's alias
-        wandb.Api().artifact(name = "entity/project/artifact:alias")
+        wandb.Api().artifact(name="entity/project/artifact:alias")
 
         # Specify the entity, project, artifact's name, and a specific artifact version
-        wandb.Api().artifact(name = "entity/project/artifact:version")
+        wandb.Api().artifact(name="entity/project/artifact:version")
         ```
 
         Note:
@@ -1403,10 +1451,12 @@ class Api:
         """Whether an artifact version exists within the specified project and entity.
 
         Args:
-            name: The name of artifact. Add the artifact's entity and project as a prefix. Append the version or the
-                alias of the artifact with a colon. If the entity or project is not specified,
-                W&B uses override parameters if populated. Otherwise, the entity is pulled from
-                the user settings and the project is set to "Uncategorized".
+            name: The name of artifact. Add the artifact's entity and project
+                as a prefix. Append the version or the alias of the artifact
+                with a colon. If the entity or project is not specified,
+                W&B uses override parameters if populated. Otherwise, the
+                entity is pulled from the user settings and the project is
+                set to "Uncategorized".
             type: The type of artifact.
 
         Returns:
@@ -1415,11 +1465,13 @@ class Api:
         Examples:
 
         In the proceeding code snippets "entity", "project", "artifact",
-        "version", and "alias" are placeholders for your W&B entity, name of the project
-        the artifact is in, the name of the artifact, and artifact's version, respectively.        
+        "version", and "alias" are placeholders for your W&B entity, name of
+        the project the artifact is in, the name of the artifact, and
+        artifact's version, respectively.
 
         ```python
         import wandb
+
         wandb.Api().artifact_exists("entity/project/artifact:version")
         wandb.Api().artifact_exists("entity/project/artifact:alias")
         ```
@@ -1433,12 +1485,14 @@ class Api:
 
     @normalize_exceptions
     def artifact_collection_exists(self, name: str, type: str) -> bool:
-        """Return whether an artifact collection exists within a specified project and entity.
+        """Whether an artifact collection exists within a specified project and entity.
 
         Args:
-            name: An artifact collection name. Optionally append the entity that logged the artifact as a prefix
-                followed by a forward slash. If entity or project is not specified, infer the collection from
-                the override params if they exist. Otherwise, entity is pulled from the user settings and project
+            name: An artifact collection name. Optionally append the
+                entity that logged the artifact as a prefix followed by
+                a forward slash. If entity or project is not specified,
+                infer the collection from the override params if they exist.
+                Otherwise, entity is pulled from the user settings and project
                 will default to "uncategorized".
             type: The type of artifact collection.
 
@@ -1453,11 +1507,8 @@ class Api:
         ```python
         import wandb
 
-        wandb.Api.artifact_collection_exists(
-            type="type",
-            name="collection_name"
-            )
-        ```            
+        wandb.Api.artifact_collection_exists(type="type", name="collection_name")
+        ```
         """
         try:
             self.artifact_collection(type, name)
