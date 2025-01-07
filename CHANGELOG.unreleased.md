@@ -16,3 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - Added new `wandb.sdk.automations` subpackage to support programmatic management of W&B Automations (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8935).
+
+### Changed
+
+- Paginated methods (and underlying paginators) that accept a `per_page` argument now only accept `int` values.  Default `per_page` values are set directly in method signatures, and explicitly passing `None` is no longer supported.

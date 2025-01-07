@@ -746,15 +746,14 @@ class Api:
         return parts
 
     def projects(
-        self, entity: Optional[str] = None, per_page: Optional[int] = 200
+        self, entity: Optional[str] = None, per_page: int = 200
     ) -> "public.Projects":
         """Get projects for a given entity.
 
         Args:
             entity: (str) Name of the entity requested.  If None, will fall back to the
                 default entity passed to `Api`.  If no default entity, will raise a `ValueError`.
-            per_page: (int) Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
 
         Returns:
             A `Projects` object which is an iterable collection of `Project` objects.
@@ -797,7 +796,7 @@ class Api:
         return public.Project(self.client, entity, name, {})
 
     def reports(
-        self, path: str = "", name: Optional[str] = None, per_page: Optional[int] = 50
+        self, path: str = "", name: Optional[str] = None, per_page: int = 50
     ) -> "public.Reports":
         """Get reports for a given project path.
 
@@ -806,8 +805,7 @@ class Api:
         Args:
             path: (str) path to project the report resides in, should be in the form: "entity/project"
             name: (str, optional) optional name of the report requested.
-            per_page: (int) Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
 
         Returns:
             A `Reports` object which is an iterable collection of `BetaReport` objects.
@@ -1093,15 +1091,14 @@ class Api:
 
     @normalize_exceptions
     def artifact_collections(
-        self, project_name: str, type_name: str, per_page: Optional[int] = 50
+        self, project_name: str, type_name: str, per_page: int = 50
     ) -> "public.ArtifactCollections":
         """Return a collection of matching artifact collections.
 
         Args:
             project_name: (str) The name of the project to filter on.
             type_name: (str) The name of the artifact type to filter on.
-            per_page: (int, optional) Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
 
         Returns:
             An iterable `ArtifactCollections` object.
@@ -1160,7 +1157,7 @@ class Api:
         self,
         type_name: str,
         name: str,
-        per_page: Optional[int] = 50,
+        per_page: int = 50,
         tags: Optional[List[str]] = None,
     ) -> "public.Artifacts":
         """Return an `Artifacts` collection from the given parameters.
@@ -1168,8 +1165,7 @@ class Api:
         Args:
             type_name: (str) The type of artifacts to fetch.
             name: (str) An artifact collection name. May be prefixed with entity/project.
-            per_page: (int, optional) Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
             tags: (list[str], optional) Only return artifacts with all of these tags.
 
         Returns:
