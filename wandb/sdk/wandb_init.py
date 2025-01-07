@@ -249,6 +249,9 @@ class _WandbInit:
         if login_settings:
             settings.update_from_dict(login_settings)
 
+        # handle custom resume logic
+        settings.handle_resume_logic()
+
         # get status of code saving before applying user settings
         save_code_pre_user_settings = settings.save_code
         if not settings._offline and not settings._noop:
@@ -270,9 +273,6 @@ class _WandbInit:
             settings.project = wandb.util.auto_project_name(settings.program)
 
         settings.x_start_time = time.time()
-
-        # handle custom resume logic
-        settings.handle_resume_logic()
 
         return settings
 
