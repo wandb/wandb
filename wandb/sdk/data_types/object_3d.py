@@ -187,14 +187,15 @@ class Object3D(BatchableMedia):
     """Wandb class for 3D point clouds.
 
     Args:
-        data_or_path: (numpy array, string, io)
-            Object3D can be initialized from a file or a numpy array.
+        data_or_path numpy array, string, io): Object3D can be initialized
+            from a file or a numpy array. You can pass a path to a file or
+            an io object and a file_type which must be one of SUPPORTED_TYPES.
 
-            You can pass a path to a file or an io object and a file_type
-            which must be one of SUPPORTED_TYPES
+    Examples:
 
-    The shape of the numpy array must be one of either:
-    ```
+    The shape of the numpy array must be one of either
+
+    ```text
     [[x y z],       ...] nx3
     [[x y z c],     ...] nx4 where c is a category with supported range [1, 14]
     [[x y z r g b], ...] nx6 where is rgb is color

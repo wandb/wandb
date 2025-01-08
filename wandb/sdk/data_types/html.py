@@ -19,8 +19,8 @@ class Html(BatchableMedia):
     """Wandb class for arbitrary html.
 
     Args:
-        data: (string or io object) HTML to display in wandb
-        inject: (boolean) Add a stylesheet to the HTML object.  If set
+        data: HTML to display in wandb
+        inject: Add a stylesheet to the HTML object.  If set
             to False the HTML will pass through unchanged.
     """
 

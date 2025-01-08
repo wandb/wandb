@@ -26,10 +26,8 @@ class Molecule(BatchableMedia):
     """Wandb class for 3D Molecular data.
 
     Args:
-        data_or_path: (string, io)
-            Molecule can be initialized from a file name or an io object.
-        caption: (string)
-            Caption associated with the molecule for display.
+        data_or_path: Molecule can be initialized from a file name or an io object.
+        caption: Caption associated with the molecule for display.
     """
 
     SUPPORTED_TYPES = {
@@ -174,17 +172,15 @@ class Molecule(BatchableMedia):
         """Convert SMILES string to wandb.Molecule.
 
         Args:
-            data: (string)
-                SMILES string.
-            caption: (string)
-                Caption associated with the molecule for display
-            sanitize: (bool)
-                Check if the molecule is chemically reasonable by the RDKit's definition.
-            convert_to_3d_and_optimize: (bool)
-                Convert to rdkit.Chem.rdchem.Mol with 3D coordinates.
-                This is an expensive operation that may take a long time for complicated molecules.
-            mmff_optimize_molecule_max_iterations: (int)
-                Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
+            data: SMILES string.
+            caption: Caption associated with the molecule for display.
+            sanitize: Check if the molecule is chemically reasonable by
+                the RDKit's definition.
+            convert_to_3d_and_optimize: Convert to rdkit.Chem.rdchem.Mol
+                with 3D coordinates. This is a computationally intensive
+                operation that may take a long time for complicated molecules.
+            mmff_optimize_molecule_max_iterations: Number of iterations to
+                use in rdkit.Chem.AllChem.MMFFOptimizeMolecule.
         """
         rdkit_chem = util.get_module(
             "rdkit.Chem",
