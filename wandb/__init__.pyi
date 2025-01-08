@@ -12,7 +12,7 @@ For reference documentation, see https://docs.wandb.com/ref/python.
 from __future__ import annotations
 
 __all__ = (
-    "__version__", # doc:exclude
+    "__version__",  # doc:exclude
     "init",
     "finish",
     "setup",
@@ -25,16 +25,16 @@ __all__ = (
     "log",
     "summary",
     "Api",
-    "Graph", # doc:exclude
-    "Image", 
+    "Graph",  # doc:exclude
+    "Image",
     "Plotly",
     "Video",
-    "Audio", 
+    "Audio",
     "Table",
     "Html",
-    "box3d", # doc:exclude
+    "box3d",
     "Object3D",
-    "Molecule", 
+    "Molecule",
     "Histogram",
     "ArtifactTTL",
     "log_artifact",
@@ -43,11 +43,11 @@ __all__ = (
     "use_model",
     "link_model",
     "define_metric",
-    "Error", 
-    "termsetup", # doc:exclude
-    "termlog", # doc:exclude
-    "termerror", # doc:exclude
-    "termwarn", # doc:exclude
+    "Error",
+    "termsetup",  # doc:exclude
+    "termlog",  # doc:exclude
+    "termerror",  # doc:exclude
+    "termwarn",  # doc:exclude
     "Artifact",
     "Settings",
     "teardown",
