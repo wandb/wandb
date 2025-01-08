@@ -328,16 +328,10 @@ def wandb_log(
             if not isinstance(settings, wandb.sdk.wandb_settings.Settings):
                 settings = wandb.Settings()
 
-            settings.update(
-                run_group=coalesce(
-                    settings.run_group, f"{current.flow_name}/{current.run_id}"
-                ),
-                source=wandb.sdk.wandb_settings.Source.INIT,
+            settings.run_group = coalesce(
+                settings.run_group, f"{current.flow_name}/{current.run_id}"
             )
-            settings.update(
-                run_job_type=coalesce(settings.run_job_type, current.step_name),
-                source=wandb.sdk.wandb_settings.Source.INIT,
-            )
+            settings.run_job_type = coalesce(settings.run_job_type, current.step_name)
 
             with wandb.init(settings=settings) as run:
                 with wb_telemetry.context(run=run) as tel:

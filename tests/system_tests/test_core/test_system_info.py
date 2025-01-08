@@ -43,7 +43,6 @@ def send_manager(
     interface,
 ):
     def send_manager_helper(run, meta):
-        # test_settings.update(save_code=True, source=wandb.sdk.wandb_settings.Source.INIT)
         context_keeper = context.ContextKeeper()
         sm = SendManager(
             settings=run.settings,
