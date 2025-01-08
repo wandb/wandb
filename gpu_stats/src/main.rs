@@ -17,6 +17,7 @@ mod gpu_apple_sources;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod gpu_nvidia;
 mod metrics;
+mod pid;
 mod system;
 mod wandb_internal;
 
@@ -116,7 +117,10 @@ impl SystemMonitorImpl {
         shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     ) -> Self {
         let mut system = System::new(ppid);
-        let _ = system.get_metrics();
+        for _ in 0..5 {
+            let _ = system.get_metrics();
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        }
         let system = tokio::sync::Mutex::new(system);
 
         // Initialize the Apple GPU sampler (ARM Mac only)
@@ -196,8 +200,8 @@ impl SystemMonitorImpl {
     /// Collect system metrics.
     async fn sample(
         &self,
-        pid: i32,
-        gpu_device_ids: Option<Vec<i32>>,
+        #[allow(unused_variables)] pid: i32,
+        #[allow(unused_variables)] gpu_device_ids: Option<Vec<i32>>,
     ) -> Vec<(String, metrics::MetricValue)> {
         let mut all_metrics = Vec::new();
 
