@@ -1,16 +1,15 @@
 """Test Metaflow Flow integration"""
 
 import os
+import pathlib
 
 import pandas as pd
 from metaflow import FlowSpec, Parameter, step
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
-
 from wandb.integration.metaflow import wandb_log
 
-os.environ["WANDB_SILENT"] = "true"
 os.environ["METAFLOW_USER"] = "test_user"
 os.environ["USER"] = os.environ["METAFLOW_USER"]
 
@@ -22,7 +21,7 @@ class WandbExampleFlowDecoBoth(FlowSpec):
     test_size = Parameter("test_size", default=0.2)
     raw_data = Parameter(
         "raw_data",
-        default="https://gist.githubusercontent.com/tijptjik/9408623/raw/b237fa5848349a14a14e5d4107dc7897c21951f5/wine.csv",
+        default=pathlib.Path(__file__).parent / "wine.csv",
         help="path to the raw data",
     )
 
@@ -35,7 +34,7 @@ class WandbExampleFlowDecoBoth(FlowSpec):
     @wandb_log(datasets=True)
     @step
     def split_data(self):
-        X = self.raw_df.drop("Wine", axis=1)
+        X = self.raw_df.drop("Wine", axis=1)  # noqa: N806
         y = self.raw_df[["Wine"]]
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
             X, y, test_size=self.test_size, random_state=self.seed
