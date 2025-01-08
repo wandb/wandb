@@ -81,22 +81,22 @@ class Artifact:
     `wandb.log_artifact()` to log it.
 
     Args:
-        name: A human-readable name for the artifact. Use the name to identify
+        name (str): A human-readable name for the artifact. Use the name to identify
             a specific artifact in the W&B App UI or programmatically. You can
             interactively reference an artifact with the `use_artifact` Public API.
             A name can contain letters, numbers, underscores, hyphens, and dots.
             The name must be unique across a project.
-        type: The artifact's type. Use the type of an artifact to both organize
+        type (str): The artifact's type. Use the type of an artifact to both organize
             and differentiate artifacts. You can use any string that contains letters,
             numbers, underscores, hyphens, and dots. Common types include `dataset` or `model`.
             Include `model` within your type string if you want to link the artifact
             to the W&B Model Registry.
-        description: A description of the artifact. For Model or Dataset Artifacts,
+        description (str | None) = None: A description of the artifact. For Model or Dataset Artifacts,
             add documentation for your standardized team model or dataset card. View
             an artifact's description programmatically with the `Artifact.description`
             attribute or programmatically with the W&B App UI. W&B renders the
             description as markdown in the W&B App.
-        metadata: Additional information about an artifact. Specify metadata as a
+        metadata (dict[str, Any] | None) = None: Additional information about an artifact. Specify metadata as a
             dictionary of key-value pairs. You can specify no more than 100 total keys.
 
     Returns:
@@ -584,7 +584,8 @@ class Artifact:
         TTL and there is no custom policy set on an artifact.
 
         Raises:
-            ArtifactNotLoggedError: Unable to fetch inherited TTL if the artifact has not been logged or saved
+            ArtifactNotLoggedError: Unable to fetch inherited TTL if the
+            artifact has not been logged or saved.
         """
         if self._ttl_is_inherited and (self.is_draft() or self._ttl_changed):
             raise ArtifactNotLoggedError(f"{type(self).__name__}.ttl", self)
@@ -630,7 +631,9 @@ class Artifact:
     @property
     @ensure_logged
     def aliases(self) -> list[str]:
-        """List of one or more semantically-friendly references or identifying "nicknames" assigned to an artifact version.
+        """List of one or more semantically-friendly references or
+
+        identifying "nicknames" assigned to an artifact version.
 
         Aliases are mutable references that you can programmatically reference.
         Change an artifact's alias with the W&B App UI or programmatically.
@@ -784,7 +787,8 @@ class Artifact:
     def is_draft(self) -> bool:
         """Check if artifact is not saved.
 
-        Returns: Boolean. `False` if artifact is saved. `True` if artifact is not saved.
+        Returns:
+            Boolean. `False` if artifact is saved. `True` if artifact is not saved.
         """
         return self._state == ArtifactState.PENDING
 
@@ -1105,8 +1109,9 @@ class Artifact:
             The added manifest entry
 
         Raises:
-            ArtifactFinalizedError: You cannot make changes to the current artifact
-            version because it is finalized. Log a new artifact version instead.
+            ArtifactFinalizedError: You cannot make changes to the current
+            artifact version because it is finalized. Log a new artifact
+            version instead.
         """
         return self.add(item, name)
 
@@ -1123,12 +1128,13 @@ class Artifact:
             encoding: The encoding used to open the new file.
 
         Returns:
-            A new file object that can be written to. Upon closing, the file will be
-            automatically added to the artifact.
+            A new file object that can be written to. Upon closing, the file
+            is automatically added to the artifact.
 
         Raises:
-            ArtifactFinalizedError: You cannot make changes to the current artifact
-            version because it is finalized. Log a new artifact version instead.
+            ArtifactFinalizedError: You cannot make changes to the current
+            artifact version because it is finalized. Log a new artifact
+            version instead.
         """
         overwrite: bool = "x" not in mode
 
@@ -1167,22 +1173,26 @@ class Artifact:
 
         Args:
             local_path: The path to the file being added.
-            name: The path within the artifact to use for the file being added. Defaults
-                to the basename of the file.
+            name: The path within the artifact to use for the file being added.
+                Defaults to the basename of the file.
             is_tmp: If true, then the file is renamed deterministically to avoid
                 collisions.
-            skip_cache: If `True`, W&B will not copy files to the cache after uploading.
-            policy: By default, set to "mutable". If set to "mutable", create a temporary copy of the
-                file to prevent corruption during upload. If set to "immutable", disable
-                protection and rely on the user not to delete or change the file.
+            skip_cache: If `True`, do not copy files to the cache
+                after uploading.
+            policy: By default, set to "mutable". If set to "mutable",
+                create a temporary copy of the file to prevent corruption
+                during upload. If set to "immutable", disable
+                protection and rely on the user not to delete or change the
+                file.
             overwrite: If `True`, overwrite the file if it already exists.
 
         Returns:
             The added manifest entry.
 
         Raises:
-            ArtifactFinalizedError: You cannot make changes to the current artifact
-            version because it is finalized. Log a new artifact version instead.
+            ArtifactFinalizedError: You cannot make changes to the current
+                artifact version because it is finalized. Log a new artifact
+                version instead.
             ValueError: Policy must be "mutable" or "immutable"
         """
         if not os.path.isfile(local_path):
@@ -1218,17 +1228,21 @@ class Artifact:
 
         Args:
             local_path: The path of the local directory.
-            name: The subdirectory name within an artifact. The name you specify appears
-                in the W&B App UI nested by artifact's `type`.
+            name: The subdirectory name within an artifact. The name you
+                specify appears in the W&B App UI nested by artifact's `type`.
                 Defaults to the root of the artifact.
-            skip_cache: If set to `True`, W&B will not copy/move files to the cache while uploading
-            policy: "mutable" | "immutable". By default, "mutable"
-                "mutable": Create a temporary copy of the file to prevent corruption during upload.
-                "immutable": Disable protection, rely on the user not to delete or change the file.
+            skip_cache: If set to `True`, W&B will not copy/move files to
+                the cache while uploading
+            policy: By default, "mutable".
+                "mutable": Create a temporary copy of the file to prevent
+                    corruption during upload.
+                "immutable": Disable protection, rely on the user not to
+                    delete or change the file.
 
         Raises:
-            ArtifactFinalizedError: You cannot make changes to the current artifact
-            version because it is finalized. Log a new artifact version instead.
+            ArtifactFinalizedError: You cannot make changes to the current
+                artifact version because it is finalized. Log a new artifact
+                version instead.
             ValueError: Policy must be "mutable" or "immutable"
         """
         if not os.path.isdir(local_path):
@@ -1286,13 +1300,14 @@ class Artifact:
 
         - http(s): The size and digest of the file will be inferred by the
           `Content-Length` and the `ETag` response headers returned by the server.
-        - s3: The checksum and size are pulled from the object metadata. If bucket
-          versioning is enabled, then the version ID is also tracked.
+        - s3: The checksum and size are pulled from the object metadata.
+          If bucket versioning is enabled, then the version ID is also tracked.
         - gs: The checksum and size are pulled from the object metadata. If bucket
           versioning is enabled, then the version ID is also tracked.
-        - https, domain matching `*.blob.core.windows.net` (Azure): The checksum and size
-          are be pulled from the blob metadata. If storage account versioning is
-          enabled, then the version ID is also tracked.
+        - https, domain matching `*.blob.core.windows.net`
+        - Azure: The checksum and size are be pulled from the blob metadata.
+          If storage account versioning is enabled, then the version ID is
+          also tracked.
         - file: The checksum and size are pulled from the file system. This scheme
           is useful if you have an NFS share or other externally mounted volume
           containing files you wish to track but not necessarily upload.
@@ -1313,16 +1328,18 @@ class Artifact:
                 setting `checksum=False` when adding reference objects, in which case
                 a new version will only be created if the reference URI changes.
             max_objects: The maximum number of objects to consider when adding a
-                reference that points to directory or bucket store prefix. By default,
-                the maximum number of objects allowed for Amazon S3,
-                GCS, Azure, and local files is 10,000,000. Other URI schemas do not have a maximum.
+                reference that points to directory or bucket store prefix.
+                By default, the maximum number of objects allowed for Amazon S3,
+                GCS, Azure, and local files is 10,000,000. Other URI schemas
+                do not have a maximum.
 
         Returns:
             The added manifest entries.
 
         Raises:
-            ArtifactFinalizedError: You cannot make changes to the current artifact
-            version because it is finalized. Log a new artifact version instead.
+            ArtifactFinalizedError: You cannot make changes to the current
+            artifact version because it is finalized. Log a new artifact
+            version instead.
         """
         if name is not None:
             name = LogicalPath(name)
@@ -1359,17 +1376,19 @@ class Artifact:
 
         Args:
             obj: The object to add. Currently support one of Bokeh, JoinedTable,
-                PartitionedTable, Table, Classes, ImageMask, BoundingBoxes2D, Audio,
-                Image, Video, Html, Object3D
+                PartitionedTable, Table, Classes, ImageMask, BoundingBoxes2D,
+                Audio, Image, Video, Html, Object3D
             name: The path within the artifact to add the object.
-            overwrite: If True, overwrite existing objects with the same file path (if applicable).
+            overwrite: If True, overwrite existing objects with the same file
+                path if applicable.
 
         Returns:
             The added manifest entry
 
         Raises:
-            ArtifactFinalizedError: You cannot make changes to the current artifact
-            version because it is finalized. Log a new artifact version instead.
+            ArtifactFinalizedError: You cannot make changes to the current
+            artifact version because it is finalized. Log a new artifact
+            version instead.
         """
         name = LogicalPath(name)
 
@@ -1483,13 +1502,14 @@ class Artifact:
         """Remove an item from the artifact.
 
         Args:
-            item: The item to remove. Can be a specific manifest entry or the name of an
-                artifact-relative path. If the item matches a directory all items in
-                that directory will be removed.
+            item: The item to remove. Can be a specific manifest entry
+                or the name of an artifact-relative path. If the item
+                matches a directory all items in that directory will be removed.
 
         Raises:
-            ArtifactFinalizedError: You cannot make changes to the current artifact
-            version because it is finalized. Log a new artifact version instead.
+            ArtifactFinalizedError: You cannot make changes to the current
+                artifact version because it is finalized. Log a new artifact
+                version instead.
             FileNotFoundError: If the item isn't found in the artifact.
         """
         if isinstance(item, ArtifactManifestEntry):
@@ -1545,10 +1565,12 @@ class Artifact:
             name: The artifact relative name to retrieve.
 
         Returns:
-            W&B object that can be logged with `wandb.log()` and visualized in the W&B UI.
+            W&B object that can be logged with `wandb.log()` and
+            visualized in the W&B UI.
 
         Raises:
-            ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
+            ArtifactNotLoggedError: if the artifact isn't logged or the
+                run is offline.
         """
         entry, wb_class = self._get_obj_entry(name)
         if entry is None or wb_class is None:
@@ -1906,7 +1928,7 @@ class Artifact:
 
         Args:
             root: The directory to verify. If None artifact will be downloaded to
-                './artifacts/self.name/'
+                `./artifacts/self.name/`
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
@@ -1943,7 +1965,7 @@ class Artifact:
 
         Args:
             root: The root directory to store the file. Defaults to
-                './artifacts/self.name/'.
+                `./artifacts/self.name/`.
 
         Returns:
             The full path of the downloaded file.
@@ -2009,14 +2031,14 @@ class Artifact:
     def delete(self, delete_aliases: bool = False) -> None:
         """Delete an artifact and its files.
 
-        If called on a linked artifact (i.e. a member of a portfolio collection): only the link is deleted, and the
+        If called on a linked artifact, only the link is deleted, and the
         source artifact is unaffected.
 
         Args:
-            delete_aliases: If set to `True`, deletes all aliases associated with the artifact.
-                Otherwise, this raises an exception if the artifact has existing
-                aliases.
-                This parameter is ignored if the artifact is linked (i.e. a member of a portfolio collection).
+            delete_aliases: If set to `True`, deletes all aliases associated
+                with the artifact. Otherwise, this raises an exception if
+                the artifact has existing aliases. This parameter is ignored
+                if the artifact is linked (a member of a portfolio collection).
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
@@ -2064,8 +2086,8 @@ class Artifact:
                 portfolio inside a project, set `target_path` to the following
                 schema `{"model-registry"}/{Registered Model Name}` or
                 `{entity}/{"model-registry"}/{Registered Model Name}`.
-            aliases: A list of strings that uniquely identifies the artifact inside the
-                specified portfolio.
+            aliases: A list of strings that uniquely identifies the artifact
+                inside the specified portfolio.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
@@ -2083,11 +2105,12 @@ class Artifact:
 
     @ensure_logged
     def unlink(self) -> None:
-        """Unlink this artifact if it is currently a member of a portfolio (a promoted collection of artifacts).
+        """Unlink this artifact if it is currently a member of a promoted collection of artifacts.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
-            ValueError: If the artifact is not linked, i.e. it is not a member of a portfolio collection.
+            ValueError: If the artifact is not linked, in other words,
+            it is not a member of a portfolio collection.
         """
         # Fail early if this isn't a linked artifact to begin with
         if self.collection.is_sequence():
