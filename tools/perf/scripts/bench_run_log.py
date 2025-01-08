@@ -116,7 +116,7 @@ class PayloadGenerator:
             dict: A dictionary with the scalar data.
         """
         return {
-            self.random_string(self.metric_key_size): random.randint(1, 10**6)
+            self.random_string(self.metric_key_size): random.randint(1, 10**2)
             for _ in range(self.metric_count)
         }
 
@@ -186,6 +186,7 @@ class Experiment:
         time_delay_second: Sleep time between step.
         run_id: ID of the existing run to resume from.
         resume_mode: The mode of resuming. Used when run_id is passed in.
+        percentage: The % of metrics to log in each step. 
 
     When to set "is_unique_payload" to True?
 
@@ -208,6 +209,7 @@ class Experiment:
         time_delay_second: float = 0.0,
         run_id: str = "",
         resume_mode: str = "must",
+        percentage: float = 100.0,
     ):
         self.num_steps = num_steps
         self.num_metrics = num_metrics
@@ -218,6 +220,7 @@ class Experiment:
         self.time_delay_second = time_delay_second
         self.run_id = run_id
         self.resume_mode = resume_mode
+        self.percentage = percentage
 
     def run(self, repeat: int = 1):
         for _ in range(repeat):
@@ -276,13 +279,23 @@ class Experiment:
             logger.error(f"Failed to generate payload: {e}")
             return
 
+        metrics_count_per_step = round(self.num_metrics * self.percentage // 100)
+
         # Log the payload $step_count times
         with Timer() as timer:
             for s in range(self.num_steps):
                 if self.is_unique_payload:
                     run.log(payloads[s])
                 else:
-                    run.log(payloads[0])
+                    # get the subset of metrics to log. 
+                    # i.e. only log X% of all metrics per step
+                    if metrics_count_per_step != self.num_metrics:
+                        keys = list(payloads[0].keys())
+                        start_index = (s * metrics_count_per_step) % self.num_metrics
+                        end_index = start_index + metrics_count_per_step
+                        run.log({key: payloads[0][key] for key in keys[start_index:end_index]})
+                    else:
+                        run.log(payloads[0])
 
                 # 12/20/2024 - Wai
                 # HACKAROUND: We ran into some 500s and 502s errors when SDK logs
@@ -450,6 +463,14 @@ if __name__ == "__main__":
         help="Use with --run-id. The resume mode.",
     )
 
+    parser.add_argument(
+        "-p",
+        "--percentage",
+        type=float,
+        default=100.0,
+        help="The percentage of metrics to log in each step.",
+    )
+
     args = parser.parse_args()
 
     Experiment(
@@ -462,4 +483,5 @@ if __name__ == "__main__":
         time_delay_second=args.time_delay_second,
         run_id=args.run_id,
         resume_mode=args.resume_mode,
+        percentage=args.percentage,
     ).run(args.repeat)
