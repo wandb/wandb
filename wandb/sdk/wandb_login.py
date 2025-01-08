@@ -53,24 +53,24 @@ def login(
     `verify=True`.
 
     Args:
-        anonymous: (string, optional) Can be "must", "allow", or "never".
-            If set to "must", always log a user in anonymously. If set to
+        anonymous: Set to `must`, `allow`, or `never`.
+            If set to `must`, always log a user in anonymously. If set to
             "allow", only create an anonymous user if the user
-            isn't already logged in. If set to "never", never log a
-            user anonymously. Default set to "never".
-        key: (string, optional) The API key to use.
-        relogin: (bool, optional) If true, will re-prompt for API key.
-        host: (string, optional) The host to connect to.
-        force: (bool, optional) If true, will force a relogin.
-        timeout: (int, optional) Number of seconds to wait for user input.
-        verify: (bool) Verify the credentials with the W&B server.
+            isn't already logged in. If set to `never`, never log a
+            user anonymously. Default set to `never`.
+        key: The API key to use.
+        relogin: If true, will re-prompt for API key.
+        host: The host to connect to.
+        force: If true, will force a relogin.
+        timeout: Number of seconds to wait for user input.
+        verify: Verify the credentials with the W&B server.
 
     Returns:
         bool: if key is configured
 
     Raises:
-        AuthenticationError - if api_key fails verification with the server
-        UsageError - if api_key cannot be configured and no tty
+        `AuthenticationError` if api_key fails verification with the server
+        `UsageError` if api_key cannot be configured and no tty
     """
     _handle_host_wandb_setting(host)
     if wandb.setup()._settings._noop:
