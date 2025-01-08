@@ -1,6 +1,7 @@
 from datetime import timedelta
 from queue import Queue
 from typing import Callable, Dict, Generator, List
+from unittest import mock
 
 import pytest
 from hypothesis import settings
@@ -11,6 +12,18 @@ settings.register_profile(
     deadline=timedelta(seconds=1),
 )
 settings.load_profile("ci")
+
+
+@pytest.fixture(autouse=True)
+def mock_servier_viewer_api_call():
+    with mock.patch(
+        "wandb.sdk.internal.internal_api.Api.viewer_server_info",
+        return_value=(
+            {"viewer_server_info": {"id": "1234567890", "entity": "test_entity"}},
+            {},
+        ),
+    ):
+        yield
 
 
 # --------------------------------
