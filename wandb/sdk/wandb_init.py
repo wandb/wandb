@@ -132,18 +132,22 @@ class _WandbInit:
     def maybe_login(self, init_settings: Settings) -> None:
         """Log in if we are not creating an offline or disabled run.
 
+        This may change the W&B singleton settings.
+
         Args:
             init_settings: Settings passed to `wandb.init()` or set via
                 keyword arguments.
         """
         # Allow settings passed to init() to override inferred values.
         #
-        # Calling login() will change some settings on the singleton,
-        # so these may not be the final run settings, but the settings
-        # we rely on here will be unchanged.
+        # Calling login() may change settings on the singleton,
+        # so these may not be the final run settings.
         run_settings = self._wl.settings.model_copy()
         run_settings.update_from_settings(init_settings)
 
+        # NOTE: _noop or _offline can become true after _login().
+        #   _noop happens if _login hits a timeout.
+        #   _offline can be selected by the user at the login prompt.
         if run_settings._noop or run_settings._offline:
             return
 
