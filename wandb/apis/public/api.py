@@ -1007,7 +1007,7 @@ class Api:
         return self._runs[key]
 
     @normalize_exceptions
-    def run(self, path: str):
+    def run(self, path=""):
         """Return a single run by parsing path in the form `entity/project/run_id`.
 
         Args:
@@ -1062,7 +1062,7 @@ class Api:
         )
 
     @normalize_exceptions
-    def sweep(self, path: Optional[str] = None):
+    def sweep(self, path=""):
         """Return a sweep by parsing path in the form `entity/project/sweep_id`.
 
         Args:
