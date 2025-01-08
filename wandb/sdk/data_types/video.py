@@ -60,7 +60,7 @@ class Video(BatchableMedia):
         caption: caption associated with the video for display
         fps: The frame rate to use when encoding raw video frames. Default value is 4.
             This parameter has no effect when data_or_path is a string, or bytes.
-        format: (string) format of video, necessary if initializing with path or io object.
+        format: Format of video, necessary if initializing with path or io object.
 
     Examples:
     <!--yeadoc-test:log-video-numpy-->
