@@ -34,7 +34,6 @@ from pydantic_core import SchemaValidator, core_schema
 
 import wandb
 from wandb import env, termwarn, util
-from wandb.apis.internal import Api
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 
@@ -1262,7 +1261,7 @@ class Settings(BaseModel, validate_assignment=True):
     def _get_url_query_string(self) -> str:
         """Construct the query string for project, run, and sweep URLs."""
         # TODO: remove dependency on Api()
-        if Api().settings().get("anonymous") not in ["allow", "must"]:
+        if self.anonymous not in ["allow", "must"]:
             return ""
 
         api_key = apikey.api_key(settings=self)
