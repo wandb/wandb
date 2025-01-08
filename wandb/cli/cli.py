@@ -125,7 +125,7 @@ def _get_cling_api(reset=None):
     global _api
     if reset:
         _api = None
-        wandb_sdk.wandb_setup._setup(_reset=True)
+        wandb.teardown()
     if _api is None:
         # TODO(jhr): make a settings object that is better for non runs.
         # only override the necessary setting
@@ -2437,7 +2437,7 @@ def ls(path, type):
                 per_page=1,
             )
             latest = next(versions)
-            print(
+            wandb.termlog(
                 "{:<15s}{:<15s}{:>15s} {:<20s}".format(
                     kind.type,
                     latest.updated_at,
@@ -2463,7 +2463,7 @@ def cleanup(target_size, remove_temp):
     target_size = util.from_human_size(target_size)
     cache = get_artifact_file_cache()
     reclaimed_bytes = cache.cleanup(target_size, remove_temp)
-    print(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
+    wandb.termlog(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
@@ -2664,7 +2664,6 @@ Run `git clone {}` and restore from there or pass the --no-git flag.""".format(r
 def online():
     api = InternalApi()
     try:
-        api.clear_setting("disabled", persist=True)
         api.clear_setting("mode", persist=True)
     except configparser.Error:
         pass
@@ -2678,7 +2677,6 @@ def online():
 def offline():
     api = InternalApi()
     try:
-        api.set_setting("disabled", "true", persist=True)
         api.set_setting("mode", "offline", persist=True)
         click.echo(
             "W&B offline. Running your script from this directory will only write metadata locally. Use wandb disabled to completely turn off W&B."
@@ -2765,13 +2763,13 @@ def verify(host):
     reinit = False
     if host is None:
         host = api.settings("base_url")
-        print(f"Default host selected: {host}")
+        wandb.termlog(f"Default host selected: {host}")
     # if the given host does not match the default host, re-run init
     elif host != api.settings("base_url"):
         reinit = True
 
     tmp_dir = tempfile.mkdtemp()
-    print(
+    wandb.termlog(
         "Find detailed logs for this test at: {}".format(os.path.join(tmp_dir, "wandb"))
     )
     os.chdir(tmp_dir)

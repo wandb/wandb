@@ -88,7 +88,7 @@ def login(
     if verify:
         from . import wandb_setup
 
-        singleton = wandb_setup._WandbSetup._instance
+        singleton = wandb_setup.singleton()
         assert singleton is not None
         viewer = singleton._server._viewer
         if not viewer:

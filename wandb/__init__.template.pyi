@@ -103,7 +103,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.19.1.dev1"
+__version__: str = "0.19.3.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -114,9 +114,7 @@ _sentry: Sentry
 api: InternalApi
 patched: Dict[str, List[Callable]]
 
-def setup(
-    settings: Settings | None = None,
-) -> Optional[_WandbSetup]:
+def setup(settings: Settings | None = None) -> _WandbSetup:
     """<sdk/wandb_setup.py::setup>"""
     ...
 

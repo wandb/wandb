@@ -117,3 +117,17 @@ def test_resume_auto_failure(user, tmp_path):
         assert run.id == "resume-me"
         run.finish(exit_code=3)
         assert os.path.exists(resume_fname)
+
+
+def test_reinit_existing_run_with_reinit_true():
+    """Test that reinit with an existing run returns a new run."""
+    original_run = wandb.init(mode="offline")
+    new_run = wandb.init(mode="offline", reinit=True)
+    assert new_run != original_run
+
+
+def test_reinit_existing_run_with_reinit_false():
+    """Test that reinit with a run active returns the same run."""
+    original_run = wandb.init(mode="offline")
+    new_run = wandb.init(mode="offline", reinit=False)
+    assert new_run == original_run

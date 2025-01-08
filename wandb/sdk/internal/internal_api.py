@@ -400,9 +400,6 @@ class Api:
                 wandb.termerror(f"Error while calling W&B API: {error} ({response})")
             raise
 
-    def disabled(self) -> Union[str, bool]:
-        return self._settings.get(Settings.DEFAULT_SECTION, "disabled", fallback=False)  # type: ignore
-
     def set_current_run_id(self, run_id: str) -> None:
         self._current_run_id = run_id
 
@@ -2321,7 +2318,9 @@ class Api:
             "commit": commit,
             "displayName": display_name,
             "notes": notes,
-            "host": None if self.settings().get("anonymous") == "true" else host,
+            "host": None
+            if self.settings().get("anonymous") in ["allow", "must"]
+            else host,
             "debug": env.is_debug(env=self._environ),
             "repo": repo,
             "program": program_path,
@@ -3468,7 +3467,7 @@ class Api:
                     else open(normal_name, "rb")
                 )
             except OSError:
-                print(f"{file_name} does not exist")
+                print(f"{file_name} does not exist")  # noqa: T201
                 continue
             if progress is False:
                 responses.append(

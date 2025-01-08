@@ -30,11 +30,11 @@ class UniformSampleAccumulator:
         self._log2 += [int(math.log(i, 2)) for i in range(1, 2**self._buckets + 1)]
 
     def _show(self):
-        print("=" * 20)
+        print("=" * 20)  # noqa: T201
         for b in range(self._buckets):
             b = (b + self._buckets_index) % self._buckets
             vals = [self._bucket[b][i] for i in range(self._index[b])]
-            print(f"{b}: {vals}")
+            print(f"{b}: {vals}")  # noqa: T201
 
     def add(self, val):
         self._count += 1

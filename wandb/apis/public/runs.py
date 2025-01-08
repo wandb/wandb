@@ -704,7 +704,7 @@ class Run(Attrs):
             if pd:
                 lines = pd.DataFrame.from_records(lines)
             else:
-                print("Unable to load pandas, call history with pandas=False")
+                wandb.termwarn("Unable to load pandas, call history with pandas=False")
         return lines
 
     @normalize_exceptions
@@ -908,7 +908,7 @@ class Run(Attrs):
     def _server_provides_internal_id_for_project(self) -> bool:
         """Returns True if the server allows us to query the internalId field for a project.
 
-        This check is done by utilizing GraphQL introspection in the avaiable fields on the Project type.
+        This check is done by utilizing GraphQL introspection in the available fields on the Project type.
         """
         query_string = """
            query ProbeProjectInput {
@@ -924,11 +924,6 @@ class Run(Attrs):
         if self.server_provides_internal_id_field is None:
             query = gql(query_string)
             res = self.client.execute(query)
-            print(
-                "internalId"
-                in [x["name"] for x in (res.get("ProjectType", {}).get("fields", [{}]))]
-            )
-
             self.server_provides_internal_id_field = "internalId" in [
                 x["name"] for x in (res.get("ProjectType", {}).get("fields", [{}]))
             ]

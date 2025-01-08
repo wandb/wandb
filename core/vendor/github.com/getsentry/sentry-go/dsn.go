@@ -89,8 +89,8 @@ func NewDsn(rawURL string) (*Dsn, error) {
 
 	// Port
 	var port int
-	if parsedURL.Port() != "" {
-		port, err = strconv.Atoi(parsedURL.Port())
+	if p := parsedURL.Port(); p != "" {
+		port, err = strconv.Atoi(p)
 		if err != nil {
 			return nil, &DsnParseError{"invalid port"}
 		}

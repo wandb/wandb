@@ -135,7 +135,7 @@ class WBValue:
     def init_from_json(
         json_obj: dict, source_artifact: "Artifact"
     ) -> Optional["WBValue"]:
-        """Initialize a `WBValue` from a JSON blob based on the class that creatd it.
+        """Initialize a `WBValue` from a JSON blob based on the class that created it.
 
         Looks through all subclasses and tries to match the json obj with the class
         which created it. It will then call that subclass' `from_json` method.

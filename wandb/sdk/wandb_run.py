@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import _thread as thread
 import atexit
 import functools
 import glob
@@ -30,13 +29,13 @@ import wandb.util
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
-from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError, UnsupportedError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
 from wandb.proto.wandb_internal_pb2 import (
+    MetadataRequest,
     MetricRecord,
     PollExitResponse,
     Result,
@@ -73,6 +72,7 @@ from .lib import (
     deprecate,
     filenames,
     filesystem,
+    interrupt,
     ipython,
     module,
     printer,
@@ -84,6 +84,7 @@ from .lib import (
 from .lib.exit_hooks import ExitHooks
 from .lib.mailbox import MailboxError, MailboxHandle, MailboxProbe, MailboxProgress
 from .wandb_alerts import AlertLevel
+from .wandb_metadata import Metadata
 from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
 
@@ -287,7 +288,7 @@ class RunStatusChecker:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
                 if not wandb.agents.pyagent.is_running():  # type: ignore
-                    thread.interrupt_main()
+                    interrupt.interrupt_main()
                     return
 
         try:
@@ -595,15 +596,17 @@ class Run:
         self._config._set_artifact_callback(self._config_artifact_callback)
         self._config._set_settings(self._settings)
 
-        # todo: perhaps this should be a property that is a noop on a finished run
+        # TODO: perhaps this should be a property that is a noop on a finished run
         self.summary = wandb_summary.Summary(
             self._summary_get_current_summary_callback,
         )
         self.summary._set_update_callback(self._summary_update_callback)
 
+        self.__metadata: Metadata | None = None
+
         self._step = 0
         self._starting_step = 0
-        # todo: eventually would be nice to make this configurable using self._settings._start_time
+        # TODO: eventually would be nice to make this configurable using self._settings._start_time
         #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
         #  does the total time get calculated right (not as 2 days and 15 minutes)?
         self._start_time = time.time()
@@ -1359,32 +1362,68 @@ class Run:
         files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
-    def _serialize_custom_charts(self, data: dict[str, Any]) -> dict[str, Any]:
+    def _pop_all_charts(
+        self,
+        data: dict[str, Any],
+        key_prefix: str | None = None,
+    ) -> dict[str, Any]:
+        """Pops all charts from a dictionary including nested charts.
+
+        This function will return a mapping of the charts and a dot-separated
+        key for each chart. Indicating the path to the chart in the data dictionary.
+        """
+        keys_to_remove = set()
+        charts: dict[str, Any] = {}
+        for k, v in data.items():
+            key = f"{key_prefix}.{k}" if key_prefix else k
+            if isinstance(v, Visualize):
+                keys_to_remove.add(k)
+                charts[key] = v
+            elif isinstance(v, CustomChart):
+                keys_to_remove.add(k)
+                charts[key] = v
+            elif isinstance(v, dict):
+                nested_charts = self._pop_all_charts(v, key)
+                charts.update(nested_charts)
+
+        for k in keys_to_remove:
+            data.pop(k)
+
+        return charts
+
+    def _serialize_custom_charts(
+        self,
+        data: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Process and replace chart objects with their underlying table values.
+
+        This processes the chart objects passed to `run.log()`, replacing their entries
+        in the given dictionary (which is saved to the run's history) and adding them
+        to the run's config.
+
+        Args:
+            data: Dictionary containing data that may include plot objects
+                Plot objects can be nested in dictionaries, which will be processed recursively.
+
+        Returns:
+            The processed dictionary with custom charts transformed into tables.
+        """
         if not data:
             return data
 
-        chart_keys = set()
-        for k, v in data.items():
-            if isinstance(v, Visualize):
-                data[k] = v.table
-                v.set_key(k)
-                self._config_callback(
-                    val=v.spec.config_value,
-                    key=v.spec.config_key,
-                )
-            elif isinstance(v, CustomChart):
-                chart_keys.add(k)
-                v.set_key(k)
-                self._config_callback(
-                    key=v.spec.config_key,
-                    val=v.spec.config_value,
-                )
+        charts = self._pop_all_charts(data)
+        for k, v in charts.items():
+            v.set_key(k)
+            self._config_callback(
+                val=v.spec.config_value,
+                key=v.spec.config_key,
+            )
 
-        for k in chart_keys:
-            # remove the chart key from the row
-            v = data.pop(k)
             if isinstance(v, CustomChart):
                 data[v.spec.table_key] = v.table
+            elif isinstance(v, Visualize):
+                data[k] = v.table
+
         return data
 
     def _partial_history_callback(
@@ -2124,8 +2163,9 @@ class Run:
             # Inform the service that we're done sending messages for this run.
             #
             # TODO: Why not do this in _atexit_cleanup()?
-            service = self._wl and self._wl.service
-            if service and self._settings.run_id:
+            if self._settings.run_id:
+                assert self._wl
+                service = self._wl.assert_service()
                 service.inform_finish(run_id=self._settings.run_id)
 
         finally:
@@ -2304,7 +2344,7 @@ class Run:
             self._err_redir = err_redir
             logger.info("Redirects installed.")
         except Exception as e:
-            print(e)
+            wandb.termwarn(f"Failed to redirect: {e}")
             logger.error("Failed to redirect.", exc_info=e)
         return
 
@@ -2365,8 +2405,7 @@ class Run:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
 
-        service = self._wl and self._wl.service
-        if not service:
+        if self.settings.x_disable_service:
             self._hooks.hook()
             # NB: manager will perform atexit hook like behavior for outstanding runs
             atexit.register(lambda: self._atexit_cleanup())
@@ -2378,10 +2417,6 @@ class Run:
         if self._output_writer:
             self._output_writer.close()
             self._output_writer = None
-
-    def _on_init(self) -> None:
-        if self._settings._offline:
-            return
 
     def _on_start(self) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
@@ -3211,8 +3246,7 @@ class Run:
         is_user_created: bool = False,
         use_after_commit: bool = False,
     ) -> Artifact:
-        api = internal.Api()
-        if api.settings().get("anonymous") == "true":
+        if self._settings.anonymous in ["allow", "must"]:
             wandb.termwarn(
                 "Artifacts logged anonymously cannot be claimed and expire after 7 days."
             )
@@ -3659,6 +3693,62 @@ class Run:
                 logger.error("Error getting system metrics: %s", e)
         return {}
 
+    @property
+    @_run_decorator._attach
+    @_run_decorator._noop_on_finish()
+    def _metadata(self) -> Metadata | None:
+        """The metadata associated with this run.
+
+        NOTE: Automatically collected metadata can be overridden by the user.
+        """
+        if not self._backend or not self._backend.interface:
+            return self.__metadata
+
+        # Initialize the metadata object if it doesn't exist.
+        if self.__metadata is None:
+            self.__metadata = Metadata()
+            self.__metadata._set_callback(self._metadata_callback)
+
+        handle = self._backend.interface.deliver_get_system_metadata()
+        result = handle.wait(timeout=1)
+
+        if not result:
+            logger.error("Error getting run metadata: no result")
+            return None
+
+        try:
+            response = result.response.get_system_metadata_response
+
+            # Temporarily disable the callback to prevent triggering
+            # an update call to wandb-core with the callback.
+            with self.__metadata.disable_callback():
+                # Values stored in the metadata object take precedence.
+                self.__metadata.update_from_proto(response.metadata, skip_existing=True)
+
+            return self.__metadata
+        except Exception as e:
+            logger.error("Error getting run metadata: %s", e)
+
+        return None
+
+    @_run_decorator._noop_on_finish()
+    @_run_decorator._attach
+    def _metadata_callback(
+        self,
+        metadata: MetadataRequest,
+    ) -> None:
+        """Callback to publish Metadata to wandb-core upon user updates."""
+        # ignore updates if the attached to another run
+        if self._is_attached:
+            wandb.termwarn(
+                "Metadata updates are ignored when attached to another run.",
+                repeat=False,
+            )
+            return
+
+        if self._backend and self._backend.interface:
+            self._backend.interface.publish_metadata(metadata)
+
     # ------------------------------------------------------------------------------
     # HEADER
     # ------------------------------------------------------------------------------
@@ -3766,8 +3856,7 @@ class Run:
             f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
         )
 
-        # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
-        if run_name and Api().api.settings().get("anonymous") == "true":
+        if run_name and settings.anonymous in ["allow", "must"]:
             printer.display(
                 (
                     "Do NOT share these links with anyone."

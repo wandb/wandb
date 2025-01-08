@@ -5,44 +5,29 @@ set -e
 # make sure we are running from the core dir
 BASE=$(dirname $(dirname $(dirname $(readlink -f $0))))
 
-GQL_GEN_PATH="internal/gql"
-PREVIOUS_FILE="gql_gen.go"
-GENERATED_FILE="gql_gen.latest.go"
-
-# generate graphql go code
-# if successful, this will create a file called gql_gen.latest.go in internal/gql
-
+# go to the graphql dir
 cd $BASE/api/graphql
 
-if [ ! -f "schemas/schema-latest.graphql" ]; then
-    echo "ERROR: Not generating graphql as there is no schema-latest."
-    exit 1
-fi
-go run $BASE/cmd/generate_gql genqlient.yaml
+# get the commit hash
+COMMIT_HASH=$(cat schemas/commit.hash.txt)
 
+# clean up the core dir
+rm -rf core
 
-# - Bump version in case of a schema change with --schema-change flag.
-# - Do not bump version if there is no schema change
-#   and you are e.g. just adding a new query or mutation
-#   against the schema that already supports it.
-cd $BASE/$GQL_GEN_PATH
+echo "[INFO] Downloading latest schema for commit hash: $COMMIT_HASH"
+# download the latest schema
+git clone -n --depth=1 --filter=tree:0 https://github.com/wandb/core
+cd core
+git checkout $COMMIT_HASH services/gorilla/schema.graphql
+mv services/gorilla/schema.graphql $BASE/api/graphql/schemas/schema-latest.graphql
+cd ..
+rm -rf core
 
-# Check for --schema-change flag
-if [ "$1" == "--schema-change" ]; then
-    # Find the highest current version number
-    CURRENT_VERSION=$(ls -d v*/ | sed 's/v//;s/\///' | sort -nr | head -n1)
-
-    # Check if no version directories exist
-    if [ -z "$CURRENT_VERSION" ]; then
-        CURRENT_VERSION=1
-    fi
-
-    # Calculate the next version number
-    NEXT_VERSION=$((CURRENT_VERSION + 1))
-    # Create next version directory and copy gql_gen.go there
-    mkdir "v$NEXT_VERSION"
-    mv "$PREVIOUS_FILE" "v$NEXT_VERSION/"
+# generate graphql go code
+if ! go run $BASE/cmd/generate_gql genqlient.yaml; then
+  echo "[ERROR] Failed to generate graphql code."
+  echo "[ERROR] Verify the commit hash in $BASE/api/graphql/schemas/commit.hash.txt is correct."
+  exit 1
 fi
 
-# Rename the latest generated file to gql_gen.go
-mv "$GENERATED_FILE" "$PREVIOUS_FILE"
+echo "[INFO] Successfully generated graphql code for commit hash: $COMMIT_HASH"

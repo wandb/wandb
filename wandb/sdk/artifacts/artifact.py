@@ -1707,11 +1707,7 @@ class Artifact:
         from wandb.sdk.backend.backend import Backend
 
         if wandb.run is None:
-            # ensure wandb-core is up and running
-            from wandb.sdk import wandb_setup
-
-            wl = wandb_setup.setup()
-            assert wl is not None
+            wl = wandb.setup()
 
             stream_id = generate_id()
 
@@ -1724,9 +1720,7 @@ class Artifact:
             settings.files_dir.value = str(tmp_dir / "files")
             settings.run_id.value = stream_id
 
-            service = wl.service
-            assert service
-
+            service = wl.ensure_service()
             service.inform_init(settings=settings, run_id=stream_id)
 
             mailbox = Mailbox()
@@ -1963,7 +1957,7 @@ class Artifact:
             else:
                 ref_count += 1
         if ref_count > 0:
-            print("Warning: skipped verification of {} refs".format(ref_count))
+            termwarn(f"skipped verification of {ref_count} refs")
 
     @ensure_logged
     def file(self, root: str | None = None) -> StrPath:

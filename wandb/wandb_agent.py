@@ -62,10 +62,10 @@ class AgentProcess:
                 os.environ[k] = v
 
         # call user function
-        print("wandb: Agent Started Run:", run_id)
+        wandb.termlog(f"Agent Started Run: {run_id}")
         if function:
             function()
-        print("wandb: Agent Finished Run:", run_id, "\n")
+        wandb.termlog(f"Agent Finished Run: {run_id}\n")
 
         # complete the run
         run = wandb.run
@@ -92,7 +92,7 @@ class AgentProcess:
 
     def wait(self):
         if self._popen:
-            # if on windows, wait() will block and we wont be able to interrupt
+            # if on windows, wait() will block and we won't be able to interrupt
             if platform.system() == "Windows":
                 try:
                     while True:
@@ -353,15 +353,10 @@ class Agent:
             )
         )
         if self._in_jupyter:
-            print(
-                "wandb: Agent Starting Run: {} with config:\n".format(
-                    command.get("run_id")
-                )
+            wandb.termlog(
+                f"Agent Starting Run: {command.get('run_id')} with config:\n"
                 + "\n".join(
-                    [
-                        "\t{}: {}".format(k, v["value"])
-                        for k, v in command["args"].items()
-                    ]
+                    [f"\t{k}: {v['value']}" for k, v in command["args"].items()]
                 )
             )
 
@@ -397,7 +392,7 @@ class Agent:
 
         if self._function:
             # make sure that each run regenerates setup singleton
-            wandb_sdk.wandb_setup._setup(_reset=True)
+            wandb.teardown()
             proc = AgentProcess(
                 function=self._function,
                 env=env,
@@ -477,12 +472,12 @@ class AgentApi:
         command["resp_queue"] = resp_queue
         self._queue.put(command)
         result = resp_queue.get()
-        print("result:", result)
+        print("result:", result)  # noqa: T201
         if "exception" in result:
-            print("Exception occurred while running command")
+            print("Exception occurred while running command")  # noqa: T201
             for line in result["traceback"]:
-                print(line.strip())
-            print(result["exception"])
+                print(line.strip())  # noqa: T201
+            print(result["exception"])  # noqa: T201
         return result
 
 

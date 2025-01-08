@@ -1,0 +1,10 @@
+# This query is used to fetch the features supported by the server.
+# It is used to determine if certain code paths should be used in the SDK.
+query ServerFeaturesQuery {
+  serverInfo {
+    features {
+      name
+      isEnabled
+    }
+  }
+}

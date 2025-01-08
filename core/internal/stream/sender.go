@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -67,11 +66,35 @@ type SenderParams struct {
 	RunSummary          *runsummary.RunSummary
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *spb.Result
+	RunWork             runwork.RunWork
 }
+
+type senderSentinel int64
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
 // or/and to the dispatcher/handler
 type Sender struct {
+	// mu is a coarse mutex for accessing non-threadsafe Sender state.
+	//
+	// It is locked while processing a Record and at specific times during
+	// the finishRun goroutine to guard anything that's not threadsafe.
+	mu sync.Mutex
+
+	// sentinelSent is the largest sentinel value pushed to runWork, incremented
+	// by 1 each time.
+	//
+	// sentinelSeen is the largest sentinel value observed on the input channel.
+	//
+	// It is always true that sentinelSent >= sentinelSeen.
+	//
+	// mu must be held when accessing either field.
+	sentinelSent, sentinelSeen senderSentinel
+
+	// sentinelCond is broadcast whenever sentinelSeen updates.
+	//
+	// The underlying mutex is mu.
+	sentinelCond *sync.Cond
+
 	// runWork is the run's channel of records
 	runWork runwork.RunWork
 
@@ -138,14 +161,11 @@ type Sender struct {
 	// Keep track of exit record to pass to file stream when the time comes
 	exitRecord *spb.Record
 
+	// Keep track of sync finish record to pass to file stream when the time comes
+	syncFinishRecord *spb.Record
+
 	// Keep track of finishWithoutExitRecord to pass to file stream if and when the time comes
 	finishWithoutExitRecord *spb.Record
-
-	// syncService is the sync service syncing offline runs
-	syncService *SyncService
-
-	// store is the store where the transaction log is stored
-	store *Store
 
 	// jobBuilder is the job builder for creating jobs from the run
 	// that allow users to re-run the run with different configurations
@@ -163,7 +183,6 @@ type Sender struct {
 
 // NewSender creates a new Sender with the given settings
 func NewSender(
-	runWork runwork.RunWork,
 	params SenderParams,
 ) *Sender {
 
@@ -219,7 +238,7 @@ func NewSender(
 	}
 
 	s := &Sender{
-		runWork:             runWork,
+		runWork:             params.RunWork,
 		runConfig:           runconfig.New(),
 		telemetry:           &spb.TelemetryRecord{CoreVersion: version.Version},
 		runConfigMetrics:    runmetric.NewRunConfigMetrics(),
@@ -256,6 +275,8 @@ func NewSender(
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
 
+	s.sentinelCond = sync.NewCond(&s.mu)
+
 	backendOrNil := params.Backend
 	if !s.settings.IsOffline() && backendOrNil != nil && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings.Proto, s.logger, false)
@@ -282,11 +303,14 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 			"stream_id", s.settings.GetRunID(),
 		)
 
+		s.mu.Lock()
 		work.Process(s.sendRecord)
+		s.observeSentinel(work)
 
 		// TODO: reevaluate the logic here
 		s.configDebouncer.Debounce(s.upsertConfig)
 		s.summaryDebouncer.Debounce(s.streamSummary)
+		s.mu.Unlock()
 
 		hangDetectionOutChan <- struct{}{}
 	}
@@ -395,16 +419,6 @@ func (s *Sender) respondExit(record *spb.Record, exit *spb.RunExitResult) {
 	s.outChan <- result
 }
 
-// fwdRecord forwards a record to the next component
-// usually the handler
-func (s *Sender) fwdRecord(record *spb.Record) {
-	if record == nil {
-		return
-	}
-
-	s.runWork.AddWork(runwork.WorkFromRecord(record))
-}
-
 func (s *Sender) SendRecord(record *spb.Record) {
 	// this is for testing purposes only yet
 	s.sendRecord(record)
@@ -473,18 +487,16 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 		s.sendRequestRunStart(x.RunStart)
 	case *spb.Request_NetworkStatus:
 		s.sendRequestNetworkStatus(record, x.NetworkStatus)
-	case *spb.Request_Defer:
-		s.sendRequestDefer(x.Defer)
 	case *spb.Request_LogArtifact:
 		s.sendRequestLogArtifact(record, x.LogArtifact)
 	case *spb.Request_LinkArtifact:
 		s.sendLinkArtifact(record, x.LinkArtifact)
 	case *spb.Request_DownloadArtifact:
 		s.sendRequestDownloadArtifact(record, x.DownloadArtifact)
-	case *spb.Request_Sync:
-		s.sendRequestSync(record, x.Sync)
+	case *spb.Request_SyncFinish:
+		s.sendRequestSyncFinish(record, x.SyncFinish)
 	case *spb.Request_SenderRead:
-		s.sendRequestSenderRead(record, x.SenderRead)
+		// TODO: implement this
 	case *spb.Request_StopStatus:
 		s.sendRequestStopStatus(record, x.StopStatus)
 	case *spb.Request_JobInput:
@@ -606,133 +618,185 @@ func (s *Sender) sendJobFlush() {
 	}
 }
 
-//gocyclo:ignore
-func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
-	switch request.State {
-	case spb.DeferRequest_BEGIN:
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_RUN:
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_STATS:
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_PARTIAL_HISTORY:
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_TB:
-		go func() {
-			defer s.logger.Reraise()
-			s.tbHandler.Finish()
-			request.State++
-			s.fwdRequestDefer(request)
-		}()
-	case spb.DeferRequest_FLUSH_SUM:
+// startFinishRun flushes all asynchronous work and shuts down all subcomponents
+// at the end of a run.
+//
+// Everything happens in a separate goroutine during which the Sender
+// continues to process incoming work.
+func (s *Sender) startFinishRun() {
+	go func() {
+		defer s.logger.Reraise()
+		s.finishRunSync()
+	}()
+}
+
+// finishRunSync implements the finishRun goroutine.
+//
+// The finish process happens in stages. Each stage is allowed to emit
+// additional Work that is processed by later stages, `flushWork` is called
+// between stages.
+func (s *Sender) finishRunSync() {
+	runStage := func(stage func()) {
+		stage()
+		s.flushWork()
+	}
+
+	// Wait to finish reading all TensorBoard tfevent files, if any.
+	runStage(func() {
+		s.tbHandler.Finish()
+	})
+
+	// Finish uploading captured console logs.
+	runStage(func() {
+		s.consoleLogsSender.Finish()
+	})
+
+	// Upload the run's finalized summary and config.
+	runStage(func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
 		s.summaryDebouncer.Flush(s.streamSummary)
 		s.summaryDebouncer.Stop()
 		s.uploadSummaryFile()
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_DEBOUNCER:
+
 		s.configDebouncer.SetNeedsDebounce()
 		s.configDebouncer.Flush(s.upsertConfig)
 		s.configDebouncer.Stop()
 		s.uploadConfigFile()
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_OUTPUT:
-		go func() {
-			defer s.logger.Reraise()
-			s.consoleLogsSender.Finish()
-			request.State++
-			s.fwdRequestDefer(request)
-		}()
-	case spb.DeferRequest_FLUSH_JOB:
-		// Wait for artifacts operations to complete here to detect
-		// code artifacts.
-		s.artifactWG.Wait()
+	})
+
+	// Wait for artifacts operations to complete here to detect
+	// code artifacts, then upload the code (aka "job") artifact, if any.
+	runStage(func() {
+		s.artifactWG.Wait() // TODO: separate stage?
+
+		s.mu.Lock()
 		s.sendJobFlush()
+		s.mu.Unlock()
+	})
 
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_DIR:
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_FP:
-		// Order matters: we must stop watching files first, since that pushes
-		// updates to the runfiles uploader. The uploader creates file upload
-		// tasks, so it must be flushed before we close the file transfer
-		// manager.
-		go func() {
-			defer s.logger.Reraise()
-			s.fileWatcher.Finish()
-			if s.fileTransferManager != nil {
-				s.runfilesUploader.UploadRemaining()
-				s.runfilesUploader.Finish()
-				s.fileTransferManager.Close()
-			}
-			request.State++
-			s.fwdRequestDefer(request)
-		}()
-	case spb.DeferRequest_JOIN_FP:
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_FS:
-		go func() {
-			defer s.logger.Reraise()
-			if s.fileStream != nil {
-				switch {
-				case s.exitRecord != nil:
-					s.fileStream.FinishWithExit(
-						s.exitRecord.GetExit().GetExitCode(),
-					)
-				case s.finishWithoutExitRecord != nil:
-					s.fileStream.FinishWithoutExit()
-				default:
-					s.logger.CaptureError(
-						fmt.Errorf("sender: no exit code on finish"))
-					s.fileStream.FinishWithoutExit()
-				}
-			}
-			request.State++
-			s.fwdRequestDefer(request)
-		}()
-	case spb.DeferRequest_FLUSH_FINAL:
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_END:
-		request.State++
-		s.fileTransferStats.SetDone()
-		s.syncService.Flush()
-		if !s.settings.IsSync() {
-			// if sync is enabled, we don't need to do this
-			// since exit is already stored in the transaction log
-			if s.exitRecord != nil {
-				s.respond(s.exitRecord, &spb.RunExitResult{})
-			} else if s.finishWithoutExitRecord != nil {
-				response := &spb.Response{
-					ResponseType: &spb.Response_RunFinishWithoutExitResponse{},
-				}
-				s.respond(s.finishWithoutExitRecord, response)
-			}
+	// Finish uploading non-artifact files.
+	//
+	// Order matters: we must stop watching files first, since that pushes
+	// updates to the runfiles uploader. The uploader creates file upload
+	// tasks, so it must be flushed before we close the file transfer
+	// manager.
+	runStage(func() {
+		s.fileWatcher.Finish()
+		if s.fileTransferManager != nil {
+			s.runfilesUploader.UploadRemaining()
+			s.runfilesUploader.Finish()
+			s.fileTransferManager.Close()
 		}
+	})
 
-		s.runWork.SetDone()
+	// Mark the run finished.
+	if s.fileStream != nil {
+		runStage(s.finishFileStream)
+	}
+
+	// From this point on, no new work may be generated by this function.
+
+	// Indicate that `run.finish()` is done.
+	//
+	// TODO: Remove this once deemed safe. It was used in the old code for
+	// printing `run.finish()` progress, and it was necessary to "close"
+	// the progress bar shown in Jupyter. Yes, that was the only purpose.
+	s.fileTransferStats.SetDone()
+
+	// Respond to the client's exit record, if necessary.
+	//
+	// Not necessary when syncing as the exit record is in the transaction log
+	// and the client is not waiting on a response.
+	//
+	// TODO: add logic to handle the case where the exit record is not present
+	//       in the transaction log.
+	switch {
+	case !s.settings.IsSync() && s.exitRecord != nil:
+		s.respond(s.exitRecord, &spb.RunExitResult{})
+	case !s.settings.IsSync() && s.finishWithoutExitRecord != nil:
+		response := &spb.Response{
+			ResponseType: &spb.Response_RunFinishWithoutExitResponse{},
+		}
+		s.respond(s.finishWithoutExitRecord, response)
+	case s.settings.IsSync() && s.syncFinishRecord != nil:
+		s.respond(s.syncFinishRecord, &spb.Response{
+			ResponseType: &spb.Response_SyncResponse{
+				SyncResponse: &spb.SyncResponse{
+					Url: fmt.Sprintf("%s/%s/%s/runs/%s",
+						s.settings.GetBaseURL(),
+						s.settings.GetEntity(),
+						s.settings.GetProject(),
+						s.settings.GetRunID(),
+					),
+				},
+			},
+		})
 	default:
-		s.logger.CaptureFatalAndPanic(
-			fmt.Errorf("sender: sendDefer: unexpected state %v", request.State))
+		s.logger.Error(
+			"sender: no sync finish record or exit record",
+		)
+	}
+
+	// Prevent any new work from being added.
+	//
+	// Note that any work queued up at this point does get processed.
+	s.runWork.SetDone()
+}
+
+// flushWork waits until all work currently buffered is processed.
+//
+// It assumes mu is unlocked.
+func (s *Sender) flushWork() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.sentinelSent++
+	sentinel := s.sentinelSent
+	s.runWork.AddWork(runwork.NewSentinel(sentinel))
+
+	// Wait until the sentinel we added is observed, which will happen after
+	// all work that was queued when we added the sentinel is processed.
+	for s.sentinelSeen < sentinel {
+		s.sentinelCond.Wait()
 	}
 }
 
-func (s *Sender) fwdRequestDefer(request *spb.DeferRequest) {
-	record := &spb.Record{
-		RecordType: &spb.Record_Request{Request: &spb.Request{
-			RequestType: &spb.Request_Defer{Defer: request},
-		}},
-		Control: &spb.Control{AlwaysSend: true},
+// observeSentinel updates the seen sentinel value based on work.Sentinel().
+//
+// mu must be held.
+func (s *Sender) observeSentinel(work runwork.Work) {
+	workSentinel := work.Sentinel()
+	if workSentinel == nil {
+		return
 	}
-	s.fwdRecord(record)
+
+	sentinel, ok := workSentinel.(senderSentinel)
+	if !ok {
+		return
+	}
+
+	if sentinel > s.sentinelSeen {
+		s.sentinelSeen = sentinel
+		s.sentinelCond.Broadcast()
+	}
+}
+
+// finishFileStream waits for FileStream uploads to complete.
+func (s *Sender) finishFileStream() {
+	switch {
+	case s.exitRecord != nil:
+		s.fileStream.FinishWithExit(
+			s.exitRecord.GetExit().GetExitCode(),
+		)
+	case s.finishWithoutExitRecord != nil:
+		s.fileStream.FinishWithoutExit()
+	default:
+		s.logger.CaptureError(
+			fmt.Errorf("sender: no exit code on finish"))
+		s.fileStream.FinishWithoutExit()
+	}
 }
 
 func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
@@ -1472,24 +1536,7 @@ func (s *Sender) sendRequestRunFinishWithoutExit(record *spb.Record, _ *spb.RunF
 
 	s.finishWithoutExitRecord = record
 
-	// Send a defer request to the handler to indicate that the user requested to finish the stream
-	// and the defer state machine can kick in triggering the shutdown process
-	request := &spb.Request{RequestType: &spb.Request_Defer{
-		Defer: &spb.DeferRequest{State: spb.DeferRequest_BEGIN}},
-	}
-	if record.Control == nil {
-		record.Control = &spb.Control{AlwaysSend: true}
-	}
-
-	s.fwdRecord(
-		&spb.Record{
-			RecordType: &spb.Record_Request{
-				Request: request,
-			},
-			Uuid:    record.Uuid,
-			Control: record.Control,
-		},
-	)
+	s.startFinishRun()
 }
 
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
@@ -1502,24 +1549,7 @@ func (s *Sender) sendExit(record *spb.Record) {
 	// response is done by respond() and called when defer state machine is complete
 	s.exitRecord = record
 
-	// send a defer request to the handler to indicate that the user requested to finish the stream
-	// and the defer state machine can kick in triggering the shutdown process
-	request := &spb.Request{RequestType: &spb.Request_Defer{
-		Defer: &spb.DeferRequest{State: spb.DeferRequest_BEGIN}},
-	}
-	if record.Control == nil {
-		record.Control = &spb.Control{AlwaysSend: true}
-	}
-
-	s.fwdRecord(
-		&spb.Record{
-			RecordType: &spb.Record_Request{
-				Request: request,
-			},
-			Uuid:    record.Uuid,
-			Control: record.Control,
-		},
-	)
+	s.startFinishRun()
 }
 
 // sendMetric updates the metrics in the run config.
@@ -1647,65 +1677,6 @@ func (s *Sender) sendRequestDownloadArtifact(record *spb.Record, msg *spb.Downlo
 		})
 }
 
-func (s *Sender) sendRequestSync(record *spb.Record, request *spb.SyncRequest) {
-
-	s.syncService = NewSyncService(
-		s.runWork.BeforeEndCtx(),
-		WithSyncServiceLogger(s.logger),
-		WithSyncServiceSenderFunc(s.sendRecord), // TODO: pass runWork here (as ExtraWork)
-		WithSyncServiceOverwrite(request.GetOverwrite()),
-		WithSyncServiceSkip(request.GetSkip()),
-		WithSyncServiceFlushCallback(func(err error) {
-			var errorInfo *spb.ErrorInfo
-			if err != nil {
-				errorInfo = &spb.ErrorInfo{
-					Message: err.Error(),
-					Code:    spb.ErrorInfo_UNKNOWN,
-				}
-			}
-
-			var url string
-			if !s.startState.Initialized {
-				baseUrl := s.settings.GetBaseURL()
-				baseUrl = strings.Replace(baseUrl, "api.", "", 1)
-				url = fmt.Sprintf("%s/%s/%s/runs/%s",
-					baseUrl,
-					s.startState.Entity,
-					s.startState.Project,
-					s.startState.RunID,
-				)
-			}
-			s.respond(record,
-				&spb.Response{
-					ResponseType: &spb.Response_SyncResponse{
-						SyncResponse: &spb.SyncResponse{
-							Url:   url,
-							Error: errorInfo,
-						},
-					},
-				},
-			)
-		}),
-	)
-	s.syncService.Start()
-
-	rec := &spb.Record{
-		RecordType: &spb.Record_Request{
-			Request: &spb.Request{
-				RequestType: &spb.Request_SenderRead{
-					SenderRead: &spb.SenderReadRequest{
-						StartOffset: request.GetStartOffset(),
-						FinalOffset: request.GetFinalOffset(),
-					},
-				},
-			},
-		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
-	}
-	s.fwdRecord(rec)
-}
-
 func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequest) {
 
 	// TODO: unify everywhere to use settings
@@ -1762,54 +1733,14 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 	)
 }
 
-func (s *Sender) sendRequestSenderRead(_ *spb.Record, _ *spb.SenderReadRequest) {
-	if s.store == nil {
-		store := NewStore(s.settings.GetTransactionLogPath())
-		err := store.Open(os.O_RDONLY)
-		if err != nil {
-			s.logger.CaptureError(
-				fmt.Errorf(
-					"sender: sendSenderRead: failed to create store: %v",
-					err,
-				))
-			return
-		}
-		s.store = store
-	}
-	// TODO:
-	// 1. seek to startOffset
-	//
-	// if err := s.store.reader.SeekRecord(request.GetStartOffset()); err != nil {
-	// 	s.logger.CaptureError("sender: sendSenderRead: failed to seek record", err)
-	// 	return
-	// }
-	// 2. read records until finalOffset
-	//
-	for {
-		record, err := s.store.Read()
-		if s.settings.IsSync() {
-			s.syncService.SyncRecord(record, err)
-		} else if record != nil {
-			s.sendRecord(record)
-		}
-		if err == io.EOF {
-			return
-		}
-		if err != nil {
-			s.logger.CaptureError(
-				fmt.Errorf(
-					"sender: sendSenderRead: failed to read record: %v",
-					err,
-				))
-			return
-		}
-	}
-}
-
 func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {
 	if s.jobBuilder == nil {
 		s.logger.Warn("sender: sendJobInput: job builder disabled, skipping")
 		return
 	}
 	s.jobBuilder.HandleJobInputRequest(request)
+}
+
+func (s *Sender) sendRequestSyncFinish(record *spb.Record, _ *spb.SyncFinishRequest) {
+	s.syncFinishRecord = record
 }

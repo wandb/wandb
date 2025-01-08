@@ -250,7 +250,7 @@ def write_key(
         )
 
     if anonymous:
-        api.set_setting("anonymous", "true", globally=True, persist=True)
+        api.set_setting("anonymous", "must", globally=True, persist=True)
     else:
         api.clear_setting("anonymous", globally=True, persist=True)
 
@@ -259,8 +259,7 @@ def write_key(
 
 def api_key(settings: Optional["Settings"] = None) -> Optional[str]:
     if settings is None:
-        settings = wandb.setup().settings  # type: ignore
-        assert settings is not None
+        settings = wandb.setup().settings
     if settings.api_key:
         return settings.api_key
     auth = get_netrc_auth(settings.base_url)

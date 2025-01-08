@@ -34,7 +34,6 @@ from pydantic_core import SchemaValidator, core_schema
 
 import wandb
 from wandb import env, termwarn, util
-from wandb.apis.internal import Api
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 
@@ -349,7 +348,7 @@ class Settings(BaseModel, validate_assignment=True):
     @model_validator(mode="before")
     @classmethod
     def catch_private_settings(cls, values):
-        """Check if a private field is provided and assign to the corrsponding public one.
+        """Check if a private field is provided and assign to the corresponding public one.
 
         This is a compatibility layer to handle previous versions of the settings.
         """
@@ -961,7 +960,7 @@ class Settings(BaseModel, validate_assignment=True):
     # The Settings class does not track the source of the settings,
     # so it is up to the developer to ensure that the settings are applied
     # in the correct order. Most of the updates are done in
-    # wandb/sdk/wandb_setup.py::_WandbSetup__WandbSetup._settings_setup.
+    # wandb/sdk/wandb_setup.py::_WandbSetup._settings_setup.
 
     def update_from_system_config_file(self):
         """Update settings from the system config file."""
@@ -1063,7 +1062,8 @@ class Settings(BaseModel, validate_assignment=True):
         )
         self.x_executable = _executable
 
-        self.docker = env.get_docker(util.image_id_from_k8s())
+        if self.docker is None:
+            self.docker = env.get_docker(util.image_id_from_k8s())
 
         # proceed if not in CLI mode
         if self.x_cli_only_mode:
@@ -1176,38 +1176,6 @@ class Settings(BaseModel, validate_assignment=True):
             with open(self.resume_fname, "w") as f:
                 f.write(json.dumps({"run_id": self.run_id}))
 
-    def handle_sweep_logic(self):
-        """Update settings based on sweep context.
-
-        When running a sweep, the project, entity, and run_id are handled externally,
-        and should be ignored if they are set.
-        """
-        if self.sweep_id is None:
-            return
-
-        for key in ("project", "entity", "run_id"):
-            value = getattr(self, key)
-            if value is not None:
-                wandb.termwarn(f"Ignoring {key} {value!r} when running a sweep.")
-                setattr(self, key, None)
-
-    def handle_launch_logic(self):
-        """Update settings based on launch context.
-
-        When running in a launch context, the project, entity, and run_id are handled
-        externally, and should be ignored if they are set.
-        """
-        if not self.launch:
-            return
-
-        for key in ("project", "entity", "run_id"):
-            value = getattr(self, key)
-            if value is not None:
-                wandb.termwarn(
-                    f"Ignoring {key} {value!r} when running from wandb launch context."
-                )
-                setattr(self, key, None)
-
     @staticmethod
     def validate_url(url: str) -> None:
         """Validate a URL string."""
@@ -1293,7 +1261,7 @@ class Settings(BaseModel, validate_assignment=True):
     def _get_url_query_string(self) -> str:
         """Construct the query string for project, run, and sweep URLs."""
         # TODO: remove dependency on Api()
-        if Api().settings().get("anonymous") != "true":
+        if self.anonymous not in ["allow", "must"]:
             return ""
 
         api_key = apikey.api_key(settings=self)

@@ -216,6 +216,13 @@ class InterfaceBase:
     def _publish_config(self, cfg: pb.ConfigRecord) -> None:
         raise NotImplementedError
 
+    def publish_metadata(self, metadata: pb.MetadataRequest) -> None:
+        self._publish_metadata(metadata)
+
+    @abstractmethod
+    def _publish_metadata(self, metadata: pb.MetadataRequest) -> None:
+        raise NotImplementedError
+
     @abstractmethod
     def _publish_metric(self, metric: pb.MetricRecord) -> None:
         raise NotImplementedError
@@ -722,7 +729,7 @@ class InterfaceBase:
             otype = pb.OutputRecord.OutputType.STDERR
         else:
             # TODO(jhr): throw error?
-            print("unknown type")
+            termwarn("unknown type")
         o = pb.OutputRecord(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
         self._publish_output(o)
@@ -742,7 +749,7 @@ class InterfaceBase:
             otype = pb.OutputRawRecord.OutputType.STDERR
         else:
             # TODO(jhr): throw error?
-            print("unknown type")
+            termwarn("unknown type")
         o = pb.OutputRawRecord(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
         self._publish_output_raw(o)
@@ -872,31 +879,14 @@ class InterfaceBase:
         run_record = self._make_run(run)
         return self._deliver_run(run_record)
 
-    def deliver_sync(
+    def deliver_finish_sync(
         self,
-        start_offset: int,
-        final_offset: int,
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
-        run_id: Optional[str] = None,
-        skip_output_raw: Optional[bool] = None,
     ) -> MailboxHandle:
-        sync = pb.SyncRequest(
-            start_offset=start_offset,
-            final_offset=final_offset,
-        )
-        if entity:
-            sync.overwrite.entity = entity
-        if project:
-            sync.overwrite.project = project
-        if run_id:
-            sync.overwrite.run_id = run_id
-        if skip_output_raw:
-            sync.skip.output_raw = skip_output_raw
-        return self._deliver_sync(sync)
+        sync = pb.SyncFinishRequest()
+        return self._deliver_finish_sync(sync)
 
     @abstractmethod
-    def _deliver_sync(self, sync: pb.SyncRequest) -> MailboxHandle:
+    def _deliver_finish_sync(self, sync: pb.SyncFinishRequest) -> MailboxHandle:
         raise NotImplementedError
 
     @abstractmethod
@@ -954,12 +944,22 @@ class InterfaceBase:
         raise NotImplementedError
 
     def deliver_get_system_metrics(self) -> MailboxHandle:
-        get_summary = pb.GetSystemMetricsRequest()
-        return self._deliver_get_system_metrics(get_summary)
+        get_system_metrics = pb.GetSystemMetricsRequest()
+        return self._deliver_get_system_metrics(get_system_metrics)
 
     @abstractmethod
     def _deliver_get_system_metrics(
         self, get_summary: pb.GetSystemMetricsRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_get_system_metadata(self) -> MailboxHandle:
+        get_system_metadata = pb.GetSystemMetadataRequest()
+        return self._deliver_get_system_metadata(get_system_metadata)
+
+    @abstractmethod
+    def _deliver_get_system_metadata(
+        self, get_system_metadata: pb.GetSystemMetadataRequest
     ) -> MailboxHandle:
         raise NotImplementedError
 

@@ -103,7 +103,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.19.1.dev1"
+__version__: str = "0.19.3.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -114,9 +114,7 @@ _sentry: Sentry
 api: InternalApi
 patched: Dict[str, List[Callable]]
 
-def setup(
-    settings: Settings | None = None,
-) -> Optional[_WandbSetup]:
+def setup(settings: Settings | None = None) -> _WandbSetup:
     """Prepares W&B for use in the current process and its children.
 
     You can usually ignore this as it is implicitly called by `wandb.init()`.
@@ -265,7 +263,7 @@ def init(
         entity: The username or team name under which the runs will be logged.
             The entity must already exist, so ensure you’ve created your account
             or team in the UI before starting to log runs. If not specified, the
-            run will default your defualt entity. To change the default entity,
+            run will default your default entity. To change the default entity,
             go to [your settings](https://wandb.ai/settings) and update the
             "Default location to create new projects" under "Default team".
         project: The name of the project under which this run will be logged.

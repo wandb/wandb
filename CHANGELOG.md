@@ -11,7 +11,50 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.19.2] - 2025-01-07
+
+### Added
+
+- Support JWT authentication in wandb-core (@elainaRenee in https://github.com/wandb/wandb/pull/8431)
+- Add support for logging nested custom charts. (@jacobromero in https://github.com/wandb/wandb/pull/8789)
+
+### Changed
+
+- Calling `wandb.init(mode="disabled")` no longer disables all later runs by default. Use `wandb.setup(settings=wandb.Settings(mode="disabled"))` for this instead, or set `mode="disabled"` explicitly in each call to `wandb.init()`. (@timoffex in https://github.com/wandb/wandb/pull/9172)
+
+### Fixed
+
+- The stop button correctly interrupts runs whose main Python thread is running C code, sleeping, etc. (@timoffex in https://github.com/wandb/wandb/pull/9094)
+- Remove unintentional print that occurs when inspecting `wandb.Api().runs()` (@tomtseng in https://github.com/wandb/wandb/pull/9101)
+- Fix uploading large artifacts when using Azure Blob Storage. (@amulya-musipatla in https://github.com/wandb/wandb/pull/8946)
+- The `wandb offline` command no longer adds an unsupported setting to `wandb.Settings`, resolving `ValidationError`. (@kptkin in https://github.com/wandb/wandb/pull/9135)
+- Fix error when reinitializing a run, caused by accessing a removed attribute. (@MathisTLD in https://github.com/wandb/wandb/pull/8912)
+- Fixed occasional deadlock when using `multiprocessing` to update a single run from multiple processes (@timoffex in https://github.com/wandb/wandb/pull/9126)
+- Prevent errors from bugs in older versions of `botocore < 1.5.76` (@amusipatla-wandb, @tonyyli-wandb in https://github.com/wandb/wandb/pull/9015)
+- Fixed various checks against invalid `anonymous` settings value. (@jacobromero in https://github.com/wandb/wandb/pull/9193)
+
+### Removed
+
+- The `wandb.wandb_sdk.wandb_setup._setup()` function's `reset` parameter has been removed. Note that this is a private function, even though there appear to be usages outside of the repo. Please `wandb.teardown()` instead of `_setup(reset=True)`. (@timoffex in https://github.com/wandb/wandb/pull/9165)
+- In the private `wandb.wandb_sdk.wandb_setup` module, the `logger` and `_set_logger` symbols have been removed (@timoffex in https://github.com/wandb/wandb/pull/9195)
+
+## [0.19.1] - 2024-12-13
+
+### Fixed
+
+- Fixed bug where setting WANDB__SERVICE_WAIT led to an exception during wandb.init (@TimSchneider42 in https://github.com/wandb/wandb/pull/9050)
+
+### Changed
+
+- `run.finish()` displays more detailed information in the terminal and in Jupyter notebooks (by @timoffex, enabled in https://github.com/wandb/wandb/pull/9070)
+- Improved error message for failing tensorboard.patch() calls to show the option to call tensorboard.unpatch() first (@daniel-bogdoll in https://github.com/wandb/wandb/pull/8938)
+- Add projectId to deleteFiles mutation if the server supports it. (@jacobromero in https://github.com/wandb/wandb/pull/8837)
+
 ## [0.19.0] - 2024-12-05
+
+### Notable Changes
+
+This version drops Python 3.7 and removes the `wandb.Run.plot_table` method.
 
 ### Changed
 
@@ -144,6 +187,10 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 ## [0.18.0] - 2024-09-11
 
+### Notable Changes
+
+This version switches `wandb` to a new backend by enabling `wandb.require("core")` by default. This should not be a breaking change, but the new backend may have unexpected differences in behavior for legacy functionality and rare edge cases.
+
 ### Added
 
 - Add support for artifact tags, via `Artifact.tags` and `Run.log_artifact()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8085)
@@ -154,9 +201,7 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 ### Changed
 
-- The new "core" backend, previously activated using wandb.require("core"), is now used by default. To revert to the legacy behavior,
-  add `wandb.require("legacy-service")` at the beginning of your script. Note: In the upcoming minor release, the option
-  to disable this new behavior will be removed (@kptkin in https://github.com/wandb/wandb/pull/7777)
+- The new "core" backend, previously activated using wandb.require("core"), is now used by default. To revert to the legacy behavior, add `wandb.require("legacy-service")` at the beginning of your script. Note: In a future minor release, the option to disable this new behavior will be removed (@kptkin in https://github.com/wandb/wandb/pull/7777)
 
 ## [0.17.9] - 2024-09-05
 
@@ -307,6 +352,12 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 - Deprecated `ArtifactCollection.change_type()` in favor of `ArtifactCollection.save()` by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
 
 ## [0.17.0] - 2024-05-07
+
+### Notable Changes
+
+Renamed `wandb.plots` to `wandb.plot`, renamed all integrations from `wandb.<name>` to `wandb.integration.<name>`, and removed the `[async]` extra.
+
+This version packages the `wandb-core` binary, formerly installed by the `wandb-core` Python package on PyPI. The `wandb-core` package is now unused and can be uninstalled.
 
 ### Added
 
