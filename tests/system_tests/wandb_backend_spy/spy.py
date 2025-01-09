@@ -465,6 +465,11 @@ class WandbBackendSnapshot:
         spy = self._assert_valid()
         return spy._runs[run_id]._completed
 
+    def exit_code(self, *, run_id: str) -> int | None:
+        """Returns the exit code of the run."""
+        spy = self._assert_valid()
+        return spy._runs[run_id]._exit_code
+
     def _assert_valid(self) -> WandbBackendSpy:
         """Raise an error if we're not inside freeze()."""
         if not self._spy:

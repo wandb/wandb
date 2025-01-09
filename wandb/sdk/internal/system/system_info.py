@@ -190,7 +190,7 @@ class SystemInfo:
             # get the git repo info
             data = self._probe_git(data)
 
-        if self.settings.anonymous != "true":
+        if self.settings.anonymous not in ["allow", "must"]:
             data["host"] = self.settings.host
             data["username"] = self.settings.username
             data["executable"] = sys.executable
