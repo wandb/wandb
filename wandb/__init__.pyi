@@ -103,7 +103,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.19.2.dev1"
+__version__: str = "0.19.3.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -651,7 +651,12 @@ def log(
         run = wandb.init()
         examples = []
         for i in range(3):
-            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+            pixels = np.random.randint(
+                low=0,
+                high=256,
+                size=(100, 100, 3),
+                dtype=np.uint8,
+            )
             pil_image = PILImage.fromarray(pixels, mode="RGB")
             image = wandb.Image(pil_image, caption=f"random field {i}")
             examples.append(image)
@@ -666,7 +671,12 @@ def log(
 
         run = wandb.init()
         # axes are (time, channel, height, width)
-        frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
+        frames = np.random.randint(
+            low=0,
+            high=256,
+            size=(10, 3, 100, 100),
+            dtype=np.uint8,
+        )
         run.log({"video": wandb.Video(frames, fps=4)})
         ```
 

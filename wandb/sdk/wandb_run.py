@@ -29,7 +29,6 @@ import wandb.util
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
-from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError, UnsupportedError, UsageError
 from wandb.errors.links import url_registry
@@ -1814,7 +1813,10 @@ class Run:
             examples = []
             for i in range(3):
                 pixels = np.random.randint(
-                    low=0, high=256, size=(100, 100, 3), dtype=np.uint8
+                    low=0,
+                    high=256,
+                    size=(100, 100, 3),
+                    dtype=np.uint8,
                 )
                 pil_image = PILImage.fromarray(pixels, mode="RGB")
                 image = wandb.Image(pil_image, caption=f"random field {i}")
@@ -1831,7 +1833,10 @@ class Run:
             run = wandb.init()
             # axes are (time, channel, height, width)
             frames = np.random.randint(
-                low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8
+                low=0,
+                high=256,
+                size=(10, 3, 100, 100),
+                dtype=np.uint8,
             )
             run.log({"video": wandb.Video(frames, fps=4)})
             ```
@@ -3266,8 +3271,7 @@ class Run:
         is_user_created: bool = False,
         use_after_commit: bool = False,
     ) -> Artifact:
-        api = internal.Api()
-        if api.settings().get("anonymous") in ["allow", "must"]:
+        if self._settings.anonymous in ["allow", "must"]:
             wandb.termwarn(
                 "Artifacts logged anonymously cannot be claimed and expire after 7 days."
             )
@@ -3864,8 +3868,7 @@ class Run:
             f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
         )
 
-        # TODO(settings) use `wandb_settings` (if self.settings.anonymous in ["allow", "must"]:)
-        if run_name and Api().api.settings().get("anonymous") in ["allow", "must"]:
+        if run_name and settings.anonymous in ["allow", "must"]:
             printer.display(
                 (
                     "Do NOT share these links with anyone."
