@@ -14,6 +14,7 @@ import copy
 import json
 import logging
 import os
+import pathlib
 import platform
 import sys
 import tempfile
@@ -252,9 +253,6 @@ class _WandbInit:
                 with telemetry.context(obj=self._init_telemetry_obj) as tel:
                     tel.feature.sagemaker = True
 
-        # handle custom resume logic
-        settings.handle_resume_logic()
-
         # get status of code saving before applying user settings
         save_code_pre_user_settings = settings.save_code
         if not settings._offline and not settings._noop:
@@ -278,6 +276,84 @@ class _WandbInit:
         settings.x_start_time = time.time()
 
         return settings
+
+    def _load_autoresume_run_id(self, resume_file: pathlib.Path) -> str | None:
+        """Returns the run_id stored in the auto-resume file, if any.
+
+        Returns None if the file does not exist or is not in a valid format.
+
+        Args:
+            resume_file: The file path to use for resume='auto' mode.
+        """
+        if not resume_file.exists():
+            return None
+
+        with resume_file.open() as f:
+            try:
+                return json.load(f)["run_id"]
+
+            except json.JSONDecodeError as e:
+                self._logger.exception(
+                    f"could not decode {resume_file}, ignoring",
+                    exc_info=e,
+                )
+                return None
+
+            except KeyError:
+                self._logger.error(
+                    f"resume file at {resume_file} did not store a run_id"
+                )
+                return None
+
+    def _save_autoresume_run_id(
+        self,
+        *,
+        resume_file: pathlib.Path,
+        run_id: str,
+    ) -> None:
+        """Write the run ID to the auto-resume file."""
+        resume_file.parent.mkdir(exist_ok=True)
+        with resume_file.open("w") as f:
+            json.dump({"run_id": run_id}, f)
+
+    def set_run_id(self, settings: Settings) -> None:
+        """Set the run ID and possibly save it to the auto-resume file.
+
+        After this, `settings.run_id` is guaranteed to be set.
+
+        Args:
+            settings: The run's settings derived from the environment
+                and explicit values passed to `wandb.init()`.
+        """
+        if settings.resume == "auto" and settings.resume_fname:
+            resume_path = pathlib.Path(settings.resume_fname)
+        else:
+            resume_path = None
+
+        if resume_path:
+            previous_id = self._load_autoresume_run_id(resume_path)
+
+            if not previous_id:
+                pass
+            elif settings.run_id is None:
+                self._logger.info(f"loaded run ID from {resume_path}")
+                settings.run_id = previous_id
+            elif settings.run_id != previous_id:
+                wandb.termwarn(
+                    f"Ignoring ID {previous_id} loaded due to resume='auto'"
+                    f" because the run ID is set to {settings.run_id}.",
+                )
+
+        # If no run ID was inferred, explicitly set, or loaded from an
+        # auto-resume file, then we generate a new ID.
+        if settings.run_id is None:
+            settings.run_id = runid.generate_id()
+
+        if resume_path:
+            self._save_autoresume_run_id(
+                resume_file=resume_path,
+                run_id=settings.run_id,
+            )
 
     def setup(
         self,
@@ -1279,6 +1355,7 @@ def init(  # noqa: C901
 
         wi.maybe_login(init_settings)
         run_settings = wi.compute_run_settings(init_settings)
+        wi.set_run_id(run_settings)
 
         wi.setup(
             settings=run_settings,
