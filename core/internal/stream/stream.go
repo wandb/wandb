@@ -9,10 +9,12 @@ import (
 	"sync"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/pfxout"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -47,6 +49,9 @@ type Stream struct {
 
 	// settings is the settings for the stream
 	settings *settings.Settings
+
+	// reader is the reader for the stream
+	reader *Reader
 
 	// handler is the handler for the stream
 	handler *Handler
@@ -200,34 +205,45 @@ func NewStream(
 		)
 	}
 
-	mailbox := mailbox.New()
-
-	s.handler = NewHandler(
-		HandlerParams{
-			Logger:            s.logger,
-			Operations:        operations,
-			Settings:          s.settings,
-			FwdChan:           make(chan runwork.Work, BufferSize),
-			OutChan:           make(chan *spb.Result, BufferSize),
-			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings, s.runWork),
-			TBHandler:         tbHandler,
-			FileTransferStats: fileTransferStats,
-			Mailbox:           mailbox,
-			TerminalPrinter:   terminalPrinter,
-			Commit:            params.Commit,
-		},
+	featureProvider := featurechecker.NewServerFeaturesCache(
+		s.runWork.BeforeEndCtx(),
+		graphqlClientOrNil,
+		s.logger,
 	)
 
-	s.writer = NewWriter(
-		WriterParams{
+	mailbox := mailbox.New()
+	if s.settings.IsSync() {
+		s.reader = NewReader(ReaderParams{
+			Logger:   s.logger,
+			Settings: s.settings,
+			RunWork:  s.runWork,
+		})
+	} else {
+		s.writer = NewWriter(WriterParams{
 			Logger:   s.logger,
 			Settings: s.settings,
 			FwdChan:  make(chan runwork.Work, BufferSize),
+		})
+	}
+
+	s.handler = NewHandler(
+		HandlerParams{
+			Commit:            params.Commit,
+			FeatureProvider:   featureProvider,
+			FileTransferStats: fileTransferStats,
+			FwdChan:           make(chan runwork.Work, BufferSize),
+			Logger:            s.logger,
+			Mailbox:           mailbox,
+			Operations:        operations,
+			OutChan:           make(chan *spb.Result, BufferSize),
+			Settings:          s.settings,
+			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings, s.runWork),
+			TBHandler:         tbHandler,
+			TerminalPrinter:   terminalPrinter,
 		},
 	)
 
 	s.sender = NewSender(
-		s.runWork,
 		SenderParams{
 			Logger:              s.logger,
 			Operations:          operations,
@@ -244,6 +260,7 @@ func NewStream(
 			GraphqlClient:       graphqlClientOrNil,
 			OutChan:             make(chan *spb.Result, BufferSize),
 			Mailbox:             mailbox,
+			RunWork:             s.runWork,
 		},
 	)
 
@@ -280,6 +297,7 @@ func (s *Stream) UpdateRunURLTag() {
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
 func (s *Stream) Start() {
+
 	// handle the client requests with the handler
 	s.wg.Add(1)
 	go func() {
@@ -288,18 +306,34 @@ func (s *Stream) Start() {
 	}()
 
 	// write the data to a transaction log
-	s.wg.Add(1)
-	go func() {
-		s.writer.Do(s.handler.fwdChan)
-		s.wg.Done()
-	}()
+	if !s.settings.IsSync() {
 
-	// send the data to the server
-	s.wg.Add(1)
-	go func() {
-		s.sender.Do(s.writer.fwdChan)
-		s.wg.Done()
-	}()
+		s.wg.Add(1)
+		go func() {
+			s.writer.Do(s.handler.fwdChan)
+			s.wg.Done()
+		}()
+
+		// send the data to the server
+		s.wg.Add(1)
+		go func() {
+			s.sender.Do(s.writer.fwdChan)
+			s.wg.Done()
+		}()
+
+	} else {
+		s.wg.Add(1)
+		go func() {
+			s.reader.Do()
+			s.wg.Done()
+		}()
+
+		s.wg.Add(1)
+		go func() {
+			s.sender.Do(s.handler.fwdChan)
+			s.wg.Done()
+		}()
+	}
 
 	// handle dispatching between components
 	for _, ch := range []chan *spb.Result{s.handler.outChan, s.sender.outChan} {
@@ -316,9 +350,9 @@ func (s *Stream) Start() {
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
-func (s *Stream) HandleRecord(rec *spb.Record) {
-	s.logger.Debug("handling record", "record", rec)
-	s.runWork.AddWork(runwork.WorkFromRecord(rec))
+func (s *Stream) HandleRecord(record *spb.Record) {
+	s.logger.Debug("handling record", "record", record.GetRecordType())
+	s.runWork.AddWork(runwork.WorkFromRecord(record))
 }
 
 // Close waits for all run messages to be fully processed.
@@ -344,10 +378,45 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 
 	s.Close()
 
-	if s.settings.IsOffline() {
-		PrintFooterOffline(s.settings.Proto)
+	printFooter(s.settings)
+}
+
+func printFooter(settings *settings.Settings) {
+	formatter := pfxout.New(
+		pfxout.WithColor("wandb", pfxout.BrightBlue),
+	)
+
+	formatter.Println("")
+	if settings.IsOffline() {
+		formatter.Println("You can sync this run to the cloud by running:")
+		formatter.Println(
+			pfxout.WithStyle(
+				fmt.Sprintf("wandb sync %v", settings.GetSyncDir()),
+				pfxout.Bold,
+			),
+		)
 	} else {
-		run := s.handler.GetRun()
-		PrintFooterOnline(run, s.settings.Proto)
+		formatter.Println(
+			fmt.Sprintf(
+				"🚀 View run %v at: %v",
+				pfxout.WithColor(settings.GetDisplayName(), pfxout.Yellow),
+				pfxout.WithColor(settings.GetRunURL(), pfxout.Blue),
+			),
+		)
 	}
+
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return
+	}
+	relLogDir, err := filepath.Rel(currentDir, settings.GetLogDir())
+	if err != nil {
+		return
+	}
+	formatter.Println(
+		fmt.Sprintf(
+			"Find logs at: %v",
+			pfxout.WithColor(relLogDir, pfxout.BrightMagenta),
+		),
+	)
 }

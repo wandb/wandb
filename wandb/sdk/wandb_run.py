@@ -29,7 +29,6 @@ import wandb.util
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
-from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError, UnsupportedError, UsageError
 from wandb.errors.links import url_registry
@@ -2173,8 +2172,9 @@ class Run:
             # Inform the service that we're done sending messages for this run.
             #
             # TODO: Why not do this in _atexit_cleanup()?
-            service = self._wl and self._wl.service
-            if service and self._settings.run_id:
+            if self._settings.run_id:
+                assert self._wl
+                service = self._wl.assert_service()
                 service.inform_finish(run_id=self._settings.run_id)
 
         finally:
@@ -2414,8 +2414,7 @@ class Run:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
 
-        service = self._wl and self._wl.service
-        if not service:
+        if self.settings.x_disable_service:
             self._hooks.hook()
             # NB: manager will perform atexit hook like behavior for outstanding runs
             atexit.register(lambda: self._atexit_cleanup())
@@ -2427,10 +2426,6 @@ class Run:
         if self._output_writer:
             self._output_writer.close()
             self._output_writer = None
-
-    def _on_init(self) -> None:
-        if self._settings._offline:
-            return
 
     def _on_start(self) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
@@ -3270,8 +3265,7 @@ class Run:
         is_user_created: bool = False,
         use_after_commit: bool = False,
     ) -> Artifact:
-        api = internal.Api()
-        if api.settings().get("anonymous") == "true":
+        if self._settings.anonymous in ["allow", "must"]:
             wandb.termwarn(
                 "Artifacts logged anonymously cannot be claimed and expire after 7 days."
             )
@@ -3868,8 +3862,7 @@ class Run:
             f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
         )
 
-        # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
-        if run_name and Api().api.settings().get("anonymous") == "true":
+        if run_name and settings.anonymous in ["allow", "must"]:
             printer.display(
                 (
                     "Do NOT share these links with anyone."

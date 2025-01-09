@@ -287,11 +287,11 @@ Note: you only need to do that if you change any of our protocol buffer files.
   - Modifiable settings meant for internal use should be prefixed with `x_`.
   - Read-only computed settings should be defined as class methods using the `@computed_field` and `@property` decorators. If meant for internal use only, should be prefixed with `_`.
 - Add the new field to `wandb/proto/wandb_settings.proto` following the existing pattern.
-  - Run `nox -t proto` to re-generate the python stubs.
+  - Run `nox -t proto` to re-generate the stubs.
 
 #### Adding URLs (internal use only)
 
-All URLs displayed to the user should be added to `wandb/errors/links.py`.  This will better
+All URLs displayed to the user should be added to `wandb/errors/links.py`. This will better
 ensure that URLs do not lead to broken links.
 You can use the `dub.co` service to shorten the URLs.
 
@@ -329,15 +329,7 @@ deprecate.deprecate(
 ### Modifying GraphQL Schema in `wandb-core`
 
 If there is a schema change on the Server side that affects your GraphQL API,
-update `core/api/graphql/schemas/schema-latest.graphql` and run
-
-```shell
-nox -s graphql-codegen-schema-change
-```
-
-If there is no schema change and you are e.g. just adding a new query or mutation
-against the schema that already supports it, DO NOT USE this nox session.
-Our pre-commit hook will auto-generate the required code for you.
+follow the instructions [here](core/api/graphql/schemas/README.md).
 
 ## Testing
 

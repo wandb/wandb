@@ -111,7 +111,6 @@ func TestTPUSample(t *testing.T) {
 	for _, item := range data.Item {
 		metrics[item.Key], _ = simplejsonext.UnmarshalString(item.ValueJson)
 	}
-	fmt.Println(metrics)
 
 	if metrics[expectedMemoryUsageKey].(int64) != int64(50) {
 		t.Errorf("Expected memory usage 50, got %v", metrics[expectedMemoryUsageKey])
