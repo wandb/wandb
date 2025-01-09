@@ -45,6 +45,7 @@ from wandb.sdk.artifacts.artifact_manifests.artifact_manifest_v1 import (
 from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError, WaitTimeoutError
+from wandb.sdk.artifacts.graphql_fragments import _gql_artifact_fragment
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import _GCSIsADirectoryError
 from wandb.sdk.artifacts.storage_layout import StorageLayout
@@ -2299,61 +2300,6 @@ def _ttl_duration_seconds_from_gql(gql_ttl_duration_seconds: int | None) -> int 
     if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
         return gql_ttl_duration_seconds
     return None
-
-
-def _gql_artifact_fragment() -> str:
-    """Return a GraphQL query fragment with all parseable Artifact attributes."""
-    allowed_fields = set(InternalApi().server_artifact_introspection())
-
-    supports_ttl = "ttlIsInherited" in allowed_fields
-    supports_tags = "tags" in allowed_fields
-
-    ttl_duration_seconds = "ttlDurationSeconds" if supports_ttl else ""
-    ttl_is_inherited = "ttlIsInherited" if supports_ttl else ""
-
-    tags = "tags {name}" if supports_tags else ""
-
-    return f"""
-        fragment ArtifactFragment on Artifact {{
-            id
-            artifactSequence {{
-                project {{
-                    entityName
-                    name
-                }}
-                name
-            }}
-            versionIndex
-            artifactType {{
-                name
-            }}
-            description
-            metadata
-            {ttl_duration_seconds}
-            {ttl_is_inherited}
-            aliases {{
-                artifactCollection {{
-                    project {{
-                        entityName
-                        name
-                    }}
-                    name
-                }}
-                alias
-            }}
-            {tags}
-            state
-            currentManifest {{
-                file {{
-                    directUrl
-                }}
-            }}
-            commitHash
-            fileCount
-            createdAt
-            updatedAt
-        }}
-    """
 
 
 class _ArtifactVersionType(WBType):

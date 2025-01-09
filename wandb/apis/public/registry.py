@@ -1,4 +1,4 @@
-"""Public API: regsitries."""
+"""Public API: registries."""
 
 import json
 from typing import Any, Dict, Optional
@@ -6,74 +6,88 @@ from typing import Any, Dict, Optional
 from wandb_gql import gql
 
 import wandb
+from wandb.apis.attrs import Attrs
 from wandb.apis.paginator import Paginator
 from wandb.apis.public.artifacts import ArtifactCollection
+from wandb.sdk.artifacts.graphql_fragments import _gql_artifact_fragment
 
 
 class Registries(Paginator):
+    """Iterator that returns Registries."""
+
     def __init__(
         self,
         client,
-        organization_name: str,
+        organization: str,
         filter: Optional[Dict[str, Any]] = None,
         per_page: Optional[int] = 100,
     ):
         self.client = client
-        self.organization_name = organization_name
+        self.organization = organization
         self.filter = filter or {}
         self.QUERY = gql("""
-            query Registries($filter: JSONString) {
-                organization(organizationName: $organizationName) {
-                    projects {
-                        name
+            query Registries($organization: String!, $filters: JSONString) {
+                organization(name: $organization) {
+                    projects(filters: $filters) {
+                        edges {
+                            node {
+                                entity {
+                                    name
+                                }
+                                name
+                                description
+                                artifactTypes {
+                                    edges {
+                                        node {
+                                            name
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         """)
         variables = {
-            "organizationName": organization_name,
+            "organization": organization,
+            "filters": json.dumps(self.filter),
         }
 
         super().__init__(client, variables, per_page)
 
     def collections(self, filter: Optional[Dict[str, Any]] = None) -> "Collections":
-        return Collections(
-            self.client, self.organization_name, self.filter, None, filter
-        )
+        return Collections(self.client, self.organization, self.filter, None, filter)
 
     def versions(self, filter: Optional[Dict[str, Any]] = None) -> "Versions":
-        return Versions(self.client, self.organization_name, self.filter, None, filter)
+        return Versions(
+            self.client,
+            self.organization,
+            self.filter,
+            None,
+            filter,
+        )
 
-    # TODO: IMPLEMENT EVERYTHING BELOW properly
     @property
     def length(self):
-        # TODO: Implement this for real
+        # hacky
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactCollections"][
-                "totalCount"
-            ]
+            return len(self.last_response["organization"]["projects"]["edges"])
         else:
             return None
 
     @property
     def more(self):
-        # TODO: Implement this for real
+        # TODO: Implement this with pagination
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactCollections"][
-                "pageInfo"
-            ]["hasNextPage"]
+            return False
         else:
             return True
 
     @property
     def cursor(self):
-        # TODO: Implement this for real
-        if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactCollections"][
-                "edges"
-            ][-1]["cursor"]
-        else:
-            return None
+        # TODO: Implement this with pagination
+        return None
 
     def update_variables(self):
         self.variables.update({"cursor": self.cursor})
@@ -81,28 +95,55 @@ class Registries(Paginator):
     def convert_objects(self):
         # TODO: Implement this for real
         return [
-            ArtifactCollection(
+            Registry(
                 self.client,
-                self.entity,
-                self.project,
-                r["node"]["colle"],
-                self.type_name,
+                self.organization,
+                r["node"]["entity"]["name"],
+                r["node"]["name"],
+                r["node"],
             )
-            for r in self.last_response["registries"]["edges"]
+            for r in self.last_response["organization"]["projects"]["edges"]
         ]
 
 
+class Registry(Attrs):
+    """Registry in the Global registry."""
+
+    def __init__(self, client, organization, entity, project, attrs):
+        # super().__init__(dict(attrs))
+        self.client = client
+        self.name = project
+        self.entity = entity
+        self.organization = organization
+        self.description = attrs.get("description", "")
+
+    @property
+    def path(self):
+        return [self.entity, self.name]
+
+    # @property
+    # def url(self):
+    #     return self.client.app_url + "/".join(self.path + ["workspace"])
+
+    def artifacts_types(self, per_page=50):
+        # types that registry allows
+        # return public.ArtifactTypes(self.client, self.entity, self.name)
+        pass
+
+
 class Collections(Paginator):
+    """Iterator that returns Artifact collections."""
+
     def __init__(
         self,
         client,
-        organization_name: str,
+        organization: str,
         registry_filter: Optional[Dict[str, Any]] = None,
         collection_filter: Optional[Dict[str, Any]] = None,
         per_page: Optional[int] = 100,
     ):
         self.client = client
-        self.organization_name = organization_name
+        self.organization = organization
         self.registry_filter = registry_filter
         self.collection_filter = collection_filter or {}
         variables = {
@@ -110,48 +151,58 @@ class Collections(Paginator):
             if self.registry_filter
             else None,
             "collectionFilter": json.dumps(self.collection_filter),
-            "organizationName": self.organization_name,
+            "organization": self.organization,
         }
 
-        # TODO: Make this query have all the fields we need
         self.QUERY = gql("""
-            query Collections($registryFilter: JSONString, $collectionFilter: JSONString) {{
-                organization(organizationName: $organizationName) {{
+            query Collections($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString) {
+                organization(name: $organization) {
                     id
                     name
-                    artifactCollections(registryFilter: $registryFilter, collectionFilter: $collectionFilter) {}(after: $cursor) {{
-                         pageInfo {{
-                            endCursor
-                            hasNextPage
-                         }}
-                         totalCount
-                         edges {{
-                            node {{
+                    artifactCollections(projectFilters: $registryFilter, filters: $collectionFilter) {
+                         edges {
+                            node {
                                 id
                                 name
                                 description
                                 createdAt
-                                tags {{
-                                    edges {{
-                                        node {{
+                                tags {
+                                    edges {
+                                        node {
                                             name
-                                        }}
-                                    }}
-                                }}
-                            }}
-                            cursor
-                        }}
-                    }}
-                }}
-            }}
+                                        }
+                                    }
+                                }
+                                project {
+                                    name
+                                    entity {
+                                        name
+                                    }
+                                }
+                                defaultArtifactType {
+                                    name
+                                }
+                                aliases {
+                                    edges {
+                                        node {
+                                            alias
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         """)
 
         super().__init__(client, variables, per_page)
 
     def versions(self, filter: Optional[Dict[str, Any]] = None) -> "Versions":
+        print("HELLO THERE")
         return Versions(
             self.client,
-            self.organization_name,
+            self.organization,
             self.registry_filter,
             self.collection_filter,
             filter,
@@ -160,30 +211,18 @@ class Collections(Paginator):
     # TODO: IMPLEMENT EVERYTHING BELOW properly
     @property
     def length(self):
-        if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactCollections"][
-                "totalCount"
-            ]
-        else:
-            return None
+        return None
 
     @property
     def more(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactCollections"][
-                "pageInfo"
-            ]["hasNextPage"]
+            return False
         else:
             return True
 
     @property
     def cursor(self):
-        if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactCollections"][
-                "edges"
-            ][-1]["cursor"]
-        else:
-            return None
+        return None
 
     def update_variables(self):
         self.variables.update({"cursor": self.cursor})
@@ -192,51 +231,62 @@ class Collections(Paginator):
         return [
             ArtifactCollection(
                 self.client,
-                self.entity,
-                self.project,
-                r["node"]["colle"],
-                self.type_name,
+                r["node"]["project"]["entity"]["name"],
+                r["node"]["project"]["name"],
+                r["node"]["name"],
+                r["node"]["defaultArtifactType"]["name"],
+                self.organization,
+                r["node"],
             )
-            for r in self.last_response["registries"]["edges"]
+            for r in self.last_response["organization"]["artifactCollections"]["edges"]
         ]
 
 
 class Versions(Paginator):
+    """Iterator that returns Artifact versions."""
+
     def __init__(
         self,
         client,
-        organization_name: str,
+        organization: str,
         registry_filter: Optional[Dict[str, Any]] = None,
         collection_filter: Optional[Dict[str, Any]] = None,
         artifact_filter: Optional[Dict[str, Any]] = None,
         per_page: int = 100,
     ):
         self.client = client
-        self.organization_name = organization_name
+        self.organization = organization
         self.registry_filter = registry_filter
         self.collection_filter = collection_filter
         self.artifact_filter = artifact_filter or {}
 
-        # TODO: Make this query have all the fields we need
         self.QUERY = gql(
             """
-            query Versions($registryFilter: JSONString, $collectionFilter: JSONString, $artifactFilter: JSONString, $cursor: String, $perPage: Int) {{
-                organization(organizationName: $organizationName) {{
-                    artifactMemberships(registryName: $registryName, collectionName: $collectionName, artifactFilter: $artifactFilter, after: $cursor, first: $perPage) {{
-                        pageInfo {{
-                            endCursor
-                            hasNextPage
-                        }}
-                        totalCount
-                        edges {{
-                            node {{
-                                version
-                            }}
-                        }}
-                    }}
-                }}
-            }}
+            query Versions($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $artifactFilter: JSONString) {
+                organization(name: $organization) {
+                    artifactMemberships(projectFilters: $registryFilter, collectionFilters: $collectionFilter, artifactFilters: $artifactFilter) {
+                        edges {
+                            node {
+                                artifactCollection {
+                                    project {
+                                        name
+                                        entity {
+                                            name
+                                        }
+                                    }
+                                    name
+                                }
+                                versionIndex
+                                artifact {
+                                    ...ArtifactFragment
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             """
+            + _gql_artifact_fragment()
         )
 
         variables = {
@@ -246,54 +296,41 @@ class Versions(Paginator):
             "collectionFilter": json.dumps(self.collection_filter)
             if self.collection_filter
             else None,
-            "artifactFilter": json.dumps(self.artifact_filter),
-            "organizationName": self.organization_name,
+            "artifactFilter": json.dumps(self.artifact_filter)
+            if self.artifact_filter
+            else None,
+            "organization": self.organization,
         }
 
         super().__init__(client, variables, per_page)
 
-    # TODO: IMPLEMENT EVERYTHING BELOW properly
+    # TODO: IMPLEMENT EVERYTHING BELOW
     @property
     def length(self):
-        if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactCollection"][
-                "artifacts"
-            ]["totalCount"]
-        else:
-            return None
+        return None
 
     @property
     def more(self):
         if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactCollection"][
-                "artifacts"
-            ]["pageInfo"]["hasNextPage"]
+            return False
         else:
             return True
 
     @property
     def cursor(self):
-        if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactCollection"][
-                "artifacts"
-            ]["edges"][-1]["cursor"]
-        else:
-            return None
+        return None
 
     def convert_objects(self):
-        collection = self.last_response["project"]["artifactType"]["artifactCollection"]
-        artifact_edges = collection.get("artifacts", {}).get("edges", [])
         artifacts = (
             wandb.Artifact._from_attrs(
-                self.entity,
-                self.project,
-                self.collection_name + ":" + a["version"],
-                a["node"],
+                a["node"]["artifactCollection"]["project"]["entity"]["name"],
+                a["node"]["artifactCollection"]["project"]["name"],
+                a["node"]["artifactCollection"]["name"]
+                + ":v"
+                + str(a["node"]["versionIndex"]),
+                a["node"]["artifact"],
                 self.client,
             )
-            for a in artifact_edges
+            for a in self.last_response["organization"]["artifactMemberships"]["edges"]
         )
-        required_tags = set(self.tags or [])
-        return [
-            artifact for artifact in artifacts if required_tags.issubset(artifact.tags)
-        ]
+        return artifacts

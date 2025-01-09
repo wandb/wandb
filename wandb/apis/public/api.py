@@ -1391,11 +1391,13 @@ class Api:
             return False
 
     def registries(
-        self, organization_name: Optional[str], filter: Optional[Dict[str, Any]] = None
+        self,
+        organization: Optional[str] = None,
+        filter: Optional[Dict[str, Any]] = None,
     ) -> Registries:
         """Return a registry iterator. TODO add more docs."""
-        if organization_name is None:
-            organization_name = self.settings["organization"]
-        if organization_name is None:
+        if organization is None:
+            organization = self.settings["organization"]
+        if organization is None:
             raise ValueError("No organization name specified")
-        return Registries(self.client, organization_name, filter)
+        return Registries(self.client, organization, filter)
