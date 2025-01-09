@@ -186,7 +186,7 @@ class Experiment:
         time_delay_second: Sleep time between step.
         run_id: ID of the existing run to resume from.
         resume_mode: The mode of resuming. Used when run_id is passed in.
-        percentage: The % of metrics to log in each step. 
+        percentage: The % of metrics to log in each step.
 
     When to set "is_unique_payload" to True?
 
@@ -284,13 +284,15 @@ class Experiment:
 
         subset_payloads = []
         # Because we are logging only a "subset" of the metrics in each step
-        # we will prepare the subset-payload for each step ahead of time 
+        # we will prepare the subset-payload for each step ahead of time
         if metrics_count_per_step != self.num_metrics:
             for s in range(self.num_steps):
                 keys = list(payloads[0].keys())
                 start_index = (s * metrics_count_per_step) % self.num_metrics
                 end_index = start_index + metrics_count_per_step
-                subset_payloads.append({key: payloads[0][key] for key in keys[start_index:end_index]})
+                subset_payloads.append(
+                    {key: payloads[0][key] for key in keys[start_index:end_index]}
+                )
 
         # Log the payload $step_count times
         with Timer() as timer:
@@ -298,7 +300,7 @@ class Experiment:
                 if self.is_unique_payload:
                     run.log(payloads[s])
                 else:
-                    # get the subset of metrics to log. 
+                    # get the subset of metrics to log.
                     if metrics_count_per_step != self.num_metrics:
                         run.log(subset_payloads[s])
                     else:
