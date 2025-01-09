@@ -10,7 +10,7 @@ require (
 	github.com/Khan/genqlient v0.7.0
 	github.com/aws/aws-sdk-go-v2 v1.32.7
 	github.com/aws/aws-sdk-go-v2/config v1.28.7
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.72.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.72.1
 	github.com/getsentry/sentry-go v0.31.1
 	github.com/go-git/go-git/v5 v5.13.1
 	github.com/golang/mock v1.6.0

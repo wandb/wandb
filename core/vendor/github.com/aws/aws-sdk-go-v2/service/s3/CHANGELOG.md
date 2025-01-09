@@ -1,3 +1,7 @@
+# v1.72.1 (2025-01-08)
+
+* No change notes available for this release.
+
 # v1.72.0 (2025-01-03)
 
 * **Feature**: This change is only for updating the model regexp of CopySource which is not for validation but only for documentation and user guide change.
