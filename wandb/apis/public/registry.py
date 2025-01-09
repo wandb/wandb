@@ -199,7 +199,6 @@ class Collections(Paginator):
         super().__init__(client, variables, per_page)
 
     def versions(self, filter: Optional[Dict[str, Any]] = None) -> "Versions":
-        print("HELLO THERE")
         return Versions(
             self.client,
             self.organization,
