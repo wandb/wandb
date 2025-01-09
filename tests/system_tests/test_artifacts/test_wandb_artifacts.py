@@ -1534,7 +1534,7 @@ def test_artifact_standard_url(user, api):
         artifact.wait()
 
         artifact = run.use_artifact("sequence_name:latest")
-        expected_url = f"https://wandb.ai/{run.entity}/{run.project}/artifacts/data/sequence_name/{artifact.version}"
+        expected_url = f"https://{run.settings.base_url}/{run.entity}/{run.project}/artifacts/data/sequence_name/{artifact.version}"
 
         assert artifact.url == expected_url
 
