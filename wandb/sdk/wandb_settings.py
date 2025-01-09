@@ -37,10 +37,9 @@ from wandb import env, termwarn, util
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 
-from .lib import apikey, credentials, filesystem, ipython
+from .lib import apikey, credentials, ipython
 from .lib.gitlib import GitRepo
 from .lib.run_moment import RunMoment
-from .lib.runid import generate_id
 
 
 def _path_convert(*args: str) -> str:
