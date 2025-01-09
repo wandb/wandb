@@ -30,7 +30,7 @@ def test_autoresume_second_run_loads():
     assert json.loads(resume_path.read_text()) == {"run_id": run1.id}
 
 
-def test_explicit_id_overrides_autoresume():
+def test_explicit_id_overrides_autoresume(mock_wandb_log):
     with pytest.raises(AutoResumeTestError):
         with wandb.init(mode="offline", resume="auto", id="auto-id"):
             raise AutoResumeTestError()
@@ -38,3 +38,7 @@ def test_explicit_id_overrides_autoresume():
         pass
 
     assert run2.id == "explicit"
+    assert mock_wandb_log.warned(
+        "Ignoring ID auto-id loaded due to resume='auto'"
+        " because the run ID is set to explicit."
+    )
