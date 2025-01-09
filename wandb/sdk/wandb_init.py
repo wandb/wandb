@@ -14,6 +14,7 @@ import copy
 import json
 import logging
 import os
+import pathlib
 import platform
 import sys
 import tempfile
@@ -105,10 +106,18 @@ def _handle_launch_config(settings: Settings) -> dict[str, Any]:
 
 
 class _WandbInit:
-    _init_telemetry_obj: telemetry.TelemetryRecord
-
-    def __init__(self, wl: wandb_setup._WandbSetup) -> None:
+    def __init__(
+        self,
+        wl: wandb_setup._WandbSetup,
+        telemetry: telemetry.TelemetryRecord,
+    ) -> None:
         self._wl = wl
+
+        self._telemetry = telemetry
+        """Telemetry gathered before creating a run.
+
+        After the run is created, `telemetry.context()` is used instead.
+        """
 
         self.kwargs = None
         self.sweep_config: dict[str, Any] = {}
@@ -120,8 +129,6 @@ class _WandbInit:
         self._teardown_hooks: list[TeardownHook] = []
         self.notebook: wandb.jupyter.Notebook | None = None  # type: ignore
         self.printer = printer.new_printer()
-
-        self._init_telemetry_obj = telemetry.TelemetryRecord()
 
         self.deprecated_features_used: dict[str, str] = dict()
 
@@ -249,11 +256,7 @@ class _WandbInit:
         if not settings.sagemaker_disable and sagemaker.is_using_sagemaker():
             if sagemaker.set_run_id(settings):
                 self._logger.info("set run ID and group based on SageMaker")
-                with telemetry.context(obj=self._init_telemetry_obj) as tel:
-                    tel.feature.sagemaker = True
-
-        # handle custom resume logic
-        settings.handle_resume_logic()
+                self._telemetry.feature.sagemaker = True
 
         # get status of code saving before applying user settings
         save_code_pre_user_settings = settings.save_code
@@ -279,6 +282,84 @@ class _WandbInit:
 
         return settings
 
+    def _load_autoresume_run_id(self, resume_file: pathlib.Path) -> str | None:
+        """Returns the run_id stored in the auto-resume file, if any.
+
+        Returns None if the file does not exist or is not in a valid format.
+
+        Args:
+            resume_file: The file path to use for resume='auto' mode.
+        """
+        if not resume_file.exists():
+            return None
+
+        with resume_file.open() as f:
+            try:
+                return json.load(f)["run_id"]
+
+            except json.JSONDecodeError as e:
+                self._logger.exception(
+                    f"could not decode {resume_file}, ignoring",
+                    exc_info=e,
+                )
+                return None
+
+            except KeyError:
+                self._logger.error(
+                    f"resume file at {resume_file} did not store a run_id"
+                )
+                return None
+
+    def _save_autoresume_run_id(
+        self,
+        *,
+        resume_file: pathlib.Path,
+        run_id: str,
+    ) -> None:
+        """Write the run ID to the auto-resume file."""
+        resume_file.parent.mkdir(exist_ok=True)
+        with resume_file.open("w") as f:
+            json.dump({"run_id": run_id}, f)
+
+    def set_run_id(self, settings: Settings) -> None:
+        """Set the run ID and possibly save it to the auto-resume file.
+
+        After this, `settings.run_id` is guaranteed to be set.
+
+        Args:
+            settings: The run's settings derived from the environment
+                and explicit values passed to `wandb.init()`.
+        """
+        if settings.resume == "auto" and settings.resume_fname:
+            resume_path = pathlib.Path(settings.resume_fname)
+        else:
+            resume_path = None
+
+        if resume_path:
+            previous_id = self._load_autoresume_run_id(resume_path)
+
+            if not previous_id:
+                pass
+            elif settings.run_id is None:
+                self._logger.info(f"loaded run ID from {resume_path}")
+                settings.run_id = previous_id
+            elif settings.run_id != previous_id:
+                wandb.termwarn(
+                    f"Ignoring ID {previous_id} loaded due to resume='auto'"
+                    f" because the run ID is set to {settings.run_id}.",
+                )
+
+        # If no run ID was inferred, explicitly set, or loaded from an
+        # auto-resume file, then we generate a new ID.
+        if settings.run_id is None:
+            settings.run_id = runid.generate_id()
+
+        if resume_path:
+            self._save_autoresume_run_id(
+                resume_file=resume_path,
+                run_id=settings.run_id,
+            )
+
     def setup(
         self,
         settings: Settings,
@@ -288,16 +369,6 @@ class _WandbInit:
         monitor_gym: bool | None = None,
     ) -> None:
         """Compute the run's config and some telemetry."""
-        with telemetry.context(obj=self._init_telemetry_obj) as tel:
-            if config is not None:
-                tel.feature.set_init_config = True
-            if settings.run_name is not None:
-                tel.feature.set_init_name = True
-            if settings.run_id is not None:
-                tel.feature.set_init_id = True
-            if settings.run_tags is not None:
-                tel.feature.set_init_tags = True
-
         # TODO: remove this once officially deprecated
         if config_exclude_keys:
             self.deprecated_features_used["config_exclude_keys"] = (
@@ -320,9 +391,7 @@ class _WandbInit:
         if not settings.sagemaker_disable and sagemaker.is_using_sagemaker():
             sagemaker_config = sagemaker.parse_sm_config()
             self._split_artifacts_from_config(sagemaker_config, self.config)
-
-            with telemetry.context(obj=self._init_telemetry_obj) as tel:
-                tel.feature.sagemaker = True
+            self._telemetry.feature.sagemaker = True
 
         if self._wl._config:
             self._split_artifacts_from_config(self._wl._config, self.config)
@@ -339,14 +408,12 @@ class _WandbInit:
             wandb.gym.monitor()  # type: ignore
 
         if wandb.patched["tensorboard"]:
-            with telemetry.context(obj=self._init_telemetry_obj) as tel:
-                tel.feature.tensorboard_patch = True
+            self._telemetry.feature.tensorboard_patch = True
 
         if settings.sync_tensorboard:
             if len(wandb.patched["tensorboard"]) == 0:
                 wandb.tensorboard.patch()  # type: ignore
-            with telemetry.context(obj=self._init_telemetry_obj) as tel:
-                tel.feature.tensorboard_sync = True
+            self._telemetry.feature.tensorboard_sync = True
 
         if not settings._noop:
             self._log_setup(settings)
@@ -662,8 +729,11 @@ class _WandbInit:
             latest_run.finish()
         elif wandb.run is not None and os.getpid() == wandb.run._init_pid:
             self._logger.info("wandb.init() called when a run is still active")
+
+            # NOTE: Updates telemetry on the pre-existing run.
             with telemetry.context() as tel:
                 tel.feature.init_return_run = True
+
             return wandb.run
 
         self._logger.info("starting backend")
@@ -696,7 +766,7 @@ class _WandbInit:
         )
 
         # Populate initial telemetry
-        with telemetry.context(run=run, obj=self._init_telemetry_obj) as tel:
+        with telemetry.context(run=run, obj=self._telemetry) as tel:
             tel.cli_version = wandb.__version__
             tel.python_version = platform.python_version()
             tel.platform = f"{platform.system()}-{platform.machine()}".lower()
@@ -1223,6 +1293,8 @@ def init(  # noqa: C901
     """
     wandb._assert_is_user_process()  # type: ignore
 
+    init_telemetry = telemetry.TelemetryRecord()
+
     init_settings = Settings()
     if isinstance(settings, dict):
         init_settings = Settings(**settings)
@@ -1270,15 +1342,25 @@ def init(  # noqa: C901
     if resume_from is not None:
         init_settings.resume_from = resume_from  # type: ignore
 
+    if config is not None:
+        init_telemetry.feature.set_init_config = True
+    if init_settings.run_name is not None:
+        init_telemetry.feature.set_init_name = True
+    if init_settings.run_id is not None:
+        init_telemetry.feature.set_init_id = True
+    if init_settings.run_tags is not None:
+        init_telemetry.feature.set_init_tags = True
+
     wl: wandb_setup._WandbSetup | None = None
 
     try:
         wl = wandb.setup()
 
-        wi = _WandbInit(wl)
+        wi = _WandbInit(wl, init_telemetry)
 
         wi.maybe_login(init_settings)
         run_settings = wi.compute_run_settings(init_settings)
+        wi.set_run_id(run_settings)
 
         wi.setup(
             settings=run_settings,
