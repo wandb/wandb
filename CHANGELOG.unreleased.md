@@ -37,6 +37,7 @@ This version removes the ability to disable the `service` process. This is a bre
 - Various APIs now raise `TypeError` instead of `ValueError` or other generic errors when given an argument of the wrong type. (@timoffex in https://github.com/wandb/wandb/pull/9902)
 - Various Artifacts and Automations APIs now raise `CommError` instead of `ValueError` upon encountering server errors, so as to surface the server error message. (@ibindlish in https://github.com/wandb/wandb/pull/9933)
 - `wandb.sdk.wandb_run.Run::save` method now requires the `glob_str` argument (@dmitryduev in https://github.com/wandb/wandb/pull/9962)
+- Changed the default behavior for logging in from the CLI with `wandb login` or programmatically with `wandb.login()` to verify the API key by default. (@jacobromero in https://github.com/wandb/wandb/pull/9230)
 
 ### Removed
 
