@@ -4,15 +4,16 @@ import pytest
 import wandb
 
 
-def test_login_valid_key(user):
-    logged_in = wandb.login()
+@pytest.mark.parametrize("verify", [None, True])
+def test_login_valid_key(user, verify):
+    logged_in = wandb.login(verify=verify)
     assert logged_in
 
 
 def test_login_invalid_key(user):
     with mock.patch.dict("os.environ", {"WANDB_API_KEY": "I" * 40}):
         with pytest.raises(wandb.errors.AuthenticationError):
-            wandb.login()
+            wandb.login(verify=True)
 
 
 def test_login_invalid_key_no_verify(user):
