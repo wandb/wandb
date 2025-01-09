@@ -280,6 +280,17 @@ class Experiment:
             return
 
         metrics_count_per_step = round(self.num_metrics * self.percentage // 100)
+        logger.info(f"metrics_count_per_step {metrics_count_per_step}")
+
+        subset_payloads = []
+        # Because we are logging only a "subset" of the metrics in each step
+        # we will prepare the subset-payload for each step ahead of time 
+        if metrics_count_per_step != self.num_metrics:
+            for s in range(self.num_steps):
+                keys = list(payloads[0].keys())
+                start_index = (s * metrics_count_per_step) % self.num_metrics
+                end_index = start_index + metrics_count_per_step
+                subset_payloads.append({key: payloads[0][key] for key in keys[start_index:end_index]})
 
         # Log the payload $step_count times
         with Timer() as timer:
@@ -288,12 +299,8 @@ class Experiment:
                     run.log(payloads[s])
                 else:
                     # get the subset of metrics to log. 
-                    # i.e. only log X% of all metrics per step
                     if metrics_count_per_step != self.num_metrics:
-                        keys = list(payloads[0].keys())
-                        start_index = (s * metrics_count_per_step) % self.num_metrics
-                        end_index = start_index + metrics_count_per_step
-                        run.log({key: payloads[0][key] for key in keys[start_index:end_index]})
+                        run.log(subset_payloads[s])
                     else:
                         run.log(payloads[0])
 
