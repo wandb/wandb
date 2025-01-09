@@ -1344,12 +1344,6 @@ def init(  # noqa: C901
 
     if config is not None:
         init_telemetry.feature.set_init_config = True
-    if init_settings.run_name is not None:
-        init_telemetry.feature.set_init_name = True
-    if init_settings.run_id is not None:
-        init_telemetry.feature.set_init_id = True
-    if init_settings.run_tags is not None:
-        init_telemetry.feature.set_init_tags = True
 
     wl: wandb_setup._WandbSetup | None = None
 
@@ -1360,6 +1354,14 @@ def init(  # noqa: C901
 
         wi.maybe_login(init_settings)
         run_settings = wi.compute_run_settings(init_settings)
+
+        if run_settings.run_id is not None:
+            init_telemetry.feature.set_init_id = True
+        if run_settings.run_name is not None:
+            init_telemetry.feature.set_init_name = True
+        if init_settings.run_tags is not None:
+            init_telemetry.feature.set_init_tags = True
+
         wi.set_run_id(run_settings)
 
         wi.setup(
