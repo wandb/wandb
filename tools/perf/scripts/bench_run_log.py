@@ -127,9 +127,7 @@ class PayloadGenerator:
             sample_rate = 44100
             frequency = 440
 
-            t = np.linspace(
-                0, duration, int(sample_rate * duration), endpoint=False
-            )
+            t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
             audio_data = np.sin(2 * np.pi * frequency * t)
             audio_obj = wandb.Audio(audio_data, sample_rate=sample_rate)
             payloads.append(
@@ -140,7 +138,6 @@ class PayloadGenerator:
             )
 
         return payloads
-
 
     def generate_scalar(self) -> List[dict[str, int]]:
         """Generates the payloads for logging scalar data.
@@ -158,7 +155,6 @@ class PayloadGenerator:
         ]
 
         return payloads
-
 
     def generate_table(self) -> List[dict[str, wandb.Table]]:
         """Generates a payload for logging 1 table.
@@ -187,7 +183,6 @@ class PayloadGenerator:
             payloads.append({f"table_{p}": table})
 
         return payloads
-
 
     def generate_image(self) -> List[dict[str, wandb.Image]]:
         """Generates a payload for logging images.
@@ -221,9 +216,7 @@ class PayloadGenerator:
         for _ in range(self.num_of_unique_payload):
             # Create a random video (50 frames, 64x64 pixels, 3 channels for RGB)
             frames = np.random.randint(0, 256, (50, 64, 64, 3), dtype=np.uint8)
-            video_obj = wandb.Video(
-                frames, fps=10, caption="Randomly generated video"
-            )
+            video_obj = wandb.Video(frames, fps=10, caption="Randomly generated video")
 
             payloads.append(
                 {
@@ -233,6 +226,7 @@ class PayloadGenerator:
             )
 
         return payloads
+
 
 class Experiment:
     """A class to run the performance test.
