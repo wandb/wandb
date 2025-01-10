@@ -63,6 +63,9 @@ class Api:
     def git(self):
         return self.api.git
 
+    def validate_api_key(self, key: str) -> bool:
+        return self.api.validate_api_key(key)
+
     def file_current(self, *args):
         return self.api.file_current(*args)
 

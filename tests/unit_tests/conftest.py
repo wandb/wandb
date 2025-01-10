@@ -22,14 +22,9 @@ def make_wandb_login_verify_pass():
     attempting a connection to the server.
     """
     with mock.patch(
-        "wandb.sdk.wandb_setup._WandbSetup.viewer",
-    ) as mock_viewer:
-        mock_viewer.__get__ = mock.Mock(
-            return_value={
-                "id": "1234567890",
-                "entity": "test_entity",
-            },
-        )
+        "wandb.apis.internal.Api.validate_api_key",
+        return_value=True,
+    ):
         yield
 
 
