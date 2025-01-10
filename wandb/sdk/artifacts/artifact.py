@@ -543,7 +543,7 @@ class Artifact:
             str: The URL of the artifact.
         """
         try:
-            base_url = self._client.app_url
+            base_url = self._client.app_url  # type: ignore[union-attr]
         except AttributeError:
             return ""
 
