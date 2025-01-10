@@ -14,10 +14,13 @@ settings.register_profile(
 settings.load_profile("ci")
 
 
-# This fixture is an autouse fixture to ensure that any wandb.login() calls
-# will be mocked to return a viewer server info response by default.
 @pytest.fixture(autouse=True)
-def mock_server_viewer_api_call():
+def make_wandb_login_verify_pass():
+    """Patch wandb.login() to bypass network operation to verify API keys.
+
+    Any API key that is in a valid format will be considered valid without
+    attempting a connection to the server.
+    """
     with mock.patch(
         "wandb.sdk.wandb_setup._WandbSetup.viewer",
     ) as mock_viewer:
