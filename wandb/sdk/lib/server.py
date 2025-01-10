@@ -45,7 +45,7 @@ class Server:
 
         The viewer contains information about the currently authenticated user, including:
         see the GraphQL viewer query defined here:
-        https://github.com/wandb/wandb/blob/main/wandb/sdk/internal/internal_api.py#L948-L966
+        https://github.com/wandb/wandb/blob/230213f8bb6c9ad0c9736e82b00a23e84e73cfae/wandb/sdk/internal/internal_api.py#L948-L966
 
         Returns:
             dict: The viewer information dictionary, or empty dict if unavailable

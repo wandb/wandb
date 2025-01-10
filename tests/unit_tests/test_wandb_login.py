@@ -153,12 +153,9 @@ def test_login_sets_api_base_url(local_settings):
 
 def test_login_invalid_key():
     with mock.patch.dict("os.environ", WANDB_API_KEY="X" * 40), mock.patch(
-        "wandb.sdk.wandb_setup._WandbSetup.viewer",
-    ) as mock_viewer:
-        # Simulates the server did not respond with "viewer" in the response.
-        # Which occurs when the API key is invalid.
-        mock_viewer.__get__ = mock.Mock(return_value={})
-
+        "wandb.apis.internal.Api.validate_api_key",
+        return_value=False,
+    ):
         wandb.ensure_configured()
         with pytest.raises(wandb.errors.AuthenticationError):
             wandb.login(verify=True)
