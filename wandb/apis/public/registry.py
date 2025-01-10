@@ -57,7 +57,7 @@ class Registries(Paginator):
         super().__init__(client, variables, per_page)
 
     def collections(self, filter: Optional[Dict[str, Any]] = None) -> "Collections":
-        return Collections(self.client, self.organization, self.filter, None, filter)
+        return Collections(self.client, self.organization, self.filter, filter)
 
     def versions(self, filter: Optional[Dict[str, Any]] = None) -> "Versions":
         return Versions(
@@ -112,7 +112,8 @@ class Registry(Attrs):
     def __init__(self, client, organization, entity, project, attrs):
         # super().__init__(dict(attrs))
         self.client = client
-        self.name = project
+        self.full_name = project
+        self.name = self.full_name.replace("wandb-registry-", "")
         self.entity = entity
         self.organization = organization
         self.description = attrs.get("description", "")
@@ -120,6 +121,18 @@ class Registry(Attrs):
     @property
     def path(self):
         return [self.entity, self.name]
+
+    def collections(self, filter: Optional[Dict[str, Any]] = None):
+        registry_filter = {
+            "name": self.full_name,
+        }
+        return Collections(self.client, self.organization, registry_filter, filter)
+
+    def versions(self, filter: Optional[Dict[str, Any]] = None):
+        registry_filter = {
+            "name": self.full_name,
+        }
+        return Versions(self.client, self.organization, registry_filter, None, filter)
 
     # @property
     # def url(self):
@@ -150,7 +163,9 @@ class Collections(Paginator):
             "registryFilter": json.dumps(self.registry_filter)
             if self.registry_filter
             else None,
-            "collectionFilter": json.dumps(self.collection_filter),
+            "collectionFilter": json.dumps(self.collection_filter)
+            if self.collection_filter
+            else None,
             "organization": self.organization,
         }
 
