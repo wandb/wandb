@@ -29,7 +29,7 @@ RUN apt-get update && apt-get upgrade -y \
 # required pip packages
 ARG REF="main"
 RUN pip install --upgrade pip && \
-    pip install --upgrade "setuptools>=70.0.0" && \
+    pip uninstall -y setuptools && \
     pip install --no-cache-dir git+https://github.com/wandb/wandb.git@$REF#egg=wandb[launch]
 # user set up
 RUN useradd -m -s /bin/bash --create-home --no-log-init -u 1000 -g 0 launch_agent
