@@ -1055,7 +1055,7 @@ def _monkeypatch_openai_gym() -> None:
 
 
 def _monkeypatch_tensorboard() -> None:
-    """Patch TensorBoard utilities to log to the global `wandb.run`."""
+    """Patch TensorBoard to log to the global `wandb.run`."""
     if len(wandb.patched["tensorboard"]) > 0:
         return
 
