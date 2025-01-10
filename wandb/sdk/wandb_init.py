@@ -1046,6 +1046,9 @@ def _attach(
 
 def _monkeypatch_openai_gym() -> None:
     """Patch OpenAI gym to log to the global `wandb.run`."""
+    if len(wandb.patched["gym"]) > 0:
+        return
+
     from wandb.integration import gym
 
     gym.monitor()
@@ -1053,6 +1056,9 @@ def _monkeypatch_openai_gym() -> None:
 
 def _monkeypatch_tensorboard() -> None:
     """Patch TensorBoard utilities to log to the global `wandb.run`."""
+    if len(wandb.patched["tensorboard"]) > 0:
+        return
+
     from wandb.integration import tensorboard as tb_module
 
     tb_module.patch()
