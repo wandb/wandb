@@ -403,7 +403,7 @@ class Api:
                 wandb.termerror(f"Error while calling W&B API: {error} ({response})")
             raise
 
-    def validate_api_key(self, key: str) -> bool:
+    def validate_api_key(self) -> bool:
         res = self.execute(gql("query { viewer { id } }"))
         return res["viewer"] is not None
 
