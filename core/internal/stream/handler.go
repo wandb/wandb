@@ -1061,7 +1061,7 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		h.runTimer.Elapsed().Seconds(),
 	)
 
-	if useStep {
+	if !h.settings.IsSharedMode() && useStep {
 		h.partialHistory.SetInt(
 			pathtree.PathOf("_step"),
 			h.partialHistoryStep,
