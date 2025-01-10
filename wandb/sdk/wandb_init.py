@@ -106,10 +106,18 @@ def _handle_launch_config(settings: Settings) -> dict[str, Any]:
 
 
 class _WandbInit:
-    _init_telemetry_obj: telemetry.TelemetryRecord
-
-    def __init__(self, wl: wandb_setup._WandbSetup) -> None:
+    def __init__(
+        self,
+        wl: wandb_setup._WandbSetup,
+        telemetry: telemetry.TelemetryRecord,
+    ) -> None:
         self._wl = wl
+
+        self._telemetry = telemetry
+        """Telemetry gathered before creating a run.
+
+        After the run is created, `telemetry.context()` is used instead.
+        """
 
         self.kwargs = None
         self.sweep_config: dict[str, Any] = {}
@@ -121,8 +129,6 @@ class _WandbInit:
         self._teardown_hooks: list[TeardownHook] = []
         self.notebook: wandb.jupyter.Notebook | None = None  # type: ignore
         self.printer = printer.new_printer()
-
-        self._init_telemetry_obj = telemetry.TelemetryRecord()
 
         self.deprecated_features_used: dict[str, str] = dict()
 
@@ -250,8 +256,7 @@ class _WandbInit:
         if not settings.sagemaker_disable and sagemaker.is_using_sagemaker():
             if sagemaker.set_run_id(settings):
                 self._logger.info("set run ID and group based on SageMaker")
-                with telemetry.context(obj=self._init_telemetry_obj) as tel:
-                    tel.feature.sagemaker = True
+                self._telemetry.feature.sagemaker = True
 
         # get status of code saving before applying user settings
         save_code_pre_user_settings = settings.save_code
@@ -364,16 +369,6 @@ class _WandbInit:
         monitor_gym: bool | None = None,
     ) -> None:
         """Compute the run's config and some telemetry."""
-        with telemetry.context(obj=self._init_telemetry_obj) as tel:
-            if config is not None:
-                tel.feature.set_init_config = True
-            if settings.run_name is not None:
-                tel.feature.set_init_name = True
-            if settings.run_id is not None:
-                tel.feature.set_init_id = True
-            if settings.run_tags is not None:
-                tel.feature.set_init_tags = True
-
         # TODO: remove this once officially deprecated
         if config_exclude_keys:
             self.deprecated_features_used["config_exclude_keys"] = (
@@ -396,9 +391,7 @@ class _WandbInit:
         if not settings.sagemaker_disable and sagemaker.is_using_sagemaker():
             sagemaker_config = sagemaker.parse_sm_config()
             self._split_artifacts_from_config(sagemaker_config, self.config)
-
-            with telemetry.context(obj=self._init_telemetry_obj) as tel:
-                tel.feature.sagemaker = True
+            self._telemetry.feature.sagemaker = True
 
         if self._wl._config:
             self._split_artifacts_from_config(self._wl._config, self.config)
@@ -415,14 +408,12 @@ class _WandbInit:
             wandb.gym.monitor()  # type: ignore
 
         if wandb.patched["tensorboard"]:
-            with telemetry.context(obj=self._init_telemetry_obj) as tel:
-                tel.feature.tensorboard_patch = True
+            self._telemetry.feature.tensorboard_patch = True
 
         if settings.sync_tensorboard:
             if len(wandb.patched["tensorboard"]) == 0:
                 wandb.tensorboard.patch()  # type: ignore
-            with telemetry.context(obj=self._init_telemetry_obj) as tel:
-                tel.feature.tensorboard_sync = True
+            self._telemetry.feature.tensorboard_sync = True
 
         if not settings._noop:
             self._log_setup(settings)
@@ -738,8 +729,11 @@ class _WandbInit:
             latest_run.finish()
         elif wandb.run is not None and os.getpid() == wandb.run._init_pid:
             self._logger.info("wandb.init() called when a run is still active")
+
+            # NOTE: Updates telemetry on the pre-existing run.
             with telemetry.context() as tel:
                 tel.feature.init_return_run = True
+
             return wandb.run
 
         self._logger.info("starting backend")
@@ -772,7 +766,7 @@ class _WandbInit:
         )
 
         # Populate initial telemetry
-        with telemetry.context(run=run, obj=self._init_telemetry_obj) as tel:
+        with telemetry.context(run=run, obj=self._telemetry) as tel:
             tel.cli_version = wandb.__version__
             tel.python_version = platform.python_version()
             tel.platform = f"{platform.system()}-{platform.machine()}".lower()
@@ -1299,6 +1293,8 @@ def init(  # noqa: C901
     """
     wandb._assert_is_user_process()  # type: ignore
 
+    init_telemetry = telemetry.TelemetryRecord()
+
     init_settings = Settings()
     if isinstance(settings, dict):
         init_settings = Settings(**settings)
@@ -1346,15 +1342,26 @@ def init(  # noqa: C901
     if resume_from is not None:
         init_settings.resume_from = resume_from  # type: ignore
 
+    if config is not None:
+        init_telemetry.feature.set_init_config = True
+
     wl: wandb_setup._WandbSetup | None = None
 
     try:
         wl = wandb.setup()
 
-        wi = _WandbInit(wl)
+        wi = _WandbInit(wl, init_telemetry)
 
         wi.maybe_login(init_settings)
         run_settings = wi.compute_run_settings(init_settings)
+
+        if run_settings.run_id is not None:
+            init_telemetry.feature.set_init_id = True
+        if run_settings.run_name is not None:
+            init_telemetry.feature.set_init_name = True
+        if init_settings.run_tags is not None:
+            init_telemetry.feature.set_init_tags = True
+
         wi.set_run_id(run_settings)
 
         wi.setup(
