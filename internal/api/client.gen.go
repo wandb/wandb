@@ -36,6 +36,13 @@ const (
 	Skipped             JobStatus = "skipped"
 )
 
+// Defines values for UpsertReleaseJSONBodyStatus.
+const (
+	Building UpsertReleaseJSONBodyStatus = "building"
+	Failed   UpsertReleaseJSONBodyStatus = "failed"
+	Ready    UpsertReleaseJSONBodyStatus = "ready"
+)
+
 // Deployment defines model for Deployment.
 type Deployment struct {
 	Description    string                 `json:"description"`
@@ -81,12 +88,13 @@ type JobStatus string
 
 // Release defines model for Release.
 type Release struct {
-	Config       map[string]interface{} `json:"config"`
-	CreatedAt    time.Time              `json:"createdAt"`
-	DeploymentId openapi_types.UUID     `json:"deploymentId"`
-	Id           openapi_types.UUID     `json:"id"`
-	Name         string                 `json:"name"`
-	Version      string                 `json:"version"`
+	Config       map[string]interface{}  `json:"config"`
+	CreatedAt    time.Time               `json:"createdAt"`
+	DeploymentId openapi_types.UUID      `json:"deploymentId"`
+	Id           openapi_types.UUID      `json:"id"`
+	Metadata     *map[string]interface{} `json:"metadata,omitempty"`
+	Name         string                  `json:"name"`
+	Version      string                  `json:"version"`
 }
 
 // Resource defines model for Resource.
@@ -189,15 +197,20 @@ type CreateReleaseChannelJSONBody struct {
 	ReleaseFilter map[string]interface{} `json:"releaseFilter"`
 }
 
-// CreateReleaseJSONBody defines parameters for CreateRelease.
-type CreateReleaseJSONBody struct {
-	Config       *map[string]interface{} `json:"config,omitempty"`
-	CreatedAt    *time.Time              `json:"createdAt,omitempty"`
-	DeploymentId string                  `json:"deploymentId"`
-	Metadata     *map[string]string      `json:"metadata,omitempty"`
-	Name         *string                 `json:"name,omitempty"`
-	Version      string                  `json:"version"`
+// UpsertReleaseJSONBody defines parameters for UpsertRelease.
+type UpsertReleaseJSONBody struct {
+	Config       *map[string]interface{}      `json:"config,omitempty"`
+	CreatedAt    *time.Time                   `json:"createdAt,omitempty"`
+	DeploymentId string                       `json:"deploymentId"`
+	Message      *string                      `json:"message,omitempty"`
+	Metadata     *map[string]string           `json:"metadata,omitempty"`
+	Name         *string                      `json:"name,omitempty"`
+	Status       *UpsertReleaseJSONBodyStatus `json:"status,omitempty"`
+	Version      string                       `json:"version"`
 }
+
+// UpsertReleaseJSONBodyStatus defines parameters for UpsertRelease.
+type UpsertReleaseJSONBodyStatus string
 
 // SetResourceProvidersResourcesJSONBody defines parameters for SetResourceProvidersResources.
 type SetResourceProvidersResourcesJSONBody struct {
@@ -254,8 +267,8 @@ type CreateResourceToResourceRelationshipJSONRequestBody CreateResourceToResourc
 // CreateReleaseChannelJSONRequestBody defines body for CreateReleaseChannel for application/json ContentType.
 type CreateReleaseChannelJSONRequestBody CreateReleaseChannelJSONBody
 
-// CreateReleaseJSONRequestBody defines body for CreateRelease for application/json ContentType.
-type CreateReleaseJSONRequestBody CreateReleaseJSONBody
+// UpsertReleaseJSONRequestBody defines body for UpsertRelease for application/json ContentType.
+type UpsertReleaseJSONRequestBody UpsertReleaseJSONBody
 
 // SetResourceProvidersResourcesJSONRequestBody defines body for SetResourceProvidersResources for application/json ContentType.
 type SetResourceProvidersResourcesJSONRequestBody SetResourceProvidersResourcesJSONBody
@@ -481,10 +494,10 @@ type ClientInterface interface {
 
 	CreateReleaseChannel(ctx context.Context, body CreateReleaseChannelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CreateReleaseWithBody request with any body
-	CreateReleaseWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// UpsertReleaseWithBody request with any body
+	UpsertReleaseWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CreateRelease(ctx context.Context, body CreateReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpsertRelease(ctx context.Context, body UpsertReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SetResourceProvidersResourcesWithBody request with any body
 	SetResourceProvidersResourcesWithBody(ctx context.Context, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -763,8 +776,8 @@ func (c *Client) CreateReleaseChannel(ctx context.Context, body CreateReleaseCha
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateReleaseWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateReleaseRequestWithBody(c.Server, contentType, body)
+func (c *Client) UpsertReleaseWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertReleaseRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -775,8 +788,8 @@ func (c *Client) CreateReleaseWithBody(ctx context.Context, contentType string, 
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateRelease(ctx context.Context, body CreateReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateReleaseRequest(c.Server, body)
+func (c *Client) UpsertRelease(ctx context.Context, body UpsertReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertReleaseRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1469,19 +1482,19 @@ func NewCreateReleaseChannelRequestWithBody(server string, contentType string, b
 	return req, nil
 }
 
-// NewCreateReleaseRequest calls the generic CreateRelease builder with application/json body
-func NewCreateReleaseRequest(server string, body CreateReleaseJSONRequestBody) (*http.Request, error) {
+// NewUpsertReleaseRequest calls the generic UpsertRelease builder with application/json body
+func NewUpsertReleaseRequest(server string, body UpsertReleaseJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreateReleaseRequestWithBody(server, "application/json", bodyReader)
+	return NewUpsertReleaseRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewCreateReleaseRequestWithBody generates requests for CreateRelease with any type of body
-func NewCreateReleaseRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewUpsertReleaseRequestWithBody generates requests for UpsertRelease with any type of body
+func NewUpsertReleaseRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -2006,10 +2019,10 @@ type ClientWithResponsesInterface interface {
 
 	CreateReleaseChannelWithResponse(ctx context.Context, body CreateReleaseChannelJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateReleaseChannelResponse, error)
 
-	// CreateReleaseWithBodyWithResponse request with any body
-	CreateReleaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateReleaseResponse, error)
+	// UpsertReleaseWithBodyWithResponse request with any body
+	UpsertReleaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertReleaseResponse, error)
 
-	CreateReleaseWithResponse(ctx context.Context, body CreateReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateReleaseResponse, error)
+	UpsertReleaseWithResponse(ctx context.Context, body UpsertReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertReleaseResponse, error)
 
 	// SetResourceProvidersResourcesWithBodyWithResponse request with any body
 	SetResourceProvidersResourcesWithBodyWithResponse(ctx context.Context, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetResourceProvidersResourcesResponse, error)
@@ -2149,8 +2162,7 @@ type GetEnvironmentResponse struct {
 		Name        string     `json:"name"`
 		Policy      *struct {
 			ApprovalRequirement *GetEnvironment200PolicyApprovalRequirement `json:"approvalRequirement,omitempty"`
-			ConcurrencyLimit    *float32                                    `json:"concurrencyLimit,omitempty"`
-			ConcurrencyType     *GetEnvironment200PolicyConcurrencyType     `json:"concurrencyType,omitempty"`
+			ConcurrencyLimit    *float32                                    `json:"concurrencyLimit"`
 			Description         *string                                     `json:"description"`
 			Id                  *string                                     `json:"id,omitempty"`
 			Name                *string                                     `json:"name,omitempty"`
@@ -2175,7 +2187,6 @@ type GetEnvironmentResponse struct {
 	}
 }
 type GetEnvironment200PolicyApprovalRequirement string
-type GetEnvironment200PolicyConcurrencyType string
 type GetEnvironment200PolicyReleaseSequencing string
 type GetEnvironment200PolicySuccessType string
 
@@ -2539,7 +2550,7 @@ func (r CreateReleaseChannelResponse) StatusCode() int {
 	return 0
 }
 
-type CreateReleaseResponse struct {
+type UpsertReleaseResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
@@ -2554,7 +2565,7 @@ type CreateReleaseResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r CreateReleaseResponse) Status() string {
+func (r UpsertReleaseResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2562,7 +2573,7 @@ func (r CreateReleaseResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r CreateReleaseResponse) StatusCode() int {
+func (r UpsertReleaseResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3052,21 +3063,21 @@ func (c *ClientWithResponses) CreateReleaseChannelWithResponse(ctx context.Conte
 	return ParseCreateReleaseChannelResponse(rsp)
 }
 
-// CreateReleaseWithBodyWithResponse request with arbitrary body returning *CreateReleaseResponse
-func (c *ClientWithResponses) CreateReleaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateReleaseResponse, error) {
-	rsp, err := c.CreateReleaseWithBody(ctx, contentType, body, reqEditors...)
+// UpsertReleaseWithBodyWithResponse request with arbitrary body returning *UpsertReleaseResponse
+func (c *ClientWithResponses) UpsertReleaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertReleaseResponse, error) {
+	rsp, err := c.UpsertReleaseWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCreateReleaseResponse(rsp)
+	return ParseUpsertReleaseResponse(rsp)
 }
 
-func (c *ClientWithResponses) CreateReleaseWithResponse(ctx context.Context, body CreateReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateReleaseResponse, error) {
-	rsp, err := c.CreateRelease(ctx, body, reqEditors...)
+func (c *ClientWithResponses) UpsertReleaseWithResponse(ctx context.Context, body UpsertReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertReleaseResponse, error) {
+	rsp, err := c.UpsertRelease(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCreateReleaseResponse(rsp)
+	return ParseUpsertReleaseResponse(rsp)
 }
 
 // SetResourceProvidersResourcesWithBodyWithResponse request with arbitrary body returning *SetResourceProvidersResourcesResponse
@@ -3329,8 +3340,7 @@ func ParseGetEnvironmentResponse(rsp *http.Response) (*GetEnvironmentResponse, e
 			Name        string     `json:"name"`
 			Policy      *struct {
 				ApprovalRequirement *GetEnvironment200PolicyApprovalRequirement `json:"approvalRequirement,omitempty"`
-				ConcurrencyLimit    *float32                                    `json:"concurrencyLimit,omitempty"`
-				ConcurrencyType     *GetEnvironment200PolicyConcurrencyType     `json:"concurrencyType,omitempty"`
+				ConcurrencyLimit    *float32                                    `json:"concurrencyLimit"`
 				Description         *string                                     `json:"description"`
 				Id                  *string                                     `json:"id,omitempty"`
 				Name                *string                                     `json:"name,omitempty"`
@@ -3847,15 +3857,15 @@ func ParseCreateReleaseChannelResponse(rsp *http.Response) (*CreateReleaseChanne
 	return response, nil
 }
 
-// ParseCreateReleaseResponse parses an HTTP response from a CreateReleaseWithResponse call
-func ParseCreateReleaseResponse(rsp *http.Response) (*CreateReleaseResponse, error) {
+// ParseUpsertReleaseResponse parses an HTTP response from a UpsertReleaseWithResponse call
+func ParseUpsertReleaseResponse(rsp *http.Response) (*UpsertReleaseResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &CreateReleaseResponse{
+	response := &UpsertReleaseResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/MakeNowJust/heredoc/v2"
@@ -13,7 +14,24 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewCreateReleaseCmd() *cobra.Command {
+func safeConvertToReleaseStatus(status string) (*api.UpsertReleaseJSONBodyStatus, error) {
+	statusLower := strings.ToLower(status)
+	if statusLower == "ready" || statusLower == "" {
+		s := api.Ready
+		return &s, nil
+	}
+	if statusLower == "building" {
+		s := api.Building
+		return &s, nil
+	}
+	if statusLower == "failed" {
+		s := api.Failed
+		return &s, nil
+	}
+	return nil, fmt.Errorf("invalid release status: %s", status)
+}
+
+func NewUpsertReleaseCmd() *cobra.Command {
 	var versionFlag string
 	var deploymentID []string
 	var metadata map[string]string
@@ -21,20 +39,22 @@ func NewCreateReleaseCmd() *cobra.Command {
 	var links map[string]string
 	var createdAt string
 	var name string
+	var status string
+	var message string
 
 	cmd := &cobra.Command{
 		Use:   "release [flags]",
-		Short: "Create a new release",
-		Long:  `Create a new release with the specified version and configuration.`,
+		Short: "Upsert a release",
+		Long:  `Upsert a release with the specified version and configuration.`,
 		Example: heredoc.Doc(`
-			# Create a new release
-			$ ctrlc create release --version v1.0.0 --deployment 1234567890
+			# Upsert a release
+			$ ctrlc upsert release --version v1.0.0 --deployment 1234567890
 
-			# Create a new release using Go template syntax
-			$ ctrlc create release --version v1.0.0 --deployment 1234567890 --template='{{.status.phase}}'
+			# Upsert a release using Go template syntax
+			$ ctrlc upsert release --version v1.0.0 --deployment 1234567890 --template='{{.status.phase}}'
 
-			# Create a new release for multiple deployments
-			$ ctrlc create release --version v1.0.0 --deployment 1234567890 --deployment 0987654321
+			# Upsert a new release for multiple deployments
+			$ ctrlc upsert release --version v1.0.0 --deployment 1234567890 --deployment 0987654321
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			apiURL := viper.GetString("url")
@@ -61,16 +81,23 @@ func NewCreateReleaseCmd() *cobra.Command {
 				metadata["ctrlplane/links"] = string(linksJSON)
 			}
 
+			stat, err := safeConvertToReleaseStatus(status)
+			if err != nil {
+				return fmt.Errorf("failed to convert release status: %w", err)
+			}
+
 			config := cliutil.ConvertConfigArrayToNestedMap(configArray)
 			var response *http.Response
 			for _, id := range deploymentID {
-				resp, err := client.CreateRelease(cmd.Context(), api.CreateReleaseJSONRequestBody{
+				resp, err := client.UpsertRelease(cmd.Context(), api.UpsertReleaseJSONRequestBody{
 					Version:      versionFlag,
 					DeploymentId: id,
 					Metadata:     &metadata,
 					CreatedAt:    parsedTime,
 					Config:       &config,
 					Name:         &name,
+					Status:       stat,
+					Message:      &message,
 				})
 				if err != nil {
 					return fmt.Errorf("failed to create release: %w", err)
@@ -90,6 +117,8 @@ func NewCreateReleaseCmd() *cobra.Command {
 	cmd.Flags().StringToStringVarP(&links, "link", "l", make(map[string]string), "Links key-value pairs (can be specified multiple times)")
 	cmd.Flags().StringVarP(&createdAt, "created-at", "t", "", "Created at timestamp (e.g. --created-at 2024-01-01T00:00:00Z) for the release channel")
 	cmd.Flags().StringVarP(&name, "name", "n", "", "Name of the release channel")
+	cmd.Flags().StringVarP(&status, "status", "s", string(api.Ready), "Status of the release channel (one of: ready, building, failed)")
+	cmd.Flags().StringVar(&message, "message", "", "Message of the release channel")
 
 	cmd.MarkFlagRequired("version")
 	cmd.MarkFlagRequired("deployment")
