@@ -14,15 +14,19 @@ settings.register_profile(
 settings.load_profile("ci")
 
 
+# This fixture is an autouse fixture to ensure that any wandb.login() calls
+# will be mocked to return a viewer server info response by default.
 @pytest.fixture(autouse=True)
-def mock_servier_viewer_api_call():
+def mock_server_viewer_api_call():
     with mock.patch(
-        "wandb.sdk.internal.internal_api.Api.viewer_server_info",
-        return_value=(
-            {"viewer_server_info": {"id": "1234567890", "entity": "test_entity"}},
-            {},
-        ),
-    ):
+        "wandb.sdk.wandb_setup._WandbSetup.viewer",
+    ) as mock_viewer:
+        mock_viewer.__get__ = mock.Mock(
+            return_value={
+                "id": "1234567890",
+                "entity": "test_entity",
+            },
+        )
         yield
 
 
