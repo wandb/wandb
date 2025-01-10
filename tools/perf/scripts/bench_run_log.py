@@ -186,7 +186,7 @@ class Experiment:
         time_delay_second: Sleep time between step.
         run_id: ID of the existing run to resume from.
         resume_mode: The mode of resuming. Used when run_id is passed in.
-        percentage: The % of metrics to log in each step.
+        fraction: The % (in fraction) of metrics to log in each step.
 
     When to set "is_unique_payload" to True?
 
@@ -209,7 +209,7 @@ class Experiment:
         time_delay_second: float = 0.0,
         run_id: str = "",
         resume_mode: str = "must",
-        percentage: float = 100.0,
+        fraction: float = 1.0,
     ):
         self.num_steps = num_steps
         self.num_metrics = num_metrics
@@ -220,7 +220,7 @@ class Experiment:
         self.time_delay_second = time_delay_second
         self.run_id = run_id
         self.resume_mode = resume_mode
-        self.percentage = percentage
+        self.fraction = fraction
 
     def run(self, repeat: int = 1):
         for _ in range(repeat):
@@ -279,7 +279,7 @@ class Experiment:
             logger.error(f"Failed to generate payload: {e}")
             return
 
-        metrics_count_per_step = round(self.num_metrics * self.percentage // 100)
+        metrics_count_per_step = self.num_metrics * self.fraction
         logger.info(f"metrics_count_per_step {metrics_count_per_step}")
 
         subset_payloads = []
@@ -473,11 +473,11 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-p",
-        "--percentage",
+        "-f",
+        "--fraction",
         type=float,
-        default=100.0,
-        help="The percentage of metrics to log in each step.",
+        default=1.0,
+        help="The fraction (i.e. percentage) of metrics to log in each step.",
     )
 
     args = parser.parse_args()
@@ -492,5 +492,5 @@ if __name__ == "__main__":
         time_delay_second=args.time_delay_second,
         run_id=args.run_id,
         resume_mode=args.resume_mode,
-        percentage=args.percentage,
+        fraction=args.fraction,
     ).run(args.repeat)
