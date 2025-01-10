@@ -6,7 +6,7 @@ import string
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import List, Literal
 
 import numpy as np
 import wandb
@@ -50,10 +50,35 @@ class PayloadGenerator:
         data_type: Literal["scalar", "audio", "video", "image", "table"],
         metric_count: int,
         metric_key_size: int,
+        num_steps: int,
+        fraction: float,
+        is_unique_payload: bool,
     ):
         self.data_type = data_type
         self.metric_count = metric_count
         self.metric_key_size = metric_key_size
+        self.num_steps = num_steps
+        self.fraction = fraction
+        self.is_unique_payload = is_unique_payload
+
+        self.metrics_count_per_step = int(self.metric_count * self.fraction)
+        if self.is_unique_payload:
+            # every step use a unique payload
+            self.num_of_unique_payload = self.num_steps
+        
+        elif self.fraction < 1.0:
+            # every step logs a subset of a base payload
+            self.num_of_unique_payload = int(self.metric_count  // self.metrics_count_per_step)
+
+        else:
+            # every step logs the same set of base payload
+            self.num_of_unique_payload = 1
+        
+        logger.info(f"metrics_count_per_step: {self.metrics_count_per_step}")
+        logger.info(f"num_of_unique_payload: {self.num_of_unique_payload}")
+
+
+
 
     def random_string(self, size: int) -> str:
         """Generates a random string of a given size.
@@ -91,36 +116,55 @@ class PayloadGenerator:
         else:
             raise ValueError(f"Invalid data type: {self.data_type}")
 
-    def generate_audio(self) -> dict[str, wandb.Audio]:
+    def generate_audio(self) -> List[dict[str, wandb.Audio]]:
         """Generates a payload for logging audio data.
 
         Returns:
-            dict: A dictionary with the audio data.
+            List: A list of dictionary with the audio data.
         """
-        duration = 5  # make a 5s long audio
-        sample_rate = 44100
-        frequency = 440
+        try:
+            payloads = []
+            for _ in range(self.num_of_unique_payload):
+                duration = 5  # make a 5s long audio
+                sample_rate = 44100
+                frequency = 440
 
-        t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
-        audio_data = np.sin(2 * np.pi * frequency * t)
-        audio_obj = wandb.Audio(audio_data, sample_rate=sample_rate)
-        return {
-            self.random_string(self.metric_key_size): audio_obj
-            for _ in range(self.metric_count)
-        }
-
-    def generate_scalar(self) -> dict[str, int]:
-        """Generates a payload for logging scalar data.
+                t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
+                audio_data = np.sin(2 * np.pi * frequency * t)
+                audio_obj = wandb.Audio(audio_data, sample_rate=sample_rate)
+                payloads.append({
+                    self.random_string(self.metric_key_size): audio_obj
+                    for _ in range(self.metric_count)
+                })
+            
+            return payloads
+            
+        except ValueError as e:
+            logger.error(f"Failed to generate payload: {e}")
+            return []
+    
+    def generate_scalar(self) -> List[dict[str, int]]:
+        """Generates the payloads for logging scalar data.
 
         Returns:
-            dict: A dictionary with the scalar data.
+            List: A list of dictionary with the scalar data.
         """
-        return {
-            self.random_string(self.metric_key_size): random.randint(1, 10**2)
-            for _ in range(self.metric_count)
-        }
+        try:
+            # Generate base payloads
+            payloads = [
+                {self.random_string(self.metric_key_size): random.randint(1, 10**2)
+                    for _ in range(self.metrics_count_per_step)}
+                for _ in range(self.num_of_unique_payload)
+            ]
 
-    def generate_table(self) -> dict[str, wandb.Table]:
+            return payloads
+            
+        except ValueError as e:
+            logger.error(f"Failed to generate payload: {e}")
+            return []
+        
+
+    def generate_table(self) -> List[dict[str, wandb.Table]]:
         """Generates a payload for logging 1 table.
 
         For the table, it uses
@@ -128,49 +172,81 @@ class PayloadGenerator:
             self.metric_key_size as the number of rows.
 
         Returns:
-            dict: A dictionary with the table data.
+            List: A dictionary with the table data.
         """
-        num_of_columns = self.metric_count
-        num_of_rows = self.metric_key_size
+        try:
+            payloads = []
+            for p in range(self.num_of_unique_payload):
+                num_of_columns = self.metric_count
+                num_of_rows = self.metric_key_size
 
-        columns = [f"Field_{i+1}" for i in range(num_of_columns)]
-        data = [
-            [self.random_string(self.metric_key_size) for _ in range(num_of_columns)]
-            for _ in range(num_of_rows)
-        ]
-        table = wandb.Table(columns=columns, data=data)
-        return {"perf_test_table": table}
+                columns = [f"Field_{i+1}" for i in range(num_of_columns)]
+                data = [
+                    [self.random_string(self.metric_key_size) for _ in range(num_of_columns)]
+                    for _ in range(num_of_rows)
+                ]
+                table = wandb.Table(columns=columns, data=data)
+                payloads.append({f"table_{p}": table})
+            
+            return payloads 
+        
+        except ValueError as e:
+            logger.error(f"Failed to generate payload: {e}")
+            return []
 
-    def generate_image(self) -> dict[str, wandb.Image]:
+
+    def generate_image(self) -> List[dict[str, wandb.Image]]:
         """Generates a payload for logging images.
 
         Returns:
-            dict: A dictionary with image data.
+            List: A list of dictionary with image data.
         """
-        # Create a random RGB image (100x100 pixels)
-        # Each pixel value is an integer between 0 and 255 for RGB channels
-        random_image = np.random.randint(0, 256, (100, 100, 3), dtype=np.uint8)
-        image_obj = wandb.Image(random_image, caption="Random image")
+        try:
+            
+            payloads = []
+            for _ in range(self.num_of_unique_payload):
+                # Create a random RGB image (100x100 pixels)
+                # Each pixel value is an integer between 0 and 255 for RGB channels
+                random_image = np.random.randint(0, 256, (100, 100, 3), dtype=np.uint8)
+                image_obj = wandb.Image(random_image, caption="Random image")
 
-        return {
-            self.random_string(self.metric_key_size): image_obj
-            for _ in range(self.metric_count)
-        }
+                payloads.append({
+                    self.random_string(self.metric_key_size): image_obj
+                    for _ in range(self.metric_count)
+                })
+            
+            return payloads
+        
+        except ValueError as e:
+            logger.error(f"Failed to generate payload: {e}")
+            return []
 
-    def generate_video(self) -> dict[str, wandb.Video]:
+
+    def generate_video(self) -> List[dict[str, wandb.Video]]:
         """Generates a payload for logging videos.
 
         Returns:
-            dict: A dictionary with video data.
+            List: A list of dictionary with video data.
         """
-        # Create a random video (50 frames, 64x64 pixels, 3 channels for RGB)
-        frames = np.random.randint(0, 256, (50, 64, 64, 3), dtype=np.uint8)
-        video_obj = wandb.Video(frames, fps=10, caption="Randomly generated video")
+        try:
+            payloads = []
+            for _ in range(self.num_of_unique_payload):
 
-        return {
-            self.random_string(self.metric_key_size): video_obj
-            for _ in range(self.metric_count)
-        }
+                # Create a random video (50 frames, 64x64 pixels, 3 channels for RGB)
+                frames = np.random.randint(0, 256, (50, 64, 64, 3), dtype=np.uint8)
+                video_obj = wandb.Video(frames, fps=10, caption="Randomly generated video")
+
+                payloads.append({
+                    self.random_string(self.metric_key_size): video_obj
+                    for _ in range(self.metric_count)
+                })
+            
+            return payloads
+        
+        except ValueError as e:
+            logger.error(f"Failed to generate payload: {e}")
+            return []
+
 
 
 class Experiment:
@@ -263,56 +339,28 @@ class Experiment:
             result_data["init_time"] = timer.stop()
 
         # pre-generate all the payloads
-        try:
-            if self.is_unique_payload:
-                num_of_unique_payload = self.num_steps
-            else:
-                num_of_unique_payload = 1
-
-            payloads = [
-                PayloadGenerator(
-                    self.data_type, self.num_metrics, self.metric_key_size
+        logger.info("Generating test payloads ...")
+        payloads = PayloadGenerator(
+                    self.data_type, 
+                    self.num_metrics, 
+                    self.metric_key_size, 
+                    self.num_steps, 
+                    self.fraction,
+                    self.is_unique_payload,
                 ).generate()
-                for _ in range(num_of_unique_payload)
-            ]
-        except ValueError as e:
-            logger.error(f"Failed to generate payload: {e}")
-            return
 
-        metrics_count_per_step = self.num_metrics * self.fraction
-        logger.info(f"metrics_count_per_step {metrics_count_per_step}")
-
-        subset_payloads = []
-        # Because we are logging only a "subset" of the metrics in each step
-        # we will prepare the subset-payload for each step ahead of time
-        if metrics_count_per_step != self.num_metrics:
-            for s in range(self.num_steps):
-                keys = list(payloads[0].keys())
-                start_index = (s * metrics_count_per_step) % self.num_metrics
-                end_index = start_index + metrics_count_per_step
-                subset_payloads.append(
-                    {key: payloads[0][key] for key in keys[start_index:end_index]}
-                )
-
-        # Log the payload $step_count times
+        logger.info(f"Start logging {self.num_steps} steps ...")
         with Timer() as timer:
             for s in range(self.num_steps):
-                if self.is_unique_payload:
-                    run.log(payloads[s])
+                if self.is_unique_payload or self.fraction < 1.0:
+                    run.log(payloads[s % len(payloads)])
                 else:
-                    # get the subset of metrics to log.
-                    if metrics_count_per_step != self.num_metrics:
-                        run.log(subset_payloads[s])
-                    else:
-                        run.log(payloads[0])
+                    run.log(payloads[0])
 
                 # 12/20/2024 - Wai
                 # HACKAROUND: We ran into some 500s and 502s errors when SDK logs
                 # a million+ unique metrics in a tight loop. Adding a small sleep
                 # between each step works around the problem for now.
-
-                # Set a sleep time when reproducing real-life workload when logging
-                # steps aren't in a tight loop.
                 if self.time_delay_second > 0:
                     time.sleep(self.time_delay_second)
 
