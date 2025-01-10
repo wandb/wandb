@@ -14,7 +14,6 @@ from wandb.errors import AuthenticationError, UsageError
 from wandb.old.settings import Settings as OldSettings
 
 from ..apis import InternalApi
-from . import wandb_setup
 from .internal.internal_api import Api
 from .lib import apikey
 from .wandb_settings import Settings
@@ -251,7 +250,7 @@ class _WandbLogin:
                 return None, ApiKeyStatus.OFFLINE
             return key, ApiKeyStatus.VALID
 
-    def prompt_api_key(self) -> None:
+    def prompt_api_key(self) -> str:
         """Updates the global API key by prompting the user."""
         key, status = self._prompt_api_key()
         if status == ApiKeyStatus.NOTTY:
@@ -264,12 +263,14 @@ class _WandbLogin:
 
         self.update_session(key, status=status)
         self._key = key
+        return key
 
 
-def _verify_login(setup: wandb_setup._WandbSetup) -> bool:
-    viewer = setup.viewer
+def _verify_login(key: str) -> bool:
+    api = InternalApi(api_key=key)
+    is_api_key_valid = api.validate_api_key(key)
 
-    if not viewer:
+    if not is_api_key_valid:
         raise AuthenticationError(
             "API key verification failed. Make sure your API key is valid."
         )
@@ -336,13 +337,13 @@ def _login(
 
     if logged_in:
         if verify:
-            _verify_login(wlogin._wl)
+            _verify_login(apikey.api_key(settings=wlogin._settings))
         return logged_in
 
     if not key:
-        wlogin.prompt_api_key()
+        key = wlogin.prompt_api_key()
 
     if verify:
-        _verify_login(wlogin._wl)
+        _verify_login(key)
 
     return wlogin._key or False
