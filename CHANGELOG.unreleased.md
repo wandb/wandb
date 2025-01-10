@@ -12,3 +12,7 @@ Add here any changes made in a PR that are relevant to end users. Allowed sectio
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Changed
+
+- Changed the default behavior for logging in from the CLI with `wandb login` or programmatically with `wandb.login()` to verify the API key by default. (@jacobromero in https://github.com/wandb/wandb/pull/9230)

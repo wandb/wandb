@@ -166,7 +166,7 @@ def login(
     host: Optional[str] = None,
     force: Optional[bool] = None,
     timeout: Optional[int] = None,
-    verify: bool = False,
+    verify: bool = True,
 ) -> bool:
     """<sdk/wandb_login.py::login>"""
     ...
