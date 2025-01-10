@@ -14,6 +14,7 @@ from wandb.errors import AuthenticationError, UsageError
 from wandb.old.settings import Settings as OldSettings
 
 from ..apis import InternalApi
+from . import wandb_setup
 from .internal.internal_api import Api
 from .lib import apikey
 from .wandb_settings import Settings
@@ -265,22 +266,8 @@ class _WandbLogin:
         self._key = key
 
 
-def _verify_login() -> bool:
-    from . import wandb_setup
-
-    singleton = wandb_setup.singleton()
-
-    assert singleton is not None
-    if singleton._server is None:
-        from .lib import server
-
-        singleton._server = server.Server(singleton._settings)
-
-    # Make call to backend server to verify API key is valid.
-    if not singleton._server._viewer:
-        singleton._server.query_with_timeout()
-
-    viewer = singleton._server._viewer
+def _verify_login(setup: wandb_setup._WandbSetup) -> bool:
+    viewer = setup.viewer
 
     if not viewer:
         raise AuthenticationError(
@@ -330,6 +317,7 @@ def _login(
     )
 
     if wlogin._settings._offline:
+        wandb.termwarn("Unable to verify login in offline mode.")
         return False
     elif wandb.util._is_kaggle() and not wandb.util._has_internet():
         wandb.termerror(
@@ -348,13 +336,13 @@ def _login(
 
     if logged_in:
         if verify:
-            _verify_login()
+            _verify_login(wlogin._wl)
         return logged_in
 
     if not key:
         wlogin.prompt_api_key()
 
     if verify:
-        _verify_login()
+        _verify_login(wlogin._wl)
 
     return wlogin._key or False

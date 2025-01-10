@@ -226,7 +226,7 @@ def projects(entity, display=True):
     "--verify/--no-verify",
     default=False,
     is_flag=True,
-    help="Skip verifification of login credentials",
+    help="Verify login credentials",
 )
 @display_error
 def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
