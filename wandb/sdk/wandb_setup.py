@@ -279,12 +279,6 @@ class _WandbSetup:
 
         return self._connection
 
-    def verify_api_key(self, key: str) -> bool:
-        self._settings.api_key = key
-        self._server = server.Server(settings=self._settings)
-
-        return self._server._api.validate_api_key(key)
-
 
 _singleton: _WandbSetup | None = None
 """The W&B library singleton, or None if not yet set up.

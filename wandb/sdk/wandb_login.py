@@ -268,7 +268,7 @@ class _WandbLogin:
 
 def _verify_login(key: str) -> bool:
     api = InternalApi(api_key=key)
-    is_api_key_valid = api.validate_api_key(key)
+    is_api_key_valid = api.validate_api_key()
 
     if not is_api_key_valid:
         raise AuthenticationError(

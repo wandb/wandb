@@ -40,15 +40,17 @@ class Server:
 
     @property
     def viewer(self) -> dict[str, Any]:
-        """
-        Returns the viewer information queried from the backend `viewer` GraphQL API.
+        """Returns information about the currently authenticated user.
 
-        The viewer contains information about the currently authenticated user, including:
-        see the GraphQL viewer query defined here:
-        https://github.com/wandb/wandb/blob/230213f8bb6c9ad0c9736e82b00a23e84e73cfae/wandb/sdk/internal/internal_api.py#L948-L966
+        If the API key is valid, the following is returned:
+        - id
+        - entity
+        - username
+        - flags
+        - teams
 
-        Returns:
-            dict: The viewer information dictionary, or empty dict if unavailable
+        If the API key is not valid or the server is not reachable,
+        an empty dict is returned.
         """
         if not self._viewer and not self._settings._offline:
             self.query_with_timeout()
