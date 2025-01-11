@@ -1,13 +1,22 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import Callable
+from typing import Any, Callable
 
 import requests
 import wandb
-from pytest import fixture, raises, xfail
+from pytest import fixture, mark, raises, xfail
+from wandb.apis.public import ArtifactCollection, Project
 from wandb.apis.public.integrations import WebhookIntegration
-from wandb.sdk.automations import Automation, DoWebhook, OnCreateArtifact, OnRunMetric
+from wandb.sdk.automations import (
+    ActionType,
+    ArtifactCollectionScope,
+    Automation,
+    DoWebhook,
+    OnCreateArtifact,
+    OnRunMetric,
+    ProjectScope,
+)
 from wandb.sdk.automations.events import MetricFilter, RunEvent, RunMetricFilter
 from wandb.sdk.automations.filters import And
 
@@ -157,6 +166,140 @@ def test_create_automation_for_run_metric_event(
     # Delete the automation for good measure
     api.delete_automation(automation)
     assert len(list(api.automations(name=automation_name))) == 0
+
+
+class TestUpdateAutomation:
+    @fixture
+    def old_automation(
+        self,
+        api: wandb.Api,
+        event,
+        action,
+        automation_name: str,
+    ):
+        """The original automation to be updated."""
+        # Setup: Create the original automation
+        automation = api.create_automation(
+            (event >> action),
+            name=automation_name,
+            description="original description",
+        )
+        yield automation
+
+        # Cleanup: Delete the automation for good measure
+        api.delete_automation(automation)
+        assert len(list(api.automations(name=automation_name))) == 0
+
+    def test_update_name(self, api: wandb.Api, old_automation: Automation):
+        updated_value = "new-name"
+
+        old_automation.name = updated_value
+        new_automation = api.update_automation(old_automation)
+
+        assert new_automation.name == updated_value
+
+    def test_update_description(self, api: wandb.Api, old_automation: Automation):
+        new_value = "new description"
+
+        old_automation.description = new_value
+        new_automation = api.update_automation(old_automation)
+
+        assert new_automation.description == new_value
+
+    def test_update_enabled(self, api: wandb.Api, old_automation: Automation):
+        new_value = False
+
+        old_automation.enabled = new_value
+        new_automation = api.update_automation(old_automation)
+
+        assert new_automation.enabled == new_value
+
+    # This is only meaningful if the original automation has a webhook action
+    @mark.parametrize("action_type", [ActionType.GENERIC_WEBHOOK], indirect=True)
+    def test_update_webhook_payload(self, api: wandb.Api, old_automation: Automation):
+        new_payload = {"new-key": "new-value"}
+
+        old_automation.action.request_payload = new_payload
+        new_automation = api.update_automation(old_automation)
+
+        assert new_automation.action.request_payload == new_payload
+
+    # This is only meaningful if the original automation has a notification action
+    @mark.parametrize("action_type", [ActionType.NOTIFICATION], indirect=True)
+    def test_update_notification_message(
+        self, api: wandb.Api, old_automation: Automation
+    ):
+        new_message = "new message"
+
+        old_automation.action.message = new_message
+        new_automation = api.update_automation(old_automation)
+
+        assert new_automation.action.message == new_message
+
+    def test_update_scope_to_project(
+        self, api: wandb.Api, old_automation: Automation, project: Project
+    ):
+        old_automation.scope = project
+
+        new_automation = api.update_automation(old_automation)
+        updated_scope = new_automation.scope
+
+        assert isinstance(updated_scope, ProjectScope)
+        assert updated_scope.id == project.id
+        assert updated_scope.name == project.name
+
+    def test_update_scope_to_artifact_collection(
+        self,
+        api: wandb.Api,
+        old_automation: Automation,
+        artifact_collection: ArtifactCollection,
+    ):
+        old_automation.scope = artifact_collection
+
+        new_automation = api.update_automation(old_automation)
+        updated_scope = new_automation.scope
+
+        assert isinstance(updated_scope, ArtifactCollectionScope)
+        assert updated_scope.id == artifact_collection.id
+        assert updated_scope.name == artifact_collection.name
+
+    @mark.parametrize(
+        "updates",
+        [
+            {
+                "name": "new-name",
+            },
+            {
+                "description": "new-description",
+            },
+            {
+                "enabled": False,
+            },
+            {
+                "description": "new-description",
+                "enabled": False,
+            },
+            {
+                "name": "new-name",
+                "enabled": False,
+            },
+            {
+                "name": "new-name",
+                "description": "new-description",
+                "enabled": False,
+            },
+        ],
+    )
+    def test_update_via_kwargs(
+        self,
+        api: wandb.Api,
+        old_automation: Automation,
+        updates: dict[str, Any],
+    ):
+        # Update the automation
+        new_automation = api.update_automation(old_automation, **updates)
+        for name, value in updates.items():
+            assert getattr(new_automation, name) == value
 
 
 class TestPaginatedAutomations:

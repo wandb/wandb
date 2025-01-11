@@ -15,6 +15,7 @@ from ._generated import (
     NotificationActionInput,
     SlackIntegrationFields,
     TriggeredActionConfig,
+    UpdateFilterTriggerInput,
 )
 from .actions import ActionType, DoNothing, DoNotification, DoWebhook
 from .scopes import ScopeType, _ScopeInfo
@@ -22,7 +23,13 @@ from .scopes import ScopeType, _ScopeInfo
 if TYPE_CHECKING:
     from typing_extensions import Unpack
 
-    from .automations import NewAutomation, _ActionInputT, _EventInputT, _ScopeInputT
+    from .automations import (
+        Automation,
+        NewAutomation,
+        _ActionInputT,
+        _EventInputT,
+        _ScopeInputT,
+    )
     from .events import EventType
 
 T = TypeVar("T")
@@ -182,6 +189,34 @@ def prepare_create_input(
         scope_id=prepared.scope.id,
         triggering_event_type=prepared.event.event_type,
         event_filter=prepared.event.filter,
+        triggered_action_type=action_type,
+        triggered_action_config=action_config,
+    )
+
+
+def prepare_update_input(
+    obj: Automation, **updates: Unpack[AutomationParams]
+) -> UpdateFilterTriggerInput:
+    """Prepares the payload to update an automation in a GraphQL request."""
+    from .events import _WrappedEventFilter
+
+    updated = obj.model_copy(update=updates)
+
+    action_type = get_action_type(type(updated.action))
+    action_config = prepare_action_config(updated.action, action_type)
+    return UpdateFilterTriggerInput(
+        id=updated.id,
+        name=updated.name,
+        description=updated.description,
+        enabled=updated.enabled,
+        scope_type=updated.scope.scope_type,
+        scope_id=updated.scope.id,
+        triggering_event_type=updated.event.event_type,
+        event_filter=(
+            updated.event.filter.filter
+            if isinstance(updated.event.filter, _WrappedEventFilter)
+            else updated.event.filter
+        ),
         triggered_action_type=action_type,
         triggered_action_config=action_config,
     )
