@@ -6,7 +6,11 @@ from wandb._pydantic import to_json
 from wandb.automations.events import InputEvent
 from wandb.automations.scopes import InputScope
 
-from ._generated import CreateFilterTriggerInput, TriggeredActionConfig
+from ._generated import (
+    CreateFilterTriggerInput,
+    TriggeredActionConfig,
+    UpdateFilterTriggerInput,
+)
 from .actions import (
     ActionType,
     DoNothing,
@@ -19,7 +23,7 @@ from .actions import (
 if TYPE_CHECKING:
     from typing_extensions import Unpack
 
-    from .automations import NewAutomation
+    from .automations import Automation, NewAutomation
 
 
 class HasId(Protocol):
@@ -88,4 +92,32 @@ def prepare_create_input(
         event_filter=to_json(prepared.event.filter),
         triggered_action_type=prepared.action.action_type,
         triggered_action_config=prepare_action_input(prepared.action),
+    )
+
+
+def prepare_update_input(
+    obj: Automation, **updates: Unpack[AutomationParams]
+) -> UpdateFilterTriggerInput:
+    """Prepares the payload to update an automation in a GraphQL request."""
+    from .events import _WrappedEventFilter
+
+    updated = obj.model_copy(update=updates)
+
+    action_type = updated.action.action_type
+    action_config = prepare_action_input(updated.action)
+    return UpdateFilterTriggerInput(
+        id=updated.id,
+        name=updated.name,
+        description=updated.description,
+        enabled=updated.enabled,
+        scope_type=updated.scope.scope_type,
+        scope_id=updated.scope.id,
+        triggering_event_type=updated.event.event_type,
+        event_filter=(
+            updated.event.filter.filter
+            if isinstance(updated.event.filter, _WrappedEventFilter)
+            else updated.event.filter
+        ),
+        triggered_action_type=action_type,
+        triggered_action_config=action_config,
     )
