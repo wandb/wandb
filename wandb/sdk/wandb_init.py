@@ -1372,7 +1372,7 @@ def init(  # noqa: C901
 
         wi.set_run_id(run_settings)
 
-        if monitor_gym and len(wandb.patched["gym"]) == 0:
+        if monitor_gym:
             _monkeypatch_openai_gym()
         if run_settings.sync_tensorboard:
             _monkeypatch_tensorboard()
