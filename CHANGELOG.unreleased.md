@@ -17,6 +17,14 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - The `reinit` setting can be set to `"default"` (@timoffex in https://github.com/wandb/wandb/pull/9569)
 - Added support for building artifact file download urls using the new url scheme, with artifact collection membership context (@ibindlish in https://github.com/wandb/wandb/pull/9560)
+- Added `wandb.public.Project.id` property to support fetching the project ID on a `wandb.public.Project` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9194).
+- Added new programmatic API for W&B Automations, including:
+  - New submodules in the `wandb.sdk.automations` namespace to support programmatic management of W&B Automations (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8935).
+  - `Api.integrations()`, `Api.slack_integrations()`, `Api.webhook_integrations()` to fetch existing integrations for an entity (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9197).
+  - `Api.automation()`, `Api.automations()` to fetch existing Automations (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8896).
+  - `Api.create_automation()` to create new Automations (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8896).
+  - `Api.delete_automation()` to delete existing Automations (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8896).
+  - `Api.update_automation()` to edit existing Automations (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9246).
 
 ### Changed
 
