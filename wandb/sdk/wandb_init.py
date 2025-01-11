@@ -11,6 +11,7 @@ For more on using `wandb.init()`, including code snippets, check out our
 from __future__ import annotations
 
 import copy
+import dataclasses
 import json
 import logging
 import os
@@ -105,24 +106,46 @@ def _handle_launch_config(settings: Settings) -> dict[str, Any]:
     return launch_run_config
 
 
-class _WandbInit:
-    _init_telemetry_obj: telemetry.TelemetryRecord
+@dataclasses.dataclass(frozen=True)
+class _ConfigParts:
+    base_no_artifacts: dict[str, Any] = dict()
+    """The run config passed to `init()` minus any artifact-valued keys."""
 
-    def __init__(self, wl: wandb_setup._WandbSetup) -> None:
+    sweep_no_artifacts: dict[str, Any] = dict()
+    """The config loaded as part of a sweep minus any artifact-valued keys."""
+
+    launch_no_artifacts: dict[str, Any] = dict()
+    """The config loaded as part of Launch minus any artifact-valued keys."""
+
+    artifacts: dict[str, Any] = dict()
+    """Artifact keys removed from config dictionaries.
+
+    Due to implementation details of how a Run is constructed,
+    artifacts must be inserted into its config after initialization.
+    """
+
+
+class _WandbInit:
+    def __init__(
+        self,
+        wl: wandb_setup._WandbSetup,
+        telemetry: telemetry.TelemetryRecord,
+    ) -> None:
         self._wl = wl
 
+        self._telemetry = telemetry
+        """Telemetry gathered before creating a run.
+
+        After the run is created, `telemetry.context()` is used instead.
+        """
+
         self.kwargs = None
-        self.sweep_config: dict[str, Any] = {}
-        self.launch_config: dict[str, Any] = {}
-        self.config: dict[str, Any] = {}
         self.run: Run | None = None
         self.backend: Backend | None = None
 
         self._teardown_hooks: list[TeardownHook] = []
         self.notebook: wandb.jupyter.Notebook | None = None  # type: ignore
         self.printer = printer.new_printer()
-
-        self._init_telemetry_obj = telemetry.TelemetryRecord()
 
         self.deprecated_features_used: dict[str, str] = dict()
 
@@ -250,8 +273,7 @@ class _WandbInit:
         if not settings.sagemaker_disable and sagemaker.is_using_sagemaker():
             if sagemaker.set_run_id(settings):
                 self._logger.info("set run ID and group based on SageMaker")
-                with telemetry.context(obj=self._init_telemetry_obj) as tel:
-                    tel.feature.sagemaker = True
+                self._telemetry.feature.sagemaker = True
 
         # get status of code saving before applying user settings
         save_code_pre_user_settings = settings.save_code
@@ -355,25 +377,24 @@ class _WandbInit:
                 run_id=settings.run_id,
             )
 
-    def setup(
+    def compute_run_config(
         self,
         settings: Settings,
         config: dict | str | None = None,
         config_exclude_keys: list[str] | None = None,
         config_include_keys: list[str] | None = None,
-        monitor_gym: bool | None = None,
-    ) -> None:
-        """Compute the run's config and some telemetry."""
-        with telemetry.context(obj=self._init_telemetry_obj) as tel:
-            if config is not None:
-                tel.feature.set_init_config = True
-            if settings.run_name is not None:
-                tel.feature.set_init_name = True
-            if settings.run_id is not None:
-                tel.feature.set_init_id = True
-            if settings.run_tags is not None:
-                tel.feature.set_init_tags = True
+    ) -> _ConfigParts:
+        """Construct the run's config.
 
+        Args:
+            settings: The run's finalized settings.
+            config: The config passed to `init()`.
+            config_exclude_keys: Deprecated. Keys to filter out from `config`.
+            config_include_keys: Deprecated. Keys to include from `config`.
+
+        Returns:
+            Initial values for the run's config.
+        """
         # TODO: remove this once officially deprecated
         if config_exclude_keys:
             self.deprecated_features_used["config_exclude_keys"] = (
@@ -389,19 +410,23 @@ class _WandbInit:
             exclude=config_exclude_keys,
         )
 
-        # Construct the run's config.
-        self.config = dict()
-        self.init_artifact_config: dict[str, Any] = dict()
+        result = _ConfigParts()
 
         if not settings.sagemaker_disable and sagemaker.is_using_sagemaker():
             sagemaker_config = sagemaker.parse_sm_config()
-            self._split_artifacts_from_config(sagemaker_config, self.config)
-
-            with telemetry.context(obj=self._init_telemetry_obj) as tel:
-                tel.feature.sagemaker = True
+            self._split_artifacts_from_config(
+                sagemaker_config,
+                config_target=result.base_no_artifacts,
+                artifacts=result.artifacts,
+            )
+            self._telemetry.feature.sagemaker = True
 
         if self._wl._config:
-            self._split_artifacts_from_config(self._wl._config, self.config)
+            self._split_artifacts_from_config(
+                self._wl._config,
+                config_target=result.base_no_artifacts,
+                artifacts=result.artifacts,
+            )
 
         if config and isinstance(config, dict):
             self._split_artifacts_from_config(config, self.config)
@@ -411,27 +436,14 @@ class _WandbInit:
         if sweep_config:
             self._split_artifacts_from_config(sweep_config, self.sweep_config)
 
-        if monitor_gym and len(wandb.patched["gym"]) == 0:
-            wandb.gym.monitor()  # type: ignore
+        if launch_config := _handle_launch_config(settings):
+            self._split_artifacts_from_config(
+                launch_config,
+                config_target=result.launch_no_artifacts,
+                artifacts=result.artifacts,
+            )
 
-        if wandb.patched["tensorboard"]:
-            with telemetry.context(obj=self._init_telemetry_obj) as tel:
-                tel.feature.tensorboard_patch = True
-
-        if settings.sync_tensorboard:
-            if len(wandb.patched["tensorboard"]) == 0:
-                wandb.tensorboard.patch()  # type: ignore
-            with telemetry.context(obj=self._init_telemetry_obj) as tel:
-                tel.feature.tensorboard_sync = True
-
-        if not settings._noop:
-            self._log_setup(settings)
-
-            if settings._jupyter:
-                self._jupyter_setup(settings)
-        launch_config = _handle_launch_config(settings)
-        if launch_config:
-            self._split_artifacts_from_config(launch_config, self.launch_config)
+        return result
 
     def teardown(self) -> None:
         # TODO: currently this is only called on failed wandb.init attempts
@@ -441,11 +453,14 @@ class _WandbInit:
             hook.call()
 
     def _split_artifacts_from_config(
-        self, config_source: dict, config_target: dict
+        self,
+        config_source: dict,
+        config_target: dict,
+        artifacts: dict,
     ) -> None:
         for k, v in config_source.items():
             if _is_artifact_representation(v):
-                self.init_artifact_config[k] = v
+                artifacts[k] = v
             else:
                 config_target.setdefault(k, v)
 
@@ -540,7 +555,7 @@ class _WandbInit:
         ipython.display_pub.publish = ipython.display_pub._orig_publish
         del ipython.display_pub._orig_publish
 
-    def _jupyter_setup(self, settings: Settings) -> None:
+    def monkeypatch_ipython(self, settings: Settings) -> None:
         """Add hooks, and session history saving."""
         self.notebook = wandb.jupyter.Notebook(settings)  # type: ignore
         ipython = self.notebook.shell
@@ -566,7 +581,7 @@ class _WandbInit:
 
         ipython.display_pub.publish = publish
 
-    def _log_setup(self, settings: Settings) -> None:
+    def setup_run_log_directory(self, settings: Settings) -> None:
         """Set up logging from settings."""
         filesystem.mkdir_exists_ok(os.path.dirname(settings.log_user))
         filesystem.mkdir_exists_ok(os.path.dirname(settings.log_internal))
@@ -598,7 +613,7 @@ class _WandbInit:
         self._logger.info(f"Logging user logs to {settings.log_user}")
         self._logger.info(f"Logging internal logs to {settings.log_internal}")
 
-    def _make_run_disabled(self) -> Run:
+    def _make_run_disabled(self, config: _ConfigParts) -> Run:
         """Returns a Run-like object where all methods are no-ops.
 
         This method is used when wandb.init(mode="disabled") is called or WANDB_MODE=disabled
@@ -624,8 +639,8 @@ class _WandbInit:
         )
         # config, summary, and metadata objects
         drun._config = wandb.sdk.wandb_config.Config()
-        drun._config.update(self.sweep_config)
-        drun._config.update(self.config)
+        drun._config.update(config.sweep_no_artifacts)
+        drun._config.update(config.base_no_artifacts)
         drun.summary = SummaryDisabled()  # type: ignore
         drun._Run__metadata = wandb.sdk.wandb_metadata.Metadata()
 
@@ -710,18 +725,19 @@ class _WandbInit:
         percent_done = handle.percent_done
         self.printer.progress_update(line, percent_done=percent_done)
 
-    def init(self, settings: Settings) -> Run:  # noqa: C901
+    def init(self, settings: Settings, config: _ConfigParts) -> Run:  # noqa: C901
         self._logger.info("calling init triggers")
         trigger.call("on_init")
 
         assert self._wl is not None
 
         self._logger.info(
-            f"wandb.init called with sweep_config: {self.sweep_config}\nconfig: {self.config}"
+            f"wandb.init called with sweep_config: {config.sweep_no_artifacts}"
+            f"\nconfig: {config.base_no_artifacts}"
         )
 
         if settings._noop:
-            return self._make_run_disabled()
+            return self._make_run_disabled(config)
         if (
             settings.reinit or (settings._jupyter and settings.reinit is not False)
         ) and len(self._wl._global_run_stack) > 0:
@@ -738,8 +754,11 @@ class _WandbInit:
             latest_run.finish()
         elif wandb.run is not None and os.getpid() == wandb.run._init_pid:
             self._logger.info("wandb.init() called when a run is still active")
+
+            # NOTE: Updates telemetry on the pre-existing run.
             with telemetry.context() as tel:
                 tel.feature.init_return_run = True
+
             return wandb.run
 
         self._logger.info("starting backend")
@@ -765,14 +784,14 @@ class _WandbInit:
 
         # resuming needs access to the server, check server_status()?
         run = Run(
-            config=self.config,
+            config=config.base_no_artifacts,
             settings=settings,
-            sweep_config=self.sweep_config,
-            launch_config=self.launch_config,
+            sweep_config=config.sweep_no_artifacts,
+            launch_config=config.launch_no_artifacts,
         )
 
         # Populate initial telemetry
-        with telemetry.context(run=run, obj=self._init_telemetry_obj) as tel:
+        with telemetry.context(run=run, obj=self._telemetry) as tel:
             tel.cli_version = wandb.__version__
             tel.python_version = platform.python_version()
             tel.platform = f"{platform.system()}-{platform.machine()}".lower()
@@ -970,7 +989,7 @@ class _WandbInit:
         # put artifacts in run config here
         # since doing so earlier will cause an error
         # as the run is not upserted
-        for k, v in self.init_artifact_config.items():
+        for k, v in config.artifacts.items():
             run.config.update({k: v}, allow_val_change=True)
         job_artifact = run._launch_artifact_mapping.get(
             wandb.util.LAUNCH_JOB_ARTIFACT_SLOT_NAME
@@ -1060,6 +1079,26 @@ def _attach(
     run._set_run_obj(attach_response.run)
     run._on_attach()
     return run
+
+
+def _monkeypatch_openai_gym() -> None:
+    """Patch OpenAI gym to log to the global `wandb.run`."""
+    if len(wandb.patched["gym"]) > 0:
+        return
+
+    from wandb.integration import gym
+
+    gym.monitor()
+
+
+def _monkeypatch_tensorboard() -> None:
+    """Patch TensorBoard to log to the global `wandb.run`."""
+    if len(wandb.patched["tensorboard"]) > 0:
+        return
+
+    from wandb.integration import tensorboard as tb_module
+
+    tb_module.patch()
 
 
 def init(  # noqa: C901
@@ -1299,6 +1338,8 @@ def init(  # noqa: C901
     """
     wandb._assert_is_user_process()  # type: ignore
 
+    init_telemetry = telemetry.TelemetryRecord()
+
     init_settings = Settings()
     if isinstance(settings, dict):
         init_settings = Settings(**settings)
@@ -1346,26 +1387,51 @@ def init(  # noqa: C901
     if resume_from is not None:
         init_settings.resume_from = resume_from  # type: ignore
 
+    if config is not None:
+        init_telemetry.feature.set_init_config = True
+
     wl: wandb_setup._WandbSetup | None = None
 
     try:
         wl = wandb.setup()
 
-        wi = _WandbInit(wl)
+        wi = _WandbInit(wl, init_telemetry)
 
         wi.maybe_login(init_settings)
         run_settings = wi.compute_run_settings(init_settings)
+
+        if run_settings.run_id is not None:
+            init_telemetry.feature.set_init_id = True
+        if run_settings.run_name is not None:
+            init_telemetry.feature.set_init_name = True
+        if init_settings.run_tags is not None:
+            init_telemetry.feature.set_init_tags = True
+
         wi.set_run_id(run_settings)
 
-        wi.setup(
+        if not run_settings._noop:
+            wi.setup_run_log_directory(run_settings)
+
+            if run_settings._jupyter:
+                wi.monkeypatch_ipython(run_settings)
+
+            if monitor_gym:
+                _monkeypatch_openai_gym()
+
+            if run_settings.sync_tensorboard:
+                _monkeypatch_tensorboard()
+            if wandb.patched["tensorboard"]:
+                # NOTE: The user may have called the patch function directly.
+                init_telemetry.feature.tensorboard_patch = True
+
+        run_config = wi.compute_run_config(
             settings=run_settings,
             config=config,
             config_exclude_keys=config_exclude_keys,
             config_include_keys=config_include_keys,
-            monitor_gym=monitor_gym,
         )
 
-        return wi.init(run_settings)
+        return wi.init(run_settings, run_config)
 
     except KeyboardInterrupt as e:
         if wl:
