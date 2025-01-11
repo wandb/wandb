@@ -1790,7 +1790,6 @@ class Api:
             omit_fragments.add(NoOpActionFields.__name__)
 
         mutation = gql_compat(CREATE_FILTER_TRIGGER_GQL, omit_fragments=omit_fragments)
-
         variables = {"params": gql_input.model_dump(exclude_none=True)}
 
         try:
@@ -1815,6 +1814,101 @@ class Api:
 
         if (result is None) or (result.trigger is None):
             msg = f"Empty response while creating automation {name!r}"
+            raise RuntimeError(msg)
+
+        return Automation.model_validate(result.trigger)
+
+    def update_automation(
+        self,
+        obj: "Automation",
+        *,
+        create_missing: bool = False,
+        **updates: Unpack["AutomationParams"],
+    ) -> "Automation":
+        """Update an existing automation to the state of the given automation.
+
+        Args:
+            obj: The automation to update.  Must be an existing automation.
+            create_missing (bool):
+                If True, and the automation does not exist, create it.
+            updates:
+                Any final updates to apply to the automation before
+                updating it.  These override previously-set values, if any.
+        """
+        from wandb.automations import ActionType, Automation
+        from wandb.automations._generated import (
+            UPDATE_FILTER_TRIGGER_GQL,
+            NoOpActionFields,
+            UpdateFilterTrigger,
+        )
+        from wandb.automations._utils import prepare_update_input
+
+        gql_input = prepare_update_input(obj, **updates)
+
+        if not self._supports_automation(
+            event=(event := gql_input.triggering_event_type),
+            action=(action := gql_input.triggered_action_type),
+        ):
+            raise ValueError(
+                f"Automation event or action ({event.value} -> {action.value}) "
+                "is not supported on this wandb server version. "
+                "Please upgrade your server version, or contact support at "
+                "support@wandb.com."
+            )
+
+        # keep the name on hand, if needed later to report on errors
+        name = gql_input.name
+
+        # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
+        omit_fragments = set()
+        if not self._supports_automation(action=ActionType.NO_OP):
+            omit_fragments.add(NoOpActionFields.__name__)
+
+        mutation = gql_compat(UPDATE_FILTER_TRIGGER_GQL, omit_fragments=omit_fragments)
+        variables = {"params": gql_input.model_dump(exclude_none=True)}
+
+        try:
+            data = self.client.execute(mutation, variable_values=variables)
+        except requests.HTTPError as e:
+            status = HTTPStatus(e.response.status_code)
+            if status is HTTPStatus.NOT_FOUND:  # 404
+                if create_missing:
+                    wandb.termlog(f"Automation {name!r} not found. Creating it.")
+                    return self.create_automation(obj)
+
+                raise ValueError(
+                    f"Automation {name!r} not found. Unable to edit it."
+                ) from e
+
+            # Not a (known) recoverable HTTP error
+            wandb.termerror(f"Got response status {status!r}: {e.response.text!r}")
+            raise e
+        except Exception as e:
+            # Unfortunately, at the time of implementation:
+            #
+            # - `updateFilterTrigger` mutation is not available on all server
+            #   versions, but a server flag for it does not exist.
+            #
+            # - `wandb_gql` raises exceptions from any errors as
+            #   `raise Exception(str(result.errors[0]))`, so structured
+            #   error info is dropped or converted to a string literal.
+            #
+            #   As a result, we need to check that string against a known
+            #   snippet/message.
+            if 'Unknown type "UpdateFilterTriggerInput"' in str(e):
+                raise RuntimeError(
+                    "Editing automations is not enabled on this wandb server version. "
+                    "Please upgrade your server version, or contact support at support@wandb.com."
+                )
+
+        try:
+            result = UpdateFilterTrigger.model_validate(data).update_filter_trigger
+        except ValidationError as e:
+            msg = f"Invalid response while updating automation {name!r}"
+            raise RuntimeError(msg) from e
+
+        if (result is None) or (result.trigger is None):
+            msg = f"Empty response while updating automation {name!r}"
             raise RuntimeError(msg)
 
         return Automation.model_validate(result.trigger)

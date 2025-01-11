@@ -42,23 +42,23 @@ class Automation(TriggerFields):
 
     enabled: bool
 
-    # def save(
-    #     self, api: Api | None = None, **updates: Unpack[AutomationParams]
-    # ) -> Automation:
-    #     """Save this existing automation to the server, applying any local changes.
+    def save(
+        self, api: Api | None = None, **updates: Unpack[AutomationParams]
+    ) -> Automation:
+        """Save this existing automation to the server, applying any local changes.
 
-    #     Args:
-    #         api: The API instance to use.  If not provided, the default API instance is used.
-    #         updates:
-    #             Any final updates to apply to the automation before
-    #             saving it.  These override previously-set values, if any.
+        Args:
+            api: The API instance to use.  If not provided, the default API instance is used.
+            updates:
+                Any final updates to apply to the automation before
+                saving it.  These override previously-set values, if any.
 
-    #     Returns:
-    #         The updated automation.
-    #     """
-    #     from wandb import Api
+        Returns:
+            The updated automation.
+        """
+        from wandb import Api
 
-    #     return (api or Api()).update_automation(self, **updates)
+        return (api or Api()).update_automation(self, **updates)
 
     def delete(self, api: Api | None = None) -> bool:
         """Delete this automation from the server.
