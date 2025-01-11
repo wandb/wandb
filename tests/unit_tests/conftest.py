@@ -1,7 +1,6 @@
 from datetime import timedelta
 from queue import Queue
 from typing import Callable, Dict, Generator, List
-from unittest import mock
 
 import pytest
 from hypothesis import settings
@@ -12,20 +11,6 @@ settings.register_profile(
     deadline=timedelta(seconds=1),
 )
 settings.load_profile("ci")
-
-
-@pytest.fixture(autouse=True)
-def make_wandb_login_verify_pass():
-    """Patch wandb.login() to bypass network operation to verify API keys.
-
-    Any API key that is in a valid format will be considered valid without
-    attempting a connection to the server.
-    """
-    with mock.patch(
-        "wandb.apis.internal.Api.validate_api_key",
-        return_value=True,
-    ):
-        yield
 
 
 # --------------------------------
