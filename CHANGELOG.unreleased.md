@@ -21,6 +21,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Added `Api.automation()`, `Api.automations()` methods to fetch existing W&B automations (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8896).
 - Added `Api.delete_automation()` method to delete an existing W&B automation (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8896).
 - Added `Api.create_automation()` method to create a new W&B automation (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8896).
+- Added `Api.update_automation` method to support editing existing automations (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9246).
+
 ### Changed
 
 - Paginated methods (and underlying paginators) that accept a `per_page` argument now only accept `int` values.  Default `per_page` values are set directly in method signatures, and explicitly passing `None` is no longer supported.
