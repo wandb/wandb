@@ -108,16 +108,16 @@ def _handle_launch_config(settings: Settings) -> dict[str, Any]:
 
 @dataclasses.dataclass(frozen=True)
 class _ConfigParts:
-    base_no_artifacts: dict[str, Any] = dict()
+    base_no_artifacts: dict[str, Any]
     """The run config passed to `init()` minus any artifact-valued keys."""
 
-    sweep_no_artifacts: dict[str, Any] = dict()
+    sweep_no_artifacts: dict[str, Any]
     """The config loaded as part of a sweep minus any artifact-valued keys."""
 
-    launch_no_artifacts: dict[str, Any] = dict()
+    launch_no_artifacts: dict[str, Any]
     """The config loaded as part of Launch minus any artifact-valued keys."""
 
-    artifacts: dict[str, Any] = dict()
+    artifacts: dict[str, Any]
     """Artifact keys removed from config dictionaries.
 
     Due to implementation details of how a Run is constructed,
@@ -410,7 +410,12 @@ class _WandbInit:
             exclude=config_exclude_keys,
         )
 
-        result = _ConfigParts()
+        result = _ConfigParts(
+            base_no_artifacts=dict(),
+            sweep_no_artifacts=dict(),
+            launch_no_artifacts=dict(),
+            artifacts=dict(),
+        )
 
         if not settings.sagemaker_disable and sagemaker.is_using_sagemaker():
             sagemaker_config = sagemaker.parse_sm_config()
@@ -1409,20 +1414,20 @@ def init(  # noqa: C901
 
         wi.set_run_id(run_settings)
 
+        if monitor_gym:
+            _monkeypatch_openai_gym()
+
+        if run_settings.sync_tensorboard:
+            _monkeypatch_tensorboard()
+        if wandb.patched["tensorboard"]:
+            # NOTE: The user may have called the patch function directly.
+            init_telemetry.feature.tensorboard_patch = True
+
         if not run_settings._noop:
             wi.setup_run_log_directory(run_settings)
 
             if run_settings._jupyter:
                 wi.monkeypatch_ipython(run_settings)
-
-            if monitor_gym:
-                _monkeypatch_openai_gym()
-
-            if run_settings.sync_tensorboard:
-                _monkeypatch_tensorboard()
-            if wandb.patched["tensorboard"]:
-                # NOTE: The user may have called the patch function directly.
-                init_telemetry.feature.tensorboard_patch = True
 
         run_config = wi.compute_run_config(
             settings=run_settings,
