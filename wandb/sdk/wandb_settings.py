@@ -34,14 +34,12 @@ from pydantic_core import SchemaValidator, core_schema
 
 import wandb
 from wandb import env, termwarn, util
-from wandb.apis.internal import Api
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 
-from .lib import apikey, credentials, filesystem, ipython
+from .lib import apikey, credentials, ipython
 from .lib.gitlib import GitRepo
 from .lib.run_moment import RunMoment
-from .lib.runid import generate_id
 
 
 def _path_convert(*args: str) -> str:
@@ -1154,29 +1152,6 @@ class Settings(BaseModel, validate_assignment=True):
 
         return settings_proto
 
-    def handle_resume_logic(self):
-        """Handle logic for resuming runs."""
-        # handle auto resume logic
-        if self.resume == "auto":
-            if os.path.exists(self.resume_fname):
-                with open(self.resume_fname) as f:
-                    resume_run_id = json.load(f)["run_id"]
-                if self.run_id is None:
-                    self.run_id = resume_run_id
-                elif self.run_id != resume_run_id:
-                    wandb.termwarn(
-                        "Tried to auto resume run with "
-                        f"id {resume_run_id} but id {self.run_id} is set.",
-                    )
-        if self.run_id is None:
-            self.run_id = generate_id()
-
-        # persist run_id in case of failure
-        if self.resume == "auto" and self.resume_fname is not None:
-            filesystem.mkdir_exists_ok(self.wandb_dir)
-            with open(self.resume_fname, "w") as f:
-                f.write(json.dumps({"run_id": self.run_id}))
-
     @staticmethod
     def validate_url(url: str) -> None:
         """Validate a URL string."""
@@ -1262,7 +1237,7 @@ class Settings(BaseModel, validate_assignment=True):
     def _get_url_query_string(self) -> str:
         """Construct the query string for project, run, and sweep URLs."""
         # TODO: remove dependency on Api()
-        if Api().settings().get("anonymous") not in ["allow", "must"]:
+        if self.anonymous not in ["allow", "must"]:
             return ""
 
         api_key = apikey.api_key(settings=self)

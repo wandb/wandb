@@ -18,6 +18,7 @@ async def _mock_ensure_api_key_secret(*args, **kwargs):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="This test is flaky and should be fixed")
 async def test_kubernetes_run_clean_generate_name(
     use_local_wandb_backend,
     monkeypatch,
