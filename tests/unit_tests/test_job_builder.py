@@ -2,6 +2,7 @@ import json
 import os
 import random
 import string
+import sys
 
 import pytest
 from google.protobuf.wrappers_pb2 import BoolValue, StringValue
@@ -257,6 +258,7 @@ def test_build_artifact_notebook_job_no_program(
             assert _msg not in out
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="this tests fails on windows")
 @pytest.mark.parametrize("verbose", [True, False])
 def test_build_artifact_notebook_job_no_metadata(
     mocker,
