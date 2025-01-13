@@ -188,6 +188,7 @@ def notebook(user, run_id, assets_path):
         kernel_name: str = "wandb_python",
         notebook_type: ipython.PythonType = "jupyter",
         save_code: bool = True,
+        skip_api_key_env: bool = False,
         **kwargs: Any,
     ):
         nb_path = assets_path(pathlib.Path("notebooks") / nb_name)
@@ -216,8 +217,11 @@ def notebook(user, run_id, assets_path):
             "import pytest\n"
             "mp = pytest.MonkeyPatch()\n"
             "import wandb\n"
-            f"mp.setattr(wandb.sdk.lib.ipython, '_get_python_type', lambda: '{notebook_type}')"
+            f"mp.setattr(wandb.sdk.lib.ipython, '_get_python_type', lambda: '{notebook_type}')\n"
         )
+
+        if skip_api_key_env:
+            setup_cell.write("mp.delenv('WANDB_API_KEY')\n")
 
         # inject:
         nb.cells.insert(0, nbformat.v4.new_code_cell(setup_cell.getvalue()))

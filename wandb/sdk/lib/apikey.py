@@ -8,7 +8,7 @@ import textwrap
 from functools import partial
 
 # import Literal
-from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
+from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Tuple, Union
 from urllib.parse import urlparse
 
 import click
@@ -47,6 +47,13 @@ def _fixup_anon_mode(default: Optional[Mode]) -> Optional[Mode]:
     anon_mode = default or "never"
     mapping: Dict[Mode, Mode] = {"true": "allow", "false": "never"}
     return mapping.get(anon_mode, anon_mode)
+
+
+def is_key_valid_length_api_key(key: str) -> Tuple[bool, int]:
+    _, key_suffix = key.split("-", 1) if "-" in key else ("", key)
+    if len(key_suffix) != 40:
+        return False, len(key_suffix)
+    return True, len(key_suffix)
 
 
 def get_netrc_file_path() -> str:
@@ -104,7 +111,6 @@ def prompt_api_key(  # noqa: C901
         log_string = term.LOG_STRING_NOCOLOR
         key = wandb.jupyter.attempt_colab_login(app_url)  # type: ignore
         if key is not None:
-            write_key(settings, key, api=api)
             return key  # type: ignore
 
     if anon_mode == "must":
@@ -123,24 +129,19 @@ def prompt_api_key(  # noqa: C901
             choices, input_timeout=settings.login_timeout, jupyter=jupyter
         )
 
+    key = None
     api_ask = (
         f"{log_string}: Paste an API key from your profile and hit enter, "
         "or press ctrl+c to quit"
     )
     if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
-
-        write_key(settings, key, api=api, anonymous=True)
-        return key  # type: ignore
     elif result == LOGIN_CHOICE_NEW:
         key = browser_callback(signup=True) if browser_callback else None
 
         if not key:
             wandb.termlog(f"Create an account here: {app_url}/authorize?signup=true")
             key = input_callback(api_ask).strip()
-
-        write_key(settings, key, api=api)
-        return key  # type: ignore
     elif result == LOGIN_CHOICE_EXISTS:
         key = browser_callback() if browser_callback else None
 
@@ -158,8 +159,6 @@ def prompt_api_key(  # noqa: C901
                 f"You can find your API key in your browser here: {app_url}/authorize"
             )
             key = input_callback(api_ask).strip()
-        write_key(settings, key, api=api)
-        return key  # type: ignore
     elif result == LOGIN_CHOICE_NOTTY:
         # TODO: Needs refactor as this needs to be handled by caller
         return False
@@ -172,20 +171,13 @@ def prompt_api_key(  # noqa: C901
             browser_callback() if jupyter and browser_callback else (None, False)
         )
 
-        write_key(settings, key, api=api)
-        return key  # type: ignore
+    if not key:
+        raise ValueError("No API key specified.")
+    return key
 
 
 def write_netrc(host: str, entity: str, key: str) -> Optional[bool]:
     """Add our host and key to .netrc."""
-    _, key_suffix = key.split("-", 1) if "-" in key else ("", key)
-    if len(key_suffix) != 40:
-        wandb.termerror(
-            "API-key must be exactly 40 characters long: {} ({} chars)".format(
-                key_suffix, len(key_suffix)
-            )
-        )
-        return None
     try:
         normalized_host = urlparse(host).netloc.split(":")[0]
         netrc_path = get_netrc_file_path()
@@ -237,12 +229,19 @@ def write_key(
     if not key:
         raise ValueError("No API key specified.")
 
-    # TODO(jhr): api shouldn't be optional or it shouldn't be passed, clean up callers
-    api = api or InternalApi()
-
     # Normal API keys are 40-character hex strings. On-prem API keys have a
     # variable-length prefix, a dash, then the 40-char string.
     _, suffix = key.split("-", 1) if "-" in key else ("", key)
+    if not is_key_valid_length_api_key(key):
+        wandb.termerror(
+            "API-key must be exactly 40 characters long: {} ({} chars)".format(
+                key, len(key)
+            )
+        )
+        return
+
+    # TODO(jhr): api shouldn't be optional or it shouldn't be passed, clean up callers
+    api = api or InternalApi()
 
     if len(suffix) != 40:
         raise ValueError(
