@@ -43,6 +43,9 @@ class PayloadGenerator:
         data_type: The type of data to log.
         metric_count: The number of metrics.
         metric_key_size: The size (in characters) of the metric.
+        num_steps: Number of steps in the test.
+        fraction: The fraction (%) of the base payload to log per step.
+        is_unique_payload: if every step logs a unique payload
     """
 
     def __init__(
