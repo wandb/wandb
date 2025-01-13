@@ -404,6 +404,7 @@ class Api:
             raise
 
     def validate_api_key(self) -> bool:
+        """Returns whether the API key stored on initialization is valid."""
         res = self.execute(gql("query { viewer { id } }"))
         return res["viewer"] is not None
 

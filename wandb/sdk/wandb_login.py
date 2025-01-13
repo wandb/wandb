@@ -267,19 +267,18 @@ class _WandbLogin:
         return key
 
 
-def _verify_login(key: str) -> bool:
+def _verify_login(key: str) -> None:
     api = InternalApi(api_key=key)
 
     try:
         is_api_key_valid = api.validate_api_key()
+
+        if not is_api_key_valid:
+            raise AuthenticationError(
+                "API key verification failed. Make sure your API key is valid."
+            )
     except ConnectionError:
         raise AuthenticationError("Unable to connect to server to verify API token.")
-
-    if not is_api_key_valid:
-        raise AuthenticationError(
-            "API key verification failed. Make sure your API key is valid."
-        )
-    return True
 
 
 def _login(
@@ -295,7 +294,7 @@ def _login(
     _silent: Optional[bool] = None,
     _disable_warning: Optional[bool] = None,
     _entity: Optional[str] = None,
-):
+) -> bool:
     if wandb.run is not None:
         if not _disable_warning:
             wandb.termwarn("Calling wandb.login() after wandb.init() has no effect.")
@@ -351,4 +350,4 @@ def _login(
     if verify:
         _verify_login(key)
 
-    return wlogin._key or False
+    return True if key else False

@@ -64,6 +64,7 @@ class Api:
         return self.api.git
 
     def validate_api_key(self) -> bool:
+        """Returns whether the API key stored on initialization is valid."""
         return self.api.validate_api_key()
 
     def file_current(self, *args):
