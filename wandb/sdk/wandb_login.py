@@ -8,6 +8,7 @@ import os
 from typing import Literal, Optional, Tuple
 
 import click
+from requests.exceptions import ConnectionError
 
 import wandb
 from wandb.errors import AuthenticationError, UsageError
@@ -268,7 +269,11 @@ class _WandbLogin:
 
 def _verify_login(key: str) -> bool:
     api = InternalApi(api_key=key)
-    is_api_key_valid = api.validate_api_key()
+
+    try:
+        is_api_key_valid = api.validate_api_key()
+    except ConnectionError:
+        raise AuthenticationError("Unable to connect to server to verify API token.")
 
     if not is_api_key_valid:
         raise AuthenticationError(
