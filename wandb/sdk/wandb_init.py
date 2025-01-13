@@ -624,6 +624,116 @@ class _WandbInit:
         self._logger.info(f"Logging user logs to {settings.log_user}")
         self._logger.info(f"Logging internal logs to {settings.log_internal}")
 
+    def make_run_disabled(self, config: _ConfigParts) -> Run:
+        """Returns a Run-like object where all methods are no-ops.
+
+        This method is used when the `mode` setting is set to "disabled", such as
+        by wandb.init(mode="disabled") or by setting the WANDB_MODE environment
+        variable to "disabled".
+
+        It creates a Run object that mimics the behavior of a normal Run but doesn't
+        communicate with the W&B servers.
+
+        The returned Run object has all expected attributes and methods, but they
+        are no-op versions that don't perform any actual logging or communication.
+        """
+        run_id = runid.generate_id()
+        drun = Run(
+            settings=Settings(
+                mode="disabled",
+                x_files_dir=tempfile.gettempdir(),
+                run_id=run_id,
+                run_tags=tuple(),
+                run_notes=None,
+                run_group=None,
+                run_name=f"dummy-{run_id}",
+                project="dummy",
+                entity="dummy",
+            )
+        )
+        # config, summary, and metadata objects
+        drun._config = wandb.sdk.wandb_config.Config()
+        drun._config.update(config.sweep_no_artifacts)
+        drun._config.update(config.base_no_artifacts)
+        drun.summary = SummaryDisabled()  # type: ignore
+        drun._Run__metadata = wandb.sdk.wandb_metadata.Metadata()
+
+        # methods
+        drun.log = lambda data, *_, **__: drun.summary.update(data)  # type: ignore
+        drun.finish = lambda *_, **__: module.unset_globals()  # type: ignore
+        drun.join = drun.finish  # type: ignore
+        drun.define_metric = lambda *_, **__: wandb.sdk.wandb_metric.Metric("dummy")  # type: ignore
+        drun.save = lambda *_, **__: False  # type: ignore
+        for symbol in (
+            "alert",
+            "finish_artifact",
+            "get_project_url",
+            "get_sweep_url",
+            "get_url",
+            "link_artifact",
+            "link_model",
+            "use_artifact",
+            "log_code",
+            "log_model",
+            "use_model",
+            "mark_preempting",
+            "restore",
+            "status",
+            "watch",
+            "unwatch",
+            "upsert_artifact",
+            "_finish",
+        ):
+            setattr(drun, symbol, lambda *_, **__: None)  # type: ignore
+
+        class _ChainableNoOp:
+            """An object that allows chaining arbitrary attributes and method calls."""
+
+            def __getattr__(self, _: str) -> Self:
+                return self
+
+            def __call__(self, *_: Any, **__: Any) -> Self:
+                return self
+
+        class _ChainableNoOpField:
+            # This is used to chain arbitrary attributes and method calls.
+            # For example, `run.log_artifact().state` will work in disabled mode.
+            def __init__(self) -> None:
+                self._value = None
+
+            def __set__(self, instance: Any, value: Any) -> None:
+                self._value = value
+
+            def __get__(self, instance: Any, owner: type) -> Any:
+                return _ChainableNoOp() if (self._value is None) else self._value
+
+            def __call__(self, *args: Any, **kwargs: Any) -> _ChainableNoOp:
+                return _ChainableNoOp()
+
+        drun.log_artifact = _ChainableNoOpField()
+        # attributes
+        drun._start_time = time.time()
+        drun._starting_step = 0
+        drun._step = 0
+        drun._attach_id = None
+        drun._backend = None
+
+        # set the disabled run as the global run
+        module.set_global(
+            run=drun,
+            config=drun.config,
+            log=drun.log,
+            summary=drun.summary,
+            save=drun.save,
+            use_artifact=drun.use_artifact,
+            log_artifact=drun.log_artifact,
+            define_metric=drun.define_metric,
+            alert=drun.alert,
+            watch=drun.watch,
+            unwatch=drun.unwatch,
+        )
+        return drun
+
     def _on_progress_init(self, handle: MailboxProgress) -> None:
         line = "Waiting for wandb.init()...\r"
         percent_done = handle.percent_done
@@ -1003,117 +1113,6 @@ def _monkeypatch_tensorboard() -> None:
     tb_module.patch()
 
 
-def _make_run_disabled(config: _ConfigParts) -> Run:
-    """Returns a Run-like object where all methods are no-ops.
-
-    This method is used when the `mode` setting is set to "disabled", such as
-    by wandb.init(mode="disabled") or by setting the WANDB_MODE environment
-    variable to "disabled".
-
-    It creates a Run object that mimics the behavior of a normal Run but doesn't
-    communicate with the W&B servers.
-
-    The returned Run object has all expected attributes and methods, but they
-    are no-op versions that don't perform any actual logging or communication.
-    """
-    run_id = runid.generate_id()
-    drun = Run(
-        settings=Settings(
-            mode="disabled",
-            x_files_dir=tempfile.gettempdir(),
-            run_id=run_id,
-            run_tags=tuple(),
-            run_notes=None,
-            run_group=None,
-            run_name=f"dummy-{run_id}",
-            project="dummy",
-            entity="dummy",
-        )
-    )
-    # config, summary, and metadata objects
-    drun._config = wandb.sdk.wandb_config.Config()
-    drun._config.update(config.sweep_no_artifacts)
-    drun._config.update(config.base_no_artifacts)
-    drun.summary = SummaryDisabled()  # type: ignore
-    drun._Run__metadata = wandb.sdk.wandb_metadata.Metadata()
-
-    # methods
-    drun.log = lambda data, *_, **__: drun.summary.update(data)  # type: ignore
-    drun.finish = lambda *_, **__: module.unset_globals()  # type: ignore
-    drun.join = drun.finish  # type: ignore
-    drun.define_metric = lambda *_, **__: wandb.sdk.wandb_metric.Metric("dummy")  # type: ignore
-    drun.save = lambda *_, **__: False  # type: ignore
-    for symbol in (
-        "alert",
-        "finish_artifact",
-        "get_project_url",
-        "get_sweep_url",
-        "get_url",
-        "link_artifact",
-        "link_model",
-        "use_artifact",
-        "log_code",
-        "log_model",
-        "use_model",
-        "mark_preempting",
-        "restore",
-        "status",
-        "watch",
-        "unwatch",
-        "upsert_artifact",
-        "_finish",
-    ):
-        setattr(drun, symbol, lambda *_, **__: None)  # type: ignore
-
-    class _ChainableNoOp:
-        """An object that allows chaining arbitrary attributes and method calls."""
-
-        def __getattr__(self, _: str) -> Self:
-            return self
-
-        def __call__(self, *_: Any, **__: Any) -> Self:
-            return self
-
-    class _ChainableNoOpField:
-        # This is used to chain arbitrary attributes and method calls.
-        # For example, `run.log_artifact().state` will work in disabled mode.
-        def __init__(self) -> None:
-            self._value = None
-
-        def __set__(self, instance: Any, value: Any) -> None:
-            self._value = value
-
-        def __get__(self, instance: Any, owner: type) -> Any:
-            return _ChainableNoOp() if (self._value is None) else self._value
-
-        def __call__(self, *args: Any, **kwargs: Any) -> _ChainableNoOp:
-            return _ChainableNoOp()
-
-    drun.log_artifact = _ChainableNoOpField()
-    # attributes
-    drun._start_time = time.time()
-    drun._starting_step = 0
-    drun._step = 0
-    drun._attach_id = None
-    drun._backend = None
-
-    # set the disabled run as the global run
-    module.set_global(
-        run=drun,
-        config=drun.config,
-        log=drun.log,
-        summary=drun.summary,
-        save=drun.save,
-        use_artifact=drun.use_artifact,
-        log_artifact=drun.log_artifact,
-        define_metric=drun.define_metric,
-        alert=drun.alert,
-        watch=drun.watch,
-        unwatch=drun.unwatch,
-    )
-    return drun
-
-
 def init(  # noqa: C901
     entity: str | None = None,
     project: str | None = None,
@@ -1430,7 +1429,7 @@ def init(  # noqa: C901
         )
 
         if run_settings._noop:
-            return _make_run_disabled(run_config)
+            return wi.make_run_disabled(run_config)
 
         wi.setup_run_log_directory(run_settings)
         if run_settings._jupyter:
