@@ -29,6 +29,7 @@ ipython<8.13; python_version < '3.9'
 ipykernel
 nbclient
 
+
 tensorflow~=2.18.0; python_version >= '3.9'
 
 tensorflow==2.13.1; python_version < '3.9' and sys_platform != 'darwin'
@@ -40,7 +41,6 @@ protobuf==3.20.3; python_version < '3.9' and sys_platform != 'darwin'
 # puts an upper bound on typing_extensions, conflicting with another package.
 tensorflow-macos==2.9.2; python_version < '3.9' and sys_platform == 'darwin'
 protobuf==3.19.6; python_version < '3.9' and sys_platform == 'darwin'
-
 
 
 scikit-learn
