@@ -29,10 +29,20 @@ ipython<8.13; python_version < '3.9'
 ipykernel
 nbclient
 
+
+tensorflow~=2.18.0; python_version >= '3.9'
+
+tensorflow==2.9.2; python_version < '3.9' and sys_platform != 'darwin'
+# tensorflow==2.9.2 does not provide arm64 wheels for macOS.
+# This was fixed in later versions of tensorflow.
+tensorflow-macos==2.9.2; python_version < '3.9' and sys_platform == 'darwin'
+
+# This is a transitive dependency of `tensorflow` via `tensorboard`
+# which fails to specify an upper bound causing import errors.
+protobuf==3.19.6; python_version < '3.9' and sys_platform == 'darwin'
+
+
 scikit-learn
-tensorboard
-tensorflow; python_version > '3.8'
-tensorflow-macos; python_version < '3.11' and sys_platform == 'darwin' and platform.machine == 'arm64'
 torch
 torchvision
 jax[cpu]
