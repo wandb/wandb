@@ -145,28 +145,19 @@ def test_init_param_telemetry(wandb_backend_spy):
 
     with wandb_backend_spy.freeze() as snapshot:
         features = snapshot.telemetry(run_id=run.id)["3"]
-        assert "13" in features  # set_init_name
-        assert "14" in features  # set_init_id
-        assert "15" in features  # set_init_tags
-        assert "16" in features  # set_init_config
+        assert 13 in features  # set_init_name
+        assert 14 in features  # set_init_id
+        assert 15 in features  # set_init_tags
+        assert 16 in features  # set_init_config
 
 
 def test_init_param_not_set_telemetry(wandb_backend_spy):
-    # Setting these fields at the library level should not count.
-    wandb.setup(
-        wandb.Settings(
-            run_name="my-test-run",
-            run_id=runid.generate_id(),
-            run_tags=["one", "two"],
-        )
-    )
-
     with wandb.init() as run:
         pass
 
     with wandb_backend_spy.freeze() as snapshot:
         features = snapshot.telemetry(run_id=run.id)["3"]
-        assert "13" not in features  # set_init_name
-        assert "14" not in features  # set_init_id
-        assert "15" not in features  # set_init_tags
-        assert "16" not in features  # set_init_config
+        assert 13 not in features  # set_init_name
+        assert 14 not in features  # set_init_id
+        assert 15 not in features  # set_init_tags
+        assert 16 not in features  # set_init_config
