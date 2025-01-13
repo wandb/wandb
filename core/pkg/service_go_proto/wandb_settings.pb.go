@@ -576,7 +576,7 @@ type Settings struct {
 	XStatsGpuDeviceIds *ListIntValue `protobuf:"bytes,186,opt,name=x_stats_gpu_device_ids,json=xStatsGpuDeviceIds,proto3" json:"x_stats_gpu_device_ids,omitempty"`
 	// Label to assign to system metrics and console logs collected for the run
 	// to group by on the frontend. Can be used to distinguish data from different
-	// nodes in a distributed training job.
+	// processes in a distributed training job.
 	XLabel *wrapperspb.StringValue `protobuf:"bytes,181,opt,name=x_label,json=xLabel,proto3" json:"x_label,omitempty"`
 	// Explicitly require wandb-core to not be used.
 	XRequireLegacyService *wrapperspb.BoolValue `protobuf:"bytes,173,opt,name=x_require_legacy_service,json=xRequireLegacyService,proto3" json:"x_require_legacy_service,omitempty"`
@@ -590,8 +590,8 @@ type Settings struct {
 	XShowOperationStats *wrapperspb.BoolValue `protobuf:"bytes,176,opt,name=x_show_operation_stats,json=xShowOperationStats,proto3" json:"x_show_operation_stats,omitempty"`
 	// Determines whether to save internal wandb files and metadata.
 	//
-	// In a distributed setting, this is useful for avoiding file overwrites on secondary nodes
-	// when only system metrics and logs are needed, as the primary node handles the main logging.
+	// In a distributed setting, this is useful for avoiding file overwrites from secondary processes
+	// when only system metrics and logs are needed, as the primary process handles the main logging.
 	XPrimary *wrapperspb.BoolValue `protobuf:"bytes,182,opt,name=x_primary,json=xPrimary,proto3" json:"x_primary,omitempty"`
 	// Controls whether this process can update the run's final state (finished/failed) on the server.
 	//
