@@ -38,9 +38,16 @@ const (
 
 // Defines values for UpsertReleaseJSONBodyStatus.
 const (
-	Building UpsertReleaseJSONBodyStatus = "building"
-	Failed   UpsertReleaseJSONBodyStatus = "failed"
-	Ready    UpsertReleaseJSONBodyStatus = "ready"
+	UpsertReleaseJSONBodyStatusBuilding UpsertReleaseJSONBodyStatus = "building"
+	UpsertReleaseJSONBodyStatusFailed   UpsertReleaseJSONBodyStatus = "failed"
+	UpsertReleaseJSONBodyStatusReady    UpsertReleaseJSONBodyStatus = "ready"
+)
+
+// Defines values for UpdateReleaseJSONBodyStatus.
+const (
+	UpdateReleaseJSONBodyStatusBuilding UpdateReleaseJSONBodyStatus = "building"
+	UpdateReleaseJSONBodyStatusFailed   UpdateReleaseJSONBodyStatus = "failed"
+	UpdateReleaseJSONBodyStatusReady    UpdateReleaseJSONBodyStatus = "ready"
 )
 
 // Deployment defines model for Deployment.
@@ -212,6 +219,21 @@ type UpsertReleaseJSONBody struct {
 // UpsertReleaseJSONBodyStatus defines parameters for UpsertRelease.
 type UpsertReleaseJSONBodyStatus string
 
+// UpdateReleaseJSONBody defines parameters for UpdateRelease.
+type UpdateReleaseJSONBody struct {
+	Config       *map[string]interface{}      `json:"config,omitempty"`
+	CreatedAt    *time.Time                   `json:"createdAt,omitempty"`
+	DeploymentId *string                      `json:"deploymentId,omitempty"`
+	Message      *string                      `json:"message,omitempty"`
+	Metadata     *map[string]string           `json:"metadata,omitempty"`
+	Name         *string                      `json:"name,omitempty"`
+	Status       *UpdateReleaseJSONBodyStatus `json:"status,omitempty"`
+	Version      *string                      `json:"version,omitempty"`
+}
+
+// UpdateReleaseJSONBodyStatus defines parameters for UpdateRelease.
+type UpdateReleaseJSONBodyStatus string
+
 // SetResourceProvidersResourcesJSONBody defines parameters for SetResourceProvidersResources.
 type SetResourceProvidersResourcesJSONBody struct {
 	Resources []struct {
@@ -269,6 +291,9 @@ type CreateReleaseChannelJSONRequestBody CreateReleaseChannelJSONBody
 
 // UpsertReleaseJSONRequestBody defines body for UpsertRelease for application/json ContentType.
 type UpsertReleaseJSONRequestBody UpsertReleaseJSONBody
+
+// UpdateReleaseJSONRequestBody defines body for UpdateRelease for application/json ContentType.
+type UpdateReleaseJSONRequestBody UpdateReleaseJSONBody
 
 // SetResourceProvidersResourcesJSONRequestBody defines body for SetResourceProvidersResources for application/json ContentType.
 type SetResourceProvidersResourcesJSONRequestBody SetResourceProvidersResourcesJSONBody
@@ -498,6 +523,11 @@ type ClientInterface interface {
 	UpsertReleaseWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpsertRelease(ctx context.Context, body UpsertReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateReleaseWithBody request with any body
+	UpdateReleaseWithBody(ctx context.Context, releaseId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateRelease(ctx context.Context, releaseId string, body UpdateReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SetResourceProvidersResourcesWithBody request with any body
 	SetResourceProvidersResourcesWithBody(ctx context.Context, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -790,6 +820,30 @@ func (c *Client) UpsertReleaseWithBody(ctx context.Context, contentType string, 
 
 func (c *Client) UpsertRelease(ctx context.Context, body UpsertReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpsertReleaseRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateReleaseWithBody(ctx context.Context, releaseId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateReleaseRequestWithBody(c.Server, releaseId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateRelease(ctx context.Context, releaseId string, body UpdateReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateReleaseRequest(c.Server, releaseId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1522,6 +1576,53 @@ func NewUpsertReleaseRequestWithBody(server string, contentType string, body io.
 	return req, nil
 }
 
+// NewUpdateReleaseRequest calls the generic UpdateRelease builder with application/json body
+func NewUpdateReleaseRequest(server string, releaseId string, body UpdateReleaseJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateReleaseRequestWithBody(server, releaseId, "application/json", bodyReader)
+}
+
+// NewUpdateReleaseRequestWithBody generates requests for UpdateRelease with any type of body
+func NewUpdateReleaseRequestWithBody(server string, releaseId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "releaseId", runtime.ParamLocationPath, releaseId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/releases/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewSetResourceProvidersResourcesRequest calls the generic SetResourceProvidersResources builder with application/json body
 func NewSetResourceProvidersResourcesRequest(server string, providerId string, body SetResourceProvidersResourcesJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -2023,6 +2124,11 @@ type ClientWithResponsesInterface interface {
 	UpsertReleaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertReleaseResponse, error)
 
 	UpsertReleaseWithResponse(ctx context.Context, body UpsertReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertReleaseResponse, error)
+
+	// UpdateReleaseWithBodyWithResponse request with any body
+	UpdateReleaseWithBodyWithResponse(ctx context.Context, releaseId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateReleaseResponse, error)
+
+	UpdateReleaseWithResponse(ctx context.Context, releaseId string, body UpdateReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateReleaseResponse, error)
 
 	// SetResourceProvidersResourcesWithBodyWithResponse request with any body
 	SetResourceProvidersResourcesWithBodyWithResponse(ctx context.Context, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetResourceProvidersResourcesResponse, error)
@@ -2580,6 +2686,38 @@ func (r UpsertReleaseResponse) StatusCode() int {
 	return 0
 }
 
+type UpdateReleaseResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Config       map[string]interface{} `json:"config"`
+		CreatedAt    time.Time              `json:"createdAt"`
+		DeploymentId string                 `json:"deploymentId"`
+		Id           string                 `json:"id"`
+		Message      *string                `json:"message,omitempty"`
+		Metadata     map[string]string      `json:"metadata"`
+		Name         string                 `json:"name"`
+		Status       string                 `json:"status"`
+		Version      string                 `json:"version"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateReleaseResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateReleaseResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type SetResourceProvidersResourcesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3078,6 +3216,23 @@ func (c *ClientWithResponses) UpsertReleaseWithResponse(ctx context.Context, bod
 		return nil, err
 	}
 	return ParseUpsertReleaseResponse(rsp)
+}
+
+// UpdateReleaseWithBodyWithResponse request with arbitrary body returning *UpdateReleaseResponse
+func (c *ClientWithResponses) UpdateReleaseWithBodyWithResponse(ctx context.Context, releaseId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateReleaseResponse, error) {
+	rsp, err := c.UpdateReleaseWithBody(ctx, releaseId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateReleaseResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateReleaseWithResponse(ctx context.Context, releaseId string, body UpdateReleaseJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateReleaseResponse, error) {
+	rsp, err := c.UpdateRelease(ctx, releaseId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateReleaseResponse(rsp)
 }
 
 // SetResourceProvidersResourcesWithBodyWithResponse request with arbitrary body returning *SetResourceProvidersResourcesResponse
@@ -3891,6 +4046,42 @@ func ParseUpsertReleaseResponse(rsp *http.Response) (*UpsertReleaseResponse, err
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateReleaseResponse parses an HTTP response from a UpdateReleaseWithResponse call
+func ParseUpdateReleaseResponse(rsp *http.Response) (*UpdateReleaseResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateReleaseResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Config       map[string]interface{} `json:"config"`
+			CreatedAt    time.Time              `json:"createdAt"`
+			DeploymentId string                 `json:"deploymentId"`
+			Id           string                 `json:"id"`
+			Message      *string                `json:"message,omitempty"`
+			Metadata     map[string]string      `json:"metadata"`
+			Name         string                 `json:"name"`
+			Status       string                 `json:"status"`
+			Version      string                 `json:"version"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	}
 

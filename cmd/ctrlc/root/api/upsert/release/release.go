@@ -17,15 +17,15 @@ import (
 func safeConvertToReleaseStatus(status string) (*api.UpsertReleaseJSONBodyStatus, error) {
 	statusLower := strings.ToLower(status)
 	if statusLower == "ready" || statusLower == "" {
-		s := api.Ready
+		s := api.UpsertReleaseJSONBodyStatusReady
 		return &s, nil
 	}
 	if statusLower == "building" {
-		s := api.Building
+		s := api.UpsertReleaseJSONBodyStatusBuilding
 		return &s, nil
 	}
 	if statusLower == "failed" {
-		s := api.Failed
+		s := api.UpsertReleaseJSONBodyStatusFailed
 		return &s, nil
 	}
 	return nil, fmt.Errorf("invalid release status: %s", status)
@@ -117,7 +117,7 @@ func NewUpsertReleaseCmd() *cobra.Command {
 	cmd.Flags().StringToStringVarP(&links, "link", "l", make(map[string]string), "Links key-value pairs (can be specified multiple times)")
 	cmd.Flags().StringVarP(&createdAt, "created-at", "t", "", "Created at timestamp (e.g. --created-at 2024-01-01T00:00:00Z) for the release channel")
 	cmd.Flags().StringVarP(&name, "name", "n", "", "Name of the release channel")
-	cmd.Flags().StringVarP(&status, "status", "s", string(api.Ready), "Status of the release channel (one of: ready, building, failed)")
+	cmd.Flags().StringVarP(&status, "status", "s", string(api.UpsertReleaseJSONBodyStatusReady), "Status of the release channel (one of: ready, building, failed)")
 	cmd.Flags().StringVar(&message, "message", "", "Message of the release channel")
 
 	cmd.MarkFlagRequired("version")

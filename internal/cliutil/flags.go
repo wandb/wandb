@@ -36,3 +36,24 @@ func ConvertConfigArrayToNestedMap(configArray map[string]string) map[string]int
 	}
 	return config
 }
+
+func StringPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func MetadataPtr(m map[string]string) *map[string]string {
+	if len(m) == 0 {
+		return nil
+	}
+	return &m
+}
+
+func ConfigPtr(c map[string]interface{}) *map[string]interface{} {
+	if len(c) == 0 {
+		return nil
+	}
+	return &c
+}
