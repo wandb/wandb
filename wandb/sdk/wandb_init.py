@@ -434,12 +434,18 @@ class _WandbInit:
             )
 
         if config and isinstance(config, dict):
-            self._split_artifacts_from_config(config, self.config)
+            self._split_artifacts_from_config(
+                config,
+                config_target=result.base_no_artifacts,
+                artifacts=result.artifacts,
+            )
 
-        self.sweep_config = dict()
-        sweep_config = self._wl._sweep_config or dict()
-        if sweep_config:
-            self._split_artifacts_from_config(sweep_config, self.sweep_config)
+        if self._wl._sweep_config:
+            self._split_artifacts_from_config(
+                self._wl._sweep_config,
+                config_target=result.sweep_no_artifacts,
+                artifacts=result.artifacts,
+            )
 
         if launch_config := _handle_launch_config(settings):
             self._split_artifacts_from_config(
