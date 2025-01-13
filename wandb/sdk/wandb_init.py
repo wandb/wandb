@@ -1369,7 +1369,6 @@ def init(  # noqa: C901
 
         if monitor_gym:
             _monkeypatch_openai_gym()
-
         if run_settings.sync_tensorboard:
             _monkeypatch_tensorboard()
         if wandb.patched["tensorboard"]:
