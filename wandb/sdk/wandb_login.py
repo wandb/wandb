@@ -317,7 +317,7 @@ def _login(
         timeout=timeout,
     )
 
-    if wlogin._settings._offline:
+    if wlogin._settings._offline and not wlogin._settings.x_cli_only_mode:
         wandb.termwarn("Unable to verify login in offline mode.")
         return False
     elif wandb.util._is_kaggle() and not wandb.util._has_internet():
