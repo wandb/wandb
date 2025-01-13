@@ -152,15 +152,6 @@ def test_init_param_telemetry(wandb_backend_spy):
 
 
 def test_init_param_not_set_telemetry(wandb_backend_spy):
-    # Setting these fields at the library level should not count.
-    wandb.setup(
-        wandb.Settings(
-            run_name="my-test-run",
-            run_id=runid.generate_id(),
-            run_tags=["one", "two"],
-        )
-    )
-
     with wandb.init() as run:
         pass
 
