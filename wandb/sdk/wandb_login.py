@@ -279,6 +279,8 @@ def _verify_login(key: str) -> None:
             )
     except ConnectionError:
         raise AuthenticationError("Unable to connect to server to verify API token.")
+    except Exception:
+        raise AuthenticationError("An error occurred while verifying the API key.")
 
 
 def _login(
