@@ -648,7 +648,7 @@ class Settings(google.protobuf.message.Message):
     def x_label(self) -> google.protobuf.wrappers_pb2.StringValue:
         """Label to assign to system metrics and console logs collected for the run
         to group by on the frontend. Can be used to distinguish data from different
-        nodes in a distributed training job.
+        processes in a distributed training job.
         """
     @property
     def x_require_legacy_service(self) -> google.protobuf.wrappers_pb2.BoolValue:
@@ -667,8 +667,8 @@ class Settings(google.protobuf.message.Message):
     def x_primary(self) -> google.protobuf.wrappers_pb2.BoolValue:
         """Determines whether to save internal wandb files and metadata.
 
-        In a distributed setting, this is useful for avoiding file overwrites on secondary nodes
-        when only system metrics and logs are needed, as the primary node handles the main logging.
+        In a distributed setting, this is useful for avoiding file overwrites from secondary processes
+        when only system metrics and logs are needed, as the primary process handles the main logging.
         """
     @property
     def x_update_finish_state(self) -> google.protobuf.wrappers_pb2.BoolValue:
