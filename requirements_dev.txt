@@ -32,14 +32,13 @@ nbclient
 
 tensorflow~=2.18.0; python_version >= '3.9'
 
-tensorflow==2.13.1; python_version < '3.9' and sys_platform != 'darwin'
+tensorflow==2.9.2; python_version < '3.9' and sys_platform != 'darwin'
+# tensorflow==2.9.2 does not provide arm64 wheels for macOS.
+# This was fixed in later versions of tensorflow.
+tensorflow-macos==2.9.2; python_version < '3.9' and sys_platform == 'darwin'
+
 # This is a transitive dependency of `tensorflow` via `tensorboard`
 # which fails to specify an upper bound causing import errors.
-protobuf==3.20.3; python_version < '3.9' and sys_platform != 'darwin'
-
-# tensorflow-macos==2.13.1 (required by tensorflow==2.13.1)
-# puts an upper bound on typing_extensions, conflicting with another package.
-tensorflow-macos==2.9.2; python_version < '3.9' and sys_platform == 'darwin'
 protobuf==3.19.6; python_version < '3.9' and sys_platform == 'darwin'
 
 
