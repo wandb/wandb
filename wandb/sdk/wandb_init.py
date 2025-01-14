@@ -366,7 +366,6 @@ class _WandbInit:
         config: dict | str | None = None,
         config_exclude_keys: list[str] | None = None,
         config_include_keys: list[str] | None = None,
-        monitor_gym: bool | None = None,
     ) -> None:
         """Compute the run's config and some telemetry."""
         # TODO: remove this once officially deprecated
@@ -404,22 +403,6 @@ class _WandbInit:
         if sweep_config:
             self._split_artifacts_from_config(sweep_config, self.sweep_config)
 
-        if monitor_gym and len(wandb.patched["gym"]) == 0:
-            wandb.gym.monitor()  # type: ignore
-
-        if wandb.patched["tensorboard"]:
-            self._telemetry.feature.tensorboard_patch = True
-
-        if settings.sync_tensorboard:
-            if len(wandb.patched["tensorboard"]) == 0:
-                wandb.tensorboard.patch()  # type: ignore
-            self._telemetry.feature.tensorboard_sync = True
-
-        if not settings._noop:
-            self._log_setup(settings)
-
-            if settings._jupyter:
-                self._jupyter_setup(settings)
         launch_config = _handle_launch_config(settings)
         if launch_config:
             self._split_artifacts_from_config(launch_config, self.launch_config)
@@ -531,7 +514,7 @@ class _WandbInit:
         ipython.display_pub.publish = ipython.display_pub._orig_publish
         del ipython.display_pub._orig_publish
 
-    def _jupyter_setup(self, settings: Settings) -> None:
+    def monkeypatch_ipython(self, settings: Settings) -> None:
         """Add hooks, and session history saving."""
         self.notebook = wandb.jupyter.Notebook(settings)  # type: ignore
         ipython = self.notebook.shell
@@ -557,7 +540,7 @@ class _WandbInit:
 
         ipython.display_pub.publish = publish
 
-    def _log_setup(self, settings: Settings) -> None:
+    def setup_run_log_directory(self, settings: Settings) -> None:
         """Set up logging from settings."""
         filesystem.mkdir_exists_ok(os.path.dirname(settings.log_user))
         filesystem.mkdir_exists_ok(os.path.dirname(settings.log_internal))
@@ -1056,6 +1039,26 @@ def _attach(
     return run
 
 
+def _monkeypatch_openai_gym() -> None:
+    """Patch OpenAI gym to log to the global `wandb.run`."""
+    if len(wandb.patched["gym"]) > 0:
+        return
+
+    from wandb.integration import gym
+
+    gym.monitor()
+
+
+def _monkeypatch_tensorboard() -> None:
+    """Patch TensorBoard to log to the global `wandb.run`."""
+    if len(wandb.patched["tensorboard"]) > 0:
+        return
+
+    from wandb.integration import tensorboard as tb_module
+
+    tb_module.patch()
+
+
 def init(  # noqa: C901
     entity: str | None = None,
     project: str | None = None,
@@ -1364,12 +1367,27 @@ def init(  # noqa: C901
 
         wi.set_run_id(run_settings)
 
+        if not run_settings._noop:
+            wi.setup_run_log_directory(run_settings)
+
+            if run_settings._jupyter:
+                wi.monkeypatch_ipython(run_settings)
+
+        if monitor_gym:
+            _monkeypatch_openai_gym()
+
+        if wandb.patched["tensorboard"]:
+            # NOTE: The user may have called the patch function directly.
+            init_telemetry.feature.tensorboard_patch = True
+        if run_settings.sync_tensorboard:
+            _monkeypatch_tensorboard()
+            init_telemetry.feature.tensorboard_sync = True
+
         wi.setup(
             settings=run_settings,
             config=config,
             config_exclude_keys=config_exclude_keys,
             config_include_keys=config_include_keys,
-            monitor_gym=monitor_gym,
         )
 
         return wi.init(run_settings)
