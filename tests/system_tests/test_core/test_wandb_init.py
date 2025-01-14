@@ -131,3 +131,27 @@ def test_reinit_existing_run_with_reinit_false():
     original_run = wandb.init(mode="offline")
     new_run = wandb.init(mode="offline", reinit=False)
     assert new_run == original_run
+
+
+@pytest.mark.wandb_core_only
+@pytest.mark.parametrize("skip_transaction_log", [True, False])
+def test_skip_transaction_log(user, skip_transaction_log):
+    """Test that the skip transaction log setting works correctly.
+
+    If skip_transaction_log is True, the transaction log file should not be created.
+    If skip_transaction_log is False, the transaction log file should be created.
+    """
+    run = wandb.init(
+        settings={
+            "x_skip_transaction_log": skip_transaction_log,
+            "mode": "online",
+        }
+    )
+    run.finish()
+    assert os.path.exists(run._settings.sync_file) == (not skip_transaction_log)
+
+
+def test_skip_transaction_log_offline(user):
+    """Test that skip transaction log is not allowed in offline mode."""
+    with pytest.raises(ValueError):
+        wandb.init(settings={"mode": "offline", "x_skip_transaction_log": True})

@@ -304,6 +304,14 @@ class Settings(BaseModel, validate_assignment=True):
     x_service_transport: str | None = None
     x_service_wait: float = 30.0
     x_show_operation_stats: bool = True
+    # Whether to skip saving the run events to the transaction log.
+    #
+    # This is only relevant for online runs. Can be used to reduce the
+    # amount of data written to disk.
+    #
+    # Should be used with caution, as it removes the gurantees about
+    # recoverability.
+    x_skip_transaction_log: bool = False
     # The start time of the run in seconds since the Unix epoch.
     x_start_time: float | None = None
     # PID of the process that started the wandb-core process to collect system stats for.
@@ -378,6 +386,12 @@ class Settings(BaseModel, validate_assignment=True):
                 "`fork_from`, `resume`, or `resume_from` are mutually exclusive. "
                 "Please specify only one of them."
             )
+        return self
+
+    @model_validator(mode="after")
+    def validate_skip_transaction_log(self):
+        if self._offline and self.x_skip_transaction_log:
+            raise ValueError("Cannot skip transaction log in offline mode")
         return self
 
     # Field validators.

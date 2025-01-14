@@ -47,7 +47,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 187
+// Next ID: 188
 message Settings {
   reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137;
 
@@ -74,6 +74,15 @@ message Settings {
 
   // Path to the transaction log file.
   google.protobuf.StringValue sync_file = 134;
+
+  // Whether to skip saving the run events to the transaction log.
+  //
+  // This is only relevant for online runs. Can be used to reduce the
+  // amount of data written to disk.
+  //
+  // Should be used with caution, as it removes the gurantees about
+  // recoverability.
+  google.protobuf.BoolValue x_skip_transaction_log = 187;
 
   // Whether we are in shared mode.
   //
