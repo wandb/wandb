@@ -269,7 +269,8 @@ class Experiment:
         run_id: ID of the existing run to resume from.
         resume_mode: The mode of resuming. Used when run_id is passed in.
         fraction: The % (in fraction) of metrics to log in each step.
-        dense_metric_count: Number of dense metrics to be logged every step. The dense metrics is a separate set of metrics from the sparse metrics.
+        dense_metric_count: Number of dense metrics to be logged every step. 
+                            The dense metrics is a separate set of metrics from the sparse metrics.
 
     When to set "is_unique_payload" to True?
 
@@ -474,7 +475,8 @@ if __name__ == "__main__":
         "--num-metrics",
         type=int,
         default=100,
-        help="The number of sparse metrics to log per step (optional: use together with -f to control %).",
+        help="The number of sparse metrics to log per step (optional: "
+        "use together with -f to control %).",
     )
     parser.add_argument(
         "-m",
@@ -503,7 +505,8 @@ if __name__ == "__main__":
         "--unique-payload",
         type=bool,
         default=False,
-        help="If false, it logs the same payload at each step. If true, each step has different payload.",
+        help="If false, it logs the same payload at each step. "
+        "If true, each step has different payload.",
     )
     parser.add_argument(
         "-t",
@@ -543,7 +546,8 @@ if __name__ == "__main__":
         "--dense_metric_count",
         type=int,
         default=0,
-        help="The number of dense metrics that are logged at every step. This is a separate set from the sparse metrics.",
+        help="The number of dense metrics that are logged at every step. "
+        "This is a separate set from the sparse metrics.",
     )
 
     args = parser.parse_args()
