@@ -41,30 +41,33 @@ class PayloadGenerator:
 
     Args:
         data_type: The type of data to log.
-        metric_count: The number of metrics.
+        sparse_metric_count: Number of sparse metrics to log.
         metric_key_size: The size (in characters) of the metric.
         num_steps: Number of steps in the test.
         fraction: The fraction (%) of the base payload to log per step.
-        is_unique_payload: if every step logs a unique payload
+        is_unique_payload: If true, every step logs a unique payload
+        dense_metric_count: Number of dense metrics (logged every step)
     """
 
     def __init__(
         self,
         data_type: Literal["scalar", "audio", "video", "image", "table"],
-        metric_count: int,
+        sparse_metric_count: int,
         metric_key_size: int,
         num_steps: int,
         fraction: float,
         is_unique_payload: bool,
+        dense_metric_count: int,
     ):
         self.data_type = data_type
-        self.metric_count = metric_count
+        self.sparse_metric_count = sparse_metric_count
         self.metric_key_size = metric_key_size
         self.num_steps = num_steps
         self.fraction = fraction
         self.is_unique_payload = is_unique_payload
+        self.dense_metric_count = dense_metric_count
 
-        self.metrics_count_per_step = int(self.metric_count * self.fraction)
+        self.metrics_count_per_step = int(self.sparse_metric_count * self.fraction)
         if self.is_unique_payload:
             # every step use a unique payload
             self.num_of_unique_payload = self.num_steps
@@ -72,14 +75,17 @@ class PayloadGenerator:
         elif self.fraction < 1.0:
             # every step logs a subset of a base payload
             self.num_of_unique_payload = int(
-                self.metric_count // self.metrics_count_per_step
+                self.sparse_metric_count // self.metrics_count_per_step
             )
 
         else:
             # every step logs the same set of base payload
             self.num_of_unique_payload = 1
 
-        logger.info(f"metrics_count_per_step: {self.metrics_count_per_step}")
+        logger.info(f"dense_metric_count: {self.dense_metric_count}")
+        logger.info(
+            f"metrics_count_per_step: {self.metrics_count_per_step + self.dense_metric_count}"
+        )
         logger.info(f"num_of_unique_payload: {self.num_of_unique_payload}")
 
     def random_string(self, size: int) -> str:
@@ -95,11 +101,11 @@ class PayloadGenerator:
             random.choices(string.ascii_letters + string.digits + "_", k=size)
         )
 
-    def generate(self) -> dict:
-        """Generates a payload for logging.
+    def generate(self) -> List[dict]:
+        """Generates a list of payload for logging.
 
         Returns:
-            dict: A dictionary with the payload.
+            List: A list of dictionary with payloads.
 
         Raises:
             ValueError: If the data type is invalid.
@@ -136,7 +142,7 @@ class PayloadGenerator:
             payloads.append(
                 {
                     self.random_string(self.metric_key_size): audio_obj
-                    for _ in range(self.metric_count)
+                    for _ in range(self.sparse_metric_count)
                 }
             )
 
@@ -146,13 +152,31 @@ class PayloadGenerator:
         """Generates the payloads for logging scalar data.
 
         Returns:
-            List: A list of dictionary with the scalar data.
+            List: A list of dictionaries with the scalar data.
         """
-        # Generate base payloads
-        payloads = [
+        # Generate dense metrics if applicable
+        dense_metrics = (
             {
                 self.random_string(self.metric_key_size): random.randint(1, 10**2)
-                for _ in range(self.metrics_count_per_step)
+                for _ in range(self.dense_metric_count)
+            }
+            if self.dense_metric_count > 0
+            else {}
+        )
+
+        # Log example dense metric if available
+        if dense_metrics:
+            example_key = next(iter(dense_metrics))
+            logger.info(f"Example dense metric: {example_key}")
+
+        # Generate base payloads with optional dense metrics prepended
+        payloads = [
+            {
+                **dense_metrics,
+                **{
+                    self.random_string(self.metric_key_size): random.randint(1, 10**2)
+                    for _ in range(self.metrics_count_per_step)
+                },
             }
             for _ in range(self.num_of_unique_payload)
         ]
@@ -163,7 +187,7 @@ class PayloadGenerator:
         """Generates a payload for logging 1 table.
 
         For the table, it uses
-            self.metric_count as the number of columns
+            self.sparse_metric_count as the number of columns
             self.metric_key_size as the number of rows.
 
         Returns:
@@ -171,7 +195,7 @@ class PayloadGenerator:
         """
         payloads = []
         for p in range(self.num_of_unique_payload):
-            num_of_columns = self.metric_count
+            num_of_columns = self.sparse_metric_count
             num_of_rows = self.metric_key_size
 
             columns = [f"Field_{i+1}" for i in range(num_of_columns)]
@@ -203,7 +227,7 @@ class PayloadGenerator:
             payloads.append(
                 {
                     self.random_string(self.metric_key_size): image_obj
-                    for _ in range(self.metric_count)
+                    for _ in range(self.sparse_metric_count)
                 }
             )
 
@@ -224,7 +248,7 @@ class PayloadGenerator:
             payloads.append(
                 {
                     self.random_string(self.metric_key_size): video_obj
-                    for _ in range(self.metric_count)
+                    for _ in range(self.sparse_metric_count)
                 }
             )
 
@@ -245,6 +269,8 @@ class Experiment:
         run_id: ID of the existing run to resume from.
         resume_mode: The mode of resuming. Used when run_id is passed in.
         fraction: The % (in fraction) of metrics to log in each step.
+        dense_metric_count: Number of dense metrics to be logged every step.
+                            The dense metrics is a separate set of metrics from the sparse metrics.
 
     When to set "is_unique_payload" to True?
 
@@ -268,6 +294,7 @@ class Experiment:
         run_id: str = "",
         resume_mode: str = "must",
         fraction: float = 1.0,
+        dense_metric_count: int = 0,
     ):
         self.num_steps = num_steps
         self.num_metrics = num_metrics
@@ -279,6 +306,7 @@ class Experiment:
         self.run_id = run_id
         self.resume_mode = resume_mode
         self.fraction = fraction
+        self.dense_metric_count = dense_metric_count
 
     def run(self, repeat: int = 1):
         for _ in range(repeat):
@@ -329,6 +357,7 @@ class Experiment:
             self.num_steps,
             self.fraction,
             self.is_unique_payload,
+            self.dense_metric_count,
         ).generate()
 
         logger.info(f"Start logging {self.num_steps} steps ...")
@@ -446,7 +475,8 @@ if __name__ == "__main__":
         "--num-metrics",
         type=int,
         default=100,
-        help="The number of metrics to log per step.",
+        help="The number of sparse metrics to log per step (optional: "
+        "use together with -f to control %).",
     )
     parser.add_argument(
         "-m",
@@ -475,14 +505,15 @@ if __name__ == "__main__":
         "--unique-payload",
         type=bool,
         default=False,
-        help="False - reuse the same payload in each log(), new payload if True.",
+        help="If false, it logs the same payload at each step. "
+        "If true, each step has different payload.",
     )
     parser.add_argument(
         "-t",
         "--time-delay-second",
         type=float,
         default=0,
-        help="e.g. -t 1.0  Sleep time in seconds between each step.",
+        help="The sleep time between step in seconds e.g. -t 1.0",
     )
 
     parser.add_argument(
@@ -490,7 +521,7 @@ if __name__ == "__main__":
         "--run-id",
         type=str,
         default="",
-        help="e.g. -i 123abc to resume this run id. Run ID must exist.",
+        help="The run id. e.g. -i 123abc to resume this run id.",
     )
 
     parser.add_argument(
@@ -507,7 +538,16 @@ if __name__ == "__main__":
         "--fraction",
         type=float,
         default=1.0,
-        help="The fraction (i.e. percentage) of metrics to log in each step.",
+        help="The fraction (i.e. percentage) of sparse metrics to log in each step.",
+    )
+
+    parser.add_argument(
+        "-c",
+        "--dense_metric_count",
+        type=int,
+        default=0,
+        help="The number of dense metrics that are logged at every step. "
+        "This is a separate set from the sparse metrics.",
     )
 
     args = parser.parse_args()
@@ -523,4 +563,5 @@ if __name__ == "__main__":
         run_id=args.run_id,
         resume_mode=args.resume_mode,
         fraction=args.fraction,
+        dense_metric_count=args.dense_metric_count,
     ).run(args.repeat)
