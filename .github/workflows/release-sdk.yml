@@ -86,7 +86,7 @@ jobs:
       ##################################################
       - name: Downgrade Go version
         run: |
-          sed -i '' 's/1.23.4/1.22.8/' core/go.mod
+          sed -i '' 's/1.23.4/1.22.10/' core/go.mod
 
       ##################################################
       # Non-Linux: install Go
@@ -97,6 +97,15 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: core/go.mod
+
+      ##################################################
+      # Vendor dependencies
+      ##################################################
+      - name: Vendor dependencies
+        run: |
+          cd core
+          go mod tidy
+          go mod vendor
 
       ##################################################
       # All platforms: create wheels

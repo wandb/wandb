@@ -11,6 +11,12 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.19.3] - 2025-01-13
+
+### Fixed
+
+- Fix `wandb.Settings` update regression in `wandb.integration.metaflow` (@kptkin in https://github.com/wandb/wandb/pull/9211)
+
 ## [0.19.2] - 2025-01-07
 
 ### Added
