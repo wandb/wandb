@@ -269,7 +269,7 @@ class Experiment:
         run_id: ID of the existing run to resume from.
         resume_mode: The mode of resuming. Used when run_id is passed in.
         fraction: The % (in fraction) of metrics to log in each step.
-        dense_metric_count: Number of dense metrics to be logged every step. 
+        dense_metric_count: Number of dense metrics to be logged every step.
                             The dense metrics is a separate set of metrics from the sparse metrics.
 
     When to set "is_unique_payload" to True?
