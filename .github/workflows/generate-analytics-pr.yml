@@ -1,0 +1,28 @@
+name: Generate Analytics PR
+
+on:
+    release:
+        types: [published]
+    workflow_dispatch:
+        inputs:
+            tag_name:
+                type: string
+                description: "The tag name to generate analytics for"
+                required: false
+
+jobs:
+    generate-analytics-pr:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                ref: ${{ github.event.release.tag_name }} || ${{ github.event.inputs.tag_name }}
+            - uses: actions/checkout@v4
+              with:
+                repository: wandb/analytics
+                ref: main
+                token: ${{ secrets.GITHUB_TOKEN }}
+            - name: "run analytics"
+              run: |
+                pwd
+                ls -la

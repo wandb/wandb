@@ -1374,11 +1374,13 @@ def init(  # noqa: C901
 
         if monitor_gym:
             _monkeypatch_openai_gym()
-        if run_settings.sync_tensorboard:
-            _monkeypatch_tensorboard()
+
         if wandb.patched["tensorboard"]:
             # NOTE: The user may have called the patch function directly.
             init_telemetry.feature.tensorboard_patch = True
+        if run_settings.sync_tensorboard:
+            _monkeypatch_tensorboard()
+            init_telemetry.feature.tensorboard_sync = True
 
         wi.setup(
             settings=run_settings,
