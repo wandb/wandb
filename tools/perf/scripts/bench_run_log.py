@@ -83,7 +83,9 @@ class PayloadGenerator:
             self.num_of_unique_payload = 1
 
         logger.info(f"dense_metric_count: {self.dense_metric_count}")
-        logger.info(f"metrics_count_per_step: {self.metrics_count_per_step + self.dense_metric_count}")
+        logger.info(
+            f"metrics_count_per_step: {self.metrics_count_per_step + self.dense_metric_count}"
+        )
         logger.info(f"num_of_unique_payload: {self.num_of_unique_payload}")
 
     def random_string(self, size: int) -> str:
@@ -152,14 +154,14 @@ class PayloadGenerator:
         Returns:
             List: A list of dictionaries with the scalar data.
         """
-
         # Generate dense metrics if applicable
         dense_metrics = (
             {
                 self.random_string(self.metric_key_size): random.randint(1, 10**2)
                 for _ in range(self.dense_metric_count)
             }
-            if self.dense_metric_count > 0 else {}
+            if self.dense_metric_count > 0
+            else {}
         )
 
         # Log example dense metric if available
@@ -169,15 +171,17 @@ class PayloadGenerator:
 
         # Generate base payloads with optional dense metrics prepended
         payloads = [
-            {**dense_metrics, **{
-                self.random_string(self.metric_key_size): random.randint(1, 10**2)
-                for _ in range(self.metrics_count_per_step)
-            }}
+            {
+                **dense_metrics,
+                **{
+                    self.random_string(self.metric_key_size): random.randint(1, 10**2)
+                    for _ in range(self.metrics_count_per_step)
+                },
+            }
             for _ in range(self.num_of_unique_payload)
         ]
 
         return payloads
-    
 
     def generate_table(self) -> List[dict[str, wandb.Table]]:
         """Generates a payload for logging 1 table.
@@ -540,7 +544,6 @@ if __name__ == "__main__":
         type=int,
         default=0,
         help="Number of dense metrics to be logged every step.",
-
     )
 
     args = parser.parse_args()
