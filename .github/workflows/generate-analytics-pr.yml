@@ -14,15 +14,53 @@ jobs:
     generate-analytics-pr:
         runs-on: ubuntu-latest
         steps:
+            - name: "Get tag name"
+              id: get_tag_name
+              run: |
+                echo "tag-name=${{ github.event.release.tag_name || github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
             - uses: actions/checkout@v4
               with:
-                ref: ${{ github.event.release.tag_name }} || ${{ github.event.inputs.tag_name }}
+                ref: ${{ steps.get_tag_name.outputs.tag-name }}
             - uses: actions/checkout@v4
               with:
                 repository: wandb/analytics
                 ref: main
-                token: ${{ secrets.GITHUB_TOKEN }}
-            - name: "run analytics"
+                token: ${{ secrets.WANDB_ANALYTICS_TOKEN }}
+                path: analytics
+            - name: "Run telemetry tool"
               run: |
-                pwd
-                ls -la
+                pip install .
+                tools/telemetry-tool.py --output-dir analytics/dbt/seeds/
+            - name: Check if seeds changed
+              id: check_seeds
+              run: |
+                if [ -n "$(git diff --name-only analytics/dbt/seeds/)" ]; then
+                    cd analytics
+                    git checkout -b sdk/analytics-${{ steps.get_tag_name.outputs.tag-name }}
+                    git add analytics/dbt/seeds/
+                    git commit -m "chore(analytics): update analytics seeds"
+                    echo "seeds-changed=true" >> $GITHUB_OUTPUT
+                  else
+                    echo "seeds-changed=false" >> $GITHUB_OUTPUT
+                fi
+            - name: "Create Analytics PR"
+              id: create_analytics_pr
+              if: ${{ steps.check_seeds.outputs.seeds-changed == 'true' }}
+              uses: peter-evans/create-pull-request@v7
+              with:
+                title: "chore(analytics): update analytics seed for sdk release ${{ steps.get_tag_name.outputs.tag-name }}}"
+                body: "This PR updates the analytics seeds for the ${{ steps.get_tag_name.outputs.tag-name }} release."
+                branch: sdk/analytics-${{ steps.get_tag_name.outputs.tag-name }}
+                base: main
+                token: ${{ secrets.WANDB_ANALYTICS_TOKEN }}
+
+            - name: "Slack notification"
+              if: ${{ steps.create_analytics_pr.outputs.pull-request-operation == 'created' || steps.create_analytics_pr.outputs.pull-request-operation == 'updated' }}
+              uses: slackapi/slack-github-action@v1.27.0
+              with:
+                channel-id: ${{ secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
+                # For posting a simple plain text message
+                slack-message: |
+                    "New analytics PR created (${{ steps.create_analytics_pr.outputs.pull-request-url }}) for sdk release ${{ steps.get_tag_name.outputs.TAG_NAME }}"
+              env:
+                SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
