@@ -624,15 +624,18 @@ class _WandbInit:
         self._logger.info(f"Logging user logs to {settings.log_user}")
         self._logger.info(f"Logging internal logs to {settings.log_internal}")
 
-    def _make_run_disabled(self, config: _ConfigParts) -> Run:
+    def make_disabled_run(self, config: _ConfigParts) -> Run:
         """Returns a Run-like object where all methods are no-ops.
 
-        This method is used when wandb.init(mode="disabled") is called or WANDB_MODE=disabled
-        is set. It creates a Run object that mimics the behavior of a normal Run but doesn't
+        This method is used when the `mode` setting is set to "disabled", such as
+        by wandb.init(mode="disabled") or by setting the WANDB_MODE environment
+        variable to "disabled".
+
+        It creates a Run object that mimics the behavior of a normal Run but doesn't
         communicate with the W&B servers.
 
-        The returned Run object has all expected attributes and methods, but they are
-        no-op versions that don't perform any actual logging or communication.
+        The returned Run object has all expected attributes and methods, but they
+        are no-op versions that don't perform any actual logging or communication.
         """
         run_id = runid.generate_id()
         drun = Run(
@@ -747,8 +750,6 @@ class _WandbInit:
             f"\nconfig: {config.base_no_artifacts}"
         )
 
-        if settings._noop:
-            return self._make_run_disabled(config)
         if (
             settings.reinit or (settings._jupyter and settings.reinit is not False)
         ) and len(self._wl._global_run_stack) > 0:
@@ -1420,11 +1421,19 @@ def init(  # noqa: C901
 
         wi.set_run_id(run_settings)
 
-        if not run_settings._noop:
-            wi.setup_run_log_directory(run_settings)
+        run_config = wi.make_run_config(
+            settings=run_settings,
+            config=config,
+            config_exclude_keys=config_exclude_keys,
+            config_include_keys=config_include_keys,
+        )
 
-            if run_settings._jupyter:
-                wi.monkeypatch_ipython(run_settings)
+        if run_settings._noop:
+            return wi.make_disabled_run(run_config)
+
+        wi.setup_run_log_directory(run_settings)
+        if run_settings._jupyter:
+            wi.monkeypatch_ipython(run_settings)
 
         if monitor_gym:
             _monkeypatch_openai_gym()
@@ -1435,13 +1444,6 @@ def init(  # noqa: C901
         if run_settings.sync_tensorboard:
             _monkeypatch_tensorboard()
             init_telemetry.feature.tensorboard_sync = True
-
-        run_config = wi.make_run_config(
-            settings=run_settings,
-            config=config,
-            config_exclude_keys=config_exclude_keys,
-            config_include_keys=config_include_keys,
-        )
 
         return wi.init(run_settings, run_config)
 
