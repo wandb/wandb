@@ -395,7 +395,8 @@ class Api:
             response = err.response
             assert response is not None
             logger.error(f"{response.status_code} response executing GraphQL.")
-            logger.error(response.text)
+            if env.is_debug(env=self._environ):
+                logger.error(response.text)
             for error in parse_backend_error_messages(response):
                 wandb.termerror(f"Error while calling W&B API: {error} ({response})")
             raise
