@@ -252,7 +252,7 @@ class _WandbInit:
             warn("run_id", init_settings.run_id)
             init_settings.run_id = None
 
-    def compute_run_settings(self, init_settings: Settings) -> Settings:
+    def make_run_settings(self, init_settings: Settings) -> Settings:
         """Returns the run's settings.
 
         Args:
@@ -377,7 +377,7 @@ class _WandbInit:
                 run_id=settings.run_id,
             )
 
-    def compute_run_config(
+    def make_run_config(
         self,
         settings: Settings,
         config: dict | str | None = None,
@@ -1409,7 +1409,7 @@ def init(  # noqa: C901
         wi = _WandbInit(wl, init_telemetry)
 
         wi.maybe_login(init_settings)
-        run_settings = wi.compute_run_settings(init_settings)
+        run_settings = wi.make_run_settings(init_settings)
 
         if run_settings.run_id is not None:
             init_telemetry.feature.set_init_id = True
@@ -1434,7 +1434,7 @@ def init(  # noqa: C901
             # NOTE: The user may have called the patch function directly.
             init_telemetry.feature.tensorboard_patch = True
 
-        run_config = wi.compute_run_config(
+        run_config = wi.make_run_config(
             settings=run_settings,
             config=config,
             config_exclude_keys=config_exclude_keys,
