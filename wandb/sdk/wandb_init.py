@@ -403,11 +403,6 @@ class _WandbInit:
         if sweep_config:
             self._split_artifacts_from_config(sweep_config, self.sweep_config)
 
-        if not settings._noop:
-            self._log_setup(settings)
-
-            if settings._jupyter:
-                self._jupyter_setup(settings)
         launch_config = _handle_launch_config(settings)
         if launch_config:
             self._split_artifacts_from_config(launch_config, self.launch_config)
@@ -519,7 +514,7 @@ class _WandbInit:
         ipython.display_pub.publish = ipython.display_pub._orig_publish
         del ipython.display_pub._orig_publish
 
-    def _jupyter_setup(self, settings: Settings) -> None:
+    def monkeypatch_ipython(self, settings: Settings) -> None:
         """Add hooks, and session history saving."""
         self.notebook = wandb.jupyter.Notebook(settings)  # type: ignore
         ipython = self.notebook.shell
@@ -545,7 +540,7 @@ class _WandbInit:
 
         ipython.display_pub.publish = publish
 
-    def _log_setup(self, settings: Settings) -> None:
+    def setup_run_log_directory(self, settings: Settings) -> None:
         """Set up logging from settings."""
         filesystem.mkdir_exists_ok(os.path.dirname(settings.log_user))
         filesystem.mkdir_exists_ok(os.path.dirname(settings.log_internal))
@@ -1371,6 +1366,12 @@ def init(  # noqa: C901
             init_telemetry.feature.set_init_tags = True
 
         wi.set_run_id(run_settings)
+
+        if not run_settings._noop:
+            wi.setup_run_log_directory(run_settings)
+
+            if run_settings._jupyter:
+                wi.monkeypatch_ipython(run_settings)
 
         if monitor_gym:
             _monkeypatch_openai_gym()
