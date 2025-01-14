@@ -1416,7 +1416,7 @@ def init(  # noqa: C901
             init_telemetry.feature.set_init_id = True
         if run_settings.run_name is not None:
             init_telemetry.feature.set_init_name = True
-        if init_settings.run_tags is not None:
+        if run_settings.run_tags is not None:
             init_telemetry.feature.set_init_tags = True
 
         wi.set_run_id(run_settings)
