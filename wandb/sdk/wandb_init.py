@@ -366,7 +366,6 @@ class _WandbInit:
         config: dict | str | None = None,
         config_exclude_keys: list[str] | None = None,
         config_include_keys: list[str] | None = None,
-        monitor_gym: bool | None = None,
     ) -> None:
         """Compute the run's config and some telemetry."""
         # TODO: remove this once officially deprecated
@@ -403,17 +402,6 @@ class _WandbInit:
         sweep_config = self._wl._sweep_config or dict()
         if sweep_config:
             self._split_artifacts_from_config(sweep_config, self.sweep_config)
-
-        if monitor_gym and len(wandb.patched["gym"]) == 0:
-            wandb.gym.monitor()  # type: ignore
-
-        if wandb.patched["tensorboard"]:
-            self._telemetry.feature.tensorboard_patch = True
-
-        if settings.sync_tensorboard:
-            if len(wandb.patched["tensorboard"]) == 0:
-                wandb.tensorboard.patch()  # type: ignore
-            self._telemetry.feature.tensorboard_sync = True
 
         if not settings._noop:
             self._log_setup(settings)
@@ -1056,6 +1044,26 @@ def _attach(
     return run
 
 
+def _monkeypatch_openai_gym() -> None:
+    """Patch OpenAI gym to log to the global `wandb.run`."""
+    if len(wandb.patched["gym"]) > 0:
+        return
+
+    from wandb.integration import gym
+
+    gym.monitor()
+
+
+def _monkeypatch_tensorboard() -> None:
+    """Patch TensorBoard to log to the global `wandb.run`."""
+    if len(wandb.patched["tensorboard"]) > 0:
+        return
+
+    from wandb.integration import tensorboard as tb_module
+
+    tb_module.patch()
+
+
 def init(  # noqa: C901
     entity: str | None = None,
     project: str | None = None,
@@ -1364,12 +1372,21 @@ def init(  # noqa: C901
 
         wi.set_run_id(run_settings)
 
+        if monitor_gym:
+            _monkeypatch_openai_gym()
+
+        if wandb.patched["tensorboard"]:
+            # NOTE: The user may have called the patch function directly.
+            init_telemetry.feature.tensorboard_patch = True
+        if run_settings.sync_tensorboard:
+            _monkeypatch_tensorboard()
+            init_telemetry.feature.tensorboard_sync = True
+
         wi.setup(
             settings=run_settings,
             config=config,
             config_exclude_keys=config_exclude_keys,
             config_include_keys=config_include_keys,
-            monitor_gym=monitor_gym,
         )
 
         return wi.init(run_settings)
