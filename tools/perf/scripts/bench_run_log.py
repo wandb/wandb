@@ -46,6 +46,7 @@ class PayloadGenerator:
         num_steps: Number of steps in the test.
         fraction: The fraction (%) of the base payload to log per step.
         is_unique_payload: if every step logs a unique payload
+        dense_metric_count: number of dense metrics (logged every step)
     """
 
     def __init__(
@@ -56,6 +57,7 @@ class PayloadGenerator:
         num_steps: int,
         fraction: float,
         is_unique_payload: bool,
+        dense_metric_count: int,
     ):
         self.data_type = data_type
         self.metric_count = metric_count
@@ -63,6 +65,7 @@ class PayloadGenerator:
         self.num_steps = num_steps
         self.fraction = fraction
         self.is_unique_payload = is_unique_payload
+        self.dense_metric_count = dense_metric_count
 
         self.metrics_count_per_step = int(self.metric_count * self.fraction)
         if self.is_unique_payload:
@@ -79,7 +82,8 @@ class PayloadGenerator:
             # every step logs the same set of base payload
             self.num_of_unique_payload = 1
 
-        logger.info(f"metrics_count_per_step: {self.metrics_count_per_step}")
+        logger.info(f"dense_metric_count: {self.dense_metric_count}")
+        logger.info(f"metrics_count_per_step: {self.metrics_count_per_step + self.dense_metric_count}")
         logger.info(f"num_of_unique_payload: {self.num_of_unique_payload}")
 
     def random_string(self, size: int) -> str:
@@ -95,11 +99,11 @@ class PayloadGenerator:
             random.choices(string.ascii_letters + string.digits + "_", k=size)
         )
 
-    def generate(self) -> dict:
-        """Generates a payload for logging.
+    def generate(self) -> List[dict]:
+        """Generates a list of payload for logging.
 
         Returns:
-            dict: A dictionary with the payload.
+            List: A list of dictionary with payloads.
 
         Raises:
             ValueError: If the data type is invalid.
@@ -146,18 +150,34 @@ class PayloadGenerator:
         """Generates the payloads for logging scalar data.
 
         Returns:
-            List: A list of dictionary with the scalar data.
+            List: A list of dictionaries with the scalar data.
         """
-        # Generate base payloads
-        payloads = [
+
+        # Generate dense metrics if applicable
+        dense_metrics = (
             {
                 self.random_string(self.metric_key_size): random.randint(1, 10**2)
-                for _ in range(self.metrics_count_per_step)
+                for _ in range(self.dense_metric_count)
             }
+            if self.dense_metric_count > 0 else {}
+        )
+
+        # Log example dense metric if available
+        if dense_metrics:
+            example_key = next(iter(dense_metrics))
+            logger.info(f"Example dense metric: {example_key}")
+
+        # Generate base payloads with optional dense metrics prepended
+        payloads = [
+            {**dense_metrics, **{
+                self.random_string(self.metric_key_size): random.randint(1, 10**2)
+                for _ in range(self.metrics_count_per_step)
+            }}
             for _ in range(self.num_of_unique_payload)
         ]
 
         return payloads
+    
 
     def generate_table(self) -> List[dict[str, wandb.Table]]:
         """Generates a payload for logging 1 table.
@@ -245,6 +265,7 @@ class Experiment:
         run_id: ID of the existing run to resume from.
         resume_mode: The mode of resuming. Used when run_id is passed in.
         fraction: The % (in fraction) of metrics to log in each step.
+        dense_metric_count: Number of dense metrics to be logged every step.
 
     When to set "is_unique_payload" to True?
 
@@ -268,6 +289,7 @@ class Experiment:
         run_id: str = "",
         resume_mode: str = "must",
         fraction: float = 1.0,
+        dense_metric_count: int = 0,
     ):
         self.num_steps = num_steps
         self.num_metrics = num_metrics
@@ -279,6 +301,7 @@ class Experiment:
         self.run_id = run_id
         self.resume_mode = resume_mode
         self.fraction = fraction
+        self.dense_metric_count = dense_metric_count
 
     def run(self, repeat: int = 1):
         for _ in range(repeat):
@@ -329,6 +352,7 @@ class Experiment:
             self.num_steps,
             self.fraction,
             self.is_unique_payload,
+            self.dense_metric_count,
         ).generate()
 
         logger.info(f"Start logging {self.num_steps} steps ...")
@@ -510,6 +534,15 @@ if __name__ == "__main__":
         help="The fraction (i.e. percentage) of metrics to log in each step.",
     )
 
+    parser.add_argument(
+        "-c",
+        "--dense_metric_count",
+        type=int,
+        default=0,
+        help="Number of dense metrics to be logged every step.",
+
+    )
+
     args = parser.parse_args()
 
     Experiment(
@@ -523,4 +556,5 @@ if __name__ == "__main__":
         run_id=args.run_id,
         resume_mode=args.resume_mode,
         fraction=args.fraction,
+        dense_metric_count=args.dense_metric_count,
     ).run(args.repeat)
