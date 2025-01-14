@@ -904,15 +904,11 @@ class _WandbInit:
 
         run_result: pb.RunUpdateResult | None = None
 
-        if settings._offline:
-            with telemetry.context(run=run) as tel:
-                tel.feature.offline = True
-
-            if settings.resume:
-                wandb.termwarn(
-                    "`resume` will be ignored since W&B syncing is set to `offline`. "
-                    f"Starting a new run with run id {run.id}."
-                )
+        if settings._offline and settings.resume:
+            wandb.termwarn(
+                "`resume` will be ignored since W&B syncing is set to `offline`. "
+                f"Starting a new run with run id {run.id}."
+            )
         error: wandb.Error | None = None
 
         timeout = settings.init_timeout
@@ -1416,8 +1412,10 @@ def init(  # noqa: C901
             init_telemetry.feature.set_init_id = True
         if run_settings.run_name is not None:
             init_telemetry.feature.set_init_name = True
-        if init_settings.run_tags is not None:
+        if run_settings.run_tags is not None:
             init_telemetry.feature.set_init_tags = True
+        if run_settings._offline:
+            init_telemetry.feature.offline = True
 
         wi.set_run_id(run_settings)
 
