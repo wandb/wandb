@@ -11,6 +11,12 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.19.3] - 2025-01-13
+
+### Fixed
+
+- Fix `wandb.Settings` update regression in `wandb.integration.metaflow` (@kptkin in https://github.com/wandb/wandb/pull/9211)
+
 ## [0.19.2] - 2025-01-07
 
 ### Added
@@ -38,6 +44,12 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 - The `wandb.wandb_sdk.wandb_setup._setup()` function's `reset` parameter has been removed. Note that this is a private function, even though there appear to be usages outside of the repo. Please `wandb.teardown()` instead of `_setup(reset=True)`. (@timoffex in https://github.com/wandb/wandb/pull/9165)
 - In the private `wandb.wandb_sdk.wandb_setup` module, the `logger` and `_set_logger` symbols have been removed (@timoffex in https://github.com/wandb/wandb/pull/9195)
 
+### Security
+
+- Bump `github.com/go-git/go-git` version to 5.13.0 to address CVE-2025-21613. (@kptkin in https://github.com/wandb/wandb/pull/9192)
+- Bump `golang.org/x/net` version to 0.33.0 to address CVE-2024-45338. (@kptkin in https://github.com/wandb/wandb/pull/9115)
+
+
 ## [0.19.1] - 2024-12-13
 
 ### Fixed
@@ -49,6 +61,10 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 - `run.finish()` displays more detailed information in the terminal and in Jupyter notebooks (by @timoffex, enabled in https://github.com/wandb/wandb/pull/9070)
 - Improved error message for failing tensorboard.patch() calls to show the option to call tensorboard.unpatch() first (@daniel-bogdoll in https://github.com/wandb/wandb/pull/8938)
 - Add projectId to deleteFiles mutation if the server supports it. (@jacobromero in https://github.com/wandb/wandb/pull/8837)
+
+### Security
+
+- Bump `golang.org/x/crypto` version to 0.31.0 to address CVE-2024-45337. (@kptkin in https://github.com/wandb/wandb/pull/9069)
 
 ## [0.19.0] - 2024-12-05
 
