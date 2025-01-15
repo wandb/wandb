@@ -10,7 +10,6 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 import gzip
 import logging
-import os
 import time
 from abc import abstractmethod
 from pathlib import Path
@@ -100,8 +99,6 @@ class InterfaceBase:
 
     def _hack_set_run(self, run: "Run") -> None:
         self._run = run
-        current_pid = os.getpid()
-        self._run._set_iface_pid(current_pid)
 
     def publish_header(self) -> None:
         header = pb.HeaderRecord()
