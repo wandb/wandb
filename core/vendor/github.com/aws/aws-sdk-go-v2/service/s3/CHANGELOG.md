@@ -1,3 +1,15 @@
+# v1.72.3 (2025-01-14)
+
+* **Bug Fix**: Fix issue where waiters were not failing on unmatched errors as they should. This may have breaking behavioral changes for users in fringe cases. See [this announcement](https://github.com/aws/aws-sdk-go-v2/discussions/2954) for more information.
+
+# v1.72.2 (2025-01-09)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.72.1 (2025-01-08)
+
+* No change notes available for this release.
+
 # v1.72.0 (2025-01-03)
 
 * **Feature**: This change is only for updating the model regexp of CopySource which is not for validation but only for documentation and user guide change.
