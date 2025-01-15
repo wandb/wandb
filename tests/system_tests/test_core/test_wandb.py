@@ -10,6 +10,7 @@ import tempfile
 import unittest.mock
 from contextlib import contextmanager
 from pathlib import Path
+import requests
 from unittest import mock
 
 import pytest
@@ -444,6 +445,23 @@ def test_log_empty_string(wandb_backend_spy):
     with wandb_backend_spy.freeze() as snapshot:
         history = snapshot.history(run_id=run.id)
         assert history[0]["cool"] == ""
+
+
+def test_log_table_offline_no_network(user, monkeypatch):
+    num_network_calls_made = 0
+    original_request = requests.Session.request
+
+    def mock_request(self, *args, **kwargs):
+        nonlocal num_network_calls_made
+        num_network_calls_made += 1
+        return original_request(self, *args, **kwargs)
+
+    monkeypatch.setattr(requests.Session, "request", mock_request)
+    run = wandb.init(mode="offline")
+    run.log({"table": wandb.Table()})
+    run.finish()
+    assert num_network_calls_made == 0
+    assert run.offline == True
 
 
 # ----------------------------------
