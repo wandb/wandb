@@ -91,7 +91,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           tags: ${{ steps.meta.outputs.tags }}
           build-args: |
-            CLI_VERSION=${{ steps.meta.outputs.version }}
+            CLI_VERSION=v${{ steps.meta.outputs.version }}
 
       - name: Build and Push
         uses: docker/build-push-action@v6
@@ -102,4 +102,4 @@ jobs:
           platforms: ${{ matrix.platform }}
           tags: ${{ steps.meta.outputs.tags }}
           build-args: |
-            CLI_VERSION=${{ steps.meta.outputs.version }}
+            CLI_VERSION=v${{ steps.meta.outputs.version }}
