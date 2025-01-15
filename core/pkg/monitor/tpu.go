@@ -114,16 +114,19 @@ func (t *TPU) Sample() (*spb.StatsRecord, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("totals", totals)
 	// Memory usage per TPU core [bytes]
 	usages, err := t.getMetrics(TPUMemoryUsage)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("usages", usages)
 	// Duty cycle per TPU device [%]
 	dutyCycles, err := t.getMetrics(TPUDutyCyclePct)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("dutyCycles", dutyCycles)
 
 	// See below for the expected number of metrics per chip
 	if len(totals) != len(usages) || len(usages) != len(dutyCycles)*t.chip.DevicesPerChip {
@@ -136,6 +139,7 @@ func (t *TPU) Sample() (*spb.StatsRecord, error) {
 		memoryUsage := usage.GetGauge().GetAsInt()
 		memoryUsages[deviceID] = memoryUsage
 	}
+	fmt.Println("memoryUsages", memoryUsages)
 
 	totalMemories := make(map[int64]int64)
 	for _, total := range totals {
@@ -143,6 +147,7 @@ func (t *TPU) Sample() (*spb.StatsRecord, error) {
 		totalMemory := total.GetGauge().GetAsInt()
 		totalMemories[deviceID] = totalMemory
 	}
+	fmt.Println("totalMemories", totalMemories)
 
 	// Duty cycle is measured per chip; distribute it to each device (core) in the chip.
 	dutyCyclesPerCore := make(map[int64]float64)
@@ -155,6 +160,7 @@ func (t *TPU) Sample() (*spb.StatsRecord, error) {
 			dutyCyclesPerCore[deviceID] = dutyCycle
 		}
 	}
+	fmt.Println("dutyCyclesPerCore", dutyCyclesPerCore)
 
 	metrics := make(map[string]any)
 
@@ -185,10 +191,13 @@ func (t *TPU) Sample() (*spb.StatsRecord, error) {
 		metrics[memoryUsageBytesKey] = memoryUsage
 		metrics[dutyCycleKey] = dutyCycle
 	}
+	fmt.Println("metrics", metrics)
 
 	if len(metrics) == 0 {
-		return nil, nil
+		return nil, fmt.Errorf("tpu: no metrics found")
 	}
+
+	fmt.Println("marshaled metrics", marshal(metrics, timestamppb.Now()))
 
 	return marshal(metrics, timestamppb.Now()), nil
 }
