@@ -1430,6 +1430,7 @@ class Run:
 
         not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
         self._backend.interface.publish_partial_history(
+            self,
             data,
             user_step=self._step,
             step=step,

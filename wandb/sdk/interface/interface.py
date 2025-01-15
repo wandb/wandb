@@ -650,15 +650,13 @@ class InterfaceBase:
 
     def publish_partial_history(
         self,
+        run: "Run",
         data: dict,
         user_step: int,
         step: Optional[int] = None,
         flush: Optional[bool] = None,
         publish_step: bool = True,
-        run: Optional["Run"] = None,
     ) -> None:
-        run = run or self._run
-
         data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
         data.pop("_step", None)
 
