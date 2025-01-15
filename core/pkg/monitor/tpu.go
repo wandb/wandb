@@ -81,14 +81,11 @@ func NewTPU() *TPU {
 
 	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(local.NewCredentials()))
 	if err != nil {
-		fmt.Println(err)
 		return nil
 	}
 	client := tpuproto.NewRuntimeMetricServiceClient(conn)
 	t.conn = conn
 	t.client = client
-	fmt.Println("TPU detected:", t.chip.Name, "x", t.count)
-	fmt.Println(t.conn, t.client)
 
 	return t
 }
@@ -118,29 +115,22 @@ func (t *TPU) Sample() (*spb.StatsRecord, error) {
 
 	// Total memory per TPU core [bytes]
 	totals, err := t.getMetrics(TPUTotalMemory)
-	fmt.Println("totals", totals)
-	fmt.Println("err", err)
 	if err != nil {
 		return nil, err
 	}
 	// Memory usage per TPU core [bytes]
 	usages, err := t.getMetrics(TPUMemoryUsage)
-	fmt.Println("usages", usages)
-	fmt.Println("err", err)
 	if err != nil {
 		return nil, err
 	}
 	// Duty cycle per TPU device [%]
 	dutyCycles, err := t.getMetrics(TPUDutyCyclePct)
-	fmt.Println("dutyCycles", dutyCycles)
-	fmt.Println("err", err)
 	if err != nil {
 		return nil, err
 	}
 
 	// See below for the expected number of metrics per chip
 	if len(totals) != len(usages) || len(usages) != len(dutyCycles)*t.chip.DevicesPerChip {
-		fmt.Println("tpu: metrics not found for all chips", len(totals), len(usages), len(dutyCycles))
 		return nil, fmt.Errorf("tpu: metrics not found for all chips")
 	}
 
@@ -224,7 +214,6 @@ func (t *TPU) Close() {
 // returns the most common chip type and the total count.
 func getLocalTPUChips() (TPUChip, int) {
 	devices, err := filepath.Glob("/sys/bus/pci/devices/*")
-	fmt.Println("devices", devices)
 	if err != nil {
 		return TPUChip{}, 0
 	}
@@ -263,7 +252,6 @@ func getLocalTPUChips() (TPUChip, int) {
 
 		counter[chipType]++
 	}
-	fmt.Println("counter", counter)
 
 	if len(counter) == 0 {
 		return TPUChip{}, 0
