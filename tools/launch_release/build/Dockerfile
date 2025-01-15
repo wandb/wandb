@@ -1,9 +1,10 @@
 FROM python:3.9-slim-bullseye
 LABEL maintainer='Weights & Biases <support@wandb.com>'
 
-# install wget
 # Install Go.
-COPY --from=golang:bookworm /usr/local/go/ /usr/local/go/
+COPY --from=golang:1.23-alpine /usr/local/go/ /usr/local/go/
+
+
 # Set Go environment paths
 ENV GOPATH /go
 ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
@@ -19,23 +20,28 @@ RUN apt-get update && apt-get install -y curl && \
 
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-
-# install git
+# Install git and build dependencies
 RUN apt-get update && apt-get upgrade -y \
-    && apt-get install -y git gcc python3-dev \
+    && apt-get install -y gcc python3-dev git \
     && apt-get -qy autoremove \
     && apt-get clean && rm -r /var/lib/apt/lists/*
 
-# required pip packages
+
+# Install required pip packages and `wandb` from GitHub
 ARG REF="main"
 RUN pip install --upgrade pip && \
     pip uninstall -y setuptools && \
     pip install --no-cache-dir git+https://github.com/wandb/wandb.git@$REF#egg=wandb[launch]
-# user set up
+
+# Remove the existing Go installation
+RUN rm -rf /usr/local/go
+
+# User setup
 RUN useradd -m -s /bin/bash --create-home --no-log-init -u 1000 -g 0 launch_agent
 USER launch_agent
 WORKDIR /home/launch_agent
 RUN chown -R launch_agent /home/launch_agent
+
 
 ENV WANDB_AGENT_VERSION="$REF"
 
