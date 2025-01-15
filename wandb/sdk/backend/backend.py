@@ -52,7 +52,7 @@ class Backend:
     interface: Optional[InterfaceBase]
     _internal_pid: Optional[int]
     wandb_process: Optional[multiprocessing.process.BaseProcess]
-    _settings: Optional[Settings]
+    _settings: Settings
     record_q: Optional["RecordQueue"]
     result_q: Optional["ResultQueue"]
     _mailbox: Mailbox
@@ -60,7 +60,7 @@ class Backend:
     def __init__(
         self,
         mailbox: Mailbox,
-        settings: Optional[Settings] = None,
+        settings: Settings,
         log_level: Optional[int] = None,
         service: "Optional[service_connection.ServiceConnection]" = None,
     ) -> None:
@@ -83,7 +83,6 @@ class Backend:
         self._save_mod_spec = None
 
     def _multiprocessing_setup(self) -> None:
-        assert self._settings
         if self._settings.start_method == "thread":
             return
 
@@ -135,7 +134,6 @@ class Backend:
     def ensure_launched(self) -> None:
         """Launch backend worker if not running."""
         if self._service:
-            assert self._settings
             assert self._settings.run_id
             self.interface = self._service.make_interface(
                 self._mailbox,
@@ -143,7 +141,6 @@ class Backend:
             )
             return
 
-        assert self._settings
         settings = self._settings.model_copy()
         settings.x_log_level = self._log_level or logging.DEBUG
 
