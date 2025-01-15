@@ -2,10 +2,11 @@ package sync
 
 import (
 	"github.com/MakeNowJust/heredoc/v2"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/tfe"
 	"github.com/spf13/cobra"
 )
 
-func NewRootCmd() *cobra.Command {
+func NewSyncCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sync <integration>",
 		Short: "Sync resources into Ctrlplane",
@@ -14,6 +15,8 @@ func NewRootCmd() *cobra.Command {
 			$ ctrlc sync google-gke
 		`),
 	}
+
+	cmd.AddCommand(tfe.NewSyncTfeCmd())
 
 	return cmd
 }
