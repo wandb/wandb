@@ -163,8 +163,11 @@ func (t *TPU) Sample() (*spb.StatsRecord, error) {
 	for _, duty := range dutyCycles {
 		chipID := duty.GetAttribute().GetValue().GetIntAttr()
 		dutyCycle := duty.GetGauge().GetAsDouble()
-		dutyCyclesPerCore[chipID*int64(t.chip.DevicesPerChip)] = dutyCycle
-		dutyCyclesPerCore[chipID*int64(t.chip.DevicesPerChip)+1] = dutyCycle
+		// For each device in the chip, assign the same duty cycle.
+		for i := int64(0); i < int64(t.chip.DevicesPerChip); i++ {
+			deviceID := chipID*int64(t.chip.DevicesPerChip) + i
+			dutyCyclesPerCore[deviceID] = dutyCycle
+		}
 	}
 
 	metrics := make(map[string]any)
