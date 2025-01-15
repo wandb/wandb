@@ -361,8 +361,8 @@ def publish_util(backend_interface):
             for m in metrics:
                 interface._publish_metric(m)
             for h in history:
-                if "run" not in history:
-                    history["run"] = run
+                if "run" not in h:
+                    h["run"] = run
                 interface.publish_history(**h)
             for a in artifacts:
                 interface.publish_artifact(**a)
