@@ -32,6 +32,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
   docker:
+    needs: linux
     runs-on: ubuntu-latest
     
     if: github.repository_owner == 'ctrlplanedev'
@@ -59,6 +60,7 @@ jobs:
           if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ] || [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
             echo "DOCKERHUB_LOGIN=false" >> $GITHUB_ENV
           else
+            echo "Credentials are available"
             echo "DOCKERHUB_LOGIN=true" >> $GITHUB_ENV
           fi
 
