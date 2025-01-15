@@ -78,9 +78,9 @@ jobs:
           images: ctrlplane/cli
           tags: |
             type=raw,value=latest
-            type=ref,event=tag
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
 
       - name: Build Only
         uses: docker/build-push-action@v6
