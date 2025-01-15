@@ -454,7 +454,9 @@ class TBEventConsumer:
                 row[chart.spec.table_key] = chart.table
 
         self._tbwatcher._interface.publish_history(
-            row, run=self._internal_run, publish_step=False
+            self._internal_run,
+            row,
+            publish_step=False,
         )
 
 
