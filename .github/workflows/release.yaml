@@ -9,11 +9,9 @@ permissions:
 
 on:
   push:
-    # run only against tags on the main branch
+    # run only against tags
     tags:
       - "v*"
-    branches:
-      - main
 
 jobs:
   linux:
