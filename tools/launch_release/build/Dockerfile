@@ -2,17 +2,8 @@ FROM python:3.9-slim-bullseye
 LABEL maintainer='Weights & Biases <support@wandb.com>'
 
 # install wget
-RUN apt-get update && apt-get install -y wget && \
-    apt-get -qy autoremove && \
-    apt-get clean && rm -r /var/lib/apt/lists/*
-
-#Install a modern Go toolchain
-ENV GO_VERSION=1.24rc1
-RUN wget https://go.dev/dl/go${GO_VERSION}.linux-$(dpkg --print-architecture).tar.gz \
-    && tar -C /usr/local -xzf go${GO_VERSION}.linux-$(dpkg --print-architecture).tar.gz \
-    && rm -f go${GO_VERSION}.linux-$(dpkg --print-architecture).tar.gz
-ENV PATH="/usr/local/go/bin:${PATH}"
-
+# Install Go.
+COPY --from=golang:bookworm /usr/local/go/ /usr/local/go/
 # Set Go environment paths
 ENV GOPATH /go
 ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
