@@ -34,17 +34,20 @@ def _server_accepts_client_ids() -> bool:
         and not wandb.run.settings.allow_offline_artifacts
     ):
         return False
+    
+    # Assume client IDs are accepted unless disabled with `allow_offline_artifacts=False`
+    if util._is_offline():
+        return True
 
     # If the script is online, request the max_cli_version and ensure the server
     # is of a high enough version.
-    if not util._is_offline():
-        max_cli_version = util._get_max_cli_version()
-        accepts_client_ids: bool = parse_version("0.11.0") <= parse_version(
-            max_cli_version
-        )
-        return accepts_client_ids
-    else:
+    max_cli_version = util._get_max_cli_version()
+    if max_cli_version is None:
         return False
+    accepts_client_ids: bool = parse_version("0.11.0") <= parse_version(
+        max_cli_version
+    )
+    return accepts_client_ids
 
 
 class _WBValueArtifactSource:
