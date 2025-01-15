@@ -96,7 +96,8 @@ func TestTPUSample(t *testing.T) {
 		Name:           "v42",
 		HbmGiB:         16,
 		DevicesPerChip: 1,
-	}, 1,
+		Count:          1,
+	},
 	)
 
 	data, err := tpu.Sample()

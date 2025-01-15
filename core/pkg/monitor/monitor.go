@@ -135,8 +135,12 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 	if gpu := NewGPU(pid, gpuDeviceIds); gpu != nil {
 		sm.assets = append(sm.assets, gpu)
 	}
-	if tpu := NewTPU(); tpu != nil {
+	tpu, err := NewTPU()
+	if tpu != nil {
 		sm.assets = append(sm.assets, tpu)
+	}
+	if err != nil {
+		sm.logger.Debug(fmt.Sprintf("monitor: TPU monitoring not available: %v", err))
 	}
 	if slurm := NewSLURM(); slurm != nil {
 		sm.assets = append(sm.assets, slurm)

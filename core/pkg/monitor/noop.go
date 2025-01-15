@@ -46,8 +46,8 @@ type TPU struct {
 	name string
 }
 
-func NewTPU() *TPU {
-	return &TPU{name: "tpu"}
+func NewTPU() (*TPU, error) {
+	return &TPU{name: "tpu"}, nil
 }
 
 func (t *TPU) Name() string { return t.name }
