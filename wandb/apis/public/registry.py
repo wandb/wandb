@@ -28,18 +28,21 @@ class Registries(Paginator):
         self.QUERY = gql("""
             query Registries($organization: String!, $filters: JSONString) {
                 organization(name: $organization) {
-                    projects(filters: $filters) {
-                        edges {
-                            node {
-                                entity {
+                    orgEntity {
+                        name
+                        projects(filters: $filters) {
+                            edges {
+                                node {
+                                    entity {
+                                        name
+                                    }
                                     name
-                                }
-                                name
-                                description
-                                artifactTypes {
-                                    edges {
-                                        node {
-                                            name
+                                    description
+                                    artifactTypes {
+                                        edges {
+                                            node {
+                                                name
+                                            }
                                         }
                                     }
                                 }
@@ -159,6 +162,7 @@ class Collections(Paginator):
         self.organization = organization
         self.registry_filter = registry_filter
         self.collection_filter = collection_filter or {}
+
         variables = {
             "registryFilter": json.dumps(self.registry_filter)
             if self.registry_filter
@@ -167,40 +171,56 @@ class Collections(Paginator):
             if self.collection_filter
             else None,
             "organization": self.organization,
+            "perPage": per_page,
         }
 
         self.QUERY = gql("""
-            query Collections($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString) {
+            query Collections(
+                $organization: String!,
+                $registryFilter: JSONString,
+                $collectionFilter: JSONString,
+                $cursor: String,
+                $perPage: Int
+            ) {
                 organization(name: $organization) {
                     id
                     name
-                    artifactCollections(projectFilters: $registryFilter, filters: $collectionFilter) {
-                         edges {
-                            node {
-                                id
-                                name
-                                description
-                                createdAt
-                                tags {
-                                    edges {
-                                        node {
+                    orgEntity {
+                        name
+                        artifactCollections(projectFilters: $registryFilter, filters: $collectionFilter, after: $cursor, first: $perPage) {
+                            totalCount
+                            pageInfo {
+                                endCursor
+                                hasNextPage
+                            }
+                            edges {
+                                cursor
+                                node {
+                                    id
+                                    name
+                                    description
+                                    createdAt
+                                    tags {
+                                        edges {
+                                            node {
+                                                name
+                                            }
+                                        }
+                                    }
+                                    project {
+                                        name
+                                        entity {
                                             name
                                         }
                                     }
-                                }
-                                project {
-                                    name
-                                    entity {
+                                    defaultArtifactType {
                                         name
                                     }
-                                }
-                                defaultArtifactType {
-                                    name
-                                }
-                                aliases {
-                                    edges {
-                                        node {
-                                            alias
+                                    aliases {
+                                        edges {
+                                            node {
+                                                alias
+                                            }
                                         }
                                     }
                                 }
@@ -222,21 +242,32 @@ class Collections(Paginator):
             filter,
         )
 
-    # TODO: IMPLEMENT EVERYTHING BELOW properly
     @property
     def length(self):
-        return None
+        if self.last_response:
+            return self.last_response["organization"]["orgEntity"][
+                "artifactCollections"
+            ]["totalCount"]
+        else:
+            return None
 
     @property
     def more(self):
         if self.last_response:
-            return False
+            return self.last_response["organization"]["orgEntity"][
+                "artifactCollections"
+            ]["pageInfo"]["hasNextPage"]
         else:
             return True
 
     @property
     def cursor(self):
-        return None
+        if self.last_response:
+            return self.last_response["organization"]["orgEntity"][
+                "artifactCollections"
+            ]["edges"][-1]["cursor"]
+        else:
+            return None
 
     def update_variables(self):
         self.variables.update({"cursor": self.cursor})
@@ -252,7 +283,9 @@ class Collections(Paginator):
                 self.organization,
                 r["node"],
             )
-            for r in self.last_response["organization"]["artifactCollections"]["edges"]
+            for r in self.last_response["organization"]["orgEntity"][
+                "artifactCollections"
+            ]["edges"]
         ]
 
 

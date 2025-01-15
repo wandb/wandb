@@ -288,9 +288,11 @@ class ArtifactCollection:
         self._type = type
         self._saved_type = type
         self._attrs = attrs
-        self.load()
+        if self._attrs is None:
+            self.load()
         self._aliases = [a["node"]["alias"] for a in self._attrs["aliases"]["edges"]]
         self._description = self._attrs["description"]
+        self._created_at = self._attrs["createdAt"]
         self._tags = [a["node"]["name"] for a in self._attrs["tags"]["edges"]]
         self._saved_tags = copy(self._tags)
         self.organization = organization
@@ -315,6 +317,10 @@ class ArtifactCollection:
     def aliases(self):
         """Artifact Collection Aliases."""
         return self._aliases
+
+    @property
+    def created_at(self):
+        return self._created_at
 
     def load(self):
         query = gql(
