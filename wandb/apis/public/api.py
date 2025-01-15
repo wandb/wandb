@@ -42,9 +42,11 @@ from wandb.sdk.automations import Automation, NewAutomation, PreparedAutomation
 from wandb.sdk.automations._generated import (
     CREATE_FILTER_TRIGGER_GQL,
     DELETE_TRIGGER_GQL,
+    UPDATE_FILTER_TRIGGER_GQL,
     CreateFilterTrigger,
     DeleteTrigger,
     DeleteTriggerResult,
+    UpdateFilterTrigger,
 )
 from wandb.sdk.automations._utils import prepare_create_trigger_input
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -1613,6 +1615,55 @@ class Api:
         except ValidationError as e:
             # Omit the response data, it's likely to add unhelpful noise
             msg = f"Unexpected response while creating automation {name!r}"
+            raise ValueError(msg) from e
+
+    def update_automation(
+        self,
+        obj: Automation,
+        *,
+        create_missing: bool = False,
+    ) -> Automation:
+        """Update an existing automation to the state of the given automation.
+
+        Args:
+            obj: The automation to update.  Must be an existing automation.
+            create_missing (bool):
+                If True, and the automation does not exist, create it.
+        """
+        # keep the name on hand, if needed later to report on errors
+        name = obj.name
+
+        mutation = gql(UPDATE_FILTER_TRIGGER_GQL)
+        variables = {"params": obj.model_dump()}
+
+        try:
+            data = self.client.execute(mutation, variable_values=variables)
+        except requests.HTTPError as e:
+            status = HTTPStatus(e.response.status_code)
+            if status is HTTPStatus.NOT_FOUND:  # 404
+                if create_missing:
+                    wandb.termlog(f"Automation {name!r} not found.  Creating...")
+                    return self.create_automation(obj)
+                else:
+                    wandb.termerror(f"Automation {name!r} not found.")
+                    raise e
+
+            # Not a (known) recoverable HTTP error
+            wandb.termerror(f"Got response status {status!r}: {e.response.text!r}")
+            raise e
+
+        try:
+            result = UpdateFilterTrigger.model_validate(data).update_filter_trigger
+            return Automation.model_validate(result.trigger.model_dump(mode="json"))
+        except AttributeError as e:
+            # This should not happen on a 200 response, but if it does, it means
+            # one of the top-level fields was None.  Showing the response data in
+            # full is unlikely to add much noise, so we may as well.
+            msg = f"Unexpected response while updating automation {name!r}: {data!r}"
+            raise ValueError(msg) from e
+        except ValidationError as e:
+            # Omit the response data, it's likely to add unhelpful noise
+            msg = f"Unexpected response while updating automation {name!r}"
             raise ValueError(msg) from e
 
     def delete_automation(self, obj: Union[str, Automation]) -> DeleteTriggerResult:
