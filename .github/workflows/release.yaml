@@ -9,9 +9,11 @@ permissions:
 
 on:
   push:
-    # run only against tags
+    # run only against tags on the main branch
     tags:
       - "v*"
+    branches:
+      - main
 
 jobs:
   linux:
@@ -78,6 +80,17 @@ jobs:
             type=raw,value=latest
             type=ref,event=tag
 
+      - name: Build Only
+        uses: docker/build-push-action@v6
+        if: env.DOCKERHUB_LOGIN != 'true'
+        with:
+          push: false
+          file: docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            CLI_VERSION=${{ steps.meta.outputs.version }}
+
       - name: Build and Push
         uses: docker/build-push-action@v6
         if: env.DOCKERHUB_LOGIN == 'true'
@@ -87,4 +100,4 @@ jobs:
           platforms: ${{ matrix.platform }}
           tags: ${{ steps.meta.outputs.tags }}
           build-args: |
-            CLI_VERSION=${{ github.ref_name }}
+            CLI_VERSION=${{ steps.meta.outputs.version }}
