@@ -78,15 +78,6 @@ jobs:
             type=raw,value=latest
             type=ref,event=tag
 
-      - name: Build
-        uses: docker/build-push-action@v6
-        if: github.ref != 'refs/heads/main'
-        with:
-          push: false
-          file: docker/Dockerfile
-          platforms: ${{ matrix.platform }}
-          tags: ${{ steps.meta.outputs.tags }}
-
       - name: Build and Push
         uses: docker/build-push-action@v6
         if: github.ref == 'refs/heads/main' && env.DOCKERHUB_LOGIN == 'true'
