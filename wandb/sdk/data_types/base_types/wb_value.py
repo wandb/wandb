@@ -37,11 +37,12 @@ def _server_accepts_client_ids() -> bool:
 
     # If the script is online, request the max_cli_version and ensure the server
     # is of a high enough version.
-    max_cli_version = util._get_max_cli_version()
-    if max_cli_version is None:
+    if not util._is_offline():
+        max_cli_version = util._get_max_cli_version()
+        accepts_client_ids: bool = parse_version("0.11.0") <= parse_version(max_cli_version)
+        return accepts_client_ids
+    else:
         return False
-    accepts_client_ids: bool = parse_version("0.11.0") <= parse_version(max_cli_version)
-    return accepts_client_ids
 
 
 class _WBValueArtifactSource:
