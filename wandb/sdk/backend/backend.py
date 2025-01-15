@@ -25,8 +25,6 @@ if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import Record, Result
     from wandb.sdk.lib import service_connection
 
-    from ..wandb_run import Run
-
     RecordQueue = Union["queue.Queue[Record]", multiprocessing.Queue[Record]]
     ResultQueue = Union["queue.Queue[Result]", multiprocessing.Queue[Result]]
 
@@ -84,10 +82,6 @@ class Backend:
         self._save_mod_path: Optional[str] = None
         self._save_mod_spec = None
 
-    def _hack_set_run(self, run: "Run") -> None:
-        assert self.interface
-        self.interface._hack_set_run(run)
-
     def _multiprocessing_setup(self) -> None:
         assert self._settings
         if self._settings.start_method == "thread":
@@ -141,7 +135,10 @@ class Backend:
     def ensure_launched(self) -> None:
         """Launch backend worker if not running."""
         if self._service:
-            self.interface = self._service.make_interface(self._mailbox)
+            self.interface = self._service.make_interface(
+                self._mailbox,
+                stream_id=self._settings.run_id,
+            )
             return
 
         assert self._settings

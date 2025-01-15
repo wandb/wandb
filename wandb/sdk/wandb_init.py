@@ -891,7 +891,6 @@ class _WandbInit:
         run._set_backend(backend)
         run._set_teardown_hooks(self._teardown_hooks)
 
-        backend._hack_set_run(run)
         assert backend.interface
         mailbox.enable_keepalive()
         backend.interface.publish_header()
@@ -1069,7 +1068,6 @@ def _attach(
         run._init(settings=settings)
     run._set_library(_wl)
     run._set_backend(backend)
-    backend._hack_set_run(run)
     assert backend.interface
 
     mailbox.enable_keepalive()
