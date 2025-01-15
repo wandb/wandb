@@ -169,7 +169,7 @@ func (t *TPU) Sample() (*spb.StatsRecord, error) {
 
 	metrics := make(map[string]any)
 
-	for deviceID := int64(0); deviceID < int64(t.count); deviceID++ {
+	for deviceID := int64(0); deviceID < int64(t.count*t.chip.DevicesPerChip); deviceID++ {
 		memoryUsage, ok := memoryUsages[deviceID]
 		if !ok {
 			continue
