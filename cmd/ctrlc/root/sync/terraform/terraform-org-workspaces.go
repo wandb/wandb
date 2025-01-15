@@ -1,35 +1,39 @@
-package tfe
+package terraform
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"time"
 
 	"strconv"
 
+	"github.com/avast/retry-go"
 	"github.com/charmbracelet/log"
 	"github.com/hashicorp/go-tfe"
 )
 
 const (
-	Kind = "Workspace"
+	Kind    = "Workspace"
+	Version = "terraform/v1"
 )
 
 type WorkspaceResource struct {
-	Version    string
-	Kind       string
-	Name       string
+	Config     map[string]interface{}
 	Identifier string
-	Config     map[string]string
+	Kind       string
 	Metadata   map[string]string
+	Name       string
+	Version    string
 }
 
-func getLinksMetadata(workspace *tfe.Workspace, baseURL string) *string {
+func getLinksMetadata(workspace *tfe.Workspace, baseURL url.URL) *string {
 	if workspace.Organization == nil {
 		return nil
 	}
 	links := map[string]string{
-		"Terraform Workspace": fmt.Sprintf("%s/app/%s/workspaces/%s", baseURL, workspace.Organization.Name, workspace.Name),
+		"Terraform Workspace": fmt.Sprintf("%s/app/%s/workspaces/%s", baseURL.String(), workspace.Organization.Name, workspace.Name),
 	}
 	linksJSON, err := json.Marshal(links)
 	if err != nil {
@@ -70,15 +74,15 @@ func getWorkspaceTags(workspace *tfe.Workspace) map[string]string {
 	return tags
 }
 
-func convertWorkspaceToResource(workspace *tfe.Workspace, baseURL string) (WorkspaceResource, error) {
+func convertWorkspaceToResource(workspace *tfe.Workspace, baseURL url.URL) (WorkspaceResource, error) {
 	if workspace == nil {
 		return WorkspaceResource{}, fmt.Errorf("workspace is nil")
 	}
-	version := workspace.TerraformVersion
+	version := Version
 	kind := Kind
 	name := workspace.Name
 	identifier := workspace.ID
-	config := map[string]string{
+	config := map[string]interface{}{
 		"workspaceId": workspace.ID,
 	}
 	metadata := map[string]string{
@@ -94,19 +98,16 @@ func convertWorkspaceToResource(workspace *tfe.Workspace, baseURL string) (Works
 		metadata["ctrlplane/links"] = *linksMetadata
 	}
 
-	variables := getWorkspaceVariables(workspace)
-	for key, value := range variables {
-		metadata[key] = value
+	moreValues := []map[string]string{
+		getWorkspaceVariables(workspace),
+		getWorkspaceTags(workspace),
+		getWorkspaceVcsRepo(workspace),
 	}
 
-	tags := getWorkspaceTags(workspace)
-	for key, value := range tags {
-		metadata[key] = value
-	}
-
-	vcsRepo := getWorkspaceVcsRepo(workspace)
-	for key, value := range vcsRepo {
-		metadata[key] = value
+	for _, moreValue := range moreValues {
+		for key, value := range moreValue {
+			metadata[key] = value
+		}
 	}
 
 	return WorkspaceResource{
@@ -119,16 +120,60 @@ func convertWorkspaceToResource(workspace *tfe.Workspace, baseURL string) (Works
 	}, nil
 }
 
-func getWorkspacesInOrg(client *tfe.Client, organization string) ([]*tfe.Workspace, error) {
+func listWorkspacesWithRetry(ctx context.Context, client *tfe.Client, organization string, pageNum, pageSize int) (*tfe.WorkspaceList, error) {
+	var workspaces *tfe.WorkspaceList
+	err := retry.Do(
+		func() error {
+			var err error
+			workspaces, err = client.Workspaces.List(ctx, organization, &tfe.WorkspaceListOptions{
+				ListOptions: tfe.ListOptions{
+					PageNumber: pageNum,
+					PageSize:   pageSize,
+				},
+			})
+			return err
+		},
+		retry.Attempts(5),
+		retry.Delay(time.Second),
+		retry.MaxDelay(5*time.Second),
+	)
+	return workspaces, err
+}
 
-	// TODO: use cmd context
-	ctx := context.Background()
+func listAllWorkspaces(ctx context.Context, client *tfe.Client, organization string) ([]*tfe.Workspace, error) {
+	var allWorkspaces []*tfe.Workspace
+	pageNum := 1
+	pageSize := 100
 
-	items, err := client.Workspaces.List(ctx, organization, &tfe.WorkspaceListOptions{})
+	for {
+		workspaces, err := listWorkspacesWithRetry(ctx, client, organization, pageNum, pageSize)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list workspaces: %w", err)
+		}
+
+		allWorkspaces = append(allWorkspaces, workspaces.Items...)
+		if len(workspaces.Items) < pageSize {
+			break
+		}
+		pageNum++
+	}
+
+	return allWorkspaces, nil
+}
+
+func getWorkspacesInOrg(ctx context.Context, client *tfe.Client, organization string) ([]WorkspaceResource, error) {
+	workspaces, err := listAllWorkspaces(ctx, client, organization)
 	if err != nil {
 		return nil, err
 	}
 
-	workspaces := items.Items
-	return workspaces, nil
+	workspaceResources := []WorkspaceResource{}
+	for _, workspace := range workspaces {
+		workspaceResource, err := convertWorkspaceToResource(workspace, client.BaseURL())
+		if err != nil {
+			return nil, err
+		}
+		workspaceResources = append(workspaceResources, workspaceResource)
+	}
+	return workspaceResources, nil
 }

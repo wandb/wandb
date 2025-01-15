@@ -2,7 +2,7 @@ package sync
 
 import (
 	"github.com/MakeNowJust/heredoc/v2"
-	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/tfe"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/terraform"
 	"github.com/spf13/cobra"
 )
 
@@ -13,10 +13,11 @@ func NewSyncCmd() *cobra.Command {
 		Example: heredoc.Doc(`
 			$ ctrlc sync aws-eks
 			$ ctrlc sync google-gke
+			$ ctrlc sync terraform
 		`),
 	}
 
-	cmd.AddCommand(tfe.NewSyncTfeCmd())
+	cmd.AddCommand(terraform.NewSyncTerraformCmd())
 
 	return cmd
 }
