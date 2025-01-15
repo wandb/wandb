@@ -92,7 +92,7 @@ func TestTPUSample(t *testing.T) {
 	tpu := &monitor.TPU{}
 	tpu.SetName("tpu")
 	tpu.SetClient(mockClient)
-	tpu.SetChip(&monitor.TPUChip{
+	tpu.SetChip(monitor.TPUChip{
 		Name:           "v42",
 		HbmGiB:         16,
 		DevicesPerChip: 1,
