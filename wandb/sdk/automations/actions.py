@@ -78,6 +78,26 @@ class DoNotification(NotificationActionInput):
         """Define a notification action that sends to the given (Slack) integration."""
         return cls(integration_id=integration.id, title=title, text=text, level=level)
 
+    @classmethod
+    def for_team(
+        cls,
+        entity: str,
+        *,
+        title: str = "",
+        text: str = "",
+        level: AlertSeverity | AlertLevel | str = AlertSeverity.INFO,
+    ) -> Self:
+        """Define a notification action that sends to the team's existing (Slack) integration."""
+        from wandb.apis.public.api import Api
+
+        integration = Api().slack_integration(entity)
+        return cls(
+            integration_id=integration.id,
+            title=title,
+            text=text,
+            level=level,
+        )
+
 
 class DoWebhook(GenericWebhookActionInput):
     """Schema for defining a triggered webhook action."""

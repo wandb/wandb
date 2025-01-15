@@ -84,17 +84,18 @@ def _local_wandb_backend(name: str) -> LocalWandbBackendAddress:
     return address
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def use_local_wandb_backend(
     local_wandb_backend: LocalWandbBackendAddress,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+) -> Generator[None, None, None]:
     """Fixture that patches WANDB_BASE_URL to point to the local container.
 
-    Unlike `local_wandb_backend`, this is function-scoped, so cannot be used
-    in session-scoped fixtures.
+    We use the `pytest.MonkeyPatch` context manager instead of the `monkeypatch` fixture,
+    as `monkeypatch` is strictly function-scoped and we need this to be session-scoped.
     """
-    monkeypatch.setenv("WANDB_BASE_URL", local_wandb_backend.base_url)
+    with pytest.MonkeyPatch.context() as session_monkeypatch:
+        session_monkeypatch.setenv("WANDB_BASE_URL", local_wandb_backend.base_url)
+        yield
 
 
 @dataclass(frozen=True)
@@ -228,18 +229,18 @@ class BackendFixtureFactory:
                 self._send(cmd.path, data=asdict(cmd))
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def backend_fixture_factory(
     worker_id: str,
     local_wandb_backend: LocalWandbBackendAddress,
-    use_local_wandb_backend,
+    use_local_wandb_backend: None,
 ) -> Generator[BackendFixtureFactory, None, None]:
     base_url = local_wandb_backend.fixture_service_url
     with BackendFixtureFactory(base_url, worker_id=worker_id) as factory:
         yield factory
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def backend_importers_fixture_factory(
     worker_id: str,
     local_wandb_backend_importers: LocalWandbBackendAddress,
