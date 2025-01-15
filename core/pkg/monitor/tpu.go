@@ -222,6 +222,7 @@ func (t *TPU) Close() {
 // returns the most common chip type and the total count.
 func getLocalTPUChips() (*TPUChip, int) {
 	devices, err := filepath.Glob("/sys/bus/pci/devices/*")
+	fmt.Println("devices", devices)
 	if err != nil {
 		return nil, 0
 	}
@@ -260,6 +261,7 @@ func getLocalTPUChips() (*TPUChip, int) {
 
 		counter[chipType]++
 	}
+	fmt.Println("counter", counter)
 
 	if len(counter) == 0 {
 		return nil, 0
