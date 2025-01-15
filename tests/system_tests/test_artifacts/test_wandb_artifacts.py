@@ -1527,6 +1527,18 @@ def test_save_artifact_sequence(user, api):
         assert len(collection.tags) == 1 and collection.tags[0] == "new_tag"
 
 
+def test_artifact_standard_url(user, api):
+    with wandb.init() as run:
+        artifact = Artifact("sequence_name", "data")
+        run.log_artifact(artifact)
+        artifact.wait()
+
+        artifact = run.use_artifact("sequence_name:latest")
+        expected_url = f"{util.app_url(run.settings.base_url)}/{run.entity}/{run.project}/artifacts/data/sequence_name/{artifact.version}"
+
+        assert artifact.url == expected_url
+
+
 def test_save_artifact_portfolio(user, api):
     with wandb.init() as run:
         artifact = Artifact("image_data", "data")
