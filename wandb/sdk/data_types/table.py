@@ -192,18 +192,18 @@ class Table(Media):
     in the UI: https://docs.wandb.ai/guides/data-vis/tables.
 
     Args:
-        columns: (List[str]) Names of the columns in the table.
+        columns (List[str]): Names of the columns in the table.
             Defaults to ["Input", "Output", "Expected"].
         data: (List[List[any]]) 2D row-oriented array of values.
-        dataframe: (pandas.DataFrame) DataFrame object used to create the table.
+        dataframe (pandas.DataFrame) : DataFrame object used to create the table.
             When set, `data` and `columns` arguments are ignored.
-        optional: (Union[bool,List[bool]]) Determines if `None` values are allowed. Default to True
+        optional (Union[bool,List[bool]]): Determines if `None` values are allowed. Default to True
             - If a singular bool value, then the optionality is enforced for all
             columns specified at construction time
             - If a list of bool values, then the optionality is applied to each
             column - should be the same length as `columns`
             applies to all columns. A list of bool values applies to each respective column.
-        allow_mixed_types: (bool) Determines if columns are allowed to have mixed types
+        allow_mixed_types (bool): Determines if columns are allowed to have mixed types
             (disables type validation). Defaults to False
     """
 
@@ -319,9 +319,9 @@ class Table(Media):
         example object, like an instance of wandb.Image or wandb.Classes.
 
         Args:
-            col_name: (str) - The name of the column to cast.
-            dtype: (class, wandb.wandb_sdk.interface._dtypes.Type, any) - The target dtype.
-            optional: (bool) - If the column should allow Nones.
+            col_name (str): The name of the column to cast.
+            dtype (class, wandb.wandb_sdk.interface._dtypes.Type, any): The target dtype.
+            optional (bool): If the column should allow Nones.
         """
         assert col_name in self.columns
 
@@ -421,7 +421,10 @@ class Table(Media):
         self.add_data(*row)
 
     def add_data(self, *data):
-        """Adds a new row of data to the table. The maximum amount of rows in a table is determined by `wandb.Table.MAX_ARTIFACT_ROWS`.
+        """Adds a new row of data to the table.
+
+        The maximum amount ofrows in a table is determined by
+        `wandb.Table.MAX_ARTIFACT_ROWS`.
 
         The length of the data should match the length of the table column.
         """
@@ -972,12 +975,9 @@ class PartitionedTable(Media):
     def iterrows(self):
         """Iterate over rows as (ndx, row).
 
-        Yields:
-        ------
-        index : int
-            The index of the row.
-        row : List[any]
-            The data of the row.
+        Args:
+            index (int): The index of the row.
+            row (List[any]): The data of the row.
         """
         columns = None
         ndx = 0
