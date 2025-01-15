@@ -1315,7 +1315,7 @@ class Run:
         with telemetry.context(run=self) as tel:
             tel.feature.set_summary = True
         if self._backend and self._backend.interface:
-            self._backend.interface.publish_summary(summary_record)
+            self._backend.interface.publish_summary(self, summary_record)
 
     def _on_progress_get_summary(self, handle: MailboxProgress) -> None:
         pass

@@ -90,15 +90,10 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> "PolicyName":
 
 
 class InterfaceBase:
-    _run: Optional["Run"]
     _drop: bool
 
     def __init__(self) -> None:
-        self._run = None
         self._drop = False
-
-    def _hack_set_run(self, run: "Run") -> None:
-        self._run = run
 
     def publish_header(self) -> None:
         header = pb.HeaderRecord()
@@ -232,7 +227,12 @@ class InterfaceBase:
             update.value_json = json.dumps(v)
         return summary
 
-    def _summary_encode(self, value: Any, path_from_root: str) -> dict:
+    def _summary_encode(
+        self,
+        value: Any,
+        path_from_root: str,
+        run: "Run",
+    ) -> dict:
         """Normalize, compress, and encode sub-objects for backend storage.
 
         value: Object to encode.
@@ -250,12 +250,14 @@ class InterfaceBase:
             json_value = {}
             for key, value in value.items():  # noqa: B020
                 json_value[key] = self._summary_encode(
-                    value, path_from_root + "." + key
+                    value,
+                    path_from_root + "." + key,
+                    run=run,
                 )
             return json_value
         else:
             friendly_value, converted = json_friendly(
-                val_to_json(self._run, path_from_root, value, namespace="summary")
+                val_to_json(run, path_from_root, value, namespace="summary")
             )
             json_value, compressed = maybe_compress_summary(
                 friendly_value, get_h5_typename(value)
@@ -267,7 +269,11 @@ class InterfaceBase:
 
             return json_value
 
-    def _make_summary(self, summary_record: sr.SummaryRecord) -> pb.SummaryRecord:
+    def _make_summary(
+        self,
+        summary_record: sr.SummaryRecord,
+        run: "Run",
+    ) -> pb.SummaryRecord:
         pb_summary_record = pb.SummaryRecord()
 
         for item in summary_record.update:
@@ -282,7 +288,11 @@ class InterfaceBase:
                 pb_summary_item.key = item.key[0]
 
             path_from_root = ".".join(item.key)
-            json_value = self._summary_encode(item.value, path_from_root)
+            json_value = self._summary_encode(
+                item.value,
+                path_from_root,
+                run=run,
+            )
             json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
@@ -303,8 +313,12 @@ class InterfaceBase:
 
         return pb_summary_record
 
-    def publish_summary(self, summary_record: sr.SummaryRecord) -> None:
-        pb_summary_record = self._make_summary(summary_record)
+    def publish_summary(
+        self,
+        run: "Run",
+        summary_record: sr.SummaryRecord,
+    ) -> None:
+        pb_summary_record = self._make_summary(summary_record, run=run)
         self._publish_summary(pb_summary_record)
 
     @abstractmethod
