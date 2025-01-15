@@ -27,13 +27,18 @@ func NewSyncTerraformCmd() *cobra.Command {
 			export TFE_ADDRESS=... else the default address (https://app.terraform.io) is used.
 
 			# Sync all workspaces in an organization
-			$ ctrlc sync terraform --organization my-org workspace-id 2a7c5560-75c9-4dbe-be74-04ee33bf8188
+			$ ctrlc sync terraform --organization my-org --workspace-id 2a7c5560-75c9-4dbe-be74-04ee33bf8188
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("Syncing Terraform resources into Ctrlplane")
 			apiURL := viper.GetString("url")
 			apiKey := viper.GetString("api-key")
 			ctx := cmd.Context()
+
+			if organization == "" {
+				return fmt.Errorf("organization is required")
+			}
+
 			if _, err := uuid.Parse(workspaceId); err != nil {
 				return fmt.Errorf("invalid workspace ID: %w", err)
 			}

@@ -87,10 +87,13 @@ func convertWorkspaceToResource(workspace *tfe.Workspace, baseURL url.URL) (Work
 	}
 	metadata := map[string]string{
 		"ctrlplane/external-id":                workspace.ID,
-		"terraform-cloud/organization":         workspace.Organization.Name,
 		"terraform-cloud/workspace-name":       workspace.Name,
 		"terraform-cloud/workspace-auto-apply": strconv.FormatBool(workspace.AutoApply),
 		"terraform/version":                    workspace.TerraformVersion,
+	}
+
+	if workspace.Organization != nil {
+		metadata["terraform-cloud/organization"] = workspace.Organization.Name
 	}
 
 	linksMetadata := getLinksMetadata(workspace, baseURL)
