@@ -685,12 +685,11 @@ class InterfaceBase:
 
     def publish_history(
         self,
+        run: "Run",
         data: dict,
         step: Optional[int] = None,
-        run: Optional["Run"] = None,
         publish_step: bool = True,
     ) -> None:
-        run = run or self._run
         data = history_dict_to_json(run, data, step=step)
         history = pb.HistoryRecord()
         if publish_step:
