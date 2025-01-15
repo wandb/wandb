@@ -68,8 +68,10 @@ func getWorkspaceVcsRepo(workspace *tfe.Workspace) map[string]string {
 func getWorkspaceTags(workspace *tfe.Workspace) map[string]string {
 	tags := make(map[string]string)
 	for _, tag := range workspace.Tags {
-		key := fmt.Sprintf("terraform-cloud/tag/%s", tag.Name)
-		tags[key] = "true"
+		if tag != nil {
+			key := fmt.Sprintf("terraform-cloud/tag/%s", tag.Name)
+			tags[key] = "true"
+		}
 	}
 	return tags
 }
@@ -174,7 +176,8 @@ func getWorkspacesInOrg(ctx context.Context, client *tfe.Client, organization st
 	for _, workspace := range workspaces {
 		workspaceResource, err := convertWorkspaceToResource(workspace, client.BaseURL())
 		if err != nil {
-			return nil, err
+			log.Error("Failed to convert workspace to resource", "error", err, "workspace", workspace.Name)
+			continue
 		}
 		workspaceResources = append(workspaceResources, workspaceResource)
 	}
