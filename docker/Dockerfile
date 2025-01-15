@@ -9,6 +9,4 @@ RUN apk add --no-cache curl tar && \
   chmod +x /usr/local/bin/ctrlc && \
   rm -rf ctrlc.tar.gz
 
-WORKDIR /app
-
 CMD ["ctrlc", "--help"]
