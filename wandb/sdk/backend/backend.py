@@ -135,6 +135,8 @@ class Backend:
     def ensure_launched(self) -> None:
         """Launch backend worker if not running."""
         if self._service:
+            assert self._settings
+            assert self._settings.run_id
             self.interface = self._service.make_interface(
                 self._mailbox,
                 stream_id=self._settings.run_id,
