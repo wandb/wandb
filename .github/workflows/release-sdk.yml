@@ -119,7 +119,9 @@ jobs:
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
           CIBW_BUILD: cp*-macosx* pp*-macosx*
           CIBW_SKIP: cp36-*
-          CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
+          # arm64 is skipped because it still produces 11.0 wheels due to
+          # restrictions in the cibuildwheel package.
+          CIBW_ARCHS_MACOS: x86_64
 
           # Work around https://github.com/matthew-brett/delocate/issues/204
           # by adding `--ignore-missing-dependencies` to cibuildwheel's default
@@ -136,7 +138,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: wandb-sdk-distribution-macos-10
+          name: wandb-sdk-distribution-macos-10-x86_64
           path: ./dist
 
   build-linux-arm64-wheels:
@@ -332,9 +334,14 @@ jobs:
       - name: Download distribution
         uses: actions/download-artifact@v4
         with:
-          path: dist/
+          path: artifacts/
           pattern: wandb-sdk-distribution-*
-          merge-multiple: true
+
+      - name: Merge distributions
+        run: |
+          mkdir -p dist/
+          cp -r artifacts/*/* dist/
+          ls -la dist/
 
       - name: List distribution
         run: ls dist/
@@ -438,9 +445,15 @@ jobs:
       - name: Download distribution
         uses: actions/download-artifact@v4
         with:
-          path: dist/
+          path: artifacts/
           pattern: wandb-sdk-distribution-*
-          merge-multiple: true
+
+      - name: Merge distributions
+        run: |
+          mkdir -p dist/
+          cp -r artifacts/*/* dist/
+          ls -la dist/
+
       - name: List distribution
         run: ls dist/
       - name: Publish distribution to PyPI
