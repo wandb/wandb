@@ -17,7 +17,6 @@ from wandb.old.settings import Settings as OldSettings
 from ..apis import InternalApi
 from .internal.internal_api import Api
 from .lib import apikey
-from .wandb_settings import Settings
 
 
 def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None:
@@ -98,27 +97,20 @@ class ApiKeyStatus(enum.Enum):
 
 
 class _WandbLogin:
-    def __init__(self):
-        self._settings: Optional[Settings] = None
-        self._backend = None
-        self._silent: Optional[bool] = None
-        self._entity: Optional[str] = None
-        self._wl = None
-        self._key = None
-        self._relogin = None
-
-    def setup(
+    def __init__(
         self,
-        *,
-        anonymous: Optional[Literal["allow", "must", "never"]] = None,
+        anonymous: Optional[Literal["must", "allow", "never"]] = None,
+        force: Optional[bool] = None,
+        host: Optional[str] = None,
         key: Optional[str] = None,
         relogin: Optional[bool] = None,
-        host: Optional[str] = None,
-        force: Optional[bool] = None,
         timeout: Optional[int] = None,
-    ) -> None:
-        """Updates login-related settings on the global setup object."""
+        _silent: Optional[bool] = None,
+        _entity: Optional[str] = None,
+    ):
         self._relogin = relogin
+        self._silent = _silent
+        self._entity = _entity
 
         login_settings = {
             "anonymous": anonymous,
@@ -127,30 +119,17 @@ class _WandbLogin:
             "force": force,
             "login_timeout": timeout,
         }
-
-        # make sure they are applied globally
-        self._wl = wandb.setup(
+        self.is_anonymous = anonymous == "must"
+        self._wandb_setup = wandb.setup(
             settings=wandb.Settings(
                 **{k: v for k, v in login_settings.items() if v is not None}
             )
         )
-        self._settings = self._wl.settings
+        self._settings = self._wandb_setup.settings
 
     def is_apikey_configured(self) -> bool:
         """Returns whether an API key is set or can be inferred."""
         return apikey.api_key(settings=self._settings) is not None
-
-    def should_use_identity_token(self):
-        return self._settings.identity_token_file is not None
-
-    def set_backend(self, backend):
-        self._backend = backend
-
-    def set_silent(self, silent: bool) -> None:
-        self._silent = silent
-
-    def set_entity(self, entity: str) -> None:
-        self._entity = entity
 
     def login(self) -> bool:
         """Returns whether the user is logged in (i.e. an API key exists).
@@ -170,15 +149,19 @@ class _WandbLogin:
 
     def _print_logged_in_message(self) -> None:
         """Prints a message telling the user they are logged in."""
-        username = self._wl._get_username()
+        username = self._wandb_setup._get_username()
 
         if username:
             # check to see if we got an entity from the setup call or from the user
-            entity = self._entity or self._wl._get_entity()
+            entity = self._entity or self._wandb_setup._get_entity()
 
             entity_str = ""
             # check if entity exist, valid (is part of a certain team) and different from the username
-            if entity and entity in self._wl._get_teams() and entity != username:
+            if (
+                entity
+                and entity in self._wandb_setup._get_teams()
+                and entity != username
+            ):
                 entity_str = f" ({click.style(entity, fg='yellow')})"
 
             login_state_str = f"Currently logged in as: {click.style(username, fg='yellow')}{entity_str}"
@@ -222,11 +205,11 @@ class _WandbLogin:
             login_settings = dict(mode="disabled")
         elif key:
             login_settings = dict(api_key=key)
-        self._wl._settings.update_from_dict(login_settings)
+        self._wandb_setup.settings.update_from_dict(login_settings)
         # Whenever the key changes, make sure to pull in user settings
         # from server.
-        if not self._wl.settings._offline:
-            self._wl._update_user_settings()
+        if not self._wandb_setup.settings._offline:
+            self._wandb_setup._update_user_settings()
 
     def _prompt_api_key(self) -> Tuple[Optional[str], ApiKeyStatus]:
         api = Api(self._settings)
@@ -302,25 +285,15 @@ def _login(
             wandb.termwarn("Calling wandb.login() after wandb.init() has no effect.")
         return True
 
-    wlogin = _WandbLogin()
-
-    if _backend:
-        wlogin.set_backend(_backend)
-
-    if _silent:
-        wlogin.set_silent(_silent)
-
-    if _entity:
-        wlogin.set_entity(_entity)
-
-    # configure login object
-    wlogin.setup(
+    wlogin = _WandbLogin(
         anonymous=anonymous,
+        force=force,
+        host=host,
         key=key,
         relogin=relogin,
-        host=host,
-        force=force,
         timeout=timeout,
+        _entity=_entity,
+        _silent=_silent,
     )
 
     if wlogin._settings._offline and not wlogin._settings.x_cli_only_mode:
@@ -332,7 +305,7 @@ def _login(
         )
         return False
 
-    if wlogin.should_use_identity_token():
+    if wlogin._settings.identity_token_file:
         return True
 
     # perform a login
