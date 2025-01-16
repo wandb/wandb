@@ -36,5 +36,5 @@ In order to sync Terraform resources into Ctrlplane, you need to set the followi
 
 ```sh
 docker run -e TFE_TOKEN=my-token -e CTRLPLANE_API_KEY=my-api-key -e CTRLPLANE_URL=https://app.ctrlplane.dev \
-  ctrlplane/cli ctrlc sync terraform --organization my-org --workspace-id 2a7c5560-75c9-4dbe-be74-04ee33bf8188
+  ctrlplane/cli ctrlc sync terraform --organization my-org --workspace 2a7c5560-75c9-4dbe-be74-04ee33bf8188
 ```
