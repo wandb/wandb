@@ -16,3 +16,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Fix `offline` mode network error when logging a `wandb.Table()` (@domphan-wandb in https://github.com/wandb/wandb/pull/9267)
+- Fix incorrectly reported device counts and duty cycle measurements for TPUs with single devices per chip / multiple devices on the host and make TPU metrics sampling more robust (@dmitryduev in https://github.com/wandb/wandb/pull/9266)

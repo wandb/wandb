@@ -16,31 +16,27 @@ from .router_sock import MessageSockRouter
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2 as pb
 
-    from ..wandb_run import Run
-
 
 logger = logging.getLogger("wandb")
 
 
 class InterfaceSock(InterfaceShared):
-    _stream_id: Optional[str]
-    _sock_client: SockClient
     _mailbox: Mailbox
 
-    def __init__(self, sock_client: SockClient, mailbox: Mailbox) -> None:
+    def __init__(
+        self,
+        sock_client: SockClient,
+        mailbox: Mailbox,
+        stream_id: str,
+    ) -> None:
         # _sock_client is used when abstract method _init_router() is called by constructor
         self._sock_client = sock_client
         super().__init__(mailbox=mailbox)
         self._process_check = False
-        self._stream_id = None
+        self._stream_id = stream_id
 
     def _init_router(self) -> None:
         self._router = MessageSockRouter(self._sock_client, mailbox=self._mailbox)
-
-    def _hack_set_run(self, run: "Run") -> None:
-        super()._hack_set_run(run)
-        assert run._settings.run_id
-        self._stream_id = run._settings.run_id
 
     def _assign(self, record: Any) -> None:
         assert self._stream_id
