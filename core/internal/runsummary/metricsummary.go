@@ -107,6 +107,12 @@ func (ms *metricSummary) ToMarshallableValue() any {
 		summary["mean"] = ms.total / float64(ms.count)
 	}
 
+	if ms.track.HasAny(BestMaximize) {
+		summary["best"] = ms.max
+	} else if ms.track.HasAny(BestMinimize) {
+		summary["best"] = ms.min
+	}
+
 	return summary
 }
 

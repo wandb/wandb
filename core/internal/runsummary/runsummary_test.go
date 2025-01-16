@@ -46,10 +46,19 @@ func TestSummaryTypes(t *testing.T) {
 	rh1.SetInt(pathtree.PathOf("x"), 1)
 	rh2.SetFloat(pathtree.PathOf("x"), 3.0)
 	rh3.SetFloat(pathtree.PathOf("x"), 2.3)
+	rh1.SetInt(pathtree.PathOf("y"), 1)
+	rh2.SetFloat(pathtree.PathOf("y"), 3.0)
+	rh3.SetFloat(pathtree.PathOf("y"), 2.3)
 
 	rs.ConfigureMetric(
 		pathtree.PathOf("x"), false,
-		runsummary.Min|runsummary.Max|runsummary.Mean|runsummary.Latest,
+		runsummary.Min|runsummary.Max|runsummary.Mean|
+			runsummary.Latest|
+			runsummary.BestMaximize,
+	)
+	rs.ConfigureMetric(
+		pathtree.PathOf("y"), false,
+		runsummary.BestMinimize,
 	)
 	_, _ = rs.UpdateSummaries(rh1)
 	_, _ = rs.UpdateSummaries(rh2)
@@ -63,8 +72,10 @@ func TestSummaryTypes(t *testing.T) {
 				"min": 1,
 				"max": 3.0,
 				"mean": 2.1,
-				"last": 2.3
-			}
+				"last": 2.3,
+				"best": 3.0
+			},
+			"y": {"best": 1}
 		}`,
 		string(encoded))
 }

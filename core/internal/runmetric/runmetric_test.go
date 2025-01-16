@@ -14,7 +14,6 @@ func TestGlobMetricWildcard(t *testing.T) {
 		IsExplicit:   true,
 		NoSummary:    false,
 		SummaryTypes: 0,
-		MetricGoal:   metricGoalUnset,
 	}
 
 	mh.globMetrics["*"] = definedMetric
@@ -40,7 +39,6 @@ func TestGlobMetricEndingWildcard(t *testing.T) {
 		IsExplicit:   true,
 		NoSummary:    false,
 		SummaryTypes: 0,
-		MetricGoal:   metricGoalUnset,
 	}
 
 	mh.globMetrics["xyz/*"] = definedMetric

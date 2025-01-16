@@ -33,9 +33,6 @@ type definedMetric struct {
 
 	// SummaryTypes is the set of summary statistics to track.
 	SummaryTypes runsummary.SummaryTypeFlags
-
-	// MetricGoal is how to interpret the "best" summary type.
-	MetricGoal metricGoal
 }
 
 // With returns this metric definition updated with the information
@@ -58,7 +55,7 @@ func (m definedMetric) With(
 
 		m.SummaryTypes = 0
 
-		// TODO: handle "best" and "copy" summary settings
+		// TODO: handle "copy" summary setting
 		if record.Summary.Min {
 			m.SummaryTypes |= runsummary.Min
 		}
@@ -71,13 +68,14 @@ func (m definedMetric) With(
 		if record.Summary.Last {
 			m.SummaryTypes |= runsummary.Latest
 		}
-	}
-
-	switch record.Goal {
-	case spb.MetricRecord_GOAL_MAXIMIZE:
-		m.MetricGoal = metricGoalMaximize
-	case spb.MetricRecord_GOAL_MINIMIZE:
-		m.MetricGoal = metricGoalMinimize
+		if record.Summary.Best {
+			switch record.Goal {
+			case spb.MetricRecord_GOAL_MAXIMIZE:
+				m.SummaryTypes |= runsummary.BestMaximize
+			case spb.MetricRecord_GOAL_MINIMIZE:
+				m.SummaryTypes |= runsummary.BestMinimize
+			}
+		}
 	}
 
 	if len(record.Name) > 0 {
@@ -119,10 +117,11 @@ func (m definedMetric) ToRecord(name string) *spb.MetricRecord {
 		rec.Summary.Last = true
 	}
 
-	switch m.MetricGoal {
-	case metricGoalMaximize:
+	if m.SummaryTypes.HasAny(runsummary.BestMaximize) {
+		rec.Summary.Best = true
 		rec.Goal = spb.MetricRecord_GOAL_MAXIMIZE
-	case metricGoalMinimize:
+	} else if m.SummaryTypes.HasAny(runsummary.BestMinimize) {
+		rec.Summary.Best = true
 		rec.Goal = spb.MetricRecord_GOAL_MINIMIZE
 	}
 
