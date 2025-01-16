@@ -134,9 +134,9 @@ jobs:
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=10.14
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: wandb-sdk-distributions
+          name: wandb-sdk-distribution-macos-10
           path: ./dist
 
   build-linux-arm64-wheels:
@@ -175,9 +175,9 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           CIBW_ENVIRONMENT_LINUX: PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: wandb-sdk-distributions
+          name: wandb-sdk-distribution-linux-arm64
           path: ./dist
 
   build-platform-wheels:
@@ -247,9 +247,9 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           CIBW_ENVIRONMENT_LINUX: PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: wandb-sdk-distributions
+          name: wandb-sdk-distribution-${{ matrix.os }}
           path: ./dist
 
   build-universal-wheel:
@@ -276,9 +276,9 @@ jobs:
           mkdir dist/
           cp wheelhouse/wandb-*-py3-none-any.whl dist/
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: wandb-sdk-distributions
+          name: wandb-sdk-distribution-universal
           path: ./dist
 
   build-sdist:
@@ -301,9 +301,9 @@ jobs:
       - name: Create sdist
         run: hatch build -t sdist
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: wandb-sdk-distributions
+          name: wandb-sdk-distribution-sdist
           path: ./dist
 
   test-pypi-publish:
@@ -330,10 +330,11 @@ jobs:
           python-version: "3.10"
 
       - name: Download distribution
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: wandb-sdk-distributions
           path: dist/
+          pattern: wandb-sdk-distribution-*
+          merge-multiple: true
 
       - name: List distribution
         run: ls dist/
@@ -435,10 +436,11 @@ jobs:
       url: https://pypi.org/p/wandb
     steps:
       - name: Download distribution
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: wandb-sdk-distributions
           path: dist/
+          pattern: wandb-sdk-distribution-*
+          merge-multiple: true
       - name: List distribution
         run: ls dist/
       - name: Publish distribution to PyPI
