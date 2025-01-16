@@ -657,11 +657,11 @@ class Run:
             process_context="user",
         )
 
-        # Populate config
-        config = config or dict()
         self._launch_artifact_mapping: dict[str, Any] = {}
         self._unique_launch_artifact_sequence_names: dict[str, Any] = {}
 
+        # Populate config
+        config = config or dict()
         self._config._update(config, ignore_locked=True)
 
         if sweep_config:
