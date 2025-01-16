@@ -10,10 +10,10 @@ import tempfile
 import unittest.mock
 from contextlib import contextmanager
 from pathlib import Path
-import requests
 from unittest import mock
 
 import pytest
+import requests
 import wandb
 from wandb.sdk.lib import filesystem
 
@@ -461,7 +461,7 @@ def test_log_table_offline_no_network(user, monkeypatch):
     run.log({"table": wandb.Table()})
     run.finish()
     assert num_network_calls_made == 0
-    assert run.offline == True
+    assert run.offline is True
 
 
 # ----------------------------------
