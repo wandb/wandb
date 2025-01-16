@@ -1,3 +1,11 @@
+# /// script
+# requires-python = ">=3.8"
+# dependencies = [
+#   "fire",
+#   "wandb",
+# ]
+# ///
+
 import fire
 import wandb
 from wandb.proto import wandb_internal_pb2
