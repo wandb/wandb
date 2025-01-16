@@ -36,6 +36,9 @@ RUN pip install --upgrade pip && \
 # Remove the existing Go installation
 RUN rm -rf /usr/local/go
 
+# Clean cargo cache from /root/.cargo
+RUN cargo install cargo-cache && cargo cache -a && cargo uninstall cargo-cache
+
 # User setup
 RUN useradd -m -s /bin/bash --create-home --no-log-init -u 1000 -g 0 launch_agent
 USER launch_agent
