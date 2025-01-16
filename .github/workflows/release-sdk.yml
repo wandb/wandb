@@ -332,9 +332,14 @@ jobs:
       - name: Download distribution
         uses: actions/download-artifact@v4
         with:
-          path: dist/
+          path: artifacts/
           pattern: wandb-sdk-distribution-*
-          merge-multiple: true
+
+      - name: Merge distributions
+        run: |
+          mkdir -p dist/
+          cp -r artifacts/*/* dist/
+          ls -la dist/
 
       - name: List distribution
         run: ls dist/
