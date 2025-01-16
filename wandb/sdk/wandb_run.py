@@ -47,7 +47,7 @@ from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
 )
-from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
+from wandb.sdk.lib.paths import FilePathStr, StrPath
 from wandb.util import (
     _is_artifact_object,
     _is_artifact_string,
@@ -591,6 +591,9 @@ class Run:
         self._config._set_artifact_callback(self._config_artifact_callback)
         self._config._set_settings(self._settings)
 
+        # The _wandb key is always expected on the run config.
+        self._config["_wandb"] = dict()
+
         # TODO: perhaps this should be a property that is a noop on a finished run
         self.summary = wandb_summary.Summary(
             self._summary_get_current_summary_callback,
@@ -654,29 +657,11 @@ class Run:
             process_context="user",
         )
 
-        # Populate config
-        config = config or dict()
-        wandb_key = "_wandb"
-        config.setdefault(wandb_key, dict())
         self._launch_artifact_mapping: dict[str, Any] = {}
         self._unique_launch_artifact_sequence_names: dict[str, Any] = {}
-        if self._settings.save_code and self._settings.program_relpath:
-            config[wandb_key]["code_path"] = LogicalPath(
-                os.path.join("code", self._settings.program_relpath)
-            )
 
-        if self._settings.fork_from is not None:
-            config[wandb_key]["branch_point"] = {
-                "run_id": self._settings.fork_from.run,
-                "step": self._settings.fork_from.value,
-            }
-
-        if self._settings.resume_from is not None:
-            config[wandb_key]["branch_point"] = {
-                "run_id": self._settings.resume_from.run,
-                "step": self._settings.resume_from.value,
-            }
-
+        # Populate config
+        config = config or dict()
         self._config._update(config, ignore_locked=True)
 
         if sweep_config:
@@ -690,6 +675,7 @@ class Run:
             )
 
         # if run is from a launch queue, add queue id to _wandb config
+        wandb_key = "_wandb"
         launch_queue_name = wandb.env.get_launch_queue_name()
         if launch_queue_name:
             self._config[wandb_key]["launch_queue_name"] = launch_queue_name
