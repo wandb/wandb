@@ -30,7 +30,7 @@ func (m *mockRuntimeMetricServiceClient) GetRuntimeMetric(ctx context.Context, i
 }
 
 // Helper function to create a metric with given device ID and value
-func createMetric(deviceID int64, value interface{}) *tpuproto.Metric {
+func createMetric(deviceID int64, value any) *tpuproto.Metric {
 	metric := &tpuproto.Metric{
 		Attribute: &tpuproto.Attribute{
 			Value: &tpuproto.AttrValue{
@@ -55,7 +55,7 @@ func createMetric(deviceID int64, value interface{}) *tpuproto.Metric {
 }
 
 // Helper function to compare numeric values regardless of their exact type
-func compareNumeric(t *testing.T, name string, got, want interface{}) {
+func compareNumeric(t *testing.T, name string, got, want any) {
 	switch gotVal := got.(type) {
 	case int64:
 		if wantVal, ok := want.(float64); ok {
@@ -93,7 +93,7 @@ func TestTPUSingleDeviceComplete(t *testing.T) {
 		t.Fatalf("Sample() error = %v", err)
 	}
 
-	metrics := make(map[string]interface{})
+	metrics := make(map[string]any)
 	for _, item := range data.Item {
 		metrics[item.Key], _ = simplejsonext.UnmarshalString(item.ValueJson)
 	}
@@ -140,7 +140,7 @@ func TestTPUV2MultiDevice(t *testing.T) {
 		t.Fatalf("Sample() error = %v", err)
 	}
 
-	metrics := make(map[string]interface{})
+	metrics := make(map[string]any)
 	for _, item := range data.Item {
 		metrics[item.Key], _ = simplejsonext.UnmarshalString(item.ValueJson)
 	}
@@ -191,7 +191,7 @@ func TestTPUPartialMetrics(t *testing.T) {
 		t.Fatalf("Sample() error = %v", err)
 	}
 
-	metrics := make(map[string]interface{})
+	metrics := make(map[string]any)
 	for _, item := range data.Item {
 		metrics[item.Key], _ = simplejsonext.UnmarshalString(item.ValueJson)
 	}
@@ -248,7 +248,7 @@ func TestTPUNonSequentialDeviceIDs(t *testing.T) {
 		t.Fatalf("Sample() error = %v", err)
 	}
 
-	metrics := make(map[string]interface{})
+	metrics := make(map[string]any)
 	for _, item := range data.Item {
 		metrics[item.Key], _ = simplejsonext.UnmarshalString(item.ValueJson)
 	}
