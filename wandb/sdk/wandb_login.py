@@ -105,12 +105,12 @@ class _WandbLogin:
         key: Optional[str] = None,
         relogin: Optional[bool] = None,
         timeout: Optional[int] = None,
-        _silent: Optional[bool] = None,
-        _entity: Optional[str] = None,
+        silent: Optional[bool] = None,
+        entity: Optional[str] = None,
     ):
         self._relogin = relogin
-        self._silent = _silent
-        self._entity = _entity
+        self._silent = silent
+        self._entity = entity
 
         login_settings = {
             "anonymous": anonymous,
@@ -292,8 +292,8 @@ def _login(
         key=key,
         relogin=relogin,
         timeout=timeout,
-        _entity=_entity,
-        _silent=_silent,
+        entity=_entity,
+        silent=_silent,
     )
 
     if wlogin._settings._offline and not wlogin._settings.x_cli_only_mode:
