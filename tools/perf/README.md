@@ -21,7 +21,7 @@ Once you are logged into your container
    export WANDB_BASE_URL=<your W&B server URL>
 2. cd /opt/ns
 3. export PYTHONPATH=$(pwd)
-4. python -m scripts.run_load_test -t log_scalar
+4. python -m scripts.run_load_tests -t log_scalar
 5. The test results are saved locally on the same directory
 
 ## Pushing performance test results and metrics to W&B
