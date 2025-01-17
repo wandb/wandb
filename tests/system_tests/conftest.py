@@ -338,42 +338,6 @@ def backend_interface(_start_backend, _stop_backend, _internal_sender):
     return backend_context
 
 
-@pytest.fixture
-def publish_util(backend_interface):
-    def publish_util_helper(
-        run,
-        metrics=None,
-        history=None,
-        artifacts=None,
-        files=None,
-        begin_cb=None,
-        end_cb=None,
-        initial_start=False,
-    ):
-        metrics = metrics or []
-        history = history or []
-        artifacts = artifacts or []
-        files = files or []
-
-        with backend_interface(run=run, initial_start=initial_start) as interface:
-            if begin_cb:
-                begin_cb(interface)
-            for m in metrics:
-                interface._publish_metric(m)
-            for h in history:
-                if "run" not in h:
-                    h["run"] = run
-                interface.publish_history(**h)
-            for a in artifacts:
-                interface.publish_artifact(**a)
-            for f in files:
-                interface.publish_files(**f)
-            if end_cb:
-                end_cb(interface)
-
-    yield publish_util_helper
-
-
 # --------------------------------
 # Fixtures for full test point
 # --------------------------------
