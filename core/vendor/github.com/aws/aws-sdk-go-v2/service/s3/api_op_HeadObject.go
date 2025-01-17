@@ -925,6 +925,9 @@ func objectExistsStateRetryable(ctx context.Context, input *HeadObjectInput, out
 		}
 	}
 
+	if err != nil {
+		return false, err
+	}
 	return true, nil
 }
 
@@ -1094,6 +1097,9 @@ func objectNotExistsStateRetryable(ctx context.Context, input *HeadObjectInput, 
 		}
 	}
 
+	if err != nil {
+		return false, err
+	}
 	return true, nil
 }
 

@@ -6,7 +6,7 @@ import string
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import List, Literal
 
 import numpy as np
 import wandb
@@ -41,19 +41,52 @@ class PayloadGenerator:
 
     Args:
         data_type: The type of data to log.
-        metric_count: The number of metrics.
+        sparse_metric_count: Number of sparse metrics to log.
         metric_key_size: The size (in characters) of the metric.
+        num_steps: Number of steps in the test.
+        fraction: The fraction (%) of the base payload to log per step.
+        is_unique_payload: If true, every step logs a unique payload
+        dense_metric_count: Number of dense metrics (logged every step)
     """
 
     def __init__(
         self,
         data_type: Literal["scalar", "audio", "video", "image", "table"],
-        metric_count: int,
+        sparse_metric_count: int,
         metric_key_size: int,
+        num_steps: int,
+        fraction: float,
+        is_unique_payload: bool,
+        dense_metric_count: int,
     ):
         self.data_type = data_type
-        self.metric_count = metric_count
+        self.sparse_metric_count = sparse_metric_count
         self.metric_key_size = metric_key_size
+        self.num_steps = num_steps
+        self.fraction = fraction
+        self.is_unique_payload = is_unique_payload
+        self.dense_metric_count = dense_metric_count
+
+        self.metrics_count_per_step = int(self.sparse_metric_count * self.fraction)
+        if self.is_unique_payload:
+            # every step use a unique payload
+            self.num_of_unique_payload = self.num_steps
+
+        elif self.fraction < 1.0:
+            # every step logs a subset of a base payload
+            self.num_of_unique_payload = int(
+                self.sparse_metric_count // self.metrics_count_per_step
+            )
+
+        else:
+            # every step logs the same set of base payload
+            self.num_of_unique_payload = 1
+
+        logger.info(f"dense_metric_count: {self.dense_metric_count}")
+        logger.info(
+            f"metrics_count_per_step: {self.metrics_count_per_step + self.dense_metric_count}"
+        )
+        logger.info(f"num_of_unique_payload: {self.num_of_unique_payload}")
 
     def random_string(self, size: int) -> str:
         """Generates a random string of a given size.
@@ -68,11 +101,11 @@ class PayloadGenerator:
             random.choices(string.ascii_letters + string.digits + "_", k=size)
         )
 
-    def generate(self) -> dict:
-        """Generates a payload for logging.
+    def generate(self) -> List[dict]:
+        """Generates a list of payload for logging.
 
         Returns:
-            dict: A dictionary with the payload.
+            List: A list of dictionary with payloads.
 
         Raises:
             ValueError: If the data type is invalid.
@@ -91,86 +124,135 @@ class PayloadGenerator:
         else:
             raise ValueError(f"Invalid data type: {self.data_type}")
 
-    def generate_audio(self) -> dict[str, wandb.Audio]:
+    def generate_audio(self) -> List[dict[str, wandb.Audio]]:
         """Generates a payload for logging audio data.
 
         Returns:
-            dict: A dictionary with the audio data.
+            List: A list of dictionary with the audio data.
         """
-        duration = 5  # make a 5s long audio
-        sample_rate = 44100
-        frequency = 440
+        payloads = []
+        for _ in range(self.num_of_unique_payload):
+            duration = 5  # make a 5s long audio
+            sample_rate = 44100
+            frequency = 440
 
-        t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
-        audio_data = np.sin(2 * np.pi * frequency * t)
-        audio_obj = wandb.Audio(audio_data, sample_rate=sample_rate)
-        return {
-            self.random_string(self.metric_key_size): audio_obj
-            for _ in range(self.metric_count)
-        }
+            t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
+            audio_data = np.sin(2 * np.pi * frequency * t)
+            audio_obj = wandb.Audio(audio_data, sample_rate=sample_rate)
+            payloads.append(
+                {
+                    self.random_string(self.metric_key_size): audio_obj
+                    for _ in range(self.sparse_metric_count)
+                }
+            )
 
-    def generate_scalar(self) -> dict[str, int]:
-        """Generates a payload for logging scalar data.
+        return payloads
+
+    def generate_scalar(self) -> List[dict[str, int]]:
+        """Generates the payloads for logging scalar data.
 
         Returns:
-            dict: A dictionary with the scalar data.
+            List: A list of dictionaries with the scalar data.
         """
-        return {
-            self.random_string(self.metric_key_size): random.randint(1, 10**6)
-            for _ in range(self.metric_count)
-        }
+        # Generate dense metrics if applicable
+        dense_metrics = (
+            {
+                self.random_string(self.metric_key_size): random.randint(1, 10**2)
+                for _ in range(self.dense_metric_count)
+            }
+            if self.dense_metric_count > 0
+            else {}
+        )
 
-    def generate_table(self) -> dict[str, wandb.Table]:
+        # Log example dense metric if available
+        if dense_metrics:
+            example_key = next(iter(dense_metrics))
+            logger.info(f"Example dense metric: {example_key}")
+
+        # Generate base payloads with optional dense metrics prepended
+        payloads = [
+            {
+                **dense_metrics,
+                **{
+                    self.random_string(self.metric_key_size): random.randint(1, 10**2)
+                    for _ in range(self.metrics_count_per_step)
+                },
+            }
+            for _ in range(self.num_of_unique_payload)
+        ]
+
+        return payloads
+
+    def generate_table(self) -> List[dict[str, wandb.Table]]:
         """Generates a payload for logging 1 table.
 
         For the table, it uses
-            self.metric_count as the number of columns
+            self.sparse_metric_count as the number of columns
             self.metric_key_size as the number of rows.
 
         Returns:
-            dict: A dictionary with the table data.
+            List: A dictionary with the table data.
         """
-        num_of_columns = self.metric_count
-        num_of_rows = self.metric_key_size
+        payloads = []
+        for p in range(self.num_of_unique_payload):
+            num_of_columns = self.sparse_metric_count
+            num_of_rows = self.metric_key_size
 
-        columns = [f"Field_{i+1}" for i in range(num_of_columns)]
-        data = [
-            [self.random_string(self.metric_key_size) for _ in range(num_of_columns)]
-            for _ in range(num_of_rows)
-        ]
-        table = wandb.Table(columns=columns, data=data)
-        return {"perf_test_table": table}
+            columns = [f"Field_{i+1}" for i in range(num_of_columns)]
+            data = [
+                [
+                    self.random_string(self.metric_key_size)
+                    for _ in range(num_of_columns)
+                ]
+                for _ in range(num_of_rows)
+            ]
+            table = wandb.Table(columns=columns, data=data)
+            payloads.append({f"table_{p}": table})
 
-    def generate_image(self) -> dict[str, wandb.Image]:
+        return payloads
+
+    def generate_image(self) -> List[dict[str, wandb.Image]]:
         """Generates a payload for logging images.
 
         Returns:
-            dict: A dictionary with image data.
+            List: A list of dictionary with image data.
         """
-        # Create a random RGB image (100x100 pixels)
-        # Each pixel value is an integer between 0 and 255 for RGB channels
-        random_image = np.random.randint(0, 256, (100, 100, 3), dtype=np.uint8)
-        image_obj = wandb.Image(random_image, caption="Random image")
+        payloads = []
+        for _ in range(self.num_of_unique_payload):
+            # Create a random RGB image (100x100 pixels)
+            # Each pixel value is an integer between 0 and 255 for RGB channels
+            random_image = np.random.randint(0, 256, (100, 100, 3), dtype=np.uint8)
+            image_obj = wandb.Image(random_image, caption="Random image")
 
-        return {
-            self.random_string(self.metric_key_size): image_obj
-            for _ in range(self.metric_count)
-        }
+            payloads.append(
+                {
+                    self.random_string(self.metric_key_size): image_obj
+                    for _ in range(self.sparse_metric_count)
+                }
+            )
 
-    def generate_video(self) -> dict[str, wandb.Video]:
+        return payloads
+
+    def generate_video(self) -> List[dict[str, wandb.Video]]:
         """Generates a payload for logging videos.
 
         Returns:
-            dict: A dictionary with video data.
+            List: A list of dictionary with video data.
         """
-        # Create a random video (50 frames, 64x64 pixels, 3 channels for RGB)
-        frames = np.random.randint(0, 256, (50, 64, 64, 3), dtype=np.uint8)
-        video_obj = wandb.Video(frames, fps=10, caption="Randomly generated video")
+        payloads = []
+        for _ in range(self.num_of_unique_payload):
+            # Create a random video (50 frames, 64x64 pixels, 3 channels for RGB)
+            frames = np.random.randint(0, 256, (50, 64, 64, 3), dtype=np.uint8)
+            video_obj = wandb.Video(frames, fps=10, caption="Randomly generated video")
 
-        return {
-            self.random_string(self.metric_key_size): video_obj
-            for _ in range(self.metric_count)
-        }
+            payloads.append(
+                {
+                    self.random_string(self.metric_key_size): video_obj
+                    for _ in range(self.sparse_metric_count)
+                }
+            )
+
+        return payloads
 
 
 class Experiment:
@@ -186,6 +268,9 @@ class Experiment:
         time_delay_second: Sleep time between step.
         run_id: ID of the existing run to resume from.
         resume_mode: The mode of resuming. Used when run_id is passed in.
+        fraction: The % (in fraction) of metrics to log in each step.
+        dense_metric_count: Number of dense metrics to be logged every step.
+                            The dense metrics is a separate set of metrics from the sparse metrics.
 
     When to set "is_unique_payload" to True?
 
@@ -208,6 +293,8 @@ class Experiment:
         time_delay_second: float = 0.0,
         run_id: str = "",
         resume_mode: str = "must",
+        fraction: float = 1.0,
+        dense_metric_count: int = 0,
     ):
         self.num_steps = num_steps
         self.num_metrics = num_metrics
@@ -218,6 +305,8 @@ class Experiment:
         self.time_delay_second = time_delay_second
         self.run_id = run_id
         self.resume_mode = resume_mode
+        self.fraction = fraction
+        self.dense_metric_count = dense_metric_count
 
     def run(self, repeat: int = 1):
         for _ in range(repeat):
@@ -260,27 +349,22 @@ class Experiment:
             result_data["init_time"] = timer.stop()
 
         # pre-generate all the payloads
-        try:
-            if self.is_unique_payload:
-                num_of_unique_payload = self.num_steps
-            else:
-                num_of_unique_payload = 1
+        logger.info("Generating test payloads ...")
+        payloads = PayloadGenerator(
+            self.data_type,
+            self.num_metrics,
+            self.metric_key_size,
+            self.num_steps,
+            self.fraction,
+            self.is_unique_payload,
+            self.dense_metric_count,
+        ).generate()
 
-            payloads = [
-                PayloadGenerator(
-                    self.data_type, self.num_metrics, self.metric_key_size
-                ).generate()
-                for _ in range(num_of_unique_payload)
-            ]
-        except ValueError as e:
-            logger.error(f"Failed to generate payload: {e}")
-            return
-
-        # Log the payload $step_count times
+        logger.info(f"Start logging {self.num_steps} steps ...")
         with Timer() as timer:
             for s in range(self.num_steps):
-                if self.is_unique_payload:
-                    run.log(payloads[s])
+                if self.is_unique_payload or self.fraction < 1.0:
+                    run.log(payloads[s % len(payloads)])
                 else:
                     run.log(payloads[0])
 
@@ -288,9 +372,6 @@ class Experiment:
                 # HACKAROUND: We ran into some 500s and 502s errors when SDK logs
                 # a million+ unique metrics in a tight loop. Adding a small sleep
                 # between each step works around the problem for now.
-
-                # Set a sleep time when reproducing real-life workload when logging
-                # steps aren't in a tight loop.
                 if self.time_delay_second > 0:
                     time.sleep(self.time_delay_second)
 
@@ -394,7 +475,8 @@ if __name__ == "__main__":
         "--num-metrics",
         type=int,
         default=100,
-        help="The number of metrics to log per step.",
+        help="The number of sparse metrics to log per step (optional: "
+        "use together with -f to control %).",
     )
     parser.add_argument(
         "-m",
@@ -423,14 +505,15 @@ if __name__ == "__main__":
         "--unique-payload",
         type=bool,
         default=False,
-        help="False - reuse the same payload in each log(), new payload if True.",
+        help="If false, it logs the same payload at each step. "
+        "If true, each step has different payload.",
     )
     parser.add_argument(
         "-t",
         "--time-delay-second",
         type=float,
         default=0,
-        help="e.g. -t 1.0  Sleep time in seconds between each step.",
+        help="The sleep time between step in seconds e.g. -t 1.0",
     )
 
     parser.add_argument(
@@ -438,7 +521,7 @@ if __name__ == "__main__":
         "--run-id",
         type=str,
         default="",
-        help="e.g. -i 123abc to resume this run id. Run ID must exist.",
+        help="The run id. e.g. -i 123abc to resume this run id.",
     )
 
     parser.add_argument(
@@ -448,6 +531,23 @@ if __name__ == "__main__":
         choices=["must", "allow", "never"],
         default="must",
         help="Use with --run-id. The resume mode.",
+    )
+
+    parser.add_argument(
+        "-f",
+        "--fraction",
+        type=float,
+        default=1.0,
+        help="The fraction (i.e. percentage) of sparse metrics to log in each step.",
+    )
+
+    parser.add_argument(
+        "-c",
+        "--dense_metric_count",
+        type=int,
+        default=0,
+        help="The number of dense metrics that are logged at every step. "
+        "This is a separate set from the sparse metrics.",
     )
 
     args = parser.parse_args()
@@ -462,4 +562,6 @@ if __name__ == "__main__":
         time_delay_second=args.time_delay_second,
         run_id=args.run_id,
         resume_mode=args.resume_mode,
+        fraction=args.fraction,
+        dense_metric_count=args.dense_metric_count,
     ).run(args.repeat)
