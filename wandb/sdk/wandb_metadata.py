@@ -289,7 +289,9 @@ class Metadata(BaseModel, validate_assignment=True):
                 "hbm_gib": 32,
                 "devices_per_chip": 1,
                 "count": 1337,
-            }"""
+            }
+        ```
+    """
 
     # TODO: Pydantic configuration.
     model_config = ConfigDict(
