@@ -249,12 +249,6 @@ class Graph(Media):
     represents the graph as an array of nodes and edges.  The nodes can have
     labels that can be visualized by wandb.
 
-    Examples:
-        Import a keras model:
-        ```
-        Graph.from_keras(keras_model)
-        ```
-
     Attributes:
         format (string): Format to help wandb display the graph nicely.
         nodes ([wandb.Node]): List of wandb.Nodes
@@ -262,7 +256,17 @@ class Graph(Media):
         edges ([(wandb.Node, wandb.Node)]): List of pairs of nodes interpreted as edges
         loaded (boolean): Flag to tell whether the graph is completely loaded
         root (wandb.Node): root node of the graph
-    """
+
+    Examples:
+
+    Import a keras model
+
+    ```python
+    import wandb
+
+    Graph.from_keras(keras_model)
+    ```
+    """  # noqa: D412
 
     _log_type = "graph-file"
 
