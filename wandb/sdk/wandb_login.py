@@ -73,10 +73,7 @@ def login(
         UsageError - if api_key cannot be configured and no tty
     """
     _handle_host_wandb_setting(host)
-    if wandb.setup()._settings._noop:
-        return True
-
-    configured = _login(
+    return _login(
         anonymous=anonymous,
         key=key,
         relogin=relogin,
@@ -85,8 +82,6 @@ def login(
         timeout=timeout,
         verify=verify,
     )
-
-    return True if configured else False
 
 
 class ApiKeyStatus(enum.Enum):
@@ -185,9 +180,8 @@ class _WandbLogin:
                 "WANDB_API_KEY environment variable, or running "
                 "`wandb login` from the command line."
             )
-        apikey.write_key(self._settings, key)
-        self.update_session(key)
-        self._key = key
+        if key:
+            apikey.write_key(self._settings, key)
 
     def update_session(
         self,
@@ -234,7 +228,7 @@ class _WandbLogin:
                 return None, ApiKeyStatus.OFFLINE
             return key, ApiKeyStatus.VALID
 
-    def prompt_api_key(self) -> str:
+    def prompt_api_key(self) -> Tuple[Optional[str], ApiKeyStatus]:
         """Updates the global API key by prompting the user."""
         key, status = self._prompt_api_key()
         if status == ApiKeyStatus.NOTTY:
@@ -245,9 +239,7 @@ class _WandbLogin:
             )
             raise UsageError("api_key not configured (no-tty). call " + directive)
 
-        self.update_session(key, status=status)
-        self._key = key
-        return key
+        return key, status
 
 
 def _verify_login(key: str) -> None:
@@ -296,6 +288,9 @@ def _login(
         silent=_silent,
     )
 
+    if wlogin._settings._noop:
+        return True
+
     if wlogin._settings._offline and not wlogin._settings.x_cli_only_mode:
         wandb.termwarn("Unable to verify login in offline mode.")
         return False
@@ -313,6 +308,7 @@ def _login(
 
     if key:
         wlogin.configure_api_key(key)
+        wlogin.update_session(key)
 
     if logged_in:
         if verify:
@@ -320,7 +316,9 @@ def _login(
         return logged_in
 
     if not key:
-        key = wlogin.prompt_api_key()
+        key, status = wlogin.prompt_api_key()
+        wlogin.configure_api_key(key)
+        wlogin.update_session(key, status=status)
 
     if verify:
         _verify_login(key)
