@@ -342,7 +342,6 @@ def test_metric_nested_glob(wandb_backend_spy):
         assert summary["this"] == {"that": {"min": 2, "max": 4}}
 
 
-@pytest.mark.skip_wandb_core(reason="bug in wandb-core; WB-22812")
 @pytest.mark.parametrize("name", ["m", "*"])
 def test_metric_overwrite_false(wandb_backend_spy, name):
     with wandb.init() as run:
