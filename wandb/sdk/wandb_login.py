@@ -181,7 +181,7 @@ class _WandbLogin:
                 "`wandb login` from the command line."
             )
         if key:
-            apikey.write_key(self._settings, key)
+            apikey.write_key(self._settings, key, anonymous=self.is_anonymous)
 
     def update_session(
         self,
