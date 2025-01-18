@@ -22,7 +22,7 @@ def test_login_timeout(notebook, monkeypatch):
         "prompt_choices",
         lambda x, input_timeout=None, jupyter=True: x[0],
     )
-    with notebook("login_timeout.ipynb") as nb:
+    with notebook("login_timeout.ipynb", skip_api_key_env=True) as nb:
         nb.execute_all()
         output = nb.cell_output_text(1)
         assert "W&B disabled due to login timeout" in output
