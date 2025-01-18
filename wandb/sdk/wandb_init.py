@@ -180,7 +180,6 @@ class _WandbInit:
             force=run_settings.force,
             _disable_warning=True,
             _silent=run_settings.quiet or run_settings.silent,
-            _entity=run_settings.entity,
         )
 
     def warn_env_vars_change_after_setup(self) -> None:
