@@ -7,12 +7,12 @@ from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Mapping, Optional
+from urllib.parse import quote
 
 import numpy as np
 import pytest
 import requests
 import responses
-from urllib.parse import quote
 import wandb
 import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
@@ -1545,18 +1545,19 @@ def test_artifact_registry_url(user, api):
     with wandb.init() as run:
         artifact = wandb.Artifact("sequence_name", "model")
         run.log_artifact(artifact)
-        run.link_artifact(
-            artifact=artifact,
-            target_path="test_portfolio"
-            )
-        linked_art = run.use_artifact(f"{artifact.entity}/{artifact.project}/test_portfolio:latest")
+        run.link_artifact(artifact=artifact, target_path="test_portfolio")
+        linked_art = run.use_artifact(
+            f"{artifact.entity}/{artifact.project}/test_portfolio:latest"
+        )
         base_url = util.app_url(run.settings.base_url)
 
         org, *_ = InternalApi()._fetch_orgs_and_org_entities_from_entity(
             linked_art.entity
         )
 
-        encoded_path = f"{linked_art.entity}/{linked_art.project}/{linked_art.collection.name}"
+        encoded_path = (
+            f"{linked_art.entity}/{linked_art.project}/{linked_art.collection.name}"
+        )
         selection_path = quote(encoded_path, safe="")
 
         expected_url = (
@@ -1571,11 +1572,10 @@ def test_artifact_model_registry_url(user, api):
     with wandb.init() as run:
         artifact = wandb.Artifact("sequence_name", "model")
         run.log_artifact(artifact)
-        run.link_artifact(
-            artifact=artifact,
-            target_path="test_model_portfolio"
-            )
-        linked_model_art = run.use_artifact(f"{artifact.entity}/{artifact.project}/test_model_portfolio:latest")
+        run.link_artifact(artifact=artifact, target_path="test_model_portfolio")
+        linked_model_art = run.use_artifact(
+            f"{artifact.entity}/{artifact.project}/test_model_portfolio:latest"
+        )
 
         base_url = util.app_url(run.settings.base_url)
 
