@@ -5,6 +5,7 @@ import platform
 import shutil
 import time
 import unittest.mock
+from itertools import takewhile
 from pathlib import Path
 from queue import Queue
 from typing import Any, Callable, Generator, Iterable
@@ -223,6 +224,10 @@ class EmulatedTerminal:
         self._screen.set_mode(pyte.modes.LNM)  # \n implies \r
         self._stream = pyte.Stream(self._screen)
 
+    def reset_capsys(self) -> None:
+        """Resets pytest's captured stderr and stdout buffers."""
+        self._capsys.readouterr()
+
     def read_stderr(self) -> list[str]:
         """Returns the text in the emulated terminal.
 
@@ -238,20 +243,9 @@ class EmulatedTerminal:
 
         lines = [line.rstrip() for line in self._screen.display]
 
-        n_empty_at_start = 0
-        for i in range(len(lines)):
-            if not lines[i]:
-                n_empty_at_start += 1
-            else:
-                break
-
-        n_empty_at_end = 0
-        for i in range(len(lines)):
-            if not lines[-1 - i]:
-                n_empty_at_end += 1
-            else:
-                break
-
+        # Trim empty lines from the start and end of the screen.
+        n_empty_at_start = sum(1 for _ in takewhile(lambda line: not line, lines))
+        n_empty_at_end = sum(1 for _ in takewhile(lambda line: not line, lines[::-1]))
         return lines[n_empty_at_start:-n_empty_at_end]
 
 
@@ -261,6 +255,9 @@ def emulated_terminal(monkeypatch, capsys) -> EmulatedTerminal:
 
     This makes functions in the `wandb.errors.term` module act as if
     stderr is a terminal.
+
+    NOTE: This resets pytest's stderr and stdout buffers. You should not
+    use this with anything else that uses capsys.
     """
 
     monkeypatch.setenv("TERM", "xterm")
@@ -271,7 +268,14 @@ def emulated_terminal(monkeypatch, capsys) -> EmulatedTerminal:
     # This is fragile and could break when click is updated.
     monkeypatch.setattr("click._compat.isatty", lambda *args, **kwargs: True)
 
-    return EmulatedTerminal(capsys)
+    # Reset the captured stderr and stdout buffers, since in the test
+    # environment, memray may prepend lines to stderr that look like:
+    #   '⚠ Memray support for Greenlet is experimental ⚠',
+    #   'Please report any issues at https://github.com/bloomberg/memray/issues',
+    #   ...
+    terminal = EmulatedTerminal(capsys)
+    terminal.reset_capsys()
+    return terminal
 
 
 @pytest.fixture(scope="function", autouse=True)

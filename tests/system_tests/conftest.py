@@ -5,10 +5,71 @@ from typing import Generator, Iterator
 
 import pytest
 
+from .backend_fixtures import (
+    BackendFixtureFactory,
+    LocalWandbBackendAddress,
+    connect_to_local_wandb_backend,
+)
 from .wandb_backend_spy import WandbBackendProxy, WandbBackendSpy, spy_proxy
 
-# https://docs.pytest.org/en/stable/how-to/plugins.html#requiring-loading-plugins-in-a-test-module-or-conftest-file
-pytest_plugins = ("tests.system_tests.backend_fixtures",)
+
+@pytest.fixture(scope="session")
+def local_wandb_backend() -> LocalWandbBackendAddress:
+    """Fixture that starts up or connects to the local-testcontainer.
+
+    This does not patch WANDB_BASE_URL! Use `use_local_wandb_backend` instead.
+    """
+    return connect_to_local_wandb_backend(name="wandb-local-testcontainer")
+
+
+@pytest.fixture(scope="session")
+def local_wandb_backend_importers() -> LocalWandbBackendAddress:
+    """Fixture that starts up or connects to a second local-testcontainer.
+
+    This is used by importer tests, to move data between two backends.
+    """
+    return connect_to_local_wandb_backend(name="wandb-local-testcontainer-importers")
+
+
+@pytest.fixture(scope="session")
+def use_local_wandb_backend(
+    local_wandb_backend: LocalWandbBackendAddress,
+) -> Generator[None, None, None]:
+    """Fixture that patches WANDB_BASE_URL to point to the local container.
+
+    We use the `pytest.MonkeyPatch` context manager instead of the `monkeypatch` fixture,
+    as `monkeypatch` is strictly function-scoped and we need this to be session-scoped.
+    """
+    with pytest.MonkeyPatch.context() as session_monkeypatch:
+        session_monkeypatch.setenv("WANDB_BASE_URL", local_wandb_backend.base_url)
+        yield
+
+
+@pytest.fixture(scope="session")
+def backend_fixture_factory(
+    worker_id: str,
+    local_wandb_backend: LocalWandbBackendAddress,
+    use_local_wandb_backend: None,
+) -> Generator[BackendFixtureFactory, None, None]:
+    _ = use_local_wandb_backend
+    base_url = local_wandb_backend.fixture_service_url
+    with BackendFixtureFactory(base_url, worker_id=worker_id) as factory:
+        yield factory
+
+
+@pytest.fixture(scope="session")
+def backend_importers_fixture_factory(
+    worker_id: str,
+    local_wandb_backend_importers: LocalWandbBackendAddress,
+) -> Generator[BackendFixtureFactory, None, None]:
+    base_url = local_wandb_backend_importers.fixture_service_url
+    with BackendFixtureFactory(base_url, worker_id=worker_id) as factory:
+        yield factory
+
+
+# --------------------------------
+# Fixtures for full test point
+# --------------------------------
 
 
 def pytest_addoption(parser: pytest.Parser):
