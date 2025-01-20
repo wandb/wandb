@@ -24,16 +24,16 @@ def _server_accepts_client_ids() -> bool:
     # The latest SDK version that is < "0.11.0" was released on 2021/06/29.
     # AS OF NOW, 2024/11/06, we assume that all customer's server deployments accept
     # client IDs.
-    #
-    # If there are any users with issues on an older backend, customers can disable the
-    # setting `allow_offline_artifacts` to revert the SDK's behavior back to not
-    # using client IDs in offline mode.
-    if (
-        util._is_offline()
-        and wandb.run
-        and not wandb.run.settings.allow_offline_artifacts
-    ):
-        return False
+
+    if util._is_offline():
+        # If there are any users with issues on an older backend, customers can disable the
+        # setting `allow_offline_artifacts` to revert the SDK's behavior back to not
+        # using client IDs in offline mode.
+        if wandb.run and not wandb.run.settings.allow_offline_artifacts:
+            return False
+        # Assume client IDs are accepted
+        else:
+            return True
 
     # If the script is online, request the max_cli_version and ensure the server
     # is of a high enough version.

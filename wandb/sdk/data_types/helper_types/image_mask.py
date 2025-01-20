@@ -33,7 +33,7 @@ class ImageMask(Media):
 
     Examples:
         ### Logging a single masked image
-        <!--yeadoc-test:log-image-mask-->
+
         ```python
         import numpy as np
         import wandb
@@ -69,7 +69,7 @@ class ImageMask(Media):
         ```
 
         ### Log a masked image inside a Table
-        <!--yeadoc-test:log-image-mask-table-->
+
         ```python
         import numpy as np
         import wandb

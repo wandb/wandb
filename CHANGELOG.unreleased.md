@@ -15,4 +15,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
-- Fix incorrectly reported device counts and duty cycle measurements for TPUs with single devices per chip / multiple devices on the host and make TPU metrics sampling more robust (@dmitryduev in https://github.com/wandb/wandb/pull/9266)
+- Fixed a bug causing `offline` mode to make network requests when logging media artifacts. If you are using an older version of W&B Server that does not support offline artifact uploads, use the setting `allow_offline_artifacts=False` to revert to older compatible behavior. (@domphan-wandb in https://github.com/wandb/wandb/pull/9267)
+- Expand sanitization rules for logged table artifact name to allow for hyphens and dots. This update brings the rules up-to-date with the current rules for artifact names. (Allowing letters, numbers, underscores, hyphens, and dots) (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/9271)

@@ -103,7 +103,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.19.4.dev1"
+__version__: str = "0.19.5.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -595,7 +595,6 @@ def log(
         [our guides to logging](https://docs.wandb.com/guides/track/log).
 
         ### Basic usage
-        <!--yeadoc-test:init-and-log-basic-->
         ```python
         import wandb
 
@@ -604,7 +603,6 @@ def log(
         ```
 
         ### Incremental logging
-        <!--yeadoc-test:init-and-log-incremental-->
         ```python
         import wandb
 
@@ -615,7 +613,6 @@ def log(
         ```
 
         ### Histogram
-        <!--yeadoc-test:init-and-log-histogram-->
         ```python
         import numpy as np
         import wandb
@@ -627,7 +624,6 @@ def log(
         ```
 
         ### Image from numpy
-        <!--yeadoc-test:init-and-log-image-numpy-->
         ```python
         import numpy as np
         import wandb
@@ -642,7 +638,6 @@ def log(
         ```
 
         ### Image from PIL
-        <!--yeadoc-test:init-and-log-image-pillow-->
         ```python
         import numpy as np
         from PIL import Image as PILImage
@@ -664,7 +659,6 @@ def log(
         ```
 
         ### Video from numpy
-        <!--yeadoc-test:init-and-log-video-numpy-->
         ```python
         import numpy as np
         import wandb
@@ -681,7 +675,6 @@ def log(
         ```
 
         ### Matplotlib Plot
-        <!--yeadoc-test:init-and-log-matplotlib-->
         ```python
         from matplotlib import pyplot as plt
         import numpy as np
