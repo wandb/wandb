@@ -1553,10 +1553,10 @@ def test_artifact_registry_url(user, api):
 
         run.link_artifact(
             artifact=artifact,
-            target_path=f"{org.entity_name}/wandb-registry-Test/test_collection",
+            target_path=f"{org.entity_name}/wandb-registry-dataset/test_collection",
         )
         linked_art = run.use_artifact(
-            f"{org.entity_name}/wandb-registry-Test/test_collection:latest"
+            f"{org.entity_name}/wandb-registry-dataset/test_collection:latest"
         )
         base_url = util.app_url(run.settings.base_url)
 
