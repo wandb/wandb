@@ -1547,7 +1547,7 @@ def test_artifact_registry_url(user, api):
         run.log_artifact(artifact)
 
         org, *_ = InternalApi()._fetch_orgs_and_org_entities_from_entity(
-            linked_art.entity
+            artifact.entity
         )
 
         run.link_artifact(
