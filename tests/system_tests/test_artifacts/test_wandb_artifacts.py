@@ -1545,11 +1545,6 @@ def test_artifact_registry_url(user, api):
     with wandb.init() as run:
         artifact = wandb.Artifact("sequence_name", "dataset")
         run.log_artifact(artifact)
-        run.link_artifact(artifact=artifact, target_path="test_portfolio")
-        linked_art = run.use_artifact(
-            f"{artifact.entity}/{artifact.project}/test_portfolio:latest"
-        )
-        base_url = util.app_url(run.settings.base_url)
 
         org, *_ = InternalApi()._fetch_orgs_and_org_entities_from_entity(
             linked_art.entity
