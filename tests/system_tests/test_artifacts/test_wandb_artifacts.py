@@ -1561,7 +1561,7 @@ def test_artifact_registry_url(user, api):
         selection_path = quote(encoded_path, safe="")
 
         expected_url = (
-            f"{base_url}/orgs/registry/{linked_art.type}"
+            f"{base_url}/orgs/{org.display_name}/registry/{linked_art.type}"
             f"?selectionPath={selection_path}&view=membership&version={linked_art.version}"
         )
 
