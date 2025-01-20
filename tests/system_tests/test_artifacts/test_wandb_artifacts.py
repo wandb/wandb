@@ -1554,6 +1554,12 @@ def test_artifact_registry_url(user, api):
         org, *_ = InternalApi()._fetch_orgs_and_org_entities_from_entity(
             linked_art.entity
         )
+        
+        run.link_artifact(artifact=artifact, target_path=f"{org.entity_name}/wandb-registry-Test/test_collection")
+        linked_art = run.use_artifact(
+            f"{org.entity_name}/wandb-registry-Test/test_collection:latest"
+        )
+        base_url = util.app_url(run.settings.base_url)
 
         encoded_path = (
             f"{linked_art.entity}/{linked_art.project}/{linked_art.collection.name}"
