@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 import requests
 import responses
+from urllib.parse import quote
 import wandb
 import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
@@ -30,6 +31,7 @@ from wandb.sdk.artifacts.storage_handlers.gcs_handler import (
 from wandb.sdk.artifacts.storage_handlers.http_handler import HTTPHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.tracking_handler import TrackingHandler
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.hashutil import md5_string
 
 
@@ -1537,6 +1539,55 @@ def test_artifact_standard_url(user, api):
         expected_url = f"{util.app_url(run.settings.base_url)}/{run.entity}/{run.project}/artifacts/data/sequence_name/{artifact.version}"
 
         assert artifact.url == expected_url
+
+
+def test_artifact_registry_url(user, api):
+    with wandb.init() as run:
+        artifact = wandb.Artifact("sequence_name", "model")
+        run.log_artifact(artifact)
+        run.link_artifact(
+            artifact=artifact,
+            target_path="test_portfolio"
+            )
+        linked_art = run.use_artifact(f"{artifact.entity}/{artifact.project}/test_portfolio:latest")
+        base_url = util.app_url(run.settings.base_url)
+
+        org, *_ = InternalApi()._fetch_orgs_and_org_entities_from_entity(
+            linked_art.entity
+        )
+
+        encoded_path = f"{linked_art.entity}/{linked_art.project}/{linked_art.collection.name}"
+        selection_path = quote(encoded_path, safe="")
+
+        expected_url = (
+            f"{base_url}/orgs/registry/{linked_art.type}"
+            f"?selectionPath={selection_path}&view=membership&version={linked_art.version}"
+        )
+
+        assert linked_art.url == expected_url
+
+
+def test_artifact_model_registry_url(user, api):
+    with wandb.init() as run:
+        artifact = wandb.Artifact("sequence_name", "model")
+        run.log_artifact(artifact)
+        run.link_artifact(
+            artifact=artifact,
+            target_path="test_model_portfolio"
+            )
+        linked_model_art = run.use_artifact(f"{artifact.entity}/{artifact.project}/test_model_portfolio:latest")
+
+        base_url = util.app_url(run.settings.base_url)
+
+        encoded_path = f"{linked_model_art.entity}/{linked_model_art.project}/{linked_model_art.collection.name}"
+        selection_path = quote(encoded_path, safe="")
+
+        expected_url = (
+            f"{base_url}/{linked_model_art.entity}/registry/model?"
+            f"selectionPath={selection_path}&view=membership&version={linked_model_art.version}"
+        )
+
+        assert linked_model_art.url == expected_url
 
 
 def test_save_artifact_portfolio(user, api):
