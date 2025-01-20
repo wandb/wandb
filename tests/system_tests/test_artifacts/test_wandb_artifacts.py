@@ -1543,7 +1543,7 @@ def test_artifact_standard_url(user, api):
 
 def test_artifact_registry_url(user, api):
     with wandb.init() as run:
-        artifact = wandb.Artifact("sequence_name", "model")
+        artifact = wandb.Artifact("sequence_name", "dataset")
         run.log_artifact(artifact)
         run.link_artifact(artifact=artifact, target_path="test_portfolio")
         linked_art = run.use_artifact(
