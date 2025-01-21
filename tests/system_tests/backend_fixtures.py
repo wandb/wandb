@@ -228,7 +228,7 @@ class BackendFixtureFactory:
                 self._send(cmd.path, data=asdict(cmd))
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def backend_fixture_factory(
     worker_id: str,
     local_wandb_backend: LocalWandbBackendAddress,

@@ -7,7 +7,7 @@ import pytest
 
 from .wandb_backend_spy import WandbBackendProxy, WandbBackendSpy, spy_proxy
 
-#: See https://docs.pytest.org/en/stable/how-to/plugins.html#requiring-loading-plugins-in-a-test-module-or-conftest-file
+# https://docs.pytest.org/en/stable/how-to/plugins.html#requiring-loading-plugins-in-a-test-module-or-conftest-file
 pytest_plugins = ("tests.system_tests.backend_fixtures",)
 
 
@@ -25,22 +25,16 @@ def wandb_verbose(request):
     return request.config.getoption("--wandb-verbose", default=False)
 
 
-@pytest.fixture(scope="session")
-def session_username(backend_fixture_factory) -> str:
-    return backend_fixture_factory.make_user()
-
-
 @pytest.fixture(scope="function")
-def user(mocker, session_username, use_local_wandb_backend) -> Iterator[str]:
-    _ = use_local_wandb_backend
-
+def user(mocker, backend_fixture_factory) -> Iterator[str]:
+    username = backend_fixture_factory.make_user()
     envvars = {
-        "WANDB_API_KEY": session_username,
-        "WANDB_ENTITY": session_username,
-        "WANDB_USERNAME": session_username,
+        "WANDB_API_KEY": username,
+        "WANDB_ENTITY": username,
+        "WANDB_USERNAME": username,
     }
     mocker.patch.dict(os.environ, envvars)
-    yield session_username
+    yield username
 
 
 @pytest.fixture(scope="session")
