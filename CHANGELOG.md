@@ -11,6 +11,13 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.19.4] - 2025-01-16
+
+### Fixed
+
+- Fix incorrectly reported device counts and duty cycle measurements for TPUs with single devices per chip / multiple devices on the host and make TPU metrics sampling more robust (@dmitryduev in https://github.com/wandb/wandb/pull/9266)
+- Handle non-consecutive TPU device IDs in system monitor (@dmitryduev in https://github.com/wandb/wandb/pull/9276)
+
 ## [0.19.3] - 2025-01-13
 
 ### Fixed
