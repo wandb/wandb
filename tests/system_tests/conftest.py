@@ -31,7 +31,9 @@ def session_username(backend_fixture_factory) -> str:
 
 
 @pytest.fixture(scope="function")
-def user(mocker, session_username) -> Iterator[str]:
+def user(mocker, session_username, use_local_wandb_backend) -> Iterator[str]:
+    _ = use_local_wandb_backend
+
     envvars = {
         "WANDB_API_KEY": session_username,
         "WANDB_ENTITY": session_username,
