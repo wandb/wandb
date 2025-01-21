@@ -25,6 +25,7 @@ class Server:
     def query_with_timeout(self, timeout: int | float = 5) -> None:
         if self._settings.x_disable_viewer:
             return
+
         async_viewer = util.async_call(self._api.viewer_server_info, timeout=timeout)
         try:
             viewer_tuple, viewer_thread = async_viewer()
@@ -36,3 +37,22 @@ class Server:
         # TODO(jhr): should we kill the thread?
         self._viewer, self._serverinfo = viewer_tuple
         self._flags = json.loads(self._viewer.get("flags", "{}"))
+
+    @property
+    def viewer(self) -> dict[str, Any]:
+        """Returns information about the currently authenticated user.
+
+        If the API key is valid, the following is returned:
+        - id
+        - entity
+        - username
+        - flags
+        - teams
+
+        If the API key is not valid or the server is not reachable,
+        an empty dict is returned.
+        """
+        if not self._viewer and not self._settings._offline:
+            self.query_with_timeout()
+
+        return self._viewer
