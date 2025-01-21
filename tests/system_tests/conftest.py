@@ -13,17 +13,6 @@ pytest_plugins = ("tests.system_tests.backend_fixtures",)
 
 def pytest_addoption(parser: pytest.Parser):
     parser.addoption(
-        "--user-scope",
-        default="session",  # or "session" or "module"
-        help=(
-            "Scope creating test users. Defaults to 'function', which is the"
-            " safest option. A broader scope can speed up tests because"
-            " creating a user takes a long time, but it can cause"
-            " order-dependence due to tests sharing a user."
-        ),
-    )
-
-    parser.addoption(
         "--wandb-verbose",
         action="store_true",
         default=False,
@@ -36,21 +25,20 @@ def wandb_verbose(request):
     return request.config.getoption("--wandb-verbose", default=False)
 
 
-def determine_user_scope(fixture_name, config):
-    """Returns the scope for the 'user' fixture based on --user-scope."""
-    return config.getoption("--user-scope")
+@pytest.fixture(scope="session")
+def session_username(backend_fixture_factory) -> str:
+    return backend_fixture_factory.make_user()
 
 
-@pytest.fixture(scope=determine_user_scope)
-def user(mocker, backend_fixture_factory) -> Iterator[str]:
-    username = backend_fixture_factory.make_user()
+@pytest.fixture(scope="function")
+def user(mocker, session_username) -> Iterator[str]:
     envvars = {
-        "WANDB_API_KEY": username,
-        "WANDB_ENTITY": username,
-        "WANDB_USERNAME": username,
+        "WANDB_API_KEY": session_username,
+        "WANDB_ENTITY": session_username,
+        "WANDB_USERNAME": session_username,
     }
     mocker.patch.dict(os.environ, envvars)
-    yield username
+    yield session_username
 
 
 @pytest.fixture(scope="session")
