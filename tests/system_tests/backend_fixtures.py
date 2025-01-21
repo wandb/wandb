@@ -228,11 +228,10 @@ class BackendFixtureFactory:
                 self._send(cmd.path, data=asdict(cmd))
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def backend_fixture_factory(
     worker_id: str,
     local_wandb_backend: LocalWandbBackendAddress,
-    use_local_wandb_backend,
 ) -> Generator[BackendFixtureFactory, None, None]:
     base_url = local_wandb_backend.fixture_service_url
     with BackendFixtureFactory(base_url, worker_id=worker_id) as factory:
