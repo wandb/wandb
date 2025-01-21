@@ -39,8 +39,8 @@ cloud.google.com/go/iam/apiv1/iampb
 cloud.google.com/go/monitoring/apiv3/v2
 cloud.google.com/go/monitoring/apiv3/v2/monitoringpb
 cloud.google.com/go/monitoring/internal
-# cloud.google.com/go/storage v1.49.0
-## explicit; go 1.21
+# cloud.google.com/go/storage v1.50.0
+## explicit; go 1.22
 cloud.google.com/go/storage
 cloud.google.com/go/storage/experimental
 cloud.google.com/go/storage/internal
@@ -175,7 +175,7 @@ github.com/alexflint/go-arg
 # github.com/alexflint/go-scalar v1.2.0
 ## explicit; go 1.15
 github.com/alexflint/go-scalar
-# github.com/aws/aws-sdk-go-v2 v1.32.8
+# github.com/aws/aws-sdk-go-v2 v1.33.0
 ## explicit; go 1.21
 github.com/aws/aws-sdk-go-v2/aws
 github.com/aws/aws-sdk-go-v2/aws/arn

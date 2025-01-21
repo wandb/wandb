@@ -177,42 +177,30 @@ class _WandbSetup:
     def _get_entity(self) -> str | None:
         if self._settings and self._settings._offline:
             return None
-        if self._server is None:
-            self._load_viewer()
-        assert self._server is not None
-        entity = self._server._viewer.get("entity")
+        entity = self.viewer.get("entity")
         return entity
 
     def _get_username(self) -> str | None:
         if self._settings and self._settings._offline:
             return None
-        if self._server is None:
-            self._load_viewer()
-        assert self._server is not None
-        return self._server._viewer.get("username")
+        return self.viewer.get("username")
 
     def _get_teams(self) -> list[str]:
         if self._settings and self._settings._offline:
             return []
-        if self._server is None:
-            self._load_viewer()
-        assert self._server is not None
-        teams = self._server._viewer.get("teams")
+        teams = self.viewer.get("teams")
         if teams:
             teams = [team["node"]["name"] for team in teams["edges"]]
         return teams or []
 
-    def _load_viewer(self) -> None:
-        if self._settings and self._settings._offline:
-            return
-        s = server.Server(settings=self._settings)
-        s.query_with_timeout()
-        self._server = s
+    @property
+    def viewer(self) -> dict[str, Any]:
+        if self._server is None:
+            self._server = server.Server(settings=self._settings)
+
+        return self._server.viewer
 
     def _load_user_settings(self) -> dict[str, Any] | None:
-        if self._server is None:
-            self._load_viewer()
-
         # offline?
         if self._server is None:
             return None
@@ -222,7 +210,7 @@ class _WandbSetup:
         if "code_saving_enabled" in flags:
             user_settings["save_code"] = flags["code_saving_enabled"]
 
-        email = self._server._viewer.get("email", None)
+        email = self.viewer.get("email", None)
         if email:
             user_settings["email"] = email
 
