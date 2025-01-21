@@ -234,37 +234,63 @@ class Metadata(BaseModel, validate_assignment=True):
     NOTE: Definitions must be kept in sync with wandb_internal.proto::MetadataRequest.
 
     Attributes:
-        os (str, optional): Operating system.
-        python (str, optional): Python version.
-        heartbeat_at (datetime, optional): Timestamp of last heartbeat.
-        started_at (datetime, optional): Timestamp of run start.
-        docker (str, optional): Docker image.
-        cuda (str, optional): CUDA version.
-        args (List[str]): Command-line arguments.
-        state (str, optional): Run state.
-        program (str, optional): Program name.
-        code_path (str, optional): Path to code.
-        git (GitRepoRecord, optional): Git repository information.
-        email (str, optional): Email address.
-        root (str, optional): Root directory.
-        host (str, optional): Host name.
-        username (str, optional): Username.
-        executable (str, optional): Python executable path.
-        code_path_local (str, optional): Local code path.
-        colab (str, optional): Colab URL.
-        cpu_count (int, optional): CPU count.
-        cpu_count_logical (int, optional): Logical CPU count.
-        gpu_type (str, optional): GPU type.
-        disk (Dict[str, DiskInfo]): Disk information.
-        memory (MemoryInfo, optional): Memory information.
-        cpu (CpuInfo, optional): CPU information.
-        apple (AppleInfo, optional): Apple silicon information.
-        gpu_nvidia (List[GpuNvidiaInfo]): NVIDIA GPU information.
-        gpu_amd (List[GpuAmdInfo]): AMD GPU information.
-        slurm (Dict[str, str]): Slurm environment information.
-        cuda_version (str, optional): CUDA version.
-        trainium (TrainiumInfo, optional): Trainium information.
-        tpu (TPUInfo, optional): TPU information.
+        os: Operating system.
+        python: Python version.
+        heartbeat_at: Timestamp of last heartbeat.
+        started_at: Timestamp of run start.
+        docker: Docker image.
+        cuda: CUDA version.
+        args: Command-line arguments.
+        state: Run state.
+        program: Program name.
+        code_path: Path to code.
+        git: Git repository information.
+        email: Email address.
+        root: Root directory.
+        host: Host name.
+        username: Username.
+        executable: Python executable path.
+        code_path_local: Local code path.
+        colab: Colab URL.
+        cpu_count: CPU count.
+        cpu_count_logical: Logical CPU count.
+        gpu_type: GPU type.
+        disk: Disk information.
+        memory: Memory information.
+        cpu: CPU information.
+        apple: Apple silicon information.
+        gpu_nvidia: NVIDIA GPU information.
+        gpu_amd: AMD GPU information.
+        slurm: Slurm environment information.
+        cuda_version: CUDA version.
+        trainium: Trainium information.
+        tpu: TPU information.
+
+    Examples:
+        Update Run metadata:
+
+        ```python
+        with wandb.init(settings=settings) as run:
+            run._metadata.gpu_nvidia = [
+                {
+                    "name": "Tesla T4",
+                    "memory_total": "16106127360",
+                    "cuda_cores": 2560,
+                    "architecture": "Turing",
+                },
+                ...,
+            ]
+
+            run._metadata.gpu_type = "Tesla T4"
+            run._metadata.gpu_count = 42
+
+            run._metadata.tpu = {
+                "name": "v6e",
+                "hbm_gib": 32,
+                "devices_per_chip": 1,
+                "count": 1337,
+            }
+        ```
     """
 
     # TODO: Pydantic configuration.
