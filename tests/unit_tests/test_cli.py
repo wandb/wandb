@@ -219,9 +219,6 @@ def test_cli_login_reprompts_when_no_key_specified(runner, mocker, dummy_api_key
         # Error: No API key specified to assert that the re-prompt
         # happened
         result = runner.invoke(cli.login, input=f"\n{dummy_api_key[:-1]}q\n")
-        print(f"DEBUG(login) out = {result.output}")  # noqa: T201
-        print(f"DEBUG(login) exc = {result.exception}")  # noqa: T201
-        print(f"DEBUG(login) tb = {traceback.print_tb(result.exc_info[2])}")  # noqa: T201
         with open(get_netrc_file_path()) as f:
             print(f.read())  # noqa: T201
         assert "ERROR No API key specified." in result.output

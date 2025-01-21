@@ -1,11 +1,12 @@
 import netrc
 import os
-import traceback
 from unittest import mock
 
 import pytest
 import wandb
+from click.testing import CliRunner
 from wandb.cli import cli
+from wandb.sdk.lib.apikey import get_netrc_file_path
 
 
 @pytest.fixture
@@ -18,24 +19,13 @@ def empty_netrc(monkeypatch):
     monkeypatch.setattr(netrc, "netrc", lambda *args: FakeNet())
 
 
-def debug_result(result, prefix=None):
-    prefix = prefix or ""
-    print("DEBUG({}) {} = {}".format(prefix, "out", result.output))  # noqa: T201
-    print("DEBUG({}) {} = {}".format(prefix, "exc", result.exception))  # noqa: T201
-    print(  # noqa: T201
-        "DEBUG({}) {} = {}".format(prefix, "tb", traceback.print_tb(result.exc_info[2]))
-    )
-
-
 @pytest.mark.xfail(reason="This test is flakey on CI")
 def test_init_reinit(runner, empty_netrc, user):
     with runner.isolated_filesystem(), mock.patch(
         "wandb.sdk.lib.apikey.len", return_value=40
     ):
         result = runner.invoke(cli.login, [user])
-        debug_result(result, "login")
         result = runner.invoke(cli.init, input="y\n\n\n")
-        debug_result(result, "init")
         assert result.exit_code == 0
         with open("netrc") as f:
             generated_netrc = f.read()
@@ -53,9 +43,7 @@ def test_init_add_login(runner, empty_netrc, user):
         with open("netrc", "w") as f:
             f.write("previous config")
         result = runner.invoke(cli.login, [user])
-        debug_result(result, "login")
         result = runner.invoke(cli.init, input=f"y\n{user}\nvanpelt\n")
-        debug_result(result, "init")
         assert result.exit_code == 0
         with open("netrc") as f:
             generated_netrc = f.read()
@@ -205,3 +193,28 @@ def test_cli_offline(user, runner):
         with wandb.init() as run:
             assert run.settings._offline
             assert run.settings.mode == "offline"
+
+
+def test_login_key_arg(runner):
+    with runner.isolated_filesystem(), mock.patch(
+        "wandb.sdk.lib.apikey.len", return_value=40
+    ):
+        result = runner.invoke(cli.login, ["A" * 40])
+        assert result.exit_code == 0
+        with open(get_netrc_file_path()) as f:
+            generated_netrc = f.read()
+        assert "A" * 40 in generated_netrc
+
+
+def test_login_key_prompt():
+    runner = CliRunner()
+    with mock.patch.object(
+        wandb.sdk.lib.apikey, "isatty", return_value=True
+    ), mock.patch.object(
+        wandb.sdk.lib.apikey, "input", return_value=1
+    ), runner.isolated_filesystem(), mock.patch.dict(os.environ, {"WANDB_API_KEY": ""}):
+        result = runner.invoke(cli.login, input=f"{'A'*40}\n")
+        assert result.exit_code == 0
+        with open(get_netrc_file_path()) as f:
+            generated_netrc = f.read()
+        assert "A" * 40 in generated_netrc
