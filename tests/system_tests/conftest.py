@@ -11,30 +11,16 @@ from .wandb_backend_spy import WandbBackendProxy, WandbBackendSpy, spy_proxy
 pytest_plugins = ("tests.system_tests.backend_fixtures",)
 
 
-class ConsoleFormatter:
-    BOLD = "\033[1m"
-    CODE = "\033[2m"
-    MAGENTA = "\033[95m"
-    BLUE = "\033[94m"
-    CYAN = "\033[96m"
-    GREEN = "\033[92m"
-    YELLOW = "\033[93m"
-    RED = "\033[91m"
-    END = "\033[0m"
-
-
-# --------------------------------
-# Fixtures for full test point
-# --------------------------------
-
-
 def pytest_addoption(parser: pytest.Parser):
-    # note: we default to "function" scope to ensure the environment is
-    # set up properly when running the tests in parallel with pytest-xdist.
     parser.addoption(
         "--user-scope",
-        default="function",  # or "function" or "session" or "module"
-        help='cli to set scope of fixture "user-scope"',
+        default="session",  # or "session" or "module"
+        help=(
+            "Scope creating test users. Defaults to 'function', which is the"
+            " safest option. A broader scope can speed up tests because"
+            " creating a user takes a long time, but it can cause"
+            " order-dependence due to tests sharing a user."
+        ),
     )
 
     parser.addoption(
@@ -45,16 +31,17 @@ def pytest_addoption(parser: pytest.Parser):
     )
 
 
-def determine_scope(fixture_name, config):
-    return config.getoption("--user-scope")
-
-
 @pytest.fixture(scope="session")
 def wandb_verbose(request):
     return request.config.getoption("--wandb-verbose", default=False)
 
 
-@pytest.fixture(scope=determine_scope)
+def determine_user_scope(fixture_name, config):
+    """Returns the scope for the 'user' fixture based on --user-scope."""
+    return config.getoption("--user-scope")
+
+
+@pytest.fixture(scope=determine_user_scope)
 def user(mocker, backend_fixture_factory) -> Iterator[str]:
     username = backend_fixture_factory.make_user()
     envvars = {
