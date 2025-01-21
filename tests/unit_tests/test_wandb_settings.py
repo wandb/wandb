@@ -487,7 +487,6 @@ def test_setup_offline(test_settings):
     login_settings = test_settings().copy()
     login_settings.mode = "offline"
     assert wandb.setup(settings=login_settings)._get_entity() is None
-    assert wandb.setup(settings=login_settings)._load_viewer() is None
 
 
 def test_mutual_exclusion_of_branching_args():
