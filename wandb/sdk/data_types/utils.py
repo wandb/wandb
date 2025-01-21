@@ -148,12 +148,8 @@ def val_to_json(
                 "partitioned-table",
                 "joined-table",
             ]:
-                # Special conditional to log tables as artifact entries as well.
-                # I suspect we will generalize this as we transition to storing all
-                # files in an artifact
-                # we sanitize the key to meet the constraints
-                # in this case, leaving only alphanumerics or underscores.
-                sanitized_key = re.sub(r"[^a-zA-Z0-9_]+", "", key)
+                # Sanitize the key to meet the constraints of artifact names.
+                sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
                 art = wandb.Artifact(f"run-{run.id}-{sanitized_key}", "run_table")
                 art.add(val, key)
                 run.log_artifact(art)

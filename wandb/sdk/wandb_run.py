@@ -454,7 +454,6 @@ class Run:
     """A unit of computation logged by wandb. Typically, this is an ML experiment.
 
     Create a run with `wandb.init()`:
-    <!--yeadoc-test:run-object-basic-->
     ```python
     import wandb
 
@@ -463,7 +462,6 @@ class Run:
 
     There is only ever at most one active `wandb.Run` in any process,
     and it is accessible as `wandb.run`:
-    <!--yeadoc-test:global-run-object-->
     ```python
     import wandb
 
@@ -478,7 +476,6 @@ class Run:
     If you want to start more runs in the same script or notebook, you'll need to
     finish the run that is in-flight. Runs can be finished with `wandb.finish` or
     by using them in a `with` block:
-    <!--yeadoc-test:run-context-manager-->
     ```python
     import wandb
 
@@ -1745,7 +1742,6 @@ class Run:
             [our guides to logging](https://docs.wandb.com/guides/track/log).
 
             ### Basic usage
-            <!--yeadoc-test:init-and-log-basic-->
             ```python
             import wandb
 
@@ -1754,7 +1750,6 @@ class Run:
             ```
 
             ### Incremental logging
-            <!--yeadoc-test:init-and-log-incremental-->
             ```python
             import wandb
 
@@ -1765,7 +1760,6 @@ class Run:
             ```
 
             ### Histogram
-            <!--yeadoc-test:init-and-log-histogram-->
             ```python
             import numpy as np
             import wandb
@@ -1777,7 +1771,6 @@ class Run:
             ```
 
             ### Image from numpy
-            <!--yeadoc-test:init-and-log-image-numpy-->
             ```python
             import numpy as np
             import wandb
@@ -1792,7 +1785,6 @@ class Run:
             ```
 
             ### Image from PIL
-            <!--yeadoc-test:init-and-log-image-pillow-->
             ```python
             import numpy as np
             from PIL import Image as PILImage
@@ -1814,7 +1806,6 @@ class Run:
             ```
 
             ### Video from numpy
-            <!--yeadoc-test:init-and-log-video-numpy-->
             ```python
             import numpy as np
             import wandb
@@ -1831,7 +1822,6 @@ class Run:
             ```
 
             ### Matplotlib Plot
-            <!--yeadoc-test:init-and-log-matplotlib-->
             ```python
             from matplotlib import pyplot as plt
             import numpy as np
