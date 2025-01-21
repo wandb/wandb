@@ -25,7 +25,7 @@ def wandb_verbose(request):
     return request.config.getoption("--wandb-verbose", default=False)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def user(mocker, backend_fixture_factory) -> Iterator[str]:
     username = backend_fixture_factory.make_user()
     envvars = {
