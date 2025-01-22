@@ -20,13 +20,17 @@ func init() {
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file (default is $HOME/.ctrlc.yaml)")
 	viper.BindEnv("config", "CTRLPLANE_CONFIG")
 
-	cmd.PersistentFlags().String("url", "", "API URL")
+	cmd.PersistentFlags().String("url", "https://app.ctrlplane.dev", "API URL")
 	viper.BindPFlag("url", cmd.PersistentFlags().Lookup("url"))
 	viper.BindEnv("url", "CTRLPLANE_URL")
 
 	cmd.PersistentFlags().String("api-key", "", "API key for authentication")
 	viper.BindPFlag("api-key", cmd.PersistentFlags().Lookup("api-key"))
 	viper.BindEnv("api-key", "CTRLPLANE_API_KEY")
+
+	cmd.PersistentFlags().String("workspace", "", "Ctrlplane Workspace ID")
+	viper.BindPFlag("workspace", cmd.PersistentFlags().Lookup("workspace"))
+	viper.BindEnv("workspace", "CTRLPLANE_WORKSPACE")
 }
 
 func main() {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/MakeNowJust/heredoc/v2"
+	"github.com/charmbracelet/log"
 	"github.com/ctrlplanedev/cli/internal/api"
 	"github.com/ctrlplanedev/cli/internal/cliutil"
 	"github.com/google/uuid"
@@ -13,7 +14,6 @@ import (
 )
 
 func NewSyncTerraformCmd() *cobra.Command {
-	var workspaceId string
 	var organization string
 
 	cmd := &cobra.Command{
@@ -30,9 +30,11 @@ func NewSyncTerraformCmd() *cobra.Command {
 			$ ctrlc sync terraform --organization my-org --workspace 2a7c5560-75c9-4dbe-be74-04ee33bf8188
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("Syncing Terraform resources into Ctrlplane")
+			log.Info("Syncing Terraform resources into Ctrlplane")
+
 			apiURL := viper.GetString("url")
 			apiKey := viper.GetString("api-key")
+			workspaceId := viper.GetString("workspace")
 			ctx := cmd.Context()
 
 			if organization == "" {
@@ -110,7 +112,6 @@ func NewSyncTerraformCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&organization, "organization", "o", "", "Terraform organization name")
-	cmd.Flags().StringVarP(&workspaceId, "workspace", "w", "", "Ctrlplane workspace ID")
 
 	return cmd
 }

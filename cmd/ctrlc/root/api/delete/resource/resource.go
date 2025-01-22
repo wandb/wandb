@@ -12,7 +12,6 @@ import (
 
 func NewDeleteResourceCmd() *cobra.Command {
 	var resourceId string
-	var workspace string
 	var identifier string
 
 	cmd := &cobra.Command{
@@ -30,6 +29,7 @@ func NewDeleteResourceCmd() *cobra.Command {
             $ ctrlc delete resource --id 123e4567-e89b-12d3-a456-426614174000 --template='{{.id}}'
         `),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			workspace := viper.GetString("workspace")
 			if resourceId == "" && (workspace == "" || identifier == "") {
 				return fmt.Errorf("either --id or both --workspace and --identifier must be provided")
 			}
@@ -63,7 +63,6 @@ func NewDeleteResourceCmd() *cobra.Command {
 
 	// Add flags
 	cmd.Flags().StringVar(&resourceId, "id", "", "ID of the target resource")
-	cmd.Flags().StringVar(&workspace, "workspace", "", "Workspace of the target resource")
 	cmd.Flags().StringVar(&identifier, "identifier", "", "Identifier of the target resource")
 
 	return cmd

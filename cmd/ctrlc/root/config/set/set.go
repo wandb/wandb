@@ -13,6 +13,7 @@ import (
 var ValidConfigKeys = []string{
 	"url",
 	"api-key",
+	"workspace",
 }
 
 func NewSetCmd() *cobra.Command {
@@ -26,6 +27,9 @@ func NewSetCmd() *cobra.Command {
 
 			# Set API key
 			$ ctrlc config set api-key YOUR_API_KEY
+
+			# Set workspace
+			$ ctrlc config set workspace YOUR_WORKSPACE_ID
 		`),
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {

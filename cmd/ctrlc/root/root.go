@@ -16,7 +16,7 @@ func NewRootCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "ctrlc <command> <subcommand> [subcommand] [flags]",
-		Short: "Ctrlconnect CLI",
+		Short: "Ctrlplane CLI",
 		Long:  `Configure and manage your deployment environments remotely.`,
 		Example: heredoc.Doc(`
 			$ ctrlc agent run
