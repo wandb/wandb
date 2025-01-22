@@ -234,6 +234,8 @@ def backend_fixture_factory(
     local_wandb_backend: LocalWandbBackendAddress,
     use_local_wandb_backend,
 ) -> Generator[BackendFixtureFactory, None, None]:
+    _ = use_local_wandb_backend
+
     base_url = local_wandb_backend.fixture_service_url
     with BackendFixtureFactory(base_url, worker_id=worker_id) as factory:
         yield factory
