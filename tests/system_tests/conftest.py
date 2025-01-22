@@ -5,22 +5,66 @@ from typing import Generator, Iterator
 
 import pytest
 
+from .backend_fixtures import (
+    BackendFixtureFactory,
+    LocalWandbBackendAddress,
+    connect_to_local_wandb_backend,
+)
 from .wandb_backend_spy import WandbBackendProxy, WandbBackendSpy, spy_proxy
 
-#: See https://docs.pytest.org/en/stable/how-to/plugins.html#requiring-loading-plugins-in-a-test-module-or-conftest-file
-pytest_plugins = ("tests.system_tests.backend_fixtures",)
+
+@pytest.fixture(scope="session")
+def local_wandb_backend() -> LocalWandbBackendAddress:
+    """Fixture that starts up or connects to the local-testcontainer.
+
+    This does not patch WANDB_BASE_URL! Use `use_local_wandb_backend` instead.
+    """
+    return connect_to_local_wandb_backend(name="wandb-local-testcontainer")
 
 
-class ConsoleFormatter:
-    BOLD = "\033[1m"
-    CODE = "\033[2m"
-    MAGENTA = "\033[95m"
-    BLUE = "\033[94m"
-    CYAN = "\033[96m"
-    GREEN = "\033[92m"
-    YELLOW = "\033[93m"
-    RED = "\033[91m"
-    END = "\033[0m"
+@pytest.fixture(scope="session")
+def local_wandb_backend_importers() -> LocalWandbBackendAddress:
+    """Fixture that starts up or connects to a second local-testcontainer.
+
+    This is used by importer tests, to move data between two backends.
+    """
+    return connect_to_local_wandb_backend(name="wandb-local-testcontainer-importers")
+
+
+@pytest.fixture(scope="session")
+def use_local_wandb_backend(
+    local_wandb_backend: LocalWandbBackendAddress,
+) -> Generator[None, None, None]:
+    """Fixture that patches WANDB_BASE_URL to point to the local container.
+
+    We use the `pytest.MonkeyPatch` context manager instead of the `monkeypatch` fixture,
+    as `monkeypatch` is strictly function-scoped and we need this to be session-scoped.
+    """
+    with pytest.MonkeyPatch.context() as session_monkeypatch:
+        session_monkeypatch.setenv("WANDB_BASE_URL", local_wandb_backend.base_url)
+        yield
+
+
+@pytest.fixture(scope="session")
+def backend_fixture_factory(
+    worker_id: str,
+    local_wandb_backend: LocalWandbBackendAddress,
+    use_local_wandb_backend: None,
+) -> Generator[BackendFixtureFactory, None, None]:
+    _ = use_local_wandb_backend
+    base_url = local_wandb_backend.fixture_service_url
+    with BackendFixtureFactory(base_url, worker_id=worker_id) as factory:
+        yield factory
+
+
+@pytest.fixture(scope="session")
+def backend_importers_fixture_factory(
+    worker_id: str,
+    local_wandb_backend_importers: LocalWandbBackendAddress,
+) -> Generator[BackendFixtureFactory, None, None]:
+    base_url = local_wandb_backend_importers.fixture_service_url
+    with BackendFixtureFactory(base_url, worker_id=worker_id) as factory:
+        yield factory
 
 
 # --------------------------------
@@ -29,14 +73,6 @@ class ConsoleFormatter:
 
 
 def pytest_addoption(parser: pytest.Parser):
-    # note: we default to "function" scope to ensure the environment is
-    # set up properly when running the tests in parallel with pytest-xdist.
-    parser.addoption(
-        "--user-scope",
-        default="function",  # or "function" or "session" or "module"
-        help='cli to set scope of fixture "user-scope"',
-    )
-
     parser.addoption(
         "--wandb-verbose",
         action="store_true",
@@ -45,16 +81,12 @@ def pytest_addoption(parser: pytest.Parser):
     )
 
 
-def determine_scope(fixture_name, config):
-    return config.getoption("--user-scope")
-
-
 @pytest.fixture(scope="session")
 def wandb_verbose(request):
     return request.config.getoption("--wandb-verbose", default=False)
 
 
-@pytest.fixture(scope=determine_scope)
+@pytest.fixture
 def user(mocker, backend_fixture_factory) -> Iterator[str]:
     username = backend_fixture_factory.make_user()
     envvars = {
