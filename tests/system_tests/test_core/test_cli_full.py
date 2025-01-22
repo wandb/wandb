@@ -196,9 +196,7 @@ def test_cli_offline(user, runner):
 
 
 def test_login_key_arg(runner):
-    with runner.isolated_filesystem(), mock.patch(
-        "wandb.sdk.lib.apikey.len", return_value=40
-    ):
+    with runner.isolated_filesystem():
         result = runner.invoke(cli.login, ["A" * 40])
         assert result.exit_code == 0
         with open(get_netrc_file_path()) as f:
@@ -206,13 +204,12 @@ def test_login_key_arg(runner):
         assert "A" * 40 in generated_netrc
 
 
-def test_login_key_prompt():
+def test_login_key_prompt(monkeypatch):
+    monkeypatch.setattr(wandb.sdk.lib.apikey, "isatty", lambda _: True)
+    monkeypatch.delenv("WANDB_API_KEY", raising=False)
     runner = CliRunner()
-    with mock.patch.object(
-        wandb.sdk.lib.apikey, "isatty", return_value=True
-    ), mock.patch.object(
-        wandb.sdk.lib.apikey, "input", return_value=1
-    ), runner.isolated_filesystem(), mock.patch.dict(os.environ, {"WANDB_API_KEY": ""}):
+
+    with runner.isolated_filesystem():
         result = runner.invoke(cli.login, input=f"{'A'*40}\n")
         assert result.exit_code == 0
         with open(get_netrc_file_path()) as f:
