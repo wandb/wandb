@@ -1,4 +1,4 @@
-"""Defines a custom ariadne-codegen plugin to control Python code generation from GraphQL definitions.
+"""Plugin module to customize GraphQL-to-Python code generation.
 
 For more info, see:
 - https://github.com/mirumee/ariadne-codegen/blob/main/PLUGINS.md
@@ -263,7 +263,7 @@ class GraphQLCodegenPlugin(Plugin):
         return RedundantClassReplacer(class_name_replacements).visit(module)
 
     def _cleanup_init_module(self, module: ast.Module) -> ast.Module:
-        """Clean up the __init__ module by removing dropped imports and rewriting the `__all__` exports."""
+        """Remove dropped imports and rewrite `__all__` exports in `__init__`."""
         # Drop selected import statements from the __init__ module
         kept_import_stmts = list(
             self._filter_init_imports(

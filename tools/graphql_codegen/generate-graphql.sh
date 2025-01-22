@@ -33,9 +33,9 @@ SCHEMA_PATH="$SCHEMA_DIR/schema-latest.graphql"
     echo "[INFO] Downloading latest schema for commit hash: $SCHEMA_COMMIT_HASH"
     git clone -n --depth=1 --filter=tree:0 https://github.com/wandb/core "$repo_dir"
     (
-    cd "$repo_dir"
-    git checkout "$SCHEMA_COMMIT_HASH" "$repo_schema_path"
-    mv "$repo_schema_path" "$SCHEMA_PATH"
+        cd "$repo_dir"
+        git checkout "$SCHEMA_COMMIT_HASH" "$repo_schema_path"
+        mv "$repo_schema_path" "$SCHEMA_PATH"
     )
     rm -rf "$repo_dir"
 )

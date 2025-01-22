@@ -73,7 +73,7 @@ google-cloud-aiplatform
 boto3
 botocore>=1.5.76
 
-ariadne-codegen
+ariadne-codegen~=0.14.0
 
 .[perf]
 .[launch]
