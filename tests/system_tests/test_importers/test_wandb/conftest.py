@@ -16,7 +16,11 @@ from PIL import Image
 from rdkit import Chem
 
 
-@pytest.fixture
+def determine_scope(fixture_name, config):
+    return config.getoption("--user-scope")
+
+
+@pytest.fixture(scope=determine_scope)
 def user2(backend_importers_fixture_factory):
     return backend_importers_fixture_factory.make_user()
 
