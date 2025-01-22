@@ -40,7 +40,7 @@ from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import SummaryDisabled, filesystem, module, printer, telemetry
+from .lib import SummaryDisabled, filesystem, module, paths, printer, telemetry
 from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxProgress
 from .wandb_helper import parse_config
@@ -452,6 +452,23 @@ class _WandbInit:
                 config_target=result.launch_no_artifacts,
                 artifacts=result.artifacts,
             )
+
+        wandb_internal = result.base_no_artifacts.setdefault("_wandb", dict())
+
+        if settings.save_code and settings.program_relpath:
+            wandb_internal["code_path"] = paths.LogicalPath(
+                os.path.join("code", settings.program_relpath)
+            )
+        if settings.fork_from is not None:
+            wandb_internal["branch_point"] = {
+                "run_id": settings.fork_from.run,
+                "step": settings.fork_from.value,
+            }
+        if settings.resume_from is not None:
+            wandb_internal["branch_point"] = {
+                "run_id": settings.resume_from.run,
+                "step": settings.resume_from.value,
+            }
 
         return result
 
