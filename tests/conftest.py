@@ -434,6 +434,16 @@ def test_settings():
 
 @pytest.fixture(scope="function")
 def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
+    """Create a Run object with a stubbed out 'backend'.
+
+    This is similar to using `wandb.init(mode="offline")`, but much faster
+    as it does not start up a service process.
+
+    This is intended for tests that need to exercise surface-level Python logic
+    in the Run class. Note that it's better to factor out such logic into its
+    own unit-tested module instead.
+    """
+
     from wandb.sdk.lib.module import unset_globals
 
     def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> wandb.sdk.wandb_run.Run:
