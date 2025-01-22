@@ -1,4 +1,4 @@
-name: Validate Documentation Reference
+name: Ensure new features are documented
 
 on:
   pull_request:
