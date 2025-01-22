@@ -19,6 +19,11 @@ func HandleOutput(cmd *cobra.Command, resp *http.Response) error {
 
 	templateFlag, _ := cmd.Flags().GetString("template")
 	formatFlag, _ := cmd.Flags().GetString("format")
+	intervalFlag, _ := cmd.Flags().GetString("interval")
+
+	if intervalFlag != "" {
+		return nil
+	}
 
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
