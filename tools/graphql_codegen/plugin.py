@@ -145,7 +145,7 @@ def forget_default_id_type() -> None:
 
 
 class GraphQLCodegenPlugin(Plugin):
-    """An `ariadne-codegen` plugin to customize generated Python code for the `wandb` package.
+    """Plugin to customize generated Python code for the `wandb` package.
 
     For more info about allowed methods, see:
     - https://github.com/mirumee/ariadne-codegen/blob/main/PLUGINS.md
