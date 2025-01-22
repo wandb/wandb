@@ -22,7 +22,7 @@ import (
 type TailscaleConfig struct {
 	ID            string   `json:"id"`
 	Name          string   `json:"name"`
-	Addresses     []string `json:"ip"`
+	Addresses     []string `json:"addresses"`
 	OS            string   `json:"os"`
 	Hostname      string   `json:"hostname"`
 	ClientVersion string   `json:"clientVersion"`
