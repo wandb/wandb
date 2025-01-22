@@ -1,4 +1,4 @@
-name: Ensure new features are documented
+name: Validate Documentation Reference
 
 on:
   pull_request:
@@ -31,23 +31,21 @@ jobs:
               core.setFailed(message);
             }
             
-            // Function to cleanup previous failure comments
-            async function cleanupPreviousComments() {
-              const comments = await github.rest.issues.listComments({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pr.number
-              });
-              
-              // Find and delete any previous failure comments from this workflow
-              for (const comment of comments.data) {
-                if (comment.body.startsWith('❌ Documentation Reference Check Failed')) {
-                  await github.rest.issues.deleteComment({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    comment_id: comment.id
-                  });
-                }
+            // First, cleanup any previous comments from this workflow
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number
+            });
+            
+            // Delete any previous failure comments from this workflow
+            for (const comment of comments.data) {
+              if (comment.body.startsWith('❌ Documentation Reference Check Failed')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment.id
+                });
               }
             }
             
@@ -112,6 +110,3 @@ jobs:
             if (jiraMatch) {
               console.log(`✅ Found corresponding DOCS Jira ticket: ${jiraMatch[0]}`);
             }
-            
-            // If we made it here, the check passed - clean up any previous failure comments
-            await cleanupPreviousComments();
