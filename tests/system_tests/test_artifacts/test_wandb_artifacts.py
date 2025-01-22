@@ -31,7 +31,6 @@ from wandb.sdk.artifacts.storage_handlers.gcs_handler import (
 from wandb.sdk.artifacts.storage_handlers.http_handler import HTTPHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.tracking_handler import TrackingHandler
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.hashutil import md5_string
 
 
