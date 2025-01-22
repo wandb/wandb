@@ -57,9 +57,9 @@ jobs:
             
             // Regular expressions to match either:
             // 1. wandb/docs PR links (https://github.com/wandb/docs/pull/123 or wandb/docs#123)
-            // 2. DOCS Jira ticket links (https://wandb.atlassian.net/browse/DOCS-XXX)
+            // 2. DOCS Jira ticket links (https://wandb.atlassian.net/browse/DOCS-XXX or DOCS-XXX)
             const docsLinkRegex = /(?:https:\/\/github\.com\/wandb\/docs\/pull\/|wandb\/docs#)(\d+)/;
-            const jiraLinkRegex = /https:\/\/wandb\.atlassian\.net\/browse\/DOCS-\d+/;
+            const jiraLinkRegex = /(?:https:\/\/wandb\.atlassian\.net\/browse\/)?DOCS-\d+/;
             
             const docsPrMatch = prBody.match(docsLinkRegex);
             const jiraMatch = prBody.match(jiraLinkRegex);
@@ -68,7 +68,7 @@ jobs:
               await createFailureComment(
                 'No documentation reference found in the PR description. Please add either:\n' +
                 '- A link to a docs PR (format: wandb/docs#XXX or https://github.com/wandb/docs/pull/XXX)\n' +
-                '- A link to a DOCS Jira ticket (format: https://wandb.atlassian.net/browse/DOCS-XXX)'
+                '- A Jira ticket reference (format: DOCS-XXX or https://wandb.atlassian.net/browse/DOCS-XXX)'
               );
               return;
             }
