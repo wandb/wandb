@@ -1,0 +1,77 @@
+name: Validate Documentation Reference
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  check-docs-reference:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check PR title and documentation reference
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.DOCS_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const prTitle = pr.title || '';
+            const prBody = pr.body || '';
+            
+            // Check if PR title starts with "feat"
+            if (!prTitle.startsWith('feat')) {
+              console.log('PR title does not start with "feat". Skipping documentation check.');
+              return;
+            }
+            
+            // Regular expressions to match either:
+            // 1. wandb/docs PR links (https://github.com/wandb/docs/pull/123 or wandb/docs#123)
+            // 2. DOCS Jira ticket links (https://wandb.atlassian.net/browse/DOCS-XXX)
+            const docsLinkRegex = /(?:https:\/\/github\.com\/wandb\/docs\/pull\/|wandb\/docs#)(\d+)/;
+            const jiraLinkRegex = /https:\/\/wandb\.atlassian\.net\/browse\/DOCS-\d+/;
+            
+            const docsPrMatch = prBody.match(docsLinkRegex);
+            const jiraMatch = prBody.match(jiraLinkRegex);
+            
+            if (!docsPrMatch && !jiraMatch) {
+              core.setFailed(
+                'No documentation reference found in the PR description. Please add either:\n' +
+                '- A link to a docs PR (format: wandb/docs#XXX or https://github.com/wandb/docs/pull/XXX)\n' +
+                '- A link to a DOCS Jira ticket (format: https://wandb.atlassian.net/browse/DOCS-XXX)'
+              );
+              return;
+            }
+            
+            // If we found a docs PR link, validate that it exists and is open
+            if (docsPrMatch) {
+              const docsPrNumber = docsPrMatch[1];
+              
+              try {
+                const docsPr = await github.rest.pulls.get({
+                  owner: 'wandb',
+                  repo: 'docs',
+                  pull_number: parseInt(docsPrNumber)
+                });
+                
+                if (docsPr.data.state !== 'open') {
+                  core.setFailed(`The linked documentation PR #${docsPrNumber} is not open. Please ensure the documentation PR is open before merging this PR.`);
+                  return;
+                }
+                
+                console.log(`✅ Found corresponding docs PR: #${docsPrNumber}`);
+              } catch (error) {
+                if (error.status === 404) {
+                  core.setFailed(`Documentation PR #${docsPrNumber} not found. Please ensure the PR number is correct.`);
+                } else {
+                  core.setFailed(`Error checking docs PR: ${error.message}`);
+                }
+                return;
+              }
+            }
+            
+            // If we found a Jira ticket link, we don't need to validate it further
+            if (jiraMatch) {
+              console.log(`✅ Found corresponding DOCS Jira ticket: ${jiraMatch[0]}`);
+            }
