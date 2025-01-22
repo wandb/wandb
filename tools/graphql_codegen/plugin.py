@@ -62,7 +62,7 @@ FROM_FUTURE_IMPORT_ANNOTATIONS = make_import_from("__future__", "annotations")
 
 
 class FixFragmentOrder(Plugin):
-    """Codegen plugin to fix inconsistent ordering of fragments module.
+    """Plugin to ensure consistent ordering in the fragments module.
 
     HACK: At the time of implementation, the fragments module has inconsistent ordering of
     - class definitions
