@@ -144,8 +144,8 @@ func NewSyncTailscaleCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&providerName, "provider", "p", "tailscale", "The name of the provider to use")
 	cmd.Flags().StringVarP(&tailnet, "tailnet", "t", "", "The tailnet to sync")
-	cmd.Flags().StringVarP(&tailscaleApiUrl, "tailscale-api-url", "u", "https://api.tailscale.com", "The URL of the Tailscale API")
-	cmd.Flags().StringVarP(&tailscaleApiKey, "tailscale-api-key", "k", os.Getenv("TAILSCALE_API_KEY"), "The API key to use")
+	cmd.Flags().StringVarP(&tailscaleApiUrl, "tailscale-url", "u", "https://api.tailscale.com", "The URL of the Tailscale API")
+	cmd.Flags().StringVarP(&tailscaleApiKey, "tailscale-key", "k", os.Getenv("TAILSCALE_API_KEY"), "The API key to use")
 
 	cmd.MarkFlagRequired("tailnet")
 	cmd.MarkFlagRequired("tailscale-api-key")
