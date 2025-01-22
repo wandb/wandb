@@ -265,7 +265,7 @@ class Collections(Paginator):
         if self.last_response:
             return self.last_response["organization"]["orgEntity"][
                 "artifactCollections"
-            ]["edges"][-1]["cursor"]
+            ]["pageInfo"]["endCursor"]
         else:
             return None
 
@@ -309,23 +309,43 @@ class Versions(Paginator):
 
         self.QUERY = gql(
             """
-            query Versions($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $artifactFilter: JSONString) {
+            query Versions(
+                $organization: String!,
+                $registryFilter: JSONString,
+                $collectionFilter: JSONString,
+                $artifactFilter: JSONString,
+                $cursor: String,
+                $perPage: Int
+            ) {
                 organization(name: $organization) {
-                    artifactMemberships(projectFilters: $registryFilter, collectionFilters: $collectionFilter, artifactFilters: $artifactFilter) {
-                        edges {
-                            node {
-                                artifactCollection {
-                                    project {
-                                        name
-                                        entity {
+                    orgEntity {
+                        name
+                        artifactMemberships(
+                            projectFilters: $registryFilter,
+                            collectionFilters: $collectionFilter,
+                            filters: $artifactFilter,
+                            after: $cursor,
+                            first: $perPage
+                        ) {
+                            pageInfo {
+                                endCursor
+                                hasNextPage
+                            }
+                            edges {
+                                node {
+                                    artifactCollection {
+                                        project {
                                             name
+                                            entity {
+                                                name
+                                            }
                                         }
+                                        name
                                     }
-                                    name
-                                }
-                                versionIndex
-                                artifact {
-                                    ...ArtifactFragment
+                                    versionIndex
+                                    artifact {
+                                        ...ArtifactFragment
+                                    }
                                 }
                             }
                         }
@@ -351,21 +371,34 @@ class Versions(Paginator):
 
         super().__init__(client, variables, per_page)
 
-    # TODO: IMPLEMENT EVERYTHING BELOW
     @property
     def length(self):
-        return None
+        if self.last_response:
+            return len(
+                self.last_response["organization"]["orgEntity"]["artifactMemberships"][
+                    "edges"
+                ]
+            )
+        else:
+            return None
 
     @property
     def more(self):
         if self.last_response:
-            return False
+            return self.last_response["organization"]["orgEntity"][
+                "artifactMemberships"
+            ]["pageInfo"]["hasNextPage"]
         else:
             return True
 
     @property
     def cursor(self):
-        return None
+        if self.last_response:
+            return self.last_response["organization"]["orgEntity"][
+                "artifactMemberships"
+            ]["pageInfo"]["endCursor"]
+        else:
+            return None
 
     def convert_objects(self):
         artifacts = (
@@ -378,6 +411,8 @@ class Versions(Paginator):
                 a["node"]["artifact"],
                 self.client,
             )
-            for a in self.last_response["organization"]["artifactMemberships"]["edges"]
+            for a in self.last_response["organization"]["orgEntity"][
+                "artifactMemberships"
+            ]["edges"]
         )
         return artifacts
