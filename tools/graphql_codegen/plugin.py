@@ -68,7 +68,8 @@ class FixFragmentOrder(Plugin):
     - class definitions
     - `Class.model_rebuild()` statements
 
-    See: https://github.com/mirumee/ariadne-codegen/issues/315. This plugin is a workaround in the meantime.
+    See: https://github.com/mirumee/ariadne-codegen/issues/315.
+    This plugin is a workaround in the meantime.
     """
 
     def generate_fragments_module(self, module: ast.Module, *_, **__) -> ast.Module:
