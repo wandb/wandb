@@ -1,4 +1,4 @@
-name: Validate Documentation Reference
+name: Ensure new features are being documented
 
 on:
   pull_request:
@@ -20,6 +20,37 @@ jobs:
             const prTitle = pr.title || '';
             const prBody = pr.body || '';
             
+            // Function to create failure comment
+            async function createFailureComment(message) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `❌ Documentation Reference Check Failed\n\n${message}\n\nThis check is required for all PRs that start with "feat". Please update your PR description and this check will run again automatically.`
+              });
+              core.setFailed(message);
+            }
+            
+            // Function to cleanup previous failure comments
+            async function cleanupPreviousComments() {
+              const comments = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number
+              });
+              
+              // Find and delete any previous failure comments from this workflow
+              for (const comment of comments.data) {
+                if (comment.body.startsWith('❌ Documentation Reference Check Failed')) {
+                  await github.rest.issues.deleteComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: comment.id
+                  });
+                }
+              }
+            }
+            
             // Check if PR title starts with "feat"
             if (!prTitle.startsWith('feat')) {
               console.log('PR title does not start with "feat". Skipping documentation check.');
@@ -36,7 +67,7 @@ jobs:
             const jiraMatch = prBody.match(jiraLinkRegex);
             
             if (!docsPrMatch && !jiraMatch) {
-              core.setFailed(
+              await createFailureComment(
                 'No documentation reference found in the PR description. Please add either:\n' +
                 '- A link to a docs PR (format: wandb/docs#XXX or https://github.com/wandb/docs/pull/XXX)\n' +
                 '- A link to a DOCS Jira ticket (format: https://wandb.atlassian.net/browse/DOCS-XXX)'
@@ -56,16 +87,22 @@ jobs:
                 });
                 
                 if (docsPr.data.state !== 'open') {
-                  core.setFailed(`The linked documentation PR #${docsPrNumber} is not open. Please ensure the documentation PR is open before merging this PR.`);
+                  await createFailureComment(
+                    `The linked documentation PR #${docsPrNumber} is not open. Please ensure the documentation PR is open before merging this PR.`
+                  );
                   return;
                 }
                 
                 console.log(`✅ Found corresponding docs PR: #${docsPrNumber}`);
               } catch (error) {
                 if (error.status === 404) {
-                  core.setFailed(`Documentation PR #${docsPrNumber} not found. Please ensure the PR number is correct.`);
+                  await createFailureComment(
+                    `Documentation PR #${docsPrNumber} not found. Please ensure the PR number is correct.`
+                  );
                 } else {
-                  core.setFailed(`Error checking docs PR: ${error.message}`);
+                  await createFailureComment(
+                    `Error checking docs PR: ${error.message}`
+                  );
                 }
                 return;
               }
@@ -75,3 +112,6 @@ jobs:
             if (jiraMatch) {
               console.log(`✅ Found corresponding DOCS Jira ticket: ${jiraMatch[0]}`);
             }
+            
+            // If we made it here, the check passed - clean up any previous failure comments
+            await cleanupPreviousComments();
