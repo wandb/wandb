@@ -56,8 +56,6 @@ func (m definedMetric) With(
 	if record.Summary != nil {
 		m.NoSummary = record.Summary.None
 
-		m.SummaryTypes = 0
-
 		if record.Summary.Min {
 			m.SummaryTypes |= runsummary.Min
 		}
