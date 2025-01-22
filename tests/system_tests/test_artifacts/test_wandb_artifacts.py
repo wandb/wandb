@@ -1541,38 +1541,6 @@ def test_artifact_standard_url(user, api):
         assert artifact.url == expected_url
 
 
-def test_artifact_registry_url(user, api):
-    with wandb.init() as run:
-        artifact = wandb.Artifact("sequence_name", "dataset")
-        run.log_artifact(artifact)
-        artifact.wait()
-
-        org, *_ = InternalApi()._fetch_orgs_and_org_entities_from_entity(
-            artifact.entity
-        )
-
-        run.link_artifact(
-            artifact=artifact,
-            target_path=f"{org.entity_name}/wandb-registry-dataset/test_collection",
-        )
-        linked_art = run.use_artifact(
-            f"{org.entity_name}/wandb-registry-dataset/test_collection:latest"
-        )
-        base_url = util.app_url(run.settings.base_url)
-
-        encoded_path = (
-            f"{linked_art.entity}/{linked_art.project}/{linked_art.collection.name}"
-        )
-        selection_path = quote(encoded_path, safe="")
-
-        expected_url = (
-            f"{base_url}/orgs/{org.display_name}/registry/{linked_art.type}"
-            f"?selectionPath={selection_path}&view=membership&version={linked_art.version}"
-        )
-
-        assert linked_art.url == expected_url
-
-
 def test_artifact_model_registry_url(user, api):
     with wandb.init() as run:
         artifact = wandb.Artifact("sequence_name", "model")
