@@ -962,6 +962,7 @@ class RunArtifacts(Paginator):
             return None
 
     def convert_objects(self):
+        edges = self.last_response["project"]["run"][self.run_key]["edges"]
         return [
             wandb.Artifact._from_attrs(
                 r["node"]["artifactSequence"]["project"]["entityName"],
@@ -972,7 +973,7 @@ class RunArtifacts(Paginator):
                 r["node"],
                 self.client,
             )
-            for r in self.last_response["project"]["run"][self.run_key]["edges"]
+            for r in edges
         ]
 
 

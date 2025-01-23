@@ -34,6 +34,7 @@ from typing import (
 from urllib.parse import quote, urljoin, urlparse
 
 import requests
+from pydantic import Field, ValidationError
 
 import wandb
 from wandb import data_types, env, util
@@ -41,6 +42,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
+from wandb.sdk.artifacts._generated.fragments import ArtifactFields
 from wandb.sdk.artifacts._validators import (
     ensure_logged,
     ensure_not_finalized,
@@ -84,6 +86,15 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.message_future import MessageFuture
+
+
+class _SavedArtifact(ArtifactFields):
+    """A validated, local instance of a saved artifact parsed from a GQL response."""
+
+    # Default field values for backward compatibility with older server versions
+    ttl_is_inherited: bool = True
+    ttl_duration_seconds: Any = None
+    tags: list[str] = Field(default_factory=list)
 
 
 @final
@@ -225,18 +236,21 @@ class Artifact:
             query,
             variable_values={"id": artifact_id},
         )
-        attrs = response.get("artifact")
-        if attrs is None:
+        try:
+            attrs = response["artifact"]
+        except LookupError:
             return None
+        else:
+            parsed = _SavedArtifact.model_validate(attrs)
 
-        src_collection = attrs["artifactSequence"]
-        src_project = src_collection["project"]
+        src_collection = parsed.artifact_sequence
+        src_project = src_collection.project
 
-        entity_name = src_project["entityName"] if src_project else ""
-        project_name = src_project["name"] if src_project else ""
+        entity_name = src_project.entity_name if src_project else ""
+        project_name = src_project.name if src_project else ""
 
-        name = "{}:v{}".format(src_collection["name"], attrs["versionIndex"])
-        return cls._from_attrs(entity_name, project_name, name, attrs, client)
+        name = f"{src_collection.name}:v{parsed.version_index}"
+        return cls._from_attrs(entity_name, project_name, name, parsed, client)
 
     @classmethod
     def _from_name(
@@ -284,13 +298,15 @@ class Artifact:
             query,
             variable_values=query_variable_values,
         )
-        project_attrs = response.get("project")
-        if not project_attrs:
-            raise ValueError(f"project '{project}' not found under entity '{entity}'")
-        attrs = project_attrs.get("artifact")
-        if not attrs:
-            raise ValueError(f"artifact '{name}' not found in '{entity}/{project}'")
-        return cls._from_attrs(entity, project, name, attrs, client)
+        if not (project_attrs := response["project"]):
+            raise ValueError(f"project {project!r} not found under entity {entity!r}")
+
+        if not (attrs := project_attrs["artifact"]):
+            raise ValueError(f"artifact {name!r} not found in '{entity}/{project}'")
+
+        parsed = _SavedArtifact.model_validate(attrs)
+
+        return cls._from_attrs(entity, project, name, parsed, client)
 
     @classmethod
     def _from_attrs(
@@ -298,7 +314,7 @@ class Artifact:
         entity: str,
         project: str,
         name: str,
-        attrs: dict[str, Any],
+        attrs: _SavedArtifact | dict[str, Any],
         client: RetryingClient,
     ) -> Artifact:
         # Placeholder is required to skip validation.
@@ -307,7 +323,9 @@ class Artifact:
         artifact._entity = entity
         artifact._project = project
         artifact._name = name
-        artifact._assign_attrs(attrs)
+
+        parsed = _SavedArtifact.model_validate(attrs)
+        artifact._assign_attrs(parsed)
 
         artifact.finalize()
 
@@ -316,18 +334,18 @@ class Artifact:
         artifact_instance_cache[artifact.id] = artifact
         return artifact
 
-    def _assign_attrs(self, attrs: dict[str, Any]) -> None:
+    def _assign_attrs(self, parsed: _SavedArtifact) -> None:
         """Update this Artifact's attributes using the server response."""
-        self._id = attrs["id"]
+        self._id = parsed.id
 
-        src_version = f"v{attrs['versionIndex']}"
-        src_collection = attrs["artifactSequence"]
-        src_project = src_collection["project"]
+        source_version = f"v{parsed.version_index}"
+        source_collection = parsed.artifact_sequence
+        source_project = source_collection.project
 
-        self._source_entity = src_project["entityName"] if src_project else ""
-        self._source_project = src_project["name"] if src_project else ""
-        self._source_name = f"{src_collection['name']}:{src_version}"
-        self._source_version = src_version
+        self._source_entity = source_project.entity_name if source_project else ""
+        self._source_project = source_project.name if source_project else ""
+        self._source_name = f"{source_collection.name}:{source_version}"
+        self._source_version = source_version
 
         if self._entity is None:
             self._entity = self._source_entity
@@ -337,20 +355,20 @@ class Artifact:
         if self._name is None:
             self._name = self._source_name
 
-        self._type = attrs["artifactType"]["name"]
-        self._description = attrs["description"]
+        self._type = parsed.artifact_type.name
+        self._description = parsed.description
 
         entity = self._entity
         project = self._project
         collection, *_ = self._name.split(":")
         aliases = [
-            obj["alias"]
-            for obj in attrs["aliases"]
-            if obj["artifactCollection"]
-            and obj["artifactCollection"]["project"]
-            and obj["artifactCollection"]["project"]["entityName"] == entity
-            and obj["artifactCollection"]["project"]["name"] == project
-            and obj["artifactCollection"]["name"] == collection
+            obj.alias
+            for obj in parsed.aliases
+            if obj.artifact_collection
+            and obj.artifact_collection.project
+            and obj.artifact_collection.project.entity_name == entity
+            and obj.artifact_collection.project.name == project
+            and obj.artifact_collection.name == collection
         ]
 
         version_aliases = [
@@ -367,7 +385,7 @@ class Artifact:
                     f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
                 )
         else:
-            version = src_version
+            version = source_version
 
         self._version = version
 
@@ -377,35 +395,32 @@ class Artifact:
         self._aliases = other_aliases
         self._saved_aliases = copy(other_aliases)
 
-        tags = [obj["name"] for obj in attrs.get("tags", [])]
+        tags = [obj.name for obj in parsed.tags]
         self._tags = tags
         self._saved_tags = copy(tags)
 
-        metadata_str = attrs["metadata"]
-        self.metadata = self._normalize_metadata(
-            json.loads(metadata_str) if metadata_str else {}
-        )
+        self.metadata = self._normalize_metadata(parsed.metadata or {})
 
         self._ttl_duration_seconds = _ttl_duration_seconds_from_gql(
-            attrs.get("ttlDurationSeconds")
+            parsed.ttl_duration_seconds
         )
         self._ttl_is_inherited = (
-            True if (attrs.get("ttlIsInherited") is None) else attrs["ttlIsInherited"]
+            True if (parsed.ttl_is_inherited is None) else parsed.ttl_is_inherited
         )
 
-        self._state = ArtifactState(attrs["state"])
+        self._state = ArtifactState(parsed.state)
 
         try:
-            manifest_url = attrs["currentManifest"]["file"]["directUrl"]
-        except (LookupError, TypeError):
+            manifest_url = parsed.current_manifest.file.direct_url
+        except (AttributeError, TypeError):
             self._manifest = None
         else:
             self._manifest = _DeferredArtifactManifest(manifest_url)
 
-        self._commit_hash = attrs["commitHash"]
-        self._file_count = attrs["fileCount"]
-        self._created_at = attrs["createdAt"]
-        self._updated_at = attrs["updatedAt"]
+        self._commit_hash = parsed.commit_hash
+        self._file_count = parsed.file_count
+        self._created_at = parsed.created_at
+        self._updated_at = parsed.updated_at
 
     @ensure_logged
     def new_draft(self) -> Artifact:
@@ -991,11 +1006,13 @@ class Artifact:
         )
 
         try:
-            attrs = response["artifact"]
+            parsed = _SavedArtifact.model_validate(response["artifact"])
         except LookupError:
             raise ValueError(f"Unable to fetch artifact with id: {artifact_id!r}")
+        except ValidationError as e:
+            raise ValueError("Unable to parse fetched artifact") from e
         else:
-            self._assign_attrs(attrs)
+            self._assign_attrs(parsed)
 
     @normalize_exceptions
     def _update(self) -> None:
@@ -1185,8 +1202,8 @@ class Artifact:
                 "tagsToDelete": [{"tagName": tag_name} for tag_name in tags_to_delete],
             },
         )
-        attrs = response["updateArtifact"]["artifact"]
-        self._assign_attrs(attrs)
+        parsed = _SavedArtifact.model_validate(response["updateArtifact"]["artifact"])
+        self._assign_attrs(parsed)
 
         self._ttl_changed = False  # Reset after updating artifact
 
@@ -2439,6 +2456,7 @@ def _gql_artifact_fragment() -> str:
             {ttl_is_inherited}
             aliases {{
                 artifactCollection {{
+                    __typename
                     project {{
                         entityName
                         name

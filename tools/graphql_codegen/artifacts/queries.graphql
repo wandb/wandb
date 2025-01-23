@@ -1,0 +1,66 @@
+fragment ProjectFragment on Project {
+    entityName
+    name
+}
+
+fragment ArtifactSequenceFragment on ArtifactSequence {
+    project {
+        ...ProjectFragment
+    }
+    name
+}
+
+fragment ArtifactPortfolioFragment on ArtifactPortfolio {
+    project {
+        ...ProjectFragment
+    }
+    name
+}
+
+fragment AliasFragment on ArtifactAlias {
+    artifactCollection {
+        __typename
+        ... ArtifactSequenceFragment
+        ... ArtifactPortfolioFragment
+    }
+    alias
+}
+
+fragment TagFragment on Tag {
+    name
+}
+
+fragment ManifestFragment on ArtifactManifest {
+    file {
+        directUrl
+    }
+}
+
+fragment ArtifactFields on Artifact {
+    id
+    artifactSequence {
+        ...ArtifactSequenceFragment
+    }
+    versionIndex
+    artifactType {
+        name
+    }
+    description
+    metadata
+    ttlDurationSeconds
+    ttlIsInherited
+    aliases {
+        ...AliasFragment
+    }
+    tags {
+        ...TagFragment
+    }
+    state
+    currentManifest {
+        ...ManifestFragment
+    }
+    commitHash
+    fileCount
+    createdAt
+    updatedAt
+}
