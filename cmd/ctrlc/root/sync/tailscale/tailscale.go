@@ -43,6 +43,8 @@ func NewSyncTailscaleCmd() *cobra.Command {
 	var tailscaleApiUrl string
 	var tailnet string
 	var tailscaleApiKey string
+	var tailscaleOauthClientId string
+	var tailscaleOauthClientSecret string
 
 	cmd := &cobra.Command{
 		Use:   "tailscale",
@@ -70,6 +72,14 @@ func NewSyncTailscaleCmd() *cobra.Command {
 				BaseURL: baseURL,
 				Tailnet: tailnet,
 				APIKey:  tailscaleApiKey,
+			}
+
+			if tailscaleApiKey == "" {
+				tsc.HTTP = tsclient.OAuthConfig{
+					ClientID:     tailscaleOauthClientId,
+					ClientSecret: tailscaleOauthClientSecret,
+					Scopes:       []string{"devices:core:read"},
+				}.HTTPClient()
 			}
 
 			ctx := context.Background()
@@ -149,6 +159,9 @@ func NewSyncTailscaleCmd() *cobra.Command {
 
 	cmd.MarkFlagRequired("tailnet")
 	cmd.MarkFlagRequired("tailscale-key")
+
+	cmd.Flags().StringVarP(&tailscaleOauthClientId, "tailscale-oauth-id", "c", os.Getenv("TAILSCALE_OAUTH_CLIENT_ID"), "The OAuth client ID to use")
+	cmd.Flags().StringVarP(&tailscaleOauthClientSecret, "tailscale-oauth-secret", "s", os.Getenv("TAILSCALE_OAUTH_CLIENT_SECRET"), "The OAuth client secret to use")
 
 	return cmd
 }
