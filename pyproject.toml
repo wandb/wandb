@@ -249,6 +249,22 @@ ignore-decorators = [
 ]
 "landfill/**" = ["F405", "N806", "D415"]
 
+# Ignore specific naming rules on codegen scripts or plugins.
+# Codegen logic relies on Python's `ast` module, in which implementing a custom
+# NodeVisitor/NodeTransformer requires method names (e.g. `visit_ClassDef`)
+# that violate Python's own PEP8 guidelines.
+# See: https://docs.python.org/3/library/ast.html#ast.NodeTransformer
+"tools/graphql_codegen/**" = ["N802"]
+
+# On generated code:
+"wandb/sdk/automations/_generated/**" = [
+    "N8", # Ignore naming rules, as names from the GraphQL schema may not respect PEP8
+]
+"!wandb/sdk/automations/_generated/**" = [
+    "UP", # Enforce newer python syntax: https://docs.astral.sh/ruff/rules/#pyupgrade-up
+]
+
+
 [tool.mypy]
 plugins = ["pydantic.mypy"]
 warn_redundant_casts = true
@@ -281,6 +297,7 @@ module = [
     "wandb.sdk.integration_utils.*",
     "wandb.plot.*",
     "wandb.old.*",
+    "wandb.*._generated.*",
 ]
 ignore_errors = true
 
@@ -314,6 +331,21 @@ strict_equality = true
 implicit_reexport = false
 
 # More wandb/ modules can be added in a similar manner as overrides
+
+# wandb/sdk/automations.*
+[[tool.mypy.overrides]]
+module = "wandb.sdk.automations.*"
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+warn_unused_ignores = true
+warn_return_any = true
+no_implicit_reexport = true
+strict_equality = true
 
 # External libraries
 [[tool.mypy.overrides]]

@@ -8,10 +8,9 @@ from collections import deque
 from dataclasses import InitVar, asdict, dataclass, field
 from pathlib import Path
 from string import ascii_lowercase, digits
-from typing import Any, ClassVar, Final, Generator, Literal
+from typing import Any, ClassVar, Final, Literal
 
 import httpx
-import pytest
 
 if sys.version_info < (3, 12):
     from typing_extensions import dataclass_transform
@@ -38,25 +37,7 @@ class LocalWandbBackendAddress:
         return f"http://{self.host}:{self.fixture_port}"
 
 
-@pytest.fixture(scope="session")
-def local_wandb_backend() -> LocalWandbBackendAddress:
-    """Fixture that starts up or connects to the local-testcontainer.
-
-    This does not patch WANDB_BASE_URL! Use `use_local_wandb_backend` instead.
-    """
-    return _local_wandb_backend(name="wandb-local-testcontainer")
-
-
-@pytest.fixture(scope="session")
-def local_wandb_backend_importers() -> LocalWandbBackendAddress:
-    """Fixture that starts up or connects to a second local-testcontainer.
-
-    This is used by importer tests, to move data between two backends.
-    """
-    return _local_wandb_backend(name="wandb-local-testcontainer-importers")
-
-
-def _local_wandb_backend(name: str) -> LocalWandbBackendAddress:
+def connect_to_local_wandb_backend(name: str) -> LocalWandbBackendAddress:
     tool_file = REPO_ROOT / "tools" / "local_wandb_server.py"
 
     result = subprocess.run(
@@ -82,19 +63,6 @@ def _local_wandb_backend(name: str) -> LocalWandbBackendAddress:
         fixture_port=int(output["fixture_port"]),
     )
     return address
-
-
-@pytest.fixture(scope="function")
-def use_local_wandb_backend(
-    local_wandb_backend: LocalWandbBackendAddress,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Fixture that patches WANDB_BASE_URL to point to the local container.
-
-    Unlike `local_wandb_backend`, this is function-scoped, so cannot be used
-    in session-scoped fixtures.
-    """
-    monkeypatch.setenv("WANDB_BASE_URL", local_wandb_backend.base_url)
 
 
 @dataclass(frozen=True)
@@ -226,24 +194,3 @@ class BackendFixtureFactory:
                 break
             else:
                 self._send(cmd.path, data=asdict(cmd))
-
-
-@pytest.fixture
-def backend_fixture_factory(
-    worker_id: str,
-    local_wandb_backend: LocalWandbBackendAddress,
-    use_local_wandb_backend,
-) -> Generator[BackendFixtureFactory, None, None]:
-    base_url = local_wandb_backend.fixture_service_url
-    with BackendFixtureFactory(base_url, worker_id=worker_id) as factory:
-        yield factory
-
-
-@pytest.fixture
-def backend_importers_fixture_factory(
-    worker_id: str,
-    local_wandb_backend_importers: LocalWandbBackendAddress,
-) -> Generator[BackendFixtureFactory, None, None]:
-    base_url = local_wandb_backend_importers.fixture_service_url
-    with BackendFixtureFactory(base_url, worker_id=worker_id) as factory:
-        yield factory

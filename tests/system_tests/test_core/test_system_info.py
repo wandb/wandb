@@ -5,8 +5,6 @@ import unittest.mock
 import pytest
 import wandb
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import context
-from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.system.system_info import SystemInfo
 from wandb.sdk.lib import ipython
 
@@ -32,31 +30,6 @@ def meta(interface):
         return SystemInfo(settings=settings, interface=interface)
 
     yield meta_helper
-
-
-@pytest.fixture()
-def send_manager(
-    runner,
-    git_repo,
-    record_q,
-    result_q,
-    interface,
-):
-    def send_manager_helper(run, meta):
-        # test_settings.update(save_code=True, source=wandb.sdk.wandb_settings.Source.INIT)
-        context_keeper = context.ContextKeeper()
-        sm = SendManager(
-            settings=run.settings,
-            record_q=record_q,
-            result_q=result_q,
-            interface=interface,
-            context_keeper=context_keeper,
-        )
-        meta.backend_interface.publish_run(run)
-        sm.send(record_q.get())
-        return sm
-
-    yield send_manager_helper
 
 
 def test_executable_outside_cwd(meta, test_settings):
