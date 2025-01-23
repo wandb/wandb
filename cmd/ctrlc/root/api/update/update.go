@@ -2,6 +2,7 @@ package update
 
 import (
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/update/release"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/update/system"
 	"github.com/spf13/cobra"
 )
 
@@ -16,6 +17,7 @@ func NewUpdateCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(release.NewUpdateReleaseCmd())
+	cmd.AddCommand(system.NewUpdateSystemCmd())
 
 	return cmd
 }

@@ -6,12 +6,13 @@ import (
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/ctrlplanedev/cli/internal/api"
 	"github.com/ctrlplanedev/cli/internal/cliutil"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 func NewGetSystemCmd() *cobra.Command {
-	var systemId string
+	var system string
 
 	cmd := &cobra.Command{
 		Use:   "system [flags]",
@@ -32,6 +33,11 @@ func NewGetSystemCmd() *cobra.Command {
 				return fmt.Errorf("failed to create API client: %w", err)
 			}
 
+			systemId, err := uuid.Parse(system)
+			if err != nil {
+				return fmt.Errorf("invalid system ID: %w", err)
+			}
+
 			resp, err := client.GetSystem(cmd.Context(), systemId)
 			if err != nil {
 				return fmt.Errorf("failed to get system by ID: %w", err)
@@ -40,9 +46,8 @@ func NewGetSystemCmd() *cobra.Command {
 		},
 	}
 
-	// Add flags
-	cmd.Flags().StringVar(&systemId, "id", "", "ID of the system")
-	cmd.MarkFlagRequired("id")
+	cmd.Flags().StringVarP(&system, "system", "s", "", "ID of the system")
+	cmd.MarkFlagRequired("system")
 
 	return cmd
 }

@@ -316,7 +316,7 @@ type UpdateSystemJSONBody struct {
 	Slug *string `json:"slug,omitempty"`
 
 	// WorkspaceId UUID of the workspace
-	WorkspaceId *string `json:"workspaceId,omitempty"`
+	WorkspaceId *openapi_types.UUID `json:"workspaceId,omitempty"`
 }
 
 // CreateEnvironmentJSONRequestBody defines body for CreateEnvironment for application/json ContentType.
@@ -613,12 +613,12 @@ type ClientInterface interface {
 	DeleteSystem(ctx context.Context, systemId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetSystem request
-	GetSystem(ctx context.Context, systemId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetSystem(ctx context.Context, systemId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateSystemWithBody request with any body
-	UpdateSystemWithBody(ctx context.Context, systemId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateSystemWithBody(ctx context.Context, systemId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateSystem(ctx context.Context, systemId string, body UpdateSystemJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateSystem(ctx context.Context, systemId openapi_types.UUID, body UpdateSystemJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteEnvironmentByName request
 	DeleteEnvironmentByName(ctx context.Context, systemId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1053,7 +1053,7 @@ func (c *Client) DeleteSystem(ctx context.Context, systemId string, reqEditors .
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetSystem(ctx context.Context, systemId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) GetSystem(ctx context.Context, systemId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetSystemRequest(c.Server, systemId)
 	if err != nil {
 		return nil, err
@@ -1065,7 +1065,7 @@ func (c *Client) GetSystem(ctx context.Context, systemId string, reqEditors ...R
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateSystemWithBody(ctx context.Context, systemId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) UpdateSystemWithBody(ctx context.Context, systemId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateSystemRequestWithBody(c.Server, systemId, contentType, body)
 	if err != nil {
 		return nil, err
@@ -1077,7 +1077,7 @@ func (c *Client) UpdateSystemWithBody(ctx context.Context, systemId string, cont
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateSystem(ctx context.Context, systemId string, body UpdateSystemJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) UpdateSystem(ctx context.Context, systemId openapi_types.UUID, body UpdateSystemJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateSystemRequest(c.Server, systemId, body)
 	if err != nil {
 		return nil, err
@@ -2027,7 +2027,7 @@ func NewDeleteSystemRequest(server string, systemId string) (*http.Request, erro
 }
 
 // NewGetSystemRequest generates requests for GetSystem
-func NewGetSystemRequest(server string, systemId string) (*http.Request, error) {
+func NewGetSystemRequest(server string, systemId openapi_types.UUID) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -2061,7 +2061,7 @@ func NewGetSystemRequest(server string, systemId string) (*http.Request, error) 
 }
 
 // NewUpdateSystemRequest calls the generic UpdateSystem builder with application/json body
-func NewUpdateSystemRequest(server string, systemId string, body UpdateSystemJSONRequestBody) (*http.Request, error) {
+func NewUpdateSystemRequest(server string, systemId openapi_types.UUID, body UpdateSystemJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
@@ -2072,7 +2072,7 @@ func NewUpdateSystemRequest(server string, systemId string, body UpdateSystemJSO
 }
 
 // NewUpdateSystemRequestWithBody generates requests for UpdateSystem with any type of body
-func NewUpdateSystemRequestWithBody(server string, systemId string, contentType string, body io.Reader) (*http.Request, error) {
+func NewUpdateSystemRequestWithBody(server string, systemId openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -2408,12 +2408,12 @@ type ClientWithResponsesInterface interface {
 	DeleteSystemWithResponse(ctx context.Context, systemId string, reqEditors ...RequestEditorFn) (*DeleteSystemResponse, error)
 
 	// GetSystemWithResponse request
-	GetSystemWithResponse(ctx context.Context, systemId string, reqEditors ...RequestEditorFn) (*GetSystemResponse, error)
+	GetSystemWithResponse(ctx context.Context, systemId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetSystemResponse, error)
 
 	// UpdateSystemWithBodyWithResponse request with any body
-	UpdateSystemWithBodyWithResponse(ctx context.Context, systemId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSystemResponse, error)
+	UpdateSystemWithBodyWithResponse(ctx context.Context, systemId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSystemResponse, error)
 
-	UpdateSystemWithResponse(ctx context.Context, systemId string, body UpdateSystemJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSystemResponse, error)
+	UpdateSystemWithResponse(ctx context.Context, systemId openapi_types.UUID, body UpdateSystemJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSystemResponse, error)
 
 	// DeleteEnvironmentByNameWithResponse request
 	DeleteEnvironmentByNameWithResponse(ctx context.Context, systemId string, name string, reqEditors ...RequestEditorFn) (*DeleteEnvironmentByNameResponse, error)
@@ -3688,7 +3688,7 @@ func (c *ClientWithResponses) DeleteSystemWithResponse(ctx context.Context, syst
 }
 
 // GetSystemWithResponse request returning *GetSystemResponse
-func (c *ClientWithResponses) GetSystemWithResponse(ctx context.Context, systemId string, reqEditors ...RequestEditorFn) (*GetSystemResponse, error) {
+func (c *ClientWithResponses) GetSystemWithResponse(ctx context.Context, systemId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetSystemResponse, error) {
 	rsp, err := c.GetSystem(ctx, systemId, reqEditors...)
 	if err != nil {
 		return nil, err
@@ -3697,7 +3697,7 @@ func (c *ClientWithResponses) GetSystemWithResponse(ctx context.Context, systemI
 }
 
 // UpdateSystemWithBodyWithResponse request with arbitrary body returning *UpdateSystemResponse
-func (c *ClientWithResponses) UpdateSystemWithBodyWithResponse(ctx context.Context, systemId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSystemResponse, error) {
+func (c *ClientWithResponses) UpdateSystemWithBodyWithResponse(ctx context.Context, systemId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSystemResponse, error) {
 	rsp, err := c.UpdateSystemWithBody(ctx, systemId, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
@@ -3705,7 +3705,7 @@ func (c *ClientWithResponses) UpdateSystemWithBodyWithResponse(ctx context.Conte
 	return ParseUpdateSystemResponse(rsp)
 }
 
-func (c *ClientWithResponses) UpdateSystemWithResponse(ctx context.Context, systemId string, body UpdateSystemJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSystemResponse, error) {
+func (c *ClientWithResponses) UpdateSystemWithResponse(ctx context.Context, systemId openapi_types.UUID, body UpdateSystemJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSystemResponse, error) {
 	rsp, err := c.UpdateSystem(ctx, systemId, body, reqEditors...)
 	if err != nil {
 		return nil, err
