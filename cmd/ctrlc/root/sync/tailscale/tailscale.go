@@ -52,6 +52,12 @@ func NewSyncTailscaleCmd() *cobra.Command {
 		Example: heredoc.Doc(`
 			$ ctrlc sync tailscale --workspace 2a7c5560-75c9-4dbe-be74-04ee33bf8188
 		`),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if tailscaleApiKey == "" && (tailscaleOauthClientId == "" || tailscaleOauthClientSecret == "") {
+				return fmt.Errorf("either tailscale-key or tailscale-oauth-id and tailscale-oauth-secret must be provided")
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			log.Info("Syncing Tailscale VMs into Ctrlplane")
 
@@ -159,7 +165,6 @@ func NewSyncTailscaleCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&tailscaleApiKey, "tailscale-key", "k", os.Getenv("TAILSCALE_API_KEY"), "The API key to use")
 
 	cmd.MarkFlagRequired("tailnet")
-	cmd.MarkFlagRequired("tailscale-key")
 
 	cmd.Flags().StringVarP(&tailscaleOauthClientId, "tailscale-oauth-id", "c", os.Getenv("TAILSCALE_OAUTH_CLIENT_ID"), "The OAuth client ID to use")
 	cmd.Flags().StringVarP(&tailscaleOauthClientSecret, "tailscale-oauth-secret", "s", os.Getenv("TAILSCALE_OAUTH_CLIENT_SECRET"), "The OAuth client secret to use")
