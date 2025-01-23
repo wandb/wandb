@@ -16,6 +16,7 @@ func NewCreateEnvironmentCmd() *cobra.Command {
 	var releaseChannels []string
 	var system string
 	var resourceFilter string
+	var metadata map[string]string
 	cmd := &cobra.Command{
 		Use:   "environment [flags]",
 		Short: "Create a new environment",
@@ -39,6 +40,7 @@ func NewCreateEnvironmentCmd() *cobra.Command {
 			body.Name = nameFlag
 			body.ReleaseChannels = &releaseChannels
 			body.SystemId = system
+			body.Metadata = cliutil.MetadataPtr(metadata)
 
 			if resourceFilter != "" {
 				var parsedFilter map[string]interface{}
@@ -57,10 +59,11 @@ func NewCreateEnvironmentCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&nameFlag, "name", "", "Name of the environment (required)")
-	cmd.Flags().StringVar(&system, "system", "", "ID of the system (required)")
-	cmd.Flags().StringSliceVar(&releaseChannels, "release-channel", []string{}, "Release channel in format <channelid>")
-	cmd.Flags().StringVar(&resourceFilter, "resource-filter", "", "Resource filter as JSON string")
+	cmd.Flags().StringVarP(&nameFlag, "name", "n", "", "Name of the environment (required)")
+	cmd.Flags().StringVarP(&system, "system", "s", "", "ID of the system (required)")
+	cmd.Flags().StringSliceVarP(&releaseChannels, "release-channel", "r", []string{}, "Release channel in format <channelid>")
+	cmd.Flags().StringVarP(&resourceFilter, "resource-filter", "f", "", "Resource filter as JSON string")
+	cmd.Flags().StringToStringVarP(&metadata, "metadata", "m", make(map[string]string), "Metadata key-value pairs (e.g. --metadata key=value)")
 
 	cmd.MarkFlagRequired("name")
 	cmd.MarkFlagRequired("system")

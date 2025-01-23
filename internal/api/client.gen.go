@@ -36,6 +36,25 @@ const (
 	Successful          JobStatus = "successful"
 )
 
+// Defines values for PolicyApprovalRequirement.
+const (
+	Automatic PolicyApprovalRequirement = "automatic"
+	Manual    PolicyApprovalRequirement = "manual"
+)
+
+// Defines values for PolicyReleaseSequencing.
+const (
+	Cancel PolicyReleaseSequencing = "cancel"
+	Wait   PolicyReleaseSequencing = "wait"
+)
+
+// Defines values for PolicySuccessType.
+const (
+	All      PolicySuccessType = "all"
+	Optional PolicySuccessType = "optional"
+	Some     PolicySuccessType = "some"
+)
+
 // Defines values for UpsertReleaseJSONBodyStatus.
 const (
 	UpsertReleaseJSONBodyStatusBuilding UpsertReleaseJSONBodyStatus = "building"
@@ -63,11 +82,19 @@ type Deployment struct {
 
 // Environment defines model for Environment.
 type Environment struct {
-	CreatedAt      time.Time               `json:"createdAt"`
-	Description    *string                 `json:"description,omitempty"`
-	Id             openapi_types.UUID      `json:"id"`
-	Name           string                  `json:"name"`
-	PolicyId       *openapi_types.UUID     `json:"policyId"`
+	CreatedAt       time.Time           `json:"createdAt"`
+	Description     *string             `json:"description,omitempty"`
+	Id              openapi_types.UUID  `json:"id"`
+	Metadata        *map[string]string  `json:"metadata,omitempty"`
+	Name            string              `json:"name"`
+	Policy          *Policy             `json:"policy,omitempty"`
+	PolicyId        *openapi_types.UUID `json:"policyId"`
+	ReleaseChannels *[]struct {
+		ChannelId     *string `json:"channelId,omitempty"`
+		DeploymentId  *string `json:"deploymentId,omitempty"`
+		EnvironmentId *string `json:"environmentId,omitempty"`
+		Id            *string `json:"id,omitempty"`
+	} `json:"releaseChannels,omitempty"`
 	ResourceFilter *map[string]interface{} `json:"resourceFilter"`
 	SystemId       openapi_types.UUID      `json:"systemId"`
 }
@@ -93,6 +120,51 @@ type Job struct {
 
 // JobStatus defines model for Job.Status.
 type JobStatus string
+
+// Policy defines model for Policy.
+type Policy struct {
+	// ApprovalRequirement The approval requirement of the policy
+	ApprovalRequirement PolicyApprovalRequirement `json:"approvalRequirement"`
+
+	// ConcurrencyLimit The maximum number of concurrent releases in the environment
+	ConcurrencyLimit *float32 `json:"concurrencyLimit"`
+
+	// Description The description of the policy
+	Description *string `json:"description"`
+
+	// Id The policy ID
+	Id openapi_types.UUID `json:"id"`
+
+	// MinimumReleaseInterval The minimum interval between releases in milliseconds
+	MinimumReleaseInterval float32 `json:"minimumReleaseInterval"`
+
+	// Name The name of the policy
+	Name string `json:"name"`
+
+	// ReleaseSequencing If a new release is created, whether it will wait for the current release to finish before starting, or cancel the current release
+	ReleaseSequencing PolicyReleaseSequencing `json:"releaseSequencing"`
+
+	// RolloutDuration The duration of the rollout in milliseconds
+	RolloutDuration float32 `json:"rolloutDuration"`
+
+	// SuccessMinimum If a policy depends on an environment, the minimum number of successful releases in the environment
+	SuccessMinimum float32 `json:"successMinimum"`
+
+	// SuccessType If a policy depends on an environment, whether or not the policy requires all, some, or optional successful releases in the environment
+	SuccessType PolicySuccessType `json:"successType"`
+
+	// SystemId The system ID
+	SystemId openapi_types.UUID `json:"systemId"`
+}
+
+// PolicyApprovalRequirement The approval requirement of the policy
+type PolicyApprovalRequirement string
+
+// PolicyReleaseSequencing If a new release is created, whether it will wait for the current release to finish before starting, or cancel the current release
+type PolicyReleaseSequencing string
+
+// PolicySuccessType If a policy depends on an environment, whether or not the policy requires all, some, or optional successful releases in the environment
+type PolicySuccessType string
 
 // Release defines model for Release.
 type Release struct {
@@ -169,6 +241,7 @@ type Variable_Value struct {
 // CreateEnvironmentJSONBody defines parameters for CreateEnvironment.
 type CreateEnvironmentJSONBody struct {
 	Description     *string                 `json:"description,omitempty"`
+	Metadata        *map[string]string      `json:"metadata,omitempty"`
 	Name            string                  `json:"name"`
 	PolicyId        *string                 `json:"policyId,omitempty"`
 	ReleaseChannels *[]string               `json:"releaseChannels,omitempty"`
@@ -2464,14 +2537,8 @@ func (r DeleteReleaseChannelResponse) StatusCode() int {
 type CreateEnvironmentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Description    *string                 `json:"description"`
-		Id             string                  `json:"id"`
-		Name           string                  `json:"name"`
-		ResourceFilter *map[string]interface{} `json:"resourceFilter,omitempty"`
-		SystemId       string                  `json:"systemId"`
-	}
-	JSON409 *struct {
+	JSON200      *Environment
+	JSON409      *struct {
 		Error *string `json:"error,omitempty"`
 		Id    *string `json:"id,omitempty"`
 	}
@@ -2520,41 +2587,11 @@ func (r DeleteEnvironmentResponse) StatusCode() int {
 type GetEnvironmentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		CreatedAt   time.Time  `json:"createdAt"`
-		Description *string    `json:"description"`
-		ExpiresAt   *time.Time `json:"expiresAt,omitempty"`
-		Id          string     `json:"id"`
-		Name        string     `json:"name"`
-		Policy      *struct {
-			ApprovalRequirement *GetEnvironment200PolicyApprovalRequirement `json:"approvalRequirement,omitempty"`
-			ConcurrencyLimit    *float32                                    `json:"concurrencyLimit"`
-			Description         *string                                     `json:"description"`
-			Id                  *string                                     `json:"id,omitempty"`
-			Name                *string                                     `json:"name,omitempty"`
-			ReleaseSequencing   *GetEnvironment200PolicyReleaseSequencing   `json:"releaseSequencing,omitempty"`
-			RolloutDuration     *float32                                    `json:"rolloutDuration,omitempty"`
-			SuccessMinimum      *float32                                    `json:"successMinimum,omitempty"`
-			SuccessType         *GetEnvironment200PolicySuccessType         `json:"successType,omitempty"`
-			SystemId            *string                                     `json:"systemId,omitempty"`
-		} `json:"policy"`
-		PolicyId        *string `json:"policyId"`
-		ReleaseChannels []struct {
-			ChannelId     *string `json:"channelId,omitempty"`
-			DeploymentId  *string `json:"deploymentId,omitempty"`
-			EnvironmentId *string `json:"environmentId,omitempty"`
-			Id            *string `json:"id,omitempty"`
-		} `json:"releaseChannels"`
-		ResourceFilter *map[string]interface{} `json:"resourceFilter,omitempty"`
-		SystemId       string                  `json:"systemId"`
-	}
-	JSON404 *struct {
+	JSON200      *Environment
+	JSON404      *struct {
 		Error string `json:"error"`
 	}
 }
-type GetEnvironment200PolicyApprovalRequirement string
-type GetEnvironment200PolicyReleaseSequencing string
-type GetEnvironment200PolicySuccessType string
 
 // Status returns HTTPResponse.Status
 func (r GetEnvironmentResponse) Status() string {
@@ -3208,20 +3245,12 @@ type GetSystemResponse struct {
 			Slug           *string                 `json:"slug,omitempty"`
 			SystemId       *string                 `json:"systemId,omitempty"`
 		} `json:"deployments"`
-		Description  string `json:"description"`
-		Environments []struct {
-			CreatedAt      *time.Time              `json:"createdAt,omitempty"`
-			Description    *string                 `json:"description"`
-			Id             *string                 `json:"id,omitempty"`
-			Name           *string                 `json:"name,omitempty"`
-			PolicyId       *string                 `json:"policyId"`
-			ResourceFilter *map[string]interface{} `json:"resourceFilter"`
-			SystemId       *string                 `json:"systemId,omitempty"`
-		} `json:"environments"`
-		Id          string `json:"id"`
-		Name        string `json:"name"`
-		Slug        string `json:"slug"`
-		WorkspaceId string `json:"workspaceId"`
+		Description  string        `json:"description"`
+		Environments []Environment `json:"environments"`
+		Id           string        `json:"id"`
+		Name         string        `json:"name"`
+		Slug         string        `json:"slug"`
+		WorkspaceId  string        `json:"workspaceId"`
 	}
 }
 
@@ -3819,13 +3848,7 @@ func ParseCreateEnvironmentResponse(rsp *http.Response) (*CreateEnvironmentRespo
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Description    *string                 `json:"description"`
-			Id             string                  `json:"id"`
-			Name           string                  `json:"name"`
-			ResourceFilter *map[string]interface{} `json:"resourceFilter,omitempty"`
-			SystemId       string                  `json:"systemId"`
-		}
+		var dest Environment
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3886,34 +3909,7 @@ func ParseGetEnvironmentResponse(rsp *http.Response) (*GetEnvironmentResponse, e
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			CreatedAt   time.Time  `json:"createdAt"`
-			Description *string    `json:"description"`
-			ExpiresAt   *time.Time `json:"expiresAt,omitempty"`
-			Id          string     `json:"id"`
-			Name        string     `json:"name"`
-			Policy      *struct {
-				ApprovalRequirement *GetEnvironment200PolicyApprovalRequirement `json:"approvalRequirement,omitempty"`
-				ConcurrencyLimit    *float32                                    `json:"concurrencyLimit"`
-				Description         *string                                     `json:"description"`
-				Id                  *string                                     `json:"id,omitempty"`
-				Name                *string                                     `json:"name,omitempty"`
-				ReleaseSequencing   *GetEnvironment200PolicyReleaseSequencing   `json:"releaseSequencing,omitempty"`
-				RolloutDuration     *float32                                    `json:"rolloutDuration,omitempty"`
-				SuccessMinimum      *float32                                    `json:"successMinimum,omitempty"`
-				SuccessType         *GetEnvironment200PolicySuccessType         `json:"successType,omitempty"`
-				SystemId            *string                                     `json:"systemId,omitempty"`
-			} `json:"policy"`
-			PolicyId        *string `json:"policyId"`
-			ReleaseChannels []struct {
-				ChannelId     *string `json:"channelId,omitempty"`
-				DeploymentId  *string `json:"deploymentId,omitempty"`
-				EnvironmentId *string `json:"environmentId,omitempty"`
-				Id            *string `json:"id,omitempty"`
-			} `json:"releaseChannels"`
-			ResourceFilter *map[string]interface{} `json:"resourceFilter,omitempty"`
-			SystemId       string                  `json:"systemId"`
-		}
+		var dest Environment
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4784,20 +4780,12 @@ func ParseGetSystemResponse(rsp *http.Response) (*GetSystemResponse, error) {
 				Slug           *string                 `json:"slug,omitempty"`
 				SystemId       *string                 `json:"systemId,omitempty"`
 			} `json:"deployments"`
-			Description  string `json:"description"`
-			Environments []struct {
-				CreatedAt      *time.Time              `json:"createdAt,omitempty"`
-				Description    *string                 `json:"description"`
-				Id             *string                 `json:"id,omitempty"`
-				Name           *string                 `json:"name,omitempty"`
-				PolicyId       *string                 `json:"policyId"`
-				ResourceFilter *map[string]interface{} `json:"resourceFilter"`
-				SystemId       *string                 `json:"systemId,omitempty"`
-			} `json:"environments"`
-			Id          string `json:"id"`
-			Name        string `json:"name"`
-			Slug        string `json:"slug"`
-			WorkspaceId string `json:"workspaceId"`
+			Description  string        `json:"description"`
+			Environments []Environment `json:"environments"`
+			Id           string        `json:"id"`
+			Name         string        `json:"name"`
+			Slug         string        `json:"slug"`
+			WorkspaceId  string        `json:"workspaceId"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
