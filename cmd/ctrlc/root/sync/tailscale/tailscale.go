@@ -108,7 +108,8 @@ func NewSyncTailscaleCmd() *cobra.Command {
 					metadata["tailscale/status"] = "offline"
 				}
 				for _, tag := range device.Tags {
-					metadata[fmt.Sprintf("tailscale/tag/%s", tag)] = tag
+					v := strings.TrimPrefix(tag, "tag:")
+					metadata[fmt.Sprintf("tailscale/tag/%s", v)] = "true"
 				}
 				
 				config := TailscaleConfig{
