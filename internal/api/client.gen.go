@@ -26,7 +26,6 @@ const (
 const (
 	ActionRequired      JobStatus = "action_required"
 	Cancelled           JobStatus = "cancelled"
-	Completed           JobStatus = "completed"
 	ExternalRunNotFound JobStatus = "external_run_not_found"
 	Failure             JobStatus = "failure"
 	InProgress          JobStatus = "in_progress"
@@ -34,6 +33,7 @@ const (
 	InvalidJobAgent     JobStatus = "invalid_job_agent"
 	Pending             JobStatus = "pending"
 	Skipped             JobStatus = "skipped"
+	Successful          JobStatus = "successful"
 )
 
 // Defines values for UpsertReleaseJSONBodyStatus.
@@ -65,7 +65,6 @@ type Deployment struct {
 type Environment struct {
 	CreatedAt      time.Time               `json:"createdAt"`
 	Description    *string                 `json:"description,omitempty"`
-	ExpiresAt      *time.Time              `json:"expiresAt"`
 	Id             openapi_types.UUID      `json:"id"`
 	Name           string                  `json:"name"`
 	PolicyId       *openapi_types.UUID     `json:"policyId"`
@@ -75,7 +74,8 @@ type Environment struct {
 
 // Job defines model for Job.
 type Job struct {
-	CreatedAt time.Time `json:"createdAt"`
+	CompletedAt *time.Time `json:"completedAt"`
+	CreatedAt   time.Time  `json:"createdAt"`
 
 	// ExternalId External job identifier (e.g. GitHub workflow run ID)
 	ExternalId *string            `json:"externalId"`
@@ -86,6 +86,7 @@ type Job struct {
 	JobAgentId     *openapi_types.UUID    `json:"jobAgentId,omitempty"`
 	Message        *string                `json:"message,omitempty"`
 	Reason         *string                `json:"reason,omitempty"`
+	StartedAt      *time.Time             `json:"startedAt"`
 	Status         JobStatus              `json:"status"`
 	UpdatedAt      time.Time              `json:"updatedAt"`
 }
@@ -126,6 +127,24 @@ type Runbook struct {
 	SystemId   openapi_types.UUID `json:"systemId"`
 }
 
+// System defines model for System.
+type System struct {
+	// Description The description of the system
+	Description *string `json:"description,omitempty"`
+
+	// Id The system ID
+	Id openapi_types.UUID `json:"id"`
+
+	// Name The name of the system
+	Name string `json:"name"`
+
+	// Slug The slug of the system
+	Slug string `json:"slug"`
+
+	// WorkspaceId The workspace ID of the system
+	WorkspaceId openapi_types.UUID `json:"workspaceId"`
+}
+
 // Variable defines model for Variable.
 type Variable struct {
 	Key       string         `json:"key"`
@@ -150,7 +169,6 @@ type Variable_Value struct {
 // CreateEnvironmentJSONBody defines parameters for CreateEnvironment.
 type CreateEnvironmentJSONBody struct {
 	Description     *string                 `json:"description,omitempty"`
-	ExpiresAt       *time.Time              `json:"expiresAt,omitempty"`
 	Name            string                  `json:"name"`
 	PolicyId        *string                 `json:"policyId,omitempty"`
 	ReleaseChannels *[]string               `json:"releaseChannels,omitempty"`
@@ -271,6 +289,36 @@ type UpdateResourceJSONBody struct {
 	WorkspaceId *string            `json:"workspaceId,omitempty"`
 }
 
+// CreateSystemJSONBody defines parameters for CreateSystem.
+type CreateSystemJSONBody struct {
+	// Description The description of the system
+	Description *string `json:"description,omitempty"`
+
+	// Name The name of the system
+	Name string `json:"name"`
+
+	// Slug The slug of the system
+	Slug string `json:"slug"`
+
+	// WorkspaceId The workspace ID of the system
+	WorkspaceId openapi_types.UUID `json:"workspaceId"`
+}
+
+// UpdateSystemJSONBody defines parameters for UpdateSystem.
+type UpdateSystemJSONBody struct {
+	// Description Description of the system
+	Description *string `json:"description,omitempty"`
+
+	// Name Name of the system
+	Name *string `json:"name,omitempty"`
+
+	// Slug Slug of the system
+	Slug *string `json:"slug,omitempty"`
+
+	// WorkspaceId UUID of the workspace
+	WorkspaceId *string `json:"workspaceId,omitempty"`
+}
+
 // CreateEnvironmentJSONRequestBody defines body for CreateEnvironment for application/json ContentType.
 type CreateEnvironmentJSONRequestBody CreateEnvironmentJSONBody
 
@@ -303,6 +351,12 @@ type UpsertResourcesJSONRequestBody UpsertResourcesJSONBody
 
 // UpdateResourceJSONRequestBody defines body for UpdateResource for application/json ContentType.
 type UpdateResourceJSONRequestBody UpdateResourceJSONBody
+
+// CreateSystemJSONRequestBody defines body for CreateSystem for application/json ContentType.
+type CreateSystemJSONRequestBody CreateSystemJSONBody
+
+// UpdateSystemJSONRequestBody defines body for UpdateSystem for application/json ContentType.
+type UpdateSystemJSONRequestBody UpdateSystemJSONBody
 
 // AsVariableValue0 returns the union data inside the Variable_Value as a VariableValue0
 func (t Variable_Value) AsVariableValue0() (VariableValue0, error) {
@@ -550,8 +604,21 @@ type ClientInterface interface {
 
 	UpdateResource(ctx context.Context, resourceId string, body UpdateResourceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CreateSystemWithBody request with any body
+	CreateSystemWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateSystem(ctx context.Context, body CreateSystemJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteSystem request
+	DeleteSystem(ctx context.Context, systemId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetSystem request
 	GetSystem(ctx context.Context, systemId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateSystemWithBody request with any body
+	UpdateSystemWithBody(ctx context.Context, systemId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateSystem(ctx context.Context, systemId string, body UpdateSystemJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteEnvironmentByName request
 	DeleteEnvironmentByName(ctx context.Context, systemId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -950,8 +1017,68 @@ func (c *Client) UpdateResource(ctx context.Context, resourceId string, body Upd
 	return c.Client.Do(req)
 }
 
+func (c *Client) CreateSystemWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateSystemRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateSystem(ctx context.Context, body CreateSystemJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateSystemRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteSystem(ctx context.Context, systemId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteSystemRequest(c.Server, systemId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetSystem(ctx context.Context, systemId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetSystemRequest(c.Server, systemId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateSystemWithBody(ctx context.Context, systemId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSystemRequestWithBody(c.Server, systemId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateSystem(ctx context.Context, systemId string, body UpdateSystemJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSystemRequest(c.Server, systemId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1825,6 +1952,80 @@ func NewUpdateResourceRequestWithBody(server string, resourceId string, contentT
 	return req, nil
 }
 
+// NewCreateSystemRequest calls the generic CreateSystem builder with application/json body
+func NewCreateSystemRequest(server string, body CreateSystemJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateSystemRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateSystemRequestWithBody generates requests for CreateSystem with any type of body
+func NewCreateSystemRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/systems")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteSystemRequest generates requests for DeleteSystem
+func NewDeleteSystemRequest(server string, systemId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "systemId", runtime.ParamLocationPath, systemId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/systems/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetSystemRequest generates requests for GetSystem
 func NewGetSystemRequest(server string, systemId string) (*http.Request, error) {
 	var err error
@@ -1855,6 +2056,53 @@ func NewGetSystemRequest(server string, systemId string) (*http.Request, error) 
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewUpdateSystemRequest calls the generic UpdateSystem builder with application/json body
+func NewUpdateSystemRequest(server string, systemId string, body UpdateSystemJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateSystemRequestWithBody(server, systemId, "application/json", bodyReader)
+}
+
+// NewUpdateSystemRequestWithBody generates requests for UpdateSystem with any type of body
+func NewUpdateSystemRequestWithBody(server string, systemId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "systemId", runtime.ParamLocationPath, systemId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/systems/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -2151,8 +2399,21 @@ type ClientWithResponsesInterface interface {
 
 	UpdateResourceWithResponse(ctx context.Context, resourceId string, body UpdateResourceJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateResourceResponse, error)
 
+	// CreateSystemWithBodyWithResponse request with any body
+	CreateSystemWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSystemResponse, error)
+
+	CreateSystemWithResponse(ctx context.Context, body CreateSystemJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateSystemResponse, error)
+
+	// DeleteSystemWithResponse request
+	DeleteSystemWithResponse(ctx context.Context, systemId string, reqEditors ...RequestEditorFn) (*DeleteSystemResponse, error)
+
 	// GetSystemWithResponse request
 	GetSystemWithResponse(ctx context.Context, systemId string, reqEditors ...RequestEditorFn) (*GetSystemResponse, error)
+
+	// UpdateSystemWithBodyWithResponse request with any body
+	UpdateSystemWithBodyWithResponse(ctx context.Context, systemId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSystemResponse, error)
+
+	UpdateSystemWithResponse(ctx context.Context, systemId string, body UpdateSystemJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSystemResponse, error)
 
 	// DeleteEnvironmentByNameWithResponse request
 	DeleteEnvironmentByNameWithResponse(ctx context.Context, systemId string, name string, reqEditors ...RequestEditorFn) (*DeleteEnvironmentByNameResponse, error)
@@ -2205,7 +2466,6 @@ type CreateEnvironmentResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *struct {
 		Description    *string                 `json:"description"`
-		ExpiresAt      *time.Time              `json:"expiresAt"`
 		Id             string                  `json:"id"`
 		Name           string                  `json:"name"`
 		ResourceFilter *map[string]interface{} `json:"resourceFilter,omitempty"`
@@ -2448,6 +2708,7 @@ type GetJobResponse struct {
 			Id     string                  `json:"id"`
 			Status GetJob200ApprovalStatus `json:"status"`
 		} `json:"approval"`
+		CompletedAt *time.Time   `json:"completedAt"`
 		CreatedAt   time.Time    `json:"createdAt"`
 		Deployment  *Deployment  `json:"deployment,omitempty"`
 		Environment *Environment `json:"environment,omitempty"`
@@ -2464,6 +2725,7 @@ type GetJobResponse struct {
 		Release        *Release               `json:"release,omitempty"`
 		Resource       *Resource              `json:"resource,omitempty"`
 		Runbook        *Runbook               `json:"runbook,omitempty"`
+		StartedAt      *time.Time             `json:"startedAt"`
 		Status         GetJob200Status        `json:"status"`
 		UpdatedAt      time.Time              `json:"updatedAt"`
 		Variables      map[string]interface{} `json:"variables"`
@@ -2865,6 +3127,74 @@ func (r UpdateResourceResponse) StatusCode() int {
 	return 0
 }
 
+type CreateSystemResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *System
+	JSON400      *struct {
+		Error *[]struct {
+			Code    CreateSystem400ErrorCode           `json:"code"`
+			Message string                             `json:"message"`
+			Path    []CreateSystem_400_Error_Path_Item `json:"path"`
+		} `json:"error,omitempty"`
+	}
+	JSON500 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+}
+type CreateSystem400ErrorCode string
+type CreateSystem400ErrorPath0 = string
+type CreateSystem400ErrorPath1 = float32
+type CreateSystem_400_Error_Path_Item struct {
+	union json.RawMessage
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateSystemResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateSystemResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteSystemResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON404 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+	JSON500 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteSystemResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteSystemResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetSystemResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -2882,7 +3212,6 @@ type GetSystemResponse struct {
 		Environments []struct {
 			CreatedAt      *time.Time              `json:"createdAt,omitempty"`
 			Description    *string                 `json:"description"`
-			ExpiresAt      *time.Time              `json:"expiresAt"`
 			Id             *string                 `json:"id,omitempty"`
 			Name           *string                 `json:"name,omitempty"`
 			PolicyId       *string                 `json:"policyId"`
@@ -2906,6 +3235,34 @@ func (r GetSystemResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetSystemResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateSystemResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *System
+	JSON404      *struct {
+		Error *string `json:"error,omitempty"`
+	}
+	JSON500 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateSystemResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateSystemResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3304,6 +3661,32 @@ func (c *ClientWithResponses) UpdateResourceWithResponse(ctx context.Context, re
 	return ParseUpdateResourceResponse(rsp)
 }
 
+// CreateSystemWithBodyWithResponse request with arbitrary body returning *CreateSystemResponse
+func (c *ClientWithResponses) CreateSystemWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSystemResponse, error) {
+	rsp, err := c.CreateSystemWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateSystemResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateSystemWithResponse(ctx context.Context, body CreateSystemJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateSystemResponse, error) {
+	rsp, err := c.CreateSystem(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateSystemResponse(rsp)
+}
+
+// DeleteSystemWithResponse request returning *DeleteSystemResponse
+func (c *ClientWithResponses) DeleteSystemWithResponse(ctx context.Context, systemId string, reqEditors ...RequestEditorFn) (*DeleteSystemResponse, error) {
+	rsp, err := c.DeleteSystem(ctx, systemId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteSystemResponse(rsp)
+}
+
 // GetSystemWithResponse request returning *GetSystemResponse
 func (c *ClientWithResponses) GetSystemWithResponse(ctx context.Context, systemId string, reqEditors ...RequestEditorFn) (*GetSystemResponse, error) {
 	rsp, err := c.GetSystem(ctx, systemId, reqEditors...)
@@ -3311,6 +3694,23 @@ func (c *ClientWithResponses) GetSystemWithResponse(ctx context.Context, systemI
 		return nil, err
 	}
 	return ParseGetSystemResponse(rsp)
+}
+
+// UpdateSystemWithBodyWithResponse request with arbitrary body returning *UpdateSystemResponse
+func (c *ClientWithResponses) UpdateSystemWithBodyWithResponse(ctx context.Context, systemId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSystemResponse, error) {
+	rsp, err := c.UpdateSystemWithBody(ctx, systemId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSystemResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateSystemWithResponse(ctx context.Context, systemId string, body UpdateSystemJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSystemResponse, error) {
+	rsp, err := c.UpdateSystem(ctx, systemId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSystemResponse(rsp)
 }
 
 // DeleteEnvironmentByNameWithResponse request returning *DeleteEnvironmentByNameResponse
@@ -3421,7 +3821,6 @@ func ParseCreateEnvironmentResponse(rsp *http.Response) (*CreateEnvironmentRespo
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
 			Description    *string                 `json:"description"`
-			ExpiresAt      *time.Time              `json:"expiresAt"`
 			Id             string                  `json:"id"`
 			Name           string                  `json:"name"`
 			ResourceFilter *map[string]interface{} `json:"resourceFilter,omitempty"`
@@ -3710,6 +4109,7 @@ func ParseGetJobResponse(rsp *http.Response) (*GetJobResponse, error) {
 				Id     string                  `json:"id"`
 				Status GetJob200ApprovalStatus `json:"status"`
 			} `json:"approval"`
+			CompletedAt *time.Time   `json:"completedAt"`
 			CreatedAt   time.Time    `json:"createdAt"`
 			Deployment  *Deployment  `json:"deployment,omitempty"`
 			Environment *Environment `json:"environment,omitempty"`
@@ -3726,6 +4126,7 @@ func ParseGetJobResponse(rsp *http.Response) (*GetJobResponse, error) {
 			Release        *Release               `json:"release,omitempty"`
 			Resource       *Resource              `json:"resource,omitempty"`
 			Runbook        *Runbook               `json:"runbook,omitempty"`
+			StartedAt      *time.Time             `json:"startedAt"`
 			Status         GetJob200Status        `json:"status"`
 			UpdatedAt      time.Time              `json:"updatedAt"`
 			Variables      map[string]interface{} `json:"variables"`
@@ -4264,6 +4665,100 @@ func ParseUpdateResourceResponse(rsp *http.Response) (*UpdateResourceResponse, e
 	return response, nil
 }
 
+// ParseCreateSystemResponse parses an HTTP response from a CreateSystemWithResponse call
+func ParseCreateSystemResponse(rsp *http.Response) (*CreateSystemResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateSystemResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest System
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Error *[]struct {
+				Code    CreateSystem400ErrorCode           `json:"code"`
+				Message string                             `json:"message"`
+				Path    []CreateSystem_400_Error_Path_Item `json:"path"`
+			} `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteSystemResponse parses an HTTP response from a DeleteSystemWithResponse call
+func ParseDeleteSystemResponse(rsp *http.Response) (*DeleteSystemResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteSystemResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetSystemResponse parses an HTTP response from a GetSystemWithResponse call
 func ParseGetSystemResponse(rsp *http.Response) (*GetSystemResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -4293,7 +4788,6 @@ func ParseGetSystemResponse(rsp *http.Response) (*GetSystemResponse, error) {
 			Environments []struct {
 				CreatedAt      *time.Time              `json:"createdAt,omitempty"`
 				Description    *string                 `json:"description"`
-				ExpiresAt      *time.Time              `json:"expiresAt"`
 				Id             *string                 `json:"id,omitempty"`
 				Name           *string                 `json:"name,omitempty"`
 				PolicyId       *string                 `json:"policyId"`
@@ -4309,6 +4803,50 @@ func ParseGetSystemResponse(rsp *http.Response) (*GetSystemResponse, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateSystemResponse parses an HTTP response from a UpdateSystemWithResponse call
+func ParseUpdateSystemResponse(rsp *http.Response) (*UpdateSystemResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateSystemResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest System
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 

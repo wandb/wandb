@@ -3,7 +3,6 @@ package environment
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/ctrlplanedev/cli/internal/api"
@@ -15,7 +14,6 @@ import (
 func NewCreateEnvironmentCmd() *cobra.Command {
 	var nameFlag string
 	var releaseChannels []string
-	var expiresIn string
 	var system string
 	var resourceFilter string
 	cmd := &cobra.Command{
@@ -50,15 +48,6 @@ func NewCreateEnvironmentCmd() *cobra.Command {
 				body.ResourceFilter = &parsedFilter
 			}
 
-			if expiresIn != "" {
-				duration, err := time.ParseDuration(expiresIn)
-				if err != nil {
-					return fmt.Errorf("failed to parse expires-in: %w", err)
-				}
-				expiresAt := time.Now().Add(duration)
-				body.ExpiresAt = &expiresAt
-			}
-
 			resp, err := client.CreateEnvironment(cmd.Context(), body)
 			if err != nil {
 				return fmt.Errorf("failed to create environment: %w", err)
@@ -70,7 +59,6 @@ func NewCreateEnvironmentCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&nameFlag, "name", "", "Name of the environment (required)")
 	cmd.Flags().StringVar(&system, "system", "", "ID of the system (required)")
-	cmd.Flags().StringVar(&expiresIn, "expires-in", "", "Expiration time in duration (e.g. 1h)")
 	cmd.Flags().StringSliceVar(&releaseChannels, "release-channel", []string{}, "Release channel in format <channelid>")
 	cmd.Flags().StringVar(&resourceFilter, "resource-filter", "", "Resource filter as JSON string")
 
