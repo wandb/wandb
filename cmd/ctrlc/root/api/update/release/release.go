@@ -38,6 +38,7 @@ func NewUpdateReleaseCmd() *cobra.Command {
 	var versionFlag string
 	var metadata map[string]string
 	var configArray map[string]string
+	var jobAgentConfigArray map[string]string
 	var links map[string]string
 	var name string
 	var status string
@@ -77,14 +78,15 @@ func NewUpdateReleaseCmd() *cobra.Command {
 			}
 
 			config := cliutil.ConvertConfigArrayToNestedMap(configArray)
-
+			jobAgentConfig := cliutil.ConvertConfigArrayToNestedMap(jobAgentConfigArray)
 			resp, err := client.UpdateRelease(cmd.Context(), releaseID, api.UpdateReleaseJSONRequestBody{
-				Version:  cliutil.StringPtr(versionFlag),
-				Metadata: cliutil.MetadataPtr(metadata),
-				Config:   cliutil.ConfigPtr(config),
-				Name:     cliutil.StringPtr(name),
-				Status:   stat,
-				Message:  cliutil.StringPtr(message),
+				Version:        cliutil.StringPtr(versionFlag),
+				Metadata:       cliutil.StringMapPtr(metadata),
+				Config:         cliutil.MapPtr(config),
+				JobAgentConfig: cliutil.MapPtr(jobAgentConfig),
+				Name:           cliutil.StringPtr(name),
+				Status:         stat,
+				Message:        cliutil.StringPtr(message),
 			})
 			if err != nil {
 				return fmt.Errorf("failed to update release: %w", err)
@@ -98,6 +100,7 @@ func NewUpdateReleaseCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&versionFlag, "version", "v", "", "Version of the release")
 	cmd.Flags().StringToStringVarP(&metadata, "metadata", "m", make(map[string]string), "Metadata key-value pairs (e.g. --metadata key=value)")
 	cmd.Flags().StringToStringVarP(&configArray, "config", "c", make(map[string]string), "Config key-value pairs with nested values (can be specified multiple times)")
+	cmd.Flags().StringToStringVarP(&jobAgentConfigArray, "job-agent-config", "j", make(map[string]string), "Job agent config key-value pairs (can be specified multiple times)")
 	cmd.Flags().StringToStringVarP(&links, "link", "l", make(map[string]string), "Links key-value pairs (can be specified multiple times)")
 	cmd.Flags().StringVarP(&name, "name", "n", "", "Name of the release")
 	cmd.Flags().StringVarP(&status, "status", "s", "", "Status of the release")

@@ -40,7 +40,7 @@ func NewCreateEnvironmentCmd() *cobra.Command {
 			body.Name = nameFlag
 			body.ReleaseChannels = &releaseChannels
 			body.SystemId = system
-			body.Metadata = cliutil.MetadataPtr(metadata)
+			body.Metadata = cliutil.StringMapPtr(metadata)
 
 			if resourceFilter != "" {
 				var parsedFilter map[string]interface{}

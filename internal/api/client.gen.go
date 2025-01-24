@@ -168,13 +168,14 @@ type PolicySuccessType string
 
 // Release defines model for Release.
 type Release struct {
-	Config       map[string]interface{}  `json:"config"`
-	CreatedAt    time.Time               `json:"createdAt"`
-	DeploymentId openapi_types.UUID      `json:"deploymentId"`
-	Id           openapi_types.UUID      `json:"id"`
-	Metadata     *map[string]interface{} `json:"metadata,omitempty"`
-	Name         string                  `json:"name"`
-	Version      string                  `json:"version"`
+	Config         map[string]interface{}  `json:"config"`
+	CreatedAt      time.Time               `json:"createdAt"`
+	DeploymentId   openapi_types.UUID      `json:"deploymentId"`
+	Id             openapi_types.UUID      `json:"id"`
+	JobAgentConfig map[string]interface{}  `json:"jobAgentConfig"`
+	Metadata       *map[string]interface{} `json:"metadata,omitempty"`
+	Name           string                  `json:"name"`
+	Version        string                  `json:"version"`
 }
 
 // Resource defines model for Resource.
@@ -297,14 +298,15 @@ type CreateReleaseChannelJSONBody struct {
 
 // UpsertReleaseJSONBody defines parameters for UpsertRelease.
 type UpsertReleaseJSONBody struct {
-	Config       *map[string]interface{}      `json:"config,omitempty"`
-	CreatedAt    *time.Time                   `json:"createdAt,omitempty"`
-	DeploymentId string                       `json:"deploymentId"`
-	Message      *string                      `json:"message,omitempty"`
-	Metadata     *map[string]string           `json:"metadata,omitempty"`
-	Name         *string                      `json:"name,omitempty"`
-	Status       *UpsertReleaseJSONBodyStatus `json:"status,omitempty"`
-	Version      string                       `json:"version"`
+	Config         *map[string]interface{}      `json:"config,omitempty"`
+	CreatedAt      *time.Time                   `json:"createdAt,omitempty"`
+	DeploymentId   string                       `json:"deploymentId"`
+	JobAgentConfig *map[string]interface{}      `json:"jobAgentConfig,omitempty"`
+	Message        *string                      `json:"message,omitempty"`
+	Metadata       *map[string]string           `json:"metadata,omitempty"`
+	Name           *string                      `json:"name,omitempty"`
+	Status         *UpsertReleaseJSONBodyStatus `json:"status,omitempty"`
+	Version        string                       `json:"version"`
 }
 
 // UpsertReleaseJSONBodyStatus defines parameters for UpsertRelease.
@@ -312,14 +314,15 @@ type UpsertReleaseJSONBodyStatus string
 
 // UpdateReleaseJSONBody defines parameters for UpdateRelease.
 type UpdateReleaseJSONBody struct {
-	Config       *map[string]interface{}      `json:"config,omitempty"`
-	CreatedAt    *time.Time                   `json:"createdAt,omitempty"`
-	DeploymentId *string                      `json:"deploymentId,omitempty"`
-	Message      *string                      `json:"message,omitempty"`
-	Metadata     *map[string]string           `json:"metadata,omitempty"`
-	Name         *string                      `json:"name,omitempty"`
-	Status       *UpdateReleaseJSONBodyStatus `json:"status,omitempty"`
-	Version      *string                      `json:"version,omitempty"`
+	Config         *map[string]interface{}      `json:"config,omitempty"`
+	CreatedAt      *time.Time                   `json:"createdAt,omitempty"`
+	DeploymentId   *string                      `json:"deploymentId,omitempty"`
+	JobAgentConfig *map[string]interface{}      `json:"jobAgentConfig,omitempty"`
+	Message        *string                      `json:"message,omitempty"`
+	Metadata       *map[string]string           `json:"metadata,omitempty"`
+	Name           *string                      `json:"name,omitempty"`
+	Status         *UpdateReleaseJSONBodyStatus `json:"status,omitempty"`
+	Version        *string                      `json:"version,omitempty"`
 }
 
 // UpdateReleaseJSONBodyStatus defines parameters for UpdateRelease.
@@ -2958,12 +2961,8 @@ func (r CreateReleaseChannelResponse) StatusCode() int {
 type UpsertReleaseResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Id       *string            `json:"id,omitempty"`
-		Metadata *map[string]string `json:"metadata,omitempty"`
-		Version  *string            `json:"version,omitempty"`
-	}
-	JSON409 *struct {
+	JSON200      *Release
+	JSON409      *struct {
 		Error *string `json:"error,omitempty"`
 		Id    *string `json:"id,omitempty"`
 	}
@@ -2988,17 +2987,7 @@ func (r UpsertReleaseResponse) StatusCode() int {
 type UpdateReleaseResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Config       map[string]interface{} `json:"config"`
-		CreatedAt    time.Time              `json:"createdAt"`
-		DeploymentId string                 `json:"deploymentId"`
-		Id           string                 `json:"id"`
-		Message      *string                `json:"message,omitempty"`
-		Metadata     map[string]string      `json:"metadata"`
-		Name         string                 `json:"name"`
-		Status       string                 `json:"status"`
-		Version      string                 `json:"version"`
-	}
+	JSON200      *Release
 }
 
 // Status returns HTTPResponse.Status
@@ -4424,11 +4413,7 @@ func ParseUpsertReleaseResponse(rsp *http.Response) (*UpsertReleaseResponse, err
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Id       *string            `json:"id,omitempty"`
-			Metadata *map[string]string `json:"metadata,omitempty"`
-			Version  *string            `json:"version,omitempty"`
-		}
+		var dest Release
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4464,17 +4449,7 @@ func ParseUpdateReleaseResponse(rsp *http.Response) (*UpdateReleaseResponse, err
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Config       map[string]interface{} `json:"config"`
-			CreatedAt    time.Time              `json:"createdAt"`
-			DeploymentId string                 `json:"deploymentId"`
-			Id           string                 `json:"id"`
-			Message      *string                `json:"message,omitempty"`
-			Metadata     map[string]string      `json:"metadata"`
-			Name         string                 `json:"name"`
-			Status       string                 `json:"status"`
-			Version      string                 `json:"version"`
-		}
+		var dest Release
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

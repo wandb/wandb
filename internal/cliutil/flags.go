@@ -44,14 +44,14 @@ func StringPtr(s string) *string {
 	return &s
 }
 
-func MetadataPtr(m map[string]string) *map[string]string {
+func StringMapPtr(m map[string]string) *map[string]string {
 	if len(m) == 0 {
 		return nil
 	}
 	return &m
 }
 
-func ConfigPtr(c map[string]interface{}) *map[string]interface{} {
+func MapPtr(c map[string]interface{}) *map[string]interface{} {
 	if len(c) == 0 {
 		return nil
 	}
