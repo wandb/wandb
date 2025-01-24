@@ -137,6 +137,7 @@ def test_login_anonymous():
     with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
         wandb.login(anonymous="must")
         assert wandb.api.api_key == "ANONYMOOSE" * 4
+        assert wandb.setup().settings.anonymous == "must"
 
 
 def test_login_sets_api_base_url(local_settings):
@@ -152,13 +153,15 @@ def test_login_sets_api_base_url(local_settings):
 
 
 def test_login_invalid_key():
-    with mock.patch.dict("os.environ", WANDB_API_KEY="X" * 40), mock.patch(
+    with mock.patch(
         "wandb.apis.internal.Api.validate_api_key",
         return_value=False,
     ):
         wandb.ensure_configured()
         with pytest.raises(wandb.errors.AuthenticationError):
-            wandb.login(verify=True)
+            wandb.login(key="X" * 40, verify=True)
+
+        assert wandb.api.api_key is None
 
 
 def test_login_with_token_file(tmp_path: Path):
