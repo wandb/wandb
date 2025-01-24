@@ -271,6 +271,7 @@ class Experiment:
         fraction: The % (in fraction) of metrics to log in each step.
         dense_metric_count: Number of dense metrics to be logged every step.
                             The dense metrics is a separate set of metrics from the sparse metrics.
+        fork_from: The fork from string (formatted) e.g. f"{original_run.id}?_step=200" 
 
     When to set "is_unique_payload" to True?
 
@@ -295,6 +296,7 @@ class Experiment:
         resume_mode: str = "must",
         fraction: float = 1.0,
         dense_metric_count: int = 0,
+        fork_from: str = "",
     ):
         self.num_steps = num_steps
         self.num_metrics = num_metrics
@@ -307,6 +309,7 @@ class Experiment:
         self.resume_mode = resume_mode
         self.fraction = fraction
         self.dense_metric_count = dense_metric_count
+        self.fork_from = fork_from
 
     def run(self, repeat: int = 1):
         for _ in range(repeat):
@@ -331,11 +334,19 @@ class Experiment:
         # Initialize W&B
         with Timer() as timer:
             if self.run_id == "":
-                run = wandb.init(
-                    project="perf-test",
-                    name=f"perf_run={start_time_str}_steps={self.num_steps}_metrics={self.num_metrics}",
-                    config=result_data,
-                )
+                if self.fork_from == "":
+                    run = wandb.init(
+                        project="perf-test",
+                        name=f"perf_run={start_time_str}_steps={self.num_steps}_metrics={self.num_metrics}",
+                        config=result_data,
+                    )
+                else:
+                    run = wandb.init(
+                        project="perf-test",
+                        name=f"perf_run={start_time_str}_steps={self.num_steps}_metrics={self.num_metrics}",
+                        config=result_data,
+                        fork_from=self.fork_from,
+                    )
                 logger.info(f"New run {run.id} initialized")
 
             else:
@@ -550,7 +561,28 @@ if __name__ == "__main__":
         "This is a separate set from the sparse metrics.",
     )
 
+    parser.add_argument(
+        "-x",
+        "--fork-run-id",
+        type=str,
+        help="The source run's id to fork from.",
+    )
+
+    parser.add_argument(
+        "-y",
+        "--fork-step",
+        type=str,
+        default="1",
+        help="The step to fork from.",
+    )
+
     args = parser.parse_args()
+
+    fork_from_str = ""
+    if args.fork_run_id:
+        fork_from_str = f"{args.fork_run_id}?_step={args.fork_step}"
+        logger.info(f"Setting fork_from = {fork_from_str}")
+
 
     Experiment(
         num_steps=args.steps,
@@ -564,4 +596,5 @@ if __name__ == "__main__":
         resume_mode=args.resume_mode,
         fraction=args.fraction,
         dense_metric_count=args.dense_metric_count,
+        fork_from=fork_from_str,
     ).run(args.repeat)
