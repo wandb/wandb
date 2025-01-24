@@ -225,7 +225,6 @@ def write_key(
     settings: "Settings",
     key: Optional[str],
     api: Optional["InternalApi"] = None,
-    anonymous: bool = False,
 ) -> None:
     if not key:
         raise ValueError("No API key specified.")
@@ -241,11 +240,6 @@ def write_key(
         raise ValueError(
             "API key must be 40 characters long, yours was {}".format(len(key))
         )
-
-    if anonymous:
-        api.set_setting("anonymous", "must", globally=True, persist=True)
-    else:
-        api.clear_setting("anonymous", globally=True, persist=True)
 
     write_netrc(settings.base_url, "user", key)
 

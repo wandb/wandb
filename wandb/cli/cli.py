@@ -217,7 +217,9 @@ def projects(entity, display=True):
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
 @click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
-@click.option("--host", default=None, help="Login to a specific instance of W&B")
+@click.option(
+    "--host", "--base-url", default=None, help="Login to a specific instance of W&B"
+)
 @click.option(
     "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
 )
