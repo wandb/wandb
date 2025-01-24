@@ -289,7 +289,7 @@ def _login(
     if key is None:
         # Check if key is already set in the settings, or configured in the users .netrc file.
         key = apikey.api_key(settings=wlogin._settings)
-        if key:
+        if key and not relogin:
             key_is_pre_configured = True
         else:
             key, key_status = wlogin.prompt_api_key()
