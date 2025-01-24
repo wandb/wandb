@@ -100,12 +100,8 @@ class _WandbLogin:
         key: Optional[str] = None,
         relogin: Optional[bool] = None,
         timeout: Optional[int] = None,
-        silent: Optional[bool] = None,
-        entity: Optional[str] = None,
     ):
         self._relogin = relogin
-        self._silent = silent
-        self._entity = entity
 
         login_settings = {
             "anonymous": anonymous,
@@ -115,40 +111,28 @@ class _WandbLogin:
             "login_timeout": timeout,
         }
         self.is_anonymous = anonymous == "must"
-        self._wandb_setup = wandb.setup(
-            settings=wandb.Settings(
-                **{k: v for k, v in login_settings.items() if v is not None}
-            )
-        )
+
+        self._wandb_setup = wandb.setup()
+        self._wandb_setup.settings.update_from_dict(login_settings)
         self._settings = self._wandb_setup.settings
 
     def is_apikey_configured(self) -> bool:
         """Returns whether an API key is set or can be inferred."""
         return apikey.api_key(settings=self._settings) is not None
 
-    def login(self) -> bool:
-        """Returns whether the user is logged in (i.e. an API key exists).
-
-        If the user is logged in, this also prints an informational message.
-        """
-        apikey_configured = self.is_apikey_configured()
-        if self._settings.relogin or self._relogin:
-            apikey_configured = False
-        if not apikey_configured:
-            return False
-
-        if not self._silent:
-            self._print_logged_in_message()
-
-        return apikey_configured
-
     def _print_logged_in_message(self) -> None:
         """Prints a message telling the user they are logged in."""
         username = self._wandb_setup._get_username()
 
         if username:
+            host_str = (
+                f" to {click.style(self._settings.base_url, fg='green')}"
+                if self._settings.base_url
+                else ""
+            )
+
             # check to see if we got an entity from the setup call or from the user
-            entity = self._entity or self._wandb_setup._get_entity()
+            entity = self._settings.entity or self._wandb_setup._get_entity()
 
             entity_str = ""
             # check if entity exist, valid (is part of a certain team) and different from the username
@@ -159,7 +143,7 @@ class _WandbLogin:
             ):
                 entity_str = f" ({click.style(entity, fg='yellow')})"
 
-            login_state_str = f"Currently logged in as: {click.style(username, fg='yellow')}{entity_str}"
+            login_state_str = f"Currently logged in as: {click.style(username, fg='yellow')}{entity_str}{host_str}"
         else:
             login_state_str = "W&B API key is configured"
 
@@ -241,21 +225,22 @@ class _WandbLogin:
 
         return key, status
 
+    def _verify_login(self, key: str) -> None:
+        api = InternalApi(api_key=key)
 
-def _verify_login(key: str) -> None:
-    api = InternalApi(api_key=key)
+        try:
+            is_api_key_valid = api.validate_api_key()
 
-    try:
-        is_api_key_valid = api.validate_api_key()
-
-        if not is_api_key_valid:
+            if not is_api_key_valid:
+                raise AuthenticationError(
+                    "API key verification failed. Make sure your API key is valid."
+                )
+        except ConnectionError:
             raise AuthenticationError(
-                "API key verification failed. Make sure your API key is valid."
+                "Unable to connect to server to verify API token."
             )
-    except ConnectionError:
-        raise AuthenticationError("Unable to connect to server to verify API token.")
-    except Exception:
-        raise AuthenticationError("An error occurred while verifying the API key.")
+        except Exception:
+            raise AuthenticationError("An error occurred while verifying the API key.")
 
 
 def _login(
@@ -267,10 +252,8 @@ def _login(
     force: Optional[bool] = None,
     timeout: Optional[int] = None,
     verify: bool = False,
-    _backend=None,
     _silent: Optional[bool] = None,
     _disable_warning: Optional[bool] = None,
-    _entity: Optional[str] = None,
 ) -> bool:
     if wandb.run is not None:
         if not _disable_warning:
@@ -284,8 +267,6 @@ def _login(
         key=key,
         relogin=relogin,
         timeout=timeout,
-        entity=_entity,
-        silent=_silent,
     )
 
     if wlogin._settings._noop:
@@ -303,24 +284,24 @@ def _login(
     if wlogin._settings.identity_token_file:
         return True
 
-    # perform a login
-    logged_in = wlogin.login()
-
-    if key:
-        wlogin.configure_api_key(key)
-        wlogin.update_session(key)
-
-    if logged_in:
-        if verify:
-            _verify_login(apikey.api_key(settings=wlogin._settings))
-        return logged_in
-
-    if not key:
-        key, status = wlogin.prompt_api_key()
-        wlogin.configure_api_key(key)
-        wlogin.update_session(key, status=status)
+    key_is_pre_configured = False
+    key_status = None
+    if key is None:
+        # Check if key is already set in the settings, or configured in the users .netrc file.
+        key = apikey.api_key(settings=wlogin._settings)
+        if key and not relogin:
+            key_is_pre_configured = True
+        else:
+            key, key_status = wlogin.prompt_api_key()
 
     if verify:
-        _verify_login(key)
+        wlogin._verify_login(key)
 
-    return True if key else False
+    if not key_is_pre_configured:
+        wlogin.configure_api_key(key)
+        wlogin.update_session(key, status=key_status)
+
+    if key and not _silent:
+        wlogin._print_logged_in_message()
+
+    return key is not None
