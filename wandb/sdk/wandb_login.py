@@ -116,6 +116,13 @@ class _WandbLogin:
         self._wandb_setup.settings.update_from_dict(login_settings)
         self._settings = self._wandb_setup.settings
 
+    def _update_global_anonymous_setting(self) -> None:
+        api = InternalApi()
+        if self.is_anonymous:
+            api.set_setting("anonymous", "must", globally=True, persist=True)
+        else:
+            api.clear_setting("anonymous", globally=True, persist=True)
+
     def is_apikey_configured(self) -> bool:
         """Returns whether an API key is set or can be inferred."""
         return apikey.api_key(settings=self._settings) is not None
@@ -165,7 +172,7 @@ class _WandbLogin:
                 "`wandb login` from the command line."
             )
         if key:
-            apikey.write_key(self._settings, key, anonymous=self.is_anonymous)
+            apikey.write_key(self._settings, key)
 
     def update_session(
         self,
@@ -300,6 +307,7 @@ def _login(
     if not key_is_pre_configured:
         wlogin.configure_api_key(key)
         wlogin.update_session(key, status=key_status)
+        wlogin._update_global_anonymous_setting()
 
     if key and not _silent:
         wlogin._print_logged_in_message()
