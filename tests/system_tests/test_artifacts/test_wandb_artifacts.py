@@ -7,6 +7,7 @@ from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Mapping, Optional
+from urllib.parse import quote
 
 import numpy as np
 import pytest
@@ -1525,6 +1526,41 @@ def test_save_artifact_sequence(user, api):
         artifact = run.use_artifact("new_name:latest")
         collection = artifact.collection
         assert len(collection.tags) == 1 and collection.tags[0] == "new_tag"
+
+
+def test_artifact_standard_url(user, api):
+    with wandb.init() as run:
+        artifact = Artifact("sequence_name", "data")
+        run.log_artifact(artifact)
+        artifact.wait()
+
+        artifact = run.use_artifact("sequence_name:latest")
+        expected_url = f"{util.app_url(run.settings.base_url)}/{run.entity}/{run.project}/artifacts/data/sequence_name/{artifact.version}"
+
+        assert artifact.url == expected_url
+
+
+def test_artifact_model_registry_url(user, api):
+    with wandb.init() as run:
+        artifact = wandb.Artifact("sequence_name", "model")
+        run.log_artifact(artifact)
+        artifact.wait()
+        run.link_artifact(artifact=artifact, target_path="test_model_portfolio")
+        linked_model_art = run.use_artifact(
+            f"{artifact.entity}/{artifact.project}/test_model_portfolio:latest"
+        )
+
+        base_url = util.app_url(run.settings.base_url)
+
+        encoded_path = f"{linked_model_art.entity}/{linked_model_art.project}/{linked_model_art.collection.name}"
+        selection_path = quote(encoded_path, safe="")
+
+        expected_url = (
+            f"{base_url}/{linked_model_art.entity}/registry/model?"
+            f"selectionPath={selection_path}&view=membership&version={linked_model_art.version}"
+        )
+
+        assert linked_model_art.url == expected_url
 
 
 def test_save_artifact_portfolio(user, api):

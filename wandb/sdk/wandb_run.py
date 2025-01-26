@@ -29,7 +29,6 @@ import wandb.util
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
-from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError, UnsupportedError, UsageError
 from wandb.errors.links import url_registry
@@ -455,7 +454,6 @@ class Run:
     """A unit of computation logged by wandb. Typically, this is an ML experiment.
 
     Create a run with `wandb.init()`:
-    <!--yeadoc-test:run-object-basic-->
     ```python
     import wandb
 
@@ -464,7 +462,6 @@ class Run:
 
     There is only ever at most one active `wandb.Run` in any process,
     and it is accessible as `wandb.run`:
-    <!--yeadoc-test:global-run-object-->
     ```python
     import wandb
 
@@ -479,7 +476,6 @@ class Run:
     If you want to start more runs in the same script or notebook, you'll need to
     finish the run that is in-flight. Runs can be finished with `wandb.finish` or
     by using them in a `with` block:
-    <!--yeadoc-test:run-context-manager-->
     ```python
     import wandb
 
@@ -548,8 +544,6 @@ class Run:
 
     _init_pid: int
     _attach_pid: int
-    _iface_pid: int | None
-    _iface_port: int | None
 
     _attach_id: str | None
     _is_attached: bool
@@ -708,10 +702,6 @@ class Run:
         if launch_trace_id:
             self._config[wandb_key]["launch_trace_id"] = launch_trace_id
 
-        # interface pid and port configured when backend is configured (See _hack_set_run)
-        # TODO: using pid isn't the best for windows as pid reuse can happen more often than unix
-        self._iface_pid = None
-        self._iface_port = None
         self._attach_id = None
         self._is_attached = False
         self._is_finished = False
@@ -721,12 +711,6 @@ class Run:
         # for now, use runid as attach id, this could/should be versioned in the future
         if not self._settings.x_disable_service:
             self._attach_id = self._settings.run_id
-
-    def _set_iface_pid(self, iface_pid: int) -> None:
-        self._iface_pid = iface_pid
-
-    def _set_iface_port(self, iface_port: int) -> None:
-        self._iface_port = iface_port
 
     def _handle_launch_artifact_overrides(self) -> None:
         if self._settings.launch and (os.environ.get("WANDB_ARTIFACTS") is not None):
@@ -1328,7 +1312,7 @@ class Run:
         with telemetry.context(run=self) as tel:
             tel.feature.set_summary = True
         if self._backend and self._backend.interface:
-            self._backend.interface.publish_summary(summary_record)
+            self._backend.interface.publish_summary(self, summary_record)
 
     def _on_progress_get_summary(self, handle: MailboxProgress) -> None:
         pass
@@ -1443,6 +1427,7 @@ class Run:
 
         not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
         self._backend.interface.publish_partial_history(
+            self,
             data,
             user_step=self._step,
             step=step,
@@ -1757,7 +1742,6 @@ class Run:
             [our guides to logging](https://docs.wandb.com/guides/track/log).
 
             ### Basic usage
-            <!--yeadoc-test:init-and-log-basic-->
             ```python
             import wandb
 
@@ -1766,7 +1750,6 @@ class Run:
             ```
 
             ### Incremental logging
-            <!--yeadoc-test:init-and-log-incremental-->
             ```python
             import wandb
 
@@ -1777,7 +1760,6 @@ class Run:
             ```
 
             ### Histogram
-            <!--yeadoc-test:init-and-log-histogram-->
             ```python
             import numpy as np
             import wandb
@@ -1789,7 +1771,6 @@ class Run:
             ```
 
             ### Image from numpy
-            <!--yeadoc-test:init-and-log-image-numpy-->
             ```python
             import numpy as np
             import wandb
@@ -1804,7 +1785,6 @@ class Run:
             ```
 
             ### Image from PIL
-            <!--yeadoc-test:init-and-log-image-pillow-->
             ```python
             import numpy as np
             from PIL import Image as PILImage
@@ -1814,7 +1794,10 @@ class Run:
             examples = []
             for i in range(3):
                 pixels = np.random.randint(
-                    low=0, high=256, size=(100, 100, 3), dtype=np.uint8
+                    low=0,
+                    high=256,
+                    size=(100, 100, 3),
+                    dtype=np.uint8,
                 )
                 pil_image = PILImage.fromarray(pixels, mode="RGB")
                 image = wandb.Image(pil_image, caption=f"random field {i}")
@@ -1823,7 +1806,6 @@ class Run:
             ```
 
             ### Video from numpy
-            <!--yeadoc-test:init-and-log-video-numpy-->
             ```python
             import numpy as np
             import wandb
@@ -1831,13 +1813,15 @@ class Run:
             run = wandb.init()
             # axes are (time, channel, height, width)
             frames = np.random.randint(
-                low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8
+                low=0,
+                high=256,
+                size=(10, 3, 100, 100),
+                dtype=np.uint8,
             )
             run.log({"video": wandb.Video(frames, fps=4)})
             ```
 
             ### Matplotlib Plot
-            <!--yeadoc-test:init-and-log-matplotlib-->
             ```python
             from matplotlib import pyplot as plt
             import numpy as np
@@ -3266,8 +3250,7 @@ class Run:
         is_user_created: bool = False,
         use_after_commit: bool = False,
     ) -> Artifact:
-        api = internal.Api()
-        if api.settings().get("anonymous") in ["allow", "must"]:
+        if self._settings.anonymous in ["allow", "must"]:
             wandb.termwarn(
                 "Artifacts logged anonymously cannot be claimed and expire after 7 days."
             )
@@ -3489,9 +3472,13 @@ class Run:
             path: (str) path to downloaded model artifact file(s).
         """
         artifact = self.use_artifact(artifact_or_name=name)
-        assert (
-            "model" in str(artifact.type.lower())
-        ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
+        if "model" not in str(artifact.type.lower()):
+            raise AssertionError(
+                "You can only use this method for 'model' artifacts."
+                " For an artifact to be a 'model' artifact, its type property"
+                " must contain the substring 'model'."
+            )
+
         path = artifact.download()
 
         # If returned directory contains only one file, return path to that file
@@ -3573,18 +3560,25 @@ class Run:
             None
         """
         name_parts = registered_model_name.split("/")
-        assert (
-            len(name_parts) == 1
-        ), "Please provide only the name of the registered model. Do not append the entity or project name."
+        if len(name_parts) != 1:
+            raise AssertionError(
+                "Please provide only the name of the registered model."
+                " Do not append the entity or project name."
+            )
+
         project = "model-registry"
         target_path = self.entity + "/" + project + "/" + registered_model_name
 
         public_api = self._public_api()
         try:
             artifact = public_api._artifact(name=f"{name}:latest")
-            assert (
-                "model" in str(artifact.type.lower())
-            ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
+            if "model" not in str(artifact.type.lower()):
+                raise AssertionError(
+                    "You can only use this method for 'model' artifacts."
+                    " For an artifact to be a 'model' artifact, its type"
+                    " property must contain the substring 'model'."
+                )
+
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type=artifact.type
             )
@@ -3854,18 +3848,17 @@ class Run:
         if not settings.quiet:
             # TODO: add verbosity levels and add this to higher levels
             printer.display(
-                f'{printer.emoji("star")} View project at {printer.link(project_url)}'
+                f"{printer.emoji('star')} View project at {printer.link(project_url)}"
             )
             if sweep_url:
                 printer.display(
-                    f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
+                    f"{printer.emoji('broom')} View sweep at {printer.link(sweep_url)}"
                 )
         printer.display(
-            f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
+            f"{printer.emoji('rocket')} View run at {printer.link(run_url)}",
         )
 
-        # TODO(settings) use `wandb_settings` (if self.settings.anonymous in ["allow", "must"]:)
-        if run_name and Api().api.settings().get("anonymous") in ["allow", "must"]:
+        if run_name and settings.anonymous in ["allow", "must"]:
             printer.display(
                 (
                     "Do NOT share these links with anyone."

@@ -217,12 +217,19 @@ def projects(entity, display=True):
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
 @click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
-@click.option("--host", default=None, help="Login to a specific instance of W&B")
+@click.option(
+    "--host", "--base-url", default=None, help="Login to a specific instance of W&B"
+)
 @click.option(
     "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
 )
 @click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
-@click.option("--verify", default=False, is_flag=True, help="Verify login credentials")
+@click.option(
+    "--verify/--no-verify",
+    default=False,
+    is_flag=True,
+    help="Verify login credentials",
+)
 @display_error
 def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     # TODO: move CLI to wandb-core backend

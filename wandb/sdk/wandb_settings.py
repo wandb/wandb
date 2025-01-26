@@ -34,14 +34,12 @@ from pydantic_core import SchemaValidator, core_schema
 
 import wandb
 from wandb import env, termwarn, util
-from wandb.apis.internal import Api
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 
-from .lib import apikey, credentials, filesystem, ipython
+from .lib import apikey, credentials, ipython
 from .lib.gitlib import GitRepo
 from .lib.run_moment import RunMoment
-from .lib.runid import generate_id
 
 
 def _path_convert(*args: str) -> str:
@@ -467,7 +465,11 @@ class Settings(BaseModel, validate_assignment=True):
     @classmethod
     def validate_fork_from(cls, value, info) -> RunMoment | None:
         run_moment = cls._runmoment_preprocessor(value)
-        if run_moment and info.data.get("run_id") == run_moment.run:
+        if (
+            run_moment
+            and info.data.get("run_id") is not None
+            and info.data.get("run_id") == run_moment.run
+        ):
             raise ValueError(
                 "Provided `run_id` is the same as the run to `fork_from`. "
                 "Please provide a different `run_id` or remove the `run_id` argument. "
@@ -550,7 +552,11 @@ class Settings(BaseModel, validate_assignment=True):
     @classmethod
     def validate_resume_from(cls, value, info) -> RunMoment | None:
         run_moment = cls._runmoment_preprocessor(value)
-        if run_moment and info.data.get("run_id") != run_moment.run:
+        if (
+            run_moment
+            and info.data.get("run_id") is not None
+            and info.data.get("run_id") != run_moment.run
+        ):
             raise ValueError(
                 "Both `run_id` and `resume_from` have been specified with different ids."
             )
@@ -1121,6 +1127,22 @@ class Settings(BaseModel, validate_assignment=True):
                     raise TypeError(f"Unsupported type {type(v)} for setting {k}")
                 continue
 
+            # special case for RunMoment fields
+            if k in ("fork_from", "resume_from"):
+                run_moment = RunMoment(
+                    run=v.get("run"),
+                    value=v.get("value"),
+                    metric=v.get("metric"),
+                )
+                getattr(settings_proto, k).CopyFrom(
+                    wandb_settings_pb2.RunMoment(
+                        run=run_moment.run,
+                        value=run_moment.value,
+                        metric=run_moment.metric,
+                    )
+                )
+                continue
+
             if isinstance(v, bool):
                 getattr(settings_proto, k).CopyFrom(BoolValue(value=v))
             elif isinstance(v, int):
@@ -1138,14 +1160,6 @@ class Settings(BaseModel, validate_assignment=True):
                 for key, value in v.items():
                     # we only support dicts with string values for now
                     mapping.value[key] = value
-            elif isinstance(v, RunMoment):
-                getattr(settings_proto, k).CopyFrom(
-                    wandb_settings_pb2.RunMoment(
-                        run=v.run,
-                        value=v.value,
-                        metric=v.metric,
-                    )
-                )
             elif v is None:
                 # None means that the setting value was not set.
                 pass
@@ -1153,29 +1167,6 @@ class Settings(BaseModel, validate_assignment=True):
                 raise TypeError(f"Unsupported type {type(v)} for setting {k}")
 
         return settings_proto
-
-    def handle_resume_logic(self):
-        """Handle logic for resuming runs."""
-        # handle auto resume logic
-        if self.resume == "auto":
-            if os.path.exists(self.resume_fname):
-                with open(self.resume_fname) as f:
-                    resume_run_id = json.load(f)["run_id"]
-                if self.run_id is None:
-                    self.run_id = resume_run_id
-                elif self.run_id != resume_run_id:
-                    wandb.termwarn(
-                        "Tried to auto resume run with "
-                        f"id {resume_run_id} but id {self.run_id} is set.",
-                    )
-        if self.run_id is None:
-            self.run_id = generate_id()
-
-        # persist run_id in case of failure
-        if self.resume == "auto" and self.resume_fname is not None:
-            filesystem.mkdir_exists_ok(self.wandb_dir)
-            with open(self.resume_fname, "w") as f:
-                f.write(json.dumps({"run_id": self.run_id}))
 
     @staticmethod
     def validate_url(url: str) -> None:
@@ -1262,7 +1253,7 @@ class Settings(BaseModel, validate_assignment=True):
     def _get_url_query_string(self) -> str:
         """Construct the query string for project, run, and sweep URLs."""
         # TODO: remove dependency on Api()
-        if Api().settings().get("anonymous") not in ["allow", "must"]:
+        if self.anonymous not in ["allow", "must"]:
             return ""
 
         api_key = apikey.api_key(settings=self)
