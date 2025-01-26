@@ -51,7 +51,7 @@ class PayloadGenerator:
 
     def __init__(
         self,
-        data_type: Literal["scalar", "audio", "video", "image", "table"],
+        data_type: Literal["scalar", "audio", "video", "image", "table", "prefixed_scalar"],
         sparse_metric_count: int,
         metric_key_size: int,
         num_steps: int,
@@ -100,7 +100,7 @@ class PayloadGenerator:
         return "".join(
             random.choices(string.ascii_letters + string.digits + "_", k=size)
         )
-
+    
     def generate(self) -> List[dict]:
         """Generates a list of payload for logging.
 
@@ -120,6 +120,8 @@ class PayloadGenerator:
             return self.generate_image()
         elif self.data_type == "video":
             return self.generate_video()
+        elif self.data_type == "prefixed_scalar":
+            return self.generate_prefixed_scalar()
 
         else:
             raise ValueError(f"Invalid data type: {self.data_type}")
@@ -182,6 +184,47 @@ class PayloadGenerator:
         ]
 
         return payloads
+    
+    def generate_prefixed_scalar(self) -> List[dict[str, int]]:
+        """Generates the payloads for logging scalar data with prefixes, meaning
+           all the runs in the same project will have repeating metric names.
+
+        Returns:
+            List: A list of dictionaries with the scalar data.
+        """
+        # Generate dense metrics if applicable
+        dense_metrics = (
+            {
+                f"dense/accuracy{i}": random.randint(1, 10**2)
+                for i in range(self.dense_metric_count)
+            }
+            if self.dense_metric_count > 0
+            else {}
+        )
+
+        # Log example dense metric if available
+        if dense_metrics:
+            example_key = next(iter(dense_metrics))
+            logger.info(f"Example dense metric: {example_key}")
+
+        # Generate base payloads with optional dense metrics prepended
+        payloads = [
+            {
+                **dense_metrics,
+                **{
+                    f"eval{x}/loss{i}": random.randint(1, 10**2)
+                    for i in range(self.metrics_count_per_step // 2)
+                },
+                **{
+                    f"rank{x}/accuracy{i}": random.randint(1, 10**2)
+                    for i in range(self.metrics_count_per_step // 2)
+                },
+            }
+            for x in range(self.num_of_unique_payload)
+        ]
+
+        return payloads
+
 
     def generate_table(self) -> List[dict[str, wandb.Table]]:
         """Generates a payload for logging 1 table.
@@ -272,6 +315,7 @@ class Experiment:
         dense_metric_count: Number of dense metrics to be logged every step.
                             The dense metrics is a separate set of metrics from the sparse metrics.
         fork_from: The fork from string (formatted) e.g. f"{original_run.id}?_step=200" 
+        project: The W&B project name to log to 
 
     When to set "is_unique_payload" to True?
 
@@ -289,7 +333,7 @@ class Experiment:
         num_metrics: int = 100,
         metric_key_size: int = 10,
         output_file: str = "results.json",
-        data_type: Literal["scalar", "audio", "video", "image", "table"] = "scalar",
+        data_type: Literal["scalar", "audio", "video", "image", "table", "prefixed_scalar"] = "scalar",
         is_unique_payload: bool = False,
         time_delay_second: float = 0.0,
         run_id: str = "",
@@ -297,6 +341,7 @@ class Experiment:
         fraction: float = 1.0,
         dense_metric_count: int = 0,
         fork_from: str = "",
+        project: str = "perf-test",
     ):
         self.num_steps = num_steps
         self.num_metrics = num_metrics
@@ -310,6 +355,7 @@ class Experiment:
         self.fraction = fraction
         self.dense_metric_count = dense_metric_count
         self.fork_from = fork_from
+        self.project = project
 
     def run(self, repeat: int = 1):
         for _ in range(repeat):
@@ -336,23 +382,24 @@ class Experiment:
             if self.run_id == "":
                 if self.fork_from == "":
                     run = wandb.init(
-                        project="perf-test",
+                        project=self.project,
                         name=f"perf_run={start_time_str}_steps={self.num_steps}_metrics={self.num_metrics}",
                         config=result_data,
                     )
                 else:
                     run = wandb.init(
-                        project="perf-test",
+                        project=self.project,
                         name=f"perf_run={start_time_str}_steps={self.num_steps}_metrics={self.num_metrics}",
                         config=result_data,
                         fork_from=self.fork_from,
+                        settings=wandb.Settings(init_timeout=600),
                     )
                 logger.info(f"New run {run.id} initialized")
 
             else:
                 logger.info(f"Resuming run {self.run_id} with {self.resume_mode}.")
                 run = wandb.init(
-                    project="perf-test",
+                    project=self.project,
                     id=self.run_id,
                     resume=self.resume_mode,
                 )
@@ -427,7 +474,7 @@ def run_parallel_experiment(
     num_processes: int,
     num_steps: int,
     num_metrics: int,
-    data_type: Literal["scalar", "audio", "video", "image", "table"],
+    data_type: Literal["scalar", "audio", "video", "image", "table", "prefixed_scalar"],
     metric_key_size: int,
     log_folder: Path,
 ):
@@ -507,7 +554,7 @@ if __name__ == "__main__":
         "-d",
         "--data-type",
         type=str,
-        choices=["scalar", "audio", "video", "image", "table"],
+        choices=["scalar", "audio", "video", "image", "table", "prefixed_scalar"],
         default="scalar",
         help="The wandb data type to log. Defaults to scalar.",
     )
@@ -576,6 +623,15 @@ if __name__ == "__main__":
         help="The step to fork from.",
     )
 
+    parser.add_argument(
+        "-p",
+        "--project",
+        type=str,
+        default="perf-test",
+        help="The W&B project to log to.",
+    )
+
+
     args = parser.parse_args()
 
     fork_from_str = ""
@@ -597,4 +653,5 @@ if __name__ == "__main__":
         fraction=args.fraction,
         dense_metric_count=args.dense_metric_count,
         fork_from=fork_from_str,
+        project=args.project,
     ).run(args.repeat)
