@@ -54,6 +54,8 @@ class Settings(BaseModel, validate_assignment=True):
     model_config = ConfigDict(
         extra="forbid",  # throw an error if extra fields are provided
         # validate_default=True,  # validate default values
+        # use_attribute_docstrings=True,
+        # revalidate_instances="always",
     )
 
     # Public settings.

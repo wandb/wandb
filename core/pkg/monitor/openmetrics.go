@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
 	"regexp"
 	"strings"
 	"time"
@@ -220,10 +221,18 @@ func (o *OpenMetrics) Sample() (*spb.StatsRecord, error) {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
+	// Sometimes required.
+	req.Header.Set("Accept", "application/openmetrics-text")
+
 	// Add custom headers if provided
 	for key, value := range o.headers {
 		req.Header.Set(key, value)
 	}
+
+	o.logger.Debug("monitor: openmetrics: request headers", "headers", req.Header)
+
+	reqDump, _ := httputil.DumpRequestOut(req.Request, true)
+	o.logger.Debug("monitor: openmetrics: full request", "dump", string(reqDump))
 
 	resp, err := o.client.Do(req)
 	if err != nil {
