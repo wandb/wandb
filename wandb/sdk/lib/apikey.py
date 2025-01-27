@@ -211,7 +211,7 @@ def write_netrc(host: str, entity: str, key: str) -> Optional[bool]:
         )
         return False
 
-    normalized_host = urlparse(host).netloc.split(":")[0]
+    normalized_host = urlparse(host).netloc
     netrc_path = get_netrc_file_path()
     netrc_access = check_netrc_access(netrc_path)
 
