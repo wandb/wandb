@@ -14,7 +14,7 @@ __all__ = [
 ]
 
 GET_TRIGGERS_GQL = """
-query GetTriggers($cursor: String, $perPage: Int) {
+query GetTriggers($cursor: String, $perPage: Int, $supportsNoOp: Boolean = true) {
   searchScope: viewer {
     projects(after: $cursor, first: $perPage) {
       ...ProjectConnectionFields
@@ -145,7 +145,7 @@ fragment TriggerFields on Trigger {
     ...QueueJobActionFields
     ...NotificationActionFields
     ...GenericWebhookActionFields
-    ...NoOpActionFields
+    ...NoOpActionFields @include(if: $supportsNoOp)
   }
 }
 
@@ -157,7 +157,7 @@ fragment UserFields on User {
 """
 
 GET_TRIGGERS_BY_ENTITY_GQL = """
-query GetTriggersByEntity($entityName: String!, $cursor: String, $perPage: Int) {
+query GetTriggersByEntity($entityName: String!, $cursor: String, $perPage: Int, $supportsNoOp: Boolean = true) {
   searchScope: entity(name: $entityName) {
     projects(after: $cursor, first: $perPage) {
       ...ProjectConnectionFields
@@ -288,7 +288,7 @@ fragment TriggerFields on Trigger {
     ...QueueJobActionFields
     ...NotificationActionFields
     ...GenericWebhookActionFields
-    ...NoOpActionFields
+    ...NoOpActionFields @include(if: $supportsNoOp)
   }
 }
 
@@ -300,7 +300,7 @@ fragment UserFields on User {
 """
 
 CREATE_FILTER_TRIGGER_GQL = """
-mutation CreateFilterTrigger($params: CreateFilterTriggerInput!) {
+mutation CreateFilterTrigger($params: CreateFilterTriggerInput!, $supportsNoOp: Boolean = true) {
   createFilterTrigger(input: $params) {
     ...CreateFilterTriggerResult
   }
@@ -417,7 +417,7 @@ fragment TriggerFields on Trigger {
     ...QueueJobActionFields
     ...NotificationActionFields
     ...GenericWebhookActionFields
-    ...NoOpActionFields
+    ...NoOpActionFields @include(if: $supportsNoOp)
   }
 }
 
@@ -429,7 +429,7 @@ fragment UserFields on User {
 """
 
 UPDATE_FILTER_TRIGGER_GQL = """
-mutation UpdateFilterTrigger($params: UpdateFilterTriggerInput!) {
+mutation UpdateFilterTrigger($params: UpdateFilterTriggerInput!, $supportsNoOp: Boolean = true) {
   updateFilterTrigger(input: $params) {
     ...UpdateFilterTriggerResult
   }
@@ -538,7 +538,7 @@ fragment TriggerFields on Trigger {
     ...QueueJobActionFields
     ...NotificationActionFields
     ...GenericWebhookActionFields
-    ...NoOpActionFields
+    ...NoOpActionFields @include(if: $supportsNoOp)
   }
 }
 

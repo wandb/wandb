@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 from datetime import datetime
-from typing import Literal, Union
+from typing import TYPE_CHECKING, Literal, Union
 
 from pydantic import Discriminator, Field, Tag
 
@@ -10,6 +10,7 @@ from wandb.sdk.automations._utils import get_scope_type
 
 from ._generated import (
     Base,
+    DeleteTriggerResult,
     FilterEventFields,
     GQLId,
     SerializedToJson,
@@ -37,9 +38,14 @@ from .events import (
 from .scopes import ArtifactCollectionScope, ProjectScope, ScopeType
 
 if sys.version_info >= (3, 12):
-    from typing import Annotated
+    from typing import Annotated, Unpack
 else:
-    from typing_extensions import Annotated
+    from typing_extensions import Annotated, Unpack
+
+if TYPE_CHECKING:
+    from wandb import Api
+
+    from ._utils import AutomationParams
 
 
 class FilterEvent(FilterEventFields):
@@ -101,6 +107,16 @@ class Automation(TriggerFields):
 
     enabled: bool
 
+    def delete(self, api: Api | None = None) -> DeleteTriggerResult:
+        """Delete this automation from the server.
+
+        Args:
+            api: The API instance to use.  If not provided, the default API instance is used.
+        """
+        from wandb import Api
+
+        return (api or Api()).delete_automation(self)
+
 
 # Similar type aliases as above, but for input types (for defining new automations)
 _ScopeInputT = _ScopeT
@@ -135,6 +151,24 @@ class NewAutomation(Base):
     action: _ActionInputT | None = None
 
     client_mutation_id: str | None = None
+
+    def save(
+        self, api: Api | None = None, **updates: Unpack[AutomationParams]
+    ) -> Automation:
+        """Create this automation by saving it to the server.
+
+        Args:
+            api: The API instance to use.  If not provided, the default API instance is used.
+            updates:
+                Any final updates to apply to the automation before
+                saving it.  These override previously-set values, if any.
+
+        Returns:
+            The created automation.
+        """
+        from wandb import Api
+
+        return (api or Api()).create_automation(self, **updates)
 
 
 class PreparedAutomation(NewAutomation):

@@ -19,7 +19,9 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Added `wandb.public.Project.id` property to support fetching the project ID on a `wandb.public.Project` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9194).
 - Added new `wandb.sdk.automations` subpackage to support programmatic management of W&B Automations (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8935).
 - Added `Api.integrations()` to fetch existing integrations for an entity, as well as `Api.slack_integration()`, `Api.webhook_integration()` for convenience (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9197).
-
+- Added `Api.automation()`, `Api.automations()` methods to fetch existing W&B automations (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8896).
+- Added `Api.delete_automation()` method to delete an existing W&B automation (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8896).
+- Added `Api.create_automation()` method to create a new W&B automation (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8896).
 ### Changed
 
 - Paginated methods (and underlying paginators) that accept a `per_page` argument now only accept `int` values.  Default `per_page` values are set directly in method signatures, and explicitly passing `None` is no longer supported (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9201)

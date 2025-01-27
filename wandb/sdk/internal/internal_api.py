@@ -168,6 +168,13 @@ class _OrgNames(NamedTuple):
     display_name: str
 
 
+class _AutomationEventAndActionTypes(NamedTuple):
+    """Server-supported Automation event and action types."""
+
+    event_types: List[str]
+    action_types: List[str]
+
+
 def _match_org_with_fetched_org_entities(
     organization: str, orgs: Sequence[_OrgNames]
 ) -> str:
@@ -363,6 +370,10 @@ class Api:
         self.server_create_run_queue_supports_priority: Optional[bool] = None
         self.server_supports_template_variables: Optional[bool] = None
         self.server_push_to_run_queue_supports_priority: Optional[bool] = None
+
+        self.server_automation_event_and_action_types_info: Optional[
+            _AutomationEventAndActionTypes
+        ] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
@@ -4404,6 +4415,44 @@ class Api:
             node = edge["node"]
             result[node["displayName"]] = node
         return result
+
+    @normalize_exceptions
+    def automation_event_and_action_types_introspection(
+        self,
+    ) -> _AutomationEventAndActionTypes:
+        if self.server_automation_event_and_action_types_info is None:
+            query = gql(
+                """
+                query SupportedActionAndEventTypes {
+                    eventTypeInfo: __type(name: "EventTriggeringConditionType") {
+                        ...EnumInfoFields
+                    }
+                    actionTypeInfo: __type(name: "TriggeredActionType") {
+                        ...EnumInfoFields
+                    }
+                }
+                fragment EnumInfoFields on __Type {
+                    kind
+                    name
+                    enumValues {name}
+                }
+                """
+            )
+            res = self.gql(query)
+
+            event_types = [
+                v["name"] for v in res.get("eventTypeInfo", {}).get("enumValues", [])
+            ]
+            action_types = [
+                v["name"] for v in res.get("actionTypeInfo", {}).get("enumValues", [])
+            ]
+            self.server_automation_event_and_action_types_info = (
+                _AutomationEventAndActionTypes(
+                    event_types=event_types,
+                    action_types=action_types,
+                )
+            )
+        return self.server_automation_event_and_action_types_info
 
     @normalize_exceptions
     def notify_scriptable_run_alert(
