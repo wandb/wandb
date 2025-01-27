@@ -234,6 +234,20 @@ func (o *OpenMetrics) Sample() (*spb.StatsRecord, error) {
 	reqDump, _ := httputil.DumpRequestOut(req.Request, true)
 	o.logger.Debug("monitor: openmetrics: full request", "dump", string(reqDump))
 
+	// Debug log the request in curl format
+	var curlCmd strings.Builder
+	curlCmd.WriteString(fmt.Sprintf("curl -v '%s'", o.url))
+	for key, value := range o.headers {
+		curlCmd.WriteString(fmt.Sprintf(" -H '%s: %s'", key, value))
+	}
+	o.logger.Debug("monitor: openmetrics: curl equivalent", "curl_cmd", curlCmd.String())
+
+	// Log the actual request details
+	o.logger.Debug("monitor: openmetrics: request details",
+		"method", req.Method,
+		"url", req.URL.String(),
+		"headers", req.Header)
+
 	resp, err := o.client.Do(req)
 	if err != nil {
 		return nil, err
