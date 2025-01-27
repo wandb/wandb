@@ -18,6 +18,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Added `wandb login --base-url {host_url}` to login as an alias of `wandb login --host {host_url}`. (@jacobromero in https://github.com/wandb/wandb/pull/9323)
 - Added `wandb.public.Project.id` property to support fetching the project ID on a `wandb.public.Project` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9194).
 - Added new `wandb.sdk.automations` subpackage to support programmatic management of W&B Automations (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8935).
+- Added `Api.integrations()` to fetch existing integrations for an entity, as well as `Api.slack_integration()`, `Api.webhook_integration()` for convenience (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9197).
 
 ### Changed
 

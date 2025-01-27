@@ -14,8 +14,8 @@ For more on using the Public API, check out [our guide](https://docs.wandb.com/g
 import json
 import logging
 import os
-import urllib
-from typing import Any, Dict, List, Optional
+import urllib.parse
+from typing import Any, Dict, Iterator, List, Literal, Optional, Union
 
 import requests
 from wandb_gql import Client, gql
@@ -23,9 +23,17 @@ from wandb_gql.client import RetryError
 
 import wandb
 from wandb import env, util
+from wandb._iterutils import one
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
+from wandb.apis.public.integrations import (
+    Integrations,
+    SlackIntegration,
+    SlackIntegrations,
+    WebhookIntegration,
+    WebhookIntegrations,
+)
 from wandb.apis.public.utils import PathType, parse_org_from_registry_path
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -1381,3 +1389,82 @@ class Api:
             return True
         except wandb.errors.CommError:
             return False
+
+    def integrations(
+        self,
+        kind: Literal["webhook", "slack", None] = None,
+        entity: Optional[str] = None,
+        *,
+        per_page: int = 50,
+    ) -> Union[Iterator[WebhookIntegration], Iterator[SlackIntegration]]:
+        """Return an iterator of integrations for an entity, if given, or the user's default entity otherwise.
+
+        Args:
+            kind (Literal["webhook", "slack", None]): If given, return only integrations of this kind.
+                Otherwise, return all integrations in the order in which they were fetched.
+            entity (str, optional): The entity to fetch integrations for.
+            per_page (int, optional): The number of integrations to fetch per page. Defaults to 50.
+
+        Raises:
+            ValueError: If any responses cannot be parsed.
+
+        Yields:
+            Iterator[WebhookIntegration | SlackIntegration]: An iterator of integrations.
+        """
+        entity = entity or self.default_entity
+
+        if kind is None:
+            return Integrations(
+                client=self.client,
+                variables={
+                    "entityName": entity,
+                    "includeWebhook": True,
+                    "includeSlack": True,
+                },
+                per_page=per_page,
+            )
+        if kind.casefold() == "webhook":
+            return WebhookIntegrations(
+                client=self.client,
+                variables={"entityName": entity, "includeWebhook": True},
+                per_page=per_page,
+            )
+        if kind.casefold() == "slack":
+            return SlackIntegrations(
+                client=self.client,
+                variables={"entityName": entity, "includeSlack": True},
+                per_page=per_page,
+            )
+        raise ValueError(f"Invalid integration kind: {kind!r}")
+
+    def webhook_integration(self, entity: Optional[str] = None) -> WebhookIntegration:
+        """Get the webhook integration for an entity, if given, or the user's default entity otherwise.
+
+        Args:
+            entity (str, optional): The entity to fetch the webhook integration for.
+
+        Raises:
+            ValueError: If zero or multiple webhook integrations are found, or if any responses cannot be parsed.
+        """
+        results = self.integrations(kind="webhook", entity=entity)
+        return one(
+            results,
+            too_short=ValueError("No webhook integrations found"),
+            too_long=ValueError("Multiple webhook integrations found"),
+        )
+
+    def slack_integration(self, entity: Optional[str] = None) -> SlackIntegration:
+        """Get the Slack integration for an entity, if given, or the user's default entity otherwise.
+
+        Args:
+            entity (str, optional): The entity to fetch the Slack integration for.
+
+        Raises:
+            ValueError: If zero or multiple Slack integrations are found, or if any responses cannot be parsed.
+        """
+        results = self.integrations(kind="slack", entity=entity)
+        return one(
+            results,
+            too_short=ValueError("No Slack integrations found"),
+            too_long=ValueError("Multiple Slack integrations found"),
+        )
