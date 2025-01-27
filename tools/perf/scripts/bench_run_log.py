@@ -51,7 +51,9 @@ class PayloadGenerator:
 
     def __init__(
         self,
-        data_type: Literal["scalar", "audio", "video", "image", "table", "prefixed_scalar"],
+        data_type: Literal[
+            "scalar", "audio", "video", "image", "table", "prefixed_scalar"
+        ],
         sparse_metric_count: int,
         metric_key_size: int,
         num_steps: int,
@@ -100,7 +102,7 @@ class PayloadGenerator:
         return "".join(
             random.choices(string.ascii_letters + string.digits + "_", k=size)
         )
-    
+
     def generate(self) -> List[dict]:
         """Generates a list of payload for logging.
 
@@ -184,7 +186,7 @@ class PayloadGenerator:
         ]
 
         return payloads
-    
+
     def generate_prefixed_scalar(self) -> List[dict[str, int]]:
         """Generates the payloads for logging scalar data with prefixes, meaning
            all the runs in the same project will have repeating metric names.
@@ -224,7 +226,6 @@ class PayloadGenerator:
         ]
 
         return payloads
-
 
     def generate_table(self) -> List[dict[str, wandb.Table]]:
         """Generates a payload for logging 1 table.
@@ -314,8 +315,8 @@ class Experiment:
         fraction: The % (in fraction) of metrics to log in each step.
         dense_metric_count: Number of dense metrics to be logged every step.
                             The dense metrics is a separate set of metrics from the sparse metrics.
-        fork_from: The fork from string (formatted) e.g. f"{original_run.id}?_step=200" 
-        project: The W&B project name to log to 
+        fork_from: The fork from string (formatted) e.g. f"{original_run.id}?_step=200"
+        project: The W&B project name to log to
 
     When to set "is_unique_payload" to True?
 
@@ -333,7 +334,9 @@ class Experiment:
         num_metrics: int = 100,
         metric_key_size: int = 10,
         output_file: str = "results.json",
-        data_type: Literal["scalar", "audio", "video", "image", "table", "prefixed_scalar"] = "scalar",
+        data_type: Literal[
+            "scalar", "audio", "video", "image", "table", "prefixed_scalar"
+        ] = "scalar",
         is_unique_payload: bool = False,
         time_delay_second: float = 0.0,
         run_id: str = "",
@@ -631,14 +634,12 @@ if __name__ == "__main__":
         help="The W&B project to log to.",
     )
 
-
     args = parser.parse_args()
 
     fork_from_str = ""
     if args.fork_run_id:
         fork_from_str = f"{args.fork_run_id}?_step={args.fork_step}"
         logger.info(f"Setting fork_from = {fork_from_str}")
-
 
     Experiment(
         num_steps=args.steps,
