@@ -117,7 +117,7 @@ func NewSyncTailscaleCmd() *cobra.Command {
 					v := strings.TrimPrefix(tag, "tag:")
 					metadata[fmt.Sprintf("tailscale/tag/%s", v)] = "true"
 				}
-				
+
 				config := TailscaleConfig{
 					ID:            device.ID,
 					Name:          device.Name,

@@ -118,7 +118,7 @@ type Job struct {
 	UpdatedAt      time.Time              `json:"updatedAt"`
 }
 
-// JobStatus defines model for Job.Status.
+// JobStatus defines model for JobStatus.
 type JobStatus string
 
 // Policy defines model for Policy.
@@ -250,8 +250,8 @@ type CreateEnvironmentJSONBody struct {
 	SystemId        string                  `json:"systemId"`
 }
 
-// UpdateJobAgentJSONBody defines parameters for UpdateJobAgent.
-type UpdateJobAgentJSONBody struct {
+// UpsertJobAgentJSONBody defines parameters for UpsertJobAgent.
+type UpsertJobAgentJSONBody struct {
 	Name        string `json:"name"`
 	Type        string `json:"type"`
 	WorkspaceId string `json:"workspaceId"`
@@ -259,9 +259,9 @@ type UpdateJobAgentJSONBody struct {
 
 // UpdateJobJSONBody defines parameters for UpdateJob.
 type UpdateJobJSONBody struct {
-	ExternalId *string `json:"externalId"`
-	Message    *string `json:"message"`
-	Status     *string `json:"status,omitempty"`
+	ExternalId *string    `json:"externalId"`
+	Message    *string    `json:"message"`
+	Status     *JobStatus `json:"status,omitempty"`
 }
 
 // CreateJobToResourceRelationshipJSONBody defines parameters for CreateJobToResourceRelationship.
@@ -398,8 +398,8 @@ type UpdateSystemJSONBody struct {
 // CreateEnvironmentJSONRequestBody defines body for CreateEnvironment for application/json ContentType.
 type CreateEnvironmentJSONRequestBody CreateEnvironmentJSONBody
 
-// UpdateJobAgentJSONRequestBody defines body for UpdateJobAgent for application/json ContentType.
-type UpdateJobAgentJSONRequestBody UpdateJobAgentJSONBody
+// UpsertJobAgentJSONRequestBody defines body for UpsertJobAgent for application/json ContentType.
+type UpsertJobAgentJSONRequestBody UpsertJobAgentJSONBody
 
 // UpdateJobJSONRequestBody defines body for UpdateJob for application/json ContentType.
 type UpdateJobJSONRequestBody UpdateJobJSONBody
@@ -609,13 +609,13 @@ type ClientInterface interface {
 	// GetEnvironment request
 	GetEnvironment(ctx context.Context, environmentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UpdateJobAgentWithBody request with any body
-	UpdateJobAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// UpsertJobAgentWithBody request with any body
+	UpsertJobAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateJobAgent(ctx context.Context, body UpdateJobAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpsertJobAgent(ctx context.Context, body UpsertJobAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetAgentRunningJob request
-	GetAgentRunningJob(ctx context.Context, agentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetAgentRunningJobs request
+	GetAgentRunningJobs(ctx context.Context, agentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// AcknowledgeAgentJob request
 	AcknowledgeAgentJob(ctx context.Context, agentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -769,8 +769,8 @@ func (c *Client) GetEnvironment(ctx context.Context, environmentId string, reqEd
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateJobAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateJobAgentRequestWithBody(c.Server, contentType, body)
+func (c *Client) UpsertJobAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertJobAgentRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -781,8 +781,8 @@ func (c *Client) UpdateJobAgentWithBody(ctx context.Context, contentType string,
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateJobAgent(ctx context.Context, body UpdateJobAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateJobAgentRequest(c.Server, body)
+func (c *Client) UpsertJobAgent(ctx context.Context, body UpsertJobAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertJobAgentRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -793,8 +793,8 @@ func (c *Client) UpdateJobAgent(ctx context.Context, body UpdateJobAgentJSONRequ
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetAgentRunningJob(ctx context.Context, agentId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetAgentRunningJobRequest(c.Server, agentId)
+func (c *Client) GetAgentRunningJobs(ctx context.Context, agentId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAgentRunningJobsRequest(c.Server, agentId)
 	if err != nil {
 		return nil, err
 	}
@@ -1362,19 +1362,19 @@ func NewGetEnvironmentRequest(server string, environmentId string) (*http.Reques
 	return req, nil
 }
 
-// NewUpdateJobAgentRequest calls the generic UpdateJobAgent builder with application/json body
-func NewUpdateJobAgentRequest(server string, body UpdateJobAgentJSONRequestBody) (*http.Request, error) {
+// NewUpsertJobAgentRequest calls the generic UpsertJobAgent builder with application/json body
+func NewUpsertJobAgentRequest(server string, body UpsertJobAgentJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdateJobAgentRequestWithBody(server, "application/json", bodyReader)
+	return NewUpsertJobAgentRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewUpdateJobAgentRequestWithBody generates requests for UpdateJobAgent with any type of body
-func NewUpdateJobAgentRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewUpsertJobAgentRequestWithBody generates requests for UpsertJobAgent with any type of body
+func NewUpsertJobAgentRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -1402,8 +1402,8 @@ func NewUpdateJobAgentRequestWithBody(server string, contentType string, body io
 	return req, nil
 }
 
-// NewGetAgentRunningJobRequest generates requests for GetAgentRunningJob
-func NewGetAgentRunningJobRequest(server string, agentId string) (*http.Request, error) {
+// NewGetAgentRunningJobsRequest generates requests for GetAgentRunningJobs
+func NewGetAgentRunningJobsRequest(server string, agentId string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -2404,13 +2404,13 @@ type ClientWithResponsesInterface interface {
 	// GetEnvironmentWithResponse request
 	GetEnvironmentWithResponse(ctx context.Context, environmentId string, reqEditors ...RequestEditorFn) (*GetEnvironmentResponse, error)
 
-	// UpdateJobAgentWithBodyWithResponse request with any body
-	UpdateJobAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateJobAgentResponse, error)
+	// UpsertJobAgentWithBodyWithResponse request with any body
+	UpsertJobAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertJobAgentResponse, error)
 
-	UpdateJobAgentWithResponse(ctx context.Context, body UpdateJobAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateJobAgentResponse, error)
+	UpsertJobAgentWithResponse(ctx context.Context, body UpsertJobAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertJobAgentResponse, error)
 
-	// GetAgentRunningJobWithResponse request
-	GetAgentRunningJobWithResponse(ctx context.Context, agentId string, reqEditors ...RequestEditorFn) (*GetAgentRunningJobResponse, error)
+	// GetAgentRunningJobsWithResponse request
+	GetAgentRunningJobsWithResponse(ctx context.Context, agentId string, reqEditors ...RequestEditorFn) (*GetAgentRunningJobsResponse, error)
 
 	// AcknowledgeAgentJobWithResponse request
 	AcknowledgeAgentJobWithResponse(ctx context.Context, agentId string, reqEditors ...RequestEditorFn) (*AcknowledgeAgentJobResponse, error)
@@ -2612,7 +2612,7 @@ func (r GetEnvironmentResponse) StatusCode() int {
 	return 0
 }
 
-type UpdateJobAgentResponse struct {
+type UpsertJobAgentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
@@ -2623,7 +2623,7 @@ type UpdateJobAgentResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r UpdateJobAgentResponse) Status() string {
+func (r UpsertJobAgentResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2631,34 +2631,21 @@ func (r UpdateJobAgentResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r UpdateJobAgentResponse) StatusCode() int {
+func (r UpsertJobAgentResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetAgentRunningJobResponse struct {
+type GetAgentRunningJobsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *[]struct {
-		Config         map[string]interface{} `json:"config"`
-		Deployment     *Deployment            `json:"deployment,omitempty"`
-		Environment    *Environment           `json:"environment,omitempty"`
-		ExternalId     *string                `json:"externalId"`
-		Id             string                 `json:"id"`
-		JobAgentConfig map[string]interface{} `json:"jobAgentConfig"`
-		JobAgentId     string                 `json:"jobAgentId"`
-		Message        string                 `json:"message"`
-		Release        *Release               `json:"release,omitempty"`
-		Resource       *Resource              `json:"resource,omitempty"`
-		Runbook        *Runbook               `json:"runbook,omitempty"`
-		Status         string                 `json:"status"`
-	}
+	JSON200      *[]Job
 }
 
 // Status returns HTTPResponse.Status
-func (r GetAgentRunningJobResponse) Status() string {
+func (r GetAgentRunningJobsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2666,7 +2653,7 @@ func (r GetAgentRunningJobResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetAgentRunningJobResponse) StatusCode() int {
+func (r GetAgentRunningJobsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2707,15 +2694,7 @@ type GetNextJobsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Jobs *[]struct {
-			// Id The job ID
-			Id                  string                 `json:"id"`
-			JobAgentConfig      map[string]interface{} `json:"jobAgentConfig"`
-			JobAgentId          string                 `json:"jobAgentId"`
-			Message             string                 `json:"message"`
-			ReleaseJobTriggerId string                 `json:"releaseJobTriggerId"`
-			Status              string                 `json:"status"`
-		} `json:"jobs,omitempty"`
+		Jobs *[]Job `json:"jobs,omitempty"`
 	}
 }
 
@@ -2766,7 +2745,7 @@ type GetJobResponse struct {
 		Resource       *Resource              `json:"resource,omitempty"`
 		Runbook        *Runbook               `json:"runbook,omitempty"`
 		StartedAt      *time.Time             `json:"startedAt"`
-		Status         GetJob200Status        `json:"status"`
+		Status         JobStatus              `json:"status"`
 		UpdatedAt      time.Time              `json:"updatedAt"`
 		Variables      map[string]interface{} `json:"variables"`
 	}
@@ -2775,7 +2754,6 @@ type GetJobResponse struct {
 	}
 }
 type GetJob200ApprovalStatus string
-type GetJob200Status string
 
 // Status returns HTTPResponse.Status
 func (r GetJobResponse) Status() string {
@@ -3446,30 +3424,30 @@ func (c *ClientWithResponses) GetEnvironmentWithResponse(ctx context.Context, en
 	return ParseGetEnvironmentResponse(rsp)
 }
 
-// UpdateJobAgentWithBodyWithResponse request with arbitrary body returning *UpdateJobAgentResponse
-func (c *ClientWithResponses) UpdateJobAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateJobAgentResponse, error) {
-	rsp, err := c.UpdateJobAgentWithBody(ctx, contentType, body, reqEditors...)
+// UpsertJobAgentWithBodyWithResponse request with arbitrary body returning *UpsertJobAgentResponse
+func (c *ClientWithResponses) UpsertJobAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertJobAgentResponse, error) {
+	rsp, err := c.UpsertJobAgentWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateJobAgentResponse(rsp)
+	return ParseUpsertJobAgentResponse(rsp)
 }
 
-func (c *ClientWithResponses) UpdateJobAgentWithResponse(ctx context.Context, body UpdateJobAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateJobAgentResponse, error) {
-	rsp, err := c.UpdateJobAgent(ctx, body, reqEditors...)
+func (c *ClientWithResponses) UpsertJobAgentWithResponse(ctx context.Context, body UpsertJobAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertJobAgentResponse, error) {
+	rsp, err := c.UpsertJobAgent(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateJobAgentResponse(rsp)
+	return ParseUpsertJobAgentResponse(rsp)
 }
 
-// GetAgentRunningJobWithResponse request returning *GetAgentRunningJobResponse
-func (c *ClientWithResponses) GetAgentRunningJobWithResponse(ctx context.Context, agentId string, reqEditors ...RequestEditorFn) (*GetAgentRunningJobResponse, error) {
-	rsp, err := c.GetAgentRunningJob(ctx, agentId, reqEditors...)
+// GetAgentRunningJobsWithResponse request returning *GetAgentRunningJobsResponse
+func (c *ClientWithResponses) GetAgentRunningJobsWithResponse(ctx context.Context, agentId string, reqEditors ...RequestEditorFn) (*GetAgentRunningJobsResponse, error) {
+	rsp, err := c.GetAgentRunningJobs(ctx, agentId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetAgentRunningJobResponse(rsp)
+	return ParseGetAgentRunningJobsResponse(rsp)
 }
 
 // AcknowledgeAgentJobWithResponse request returning *AcknowledgeAgentJobResponse
@@ -3918,15 +3896,15 @@ func ParseGetEnvironmentResponse(rsp *http.Response) (*GetEnvironmentResponse, e
 	return response, nil
 }
 
-// ParseUpdateJobAgentResponse parses an HTTP response from a UpdateJobAgentWithResponse call
-func ParseUpdateJobAgentResponse(rsp *http.Response) (*UpdateJobAgentResponse, error) {
+// ParseUpsertJobAgentResponse parses an HTTP response from a UpsertJobAgentWithResponse call
+func ParseUpsertJobAgentResponse(rsp *http.Response) (*UpsertJobAgentResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UpdateJobAgentResponse{
+	response := &UpsertJobAgentResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -3948,35 +3926,22 @@ func ParseUpdateJobAgentResponse(rsp *http.Response) (*UpdateJobAgentResponse, e
 	return response, nil
 }
 
-// ParseGetAgentRunningJobResponse parses an HTTP response from a GetAgentRunningJobWithResponse call
-func ParseGetAgentRunningJobResponse(rsp *http.Response) (*GetAgentRunningJobResponse, error) {
+// ParseGetAgentRunningJobsResponse parses an HTTP response from a GetAgentRunningJobsWithResponse call
+func ParseGetAgentRunningJobsResponse(rsp *http.Response) (*GetAgentRunningJobsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetAgentRunningJobResponse{
+	response := &GetAgentRunningJobsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []struct {
-			Config         map[string]interface{} `json:"config"`
-			Deployment     *Deployment            `json:"deployment,omitempty"`
-			Environment    *Environment           `json:"environment,omitempty"`
-			ExternalId     *string                `json:"externalId"`
-			Id             string                 `json:"id"`
-			JobAgentConfig map[string]interface{} `json:"jobAgentConfig"`
-			JobAgentId     string                 `json:"jobAgentId"`
-			Message        string                 `json:"message"`
-			Release        *Release               `json:"release,omitempty"`
-			Resource       *Resource              `json:"resource,omitempty"`
-			Runbook        *Runbook               `json:"runbook,omitempty"`
-			Status         string                 `json:"status"`
-		}
+		var dest []Job
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4049,15 +4014,7 @@ func ParseGetNextJobsResponse(rsp *http.Response) (*GetNextJobsResponse, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Jobs *[]struct {
-				// Id The job ID
-				Id                  string                 `json:"id"`
-				JobAgentConfig      map[string]interface{} `json:"jobAgentConfig"`
-				JobAgentId          string                 `json:"jobAgentId"`
-				Message             string                 `json:"message"`
-				ReleaseJobTriggerId string                 `json:"releaseJobTriggerId"`
-				Status              string                 `json:"status"`
-			} `json:"jobs,omitempty"`
+			Jobs *[]Job `json:"jobs,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -4112,7 +4069,7 @@ func ParseGetJobResponse(rsp *http.Response) (*GetJobResponse, error) {
 			Resource       *Resource              `json:"resource,omitempty"`
 			Runbook        *Runbook               `json:"runbook,omitempty"`
 			StartedAt      *time.Time             `json:"startedAt"`
-			Status         GetJob200Status        `json:"status"`
+			Status         JobStatus              `json:"status"`
 			UpdatedAt      time.Time              `json:"updatedAt"`
 			Variables      map[string]interface{} `json:"variables"`
 		}

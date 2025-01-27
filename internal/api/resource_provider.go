@@ -16,16 +16,16 @@ func NewResourceProvider(client *ClientWithResponses, workspaceId string, name s
 	resp, err := client.UpsertResourceProviderWithResponse(
 		ctx, workspaceId, name)
 	if err != nil {
-		log.Error("Failed to upsert resource provider", 
+		log.Error("Failed to upsert resource provider",
 			"error", err,
-			"workspaceId", workspaceId, 
+			"workspaceId", workspaceId,
 			"name", name,
-			"status", resp.StatusCode, 
+			"status", resp.StatusCode,
 			"body", string(resp.Body))
 		return nil, fmt.Errorf("failed to upsert resource provider: %w", err)
 	}
 
-	log.Debug("Got response from upserting resource provider", 
+	log.Debug("Got response from upserting resource provider",
 		"status", resp.StatusCode,
 		"body", string(resp.Body))
 
