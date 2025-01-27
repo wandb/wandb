@@ -40,6 +40,7 @@ Artifact = wandb_sdk.Artifact
 AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
 Config = wandb_sdk.Config
+automations = wandb_sdk.automations
 
 from wandb.apis import InternalApi, PublicApi
 from wandb.errors import CommError, UsageError
@@ -243,4 +244,5 @@ __all__ = (
     "watch",
     "unwatch",
     "plot_table",
+    "automations",
 )

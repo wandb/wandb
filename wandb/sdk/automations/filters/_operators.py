@@ -5,11 +5,14 @@ https://www.mongodb.com/docs/manual/reference/operator/query/
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Mapping, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Mapping, Union, overload
 
 from pydantic import BaseModel, ConfigDict, model_serializer, model_validator
 from pydantic._internal import _repr
 from pydantic_core import to_jsonable_python
+
+if TYPE_CHECKING:
+    from wandb.sdk.automations.events import MetricFilter, RunMetricFilter
 
 Scalar = Union[str, int, float, bool]
 
@@ -54,7 +57,17 @@ class OpDict(BaseModel):
     def __or__(self, other: Any) -> Or:
         return Or(inner=[self, other])
 
-    def __and__(self, other: Any) -> And:
+    @overload
+    def __and__(self, other: MetricFilter) -> RunMetricFilter: ...
+    @overload
+    def __and__(self, other: Any) -> And: ...
+
+    def __and__(self, other: Any) -> And | RunMetricFilter:
+        from wandb.sdk.automations.events import MetricFilter
+
+        # Special handling `run_filter & metric_filter`
+        if isinstance(other, MetricFilter):
+            return other.__and__(self)
         return And(inner=[self, other])
 
     def __invert__(self) -> Not:
