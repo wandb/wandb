@@ -20,7 +20,7 @@ import platform
 import sys
 import tempfile
 import time
-from typing import TYPE_CHECKING, Any, Literal, Sequence
+from typing import Any, Literal, Sequence
 
 if sys.version_info >= (3, 11):
     from typing import Self
@@ -46,9 +46,6 @@ from .lib.mailbox import Mailbox, MailboxProgress
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings
-
-if TYPE_CHECKING:
-    from wandb.proto import wandb_internal_pb2 as pb
 
 
 def _huggingface_version() -> str | None:
@@ -917,8 +914,6 @@ class _WandbInit:
         if not (settings.disable_git or settings.x_disable_machine_info):
             run._populate_git_info()
 
-        run_result: pb.RunUpdateResult | None = None
-
         if settings._offline and settings.resume:
             wandb.termwarn(
                 "`resume` will be ignored since W&B syncing is set to `offline`. "
@@ -938,47 +933,53 @@ class _WandbInit:
             on_progress=self._on_progress_init,
             cancel=True,
         )
-        if result:
-            run_result = result.run_result
 
-        if run_result is None:
-            error_message = (
-                f"Run initialization has timed out after {timeout} sec. "
-                "Please try increasing the timeout with the `init_timeout` setting: "
-                "`wandb.init(settings=wandb.Settings(init_timeout=120))`."
-            )
-            # We're not certain whether the error we encountered is due to an issue
-            # with the server (a "CommError") or if it's a problem within the SDK (an "Error").
-            # This means that the error could be a result of the server being unresponsive,
-            # or it could be because we were unable to communicate with the wandb service.
-            error = CommError(error_message)
-            run_init_handle._cancel()
-        elif run_result.HasField("error"):
-            error = ProtobufErrorHandler.to_exception(run_result.error)
+        # Raise an error if deliver_run failed.
+        #
+        # This is wrapped in a try-except to perform additional cleanup logic
+        # when x_disable_service is True.
+        #
+        # TODO: Remove try-except once x_disable_service is removed.
+        try:
+            if not result or not result.run_result:
+                run_init_handle._cancel()
 
-        if error is not None:
-            self._logger.error(f"encountered error: {error}")
+                # This may either be an issue with the W&B server (a CommError)
+                # or a bug in the SDK (an Error). We cannot distinguish between
+                # the two causes here.
+                raise CommError(
+                    f"Run initialization has timed out after {timeout} sec."
+                    " Please try increasing the timeout with the `init_timeout`"
+                    " setting: `wandb.init(settings=wandb.Settings(init_timeout=120))`."
+                )
+
+            if error := ProtobufErrorHandler.to_exception(result.run_result.error):
+                raise error
+
+            if not result.run_result.HasField("run"):
+                raise Error("Assertion failed: run_result is missing the run field")
+
+        except Exception:
             if not service:
-                # Shutdown the backend and get rid of the logger
-                # we don't need to do console cleanup at this point
+                # Kill the background thread or process.
                 backend.cleanup()
+
+                # Do some Jupyter and logger cleanup.
+                #
+                # NOTE: This shouldn't be necessary. The logger is global,
+                #   so on any error outside of this try-catch, we fail to
+                #   clean it up, causing the next run to write some of its
+                #   initial logs to this run's log file. The Jupyter
+                #   monkeypatching should probably happen at the library level
+                #   (in wandb.setup()) rather than per-run.
                 self.teardown()
-            raise error
+            raise
 
-        assert run_result is not None  # for mypy
-
-        if not run_result.HasField("run"):
-            raise Error(
-                "It appears that something have gone wrong during the program "
-                "execution as an unexpected missing field was encountered. "
-                "(run_result is missing the 'run' field)"
-            )
-
-        if run_result.run.resumed:
+        if result.run_result.run.resumed:
             self._logger.info("run resumed")
             with telemetry.context(run=run) as tel:
-                tel.feature.resumed = run_result.run.resumed
-        run._set_run_obj(run_result.run)
+                tel.feature.resumed = result.run_result.run.resumed
+        run._set_run_obj(result.run_result.run)
 
         self._logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
