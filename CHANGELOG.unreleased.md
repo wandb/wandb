@@ -18,6 +18,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Added `wandb login --base-url {host_url}` to login as an alias of `wandb login --host {host_url}`. (@jacobromero in https://github.com/wandb/wandb/pull/9323)
 - Added new `wandb.sdk.automations` subpackage to support programmatic management of W&B Automations (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8935).
 
+### Changed
+
+- Paginated methods (and underlying paginators) that accept a `per_page` argument now only accept `int` values.  Default `per_page` values are set directly in method signatures, and explicitly passing `None` is no longer supported (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9201)
+
 ### Fixed
 
 - Fixed a bug causing `offline` mode to make network requests when logging media artifacts. If you are using an older version of W&B Server that does not support offline artifact uploads, use the setting `allow_offline_artifacts=False` to revert to older compatible behavior. (@domphan-wandb in https://github.com/wandb/wandb/pull/9267)
