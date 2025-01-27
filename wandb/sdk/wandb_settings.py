@@ -465,7 +465,11 @@ class Settings(BaseModel, validate_assignment=True):
     @classmethod
     def validate_fork_from(cls, value, info) -> RunMoment | None:
         run_moment = cls._runmoment_preprocessor(value)
-        if run_moment and info.data.get("run_id") == run_moment.run:
+        if (
+            run_moment
+            and info.data.get("run_id") is not None
+            and info.data.get("run_id") == run_moment.run
+        ):
             raise ValueError(
                 "Provided `run_id` is the same as the run to `fork_from`. "
                 "Please provide a different `run_id` or remove the `run_id` argument. "
@@ -548,7 +552,11 @@ class Settings(BaseModel, validate_assignment=True):
     @classmethod
     def validate_resume_from(cls, value, info) -> RunMoment | None:
         run_moment = cls._runmoment_preprocessor(value)
-        if run_moment and info.data.get("run_id") != run_moment.run:
+        if (
+            run_moment
+            and info.data.get("run_id") is not None
+            and info.data.get("run_id") != run_moment.run
+        ):
             raise ValueError(
                 "Both `run_id` and `resume_from` have been specified with different ids."
             )
@@ -1119,6 +1127,22 @@ class Settings(BaseModel, validate_assignment=True):
                     raise TypeError(f"Unsupported type {type(v)} for setting {k}")
                 continue
 
+            # special case for RunMoment fields
+            if k in ("fork_from", "resume_from"):
+                run_moment = RunMoment(
+                    run=v.get("run"),
+                    value=v.get("value"),
+                    metric=v.get("metric"),
+                )
+                getattr(settings_proto, k).CopyFrom(
+                    wandb_settings_pb2.RunMoment(
+                        run=run_moment.run,
+                        value=run_moment.value,
+                        metric=run_moment.metric,
+                    )
+                )
+                continue
+
             if isinstance(v, bool):
                 getattr(settings_proto, k).CopyFrom(BoolValue(value=v))
             elif isinstance(v, int):
@@ -1136,14 +1160,6 @@ class Settings(BaseModel, validate_assignment=True):
                 for key, value in v.items():
                     # we only support dicts with string values for now
                     mapping.value[key] = value
-            elif isinstance(v, RunMoment):
-                getattr(settings_proto, k).CopyFrom(
-                    wandb_settings_pb2.RunMoment(
-                        run=v.run,
-                        value=v.value,
-                        metric=v.metric,
-                    )
-                )
             elif v is None:
                 # None means that the setting value was not set.
                 pass
