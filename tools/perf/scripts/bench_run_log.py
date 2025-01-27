@@ -188,8 +188,9 @@ class PayloadGenerator:
         return payloads
 
     def generate_prefixed_scalar(self) -> List[dict[str, int]]:
-        """Generates the payloads for logging scalar data with prefixes, meaning
-           all the runs in the same project will have repeating metric names.
+        """Generates the payloads for logging scalar data with prefixes.
+
+           This makes all the runs in the same project to have the repeating metric names.
 
         Returns:
             List: A list of dictionaries with the scalar data.
