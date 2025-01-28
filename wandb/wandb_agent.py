@@ -392,7 +392,7 @@ class Agent:
 
         if self._function:
             # make sure that each run regenerates setup singleton
-            wandb_sdk.wandb_setup._setup(_reset=True)
+            wandb.teardown()
             proc = AgentProcess(
                 function=self._function,
                 env=env,

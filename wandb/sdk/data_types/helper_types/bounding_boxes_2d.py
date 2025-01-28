@@ -48,7 +48,7 @@ class BoundingBoxes2D(JSONMetadata):
 
     Examples:
         ### Log bounding boxes for a single image
-        <!--yeadoc-test:boundingbox-2d-->
+
         ```python
         import numpy as np
         import wandb
@@ -94,7 +94,7 @@ class BoundingBoxes2D(JSONMetadata):
         ```
 
         ### Log a bounding box overlay to a Table
-        <!--yeadoc-test:bb2d-image-with-labels-->
+
         ```python
         import numpy as np
         import wandb

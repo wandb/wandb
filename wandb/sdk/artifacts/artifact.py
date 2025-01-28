@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
 from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Literal, Sequence, Type, cast
-from urllib.parse import urlparse
+from urllib.parse import quote, urljoin, urlparse
 
 import requests
 
@@ -32,6 +32,7 @@ from wandb.errors.term import termerror, termlog, termwarn
 from wandb.sdk.artifacts._validators import (
     ensure_logged,
     ensure_not_finalized,
+    is_artifact_registry_project,
     validate_aliases,
     validate_tags,
 )
@@ -532,6 +533,91 @@ class Artifact:
     def type(self) -> str:
         """The artifact's type. Common types include `dataset` or `model`."""
         return self._type
+
+    @property
+    @ensure_logged
+    def url(self) -> str:
+        """
+        Constructs the URL of the artifact.
+
+        Returns:
+            str: The URL of the artifact.
+        """
+        try:
+            base_url = self._client.app_url  # type: ignore[union-attr]
+        except AttributeError:
+            return ""
+
+        if self.collection.is_sequence():
+            return self._construct_standard_url(base_url)
+        if is_artifact_registry_project(self.project):
+            return self._construct_registry_url(base_url)
+        if self._type == "model" or self.project == "model-registry":
+            return self._construct_model_registry_url(base_url)
+        return self._construct_standard_url(base_url)
+
+    def _construct_standard_url(self, base_url: str) -> str:
+        if not all(
+            [
+                base_url,
+                self.entity,
+                self.project,
+                self._type,
+                self.collection.name,
+                self._version,
+            ]
+        ):
+            return ""
+        return urljoin(
+            base_url,
+            f"{self.entity}/{self.project}/artifacts/{quote(self._type)}/{quote(self.collection.name)}/{self._version}",
+        )
+
+    def _construct_registry_url(self, base_url: str) -> str:
+        if not all(
+            [
+                base_url,
+                self.entity,
+                self.project,
+                self.collection.name,
+                self._version,
+            ]
+        ):
+            return ""
+
+        try:
+            org, *_ = InternalApi()._fetch_orgs_and_org_entities_from_entity(
+                self.entity
+            )
+        except ValueError:
+            return ""
+
+        selection_path = quote(
+            f"{self.entity}/{self.project}/{self.collection.name}", safe=""
+        )
+        return urljoin(
+            base_url,
+            f"orgs/{org.display_name}/registry/{self._type}?selectionPath={selection_path}&view=membership&version={self._version}",
+        )
+
+    def _construct_model_registry_url(self, base_url: str) -> str:
+        if not all(
+            [
+                base_url,
+                self.entity,
+                self.project,
+                self.collection.name,
+                self._version,
+            ]
+        ):
+            return ""
+        selection_path = quote(
+            f"{self.entity}/{self.project}/{self.collection.name}", safe=""
+        )
+        return urljoin(
+            base_url,
+            f"{self.entity}/registry/model?selectionPath={selection_path}&view=membership&version={self._version}",
+        )
 
     @property
     def description(self) -> str | None:
@@ -1686,11 +1772,7 @@ class Artifact:
         from wandb.sdk.backend.backend import Backend
 
         if wandb.run is None:
-            # ensure wandb-core is up and running
-            from wandb.sdk import wandb_setup
-
-            wl = wandb_setup.setup()
-            assert wl is not None
+            wl = wandb.setup()
 
             stream_id = generate_id()
 
@@ -1703,9 +1785,7 @@ class Artifact:
             settings.files_dir.value = str(tmp_dir / "files")
             settings.run_id.value = stream_id
 
-            service = wl.service
-            assert service
-
+            service = wl.ensure_service()
             service.inform_init(settings=settings, run_id=stream_id)
 
             mailbox = Mailbox()

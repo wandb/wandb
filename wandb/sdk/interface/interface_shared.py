@@ -145,7 +145,7 @@ class InterfaceShared(InterfaceBase):
         run_status: Optional[pb.RunStatusRequest] = None,
         sender_mark: Optional[pb.SenderMarkRequest] = None,
         sender_read: Optional[pb.SenderReadRequest] = None,
-        sync: Optional[pb.SyncRequest] = None,
+        sync_finish: Optional[pb.SyncFinishRequest] = None,
         status_report: Optional[pb.StatusReportRequest] = None,
         cancel: Optional[pb.CancelRequest] = None,
         summary_record: Optional[pb.SummaryRecordRequest] = None,
@@ -216,8 +216,8 @@ class InterfaceShared(InterfaceBase):
             request.get_system_metrics.CopyFrom(get_system_metrics)
         elif get_system_metadata:
             request.get_system_metadata.CopyFrom(get_system_metadata)
-        elif sync:
-            request.sync.CopyFrom(sync)
+        elif sync_finish:
+            request.sync_finish.CopyFrom(sync_finish)
         elif python_packages:
             request.python_packages.CopyFrom(python_packages)
         elif job_input:
@@ -469,8 +469,8 @@ class InterfaceShared(InterfaceBase):
         record = self._make_record(run=run)
         return self._deliver_record(record)
 
-    def _deliver_sync(self, sync: pb.SyncRequest) -> MailboxHandle:
-        record = self._make_request(sync=sync)
+    def _deliver_finish_sync(self, sync_finish: pb.SyncFinishRequest) -> MailboxHandle:
+        record = self._make_request(sync_finish=sync_finish)
         return self._deliver_record(record)
 
     def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:

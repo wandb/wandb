@@ -86,7 +86,7 @@ jobs:
       ##################################################
       - name: Downgrade Go version
         run: |
-          sed -i '' 's/1.23.4/1.22.8/' core/go.mod
+          sed -i '' 's/1.23.4/1.22.10/' core/go.mod
 
       ##################################################
       # Non-Linux: install Go
@@ -97,6 +97,15 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: core/go.mod
+
+      ##################################################
+      # Vendor dependencies
+      ##################################################
+      - name: Vendor dependencies
+        run: |
+          cd core
+          go mod tidy
+          go mod vendor
 
       ##################################################
       # All platforms: create wheels
@@ -110,7 +119,9 @@ jobs:
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
           CIBW_BUILD: cp*-macosx* pp*-macosx*
           CIBW_SKIP: cp36-*
-          CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
+          # arm64 is skipped because it still produces 11.0 wheels due to
+          # restrictions in the cibuildwheel package.
+          CIBW_ARCHS_MACOS: x86_64
 
           # Work around https://github.com/matthew-brett/delocate/issues/204
           # by adding `--ignore-missing-dependencies` to cibuildwheel's default
@@ -125,9 +136,9 @@ jobs:
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=10.14
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: wandb-sdk-distributions
+          name: wandb-sdk-distribution-macos-10-x86_64
           path: ./dist
 
   build-linux-arm64-wheels:
@@ -166,9 +177,9 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           CIBW_ENVIRONMENT_LINUX: PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: wandb-sdk-distributions
+          name: wandb-sdk-distribution-linux-arm64
           path: ./dist
 
   build-platform-wheels:
@@ -238,9 +249,9 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           CIBW_ENVIRONMENT_LINUX: PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: wandb-sdk-distributions
+          name: wandb-sdk-distribution-${{ matrix.os }}
           path: ./dist
 
   build-universal-wheel:
@@ -267,9 +278,9 @@ jobs:
           mkdir dist/
           cp wheelhouse/wandb-*-py3-none-any.whl dist/
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: wandb-sdk-distributions
+          name: wandb-sdk-distribution-universal
           path: ./dist
 
   build-sdist:
@@ -292,9 +303,9 @@ jobs:
       - name: Create sdist
         run: hatch build -t sdist
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: wandb-sdk-distributions
+          name: wandb-sdk-distribution-sdist
           path: ./dist
 
   test-pypi-publish:
@@ -321,10 +332,16 @@ jobs:
           python-version: "3.10"
 
       - name: Download distribution
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: wandb-sdk-distributions
-          path: dist/
+          path: artifacts/
+          pattern: wandb-sdk-distribution-*
+
+      - name: Merge distributions
+        run: |
+          mkdir -p dist/
+          cp -r artifacts/*/* dist/
+          ls -la dist/
 
       - name: List distribution
         run: ls dist/
@@ -426,10 +443,17 @@ jobs:
       url: https://pypi.org/p/wandb
     steps:
       - name: Download distribution
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: wandb-sdk-distributions
-          path: dist/
+          path: artifacts/
+          pattern: wandb-sdk-distribution-*
+
+      - name: Merge distributions
+        run: |
+          mkdir -p dist/
+          cp -r artifacts/*/* dist/
+          ls -la dist/
+
       - name: List distribution
         run: ls dist/
       - name: Publish distribution to PyPI

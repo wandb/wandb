@@ -84,46 +84,60 @@ def test_metric_sum_none(wandb_backend_spy):
         assert summary["mystep"] == 1
 
 
-def test_metric_max(wandb_backend_spy):
-    with wandb.init() as run:
-        run.define_metric("val", summary="max")
-        run.log(dict(mystep=1, val=2))
-        run.log(dict(mystep=1, val=8))
-        run.log(dict(mystep=1, val=3))
-        assert run.summary.get("val") and run.summary["val"].get("max") == 8
+@pytest.mark.parametrize(
+    "summary,expected",
+    [
+        ("min", 1),
+        ("max", 8),
+        ("last", 3),
+        ("mean", 4),
+    ],
+)
+def test_metric_summary(summary, expected):
+    with wandb.init(mode="offline") as run:
+        run.define_metric("val", summary=summary)
+        run.log({"val": 1})
+        run.log({"val": 8})
+        run.log({"val": 3})
 
-    with wandb_backend_spy.freeze() as snapshot:
-        summary = snapshot.summary(run_id=run.id)
-        assert summary["val"] == {"max": 8}
-        assert summary["mystep"] == 1
-
-
-def test_metric_min(wandb_backend_spy):
-    with wandb.init() as run:
-        run.define_metric("val", summary="min")
-        run.log(dict(mystep=1, val=2))
-        run.log(dict(mystep=1, val=8))
-        run.log(dict(mystep=1, val=3))
-        assert run.summary.get("val") and run.summary["val"].get("min") == 2
-
-    with wandb_backend_spy.freeze() as snapshot:
-        summary = snapshot.summary(run_id=run.id)
-        assert summary["val"] == {"min": 2}
-        assert summary["mystep"] == 1
+        assert run.summary["val"][summary] == expected
 
 
-def test_metric_last(wandb_backend_spy):
-    with wandb.init() as run:
-        run.define_metric("val", summary="last")
-        run.log(dict(mystep=1, val=2))
-        run.log(dict(mystep=1, val=8))
-        run.log(dict(mystep=1, val=3))
-        assert run.summary.get("val") and run.summary["val"].get("last") == 3
+@pytest.mark.skip_wandb_core(reason="deprecated, not implemented in core")
+@pytest.mark.parametrize(
+    "goal,expected",
+    [
+        ("minimize", 1),
+        ("maximize", 4),
+    ],
+)
+def test_metric_best(goal, expected):
+    with wandb.init(mode="offline") as run:
+        run.define_metric("val", summary="best", goal=goal)
+        run.log({"val": 2})
+        run.log({"val": 1})
+        run.log({"val": 4})
+        run.log({"val": 3})
 
-    with wandb_backend_spy.freeze() as snapshot:
-        summary = snapshot.summary(run_id=run.id)
-        assert summary["val"] == {"last": 3}
-        assert summary["mystep"] == 1
+        assert run.summary["val"]["best"] == expected
+
+
+@pytest.mark.parametrize(
+    "summary,expected",
+    [
+        ("min", 1),
+        ("max", 3),
+        ("mean", 2),
+    ],
+)
+def test_metric_summary_string_type(summary, expected):
+    with wandb.init(mode="offline") as run:
+        run.define_metric("val", summary=summary)
+        run.log({"val": 1})
+        run.log({"val": "oops a string"})
+        run.log({"val": 3})
+
+        assert run.summary["val"][summary] == expected
 
 
 def _gen_metric_sync_step(run):
@@ -326,3 +340,31 @@ def test_metric_nested_glob(wandb_backend_spy):
     with wandb_backend_spy.freeze() as snapshot:
         summary = snapshot.summary(run_id=run.id)
         assert summary["this"] == {"that": {"min": 2, "max": 4}}
+
+
+@pytest.mark.parametrize("name", ["m", "*"])
+def test_metric_overwrite_false(wandb_backend_spy, name):
+    with wandb.init() as run:
+        run.define_metric(name, summary="min")
+        run.define_metric(name, summary="max", overwrite=False)
+        run.log({"m": 1})
+
+    with wandb_backend_spy.freeze() as snapshot:
+        metrics = snapshot.metrics(run_id=run.id)
+
+        assert metrics[0]["1"] == "m"  # name
+        assert metrics[0]["7"] == [1, 2]  # summary; 1=min, 2=max
+
+
+@pytest.mark.parametrize("name", ["m", "*"])
+def test_metric_overwrite_true(wandb_backend_spy, name):
+    with wandb.init() as run:
+        run.define_metric(name, summary="min")
+        run.define_metric(name, summary="max", overwrite=True)
+        run.log({"m": 1})
+
+    with wandb_backend_spy.freeze() as snapshot:
+        metrics = snapshot.metrics(run_id=run.id)
+
+        assert metrics[0]["1"] == "m"  # name
+        assert metrics[0]["7"] == [2]  # summary; 2=max

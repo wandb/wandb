@@ -13,9 +13,9 @@ import (
 	"unsafe"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/experimental/client-go/pkg/runconfig"
-	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
-	"github.com/wandb/wandb/experimental/client-go/pkg/wandb"
+	"github.com/wandb/wandb/experimental/go-sdk/pkg/runconfig"
+	"github.com/wandb/wandb/experimental/go-sdk/pkg/settings"
+	"github.com/wandb/wandb/experimental/go-sdk/pkg/wandb"
 )
 
 // globals to keep track of the wandb session and any runs

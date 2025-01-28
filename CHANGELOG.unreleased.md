@@ -15,13 +15,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
-- Support JWT authentication in wandb-core (@elainaRenee in https://github.com/wandb/wandb/pull/8431)
-- Add support for logging nested custom charts. (@jacobromero in https://github.com/wandb/wandb/pull/8789)
+- Added `wandb login --base-url {host_url}` to login as an alias of `wandb login --host {host_url}`. (@jacobromero in https://github.com/wandb/wandb/pull/9323)
 
 ### Fixed
 
-- The stop button correctly interrupts runs whose main Python thread is running C code, sleeping, etc. (@timoffex in https://github.com/wandb/wandb/pull/9094)
-- Remove unintentional print that occurs when inspecting `wandb.Api().runs()` (@tomtseng in https://github.com/wandb/wandb/pull/9101)
-- Fix uploading large artifacts when using Azure Blob Storage. (@amulya-musipatla in https://github.com/wandb/wandb/pull/8946)
-- Fix error when reinitializing a run, caused by accessing a removed attribute. (@MathisTLD in https://github.com/wandb/wandb/pull/8912)
-- Fixed occasional deadlock when using `multiprocessing` to update a single run from multiple processes (@timoffex in https://github.com/wandb/wandb/pull/9126)
+- Fixed a bug causing `offline` mode to make network requests when logging media artifacts. If you are using an older version of W&B Server that does not support offline artifact uploads, use the setting `allow_offline_artifacts=False` to revert to older compatible behavior. (@domphan-wandb in https://github.com/wandb/wandb/pull/9267)
+- Expand sanitization rules for logged table artifact name to allow for hyphens and dots. This update brings the rules up-to-date with the current rules for artifact names. (Allowing letters, numbers, underscores, hyphens, and dots) (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/9271)
+- Correctly handle run rewind settings `fork_from` and `resume_from`. (@dmitryduev in https://github.com/wandb/wandb/pull/9331)

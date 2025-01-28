@@ -188,8 +188,26 @@ def notebook(user, run_id, assets_path):
         kernel_name: str = "wandb_python",
         notebook_type: ipython.PythonType = "jupyter",
         save_code: bool = True,
+        skip_api_key_env: bool = False,
         **kwargs: Any,
     ):
+        """Sets up a copy of the provided notebook name in a temporary directory.
+
+        As part of the setup process all environment variables starting with 'WANDB',
+        are copied into the notebook as an initial setup cell.
+
+        Args:
+            nb_name: The name of the notebook to load from the assets directory.
+            kernel_name: The name given to the kernel used to run the notebook.
+            notebook_type: The type of notebook to use, from the ipython.PythonType list.
+            save_code: Whether to set the WANDB_SAVE_CODE environment variable in the setup cell.
+            skip_api_key_env: Whether to delete the WANDB_API_KEY environment variable in the setup cell.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            A context manager yielding a WandbNotebookClient object. Which can be used to execute
+            the notebook cells and retrieve the output.
+        """
         nb_path = assets_path(pathlib.Path("notebooks") / nb_name)
         shutil.copy(nb_path, os.path.join(os.getcwd(), os.path.basename(nb_path)))
         with open(nb_path) as f:
@@ -216,8 +234,11 @@ def notebook(user, run_id, assets_path):
             "import pytest\n"
             "mp = pytest.MonkeyPatch()\n"
             "import wandb\n"
-            f"mp.setattr(wandb.sdk.lib.ipython, '_get_python_type', lambda: '{notebook_type}')"
+            f"mp.setattr(wandb.sdk.lib.ipython, '_get_python_type', lambda: '{notebook_type}')\n"
         )
+
+        if skip_api_key_env:
+            setup_cell.write("mp.delenv('WANDB_API_KEY')\n")
 
         # inject:
         nb.cells.insert(0, nbformat.v4.new_code_cell(setup_cell.getvalue()))
