@@ -115,6 +115,7 @@ if TYPE_CHECKING:
         root_dir: Optional[str]
         api_key: Optional[str]
         entity: Optional[str]
+        organization: Optional[str]
         project: Optional[str]
         _extra_http_headers: Optional[Mapping[str, str]]
         _proxies: Optional[Mapping[str, str]]
@@ -256,6 +257,7 @@ class Api:
             "root_dir": None,
             "api_key": None,
             "entity": None,
+            "organization": None,
             "project": None,
             "_extra_http_headers": None,
             "_proxies": None,
