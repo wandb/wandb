@@ -2,8 +2,6 @@ package monitor
 
 import (
 	"errors"
-	"fmt"
-	"strings"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/process"
@@ -53,17 +51,18 @@ func (c *CPU) Sample() (*spb.StatsRecord, error) {
 	}
 
 	// total system CPU usage in percent
-	utilization, err := cpu.Percent(0, true)
-	if err != nil {
-		// do not log "not implemented yet" errors
-		if !strings.Contains(err.Error(), "not implemented yet") {
-			errs = append(errs, err)
-		}
-	} else {
-		for i, u := range utilization {
-			metrics[fmt.Sprintf("cpu.%d.cpu_percent", i)] = u
-		}
-	}
+	// TODO: make logging this configurable.
+	// utilization, err := cpu.Percent(0, true)
+	// if err != nil {
+	// 	// do not log "not implemented yet" errors
+	// 	if !strings.Contains(err.Error(), "not implemented yet") {
+	// 		errs = append(errs, err)
+	// 	}
+	// } else {
+	// 	for i, u := range utilization {
+	// 		metrics[fmt.Sprintf("cpu.%d.cpu_percent", i)] = u
+	// 	}
+	// }
 
 	if len(metrics) == 0 {
 		return nil, errors.Join(errs...)
