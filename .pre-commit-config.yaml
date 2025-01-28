@@ -55,9 +55,10 @@ repos:
       - id: generate-stubs
         name: "generate-stubs"
         entry: python3 tools/generate_stubs.py
-        language: "system"
+        language: "python"
         pass_filenames: false
         always_run: true
+        additional_dependencies: ["ruff"]
         description: "Generates stubs for wandb module"
       - id: go-generate-proto
         name: "go-generate-proto"
