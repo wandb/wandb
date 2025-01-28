@@ -26,25 +26,27 @@ class Registries(Paginator):
         self.organization = organization
         self.filter = filter or {}
         self.QUERY = gql("""
-            query Registries($organization: String!, $filters: JSONString) {
+            query Registries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
                 organization(name: $organization) {
                     orgEntity {
                         name
-                        projects(filters: $filters) {
+                        projects(filters: $filters, after: $cursor, first: $perPage) {
+                            pageInfo {
+                                endCursor
+                                hasNextPage
+                            }
                             edges {
                                 node {
-                                    entity {
-                                        name
-                                    }
-                                    name
-                                    description
-                                    artifactTypes {
+                                    allowAllArtifactTypesInRegistry
+                                    artifactTypes(includeAll: true) {
                                         edges {
                                             node {
                                                 name
                                             }
                                         }
                                     }
+                                    name
+                                    description
                                 }
                             }
                         }
@@ -73,39 +75,43 @@ class Registries(Paginator):
 
     @property
     def length(self):
-        # hacky
         if self.last_response:
-            return len(self.last_response["organization"]["projects"]["edges"])
+            return len(
+                self.last_response["organization"]["orgEntity"]["projects"]["edges"]
+            )
         else:
             return None
 
     @property
     def more(self):
-        # TODO: Implement this with pagination
         if self.last_response:
-            return False
+            return self.last_response["organization"]["orgEntity"]["projects"][
+                "pageInfo"
+            ]["hasNextPage"]
         else:
             return True
 
     @property
     def cursor(self):
-        # TODO: Implement this with pagination
-        return None
-
-    def update_variables(self):
-        self.variables.update({"cursor": self.cursor})
+        if self.last_response:
+            return self.last_response["organization"]["orgEntity"]["projects"][
+                "pageInfo"
+            ]["endCursor"]
+        else:
+            return None
 
     def convert_objects(self):
-        # TODO: Implement this for real
         return [
             Registry(
                 self.client,
                 self.organization,
-                r["node"]["entity"]["name"],
+                self.last_response["organization"]["orgEntity"]["name"],
                 r["node"]["name"],
                 r["node"],
             )
-            for r in self.last_response["organization"]["projects"]["edges"]
+            for r in self.last_response["organization"]["orgEntity"]["projects"][
+                "edges"
+            ]
         ]
 
 
@@ -113,13 +119,18 @@ class Registry(Attrs):
     """Registry in the Global registry."""
 
     def __init__(self, client, organization, entity, project, attrs):
-        # super().__init__(dict(attrs))
         self.client = client
         self.full_name = project
         self.name = self.full_name.replace("wandb-registry-", "")
         self.entity = entity
         self.organization = organization
         self.description = attrs.get("description", "")
+        self.allow_all_artifact_types = attrs.get(
+            "allowAllArtifactTypesInRegistry", False
+        )
+        self.artifact_types = [
+            t["node"]["name"] for t in attrs.get("artifactTypes", {}).get("edges", [])
+        ]
 
     @property
     def path(self):
@@ -136,15 +147,6 @@ class Registry(Attrs):
             "name": self.full_name,
         }
         return Versions(self.client, self.organization, registry_filter, None, filter)
-
-    # @property
-    # def url(self):
-    #     return self.client.app_url + "/".join(self.path + ["workspace"])
-
-    def artifacts_types(self, per_page=50):
-        # types that registry allows
-        # return public.ArtifactTypes(self.client, self.entity, self.name)
-        pass
 
 
 class Collections(Paginator):
@@ -171,6 +173,7 @@ class Collections(Paginator):
             if self.collection_filter
             else None,
             "organization": self.organization,
+            "collectionTypes": ["PORTFOLIO"],
             "perPage": per_page,
         }
 
@@ -179,6 +182,7 @@ class Collections(Paginator):
                 $organization: String!,
                 $registryFilter: JSONString,
                 $collectionFilter: JSONString,
+                $collectionTypes: [ArtifactCollectionType!],
                 $cursor: String,
                 $perPage: Int
             ) {
@@ -187,7 +191,13 @@ class Collections(Paginator):
                     name
                     orgEntity {
                         name
-                        artifactCollections(projectFilters: $registryFilter, filters: $collectionFilter, after: $cursor, first: $perPage) {
+                        artifactCollections(
+                            projectFilters: $registryFilter,
+                            filters: $collectionFilter,
+                            collectionTypes: $collectionTypes,
+                            after: $cursor,
+                            first: $perPage
+                        ) {
                             totalCount
                             pageInfo {
                                 endCursor
@@ -268,9 +278,6 @@ class Collections(Paginator):
             ]["pageInfo"]["endCursor"]
         else:
             return None
-
-    def update_variables(self):
-        self.variables.update({"cursor": self.cursor})
 
     def convert_objects(self):
         return [
