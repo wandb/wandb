@@ -119,13 +119,6 @@ run.finish()
 
 That's it! Navigate to the W&B App to view a dashboard of your first W&B Experiment. Use the W&B App to compare multiple experiments in a unified place, dive into the results of a single run, and much more!
 
-<p align='center'>
-<img src="./assets/wandb_demo_experiments.gif" width="100%">
-</p>
-<p align = "center">
-Example W&B Dashboard that shows Runs from an Experiment.
-</p>
-
 &nbsp;
 
 # Integrations
