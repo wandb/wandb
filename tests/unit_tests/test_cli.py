@@ -12,6 +12,7 @@ import wandb
 from wandb.apis.internal import InternalApi
 from wandb.cli import cli
 from wandb.sdk.lib.apikey import get_netrc_file_path
+from wandb.sdk.wandb_login import _WandbLogin
 
 DOCKER_SHA = (
     "wandb/deepo@sha256:"
@@ -113,6 +114,28 @@ def test_login_host_trailing_slash_fix_invalid(runner, dummy_api_key, local_sett
         assert generated_netrc == (
             f"machine google.com\n  login user\n  password {dummy_api_key}\n"
         )
+
+
+def test_check_login(runner, dummy_api_key):
+    with runner.isolated_filesystem(), mock.patch.object(
+        _WandbLogin,
+        "_verify_login",
+        return_value=None,
+    ):
+        result = runner.invoke(cli.login, [dummy_api_key])
+        assert result.exit_code == 0
+
+        result = runner.invoke(cli.check_login)
+        assert result.exit_code == 0
+
+
+def test_check_login_not_logged_in(runner, dummy_api_key):
+    with runner.isolated_filesystem(), mock.patch(
+        "wandb.sdk.lib.apikey.api_key",
+        return_value=None,
+    ):
+        result = runner.invoke(cli.check_login)
+        assert result.exit_code == 1
 
 
 @pytest.mark.parametrize(

@@ -31,6 +31,7 @@ from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
 from wandb.errors.links import url_registry
+from wandb.sdk import wandb_login
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.internal.internal_api import Api as SDKInternalApi
@@ -269,6 +270,19 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
         force=True,
         verify=verify,
     )
+
+
+@cli.command(
+    name="check-login",
+    context_settings=CONTEXT,
+    help="Check current login status",
+)
+def check_login():
+    is_logged_in = wandb_login.check_login()
+    if not is_logged_in:
+        wandb.termlog("Not logged in")
+        sys.exit(1)
+    sys.exit(0)
 
 
 @cli.command(

@@ -37,6 +37,22 @@ def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None
         _api.set_setting("base_url", host, globally=True, persist=True)
 
 
+def check_login() -> bool:
+    """Checks if login credentials have been configured."""
+    wlogin = _WandbLogin()
+
+    try:
+        key = apikey.api_key(settings=wlogin._settings)
+        if not key:
+            return False
+
+        wlogin._verify_login(key)
+        wlogin._print_logged_in_message()
+        return True
+    except AuthenticationError:
+        return False
+
+
 def login(
     anonymous: Optional[Literal["must", "allow", "never"]] = None,
     key: Optional[str] = None,
