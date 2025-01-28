@@ -528,7 +528,7 @@ impl NvidiaGpu {
             if availability.corrected_memory_errors {
                 match device.memory_error_counter(
                     nvml_wrapper::enum_wrappers::device::MemoryError::Corrected,
-                    nvml_wrapper::enum_wrappers::device::EccCounter::Aggregate,
+                    nvml_wrapper::enum_wrappers::device::EccCounter::Volatile,
                     nvml_wrapper::enum_wrappers::device::MemoryLocation::Device,
                 ) {
                     Ok(errors) => {
@@ -547,7 +547,7 @@ impl NvidiaGpu {
             if availability.uncorrected_memory_errors {
                 match device.memory_error_counter(
                     nvml_wrapper::enum_wrappers::device::MemoryError::Uncorrected,
-                    nvml_wrapper::enum_wrappers::device::EccCounter::Aggregate,
+                    nvml_wrapper::enum_wrappers::device::EccCounter::Volatile,
                     nvml_wrapper::enum_wrappers::device::MemoryLocation::Device,
                 ) {
                     Ok(errors) => {
