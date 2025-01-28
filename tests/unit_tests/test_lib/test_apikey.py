@@ -1,5 +1,6 @@
 import os
 import stat
+from unittest import mock
 
 import pytest
 from wandb import wandb_lib
@@ -37,3 +38,23 @@ def test_write_netrc_permission_errors(tmp_path, mock_wandb_log, permission, err
         f"You do not have {error_msg} permissions for {netrc_path}"
     )
     assert mock_wandb_log.warned("We will be unable to save/update your API key.")
+
+
+def test_write_netrc_permission_oserror(tmp_path, mock_wandb_log):
+    netrc_path = str(tmp_path / "netrc")
+    os.environ["NETRC"] = netrc_path
+    with open(netrc_path, "w") as f:
+        f.write("")
+    os.chmod(netrc_path, stat.S_IRUSR | stat.S_IWUSR)
+    api_key = "X" * 40
+
+    with mock.patch(
+        "os.stat",
+        side_effect=OSError,
+    ):
+        logged_in = wandb_lib.apikey.write_netrc(
+            "http://localhost", "jacob-romero", api_key
+        )
+        assert not logged_in
+        assert mock_wandb_log.errored(f"Unable to read permissions for {netrc_path}")
+        assert mock_wandb_log.warned("We will be unable to save/update your API key.")

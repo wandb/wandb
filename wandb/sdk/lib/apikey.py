@@ -184,23 +184,29 @@ def check_netrc_access(
     netrc_path: str,
 ) -> dict[_NetrcPermissions, bool]:
     """Check if we can read and write to the netrc file."""
+    file_exists = False
+    write_access = False
+    read_access = False
     try:
         st = os.stat(netrc_path)
-        return {
-            _NetrcPermissions.NETRC_EXISTS: True,
-            _NetrcPermissions.NETRC_WRITE_ACCESS: bool(st.st_mode & stat.S_IWUSR),
-            _NetrcPermissions.NETRC_READ_ACCESS: bool(st.st_mode & stat.S_IRUSR),
-        }
+        file_exists = True
+        write_access = bool(st.st_mode & stat.S_IWUSR)
+        read_access = bool(st.st_mode & stat.S_IRUSR)
     except FileNotFoundError:
         # If the netrc file doesn't exist, we will create it.
-        return {
-            _NetrcPermissions.NETRC_EXISTS: False,
-            _NetrcPermissions.NETRC_WRITE_ACCESS: True,
-            _NetrcPermissions.NETRC_READ_ACCESS: True,
-        }
+        write_access = True
+        read_access = True
+    except OSError as e:
+        wandb.termerror(f"Unable to read permissions for {netrc_path}, {e}")
+
+    return {
+        _NetrcPermissions.NETRC_EXISTS: file_exists,
+        _NetrcPermissions.NETRC_WRITE_ACCESS: write_access,
+        _NetrcPermissions.NETRC_READ_ACCESS: read_access,
+    }
 
 
-def write_netrc(host: str, entity: str, key: str) -> Optional[bool]:
+def write_netrc(host: str, entity: str, key: str) -> bool:
     """Add our host and key to .netrc."""
     _, key_suffix = key.split("-", 1) if "-" in key else ("", key)
     if len(key_suffix) != 40:
@@ -215,17 +221,11 @@ def write_netrc(host: str, entity: str, key: str) -> Optional[bool]:
     netrc_path = get_netrc_file_path()
     netrc_access = check_netrc_access(netrc_path)
 
-    if (
-        netrc_access[_NetrcPermissions.NETRC_EXISTS]
-        and not netrc_access[_NetrcPermissions.NETRC_WRITE_ACCESS]
-    ):
+    if not netrc_access[_NetrcPermissions.NETRC_WRITE_ACCESS]:
         wandb.termwarn(f"You do not have write permissions for {netrc_path}")
         wandb.termwarn("We will be unable to save/update your API key.")
         return False
-    if (
-        netrc_access[_NetrcPermissions.NETRC_EXISTS]
-        and not netrc_access[_NetrcPermissions.NETRC_READ_ACCESS]
-    ):
+    if not netrc_access[_NetrcPermissions.NETRC_READ_ACCESS]:
         wandb.termwarn(f"You do not have read permissions for {netrc_path}")
         wandb.termwarn("We will be unable to save/update your API key.")
         return False
