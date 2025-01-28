@@ -1,13 +1,23 @@
+from __future__ import annotations
+
 import json
 import os
 import re
 import warnings
-from typing import Any, Dict
+from typing import Any
 
 from . import files as sm_files
 
 
-def parse_sm_config() -> Dict[str, Any]:
+def is_using_sagemaker() -> bool:
+    """Returns whether we're in a SageMaker environment."""
+    return (
+        os.path.exists(sm_files.SM_PARAM_CONFIG)  #
+        or "SM_TRAINING_ENV" in os.environ
+    )
+
+
+def parse_sm_config() -> dict[str, Any]:
     """Parses SageMaker configuration.
 
     Returns:
@@ -23,9 +33,7 @@ def parse_sm_config() -> Dict[str, Any]:
     """
     conf = {}
 
-    if os.path.exists(sm_files.SM_PARAM_CONFIG) and os.path.exists(
-        sm_files.SM_RESOURCE_CONFIG
-    ):
+    if os.path.exists(sm_files.SM_PARAM_CONFIG):
         conf["sagemaker_training_job_name"] = os.getenv("TRAINING_JOB_NAME")
 
         # Hyperparameter searches quote configs...
@@ -38,12 +46,13 @@ def parse_sm_config() -> Dict[str, Any]:
                     cast = float(cast)
                 conf[key] = cast
 
-    if "SM_TRAINING_ENV" in os.environ:
+    if env := os.environ.get("SM_TRAINING_ENV"):
         try:
-            conf = {**conf, **json.loads(os.environ["SM_TRAINING_ENV"])}
+            conf.update(json.loads(env))
         except json.JSONDecodeError:
             warnings.warn(
-                "Failed to parse SM_TRAINING_ENV not valid JSON string", stacklevel=2
+                "Failed to parse SM_TRAINING_ENV not valid JSON string",
+                stacklevel=2,
             )
 
     return conf

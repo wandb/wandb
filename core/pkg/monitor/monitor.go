@@ -135,9 +135,6 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 	if gpu := NewGPU(pid, gpuDeviceIds); gpu != nil {
 		sm.assets = append(sm.assets, gpu)
 	}
-	if gpu := NewGPUAMD(sm.logger); gpu != nil {
-		sm.assets = append(sm.assets, gpu)
-	}
 	if tpu := NewTPU(); tpu != nil {
 		sm.assets = append(sm.assets, tpu)
 	}
@@ -309,11 +306,7 @@ func (sm *SystemMonitor) monitorAsset(asset Asset) {
 				sm.logger.CaptureError(
 					fmt.Errorf("monitor: %v: error sampling metrics: %v", asset.Name(), err),
 				)
-				// shutdown the asset to be on the safe side
-				if closer, ok := asset.(interface{ Close() }); ok {
-					closer.Close()
-				}
-				return
+				continue
 			}
 
 			if metrics == nil || len(metrics.Item) == 0 {

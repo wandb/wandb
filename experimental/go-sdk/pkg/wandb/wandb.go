@@ -2,9 +2,9 @@
 package wandb
 
 import (
-	"github.com/wandb/wandb/experimental/client-go/pkg/runconfig"
-	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
-	wbSettings "github.com/wandb/wandb/experimental/client-go/pkg/settings"
+	"github.com/wandb/wandb/experimental/go-sdk/pkg/runconfig"
+	"github.com/wandb/wandb/experimental/go-sdk/pkg/settings"
+	wbSettings "github.com/wandb/wandb/experimental/go-sdk/pkg/settings"
 )
 
 type RunParams struct {

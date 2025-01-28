@@ -71,7 +71,6 @@ func makeSender(client graphql.Client, resultChan chan *spb.Result) *stream.Send
 		client,
 	)
 	sender := stream.NewSender(
-		runWork,
 		stream.SenderParams{
 			Logger:              logger,
 			Settings:            settings,
@@ -82,6 +81,7 @@ func makeSender(client graphql.Client, resultChan chan *spb.Result) *stream.Send
 			OutChan:             resultChan,
 			Mailbox:             mailbox.New(),
 			GraphqlClient:       client,
+			RunWork:             runWork,
 		},
 	)
 	return sender

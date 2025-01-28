@@ -6,7 +6,6 @@ click~=8.1
 filelock~=3.13
 pydantic~=2.9
 # For Pydantic to work with modern type annotations in older Pythons:
-eval-type-backport~=0.1.3; python_version < '3.8'
 eval-type-backport~=0.2.0; python_version >= '3.8' and python_version < '3.10'
 
 hypothesis
@@ -30,10 +29,20 @@ ipython<8.13; python_version < '3.9'
 ipykernel
 nbclient
 
+
+tensorflow~=2.18.0; python_version >= '3.9'
+
+tensorflow==2.9.2; python_version < '3.9' and sys_platform != 'darwin'
+# tensorflow==2.9.2 does not provide arm64 wheels for macOS.
+# This was fixed in later versions of tensorflow.
+tensorflow-macos==2.9.2; python_version < '3.9' and sys_platform == 'darwin'
+
+# This is a transitive dependency of `tensorflow` via `tensorboard`
+# which fails to specify an upper bound causing import errors.
+protobuf==3.19.6; python_version < '3.9' and sys_platform == 'darwin'
+
+
 scikit-learn
-tensorflow; python_version > '3.11'
-tensorflow<2.14; sys_platform != 'darwin' and python_version < '3.12'
-tensorflow-macos; python_version < '3.11' and sys_platform == 'darwin' and platform.machine == 'arm64'
 torch
 torchvision
 jax[cpu]
@@ -58,7 +67,13 @@ responses
 prometheus_client
 google-cloud-aiplatform
 
-boto3!=1.35.56
+# See:
+# - https://github.com/boto/botocore/pull/1107
+# - https://github.com/boto/botocore/pull/1230
+boto3
+botocore>=1.5.76
+
+ariadne-codegen~=0.14.0
 
 .[perf]
 .[launch]

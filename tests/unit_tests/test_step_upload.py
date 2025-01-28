@@ -104,7 +104,7 @@ def make_api(**kwargs: Any) -> Mock:
 def finish_and_wait(command_queue: queue.Queue):
     done = threading.Event()
     command_queue.put(RequestFinish(callback=done.set))
-    assert done.wait(2)
+    assert done.wait(10)
 
 
 class UploadBlockingMockApi(Mock):

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandb/wandb/experimental/client-go/internal/execbin"
+	"github.com/wandb/wandb/experimental/go-sdk/internal/execbin"
 )
 
 // readLines reads a whole file into memory

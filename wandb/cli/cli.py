@@ -125,7 +125,7 @@ def _get_cling_api(reset=None):
     global _api
     if reset:
         _api = None
-        wandb_sdk.wandb_setup._setup(_reset=True)
+        wandb.teardown()
     if _api is None:
         # TODO(jhr): make a settings object that is better for non runs.
         # only override the necessary setting
@@ -217,12 +217,19 @@ def projects(entity, display=True):
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
 @click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
-@click.option("--host", default=None, help="Login to a specific instance of W&B")
+@click.option(
+    "--host", "--base-url", default=None, help="Login to a specific instance of W&B"
+)
 @click.option(
     "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
 )
 @click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
-@click.option("--verify", default=False, is_flag=True, help="Verify login credentials")
+@click.option(
+    "--verify/--no-verify",
+    default=False,
+    is_flag=True,
+    help="Verify login credentials",
+)
 @display_error
 def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     # TODO: move CLI to wandb-core backend
@@ -2664,7 +2671,6 @@ Run `git clone {}` and restore from there or pass the --no-git flag.""".format(r
 def online():
     api = InternalApi()
     try:
-        api.clear_setting("disabled", persist=True)
         api.clear_setting("mode", persist=True)
     except configparser.Error:
         pass
@@ -2678,7 +2684,6 @@ def online():
 def offline():
     api = InternalApi()
     try:
-        api.set_setting("disabled", "true", persist=True)
         api.set_setting("mode", "offline", persist=True)
         click.echo(
             "W&B offline. Running your script from this directory will only write metadata locally. Use wandb disabled to completely turn off W&B."

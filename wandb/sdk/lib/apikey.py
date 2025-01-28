@@ -104,7 +104,6 @@ def prompt_api_key(  # noqa: C901
         log_string = term.LOG_STRING_NOCOLOR
         key = wandb.jupyter.attempt_colab_login(app_url)  # type: ignore
         if key is not None:
-            write_key(settings, key, api=api)
             return key  # type: ignore
 
     if anon_mode == "must":
@@ -123,24 +122,19 @@ def prompt_api_key(  # noqa: C901
             choices, input_timeout=settings.login_timeout, jupyter=jupyter
         )
 
+    key = None
     api_ask = (
         f"{log_string}: Paste an API key from your profile and hit enter, "
         "or press ctrl+c to quit"
     )
     if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
-
-        write_key(settings, key, api=api, anonymous=True)
-        return key  # type: ignore
     elif result == LOGIN_CHOICE_NEW:
         key = browser_callback(signup=True) if browser_callback else None
 
         if not key:
             wandb.termlog(f"Create an account here: {app_url}/authorize?signup=true")
             key = input_callback(api_ask).strip()
-
-        write_key(settings, key, api=api)
-        return key  # type: ignore
     elif result == LOGIN_CHOICE_EXISTS:
         key = browser_callback() if browser_callback else None
 
@@ -158,8 +152,6 @@ def prompt_api_key(  # noqa: C901
                 f"You can find your API key in your browser here: {app_url}/authorize"
             )
             key = input_callback(api_ask).strip()
-        write_key(settings, key, api=api)
-        return key  # type: ignore
     elif result == LOGIN_CHOICE_NOTTY:
         # TODO: Needs refactor as this needs to be handled by caller
         return False
@@ -172,8 +164,9 @@ def prompt_api_key(  # noqa: C901
             browser_callback() if jupyter and browser_callback else (None, False)
         )
 
-        write_key(settings, key, api=api)
-        return key  # type: ignore
+    if not key:
+        raise ValueError("No API key specified.")
+    return key
 
 
 def write_netrc(host: str, entity: str, key: str) -> Optional[bool]:
@@ -232,7 +225,6 @@ def write_key(
     settings: "Settings",
     key: Optional[str],
     api: Optional["InternalApi"] = None,
-    anonymous: bool = False,
 ) -> None:
     if not key:
         raise ValueError("No API key specified.")
@@ -249,18 +241,12 @@ def write_key(
             "API key must be 40 characters long, yours was {}".format(len(key))
         )
 
-    if anonymous:
-        api.set_setting("anonymous", "true", globally=True, persist=True)
-    else:
-        api.clear_setting("anonymous", globally=True, persist=True)
-
     write_netrc(settings.base_url, "user", key)
 
 
 def api_key(settings: Optional["Settings"] = None) -> Optional[str]:
     if settings is None:
-        settings = wandb.setup().settings  # type: ignore
-        assert settings is not None
+        settings = wandb.setup().settings
     if settings.api_key:
         return settings.api_key
     auth = get_netrc_auth(settings.base_url)
