@@ -26,7 +26,7 @@ from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.registry import Registries
+from wandb.apis.public.registries import Registries
 from wandb.apis.public.utils import PathType, parse_org_from_registry_path
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -1395,9 +1395,69 @@ class Api:
         organization: Optional[str] = None,
         filter: Optional[Dict[str, Any]] = None,
     ) -> Registries:
-        """Return a registry iterator. TODO add more docs."""
+        """Return a registry iterator and is used for searching across the registries.
+
+        From this API you can filter across the registries via the registry filter, collection filter, and version filter.
+
+        Examples:
+            Find all registries with the names that contain "model"
+            ```
+            api.registries(filter={"name": {"$regex": "model"}})
+            ```
+
+            Find all collections in the registries with the name "my_collection" and the tag "my_tag"
+            ```
+            api.registries().collections(filter={"name": "my_collection", "tag": "my_tag"})
+            ```
+
+            Find all artifact versions in the registries with a collection name that contains "my_collection" and a version that has the alias "best"
+            ```
+            api.registries().collections(
+                filter={"name": {"$regex": "my_collection"}}
+            ).versions(filter={"alias": "best"})
+            ```
+
+            Find all artifact versions in the registries that contain "model" and have the tag "prod" or alias "best"
+            ```
+            api.registries(filter={"name": {"$regex": "model"}}).versions(
+                filter={"$or": [{"tag": "prod"}, {"alias": "best"}]}
+            )
+            ```
+
+        Args:
+            organization: (str, optional) The organization of the registries to fetch. If not specified, the organization from the settings will be used.
+                If no organization is set in the settings, the organization will be fetched from the entity if the entity only belongs to one organization.
+            filter: (dict, optional) The mongo style filter to apply to the registries.
+                Fields available to filter for registries are:
+                    name, description, created_at, updated_at
+                Fields available to filter for collections are:
+                    name, tag, description, created_at, updated_at
+                Fields available to filter for versions are:
+                    tag, alias, created_at, updated_at, metadata
+
+        Returns:
+            A registry iterator.
+        """
         if organization is None:
             organization = self.settings["organization"]
-        if organization is None:
-            raise ValueError("No organization name specified")
+            if organization is None:
+                # Fetch the org via the Entity. Won't work if default entity is a personal entity and belongs to multiple orgs
+                entity = self.settings["entity"] or self.default_entity
+                if entity is None:
+                    raise ValueError(
+                        "No entity specified and can't fetch organization from the entity"
+                    )
+                entity_orgs = InternalApi()._fetch_orgs_and_org_entities_from_entity(
+                    entity
+                )
+                if len(entity_orgs) == 0:
+                    raise ValueError(
+                        "No organizations found for entity. Please specify an organization in the settings."
+                    )
+                if len(entity_orgs) > 1:
+                    raise ValueError(
+                        "Multiple organizations found for entity. Please specify an organization in the settings."
+                    )
+                organization = entity_orgs[0].display_name
+
         return Registries(self.client, organization, filter)
