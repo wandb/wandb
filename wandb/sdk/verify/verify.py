@@ -486,6 +486,62 @@ def check_wandb_version(api: Api) -> None:
     print_results(fail_string, warning)
 
 
+def check_sweeps(api: Api) -> bool:
+    print("Checking sweep creation and execution".ljust(72, "."), end="")  # noqa: T201
+    failed_test_strings: List[str] = []
+
+    sweep_config = {
+        "method": "grid",
+        "parameters": {
+            "learning_rate": {"values": [0.01, 0.1]},
+            "batch_size": {"values": [16, 32]},
+        },
+        "metric": {"name": "accuracy", "goal": "maximize"},
+        "name": "verify_sweep",
+    }
+
+    try:
+        sweep_id = api.sweep(sweep_config, project=PROJECT_NAME)
+    except Exception as e:
+        failed_test_strings.append(f"Failed to create sweep: {e}")
+        print_results(failed_test_strings, False)
+        return False
+
+    if not sweep_id:
+        failed_test_strings.append("Sweep creation returned an invalid ID.")
+        print_results(failed_test_strings, False)
+        return False
+
+    print("Running sweep agent".ljust(72, "."), end="")
+    try:
+        with wandb.init(
+            id=nice_id("sweep_agent"), reinit=True, project=PROJECT_NAME
+        ) as run:
+            for lr in sweep_config["parameters"]["learning_rate"]["values"]:
+                for bs in sweep_config["parameters"]["batch_size"]["values"]:
+                    # Log dummy metrics for each sweep combination
+                    run.config.update({"learning_rate": lr, "batch_size": bs})
+                    run.log({"accuracy": lr * bs * 0.01})  # Dummy accuracy metric
+    except Exception as e:
+        failed_test_strings.append(f"Failed to run sweep agent: {e}")
+        print_results(failed_test_strings, False)
+        return False
+
+    try:
+        sweep_runs = api.runs(PROJECT_NAME, filters={"sweep": sweep_id})
+        if len(sweep_runs) != len(
+            sweep_config["parameters"]["learning_rate"]["values"]
+        ) * len(sweep_config["parameters"]["batch_size"]["values"]):
+            failed_test_strings.append(
+                "Mismatch between expected and actual sweep runs."
+            )
+    except Exception as e:
+        failed_test_strings.append(f"Failed to verify sweep runs: {e}")
+
+    print_results(failed_test_strings, False)
+    return len(failed_test_strings) == 0
+
+
 def retry_fn(fn: Callable) -> Any:
     ini_time = time.time()
     res = None
