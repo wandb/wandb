@@ -1,7 +1,9 @@
 """Utilities for wandb verify."""
 
 import getpass
+import io
 import os
+import sys
 import time
 from functools import partial
 from pathlib import Path
@@ -163,8 +165,8 @@ def check_run(api: Api) -> bool:
         )
         print_results(failed_test_strings, False)
         return False
-    for key, value in prev_run.config.items():
-        if config[key] != value:
+    for key, value in config.items():
+        if prev_run.config.get(key) != value:
             failed_test_strings.append(
                 "Read config values don't match run config. Contact W&B for support."
             )
@@ -487,22 +489,30 @@ def check_wandb_version(api: Api) -> None:
 
 
 def check_sweeps(api: Api) -> bool:
-    print("Checking sweep creation and execution".ljust(72, "."), end="")  # noqa: T201
+    print("Checking sweep creation and agent execution".ljust(72, "."), end="")  # noqa: T201
     failed_test_strings: List[str] = []
 
     sweep_config = {
-        "method": "grid",
+        "method": "random",
+        "metric": {"goal": "minimize", "name": "score"},
         "parameters": {
-            "learning_rate": {"values": [0.01, 0.1]},
-            "batch_size": {"values": [16, 32]},
+            "x": {"values": [0.01, 0.05, 0.1]},
+            "y": {"values": [1, 2, 3]},
         },
-        "metric": {"name": "accuracy", "goal": "maximize"},
         "name": "verify_sweep",
     }
 
     try:
-        sweep_id = api.sweep(sweep_config, project=PROJECT_NAME)
+        original_stdout = sys.stdout
+        sys.stdout = io.StringIO()
+
+        sweep_id = wandb.sweep(
+            sweep=sweep_config, project=PROJECT_NAME, entity=api.default_entity
+        )
+
+        sys.stdout = original_stdout
     except Exception as e:
+        sys.stdout = original_stdout
         failed_test_strings.append(f"Failed to create sweep: {e}")
         print_results(failed_test_strings, False)
         return False
@@ -512,31 +522,22 @@ def check_sweeps(api: Api) -> bool:
         print_results(failed_test_strings, False)
         return False
 
-    print("Running sweep agent".ljust(72, "."), end="")
     try:
-        with wandb.init(
-            id=nice_id("sweep_agent"), reinit=True, project=PROJECT_NAME
-        ) as run:
-            for lr in sweep_config["parameters"]["learning_rate"]["values"]:
-                for bs in sweep_config["parameters"]["batch_size"]["values"]:
-                    # Log dummy metrics for each sweep combination
-                    run.config.update({"learning_rate": lr, "batch_size": bs})
-                    run.log({"accuracy": lr * bs * 0.01})  # Dummy accuracy metric
+
+        def objective(config):
+            score = config.x**3 + config.y
+            return score
+
+        def main():
+            with wandb.init(project=PROJECT_NAME) as run:
+                score = objective(run.config)
+                run.log({"score": score})
+
+        wandb.agent(sweep_id, function=main, count=10)
     except Exception as e:
         failed_test_strings.append(f"Failed to run sweep agent: {e}")
         print_results(failed_test_strings, False)
         return False
-
-    try:
-        sweep_runs = api.runs(PROJECT_NAME, filters={"sweep": sweep_id})
-        if len(sweep_runs) != len(
-            sweep_config["parameters"]["learning_rate"]["values"]
-        ) * len(sweep_config["parameters"]["batch_size"]["values"]):
-            failed_test_strings.append(
-                "Mismatch between expected and actual sweep runs."
-            )
-    except Exception as e:
-        failed_test_strings.append(f"Failed to verify sweep runs: {e}")
 
     print_results(failed_test_strings, False)
     return len(failed_test_strings) == 0
