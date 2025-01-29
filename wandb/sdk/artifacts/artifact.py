@@ -15,10 +15,22 @@ import stat
 import tempfile
 import time
 from copy import copy
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
-from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Literal, Sequence, Type, cast
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterator,
+    Literal,
+    Sequence,
+    Type,
+    cast,
+    final,
+)
 from urllib.parse import quote, urljoin, urlparse
 
 import requests
@@ -73,6 +85,14 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.message_future import MessageFuture
+
+
+@final
+@dataclass
+class _DeferredArtifactManifest:
+    """A lightweight wrapper around the manifest URL, used to indicate deferred loading of the actual manifest."""
+
+    url: str
 
 
 class Artifact:
@@ -171,8 +191,8 @@ class Artifact:
         self._incremental: bool = incremental
         self._use_as: str | None = use_as
         self._state: ArtifactState = ArtifactState.PENDING
-        self._manifest: ArtifactManifest | None = ArtifactManifestV1(
-            self._storage_policy
+        self._manifest: ArtifactManifest | _DeferredArtifactManifest | None = (
+            ArtifactManifestV1(self._storage_policy)
         )
         self._commit_hash: str | None = None
         self._file_count: int | None = None
@@ -381,7 +401,7 @@ class Artifact:
         except (LookupError, TypeError):
             self._manifest = None
         else:
-            self._manifest = self._load_manifest(manifest_url)
+            self._manifest = _DeferredArtifactManifest(manifest_url)
 
         self._commit_hash = attrs["commitHash"]
         self._file_count = attrs["fileCount"]
@@ -772,6 +792,12 @@ class Artifact:
         The manifest lists all of its contents, and can't be changed once the artifact
         has been logged.
         """
+        if isinstance(self._manifest, _DeferredArtifactManifest):
+            # A deferred manifest URL flags a deferred download request,
+            # so fetch the manifest to override the placeholder object
+            self._manifest = self._load_manifest(self._manifest.url)
+            return self._manifest
+
         if self._manifest is None:
             query = gql(
                 """
@@ -802,9 +828,9 @@ class Artifact:
                 },
             )
             attrs = response["project"]["artifact"]
-            self._manifest = self._load_manifest(
-                attrs["currentManifest"]["file"]["directUrl"]
-            )
+            manifest_url = attrs["currentManifest"]["file"]["directUrl"]
+            self._manifest = self._load_manifest(manifest_url)
+
         return self._manifest
 
     @property
