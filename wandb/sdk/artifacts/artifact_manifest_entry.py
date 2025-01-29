@@ -6,8 +6,10 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.deprecate import Deprecated, deprecate
@@ -18,7 +20,7 @@ from wandb.sdk.lib.hashutil import (
     hex_to_b64_id,
     md5_file_b64,
 )
-from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
+from wandb.sdk.lib.paths import FilePathStr, LogicalPath, URIStr
 
 logger = logging.getLogger(__name__)
 
@@ -38,42 +40,64 @@ if TYPE_CHECKING:
         local_path: str
 
 
-class ArtifactManifestEntry:
+# @dataclass(config=ConfigDict(arbitrary_types_allowed=True))
+class ArtifactManifestEntry(BaseModel):
     """A single entry in an artifact manifest."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     path: LogicalPath
     digest: B64MD5 | URIStr | FilePathStr | ETag
-    skip_cache: bool
-    ref: FilePathStr | URIStr | None
-    birth_artifact_id: str | None
-    size: int | None
-    extra: dict
-    local_path: str | None
+    skip_cache: bool = False
+    ref: FilePathStr | URIStr | None = None
+    birth_artifact_id: str | None = None
+    size: int | None = None
+    extra: dict = Field(default_factory=dict)
+    local_path: str | None = None
 
     _parent_artifact: Artifact | None = None
     _download_url: str | None = None
 
-    def __init__(
-        self,
-        path: StrPath,
-        digest: B64MD5 | URIStr | FilePathStr | ETag,
-        skip_cache: bool | None = False,
-        ref: FilePathStr | URIStr | None = None,
-        birth_artifact_id: str | None = None,
-        size: int | None = None,
-        extra: dict | None = None,
-        local_path: StrPath | None = None,
-    ) -> None:
-        self.path = LogicalPath(path)
-        self.digest = digest
-        self.ref = ref
-        self.birth_artifact_id = birth_artifact_id
-        self.size = size
-        self.extra = extra or {}
-        self.local_path = str(local_path) if local_path else None
+    @field_validator("path", mode="before")
+    @classmethod
+    def _validate_path(cls, v: Any) -> LogicalPath:
+        return LogicalPath(v)
+
+    @field_validator("skip_cache", mode="before")
+    @classmethod
+    def _validate_skip_cache(cls, v: Any) -> bool:
+        return v or False
+
+    @field_validator("extra", mode="before")
+    @classmethod
+    def _validate_extra(cls, v: Any) -> dict:
+        return v or {}
+
+    def __post_init__(self):
         if self.local_path and self.size is None:
             self.size = Path(self.local_path).stat().st_size
-        self.skip_cache = skip_cache or False
+
+    # def __init__(
+    #     self,
+    #     path: StrPath,
+    #     digest: B64MD5 | URIStr | FilePathStr | ETag,
+    #     skip_cache: bool | None = False,
+    #     ref: FilePathStr | URIStr | None = None,
+    #     birth_artifact_id: str | None = None,
+    #     size: int | None = None,
+    #     extra: dict | None = None,
+    #     local_path: StrPath | None = None,
+    # ) -> None:
+    #     self.path = LogicalPath(path)
+    #     self.digest = digest
+    #     self.ref = ref
+    #     self.birth_artifact_id = birth_artifact_id
+    #     self.size = size
+    #     self.extra = extra or {}
+    #     self.local_path = str(local_path) if local_path else None
+    #     if self.local_path and self.size is None:
+    #         self.size = Path(self.local_path).stat().st_size
+    #     self.skip_cache = skip_cache or False
 
     def __repr__(self) -> str:
         cls = self.__class__.__name__

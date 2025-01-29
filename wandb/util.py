@@ -652,7 +652,7 @@ def json_friendly_val(val: Any) -> Any:
 
 
 def alias_is_version_index(alias: str) -> bool:
-    return len(alias) >= 2 and alias[0] == "v" and alias[1:].isnumeric()
+    return re.fullmatch(r"v\d+", alias) is not None
 
 
 def convert_plots(obj: Any) -> Any:

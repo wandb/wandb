@@ -257,10 +257,10 @@ ignore-decorators = [
 "tools/graphql_codegen/**" = ["N802"]
 
 # On generated code:
-"wandb/sdk/automations/_generated/**" = [
+"wandb/sdk/{automations,artifacts}/_generated/**" = [
     "N8", # Ignore naming rules, as names from the GraphQL schema may not respect PEP8
 ]
-"!wandb/sdk/automations/_generated/**" = [
+"!wandb/sdk/{automations,artifacts}/_generated/**" = [
     "UP", # Enforce newer python syntax: https://docs.astral.sh/ruff/rules/#pyupgrade-up
 ]
 

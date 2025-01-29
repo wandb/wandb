@@ -103,6 +103,7 @@ def make_local_artifact_public(art):
             "aliases": [
                 {
                     "artifactCollection": {
+                        "__typename": "ArtifactPortfolio",
                         "project": {
                             "entityName": "FAKE_ENTITY",
                             "name": "FAKE_PROJECT",
@@ -113,6 +114,7 @@ def make_local_artifact_public(art):
                 }
             ],
             "artifactSequence": {
+                "__typename": "ArtifactSequence",
                 "name": "FAKE_SEQUENCE_NAME",
                 "project": {
                     "entityName": "FAKE_ENTITY",

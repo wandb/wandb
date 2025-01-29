@@ -9,7 +9,8 @@ PROJECT_DIR=$(git rev-parse --show-toplevel)
 
 CODEGEN_CONFIGS=(
     # Append more codegen configs here as needed
-    "$PROJECT_DIR/tools/graphql_codegen/automations/automations.toml"
+    # "$PROJECT_DIR/tools/graphql_codegen/automations/automations.toml"
+    "$PROJECT_DIR/tools/graphql_codegen/artifacts/artifacts.toml"
 )
 
 # Reuse the schema that's already used to generate for wandb-core (Go)

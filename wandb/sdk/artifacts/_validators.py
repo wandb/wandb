@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import re
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, Callable, Dict, TypeVar, cast, overload
 
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
 )
+from wandb.util import json_friendly_val
 
 if TYPE_CHECKING:
     from typing import Collection, Final, Iterable, Union
@@ -119,3 +121,11 @@ def ensure_not_finalized(method: DecoratedF) -> DecoratedF:
 
 def is_artifact_registry_project(project: str) -> bool:
     return project.startswith(REGISTRY_PREFIX)
+
+
+def validate_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    if metadata is None:
+        return {}
+    if not isinstance(metadata, dict):
+        raise TypeError(f"metadata must be dict, not {type(metadata)}")
+    return cast(Dict[str, Any], json.loads(json.dumps(json_friendly_val(metadata))))
