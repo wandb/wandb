@@ -9,13 +9,18 @@ _STEP = Literal["_step"]
 class RunMoment:
     """A moment in a run."""
 
-    run: str  # run name
+    run: str
+    """run ID"""
 
-    # currently, the _step value to fork from. in future, this will be optional
-    value: Union[int, float]
-
-    # only step for now, in future this will be relaxed to be any metric
     metric: _STEP = "_step"
+    """Metric to use to determine the moment in the run.
+
+    Currently, only the metric '_step' is supported.
+    In future, this will be relaxed to be any metric.
+    """
+
+    value: Union[int, float]
+    """Value of the metric."""
 
     def __post_init__(self):
         if self.metric != "_step":
