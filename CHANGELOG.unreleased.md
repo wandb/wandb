@@ -19,6 +19,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Changed
 - Temporarily disabled collecting per-core CPU utilization stats (@dmitryduev in https://github.com/wandb/wandb/pull/9350)
+- Changed Nvidia GPU ECC counters from aggregated to volatile (@gritukan in https://github.com/wandb/wandb/pull/9347)
 
 ### Fixed
 
