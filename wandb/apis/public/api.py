@@ -1132,6 +1132,10 @@ class Api:
             An `ArtifactCollection` object.
         """
         entity, project, collection_name = self._parse_artifact_path(name)
+        if entity is None:
+            raise ValueError(
+                "Could not determine entity, please include it as part of the name."
+            )
         # If its an Registry artifact, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(name, PathType.ARTIFACT)
@@ -1210,6 +1214,11 @@ class Api:
             # we need to fetch the org entity to for the user behind the scenes.
             entity = InternalApi()._resolve_org_entity_name(
                 entity=settings_entity, organization=organization
+            )
+
+        if entity is None:
+            raise ValueError(
+                "Could not determine entity, please include it as part of the name."
             )
         artifact = wandb.Artifact._from_name(
             entity=entity,
