@@ -19,18 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    Iterator,
-    Literal,
-    Sequence,
-    Type,
-    cast,
-    final,
-)
+from typing import IO, TYPE_CHECKING, Any, Iterator, Literal, Sequence, Type, final
 from urllib.parse import quote, urljoin, urlparse
 
 import requests
@@ -48,6 +37,7 @@ from wandb.sdk.artifacts._validators import (
     ensure_not_finalized,
     is_artifact_registry_project,
     validate_aliases,
+    validate_metadata,
     validate_tags,
 )
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
@@ -189,7 +179,7 @@ class Artifact:
         self._source_version: str | None = None
         self._type: str = type
         self._description: str | None = description
-        self._metadata: dict = self._normalize_metadata(metadata)
+        self._metadata: dict = validate_metadata(metadata)
         self._ttl_duration_seconds: int | None = None
         self._ttl_is_inherited: bool = True
         self._ttl_changed: bool = False
@@ -338,14 +328,12 @@ class Artifact:
         """Update this Artifact's attributes using the server response."""
         self._id = parsed.id
 
-        source_version = f"v{parsed.version_index}"
-        source_collection = parsed.artifact_sequence
-        source_project = source_collection.project
+        source_project = parsed.artifact_sequence.project
 
         self._source_entity = source_project.entity_name if source_project else ""
         self._source_project = source_project.name if source_project else ""
-        self._source_name = f"{source_collection.name}:{source_version}"
-        self._source_version = source_version
+        self._source_name = f"{parsed.artifact_sequence.name}:v{parsed.version_index}"
+        self._source_version = f"v{parsed.version_index}"
 
         if self._entity is None:
             self._entity = self._source_entity
@@ -385,7 +373,7 @@ class Artifact:
                     f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
                 )
         else:
-            version = source_version
+            version = self._source_version
 
         self._version = version
 
@@ -399,7 +387,7 @@ class Artifact:
         self._tags = tags
         self._saved_tags = copy(tags)
 
-        self.metadata = self._normalize_metadata(parsed.metadata or {})
+        self.metadata = validate_metadata(parsed.metadata or {})
 
         self._ttl_duration_seconds = _ttl_duration_seconds_from_gql(
             parsed.ttl_duration_seconds
@@ -691,7 +679,7 @@ class Artifact:
         Args:
             metadata: Structured data associated with the artifact.
         """
-        self._metadata = self._normalize_metadata(metadata)
+        self._metadata = validate_metadata(metadata)
 
     @property
     def ttl(self) -> timedelta | None:
@@ -2386,16 +2374,6 @@ class Artifact:
             ((response.get("project") or {}).get("artifact") or {}).get("artifactType")
             or {}
         ).get("name")
-
-    @staticmethod
-    def _normalize_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
-        if metadata is None:
-            return {}
-        if not isinstance(metadata, dict):
-            raise TypeError(f"metadata must be dict, not {type(metadata)}")
-        return cast(
-            Dict[str, Any], json.loads(json.dumps(util.json_friendly_val(metadata)))
-        )
 
     def _load_manifest(self, url: str) -> ArtifactManifest:
         with requests.get(url) as response:
