@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - Added `wandb login --base-url {host_url}` to login as an alias of `wandb login --host {host_url}`. (@jacobromero in https://github.com/wandb/wandb/pull/9323)
+- Added `wandb check-login` to verify the current login status. (@jacobromero in https://github.com/wandb/wandb/pull/9351)
 
 ### Fixed
 
