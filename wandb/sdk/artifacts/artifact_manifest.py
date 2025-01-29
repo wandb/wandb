@@ -19,9 +19,13 @@ class ArtifactManifest:
     def from_manifest_json(
         cls, manifest_json: dict, api: InternalApi | None = None
     ) -> ArtifactManifest:
-        if "version" not in manifest_json:
-            raise ValueError("Invalid manifest format. Must contain version field.")
-        version = manifest_json["version"]
+        try:
+            version = manifest_json["version"]
+        except LookupError as e:
+            raise ValueError(
+                "Invalid manifest format. Must contain version field."
+            ) from e
+
         for sub in cls.__subclasses__():
             if sub.version() == version:
                 return sub.from_manifest_json(manifest_json, api=api)

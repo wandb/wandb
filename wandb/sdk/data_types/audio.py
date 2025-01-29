@@ -76,14 +76,19 @@ class Audio(BatchableMedia):
         return super().bind_to_run(run, key, step, id_, ignore_copy_err)
 
     def to_json(self, run):
-        json_dict = super().to_json(run)
-        json_dict.update(
-            {
-                "_type": self._log_type,
-                "caption": self._caption,
-            }
-        )
-        return json_dict
+        return {
+            **super().to_json(run),
+            "_type": self._log_type,
+            "caption": self._caption,
+        }
+        # json_dict = super().to_json(run)
+        # json_dict.update(
+        #     {
+        #         "_type": self._log_type,
+        #         "caption": self._caption,
+        #     }
+        # )
+        # return json_dict
 
     @classmethod
     def seq_to_json(cls, seq, run, key, step):

@@ -1,66 +1,50 @@
-fragment ProjectFragment on Project {
+fragment ProjectFields on Project {
     entityName
     name
 }
 
-fragment ArtifactSequenceFragment on ArtifactSequence {
+fragment ArtifactSequenceFields on ArtifactSequence {
     __typename
-    project {
-        ...ProjectFragment
-    }
+    project {...ProjectFields}
     name
 }
 
-fragment ArtifactPortfolioFragment on ArtifactPortfolio {
+fragment ArtifactPortfolioFields on ArtifactPortfolio {
     __typename
-    project {
-        ...ProjectFragment
-    }
+    project {...ProjectFields}
     name
 }
 
-fragment AliasFragment on ArtifactAlias {
+fragment ArtifactAliasFields on ArtifactAlias {
     artifactCollection {
         __typename
-        ... ArtifactSequenceFragment
-        ... ArtifactPortfolioFragment
+        ... ArtifactSequenceFields
+        ... ArtifactPortfolioFields
     }
     alias
 }
 
-fragment TagFragment on Tag {
+fragment TagFields on Tag {
     name
 }
 
-fragment ManifestFragment on ArtifactManifest {
-    file {
-        directUrl
-    }
+fragment ArtifactManifestFields on ArtifactManifest {
+    file {directUrl}
 }
 
 fragment ArtifactFields on Artifact {
     id
-    artifactSequence {
-        ...ArtifactSequenceFragment
-    }
+    artifactSequence {...ArtifactSequenceFields}
     versionIndex
-    artifactType {
-        name
-    }
+    artifactType {name}
     description
     metadata
     ttlDurationSeconds
     ttlIsInherited
-    aliases {
-        ...AliasFragment
-    }
-    tags {
-        ...TagFragment
-    }
+    aliases {...ArtifactAliasFields}
+    tags {...TagFields}
     state
-    currentManifest {
-        ...ManifestFragment
-    }
+    currentManifest {...ArtifactManifestFields}
     commitHash
     fileCount
     createdAt

@@ -40,17 +40,19 @@ if TYPE_CHECKING:
         local_path: str
 
 
-# @dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class ArtifactManifestEntry(BaseModel):
     """A single entry in an artifact manifest."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        populate_by_name=True,
+    )
 
     path: LogicalPath
     digest: B64MD5 | URIStr | FilePathStr | ETag
     skip_cache: bool = False
     ref: FilePathStr | URIStr | None = None
-    birth_artifact_id: str | None = None
+    birth_artifact_id: str | None = Field(default=None, alias="birthArtifactID")
     size: int | None = None
     extra: dict = Field(default_factory=dict)
     local_path: str | None = None
@@ -73,8 +75,14 @@ class ArtifactManifestEntry(BaseModel):
     def _validate_extra(cls, v: Any) -> dict:
         return v or {}
 
-    def __post_init__(self):
-        if self.local_path and self.size is None:
+    @field_validator("local_path", mode="before")
+    @classmethod
+    def _validate_local_path(cls, v: Any) -> str | None:
+        return None if (v is None) else str(v)
+
+    # def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
+        if (self.size is None) and (self.local_path is not None):
             self.size = Path(self.local_path).stat().st_size
 
     # def __init__(
@@ -216,8 +224,10 @@ class ArtifactManifestEntry(BaseModel):
             raise ValueError("Only reference entries support ref_target().")
         if self._parent_artifact is None:
             return self.ref
+
         return self._parent_artifact.manifest.storage_policy.load_reference(
-            self._parent_artifact.manifest.entries[self.path], local=False
+            self._parent_artifact.manifest.entries[self.path],
+            local=False,
         )
 
     def ref_url(self) -> str:
@@ -238,36 +248,40 @@ class ArtifactManifestEntry(BaseModel):
         if self._parent_artifact is None:
             raise NotImplementedError
         assert self._parent_artifact.id is not None
-        return (
-            "wandb-artifact://"
-            + b64_to_hex_id(B64MD5(self._parent_artifact.id))
-            + "/"
-            + self.path
-        )
+
+        hex_id = b64_to_hex_id(B64MD5(self._parent_artifact.id))
+        return f"wandb-artifact://{hex_id}/{self.path}"
+        # return (
+        #     "wandb-artifact://"
+        #     + b64_to_hex_id(B64MD5(self._parent_artifact.id))
+        #     + "/"
+        #     + self.path
+        # )
 
     def to_json(self) -> ArtifactManifestEntryDict:
-        contents: ArtifactManifestEntryDict = {
-            "path": self.path,
-            "digest": self.digest,
-        }
-        if self.size is not None:
-            contents["size"] = self.size
-        if self.ref:
-            contents["ref"] = self.ref
-        if self.birth_artifact_id:
-            contents["birthArtifactID"] = self.birth_artifact_id
-        if self.local_path:
-            contents["local_path"] = self.local_path
-        if self.skip_cache:
-            contents["skip_cache"] = self.skip_cache
-        if self.extra:
-            contents["extra"] = self.extra
-        return contents
+        return self.model_dump()
+        # contents: ArtifactManifestEntryDict = {
+        #     "path": self.path,
+        #     "digest": self.digest,
+        # }
+        # if self.size is not None:
+        #     contents["size"] = self.size
+        # if self.ref:
+        #     contents["ref"] = self.ref
+        # if self.birth_artifact_id:
+        #     contents["birthArtifactID"] = self.birth_artifact_id
+        # if self.local_path:
+        #     contents["local_path"] = self.local_path
+        # if self.skip_cache:
+        #     contents["skip_cache"] = self.skip_cache
+        # if self.extra:
+        #     contents["extra"] = self.extra
+        # return contents
 
     def _is_artifact_reference(self) -> bool:
-        return self.ref is not None and urlparse(self.ref).scheme == "wandb-artifact"
+        return bool((ref := self.ref) and (urlparse(ref).scheme == "wandb-artifact"))
 
     def _referenced_artifact_id(self) -> str | None:
-        if not self._is_artifact_reference():
-            return None
-        return hex_to_b64_id(urlparse(self.ref).netloc)
+        if self._is_artifact_reference():
+            return hex_to_b64_id(urlparse(self.ref).netloc)
+        return None

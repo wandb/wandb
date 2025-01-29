@@ -135,9 +135,10 @@ class ArtifactFileCache:
             if remove_temp:
                 try:
                     os.remove(entry.path)
-                    bytes_reclaimed += size
                 except OSError:
                     pass
+                else:
+                    bytes_reclaimed += size
             else:
                 temp_size += size
         if temp_size:
@@ -146,10 +147,13 @@ class ArtifactFileCache:
                 "Run `wandb artifact cleanup --remove-temp` to remove them."
             )
 
-        entries = []
-        for file_entry in files_in(self._obj_dir):
-            total_size += file_entry.stat().st_size
-            entries.append(file_entry)
+        entries = list(files_in(self._obj_dir))
+        total_size += sum(entry.stat().st_size for entry in entries)
+
+        # entries = []
+        # for file_entry in files_in(self._obj_dir):
+        #     total_size += file_entry.stat().st_size
+        #     entries.append(file_entry)
 
         if target_fraction is not None:
             target_size = int(total_size * target_fraction)
@@ -175,7 +179,7 @@ class ArtifactFileCache:
 
     def _free_space(self) -> int:
         """Return the number of bytes of free space in the cache directory."""
-        return shutil.disk_usage(self._cache_dir)[2]
+        return shutil.disk_usage(self._cache_dir).free
 
     def _reserve_space(self, size: int) -> None:
         """If a `size` write would exceed disk space, remove cached items to make space.

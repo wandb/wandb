@@ -12,12 +12,12 @@ from .enums import ArtifactState
 from .typing_compat import Annotated
 
 
-class AliasFragment(GQLBase):
+class ArtifactAliasFields(GQLBase):
     artifact_collection: (
         Annotated[
-            AliasFragmentArtifactCollectionArtifactCollection
-            | AliasFragmentArtifactCollectionArtifactPortfolio
-            | AliasFragmentArtifactCollectionArtifactSequence,
+            ArtifactAliasFieldsArtifactCollectionArtifactCollection
+            | ArtifactAliasFieldsArtifactCollectionArtifactPortfolio
+            | ArtifactAliasFieldsArtifactCollectionArtifactSequence,
             Field(discriminator="typename__"),
         ]
         | None
@@ -25,23 +25,23 @@ class AliasFragment(GQLBase):
     alias: str
 
 
-class AliasFragmentArtifactCollectionArtifactCollection(GQLBase):
+class ArtifactAliasFieldsArtifactCollectionArtifactCollection(GQLBase):
     typename__: Typename[Literal["ArtifactCollection"]]
 
 
 class ArtifactFields(GQLBase):
     id: GQLId
-    artifact_sequence: ArtifactSequenceFragment = Field(alias="artifactSequence")
+    artifact_sequence: ArtifactSequenceFields = Field(alias="artifactSequence")
     version_index: int | None = Field(alias="versionIndex")
     artifact_type: ArtifactFieldsArtifactType = Field(alias="artifactType")
     description: str | None
     metadata: SerializedToJson | None
     ttl_duration_seconds: Any = Field(alias="ttlDurationSeconds")
     ttl_is_inherited: bool = Field(alias="ttlIsInherited")
-    aliases: list[AliasFragment]
-    tags: list[TagFragment]
+    aliases: list[ArtifactAliasFields]
+    tags: list[TagFields]
     state: ArtifactState
-    current_manifest: ManifestFragment | None = Field(alias="currentManifest")
+    current_manifest: ArtifactManifestFields | None = Field(alias="currentManifest")
     commit_hash: str | None = Field(alias="commitHash")
     file_count: Any = Field(alias="fileCount")
     created_at: Any = Field(alias="createdAt")
@@ -52,47 +52,47 @@ class ArtifactFieldsArtifactType(GQLBase):
     name: str
 
 
-class ArtifactPortfolioFragment(GQLBase):
-    typename__: Typename[str]
-    project: ProjectFragment | None
-    name: str
+class ArtifactManifestFields(GQLBase):
+    file: ArtifactManifestFieldsFile
 
 
-class ArtifactSequenceFragment(GQLBase):
-    typename__: Typename[str]
-    project: ProjectFragment | None
-    name: str
-
-
-class ManifestFragment(GQLBase):
-    file: ManifestFragmentFile
-
-
-class ManifestFragmentFile(GQLBase):
+class ArtifactManifestFieldsFile(GQLBase):
     direct_url: str = Field(alias="directUrl")
 
 
-class ProjectFragment(GQLBase):
+class ArtifactPortfolioFields(GQLBase):
+    typename__: Typename[str]
+    project: ProjectFields | None
+    name: str
+
+
+class ArtifactSequenceFields(GQLBase):
+    typename__: Typename[str]
+    project: ProjectFields | None
+    name: str
+
+
+class ProjectFields(GQLBase):
     entity_name: str = Field(alias="entityName")
     name: str
 
 
-class TagFragment(GQLBase):
+class TagFields(GQLBase):
     name: str
 
 
-class AliasFragmentArtifactCollectionArtifactPortfolio(ArtifactPortfolioFragment):
+class ArtifactAliasFieldsArtifactCollectionArtifactPortfolio(ArtifactPortfolioFields):
     typename__: Typename[Literal["ArtifactPortfolio"]]
 
 
-class AliasFragmentArtifactCollectionArtifactSequence(ArtifactSequenceFragment):
+class ArtifactAliasFieldsArtifactCollectionArtifactSequence(ArtifactSequenceFields):
     typename__: Typename[Literal["ArtifactSequence"]]
 
 
-AliasFragment.model_rebuild()
+ArtifactAliasFields.model_rebuild()
 ArtifactFields.model_rebuild()
-ArtifactPortfolioFragment.model_rebuild()
-ArtifactSequenceFragment.model_rebuild()
-ManifestFragment.model_rebuild()
-ProjectFragment.model_rebuild()
-TagFragment.model_rebuild()
+ArtifactManifestFields.model_rebuild()
+ArtifactPortfolioFields.model_rebuild()
+ArtifactSequenceFields.model_rebuild()
+ProjectFields.model_rebuild()
+TagFields.model_rebuild()

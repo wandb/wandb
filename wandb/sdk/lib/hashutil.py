@@ -72,10 +72,8 @@ def _md5_file_hasher(*paths: StrPath) -> _hashlib.HASH:
                 # Note: At the time of implementation, the walrus operator `:=`
                 # is avoided to maintain support for users on python 3.7.
                 # Consider revisiting once 3.7 support is no longer needed.
-                chunk = f.read(_CHUNKSIZE)
-                while chunk:
+                while chunk := f.read(_CHUNKSIZE):
                     md5_hash.update(chunk)
-                    chunk = f.read(_CHUNKSIZE)
             except ValueError:
                 # This occurs when mmap-ing an empty file, which can be skipped.
                 # See: https://github.com/python/cpython/blob/986a4e1b6fcae7fe7a1d0a26aea446107dd58dd2/Modules/mmapmodule.c#L1589

@@ -1052,18 +1052,22 @@ class JoinedTable(Media):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
-        t1 = source_artifact.get(json_obj["table1"])
-        if t1 is None:
-            t1 = json_obj["table1"]
+        table1 = json_obj["table1"]
+        table2 = json_obj["table2"]
+        join_key = json_obj["join_key"]
 
-        t2 = source_artifact.get(json_obj["table2"])
-        if t2 is None:
-            t2 = json_obj["table2"]
+        t1 = source_artifact.get(table1) or table1
+        # if t1 is None:
+        #     t1 = json_obj["table1"]
+
+        t2 = source_artifact.get(table2) or table2
+        # if t2 is None:
+        #     t2 = json_obj["table2"]
 
         return cls(
             t1,
             t2,
-            json_obj["join_key"],
+            join_key,
         )
 
     @staticmethod

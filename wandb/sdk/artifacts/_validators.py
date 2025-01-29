@@ -4,9 +4,18 @@ from __future__ import annotations
 
 import json
 import re
+from contextlib import suppress
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Dict, TypeVar, cast, overload
 
+from pydantic import Field
+
+from wandb.sdk.artifacts._generated import (
+    ArtifactAliasFields,
+    ArtifactFields,
+    TagFields,
+)
+from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
@@ -129,3 +138,57 @@ def validate_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(metadata, dict):
         raise TypeError(f"metadata must be dict, not {type(metadata)}")
     return cast(Dict[str, Any], json.loads(json.dumps(json_friendly_val(metadata))))
+
+
+class ValidatedAlias(ArtifactAliasFields):
+    @property
+    def entity(self) -> str | None:
+        with suppress(AttributeError):
+            return self.artifact_collection.project.entity_name
+        return None
+
+    @property
+    def project(self) -> str | None:
+        with suppress(AttributeError):
+            return self.artifact_collection.project.name
+        return None
+
+    @property
+    def collection(self) -> str | None:
+        with suppress(AttributeError):
+            return self.artifact_collection.name
+        return None
+
+
+class ValidatedArtifact(ArtifactFields):
+    """Validated Artifact data parsed directly from a GQL response."""
+
+    # Overridden field defs, to ensure client-side expectations
+    version_index: int
+    state: ArtifactState
+    aliases: list[ValidatedAlias] = Field(default_factory=list)
+
+    # Overridden field defs, for backward compatibility with older server versions
+    ttl_is_inherited: bool = True  # Default to True on unsupported server versions
+    ttl_duration_seconds: Any = None
+    tags: list[TagFields] = Field(default_factory=list)
+
+    @property
+    def source_entity(self) -> str:
+        with suppress(AttributeError):
+            return self.artifact_sequence.project.entity_name
+        return ""
+
+    @property
+    def source_project(self) -> str:
+        with suppress(AttributeError):
+            return self.artifact_sequence.project.name
+        return ""
+
+    @property
+    def source_version(self) -> str:
+        return f"v{self.version_index}"
+
+    @property
+    def source_name(self) -> str:
+        return f"{self.artifact_sequence.name}:{self.source_version}"
