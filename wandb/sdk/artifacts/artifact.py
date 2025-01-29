@@ -91,7 +91,7 @@ if TYPE_CHECKING:
 class _SavedArtifact(ArtifactFields):
     """A validated, local instance of a saved artifact parsed from a GQL response."""
 
-    # Default field values for backward compatibility with older server versions
+    # Overridden field values for backward compatibility with older server versions
     ttl_is_inherited: bool = True
     ttl_duration_seconds: Any = None
     tags: list[TagFragment] = Field(default_factory=list)
@@ -2440,6 +2440,7 @@ def _gql_artifact_fragment() -> str:
         fragment ArtifactFragment on Artifact {{
             id
             artifactSequence {{
+                __typename
                 project {{
                     entityName
                     name
