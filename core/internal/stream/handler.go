@@ -51,7 +51,7 @@ type HandlerParams struct {
 	Logger            *observability.CoreLogger
 	Mailbox           *mailbox.Mailbox
 	Operations        *wboperation.WandbOperations
-	OutChan           chan *spb.Result
+	OutChan           chan<- *spb.Result
 	Settings          *settings.Settings
 
 	// SkipSummary controls whether to skip summary updates.
@@ -100,7 +100,7 @@ type Handler struct {
 	operations *wboperation.WandbOperations
 
 	// outChan is the channel for sending results to the client
-	outChan chan *spb.Result
+	outChan chan<- *spb.Result
 
 	// partialHistory is a set of run metrics accumulated for the current step.
 	partialHistory *runhistory.RunHistory
@@ -197,7 +197,6 @@ func (h *Handler) Do(allWork <-chan runwork.Work) {
 }
 
 func (h *Handler) Close() {
-	close(h.outChan)
 	close(h.fwdChan)
 	h.logger.Info("handler: closed", "stream_id", h.settings.GetRunID())
 }

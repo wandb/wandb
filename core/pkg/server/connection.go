@@ -337,7 +337,7 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 			LoggerPath: nc.loggerPath,
 		},
 	)
-	nc.stream.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
+	nc.stream.RegisterResponder(stream.ResponderEntry{Responder: nc, ID: nc.id})
 	nc.stream.Start()
 	slog.Info("handleInformInit: stream started", "streamId", streamId, "id", nc.id)
 
@@ -379,7 +379,7 @@ func (nc *Connection) handleInformAttach(msg *spb.ServerInformAttachRequest) {
 	if err != nil {
 		slog.Error("handleInformAttach: stream not found", "streamId", streamId, "id", nc.id)
 	} else {
-		nc.stream.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
+		nc.stream.RegisterResponder(stream.ResponderEntry{Responder: nc, ID: nc.id})
 		// TODO: we should redo this attach logic, so that the stream handles
 		//       the attach logic
 		resp := &spb.ServerResponse{
