@@ -170,9 +170,14 @@ class Artifact:
         self._incremental: bool = incremental
         self._use_as: str | None = use_as
         self._state: ArtifactState = ArtifactState.PENDING
+
+        # Not ideal that we have separate attributes to track the state of the
+        # artifact manifest, but necessary workaround for now.
+        self._manifest_url: str | None = None
         self._manifest: ArtifactManifest | None = ArtifactManifestV1(
             self._storage_policy
         )
+
         self._commit_hash: str | None = None
         self._file_count: int | None = None
         self._created_at: str | None = None
@@ -376,11 +381,9 @@ class Artifact:
         self._state = ArtifactState(attrs["state"])
 
         try:
-            manifest_url = attrs["currentManifest"]["file"]["directUrl"]
+            self._manifest_url = attrs["currentManifest"]["file"]["directUrl"]
         except (LookupError, TypeError):
-            self._manifest = None
-        else:
-            self._manifest = self._load_manifest(manifest_url)
+            self._manifest_url = None
 
         self._commit_hash = attrs["commitHash"]
         self._file_count = attrs["fileCount"]
@@ -771,7 +774,10 @@ class Artifact:
         The manifest lists all of its contents, and can't be changed once the artifact
         has been logged.
         """
-        if self._manifest is None:
+        if self._manifest is not None:
+            return self._manifest
+
+        if self._manifest_url is None:
             query = gql(
                 """
                 query ArtifactManifest(
@@ -801,9 +807,9 @@ class Artifact:
                 },
             )
             attrs = response["project"]["artifact"]
-            self._manifest = self._load_manifest(
-                attrs["currentManifest"]["file"]["directUrl"]
-            )
+            self._manifest_url = attrs["currentManifest"]["file"]["directUrl"]
+
+        self._manifest = self._load_manifest(self._manifest_url)
         return self._manifest
 
     @property
