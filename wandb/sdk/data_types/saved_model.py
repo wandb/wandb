@@ -362,7 +362,7 @@ class _PytorchSavedModel(_PicklingSavedModel["torch.nn.Module"]):
 
     @staticmethod
     def _deserialize(dir_or_file_path: str) -> "torch.nn.Module":
-        return _get_torch().load(dir_or_file_path)
+        return _get_torch().load(dir_or_file_path, weights_only=False)
 
     @staticmethod
     def _validate_obj(obj: Any) -> bool:
