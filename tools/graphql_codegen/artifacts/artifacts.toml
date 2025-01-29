@@ -39,6 +39,3 @@ type = ".base.GQLId"
 
 [tool.ariadne-codegen.scalars.JSONString]
 type = ".base.SerializedToJson"
-
-[tool.ariadne-codegen.scalars.DateTime]
-type = "datetime.datetime"

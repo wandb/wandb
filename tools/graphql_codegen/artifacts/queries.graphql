@@ -4,6 +4,7 @@ fragment ProjectFragment on Project {
 }
 
 fragment ArtifactSequenceFragment on ArtifactSequence {
+    __typename
     project {
         ...ProjectFragment
     }
@@ -11,6 +12,7 @@ fragment ArtifactSequenceFragment on ArtifactSequence {
 }
 
 fragment ArtifactPortfolioFragment on ArtifactPortfolio {
+    __typename
     project {
         ...ProjectFragment
     }

@@ -42,7 +42,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
-from wandb.sdk.artifacts._generated.fragments import ArtifactFields
+from wandb.sdk.artifacts._generated import ArtifactFields, TagFragment
 from wandb.sdk.artifacts._validators import (
     ensure_logged,
     ensure_not_finalized,
@@ -94,7 +94,7 @@ class _SavedArtifact(ArtifactFields):
     # Default field values for backward compatibility with older server versions
     ttl_is_inherited: bool = True
     ttl_duration_seconds: Any = None
-    tags: list[str] = Field(default_factory=list)
+    tags: list[TagFragment] = Field(default_factory=list)
 
 
 @final
@@ -365,10 +365,10 @@ class Artifact:
             obj.alias
             for obj in parsed.aliases
             if obj.artifact_collection
-            and obj.artifact_collection.project
-            and obj.artifact_collection.project.entity_name == entity
-            and obj.artifact_collection.project.name == project
-            and obj.artifact_collection.name == collection
+            and obj.artifact_collection.project  # type: ignore[union-attr]
+            and obj.artifact_collection.project.entity_name == entity  # type: ignore[union-attr]
+            and obj.artifact_collection.project.name == project  # type: ignore[union-attr]
+            and obj.artifact_collection.name == collection  # type: ignore[union-attr]
         ]
 
         version_aliases = [
@@ -411,7 +411,7 @@ class Artifact:
         self._state = ArtifactState(parsed.state)
 
         try:
-            manifest_url = parsed.current_manifest.file.direct_url
+            manifest_url = parsed.current_manifest.file.direct_url  # type: ignore[union-attr]
         except (AttributeError, TypeError):
             self._manifest = None
         else:

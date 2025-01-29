@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import Field
@@ -45,8 +44,8 @@ class ArtifactFields(GQLBase):
     current_manifest: ManifestFragment | None = Field(alias="currentManifest")
     commit_hash: str | None = Field(alias="commitHash")
     file_count: Any = Field(alias="fileCount")
-    created_at: datetime = Field(alias="createdAt")
-    updated_at: datetime | None = Field(alias="updatedAt")
+    created_at: Any = Field(alias="createdAt")
+    updated_at: Any | None = Field(alias="updatedAt")
 
 
 class ArtifactFieldsArtifactType(GQLBase):
@@ -54,11 +53,13 @@ class ArtifactFieldsArtifactType(GQLBase):
 
 
 class ArtifactPortfolioFragment(GQLBase):
+    typename__: Typename[str]
     project: ProjectFragment | None
     name: str
 
 
 class ArtifactSequenceFragment(GQLBase):
+    typename__: Typename[str]
     project: ProjectFragment | None
     name: str
 
