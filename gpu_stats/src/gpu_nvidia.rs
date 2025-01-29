@@ -526,9 +526,15 @@ impl NvidiaGpu {
 
             // Corrected Memory Errors
             if availability.corrected_memory_errors {
+                // NOTE: Nvidia GPUs provide two ECC counters: volatile and aggregate.
+                // The volatile counter resets on driver or GPU reset, while the
+                // aggregate counter persists for the GPU's lifetime. After row
+                // remapping repairs ECC errors, the aggregate counter remains
+                // non-zero and can falsely indicate a problem. Using the volatile
+                // counter avoids this confusion.
                 match device.memory_error_counter(
                     nvml_wrapper::enum_wrappers::device::MemoryError::Corrected,
-                    nvml_wrapper::enum_wrappers::device::EccCounter::Aggregate,
+                    nvml_wrapper::enum_wrappers::device::EccCounter::Volatile,
                     nvml_wrapper::enum_wrappers::device::MemoryLocation::Device,
                 ) {
                     Ok(errors) => {
@@ -547,7 +553,7 @@ impl NvidiaGpu {
             if availability.uncorrected_memory_errors {
                 match device.memory_error_counter(
                     nvml_wrapper::enum_wrappers::device::MemoryError::Uncorrected,
-                    nvml_wrapper::enum_wrappers::device::EccCounter::Aggregate,
+                    nvml_wrapper::enum_wrappers::device::EccCounter::Volatile,
                     nvml_wrapper::enum_wrappers::device::MemoryLocation::Device,
                 ) {
                     Ok(errors) => {
