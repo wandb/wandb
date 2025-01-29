@@ -5,6 +5,7 @@ from __future__ import annotations
 import atexit
 import concurrent.futures
 import contextlib
+from itertools import filterfalse
 import json
 import logging
 import multiprocessing.dummy
@@ -324,16 +325,16 @@ class Artifact:
         artifact_instance_cache[artifact.id] = artifact
         return artifact
 
-    def _assign_attrs(self, parsed: _SavedArtifact) -> None:
+    def _assign_attrs(self, art: _SavedArtifact) -> None:
         """Update this Artifact's attributes using the server response."""
-        self._id = parsed.id
+        self._id = art.id
 
-        source_project = parsed.artifact_sequence.project
+        source_project = art.artifact_sequence.project
 
         self._source_entity = source_project.entity_name if source_project else ""
         self._source_project = source_project.name if source_project else ""
-        self._source_name = f"{parsed.artifact_sequence.name}:v{parsed.version_index}"
-        self._source_version = f"v{parsed.version_index}"
+        self._source_name = f"{art.artifact_sequence.name}:v{art.version_index}"
+        self._source_version = f"v{art.version_index}"
 
         if self._entity is None:
             self._entity = self._source_entity
@@ -343,15 +344,15 @@ class Artifact:
         if self._name is None:
             self._name = self._source_name
 
-        self._type = parsed.artifact_type.name
-        self._description = parsed.description
+        self._type = art.artifact_type.name
+        self._description = art.description
 
         entity = self._entity
         project = self._project
         collection, *_ = self._name.split(":")
         aliases = [
             obj.alias
-            for obj in parsed.aliases
+            for obj in art.aliases
             if obj.artifact_collection
             and obj.artifact_collection.project  # type: ignore[union-attr]
             and obj.artifact_collection.project.entity_name == entity  # type: ignore[union-attr]
@@ -359,12 +360,9 @@ class Artifact:
             and obj.artifact_collection.name == collection  # type: ignore[union-attr]
         ]
 
-        version_aliases = [
-            alias for alias in aliases if util.alias_is_version_index(alias)
-        ]
-        other_aliases = [
-            alias for alias in aliases if not util.alias_is_version_index(alias)
-        ]
+        version_aliases = list(filter(util.alias_is_version_index, aliases))
+        other_aliases = list(filterfalse(util.alias_is_version_index, aliases))
+
         if version_aliases:
             try:
                 [version] = version_aliases
@@ -383,32 +381,32 @@ class Artifact:
         self._aliases = other_aliases
         self._saved_aliases = copy(other_aliases)
 
-        tags = [obj.name for obj in parsed.tags]
+        tags = [obj.name for obj in art.tags]
         self._tags = tags
         self._saved_tags = copy(tags)
 
-        self.metadata = validate_metadata(parsed.metadata or {})
+        self.metadata = validate_metadata(art.metadata or {})
 
         self._ttl_duration_seconds = _ttl_duration_seconds_from_gql(
-            parsed.ttl_duration_seconds
+            art.ttl_duration_seconds
         )
         self._ttl_is_inherited = (
-            True if (parsed.ttl_is_inherited is None) else parsed.ttl_is_inherited
+            True if (art.ttl_is_inherited is None) else art.ttl_is_inherited
         )
 
-        self._state = ArtifactState(parsed.state)
+        self._state = ArtifactState(art.state)
 
         try:
-            manifest_url = parsed.current_manifest.file.direct_url  # type: ignore[union-attr]
+            manifest_url = art.current_manifest.file.direct_url  # type: ignore[union-attr]
         except (AttributeError, TypeError):
             self._manifest = None
         else:
             self._manifest = _DeferredArtifactManifest(manifest_url)
 
-        self._commit_hash = parsed.commit_hash
-        self._file_count = parsed.file_count
-        self._created_at = parsed.created_at
-        self._updated_at = parsed.updated_at
+        self._commit_hash = art.commit_hash
+        self._file_count = art.file_count
+        self._created_at = art.created_at
+        self._updated_at = art.updated_at
 
     @ensure_logged
     def new_draft(self) -> Artifact:
