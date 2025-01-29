@@ -60,6 +60,7 @@ TAGS = "WANDB_TAGS"
 IGNORE = "WANDB_IGNORE_GLOBS"
 ERROR_REPORTING = "WANDB_ERROR_REPORTING"
 CORE_DEBUG = "WANDB_CORE_DEBUG"
+_CORE_TRACE_FILE = "WANDB_X_CORE_TRACE_FILE"
 DOCKER = "WANDB_DOCKER"
 AGENT_REPORT_INTERVAL = "WANDB_AGENT_REPORT_INTERVAL"
 AGENT_KILL_DELAY = "WANDB_AGENT_KILL_DELAY"
@@ -170,6 +171,10 @@ def error_reporting_enabled() -> bool:
 
 def core_debug(default: str | None = None) -> bool:
     return _env_as_bool(CORE_DEBUG, default=default) or is_debug()
+
+
+def core_trace_file(default: str | None = None) -> str | None:
+    return os.environ.get(_CORE_TRACE_FILE, default)
 
 
 def ssl_disabled() -> bool:
