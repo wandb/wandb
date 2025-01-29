@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Literal, Union, cast
+from typing import Literal, cast
 from urllib import parse
 
 _STEP = Literal["_step"]
@@ -7,10 +9,18 @@ _STEP = Literal["_step"]
 
 @dataclass
 class RunMoment:
-    """A moment in a run."""
+    """A moment in a run.
+
+    Defines a branching point in a finished run to fork or resume from.
+    A run moment is identified by a run ID and a metric value.
+    Currently, only the metric '_step' is supported.
+    """
 
     run: str
     """run ID"""
+
+    value: int | float
+    """Value of the metric."""
 
     metric: _STEP = "_step"
     """Metric to use to determine the moment in the run.
@@ -18,9 +28,6 @@ class RunMoment:
     Currently, only the metric '_step' is supported.
     In future, this will be relaxed to be any metric.
     """
-
-    value: Union[int, float]
-    """Value of the metric."""
 
     def __post_init__(self):
         if self.metric != "_step":
@@ -35,7 +42,7 @@ class RunMoment:
             raise ValueError(f"Only string run names are supported, got '{self.run}'.")
 
     @classmethod
-    def from_uri(cls, uri: str) -> "RunMoment":
+    def from_uri(cls, uri: str) -> RunMoment:
         parsable = "runmoment://" + uri
         parse_err = ValueError(
             f"Could not parse passed run moment string '{uri}', "
