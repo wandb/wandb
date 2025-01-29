@@ -338,6 +338,7 @@ impl Iterator for IOReportIterator {
 // MARK: RAM
 
 pub fn libc_ram() -> WithError<(u64, u64)> {
+    #[allow(unused_assignments)]
     let (mut usage, mut total) = (0u64, 0u64);
 
     unsafe {
@@ -362,6 +363,7 @@ pub fn libc_ram() -> WithError<(u64, u64)> {
         let mut stats = std::mem::zeroed::<libc::vm_statistics64>();
 
         let ret_code = libc::host_statistics64(
+            #[allow(deprecated)]
             libc::mach_host_self(),
             libc::HOST_VM_INFO64,
             &mut stats as *mut _ as *mut _,
@@ -390,6 +392,7 @@ pub fn libc_ram() -> WithError<(u64, u64)> {
 }
 
 pub fn libc_swap() -> WithError<(u64, u64)> {
+    #[allow(unused_assignments)]
     let (mut usage, mut total) = (0u64, 0u64);
 
     unsafe {
