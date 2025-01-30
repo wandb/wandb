@@ -221,13 +221,15 @@ def write_netrc(host: str, entity: str, key: str) -> bool:
     netrc_path = get_netrc_file_path()
     netrc_access = check_netrc_access(netrc_path)
 
-    if not netrc_access[_NetrcPermissions.NETRC_WRITE_ACCESS]:
-        wandb.termwarn(f"You do not have write permissions for {netrc_path}")
-        wandb.termwarn("We will be unable to save/update your API key.")
-        return False
-    if not netrc_access[_NetrcPermissions.NETRC_READ_ACCESS]:
-        wandb.termwarn(f"You do not have read permissions for {netrc_path}")
-        wandb.termwarn("We will be unable to save/update your API key.")
+    if (
+        not netrc_access[_NetrcPermissions.NETRC_WRITE_ACCESS]
+        or not netrc_access[_NetrcPermissions.NETRC_READ_ACCESS]
+    ):
+        wandb.termwarn(
+            f"Cannot access {netrc_path}. In order to persist your API key,"
+            + "\nGrant read & write permissions for your user to the file,"
+            + '\nor specify a different file with the environment variable "NETRC={new_netrc_path}".'
+        )
         return False
 
     try:
@@ -310,7 +312,8 @@ def api_key(settings: Optional["Settings"] = None) -> Optional[str]:
         netrc_access[_NetrcPermissions.NETRC_EXISTS]
         and not netrc_access[_NetrcPermissions.NETRC_READ_ACCESS]
     ):
-        wandb.termwarn(f"You do not have read permissions for {get_netrc_file_path()}")
-        wandb.termwarn("You will be prompted for your API key.")
+        wandb.termwarn(
+            f"Cannot access {get_netrc_file_path()}.\n" + "Prompting for API key."
+        )
 
     return None
