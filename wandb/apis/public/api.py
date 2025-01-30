@@ -26,7 +26,7 @@ from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.registries import Registries, RegistryVisibility
+from wandb.apis.public.registries import Registries
 from wandb.apis.public.utils import PathType, parse_org_from_registry_path
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
