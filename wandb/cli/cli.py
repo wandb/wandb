@@ -241,32 +241,21 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     wandb_sdk.wandb_login._handle_host_wandb_setting(host, cloud)
     # A change in click or the test harness means key can be none...
     key = key[0] if key is not None and len(key) > 0 else None
-    if key:
-        relogin = True
+    relogin = True if key or relogin else False
 
-    login_settings = dict(
-        x_cli_only_mode=True,
-        x_disable_viewer=relogin and not verify,
-        anonymous=anon_mode,
-        base_url=host,
+    wandb.setup(
+        settings=wandb.Settings(
+            x_cli_only_mode=True,
+            x_disable_viewer=relogin and not verify,
+        )
     )
 
-    try:
-        wandb.setup(
-            settings=wandb.Settings(
-                **{k: v for k, v in login_settings.items() if v is not None}
-            )
-        )
-    except TypeError as e:
-        wandb.termerror(str(e))
-        sys.exit(1)
-
     wandb.login(
-        relogin=relogin,
-        key=key,
         anonymous=anon_mode,
-        host=host,
         force=True,
+        host=host,
+        key=key,
+        relogin=relogin,
         verify=verify,
     )
 
