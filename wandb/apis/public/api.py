@@ -26,7 +26,7 @@ from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.registries import Registries
+from wandb.apis.public.registries import Registries, RegistryVisibility
 from wandb.apis.public.utils import PathType, parse_org_from_registry_path
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -1461,3 +1461,32 @@ class Api:
                 organization = entity_orgs[0].display_name
 
         return Registries(self.client, organization, filter)
+
+    # def create_registry(
+    #     self,
+    #     name: str,
+    #     registry_visibility: RegistryVisibility,
+    #     organization: Optional[str] = None,
+    #     accepted_artifact_types: Optional[list[str]] = None,
+    #     description: Optional[str] = None,
+    # ) -> "public.Registry":
+    #     """Create a new registry.
+
+    #     Args:
+    #         name: (str) The name of the registry.
+    #         registry_visibility: (str) The visibility of the registry. Options are:
+    #             "Organization": `wandb.RegistryVisibility.ORGANIZATION` Anyone in the organization can view this registry.
+    #             "Restricted": `wandb.RegistryVisibility.RESTRICTED` Only invited members can access this registry. Public sharing is disabled.
+    #         description: (str, optional) The description of the registry.
+    #         organization: (str, optional) The organization of the registry.
+    #         accepted_artifact_types: (list[str], optional) The types of artifacts that are accepted in the registry.
+    #             This is case sensitive and types cannot be removed from the registry created.
+    #             If not specified, the registry will accept all artifact types.
+
+    #     Returns:
+    #         A registry project.
+    #     """
+    #     return public.Registry.create(self.client, name, description, organization)
+
+    # def delete_registry(self, registry_name: str):
+    #     public.DeleteRegistry(self.client, registry_name)

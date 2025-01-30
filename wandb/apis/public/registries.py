@@ -1,6 +1,7 @@
 """Public API: registries."""
 
 import json
+from enum import Enum
 from typing import Any, Dict, Optional
 
 from wandb_gql import gql
@@ -10,6 +11,11 @@ from wandb.apis.attrs import Attrs
 from wandb.apis.paginator import Paginator
 from wandb.apis.public.artifacts import ArtifactCollection
 from wandb.sdk.artifacts.graphql_fragments import _gql_artifact_fragment
+
+
+class RegistryVisibility(Enum):
+    ORGANIZATION = "organization"
+    RESTRICTED = "restricted"
 
 
 class Registries(Paginator):
@@ -147,6 +153,18 @@ class Registry(Attrs):
             "name": self.full_name,
         }
         return Versions(self.client, self.organization, registry_filter, None, filter)
+
+    # def create(
+    #     self,
+    #     name: str,
+    #     registry_visibility: RegistryVisibility,
+    #     organization: Optional[str] = None,
+    #     accepted_artifact_types: Optional[list[str]] = None,
+    #     description: Optional[str] = None,
+    # ) -> "public.Registry":
+    #     # Fetch organization
+    #     if organization is None:
+    #         organization = self.organization
 
 
 class Collections(Paginator):
