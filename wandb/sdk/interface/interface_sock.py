@@ -7,7 +7,8 @@ See interface.py for how interface classes relate to each other.
 import logging
 from typing import TYPE_CHECKING, Any, Optional
 
-from ..lib.mailbox import Mailbox
+from wandb.sdk.mailbox import Mailbox
+
 from ..lib.sock_client import SockClient
 from .interface_shared import InterfaceShared
 from .message_future import MessageFuture

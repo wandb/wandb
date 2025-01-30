@@ -150,6 +150,10 @@ class ProgressPrinter:
             self._update_progress_text(line, 1.0)
 
     def _update_progress_text(self, text: str, progress: float) -> None:
+        if text == self._last_printed_line:
+            return
+        self._last_printed_line = text
+
         if self._progress_text_area:
             self._progress_text_area.set_text(text)
         else:

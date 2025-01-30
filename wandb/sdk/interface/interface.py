@@ -35,6 +35,7 @@ from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib import json_util as json
+from wandb.sdk.mailbox import MailboxHandle
 from wandb.util import (
     WandBJSONEncoderOld,
     get_h5_typename,
@@ -46,7 +47,6 @@ from wandb.util import (
 )
 
 from ..data_types.utils import history_dict_to_json, val_to_json
-from ..lib.mailbox import MailboxHandle
 from . import summary_record as sr
 from .message_future import MessageFuture
 

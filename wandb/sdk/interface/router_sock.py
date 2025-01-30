@@ -6,8 +6,9 @@ Router to manage responses from a socket client.
 
 from typing import TYPE_CHECKING, Optional
 
-from ..lib.mailbox import Mailbox
-from ..lib.sock_client import SockClient, SockClientClosedError
+from wandb.sdk.lib.sock_client import SockClient, SockClientClosedError
+from wandb.sdk.mailbox import Mailbox
+
 from .router import MessageRouter, MessageRouterClosedError
 
 if TYPE_CHECKING:

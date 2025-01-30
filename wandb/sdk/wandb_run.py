@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import atexit
 import functools
 import glob
@@ -43,6 +44,7 @@ from wandb.proto.wandb_internal_pb2 import (
 )
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal import job_builder
+from wandb.sdk.lib import asyncio_compat
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
@@ -82,7 +84,7 @@ from .lib import (
     telemetry,
 )
 from .lib.exit_hooks import ExitHooks
-from .lib.mailbox import MailboxError, MailboxHandle, MailboxProbe, MailboxProgress
+from .mailbox import HandleAbandonedError, MailboxHandle, wait_with_progress
 from .wandb_alerts import AlertLevel
 from .wandb_metadata import Metadata
 from .wandb_settings import Settings
@@ -229,23 +231,17 @@ class RunStatusChecker:
                 if self._join_event.is_set():
                     break
                 set_handle(local_handle)
+
             try:
-                result = local_handle.wait(timeout=timeout, release=False)
-            except MailboxError:
-                # background threads are oportunistically getting results
-                # from the internal process but the internal process could
-                # be shutdown at any time.  In this case assume that the
-                # thread should exit silently.   This is possible
-                # because we do not have an atexit handler for the user
-                # process which quiesces active threads.
+                result = local_handle.wait(timeout=timeout)
+            except HandleAbandonedError:
+                # This can happen if the service process dies.
                 break
             with lock:
                 set_handle(None)
 
             if result:
                 process(result)
-                # if request finished, clear the handle to send on the next interval
-                local_handle.abandon()
                 local_handle = None
 
             time_elapsed = time.monotonic() - time_probe
@@ -1300,12 +1296,6 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_summary(self, summary_record)
 
-    def _on_progress_get_summary(self, handle: MailboxProgress) -> None:
-        pass
-        # TODO(jhr): enable printing for get_summary in later mailbox dev phase
-        # line = "Waiting for run.summary data..."
-        # self._printer.display(line)
-
     def _summary_get_current_summary_callback(self) -> dict[str, Any]:
         if self._is_finished:
             # TODO: WB-18420: fetch summary from backend and stage it before run is finished
@@ -1314,10 +1304,7 @@ class Run:
         if not self._backend or not self._backend.interface:
             return {}
         handle = self._backend.interface.deliver_get_summary()
-        result = handle.wait(
-            timeout=self._settings.summary_timeout,
-            on_progress=self._on_progress_get_summary,
-        )
+        result = handle.wait(timeout=self._settings.summary_timeout)
         if not result:
             return {}
         get_summary_response = result.response.get_summary_response
@@ -2554,31 +2541,38 @@ class Run:
         else:
             return artifact
 
-    def _on_probe_exit(self, probe_handle: MailboxProbe) -> None:
-        handle = probe_handle.get_mailbox_handle()
-        if handle:
-            result = handle.wait(timeout=0, release=False)
-            if not result:
-                return
-            probe_handle.set_probe_result(result)
-        assert self._backend and self._backend.interface
-        handle = self._backend.interface.deliver_poll_exit()
-        probe_handle.set_mailbox_handle(handle)
-
-    def _on_progress_exit(
+    async def _display_finish_stats(
         self,
         progress_printer: progress.ProgressPrinter,
-        progress_handle: MailboxProgress,
     ) -> None:
-        probe_handles = progress_handle.get_probe_handles()
-        if not probe_handles or len(probe_handles) != 1:
-            return
+        last_result: Result | None = None
 
-        result = probe_handles[0].get_probe_result()
-        if not result:
-            return
+        async def loop_update_printer() -> None:
+            while True:
+                if last_result:
+                    progress_printer.update(
+                        [last_result.response.poll_exit_response],
+                    )
+                await asyncio.sleep(0.1)
 
-        progress_printer.update([result.response.poll_exit_response])
+        async def loop_poll_exit() -> None:
+            nonlocal last_result
+            assert self._backend and self._backend.interface
+
+            while True:
+                handle = self._backend.interface.deliver_poll_exit()
+
+                time_start = time.monotonic()
+                last_result = await handle.wait_async(timeout=None)
+
+                # Update at most once a second.
+                time_elapsed = time.monotonic() - time_start
+                if time_elapsed < 1:
+                    await asyncio.sleep(1 - time_elapsed)
+
+        async with asyncio_compat.open_task_group() as task_group:
+            task_group.start_soon(loop_update_printer())
+            task_group.start_soon(loop_poll_exit())
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")
@@ -2595,14 +2589,14 @@ class Run:
         else:
             exit_handle = self._backend.interface.deliver_finish_without_exit()
 
-        exit_handle.add_probe(on_probe=self._on_probe_exit)
-
         with progress.progress_printer(self._printer) as progress_printer:
             # Wait for the run to complete.
-            _ = exit_handle.wait(
-                timeout=-1,
-                on_progress=functools.partial(
-                    self._on_progress_exit,
+            wait_with_progress(
+                exit_handle,
+                timeout=None,
+                progress_after=1,
+                display_progress=functools.partial(
+                    self._display_finish_stats,
                     progress_printer,
                 ),
             )
