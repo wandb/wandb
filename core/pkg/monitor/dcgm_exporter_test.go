@@ -141,7 +141,8 @@ func TestSample(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(fakeResponse)
+		err := json.NewEncoder(w).Encode(fakeResponse)
+		require.NoError(t, err, "Failed to encode JSON response")
 	}))
 	defer server.Close()
 
@@ -206,7 +207,8 @@ func TestProbe(t *testing.T) {
 		// Verify the incoming request
 		assert.Equal(t, "/api/v1/query", r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(mockResponse)
+		err := json.NewEncoder(w).Encode(mockResponse)
+		require.NoError(t, err, "Failed to encode JSON response")
 	}))
 	defer server.Close()
 
@@ -257,7 +259,8 @@ func TestProbe(t *testing.T) {
 		delete(result[0]["metric"].(map[string]string), "modelName")
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(modifiedResponse)
+			err := json.NewEncoder(w).Encode(modifiedResponse)
+			require.NoError(t, err, "Failed to encode JSON response")
 		}))
 		defer server.Close()
 
@@ -279,7 +282,8 @@ func TestProbe(t *testing.T) {
 		delete(result[0]["metric"].(map[string]string), "uuid")
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(modifiedResponse)
+			err := json.NewEncoder(w).Encode(modifiedResponse)
+			require.NoError(t, err, "Failed to encode JSON response")
 		}))
 		defer server.Close()
 
@@ -319,7 +323,8 @@ func TestDCGMExporterAuth(t *testing.T) {
 				},
 			},
 		}
-		json.NewEncoder(w).Encode(response)
+		err := json.NewEncoder(w).Encode(response)
+		require.NoError(t, err, "Failed to encode JSON response")
 	}))
 	defer server.Close()
 
