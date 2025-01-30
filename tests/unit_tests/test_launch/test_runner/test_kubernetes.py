@@ -11,6 +11,7 @@ import wandb.sdk.launch.runner.kubernetes_runner
 from kubernetes_asyncio import client
 from kubernetes_asyncio.client import ApiException
 from wandb.sdk.launch._project_spec import LaunchProject
+from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.kubernetes_monitor import (
     CustomResource,
@@ -37,6 +38,13 @@ def clean_monitor():
     LaunchKubernetesMonitor._instance = None
     yield
     LaunchKubernetesMonitor._instance = None
+
+
+@pytest.fixture
+def clean_agent():
+    LaunchAgent._instance = None
+    yield
+    LaunchAgent._instance = None
 
 
 @pytest.fixture
@@ -713,6 +721,7 @@ async def test_launch_kube_base_image_works(
     test_api,
     manifest,
     clean_monitor,
+    clean_agent,
     tmpdir,
 ):
     """Test that runner works as expected with base image jobs."""
@@ -852,6 +861,7 @@ async def test_launch_kube_failed(
     test_api,
     manifest,
     clean_monitor,
+    clean_agent,
 ):
     """Test that we can launch a kubernetes job."""
     mock_batch_api.jobs = {"test-job": manifest}
@@ -905,6 +915,7 @@ async def test_launch_kube_api_secret_failed(
     test_api,
     manifest,
     clean_monitor,
+    clean_agent,
 ):
     async def mock_maybe_create_imagepull_secret(*args, **kwargs):
         return None
@@ -971,6 +982,7 @@ async def test_launch_kube_pod_schedule_warning(
     test_api,
     manifest,
     clean_monitor,
+    clean_agent,
 ):
     mock_batch_api.jobs = {"test-job": MockDict(manifest)}
     job_tracker = MagicMock()
