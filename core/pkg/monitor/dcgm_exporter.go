@@ -45,7 +45,7 @@ type DCGMExporter struct {
 // parsePromQLURL parses a Prometheus API URL to get the base URL and query parameters.
 //
 // URL path is omitted as Prometheus' api.Client() assumes /api/v1/query.
-func parsePromQLURL(fullURL string) (baseURL string, queries []string, err error) {
+func ParsePromQLURL(fullURL string) (baseURL string, queries []string, err error) {
 	parsedURL, err := url.Parse(fullURL)
 	if err != nil {
 		return "", nil, err
@@ -93,7 +93,7 @@ func NewDCGMExporter(params DCGMExporterParams) *DCGMExporter {
 	var err error
 
 	// Split the URL into the base URL and the query.
-	de.url, de.queries, err = parsePromQLURL(params.URL)
+	de.url, de.queries, err = ParsePromQLURL(params.URL)
 	if err != nil {
 		de.logger.Error("monitor: openmetrics: error parsing URL", "error", err)
 		return nil
@@ -129,6 +129,10 @@ func NewDCGMExporter(params DCGMExporterParams) *DCGMExporter {
 	de.v1api = v1.NewAPI(apiClient)
 
 	return de
+}
+
+func (de *DCGMExporter) Queries() []string {
+	return de.queries
 }
 
 func (de *DCGMExporter) Name() string {
@@ -211,7 +215,7 @@ func (de *DCGMExporter) Sample() (*spb.StatsRecord, error) {
 			value := float64(sample.Value) // Safe ops as sample.Value is a float64
 			if metricName == "DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION" {
 				// Convert mJ to J
-				value = value / 1000.0
+				value /= 1000.0
 			}
 
 			// Use node or hostname as the label to differentiate between GPUs
