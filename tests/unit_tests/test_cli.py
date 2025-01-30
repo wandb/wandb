@@ -171,6 +171,24 @@ def test_login_anonymously(runner, dummy_api_key, monkeypatch, empty_netrc):
         assert dummy_api_key in generated_netrc
 
 
+def test_login_no_prompt(monkeypatch, runner, dummy_api_key):
+    monkeypatch.setattr(
+        wandb.apis.internal.Api, "validate_api_key", lambda *args, **kwargs: True
+    )
+    monkeypatch.setattr(
+        wandb.sdk.lib.apikey, "api_key", lambda *args, **kwargs: dummy_api_key
+    )
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.login, ["--no-prompt", "--verify"])
+        assert result.exit_code == 0
+
+
+def test_login_no_prompt_fails(runner, dummy_api_key):
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.login, ["--no-prompt", "--verify"])
+        assert result.exit_code == 1
+
+
 def test_sync_gc(runner):
     with runner.isolated_filesystem():
         if not os.path.isdir("wandb"):
