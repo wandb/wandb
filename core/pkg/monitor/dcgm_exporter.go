@@ -172,36 +172,94 @@ func (de *DCGMExporter) Sample() (*spb.StatsRecord, error) {
 
 		// Process each sample in the vector
 		for _, sample := range vector {
+			// metricName := string(sample.Metric["__name__"])
+			// labels := make(map[string]string)
+
+			// // Convert model.Metric labels to map[string]string
+			// for labelName, labelValue := range sample.Metric {
+			// 	if labelName != "__name__" {
+			// 		labels[string(labelName)] = string(labelValue)
+			// 	}
+			// }
+
+			// // Generate a unique label hash for this combination
+			// labelHash := GenerateLabelHash(labels)
+
+			// // Initialize metric name in label map if not exists
+			// if _, ok := de.labelMap[metricName]; !ok {
+			// 	de.labelMap[metricName] = make(map[string]int)
+			// }
+
+			// // Assign index for this label combination if not exists
+			// if _, ok := de.labelMap[metricName][labelHash]; !ok {
+			// 	de.labelMap[metricName][labelHash] = len(de.labelMap[metricName])
+			// 	de.labelHashes[labelHash] = labels
+			// }
+
+			// index := de.labelMap[metricName][labelHash]
+
+			// // Format key as expected by frontend
+			// key := fmt.Sprintf("openmetrics.%s.%s.%d", de.Name(), metricName, index)
+			// metrics[key] = float64(sample.Value)
+			// fmt.Println(key, metrics[key])
+
 			metricName := string(sample.Metric["__name__"])
 			labels := make(map[string]string)
 
-			// Convert model.Metric labels to map[string]string
 			for labelName, labelValue := range sample.Metric {
 				if labelName != "__name__" {
 					labels[string(labelName)] = string(labelValue)
 				}
 			}
 
-			// Generate a unique label hash for this combination
-			labelHash := GenerateLabelHash(labels)
+			// Get GPU index from labels - usually in 'gpu' or 'device' label
+			gpuIndex := ""
+			if idx, ok := labels["gpu"]; ok {
+				gpuIndex = idx
+			} else if idx, ok := labels["device"]; ok {
+				// Strip "nvidia" prefix if present
+				gpuIndex = strings.TrimPrefix(idx, "nvidia")
+			}
 
-			// Initialize metric name in label map if not exists
+			if gpuIndex == "" {
+				continue
+			}
+
+			// Map DCGM metrics to our format
+			var mappedName string
+			switch metricName {
+			case "DCGM_FI_DEV_POWER_USAGE":
+				mappedName = fmt.Sprintf("gpu.%s.powerWatts", gpuIndex)
+			case "DCGM_FI_DEV_GPU_TEMP":
+				mappedName = fmt.Sprintf("gpu.%s.temp", gpuIndex)
+			case "DCGM_FI_DEV_MEMORY_TEMP":
+				mappedName = fmt.Sprintf("gpu.%s.memoryTemp", gpuIndex)
+			case "DCGM_FI_DEV_MEM_COPY_UTIL":
+				mappedName = fmt.Sprintf("gpu.%s.memory", gpuIndex)
+			case "DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION":
+				mappedName = fmt.Sprintf("gpu.%s.totalEnergyConsumption", gpuIndex)
+			default:
+				// Skip unknown metrics
+				continue
+			}
+
+			// Convert the value - note that DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION is in mJ
+			value := float64(sample.Value)
+			if metricName == "DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION" {
+				// Convert mJ to J
+				value = value / 1000.0
+			}
+
+			metrics[mappedName] = value
+
+			labelHash := GenerateLabelHash(labels)
 			if _, ok := de.labelMap[metricName]; !ok {
 				de.labelMap[metricName] = make(map[string]int)
 			}
-
-			// Assign index for this label combination if not exists
 			if _, ok := de.labelMap[metricName][labelHash]; !ok {
 				de.labelMap[metricName][labelHash] = len(de.labelMap[metricName])
 				de.labelHashes[labelHash] = labels
 			}
-
-			index := de.labelMap[metricName][labelHash]
-
-			// Format key as expected by frontend
-			key := fmt.Sprintf("openmetrics.%s.%s.%d", de.Name(), metricName, index)
-			metrics[key] = float64(sample.Value)
-			fmt.Println(key, metrics[key])
 		}
 	}
 
