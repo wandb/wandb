@@ -232,12 +232,12 @@ func (de *DCGMExporter) Sample() (*spb.StatsRecord, error) {
 				mappedName = fmt.Sprintf("gpu.%s.powerWatts", gpuIndex)
 			case "DCGM_FI_DEV_GPU_TEMP":
 				mappedName = fmt.Sprintf("gpu.%s.temp", gpuIndex)
-			case "DCGM_FI_DEV_MEMORY_TEMP":
-				mappedName = fmt.Sprintf("gpu.%s.memoryTemp", gpuIndex)
+			// case "DCGM_FI_DEV_MEMORY_TEMP":
+			// 	mappedName = fmt.Sprintf("gpu.%s.memoryTemp", gpuIndex)
 			case "DCGM_FI_DEV_MEM_COPY_UTIL":
 				mappedName = fmt.Sprintf("gpu.%s.memory", gpuIndex)
-			case "DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION":
-				mappedName = fmt.Sprintf("gpu.%s.totalEnergyConsumption", gpuIndex)
+			// case "DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION":
+			// 	mappedName = fmt.Sprintf("gpu.%s.totalEnergyConsumption", gpuIndex)
 			default:
 				// Skip unknown metrics
 				continue
@@ -248,6 +248,21 @@ func (de *DCGMExporter) Sample() (*spb.StatsRecord, error) {
 			if metricName == "DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION" {
 				// Convert mJ to J
 				value = value / 1000.0
+			}
+
+			// Use node or hostname as the label to differentiate between GPUs
+			// from different nodes (e.g. in multi-node training)
+			// Example: `gpu.0.owerWatts/l:node1`
+			label := ""
+			if node, ok := labels["node"]; ok {
+				label = node
+			} else if hostname, ok := labels["hostname"]; ok {
+				label = hostname
+			}
+
+			// Add the label to the metric name
+			if label != "" {
+				metricName = fmt.Sprintf("%s/l:%s", metricName, label)
 			}
 
 			metrics[mappedName] = value

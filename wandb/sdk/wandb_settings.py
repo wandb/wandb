@@ -588,14 +588,14 @@ class Settings(BaseModel, validate_assignment=True):
     """Endpoint to extract Nvidia DCGM metrics from.
 
     Two options are supported:
-    - TODO: Parse metrics directly from the `/metrics` endpoint of the DCGM Exporter.
     - Extract DCGM-related metrics from a query to the Prometheus `/api/v1/query` endpoint.
       It is a common practice to aggregate metrics reported by the instances of the DCGM Exporter
       running on different nodes in a cluster using Prometheus.
+    - TODO: Parse metrics directly from the `/metrics` endpoint of the DCGM Exporter.
 
     Examples:
-    - TODO: `http://192.168.0.1:9400/metrics`.
     - `http://localhost:9400/api/v1/query?query=DCGM_FI_DEV_GPU_TEMP{node="l1337", cluster="globular"}`.
+    - TODO: `http://192.168.0.1:9400/metrics`.
     """
 
     x_stats_open_metrics_endpoints: dict[str, str] | None = None
