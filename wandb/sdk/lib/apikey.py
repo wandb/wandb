@@ -134,10 +134,8 @@ def prompt_api_key(  # noqa: C901
         )
 
     key = None
-    api_ask = (
-        f"{log_string}: Paste an API key from your profile and hit enter, "
-        "or press ctrl+c to quit"
-    )
+    api_ask_suffix = ", or press ctrl+c to quit" if not jupyter else ""
+    api_ask = f"{log_string}: Paste an API key from your profile and hit enter{api_ask_suffix}"
     if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
     elif result == LOGIN_CHOICE_NEW:
