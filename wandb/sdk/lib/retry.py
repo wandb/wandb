@@ -12,9 +12,8 @@ from typing import Any, Awaitable, Callable, Generic, Optional, Tuple, Type, Typ
 from requests import HTTPError
 
 import wandb
+import wandb.errors
 from wandb.util import CheckRetryFnType
-
-from .mailbox import ContextCancelledError
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +23,10 @@ logger = logging.getLogger(__name__)
 NOW_FN = datetime.datetime.now
 SLEEP_FN = time.sleep
 SLEEP_ASYNC_FN = asyncio.sleep
+
+
+class RetryCancelledError(wandb.errors.Error):
+    """A retry did not occur because it was cancelled."""
 
 
 class TransientError(Exception):
@@ -191,7 +194,7 @@ class Retry(Generic[_R]):
                 sleep + random.random() * 0.25 * sleep, cancel_event=retry_cancel_event
             )
             if cancelled:
-                raise ContextCancelledError("retry timeout")
+                raise RetryCancelledError("retry timeout")
             sleep *= 2
             if sleep > self.MAX_SLEEP_SECONDS:
                 sleep = self.MAX_SLEEP_SECONDS
