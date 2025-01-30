@@ -24,10 +24,6 @@ class MailboxError(Error):
     """Generic Mailbox Exception."""
 
 
-class ContextCancelledError(MailboxError):
-    """Context cancelled Exception."""
-
-
 class _MailboxWaitAll:
     _event: threading.Event
     _lock: threading.Lock
