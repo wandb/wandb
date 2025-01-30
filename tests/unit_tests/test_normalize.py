@@ -9,11 +9,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError
 
 
-def raise_exception(msg: str):
-    raise Exception(msg)
-
-
-def http_response(
+def _http_response(
     status_code: int,
     body: bytes | None = None,
     reason: str | None = None,
@@ -37,22 +33,22 @@ def test_exception():
 
 
 @normalize_exceptions
-def raise_http_error(response: requests.Response) -> NoReturn:
+def _raise_normalized_http_error(response: requests.Response) -> NoReturn:
     raise requests.HTTPError(response=response)
 
 
 def test_empty_http_error():
-    resp = http_response(404)
+    resp = _http_response(404)
 
     with pytest.raises(CommError, match="HTTP 404"):
-        raise_http_error(resp)
+        _raise_normalized_http_error(resp)
 
 
 def test_http_error_with_reason():
-    resp = http_response(404, reason="Not Found")
+    resp = _http_response(404, reason="Not Found")
 
     with pytest.raises(CommError, match=re.escape("HTTP 404 (Not Found)")):
-        raise_http_error(resp)
+        _raise_normalized_http_error(resp)
 
 
 @pytest.mark.parametrize(
@@ -67,10 +63,10 @@ def test_http_error_with_reason():
     ],
 )
 def test_http_error_invalid_body(body, message):
-    resp = http_response(500, body=body)
+    resp = _http_response(500, body=body)
 
     with pytest.raises(CommError, match=re.escape(message)):
-        raise_http_error(resp)
+        _raise_normalized_http_error(resp)
 
 
 @pytest.mark.parametrize(
@@ -85,7 +81,7 @@ def test_http_error_invalid_body(body, message):
     ],
 )
 def test_http_error_valid_body(body, message):
-    resp = http_response(500, body=body)
+    resp = _http_response(500, body=body)
 
     with pytest.raises(CommError, match=re.escape(message)):
-        raise_http_error(resp)
+        _raise_normalized_http_error(resp)
