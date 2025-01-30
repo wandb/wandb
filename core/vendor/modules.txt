@@ -301,6 +301,9 @@ github.com/aws/smithy-go/tracing
 github.com/aws/smithy-go/transport/http
 github.com/aws/smithy-go/transport/http/internal/io
 github.com/aws/smithy-go/waiter
+# github.com/beorn7/perks v1.0.1
+## explicit; go 1.11
+github.com/beorn7/perks/quantile
 # github.com/census-instrumentation/opencensus-proto v0.4.1
 ## explicit; go 1.18
 github.com/census-instrumentation/opencensus-proto/gen-go/resource/v1
@@ -541,6 +544,9 @@ github.com/hashicorp/golang-lru/simplelru
 # github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99
 ## explicit
 github.com/jbenet/go-context/io
+# github.com/jpillora/backoff v1.0.0
+## explicit; go 1.13
+github.com/jpillora/backoff
 # github.com/json-iterator/go v1.1.12
 ## explicit; go 1.12
 github.com/json-iterator/go
@@ -563,6 +569,9 @@ github.com/modern-go/reflect2
 # github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 ## explicit
 github.com/munnerz/goautoneg
+# github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
+## explicit
+github.com/mwitkow/go-conntrack
 # github.com/pjbgf/sha1cd v0.3.0
 ## explicit; go 1.19
 github.com/pjbgf/sha1cd
@@ -590,13 +599,21 @@ github.com/power-devops/perfstat
 ## explicit; go 1.20
 github.com/prometheus/client_golang/api
 github.com/prometheus/client_golang/api/prometheus/v1
+github.com/prometheus/client_golang/prometheus
+github.com/prometheus/client_golang/prometheus/internal
 # github.com/prometheus/client_model v0.6.1
 ## explicit; go 1.19
 github.com/prometheus/client_model/go
 # github.com/prometheus/common v0.61.0
 ## explicit; go 1.21
+github.com/prometheus/common/config
 github.com/prometheus/common/expfmt
 github.com/prometheus/common/model
+# github.com/prometheus/procfs v0.15.1
+## explicit; go 1.20
+github.com/prometheus/procfs
+github.com/prometheus/procfs/internal/fs
+github.com/prometheus/procfs/internal/util
 # github.com/radovskyb/watcher v1.0.7
 ## explicit
 github.com/radovskyb/watcher
@@ -735,6 +752,7 @@ golang.org/x/mod/semver
 ## explicit; go 1.18
 golang.org/x/net/context
 golang.org/x/net/http/httpguts
+golang.org/x/net/http/httpproxy
 golang.org/x/net/http2
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
@@ -746,6 +764,7 @@ golang.org/x/net/trace
 ## explicit; go 1.18
 golang.org/x/oauth2
 golang.org/x/oauth2/authhandler
+golang.org/x/oauth2/clientcredentials
 golang.org/x/oauth2/google
 golang.org/x/oauth2/google/externalaccount
 golang.org/x/oauth2/google/internal/externalaccountauthorizeduser
