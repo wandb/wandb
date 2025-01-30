@@ -145,6 +145,18 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 		sm.assets = append(sm.assets, trainium)
 	}
 
+	// DCGM Exporter.
+	if url := settings.GetStatsDcgmExporter(); url != "" {
+		params := DCGMExporterParams{
+			URL:     url,
+			Headers: settings.GetStatsOpenMetricsHeaders(),
+			Logger:  sm.logger,
+		}
+		if de := NewDCGMExporter(params); de != nil {
+			sm.assets = append(sm.assets, de)
+		}
+	}
+
 	// OpenMetrics endpoints to monitor.
 	if endpoints := settings.GetStatsOpenMetricsEndpoints(); endpoints != nil {
 		for name, url := range endpoints {

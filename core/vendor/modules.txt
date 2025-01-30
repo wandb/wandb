@@ -541,6 +541,9 @@ github.com/hashicorp/golang-lru/simplelru
 # github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99
 ## explicit
 github.com/jbenet/go-context/io
+# github.com/json-iterator/go v1.1.12
+## explicit; go 1.12
+github.com/json-iterator/go
 # github.com/kevinburke/ssh_config v1.2.0
 ## explicit
 github.com/kevinburke/ssh_config
@@ -551,6 +554,12 @@ github.com/kylelemons/godebug/pretty
 # github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683
 ## explicit; go 1.16
 github.com/lufia/plan9stats
+# github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
+## explicit
+github.com/modern-go/concurrent
+# github.com/modern-go/reflect2 v1.0.2
+## explicit; go 1.12
+github.com/modern-go/reflect2
 # github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 ## explicit
 github.com/munnerz/goautoneg
@@ -577,6 +586,10 @@ github.com/pmezard/go-difflib/difflib
 # github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55
 ## explicit; go 1.14
 github.com/power-devops/perfstat
+# github.com/prometheus/client_golang v1.20.5
+## explicit; go 1.20
+github.com/prometheus/client_golang/api
+github.com/prometheus/client_golang/api/prometheus/v1
 # github.com/prometheus/client_model v0.6.1
 ## explicit; go 1.19
 github.com/prometheus/client_model/go
