@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import configparser
 import datetime
@@ -216,12 +218,14 @@ def projects(entity, display=True):
 
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
-@click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
+@click.option(
+    "--cloud", default=False, is_flag=True, help="Login to the cloud instead of local"
+)
 @click.option(
     "--host", "--base-url", default=None, help="Login to a specific instance of W&B"
 )
 @click.option(
-    "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
+    "--relogin", default=False, is_flag=True, help="Force relogin if already logged in."
 )
 @click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
 @click.option(
@@ -238,7 +242,14 @@ def projects(entity, display=True):
 )
 @display_error
 def login(
-    key, host, cloud, relogin, anonymously, verify, no_offline=False, no_prompt=False
+    key: str | None = None,
+    host: str | None = None,
+    cloud: bool = False,
+    relogin: bool = False,
+    anonymously: bool = False,
+    verify: bool = False,
+    no_offline: bool = False,
+    no_prompt: bool = False,
 ):
     # TODO: move CLI to wandb-core backend
     wandb.require("legacy-service")
