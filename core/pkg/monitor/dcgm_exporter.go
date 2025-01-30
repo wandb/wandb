@@ -136,8 +136,8 @@ func NewDCGMExporter(params DCGMExporterParams) *DCGMExporter {
 // ParsePromQLURL parses a Prometheus API URL to get the base URL and query parameters.
 //
 // parsedURL.Path is omitted as Prometheus' api.Client() assumes /api/v1/query.
-func ParsePromQLURL(URL string) (baseURL string, queries []string, err error) {
-	parsedURL, err := url.Parse(URL)
+func ParsePromQLURL(fullURL string) (baseURL string, queries []string, err error) {
+	parsedURL, err := url.Parse(fullURL)
 	if err != nil {
 		return "", nil, err
 	}
