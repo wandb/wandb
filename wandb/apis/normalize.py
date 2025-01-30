@@ -23,16 +23,24 @@ def normalize_exceptions(func: _F) -> _F:
         message = "Whoa, you found a bug."
         try:
             return func(*args, **kwargs)
+
         except requests.HTTPError as error:
             errors = parse_backend_error_messages(error.response)
+            status = error.response.status_code
+
             if errors:
-                message = " ".join(errors)
-                message += (
-                    f" (Error {error.response.status_code}: {error.response.reason})"
-                )
+                message = f"HTTP {status}: {'; '.join(errors)}"
+            elif error.response.text:
+                message = f"HTTP {status}: {error.response.text}"
+            elif error.response.reason:
+                # Visually different to distinguish backend errors from
+                # standard HTTP status descriptions.
+                message = f"HTTP {status} ({error.response.reason})"
             else:
-                message = error.response
+                message = f"HTTP {status}"
+
             raise CommError(message, error)
+
         except RetryError as err:
             if (
                 "response" in dir(err.last_exception)
