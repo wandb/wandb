@@ -464,6 +464,11 @@ func (s *Settings) GetStatsNeuronMonitorConfigPath() string {
 	return s.Proto.XStatsNeuronMonitorConfigPath.GetValue()
 }
 
+// The OpenMetrics API query.
+func (s *Settings) GetStatsDcgmExporter() string {
+	return s.Proto.XStatsDcgmExporter.GetValue()
+}
+
 // The OpenMetrics endpoints to monitor.
 func (s *Settings) GetStatsOpenMetricsEndpoints() map[string]string {
 	return s.Proto.XStatsOpenMetricsEndpoints.GetValue()

@@ -47,7 +47,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 188
+// Next ID: 189
 message Settings {
   reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137;
 
@@ -94,7 +94,7 @@ message Settings {
   google.protobuf.StringValue entity = 69;
 
   // The W&B organization.
-  google.protobuf.StringValue organization = 187;
+  google.protobuf.StringValue organization = 188;
 
   // The start time of the run in seconds since the Unix epoch.
   google.protobuf.DoubleValue x_start_time = 41;
@@ -303,6 +303,9 @@ message Settings {
 
   // The path to the Neuron monitor config file.
   google.protobuf.StringValue x_stats_neuron_monitor_config_path = 46;
+
+  // URL to extract DCGM metrics from.
+  google.protobuf.StringValue x_stats_dcgm_exporter = 187;
 
   // The OpenMetrics endpoints to monitor.
   MapStringKeyStringValue x_stats_open_metrics_endpoints = 47;
