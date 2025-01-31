@@ -25,3 +25,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - Fixed a performance issue causing slow instantiation of `wandb.Artifact`, which in turn slowed down fetching artifacts in various API methods. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9355)
 - Some errors from `wandb.Api` have better string representations (@timoffex in https://github.com/wandb/wandb/pull/9361)
+- artifact.add_reference, when used with file URIs for a directory and the name parameter, was incorrectly adding the value of `name` to the path of the file references (@ssisk in https://github.com/wandb/wandb/pull/9378) 
