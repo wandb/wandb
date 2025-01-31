@@ -304,6 +304,9 @@ message Settings {
   // The path to the Neuron monitor config file.
   google.protobuf.StringValue x_stats_neuron_monitor_config_path = 46;
 
+  // URL to extract DCGM metrics from.
+  google.protobuf.StringValue x_stats_dcgm_exporter = 187;
+
   // The OpenMetrics endpoints to monitor.
   MapStringKeyStringValue x_stats_open_metrics_endpoints = 47;
 

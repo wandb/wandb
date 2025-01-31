@@ -52,9 +52,9 @@ from wandb.sdk.lib import (
     filesystem,
     proto_util,
     redirect,
+    retry,
     telemetry,
 )
-from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
 
 if TYPE_CHECKING:
@@ -388,7 +388,7 @@ class SendManager:
         try:
             self._api.set_local_context(api_context)
             send_handler(record)
-        except ContextCancelledError:
+        except retry.RetryCancelledError:
             logger.debug(f"Record cancelled: {record_type}")
             self._context_keeper.release(context_id)
         finally:
