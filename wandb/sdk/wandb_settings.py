@@ -514,6 +514,8 @@ class Settings(BaseModel, validate_assignment=True):
 
     This is used to group data by on the frontend and can be used to distinguish data
     from different processes in a distributed training job.
+
+    TODO: in shared mode, generate a unique label if not provided.
     """
 
     x_live_policy_rate_limit: int | None = None
@@ -582,8 +584,22 @@ class Settings(BaseModel, validate_assignment=True):
     This is used to monitor AWS Trainium devices.
     """
 
+    x_stats_dcgm_exporter: str | None = None
+    """Endpoint to extract Nvidia DCGM metrics from.
+
+    Two options are supported:
+    - Extract DCGM-related metrics from a query to the Prometheus `/api/v1/query` endpoint.
+      It is a common practice to aggregate metrics reported by the instances of the DCGM Exporter
+      running on different nodes in a cluster using Prometheus.
+    - TODO: Parse metrics directly from the `/metrics` endpoint of the DCGM Exporter.
+
+    Examples:
+    - `http://localhost:9400/api/v1/query?query=DCGM_FI_DEV_GPU_TEMP{node="l1337", cluster="globular"}`.
+    - TODO: `http://192.168.0.1:9400/metrics`.
+    """
+
     x_stats_open_metrics_endpoints: dict[str, str] | None = None
-    """OpenMetrics endpoints to monitor for system metrics."""
+    """OpenMetrics `/metrics` endpoints to monitor for system metrics."""
 
     x_stats_open_metrics_filters: dict[str, dict[str, str]] | Sequence[str] | None = (
         None
