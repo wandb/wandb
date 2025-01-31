@@ -248,6 +248,9 @@ class Api:
             self.settings["entity"] = _overrides["username"]
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
 
+        if "organization" in _overrides:
+            self.settings["organization"] = _overrides["organization"]
+
         self._viewer = None
         self._projects = {}
         self._runs = {}

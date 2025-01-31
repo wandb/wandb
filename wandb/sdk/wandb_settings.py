@@ -164,6 +164,9 @@ class Settings(BaseModel, validate_assignment=True):
     entity: str | None = None
     """The W&B entity, such as a user or a team."""
 
+    organization: str | None = None
+    """The W&B organization."""
+
     force: bool = False
     """Whether to pass the `force` flag to `wandb.login()`."""
 
