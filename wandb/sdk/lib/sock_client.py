@@ -1,3 +1,4 @@
+import logging
 import socket
 import struct
 import threading
@@ -6,6 +7,8 @@ import uuid
 from typing import TYPE_CHECKING, Any, List, Optional
 
 from wandb.proto import wandb_server_pb2 as spb
+
+logger = logging.getLogger("wandb")
 
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2 as pb
@@ -217,6 +220,11 @@ class SockClient:
         self.send_server_request(server_req)
 
     def send_record_publish(self, record: "pb.Record") -> None:
+        if record.WhichOneof("record_type") is None:
+            logger.error("null request type recieved")
+            logger.error(f"record: {record}")
+            raise Exception("null request type recieved")
+
         server_req = spb.ServerRequest()
         server_req.record_publish.CopyFrom(record)
         self.send_server_request(server_req)
