@@ -95,6 +95,7 @@ class GpuNvidiaInfo(BaseModel, validate_assignment=True):
     memory_total: int | None = None
     cuda_cores: int | None = None
     architecture: str | None = None
+    uuid: str | None = None
 
     def to_proto(self) -> wandb_internal_pb2.GpuNvidiaInfo:
         return wandb_internal_pb2.GpuNvidiaInfo(
@@ -102,6 +103,7 @@ class GpuNvidiaInfo(BaseModel, validate_assignment=True):
             memory_total=self.memory_total or 0,
             cuda_cores=self.cuda_cores or 0,
             architecture=self.architecture or "",
+            uuid=self.uuid or "",
         )
 
     @classmethod
@@ -111,6 +113,7 @@ class GpuNvidiaInfo(BaseModel, validate_assignment=True):
             memory_total=proto.memory_total,
             cuda_cores=proto.cuda_cores,
             architecture=proto.architecture,
+            uuid=proto.uuid,
         )
 
 
