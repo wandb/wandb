@@ -37,6 +37,8 @@ type DCGMExporter struct {
 	baseUrl string
 
 	// queries are the PromQL queries to fetch the relevant metrics.
+	//
+	// PromQL is the Prometheus Query Language.
 	queries []string
 
 	// prometheusAPI is the Prometheus API client.
@@ -135,6 +137,7 @@ func NewDCGMExporter(params DCGMExporterParams) *DCGMExporter {
 
 // ParsePromQLURL parses a Prometheus API URL to get the base URL and query parameters.
 //
+// The query is expected to be in the Prometheus Query Language (PromQL).
 // parsedURL.Path is omitted as Prometheus' api.Client() assumes /api/v1/query.
 func ParsePromQLURL(fullURL string) (baseURL string, queries []string, err error) {
 	parsedURL, err := url.Parse(fullURL)
@@ -170,16 +173,22 @@ func (de *DCGMExporter) Name() string {
 	return "dcgm_exporter"
 }
 
-// gpuMetric represents a GPU metric parsed from a Prometheus sample.
+// gpuMetric represents a GPU metric and metadata parsed from a Prometheus sample.
 type gpuMetric struct {
 	// name is the metric name.
 	name string
 	// value is the metric value.
 	value float64
-	// index is index of the corresponding GPU.
+	// index is GPU index (e.g. 0, 1, 2, ...).
 	index string
-	// labels are the labels of the metric.
-	labels map[string]string
+	// uuid is the UUID of the GPU.
+	uuid string
+	// modelName is the model name of the GPU.
+	modelName string
+	// node is the name of the node where the GPU is located.
+	node string
+	// hostname is the hostname of the node where the GPU is located.
+	hostname string
 }
 
 // newGPUMetric parses a GPU metric from a Prometheus sample.
@@ -192,7 +201,8 @@ func newGPUMetric(sample *model.Sample) (*gpuMetric, error) {
 		}
 	}
 
-	// Get GPU index from labels - usually in 'gpu' or 'device' label
+	// Get GPU index from labels - usually in 'gpu' or 'device' label.
+	// If it is missing, we cannot identify the GPU and should ignore the metric.
 	gpuIndex := ""
 	if idx, ok := labels["gpu"]; ok {
 		gpuIndex = idx
@@ -200,18 +210,31 @@ func newGPUMetric(sample *model.Sample) (*gpuMetric, error) {
 		// Strip "nvidia" prefix if present
 		gpuIndex = strings.TrimPrefix(idx, "nvidia")
 	}
-	// If GPU index is missing, we cannot identify the GPU and
-	// should skip the metric.
 	if gpuIndex == "" {
 		return nil, fmt.Errorf("missing GPU index")
 	}
 
-	return &gpuMetric{
-		name:   string(sample.Metric["__name__"]), // Prometheus stores it in the '__name__' label
-		value:  float64(sample.Value),             // Safe ops as sample.Value is a float64
-		index:  gpuIndex,
-		labels: labels,
-	}, nil
+	gm := &gpuMetric{
+		name:  string(sample.Metric["__name__"]), // Prometheus stores it in the '__name__' label
+		value: float64(sample.Value),             // Safe ops as sample.Value is a float64
+		index: gpuIndex,
+	}
+
+	// Extract metadata from labels
+	if uuid, ok := labels["uuid"]; ok {
+		gm.uuid = uuid
+	}
+	if modelName, ok := labels["modelName"]; ok {
+		gm.modelName = modelName
+	}
+	if node, ok := labels["node"]; ok {
+		gm.node = node
+	}
+	if hostname, ok := labels["hostname"]; ok {
+		gm.hostname = hostname
+	}
+
+	return gm, nil
 }
 
 // wandbName maps a GPU metric to a WandB GPU metric name.
@@ -240,10 +263,10 @@ func (gm *gpuMetric) wandbName() string {
 	// to differentiate between GPUs from different nodes (e.g. in multi-node training).
 	// Example: `gpu.0.owerWatts/l:node1`
 	label := ""
-	if node, ok := gm.labels["node"]; ok {
-		label = node
-	} else if hostname, ok := gm.labels["hostname"]; ok {
-		label = hostname
+	if gm.node != "" {
+		label = gm.node
+	} else if gm.hostname != "" {
+		label = gm.hostname
 	}
 	if label != "" {
 		mappedName = fmt.Sprintf("%s/l:%s", mappedName, label)
@@ -356,12 +379,13 @@ func (de *DCGMExporter) Probe() *spb.MetadataRequest {
 
 			// GPU Model Name and UUID uniquely identify a GPU.
 			// Do not store the information if either is missing.
-			gpuInfo := &spb.GpuNvidiaInfo{}
-			if gpuInfo.Name, ok = gm.labels["modelName"]; !ok {
+			if gm.modelName == "" || gm.uuid == "" {
 				continue
 			}
-			if gpuInfo.Uuid, ok = gm.labels["uuid"]; !ok {
-				continue
+
+			gpuInfo := &spb.GpuNvidiaInfo{
+				Name: gm.modelName,
+				Uuid: gm.uuid,
 			}
 
 			gpus[gpuInfo] = true
