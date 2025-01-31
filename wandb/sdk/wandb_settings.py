@@ -23,6 +23,7 @@ else:
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
 from pydantic import (
+    AliasChoices,
     BaseModel,
     ConfigDict,
     Field,
@@ -533,7 +534,9 @@ class Settings(BaseModel, validate_assignment=True):
     TODO: Not implemented in wandb-core.
     """
 
-    x_primary: bool = Field(default=True, alias="x_primary_node")
+    x_primary: bool = Field(
+        default=True, validation_alias=AliasChoices("x_primary", "x_primary_node")
+    )
     """Determines whether to save internal wandb files and metadata.
 
     In a distributed setting, this is useful for avoiding file overwrites
