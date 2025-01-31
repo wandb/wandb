@@ -430,8 +430,13 @@ func (s *Settings) IsDisableStats() bool {
 	return s.Proto.XDisableStats.GetValue()
 }
 
-func (s *Settings) IsPrimaryNode() bool {
-	return s.Proto.XPrimaryNode.GetValue()
+// Determines whether to save internal wandb files and metadata.
+//
+// In a distributed setting, this is useful for avoiding file overwrites from secondary processes
+// when only system metrics and logs are needed, as the primary process handles the main logging.
+func (s *Settings) IsPrimary() bool {
+	return true
+	// return s.Proto.XPrimary.GetValue()
 }
 
 // The size of the buffer for system metrics.

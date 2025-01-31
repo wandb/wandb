@@ -533,10 +533,7 @@ class Settings(BaseModel, validate_assignment=True):
     TODO: Not implemented in wandb-core.
     """
 
-    # Determines whether to save internal wandb files and metadata.
-    # In a distributed setting, this is useful for avoiding file overwrites on secondary nodes
-    # when only system metrics and logs are needed, as the primary node handles the main logging.
-    x_primary_node: bool = True
+    x_primary: bool = Field(default=True, alias="x_primary_node")
     """Determines whether to save internal wandb files and metadata.
 
     In a distributed setting, this is useful for avoiding file overwrites
