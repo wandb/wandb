@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -168,7 +169,7 @@ func (o *OpenMetrics) ShouldCaptureMetric(metricName string, metricLabels map[st
 
 	// generate a hash of metricName and metricLabels to avoid recomputing it
 	// for the same metric
-	hash := o.GenerateLabelHash(metricLabels)
+	hash := GenerateLabelHash(metricLabels)
 	if shouldCapture, ok := o.cache.Get(metricName + hash); ok {
 		return shouldCapture.(bool)
 	}
@@ -264,7 +265,7 @@ func (o *OpenMetrics) Sample() (*spb.StatsRecord, error) {
 				continue
 			}
 
-			labelHash := o.GenerateLabelHash(labels)
+			labelHash := GenerateLabelHash(labels)
 
 			if _, ok := o.labelMap[name]; !ok {
 				o.labelMap[name] = make(map[string]int)
@@ -298,13 +299,25 @@ func (o *OpenMetrics) Sample() (*spb.StatsRecord, error) {
 	return marshal(metrics, timestamppb.Now()), nil
 }
 
-// generateLabelHash creates a hash of the label map for consistent indexing.
-func (o *OpenMetrics) GenerateLabelHash(labels map[string]string) string {
-	var sb strings.Builder
-	for k, v := range labels {
-		sb.WriteString(k)
-		sb.WriteString(v)
+// GenerateLabelHash creates a hash of the label map for consistent indexing.
+func GenerateLabelHash(labels map[string]string) string {
+	// Sort keys to ensure consistent ordering
+	keys := make([]string, 0, len(labels))
+	for k := range labels {
+		keys = append(keys, k)
 	}
+	sort.Strings(keys)
+
+	// Build string with sorted keys and values
+	var sb strings.Builder
+	for _, k := range keys {
+		sb.WriteString(k)
+		sb.WriteString("=")
+		sb.WriteString(labels[k])
+		sb.WriteString(";")
+	}
+
+	// Generate MD5 hash
 	hash := md5.Sum([]byte(sb.String()))
 	return hex.EncodeToString(hash[:])
 }
