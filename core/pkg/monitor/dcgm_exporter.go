@@ -244,6 +244,8 @@ func newGPUMetric(sample *model.Sample) (*gpuMetric, error) {
 //
 // The full list of DCGM metrics and their descriptions can be found here:
 // https://docs.nvidia.com/datacenter/dcgm/latest/dcgm-api/dcgm-api-field-ids.html
+//
+//gocyclo:ignore
 func (gm *gpuMetric) wandbName() string {
 	var mappedName string
 	switch gm.name {
