@@ -1,12 +1,16 @@
-const pr = context.payload.pull_request;
+const core = require('@actions/core');
+const github = require('@actions/github');
+
+// Extracting the PR information from the context
+const pr = github.context.payload.pull_request;
 const prTitle = pr.title || '';
 const prBody = pr.body || '';
 
 // Function to create failure comment
 async function createFailureComment(message) {
   await github.rest.issues.createComment({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
+    owner: github.context.repo.owner,
+    repo: github.context.repo.repo,
     issue_number: pr.number,
     body: `❌ Documentation Reference Check Failed\n\n${message}\n\nThis check is required for all PRs that start with "feat". Please update your PR description and this check will run again automatically.`
   });
@@ -17,8 +21,8 @@ async function createFailureComment(message) {
 async function main() {
   // First, cleanup any previous comments from this workflow
   const comments = await github.rest.issues.listComments({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
+    owner: github.context.repo.owner,
+    repo: github.context.repo.repo,
     issue_number: pr.number
   });
 
@@ -26,8 +30,8 @@ async function main() {
   for (const comment of comments.data) {
     if (comment.body.startsWith('❌ Documentation Reference Check Failed')) {
       await github.rest.issues.deleteComment({
-        owner: context.repo.owner,
-        repo: context.repo.repo,
+        owner: github.context.repo.owner,
+        repo: github.context.repo.repo,
         comment_id: comment.id
       });
     }
@@ -40,8 +44,6 @@ async function main() {
   }
 
   // Regular expressions to match either:
-  // 1. wandb/docs PR links (https://github.com/wandb/docs/pull/123 or wandb/docs#123)
-  // 2. DOCS Jira ticket links (https://wandb.atlassian.net/browse/DOCS-XXX or DOCS-XXX)
   const docsLinkRegex = /(?:https:\/\/github\.com\/wandb\/docs\/pull\/|wandb\/docs#)(\d+)/;
   const jiraLinkRegex = /(?:https:\/\/wandb\.atlassian\.net\/browse\/)?DOCS-\d+/;
 
