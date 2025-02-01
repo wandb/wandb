@@ -8,7 +8,8 @@ const prBody = pr.body || '';
 
 // Function to create failure comment
 async function createFailureComment(message) {
-  const octokit = github.getOctokit(core.getInput('github_token'));  // Ensure you pass a valid GitHub token here
+  // Ensure you are getting the token from the GitHub Actions secrets
+  const octokit = github.getOctokit(core.getInput('github_token'));  // Passing the token here
   await octokit.rest.issues.createComment({
     owner: github.context.repo.owner,
     repo: github.context.repo.repo,
@@ -20,7 +21,8 @@ async function createFailureComment(message) {
 
 // Main async function that handles all the logic
 async function main() {
-  const octokit = github.getOctokit(core.getInput('github_token'));  // Ensure the token is passed and correctly initialized
+  // Ensure the token is passed properly into the workflow
+  const octokit = github.getOctokit(core.getInput('github_token'));  // Passing the token here
 
   // First, cleanup any previous comments from this workflow
   const comments = await octokit.rest.issues.listComments({
