@@ -450,6 +450,7 @@ def login(
     force: Optional[bool] = None,
     timeout: Optional[int] = None,
     verify: bool = False,
+    no_prompt: bool = False,
 ) -> bool:
     """Set up W&B login credentials.
 
@@ -469,6 +470,7 @@ def login(
         force: (bool, optional) If true, will force a relogin.
         timeout: (int, optional) Number of seconds to wait for user input.
         verify: (bool) Verify the credentials with the W&B server.
+        no_prompt: (bool) If true, will not prompt for API key.
 
     Returns:
         bool: if key is configured

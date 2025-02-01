@@ -45,6 +45,7 @@ def login(
     force: Optional[bool] = None,
     timeout: Optional[int] = None,
     verify: bool = False,
+    no_prompt: bool = False,
 ) -> bool:
     """Set up W&B login credentials.
 
@@ -64,6 +65,7 @@ def login(
         force: (bool, optional) If true, will force a relogin.
         timeout: (int, optional) Number of seconds to wait for user input.
         verify: (bool) Verify the credentials with the W&B server.
+        no_prompt: (bool) If true, will not prompt for API key.
 
     Returns:
         bool: if key is configured
@@ -75,10 +77,11 @@ def login(
     _handle_host_wandb_setting(host)
     return _login(
         anonymous=anonymous,
-        key=key,
-        relogin=relogin,
-        host=host,
         force=force,
+        host=host,
+        key=key,
+        no_prompt=no_prompt,
+        relogin=relogin,
         timeout=timeout,
         verify=verify,
     )
@@ -233,9 +236,11 @@ class _WandbLogin:
         return key, status
 
     def _verify_login(self, key: str) -> None:
-        api = InternalApi(api_key=key)
+        if not key:
+            raise AuthenticationError("No API key provided, unable to verify login.")
 
         try:
+            api = InternalApi(api_key=key)
             is_api_key_valid = api.validate_api_key()
 
             if not is_api_key_valid:
@@ -253,10 +258,11 @@ class _WandbLogin:
 def _login(
     *,
     anonymous: Optional[Literal["allow", "must", "never"]] = None,
-    key: Optional[str] = None,
-    relogin: Optional[bool] = None,
-    host: Optional[str] = None,
     force: Optional[bool] = None,
+    host: Optional[str] = None,
+    key: Optional[str] = None,
+    no_prompt: bool = False,
+    relogin: Optional[bool] = None,
     timeout: Optional[int] = None,
     verify: bool = False,
     _silent: Optional[bool] = None,
@@ -298,7 +304,7 @@ def _login(
         key = apikey.api_key(settings=wlogin._settings)
         if key and not relogin:
             key_is_pre_configured = True
-        else:
+        elif not no_prompt:
             key, key_status = wlogin.prompt_api_key()
 
     if verify:
