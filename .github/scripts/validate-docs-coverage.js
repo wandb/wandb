@@ -13,82 +13,88 @@ async function createFailureComment(message) {
   core.setFailed(message);
 }
 
-// First, cleanup any previous comments from this workflow
-const comments = await github.rest.issues.listComments({
-  owner: context.repo.owner,
-  repo: context.repo.repo,
-  issue_number: pr.number
-});
+// Main async function that handles all the logic
+async function main() {
+  // First, cleanup any previous comments from this workflow
+  const comments = await github.rest.issues.listComments({
+    owner: context.repo.owner,
+    repo: context.repo.repo,
+    issue_number: pr.number
+  });
 
-// Delete any previous failure comments from this workflow
-for (const comment of comments.data) {
-  if (comment.body.startsWith('❌ Documentation Reference Check Failed')) {
-    await github.rest.issues.deleteComment({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      comment_id: comment.id
-    });
+  // Delete any previous failure comments from this workflow
+  for (const comment of comments.data) {
+    if (comment.body.startsWith('❌ Documentation Reference Check Failed')) {
+      await github.rest.issues.deleteComment({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        comment_id: comment.id
+      });
+    }
   }
-}
 
-// Check if PR title starts with "feat"
-if (!prTitle.startsWith('feat')) {
-  console.log('PR title does not start with "feat". Skipping documentation check.');
-  return;
-}
-
-// Regular expressions to match either:
-// 1. wandb/docs PR links (https://github.com/wandb/docs/pull/123 or wandb/docs#123)
-// 2. DOCS Jira ticket links (https://wandb.atlassian.net/browse/DOCS-XXX or DOCS-XXX)
-const docsLinkRegex = /(?:https:\/\/github\.com\/wandb\/docs\/pull\/|wandb\/docs#)(\d+)/;
-const jiraLinkRegex = /(?:https:\/\/wandb\.atlassian\.net\/browse\/)?DOCS-\d+/;
-
-const docsPrMatch = prBody.match(docsLinkRegex);
-const jiraMatch = prBody.match(jiraLinkRegex);
-
-if (!docsPrMatch && !jiraMatch) {
-  await createFailureComment(
-    'No documentation reference found in the PR description. Please add either:\n' +
-    '- A link to a docs PR (format: wandb/docs#XXX or https://github.com/wandb/docs/pull/XXX)\n' +
-    '- A Jira ticket reference (format: DOCS-XXX or https://wandb.atlassian.net/browse/DOCS-XXX)'
-  );
-  return;
-}
-
-// If we found a docs PR link, validate that it exists and is open
-if (docsPrMatch) {
-  const docsPrNumber = docsPrMatch[1];
-  
-  try {
-    const docsPr = await github.rest.pulls.get({
-      owner: 'wandb',
-      repo: 'docs',
-      pull_number: parseInt(docsPrNumber)
-    });
-    
-    if (docsPr.data.state !== 'open') {
-      await createFailureComment(
-        `The linked documentation PR #${docsPrNumber} is not open. Please ensure the documentation PR is open before merging this PR.`
-      );
-      return;
-    }
-    
-    console.log(`✅ Found corresponding docs PR: #${docsPrNumber}`);
-  } catch (error) {
-    if (error.status === 404) {
-      await createFailureComment(
-        `Documentation PR #${docsPrNumber} not found. Please ensure the PR number is correct.`
-      );
-    } else {
-      await createFailureComment(
-        `Error checking docs PR: ${error.message}`
-      );
-    }
+  // Check if PR title starts with "feat"
+  if (!prTitle.startsWith('feat')) {
+    console.log('PR title does not start with "feat". Skipping documentation check.');
     return;
   }
+
+  // Regular expressions to match either:
+  // 1. wandb/docs PR links (https://github.com/wandb/docs/pull/123 or wandb/docs#123)
+  // 2. DOCS Jira ticket links (https://wandb.atlassian.net/browse/DOCS-XXX or DOCS-XXX)
+  const docsLinkRegex = /(?:https:\/\/github\.com\/wandb\/docs\/pull\/|wandb\/docs#)(\d+)/;
+  const jiraLinkRegex = /(?:https:\/\/wandb\.atlassian\.net\/browse\/)?DOCS-\d+/;
+
+  const docsPrMatch = prBody.match(docsLinkRegex);
+  const jiraMatch = prBody.match(jiraLinkRegex);
+
+  if (!docsPrMatch && !jiraMatch) {
+    await createFailureComment(
+      'No documentation reference found in the PR description. Please add either:\n' +
+      '- A link to a docs PR (format: wandb/docs#XXX or https://github.com/wandb/docs/pull/XXX)\n' +
+      '- A Jira ticket reference (format: DOCS-XXX or https://wandb.atlassian.net/browse/DOCS-XXX)'
+    );
+    return;
+  }
+
+  // If we found a docs PR link, validate that it exists and is open
+  if (docsPrMatch) {
+    const docsPrNumber = docsPrMatch[1];
+    
+    try {
+      const docsPr = await github.rest.pulls.get({
+        owner: 'wandb',
+        repo: 'docs',
+        pull_number: parseInt(docsPrNumber)
+      });
+      
+      if (docsPr.data.state !== 'open') {
+        await createFailureComment(
+          `The linked documentation PR #${docsPrNumber} is not open. Please ensure the documentation PR is open before merging this PR.`
+        );
+        return;
+      }
+      
+      console.log(`✅ Found corresponding docs PR: #${docsPrNumber}`);
+    } catch (error) {
+      if (error.status === 404) {
+        await createFailureComment(
+          `Documentation PR #${docsPrNumber} not found. Please ensure the PR number is correct.`
+        );
+      } else {
+        await createFailureComment(
+          `Error checking docs PR: ${error.message}`
+        );
+      }
+      return;
+    }
+  }
+
+  // If we found a Jira ticket link, we don't need to validate it further
+  if (jiraMatch) {
+    console.log(`✅ Found corresponding DOCS Jira ticket: ${jiraMatch[0]}`);
+  }
 }
 
-// If we found a Jira ticket link, we don't need to validate it further
-if (jiraMatch) {
-  console.log(`✅ Found corresponding DOCS Jira ticket: ${jiraMatch[0]}`);
-}
+// Call the main async function
+main().catch(error => console.error(error));
