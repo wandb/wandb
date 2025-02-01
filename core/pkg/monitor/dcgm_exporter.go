@@ -237,23 +237,62 @@ func newGPUMetric(sample *model.Sample) (*gpuMetric, error) {
 	return gm, nil
 }
 
-// wandbName maps a GPU metric to a WandB GPU metric name.
+// wandbName maps a GPU metric from DCGM to a WandB GPU metric name.
+//
+// The WandB GPU metric name is in the format: `gpu.<index>.<metricName>/l:<label>`.
+// The label is used to differentiate between GPUs from different nodes.
+//
+// The full list of DCGM metrics and their descriptions can be found here:
+// https://docs.nvidia.com/datacenter/dcgm/latest/dcgm-api/dcgm-api-field-ids.html
 func (gm *gpuMetric) wandbName() string {
-	// Map DCGM metrics to our format
 	var mappedName string
 	switch gm.name {
-	case "DCGM_FI_DEV_POWER_USAGE":
-		mappedName = fmt.Sprintf("gpu.%s.powerWatts", gm.index)
 	case "DCGM_FI_DEV_GPU_TEMP":
 		mappedName = fmt.Sprintf("gpu.%s.temp", gm.index)
-	// TODO: requires aggregation on the frontend
-	// case "DCGM_FI_DEV_MEMORY_TEMP":
-	// 	mappedName = fmt.Sprintf("gpu.%s.memoryTemp", gpuIndex)
+	case "DCGM_FI_DEV_POWER_USAGE":
+		mappedName = fmt.Sprintf("gpu.%s.powerWatts", gm.index)
+	case "DCGM_FI_DEV_GPU_UTIL":
+		mappedName = fmt.Sprintf("gpu.%s.gpu", gm.index)
 	case "DCGM_FI_DEV_MEM_COPY_UTIL":
 		mappedName = fmt.Sprintf("gpu.%s.memory", gm.index)
-	// TODO: requires aggregation on the frontend
-	// case "DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION":
-	// 	mappedName = fmt.Sprintf("gpu.%s.totalEnergyConsumption", gpuIndex)
+	case "DCGM_FI_DEV_SM_CLOCK":
+		mappedName = fmt.Sprintf("gpu.%s.smClock", gm.index)
+	case "DCGM_FI_DEV_FB_USED":
+		mappedName = fmt.Sprintf("gpu.%s.memoryUsed", gm.index)
+	case "DCGM_FI_DEV_FB_TOTAL":
+		mappedName = fmt.Sprintf("gpu.%s.memoryTotal", gm.index)
+	case "DCGM_FI_PROF_PCIE_TX_BYTES":
+		mappedName = fmt.Sprintf("gpu.%s.pcieTxBytes", gm.index)
+	case "DCGM_FI_PROF_PCIE_RX_BYTES":
+		mappedName = fmt.Sprintf("gpu.%s.pcieRxBytes", gm.index)
+	case "DCGM_FI_PROF_NVLINK_TX_BYTES":
+		mappedName = fmt.Sprintf("gpu.%s.nvlinkTxBytes", gm.index)
+	case "DCGM_FI_PROF_NVLINK_RX_BYTES":
+		mappedName = fmt.Sprintf("gpu.%s.nvlinkRxBytes", gm.index)
+
+	// TODO: require new aggregations on the frontend
+	case "DCGM_FI_DEV_MEMORY_TEMP":
+		mappedName = fmt.Sprintf("gpu.%s.memoryTemp", gm.index)
+	case "DCGM_FI_DEV_GPU_MAX_OP_TEMP":
+		mappedName = fmt.Sprintf("gpu.%s.maxOpTemp", gm.index)
+	case "DCGM_FI_DEV_MEM_MAX_OP_TEMP":
+		mappedName = fmt.Sprintf("gpu.%s.memoryMaxOpTemp", gm.index)
+	case "DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION":
+		mappedName = fmt.Sprintf("gpu.%s.totalEnergyConsumption", gm.index)
+	case "DCGM_FI_PROF_SM_ACTIVE":
+		mappedName = fmt.Sprintf("gpu.%s.smActive", gm.index)
+	case "DCGM_FI_PROF_SM_OCCUPANCY":
+		mappedName = fmt.Sprintf("gpu.%s.smOccupancy", gm.index)
+	case "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE":
+		mappedName = fmt.Sprintf("gpu.%s.tensorActive", gm.index)
+	case "DCGM_FI_PROF_PIPE_FP64_ACTIVE":
+		mappedName = fmt.Sprintf("gpu.%s.fp64Active", gm.index)
+	case "DCGM_FI_PROF_PIPE_FP32_ACTIVE":
+		mappedName = fmt.Sprintf("gpu.%s.fp32Active", gm.index)
+	case "DCGM_FI_PROF_PIPE_FP16_ACTIVE":
+		mappedName = fmt.Sprintf("gpu.%s.fp16Active", gm.index)
+	case "DCGM_FI_DEV_FB_FREE":
+		mappedName = fmt.Sprintf("gpu.%s.memoryFree", gm.index)
 	default:
 		// Skip unknown metrics
 		return ""
