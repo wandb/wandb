@@ -420,6 +420,7 @@ async def test_launch_kube_works(
     test_api,
     manifest,
     clean_monitor,
+    clean_agent,
 ):
     """Test that we can launch a kubernetes job."""
     mock_batch_api.jobs = {"test-job": MockDict(manifest)}
@@ -545,6 +546,7 @@ async def test_launch_crd_works(
     test_api,
     volcano_spec,
     clean_monitor,
+    clean_agent,
 ):
     """Test that we can launch a kubernetes job."""
     monkeypatch.setattr(
@@ -648,6 +650,7 @@ async def test_launch_crd_pod_schedule_warning(
     test_api,
     volcano_spec,
     clean_monitor,
+    clean_agent,
 ):
     mock_batch_api.jobs = {"test-job": MockDict(volcano_spec)}
     test_api.update_run_queue_item_warning = MagicMock(return_value=True)
