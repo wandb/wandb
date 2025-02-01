@@ -8,7 +8,8 @@ const prBody = pr.body || '';
 
 // Function to create failure comment
 async function createFailureComment(message) {
-  await github.rest.issues.createComment({
+  const octokit = github.getOctokit(core.getInput('github_token'));  // Ensure you pass a valid GitHub token here
+  await octokit.rest.issues.createComment({
     owner: github.context.repo.owner,
     repo: github.context.repo.repo,
     issue_number: pr.number,
@@ -19,8 +20,10 @@ async function createFailureComment(message) {
 
 // Main async function that handles all the logic
 async function main() {
+  const octokit = github.getOctokit(core.getInput('github_token'));  // Ensure the token is passed and correctly initialized
+
   // First, cleanup any previous comments from this workflow
-  const comments = await github.rest.issues.listComments({
+  const comments = await octokit.rest.issues.listComments({
     owner: github.context.repo.owner,
     repo: github.context.repo.repo,
     issue_number: pr.number
@@ -29,7 +32,7 @@ async function main() {
   // Delete any previous failure comments from this workflow
   for (const comment of comments.data) {
     if (comment.body.startsWith('❌ Documentation Reference Check Failed')) {
-      await github.rest.issues.deleteComment({
+      await octokit.rest.issues.deleteComment({
         owner: github.context.repo.owner,
         repo: github.context.repo.repo,
         comment_id: comment.id
@@ -64,7 +67,7 @@ async function main() {
     const docsPrNumber = docsPrMatch[1];
     
     try {
-      const docsPr = await github.rest.pulls.get({
+      const docsPr = await octokit.rest.pulls.get({
         owner: 'wandb',
         repo: 'docs',
         pull_number: parseInt(docsPrNumber)
