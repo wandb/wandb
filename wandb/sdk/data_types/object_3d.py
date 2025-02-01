@@ -393,7 +393,7 @@ class Object3D(BatchableMedia):
         Args:
             points (Sequence["Point"]): The points in the point cloud.
             boxes (Sequence["Box3D"]): 3D bounding boxes for labeling the point cloud. Boxes
-            are displayed in point cloud visualizations.
+                are displayed in point cloud visualizations.
             vectors (Optional[Sequence["Vector3D"]]): Each vector is displayed in the point cloud
                 visualization. Can be used to indicate directionality of bounding boxes. Defaults to None.
             point_cloud_type ("lidar/beta"): At this time, only the "lidar/beta" type is supported. Defaults to "lidar/beta".
