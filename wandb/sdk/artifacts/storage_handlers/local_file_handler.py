@@ -110,8 +110,6 @@ class LocalFileHandler(StorageHandler):
                     # `LogicalPath` returns a "logical path"; it's a relative path
                     # **on the local filesystem**.
                     logical_path = os.path.relpath(physical_path, start=local_path)
-                    if name is not None:
-                        logical_path = os.path.join(name, logical_path)
 
                     entry = ArtifactManifestEntry(
                         path=logical_path,
