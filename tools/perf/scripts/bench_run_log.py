@@ -1,5 +1,6 @@
 import argparse
 import json
+import logging
 import multiprocessing as mp
 import random
 import string
@@ -11,9 +12,7 @@ from typing import List, Literal
 import numpy as np
 import wandb
 
-from .setup_helper import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class Timer:
