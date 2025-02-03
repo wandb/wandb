@@ -420,6 +420,7 @@ async def test_launch_kube_works(
     test_api,
     manifest,
     clean_monitor,
+    clean_agent,
 ):
     """Test that we can launch a kubernetes job."""
     mock_batch_api.jobs = {"test-job": MockDict(manifest)}
@@ -545,6 +546,7 @@ async def test_launch_crd_works(
     test_api,
     volcano_spec,
     clean_monitor,
+    clean_agent,
 ):
     """Test that we can launch a kubernetes job."""
     monkeypatch.setattr(
@@ -648,6 +650,7 @@ async def test_launch_crd_pod_schedule_warning(
     test_api,
     volcano_spec,
     clean_monitor,
+    clean_agent,
 ):
     mock_batch_api.jobs = {"test-job": MockDict(volcano_spec)}
     test_api.update_run_queue_item_warning = MagicMock(return_value=True)
@@ -1168,6 +1171,7 @@ async def test_monitor_preempted(
     mock_core_api,
     reason,
     clean_monitor,
+    clean_agent,
 ):
     """Test if the monitor thread detects a preempted job."""
     await LaunchKubernetesMonitor.ensure_initialized()
@@ -1189,6 +1193,7 @@ async def test_monitor_succeeded(
     mock_batch_api,
     mock_core_api,
     clean_monitor,
+    clean_agent,
 ):
     """Test if the monitor thread detects a succeeded job."""
     await LaunchKubernetesMonitor.ensure_initialized()
@@ -1209,6 +1214,7 @@ async def test_monitor_failed(
     mock_batch_api,
     mock_core_api,
     clean_monitor,
+    clean_agent,
 ):
     """Test if the monitor thread detects a failed job."""
     await LaunchKubernetesMonitor.ensure_initialized()
@@ -1229,6 +1235,7 @@ async def test_monitor_running(
     mock_batch_api,
     mock_core_api,
     clean_monitor,
+    clean_agent,
 ):
     """Test if the monitor thread detects a running job."""
     await LaunchKubernetesMonitor.ensure_initialized()
@@ -1252,6 +1259,7 @@ async def test_monitor_job_deleted(
     mock_batch_api,
     mock_core_api,
     clean_monitor,
+    clean_agent,
 ):
     """Test if the monitor thread detects a job being deleted."""
     await LaunchKubernetesMonitor.ensure_initialized()

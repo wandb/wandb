@@ -1,14 +1,15 @@
 import argparse
 import datetime
+import logging
 import os
 import time
 from dataclasses import dataclass
 from typing import Literal
 
-from .setup_helper import get_logger
+from .setup_helper import setup_package_logger
 from .test_case_helper import run_perf_tests
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -146,6 +147,8 @@ class TestCases:
 
 
 if __name__ == "__main__":
+    setup_package_logger()
+
     test_cases_instance = TestCases()
 
     parser = argparse.ArgumentParser(description="Run load tests.")

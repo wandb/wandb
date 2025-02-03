@@ -1,11 +1,10 @@
 import argparse
 import json
+import logging
 import subprocess
 from pathlib import Path
 
-from .setup_helper import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def pre_process_network_sar_log(log_dir: str) -> str:
