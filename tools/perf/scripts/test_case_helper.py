@@ -1,12 +1,12 @@
+import logging
 import time
 from pathlib import Path
 from typing import Literal
 
 from .bench_run_log import run_parallel_experiment
 from .process_sar_helper import capture_sar_metrics, process_sar_files
-from .setup_helper import get_logger
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def run_perf_tests(
