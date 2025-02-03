@@ -170,7 +170,7 @@ def compute_avg_and_max(input_file: Path, output_file: Path) -> None:
     data_lines = lines[3:]  # Skip the first three lines
 
     # Initialize dictionaries to store sums and max values
-    field_sums = {header: 0 for header in headers}
+    field_sums = {header: 0.0 for header in headers}
     field_max = {header: 0.0 for header in headers}
 
     # Process each line of data

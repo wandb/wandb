@@ -52,7 +52,7 @@ def run_perf_tests(
 
                 log_folder.mkdir(parents=True, exist_ok=True)
 
-                capture_sar_metrics(log_folder)
+                capture_sar_metrics(str(log_folder))
 
                 run_parallel_experiment(
                     num_processes=num_processes,
@@ -65,7 +65,7 @@ def run_perf_tests(
 
                 logger.info("All experiements have finished.")
 
-                process_sar_files(log_folder)
+                process_sar_files(str(log_folder))
 
                 sort_key += 1
                 time.sleep(10)  # sleep some time between run to let it finish flushing
