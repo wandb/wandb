@@ -1333,7 +1333,8 @@ class Settings(BaseModel, validate_assignment=True):
         ):
             self.save_code = env.should_save_code()
 
-        self.disable_git = env.disable_git()
+        if os.getenv(env.DISABLE_GIT) is not None:
+            self.disable_git = env.disable_git()
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
@@ -1379,8 +1380,15 @@ class Settings(BaseModel, validate_assignment=True):
         program = self.program or self._get_program()
 
         if program is not None:
-            repo = GitRepo()
-            root = repo.root or os.getcwd()
+            try:
+                root = (
+                    GitRepo().root or os.getcwd()
+                    if not self.disable_git
+                    else os.getcwd()
+                )
+            except Exception:
+                # if the git command fails, fall back to the current working directory
+                root = os.getcwd()
 
             self.program_relpath = self.program_relpath or self._get_program_relpath(
                 program, root
