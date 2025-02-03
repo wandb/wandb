@@ -1333,7 +1333,8 @@ class Settings(BaseModel, validate_assignment=True):
         ):
             self.save_code = env.should_save_code()
 
-        self.disable_git = env.disable_git()
+        if os.getenv(env.DISABLE_GIT) is not None:
+            self.disable_git = env.disable_git()
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
