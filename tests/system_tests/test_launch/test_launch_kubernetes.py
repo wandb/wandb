@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import kubernetes_asyncio
 import pytest
@@ -346,10 +346,14 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
             yaml_objects, jobs, mock_job_base
         ),
     )
+
     monkeypatch.setattr(
-        kubernetes_monitor,
-        "LaunchKubernetesMonitor",
-        MagicMock(),
+        "wandb.sdk.launch.runner.kubernetes_monitor.LaunchKubernetesMonitor",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.LaunchKubernetesMonitor",
+        AsyncMock(),
     )
 
     async def _mock_get_context_and_client(*args, **kwargs):
