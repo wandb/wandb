@@ -2,6 +2,7 @@ import json
 import os
 import random
 import string
+import sys
 
 import pytest
 from google.protobuf.wrappers_pb2 import BoolValue, StringValue
@@ -25,6 +26,7 @@ def make_proto_settings(**kwargs):
     return proto
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Skipping on Windows")
 def test_build_repo_job(runner, api):
     remote_name = str_of_length(129)
     metadata = {
@@ -73,6 +75,7 @@ def test_build_repo_job(runner, api):
             assert source_json["build_context"] == "blah/"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Skipping on Windows")
 def test_build_repo_notebook_job(runner, tmp_path, api, mocker):
     remote_name = str_of_length(129)
     metadata = {
@@ -122,6 +125,7 @@ def test_build_repo_notebook_job(runner, tmp_path, api, mocker):
         assert job_builder._is_notebook_run is True
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Skipping on Windows")
 def test_build_artifact_job(runner, api):
     metadata = {
         "codePath": "blah/test.py",
@@ -159,6 +163,7 @@ def test_build_artifact_job(runner, api):
         assert artifact._manifest.entries["requirements.frozen.txt"]
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Skipping on Windows")
 def test_build_artifact_notebook_job(runner, tmp_path, mocker, api):
     metadata = {
         "program": "blah/test.ipynb",
@@ -206,6 +211,7 @@ def test_build_artifact_notebook_job(runner, tmp_path, mocker, api):
         assert job_builder._is_notebook_run is True
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Skipping on Windows")
 @pytest.mark.parametrize("verbose", [True, False])
 def test_build_artifact_notebook_job_no_program(
     mocker,
@@ -257,6 +263,7 @@ def test_build_artifact_notebook_job_no_program(
             assert _msg not in out
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Skipping on Windows")
 @pytest.mark.parametrize("verbose", [True, False])
 def test_build_artifact_notebook_job_no_metadata(
     mocker,
@@ -301,6 +308,7 @@ def test_build_artifact_notebook_job_no_metadata(
             assert _msg not in out
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Skipping on Windows")
 @pytest.mark.parametrize("verbose", [True, False])
 def test_build_artifact_notebook_job_no_program_metadata(
     mocker,
