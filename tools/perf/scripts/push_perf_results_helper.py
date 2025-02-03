@@ -1,13 +1,12 @@
 import argparse
 import json
+import logging
 import os
 import re
 
 import wandb
 
-from .setup_helper import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def log_to_wandb(args: argparse.Namespace) -> None:
