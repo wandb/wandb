@@ -12,7 +12,7 @@ from wandb.apis import PublicApi
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
-from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, hex_to_b64_id
+from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
@@ -118,7 +118,7 @@ class WBArtifactHandler(StorageHandler):
         path = URIStr(
             "{}://{}/{}".format(
                 self._scheme,
-                b64_to_hex_id(B64MD5(target_artifact.id)),
+                b64_to_hex_id(target_artifact.id),
                 artifact_file_path,
             )
         )

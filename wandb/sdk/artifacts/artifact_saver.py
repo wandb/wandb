@@ -12,7 +12,7 @@ import wandb
 import wandb.filesync.step_prepare
 from wandb import util
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
-from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
+from wandb.sdk.lib.hashutil import b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import URIStr
 
 if TYPE_CHECKING:
@@ -274,6 +274,6 @@ class ArtifactSaver:
                         raise RuntimeError(f"Could not resolve client id {client_id}")
                     entry.ref = URIStr(
                         "wandb-artifact://{}/{}".format(
-                            b64_to_hex_id(B64MD5(artifact_id)), artifact_file_path
+                            b64_to_hex_id(artifact_id), artifact_file_path
                         )
                     )

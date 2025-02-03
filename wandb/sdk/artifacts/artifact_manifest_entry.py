@@ -215,12 +215,7 @@ class ArtifactManifestEntry:
         if self._parent_artifact is None:
             raise NotImplementedError
         assert self._parent_artifact.id is not None
-        return (
-            "wandb-artifact://"
-            + b64_to_hex_id(B64MD5(self._parent_artifact.id))
-            + "/"
-            + self.path
-        )
+        return f"wandb-artifact://{b64_to_hex_id(self._parent_artifact.id)}/{self.path}"
 
     def to_json(self) -> ArtifactManifestEntryDict:
         contents: ArtifactManifestEntryDict = {

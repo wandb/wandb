@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 import math
 import typing as t
@@ -23,19 +25,15 @@ class TypeRegistry:
     Additional types can be registered via the .add call.
     """
 
-    _types_by_name = None
-    _types_by_class = None
+    _types_by_name: t.ClassVar[dict[str, type["Type"]]] = {}
+    _types_by_class: t.ClassVar[dict[type[t.Any], type["Type"]]] = {}
 
     @staticmethod
-    def types_by_name():
-        if TypeRegistry._types_by_name is None:
-            TypeRegistry._types_by_name = {}
+    def types_by_name() -> dict[str, type["Type"]]:
         return TypeRegistry._types_by_name
 
     @staticmethod
-    def types_by_class():
-        if TypeRegistry._types_by_class is None:
-            TypeRegistry._types_by_class = {}
+    def types_by_class() -> dict[type[t.Any], type["Type"]]:
         return TypeRegistry._types_by_class
 
     @staticmethod
@@ -75,13 +73,17 @@ class TypeRegistry:
     def type_from_dict(
         json_dict: t.Dict[str, t.Any], artifact: t.Optional["Artifact"] = None
     ) -> "Type":
-        wb_type = json_dict.get("wb_type")
-        if wb_type is None:
-            TypeError("json_dict must contain `wb_type` key")
-        _type = TypeRegistry.types_by_name().get(wb_type)
-        if _type is None:
-            TypeError(f"missing type handler for {wb_type}")
-        return _type.from_json(json_dict, artifact)
+        try:
+            wb_type = json_dict["wb_type"]
+        except LookupError as e:
+            raise TypeError("json_dict must contain `wb_type` key") from e
+
+        try:
+            type_ = TypeRegistry.types_by_name()[wb_type]
+        except LookupError as e:
+            raise TypeError(f"missing type handler for {wb_type}") from e
+
+        return type_.from_json(json_dict, artifact)
 
     @staticmethod
     def type_from_dtype(dtype: ConvertibleToType) -> "Type":
@@ -139,12 +141,14 @@ def _params_obj_to_json_obj(
             key: _params_obj_to_json_obj(params_obj[key], artifact)
             for key in params_obj
         }
-    elif params_obj.__class__ in [list, set, tuple, frozenset]:
+
+    if params_obj.__class__ in {list, set, tuple, frozenset}:
         return [_params_obj_to_json_obj(item, artifact) for item in list(params_obj)]
-    elif isinstance(params_obj, Type):
+
+    if isinstance(params_obj, Type):
         return params_obj.to_json(artifact)
-    else:
-        return params_obj
+
+    return params_obj
 
 
 def _json_obj_to_params_obj(
@@ -154,15 +158,13 @@ def _json_obj_to_params_obj(
     if json_obj.__class__ is dict:
         if "wb_type" in json_obj:
             return TypeRegistry.type_from_dict(json_obj, artifact)
-        else:
-            return {
-                key: _json_obj_to_params_obj(json_obj[key], artifact)
-                for key in json_obj
-            }
-    elif json_obj.__class__ is list:
+
+        return {k: _json_obj_to_params_obj(v, artifact) for k, v in json_obj.items()}
+
+    if json_obj.__class__ is list:
         return [_json_obj_to_params_obj(item, artifact) for item in json_obj]
-    else:
-        return json_obj
+
+    return json_obj
 
 
 class Type:

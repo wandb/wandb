@@ -1,19 +1,27 @@
+from __future__ import annotations
+
 import base64
 import binascii
 import codecs
-import datetime
 import logging
 import os
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any
 
 import wandb
 from wandb import util
+from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.lib import runid
 
 from . import _dtypes
+from ._dtypes import TypeRegistry
 from ._private import MEDIA_TMP
 from .base_types.media import Media, _numpy_arrays_to_lists
 from .base_types.wb_value import WBValue
 from .utils import _json_helper
+
+if TYPE_CHECKING:
+    from typing_extensions import Self
 
 
 class _TableLinkMixin:
@@ -325,7 +333,7 @@ class Table(Media):
         """
         assert col_name in self.columns
 
-        wbtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
+        wbtype = TypeRegistry.type_from_dtype(dtype)
 
         if optional:
             wbtype = _dtypes.OptionalType(wbtype)
@@ -338,7 +346,7 @@ class Table(Media):
                 raise TypeError(
                     "Existing data {}, of type {} cannot be cast to {}".format(
                         row[col_ndx],
-                        _dtypes.TypeRegistry.type_of(row[col_ndx]),
+                        TypeRegistry.type_of(row[col_ndx]),
                         wbtype,
                     )
                 )
@@ -438,7 +446,7 @@ class Table(Media):
             if isinstance(item, _TableLinkMixin):
                 self.cast(
                     self.columns[ndx],
-                    _dtypes.TypeRegistry.type_of(item),
+                    TypeRegistry.type_of(item),
                     optional=False,
                 )
 
@@ -512,16 +520,19 @@ class Table(Media):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
-        data = []
         column_types = None
         np_deserialized_columns = {}
         timestamp_column_indices = set()
-        if json_obj.get("column_types") is not None:
-            column_types = _dtypes.TypeRegistry.type_from_dict(
-                json_obj["column_types"], source_artifact
-            )
-            for col_name in column_types.params["type_map"]:
-                col_type = column_types.params["type_map"][col_name]
+        if coltypes_dict := json_obj.get("column_types"):
+            column_types = TypeRegistry.type_from_dict(coltypes_dict, source_artifact)
+
+            column_names: list[str] = json_obj["columns"]
+            column_indices: dict[str, int] = {
+                name: idx for idx, name in enumerate(column_names)
+            }
+
+            for col_name, col_type in column_types.params["type_map"].items():
+                col_index = column_indices[col_name]
                 ndarray_type = None
                 if isinstance(col_type, _dtypes.NDArrayType):
                     ndarray_type = col_type
@@ -530,55 +541,56 @@ class Table(Media):
                         if isinstance(t, _dtypes.NDArrayType):
                             ndarray_type = t
                         elif isinstance(t, _dtypes.TimestampType):
-                            timestamp_column_indices.add(
-                                json_obj["columns"].index(col_name)
-                            )
+                            timestamp_column_indices.add(col_index)
 
                 elif isinstance(col_type, _dtypes.TimestampType):
-                    timestamp_column_indices.add(json_obj["columns"].index(col_name))
+                    timestamp_column_indices.add(col_index)
 
-                if (
-                    ndarray_type is not None
-                    and ndarray_type._get_serialization_path() is not None
+                if ndarray_type is not None and (
+                    serialization_path := ndarray_type._get_serialization_path()
                 ):
-                    serialization_path = ndarray_type._get_serialization_path()
                     np = util.get_module(
                         "numpy",
                         required="Deserializing NumPy columns requires NumPy to be installed.",
                     )
-                    deserialized = np.load(
-                        source_artifact.get_entry(serialization_path["path"]).download()
-                    )
-                    np_deserialized_columns[json_obj["columns"].index(col_name)] = (
-                        deserialized[serialization_path["key"]]
-                    )
+                    ser_path = serialization_path["path"]
+                    ser_key = serialization_path["key"]
+
+                    download_path = source_artifact.get_entry(ser_path).download()
+                    deserialized = np.load(download_path)
+
+                    np_deserialized_columns[col_index] = deserialized[ser_key]
+
                     ndarray_type._clear_serialization_path()
 
-        for r_ndx, row in enumerate(json_obj["data"]):
+        data = []
+        for row_idx, row in enumerate(json_obj["data"]):
             row_data = []
-            for c_ndx, item in enumerate(row):
-                cell = item
-                if c_ndx in timestamp_column_indices and isinstance(item, (int, float)):
-                    cell = datetime.datetime.fromtimestamp(
-                        item / 1000, tz=datetime.timezone.utc
-                    )
-                elif c_ndx in np_deserialized_columns:
-                    cell = np_deserialized_columns[c_ndx][r_ndx]
-                elif isinstance(item, dict) and "_type" in item:
-                    obj = WBValue.init_from_json(item, source_artifact)
-                    if obj is not None:
-                        cell = obj
+            for col_idx, item in enumerate(row):
+                if col_idx in timestamp_column_indices and isinstance(
+                    item, (int, float)
+                ):
+                    cell = datetime.fromtimestamp(item / 1_000, tz=timezone.utc)
+                elif col_idx in np_deserialized_columns:
+                    cell = np_deserialized_columns[col_idx][row_idx]
+                elif (
+                    isinstance(item, dict)
+                    and ("_type" in item)
+                    and (obj := WBValue.init_from_json(item, source_artifact))
+                ):
+                    cell = obj
+                else:
+                    cell = item
+
                 row_data.append(cell)
             data.append(row_data)
 
         # construct Table with dtypes for each column if type information exists
         dtypes = None
         if column_types is not None:
-            dtypes = [
-                column_types.params["type_map"][str(col)] for col in json_obj["columns"]
-            ]
+            dtypes = [column_types.params["type_map"][str(col)] for col in column_names]
 
-        new_obj = cls(columns=json_obj["columns"], data=data, dtype=dtypes)
+        new_obj = cls(columns=column_names, data=data, dtype=dtypes)
 
         if column_types is not None:
             new_obj._column_types = column_types
@@ -713,28 +725,23 @@ class Table(Media):
 
         # Buildup the known keys from column types
         c_types = self._column_types.params["type_map"]
-        for t in c_types:
-            if isinstance(c_types[t], _PrimaryKeyType):
+        for t, c_type in c_types.items():
+            if isinstance(c_type, _PrimaryKeyType):
                 _pk_col = t
-            elif isinstance(c_types[t], _ForeignKeyType) or isinstance(
-                c_types[t], _ForeignIndexType
-            ):
+            elif isinstance(c_type, (_ForeignKeyType, _ForeignIndexType)):
                 _fk_cols.add(t)
 
         # If there are updates to perform, safely update them
-        has_update = _pk_col != self._pk_col or _fk_cols != self._fk_cols
-        if has_update:
+        if has_update := ((_pk_col != self._pk_col) or (_fk_cols != self._fk_cols)):
             # If we removed the PK
-            if _pk_col is None and self._pk_col is not None:
+            if (_pk_col is None) and (self._pk_col is not None):
                 raise AssertionError(
                     f"Cannot unset primary key (column {self._pk_col})"
                 )
             # If there is a removed FK
-            if len(self._fk_cols - _fk_cols) > 0:
+            if unset_fk_cols := (self._fk_cols - _fk_cols):
                 raise AssertionError(
-                    "Cannot unset foreign key. Attempted to unset ({})".format(
-                        self._fk_cols - _fk_cols
-                    )
+                    f"Cannot unset foreign key. Attempted to unset ({unset_fk_cols})"
                 )
 
             self._pk_col = _pk_col
@@ -1051,34 +1058,33 @@ class JoinedTable(Media):
         self._join_key = join_key
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact):
-        t1 = source_artifact.get(json_obj["table1"])
-        if t1 is None:
-            t1 = json_obj["table1"]
+    def from_json(
+        cls, json_obj: dict[str, Any], source_artifact: wandb.Artifact
+    ) -> Self:
+        t1 = json_obj["table1"]
+        t2 = json_obj["table2"]
+        join_key = json_obj["join_key"]
 
-        t2 = source_artifact.get(json_obj["table2"])
-        if t2 is None:
-            t2 = json_obj["table2"]
+        table1 = source_artifact.get(t1) or t1
+        table2 = source_artifact.get(t2) or t2
 
-        return cls(
-            t1,
-            t2,
-            json_obj["join_key"],
-        )
+        return cls(table1, table2, join_key)
 
     @staticmethod
     def _validate_table_input(table):
         """Helper method to validate that the table input is one of the 3 supported types."""
         return (
             (isinstance(table, str) and table.endswith(".table.json"))
-            or isinstance(table, Table)
-            or isinstance(table, PartitionedTable)
-            or (hasattr(table, "ref_url") and table.ref_url().endswith(".table.json"))
+            or isinstance(table, (Table, PartitionedTable))
+            or (
+                isinstance(table, ArtifactManifestEntry)
+                and table.ref_url().endswith(".table.json")
+            )
         )
 
     def _ensure_table_in_artifact(self, table, artifact, table_ndx):
         """Helper method to add the table to the incoming artifact. Returns the path."""
-        if isinstance(table, Table) or isinstance(table, PartitionedTable):
+        if isinstance(table, (Table, PartitionedTable)):
             table_name = f"t{table_ndx}_{str(id(self))}"
             if (
                 table._artifact_source is not None
@@ -1088,7 +1094,7 @@ class JoinedTable(Media):
             entry = artifact.add(table, table_name)
             table = entry.path
         # Check if this is an ArtifactManifestEntry
-        elif hasattr(table, "ref_url"):
+        elif isinstance(table, ArtifactManifestEntry):
             # Give the new object a unique, yet deterministic name
             name = binascii.hexlify(base64.standard_b64decode(table.digest)).decode(
                 "ascii"
@@ -1196,9 +1202,9 @@ class _PartitionedTableType(_dtypes.Type):
     types = [PartitionedTable]
 
 
-_dtypes.TypeRegistry.add(_TableType)
-_dtypes.TypeRegistry.add(_JoinedTableType)
-_dtypes.TypeRegistry.add(_PartitionedTableType)
-_dtypes.TypeRegistry.add(_ForeignKeyType)
-_dtypes.TypeRegistry.add(_PrimaryKeyType)
-_dtypes.TypeRegistry.add(_ForeignIndexType)
+TypeRegistry.add(_TableType)
+TypeRegistry.add(_JoinedTableType)
+TypeRegistry.add(_PartitionedTableType)
+TypeRegistry.add(_ForeignKeyType)
+TypeRegistry.add(_PrimaryKeyType)
+TypeRegistry.add(_ForeignIndexType)
