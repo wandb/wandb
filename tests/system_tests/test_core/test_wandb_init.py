@@ -161,3 +161,14 @@ def test_init_param_not_set_telemetry(wandb_backend_spy):
         assert 14 not in features  # set_init_id
         assert 15 not in features  # set_init_tags
         assert 16 not in features  # set_init_config
+
+
+@pytest.mark.wandb_core_only
+def test_init_shared_mode_graphql_header(wandb_backend_spy):
+    """Test that a special header is set for GraphQL requests when using shared mode."""
+    with wandb.init(settings=wandb.Settings(mode="shared")) as run:
+        pass
+
+    with wandb_backend_spy.freeze() as snapshot:
+        headers = snapshot.graphql_headers(run_id=run.id)
+        assert headers["x-wandb-use-async-filestream"] == "true"

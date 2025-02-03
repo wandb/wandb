@@ -134,8 +134,14 @@ class WandbBackendSpy:
         self,
         request_raw: bytes,
         response_raw: bytes,
+        *,
+        headers: dict[str, str] | None = None,
     ) -> None:
-        """Spy on a GraphQL request and response."""
+        """Spy on a GraphQL request and response.
+
+        An optional `headers` argument may be provided so that the HTTP
+        headers accompanying the GraphQL request are captured.
+        """
         request = json.loads(request_raw)
 
         with self._lock:
@@ -144,12 +150,14 @@ class WandbBackendSpy:
             if query is None or variables is None:
                 return
 
-            self._spy_upsert_bucket(query, variables)
+            self._spy_upsert_bucket(query, variables, headers=headers)
 
     def _spy_upsert_bucket(
         self,
         query: str,
         variables: dict[str, Any],
+        *,
+        headers: dict[str, str] | None = None,
     ) -> None:
         """Change spied state based on UpsertBucket requests.
 
@@ -200,6 +208,10 @@ class WandbBackendSpy:
             summary = run._file_stream_files.setdefault("wandb-summary.json", {})
             last_line_offset = max(summary.keys(), default=0)
             summary[last_line_offset] = summary_metrics
+
+        # Store the HTTP headers (if provided) for later assertions.
+        if headers is not None:
+            run._graphql_headers = headers
 
     def post_file_stream(
         self,
@@ -470,6 +482,22 @@ class WandbBackendSnapshot:
         spy = self._assert_valid()
         return spy._runs[run_id]._exit_code
 
+    def graphql_headers(self, *, run_id: str) -> dict[str, str]:
+        """Returns the HTTP headers captured for the most recent GraphQL request.
+
+        Args:
+            run_id: The ID of the run.
+
+        Raises:
+            KeyError: if the run does not exist.
+        """
+        spy = self._assert_valid()
+        try:
+            headers = spy._runs[run_id]._graphql_headers
+        except KeyError as e:
+            raise KeyError(f"No run with ID {run_id}") from e
+        return headers
+
     def _assert_valid(self) -> WandbBackendSpy:
         """Raise an error if we're not inside freeze()."""
         if not self._spy:
@@ -491,6 +519,7 @@ class _RunData:
         self._sweep_name: str | None = None
         self._completed = False
         self._exit_code: int | None = None
+        self._graphql_headers: dict[str, str] | None = None
 
 
 @dataclasses.dataclass(frozen=True)

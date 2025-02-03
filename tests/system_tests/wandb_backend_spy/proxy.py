@@ -96,6 +96,7 @@ _RELAYABLE_REQUEST_HEADERS = {
     "x-wandb-username",
     "user-agent",
     "content-type",
+    "x-wandb-use-async-filestream",
 }
 _RELAYABLE_RESPONSE_HEADERS = {"content-type"}
 
@@ -134,10 +135,11 @@ class WandbBackendProxy:
                 raise AssertionError("A spy is already attached.")
             self._spy = WandbBackendSpy()
 
-        yield self._spy
-
-        with self._lock:
-            self._spy = None
+        try:
+            yield self._spy
+        finally:
+            with self._lock:
+                self._spy = None
 
     def _to_fast_api(self) -> fastapi.FastAPI:
         """Returns an ASGI object implemented by this spy."""
@@ -152,6 +154,8 @@ class WandbBackendProxy:
 
     async def _relay(self, request: fastapi.Request) -> fastapi.Response:
         """Forward the request to the actual backend and get the response."""
+        # Read the body once.
+        body = await request.body()
         forwarded_request = self._client.build_request(
             method=request.method,
             url=str(
@@ -160,10 +164,10 @@ class WandbBackendProxy:
                     port=self._target_port,
                 )
             ),
-            content=await request.body(),
+            content=body,
         )
         for header, value in request.headers.items():
-            if header in _RELAYABLE_REQUEST_HEADERS:
+            if header.lower() in _RELAYABLE_REQUEST_HEADERS:
                 forwarded_request.headers[header] = value
 
         response = await self._client.send(forwarded_request)
@@ -172,25 +176,27 @@ class WandbBackendProxy:
             content=response.content,
             status_code=response.status_code,
         )
-        for header, value in forwarded_response.headers.items():
-            if header in _RELAYABLE_RESPONSE_HEADERS:
+        for header, value in response.headers.items():
+            if header.lower() in _RELAYABLE_RESPONSE_HEADERS:
                 forwarded_response.headers[header] = value
 
         return forwarded_response
 
     async def _post_graphql(self, request: fastapi.Request) -> fastapi.Response:
         """Handle a GraphQL request and maybe relay it to the backend."""
+        # Read the body once.
+        body = await request.body()
         with self._lock:
             spy = self._spy
 
         response = None
         if spy:
-            response = spy.intercept_graphql(await request.body())
+            response = spy.intercept_graphql(body)
         if not response:
             response = await self._relay(request)
 
         if spy:
-            spy.post_graphql(await request.body(), response.body)
+            spy.post_graphql(body, response.body, headers=dict(request.headers))
 
         return response
 
@@ -203,6 +209,8 @@ class WandbBackendProxy:
         run_id: str,
     ) -> fastapi.Response:
         """Handle a FileStream request and maybe relay it to the backend."""
+        # Read the body once.
+        body = await request.body()
         with self._lock:
             spy = self._spy
 
@@ -214,7 +222,7 @@ class WandbBackendProxy:
 
         if spy:
             spy.post_file_stream(
-                await request.body(),
+                body,
                 response.body,
                 entity=entity,
                 project=project,
