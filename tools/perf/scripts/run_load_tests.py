@@ -201,5 +201,5 @@ if __name__ == "__main__":
         data_type=args.data_type,
     ).run(args.test_case)
 
-    logger.info(f"Test completed in {time.time()-start_time:.2f}s.")
+    logger.info(f"Test completed in {time.time() - start_time:.2f}s.")
     logger.info(f"Logs saved to {os.getcwd()}/{log_folder}")
