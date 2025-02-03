@@ -1379,8 +1379,9 @@ class Settings(BaseModel, validate_assignment=True):
         program = self.program or self._get_program()
 
         if program is not None:
-            repo = GitRepo()
-            root = repo.root or os.getcwd()
+            root = (
+                GitRepo().root or os.getcwd() if not self.disable_git else os.getcwd()
+            )
 
             self.program_relpath = self.program_relpath or self._get_program_relpath(
                 program, root
