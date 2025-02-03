@@ -515,8 +515,6 @@ class Settings(BaseModel, validate_assignment=True):
 
     This is used to group data by on the frontend and can be used to distinguish data
     from different processes in a distributed training job.
-
-    TODO: in shared mode, generate a unique label if not provided.
     """
 
     x_live_policy_rate_limit: int | None = None
@@ -1356,8 +1354,8 @@ class Settings(BaseModel, validate_assignment=True):
                 f"couldn't find {self.notebook_name}.",
             )
 
-        # host and username are populated by apply_env_vars if corresponding env
-        # vars exist -- but if they don't, we'll fill them in here
+        # host is populated by update_from_env_vars if the corresponding env
+        # vars exist -- but if they don't, we'll fill them in here.
         if self.host is None:
             self.host = socket.gethostname()  # type: ignore
 
