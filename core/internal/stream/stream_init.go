@@ -109,6 +109,9 @@ func NewGraphQLClient(
 		"X-WANDB-USER-EMAIL": settings.GetEmail(),
 	}
 	maps.Copy(graphqlHeaders, settings.GetExtraHTTPHeaders())
+	if settings.IsSharedMode() {
+		graphqlHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
+	}
 
 	opts := api.ClientOptions{
 		RetryPolicy:        clients.CheckRetry,
