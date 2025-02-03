@@ -67,21 +67,21 @@ async function main() {
   // If we found a docs PR link, validate that it exists and is open
   if (docsPrMatch) {
     const docsPrNumber = docsPrMatch[1];
-    
+
     try {
       const docsPr = await octokit.rest.pulls.get({
         owner: 'wandb',
         repo: 'docs',
         pull_number: parseInt(docsPrNumber)
       });
-      
+
       if (docsPr.data.state !== 'open') {
         await createFailureComment(
           `The linked documentation PR #${docsPrNumber} is not open. Please ensure the documentation PR is open before merging this PR.`
         );
         return;
       }
-      
+
       console.log(`✅ Found corresponding docs PR: #${docsPrNumber}`);
     } catch (error) {
       if (error.status === 404) {
