@@ -24,10 +24,6 @@ class MailboxError(Error):
     """Generic Mailbox Exception."""
 
 
-class ContextCancelledError(MailboxError):
-    """Context cancelled Exception."""
-
-
 class _MailboxWaitAll:
     _event: threading.Event
     _lock: threading.Lock
@@ -340,16 +336,6 @@ class Mailbox:
 
     def enable_keepalive(self) -> None:
         self._keepalive = True
-
-    def wait(
-        self,
-        handle: MailboxHandle,
-        *,
-        timeout: float,
-        on_progress: Optional[Callable[[MailboxProgress], None]] = None,
-        cancel: bool = False,
-    ) -> Optional[pb.Result]:
-        return handle.wait(timeout=timeout, on_progress=on_progress, cancel=cancel)
 
     def _time(self) -> float:
         return time.monotonic()

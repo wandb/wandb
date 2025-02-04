@@ -41,7 +41,7 @@ def connect_to_service(
 
 
 def _try_connect_to_existing_service() -> ServiceConnection | None:
-    """Attemps to connect to an existing service process."""
+    """Attempts to connect to an existing service process."""
     token = service_token.get_service_token()
     if not token:
         return None
@@ -124,9 +124,9 @@ class ServiceConnection:
         self._torn_down = False
         self._cleanup = cleanup
 
-    def make_interface(self, mailbox: Mailbox) -> InterfaceBase:
+    def make_interface(self, mailbox: Mailbox, stream_id: str) -> InterfaceBase:
         """Returns an interface for communicating with the service."""
-        return InterfaceSock(self._client, mailbox)
+        return InterfaceSock(self._client, mailbox, stream_id=stream_id)
 
     def send_record(self, record: pb.Record) -> None:
         """Sends data to the service."""

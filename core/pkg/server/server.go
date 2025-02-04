@@ -26,16 +26,16 @@ type ServerParams struct {
 	SentryClient    *sentry_ext.Client
 	Commit          string
 	LoggerPath      string
+	LogLevel        slog.Level
 }
 
 // Server is the core server
 type Server struct {
-	// ctx is the context for the server. It is used to signal
-	// the server to shutdown
-	ctx context.Context
+	// serverLifetimeCtx is cancelled when the server should shut down.
+	serverLifetimeCtx context.Context
 
-	// cancel is the cancel function for the server
-	cancel context.CancelFunc
+	// stopServer cancels serverLifetimeCtx.
+	stopServer context.CancelFunc
 
 	// listener is the underlying listener
 	listener net.Listener
@@ -55,33 +55,34 @@ type Server struct {
 
 	// loggerPath is the default logger path
 	loggerPath string
+
+	// logLevel is the log level
+	logLevel slog.Level
 }
 
 // NewServer creates a new server
-func NewServer(
-	ctx context.Context,
-	params *ServerParams,
-) (*Server, error) {
+func NewServer(params *ServerParams) (*Server, error) {
 	if params == nil {
 		return nil, errors.New("unconfigured params")
 	}
-	ctx, cancel := context.WithCancel(ctx)
+	serverLifetimeCtx, stopServer := context.WithCancel(context.Background())
 
 	listener, err := net.Listen("tcp", params.ListenIPAddress)
 	if err != nil {
-		cancel()
+		stopServer()
 		return nil, err
 	}
 
 	s := &Server{
-		ctx:          ctx,
-		cancel:       cancel,
-		listener:     listener,
-		wg:           sync.WaitGroup{},
-		parentPid:    params.ParentPid,
-		sentryClient: params.SentryClient,
-		commit:       params.Commit,
-		loggerPath:   params.LoggerPath,
+		serverLifetimeCtx: serverLifetimeCtx,
+		stopServer:        stopServer,
+		listener:          listener,
+		wg:                sync.WaitGroup{},
+		parentPid:         params.ParentPid,
+		sentryClient:      params.SentryClient,
+		commit:            params.Commit,
+		loggerPath:        params.LoggerPath,
+		logLevel:          params.LogLevel,
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
@@ -120,7 +121,7 @@ func (s *Server) Serve() {
 	}()
 
 	// Wait for the signal to shut down.
-	<-s.ctx.Done()
+	<-s.serverLifetimeCtx.Done()
 	slog.Info("server is shutting down")
 
 	// Stop accepting new connections.
@@ -144,7 +145,7 @@ func (s *Server) serve() {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			select {
-			case <-s.ctx.Done():
+			case <-s.serverLifetimeCtx.Done():
 				slog.Debug("server shutting down...")
 				return
 			default:
@@ -154,14 +155,15 @@ func (s *Server) serve() {
 			s.wg.Add(1)
 			go func() {
 				NewConnection(
-					s.ctx,
-					s.cancel,
-					ConnectionOptions{
+					s.serverLifetimeCtx,
+					s.stopServer,
+					ConnectionParams{
 						Conn:         conn,
 						StreamMux:    streamMux,
 						SentryClient: s.sentryClient,
 						Commit:       s.commit,
 						LoggerPath:   s.loggerPath,
+						LogLevel:     s.logLevel,
 					},
 				).ManageConnectionData()
 

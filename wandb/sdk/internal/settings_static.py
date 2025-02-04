@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any, Iterable
 
 from wandb.proto import wandb_settings_pb2
@@ -78,7 +80,7 @@ class SettingsStatic(Settings):
     def __setitem__(self, key: str, val: object) -> None:
         raise AttributeError("Error: SettingsStatic is a readonly object")
 
-    def keys(self) -> "Iterable[str]":
+    def keys(self) -> Iterable[str]:
         return self.__dict__.keys()
 
     def __getitem__(self, key: str) -> Any:

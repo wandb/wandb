@@ -407,7 +407,7 @@ class QueuedRun:
                     self._run_id = item["associatedRunId"]
                     return self._run
                 except ValueError as e:
-                    print(e)
+                    wandb.termwarn(e)
             elif item:
                 wandb.termlog("Waiting for run to start")
 

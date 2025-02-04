@@ -117,6 +117,7 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 	diskPaths := settings.GetStatsDiskPaths()
 	samplingInterval := settings.GetStatsSamplingInterval()
 	neuronMonitorConfigPath := settings.GetStatsNeuronMonitorConfigPath()
+	gpuDeviceIds := settings.GetStatsGpuDeviceIds()
 
 	// assets to be monitored.
 	if cpu := NewCPU(pid); cpu != nil {
@@ -131,10 +132,7 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 	if network := NewNetwork(); network != nil {
 		sm.assets = append(sm.assets, network)
 	}
-	if gpu := NewGPU(pid); gpu != nil {
-		sm.assets = append(sm.assets, gpu)
-	}
-	if gpu := NewGPUAMD(sm.logger); gpu != nil {
+	if gpu := NewGPU(pid, gpuDeviceIds); gpu != nil {
 		sm.assets = append(sm.assets, gpu)
 	}
 	if tpu := NewTPU(); tpu != nil {
@@ -145,6 +143,18 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 	}
 	if trainium := NewTrainium(sm.logger, pid, samplingInterval, neuronMonitorConfigPath); trainium != nil {
 		sm.assets = append(sm.assets, trainium)
+	}
+
+	// DCGM Exporter.
+	if url := settings.GetStatsDcgmExporter(); url != "" {
+		params := DCGMExporterParams{
+			URL:     url,
+			Headers: settings.GetStatsOpenMetricsHeaders(),
+			Logger:  sm.logger,
+		}
+		if de := NewDCGMExporter(params); de != nil {
+			sm.assets = append(sm.assets, de)
+		}
 	}
 
 	// OpenMetrics endpoints to monitor.
@@ -308,11 +318,7 @@ func (sm *SystemMonitor) monitorAsset(asset Asset) {
 				sm.logger.CaptureError(
 					fmt.Errorf("monitor: %v: error sampling metrics: %v", asset.Name(), err),
 				)
-				// shutdown the asset to be on the safe side
-				if closer, ok := asset.(interface{ Close() }); ok {
-					closer.Close()
-				}
-				return
+				continue
 			}
 
 			if metrics == nil || len(metrics.Item) == 0 {

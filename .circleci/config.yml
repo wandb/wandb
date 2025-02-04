@@ -110,7 +110,7 @@ commands:
           name: "Run nox session: <<parameters.session>>"
           no_output_timeout: 10m
           command: >
-            nox -s "<<parameters.session>>" --python <<parameters.python>>
+            nox -s "<<parameters.session>>" --python <<parameters.python>> --verbose
 
       - codecov/upload: { flags: <<parameters.codecov_flags>> }
       - save-test-results

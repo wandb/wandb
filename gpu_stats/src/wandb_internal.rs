@@ -1583,7 +1583,7 @@ pub struct AlertResult {}
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 76, 77, 78, 79, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 80, 81, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1621,6 +1621,8 @@ pub mod request {
         DownloadArtifact(super::DownloadArtifactRequest),
         #[prost(message, tag = "17")]
         Keepalive(super::KeepaliveRequest),
+        #[prost(message, tag = "18")]
+        ServerFeature(super::ServerFeatureRequest),
         #[prost(message, tag = "20")]
         RunStatus(super::RunStatusRequest),
         #[prost(message, tag = "21")]
@@ -1653,14 +1655,16 @@ pub mod request {
         JobInfo(super::JobInfoRequest),
         #[prost(message, tag = "74")]
         GetSystemMetrics(super::GetSystemMetricsRequest),
-        #[prost(message, tag = "76")]
-        Sync(super::SyncRequest),
         #[prost(message, tag = "77")]
         JobInput(super::JobInputRequest),
         #[prost(message, tag = "78")]
         LinkArtifact(super::LinkArtifactRequest),
         #[prost(message, tag = "79")]
         RunFinishWithoutExit(super::RunFinishWithoutExitRequest),
+        #[prost(message, tag = "80")]
+        GetSystemMetadata(super::GetSystemMetadataRequest),
+        #[prost(message, tag = "81")]
+        SyncFinish(super::SyncFinishRequest),
         #[prost(message, tag = "1000")]
         TestInject(super::TestInjectRequest),
     }
@@ -1671,7 +1675,7 @@ pub mod request {
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 70, 71, 72, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 73, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1701,6 +1705,8 @@ pub mod response {
         LogArtifactResponse(super::LogArtifactResponse),
         #[prost(message, tag = "31")]
         DownloadArtifactResponse(super::DownloadArtifactResponse),
+        #[prost(message, tag = "32")]
+        ServerFeatureResponse(super::ServerFeatureResponse),
         #[prost(message, tag = "35")]
         RunStatusResponse(super::RunStatusResponse),
         #[prost(message, tag = "36")]
@@ -1719,12 +1725,14 @@ pub mod response {
         JobInfoResponse(super::JobInfoResponse),
         #[prost(message, tag = "69")]
         GetSystemMetricsResponse(super::GetSystemMetricsResponse),
-        #[prost(message, tag = "70")]
-        SyncResponse(super::SyncResponse),
         #[prost(message, tag = "71")]
         LinkArtifactResponse(super::LinkArtifactResponse),
+        #[prost(message, tag = "70")]
+        SyncResponse(super::SyncResponse),
         #[prost(message, tag = "72")]
         RunFinishWithoutExitResponse(super::RunFinishWithoutExitResponse),
+        #[prost(message, tag = "73")]
+        GetSystemMetadataResponse(super::GetSystemMetadataResponse),
         #[prost(message, tag = "1000")]
         TestInjectResponse(super::TestInjectResponse),
     }
@@ -1887,6 +1895,18 @@ pub struct GetSystemMetricsResponse {
     >,
 }
 ///
+/// GetSystemMetadataRequest: request system metadata
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetSystemMetadataRequest {
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RequestInfo>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetSystemMetadataResponse {
+    #[prost(message, optional, tag = "1")]
+    pub metadata: ::core::option::Option<MetadataRequest>,
+}
+///
 /// StatusRequest:
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StatusRequest {
@@ -2024,35 +2044,10 @@ pub struct Operation {
     #[prost(message, repeated, tag = "5")]
     pub subtasks: ::prost::alloc::vec::Vec<Operation>,
 }
-///
-/// Sender requests
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SyncOverwrite {
-    #[prost(string, tag = "1")]
-    pub run_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub entity: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub project: ::prost::alloc::string::String,
-}
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct SyncSkip {
-    #[prost(bool, tag = "1")]
-    pub output_raw: bool,
-}
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct SenderMarkRequest {}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SyncRequest {
-    #[prost(int64, tag = "1")]
-    pub start_offset: i64,
-    #[prost(int64, tag = "2")]
-    pub final_offset: i64,
-    #[prost(message, optional, tag = "3")]
-    pub overwrite: ::core::option::Option<SyncOverwrite>,
-    #[prost(message, optional, tag = "4")]
-    pub skip: ::core::option::Option<SyncSkip>,
-}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct SyncFinishRequest {}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SyncResponse {
     #[prost(string, tag = "1")]
@@ -2587,6 +2582,8 @@ pub struct GpuNvidiaInfo {
     pub cuda_cores: u32,
     #[prost(string, tag = "4")]
     pub architecture: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub uuid: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GpuAmdInfo {
@@ -2708,6 +2705,9 @@ pub struct MetadataRequest {
     pub trainium: ::core::option::Option<TrainiumInfo>,
     #[prost(message, optional, tag = "32")]
     pub tpu: ::core::option::Option<TpuInfo>,
+    /// Flag indicating whether the request originated from the user.
+    #[prost(bool, optional, tag = "200")]
+    pub user_modified: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PythonPackagesRequest {
@@ -2783,12 +2783,72 @@ pub struct JobInputRequest {
     #[prost(string, tag = "4")]
     pub input_schema: ::prost::alloc::string::String,
 }
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+/// *
+/// A request to the backend process for the features supported by the server.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ServerFeatureRequest {
+    #[prost(enumeration = "ServerFeature", tag = "1")]
+    pub feature: i32,
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RequestInfo>,
+}
+/// *
+/// A response to a ServerFeatureRequest with the status of each requested feature.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ServerFeatureResponse {
+    #[prost(message, optional, tag = "1")]
+    pub feature: ::core::option::Option<ServerFeatureItem>,
+}
+/// *
+/// The feature details to be requested in a ServerFeatureRequest.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ServerFeatureItem {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(bool, tag = "2")]
+    pub enabled: bool,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum ServerFeature {
+    LargeFilenames = 0,
+    ArtifactTags = 1,
+    ClientIds = 2,
+}
+impl ServerFeature {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::LargeFilenames => "LARGE_FILENAMES",
+            Self::ArtifactTags => "ARTIFACT_TAGS",
+            Self::ClientIds => "CLIENT_IDS",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "LARGE_FILENAMES" => Some(Self::LargeFilenames),
+            "ARTIFACT_TAGS" => Some(Self::ArtifactTags),
+            "CLIENT_IDS" => Some(Self::ClientIds),
+            _ => None,
+        }
+    }
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetStatsRequest {
     /// Capture the system metrics for the process with this PID, in addition to
     /// system-wide metrics.
     #[prost(int32, tag = "1")]
     pub pid: i32,
+    /// GPU device IDs to capture metrics for.
+    ///
+    /// Should be 0-indexed and match those reported by the CUDA/ROCm runtime environment.
+    /// If not set, metrics for all GPUs will be captured.
+    #[prost(int32, repeated, tag = "2")]
+    pub gpu_device_ids: ::prost::alloc::vec::Vec<i32>,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct GetMetadataRequest {}

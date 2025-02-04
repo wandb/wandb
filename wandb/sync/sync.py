@@ -81,9 +81,9 @@ class SyncThread(threading.Thread):
         record_type = pb.WhichOneof("record_type")
         if self._view:
             if self._verbose:
-                print("Record:", pb)
+                print("Record:", pb)  # noqa: T201
             else:
-                print("Record:", record_type)
+                print("Record:", record_type)  # noqa: T201
             return pb, exit_pb, True
         if record_type == "run":
             if self._run_id:
@@ -137,7 +137,7 @@ class SyncThread(threading.Thread):
             if tb_event_files > 0 and sync_item.endswith(WANDB_SUFFIX):
                 wandb.termwarn("Found .wandb file, not streaming tensorboard metrics.")
             else:
-                print(f"Found {tb_event_files} tfevent files in {tb_root}")
+                print(f"Found {tb_event_files} tfevent files in {tb_root}")  # noqa: T201
                 if len(tb_logdirs) > 3:
                     wandb.termwarn(
                         f"Found {len(tb_logdirs)} directories containing tfevent files. "
@@ -163,7 +163,7 @@ class SyncThread(threading.Thread):
             url_quote(proto_run.project),
             url_quote(proto_run.run_id),
         )
-        print("Syncing: {} ...".format(url))
+        print("Syncing: {} ...".format(url))  # noqa: T201
         sys.stdout.flush()
         # using a handler here automatically handles the step
         # logic, adds summaries to the run, and handles different
@@ -245,7 +245,7 @@ class SyncThread(threading.Thread):
 
     def run(self):
         if self._log_path is not None:
-            print(f"Find logs at: {self._log_path}")
+            print(f"Find logs at: {self._log_path}")  # noqa: T201
         for sync_item in self._sync_list:
             tb_event_files, tb_logdirs, tb_root = self._find_tfevent_files(sync_item)
             if os.path.isdir(sync_item):
@@ -254,7 +254,7 @@ class SyncThread(threading.Thread):
                 if tb_root is None and (
                     check_and_warn_old(files) or len(filtered_files) != 1
                 ):
-                    print(f"Skipping directory: {sync_item}")
+                    print(f"Skipping directory: {sync_item}")  # noqa: T201
                     continue
                 if len(filtered_files) > 0:
                     sync_item = os.path.join(sync_item, filtered_files[0])
@@ -265,7 +265,7 @@ class SyncThread(threading.Thread):
             root_dir = self._tmp_dir.name if sync_tb else os.path.dirname(sync_item)
 
             # When appending we are allowing a possible resume, ie the run
-            # doesnt have to exist already
+            # does not have to exist already
             resume = "allow" if self._append else None
 
             sm = sender.SendManager.setup(root_dir, resume=resume)
@@ -277,7 +277,7 @@ class SyncThread(threading.Thread):
             try:
                 ds.open_for_scan(sync_item)
             except AssertionError as e:
-                print(f".wandb file is empty ({e}), skipping: {sync_item}")
+                print(f".wandb file is empty ({e}), skipping: {sync_item}")  # noqa: T201
                 continue
 
             # save exit for final send
@@ -311,7 +311,7 @@ class SyncThread(threading.Thread):
                             url_quote(r.project),
                             url_quote(r.run_id),
                         )
-                        print("Syncing: {} ... ".format(url), end="")
+                        print("Syncing: {} ... ".format(url), end="")  # noqa: T201
                         sys.stdout.flush()
                         shown = True
             sm.finish()
@@ -320,7 +320,7 @@ class SyncThread(threading.Thread):
                 synced_file = f"{sync_item}{SYNCED_SUFFIX}"
                 with open(synced_file, "w"):
                     pass
-            print("done.")
+            print("done.")  # noqa: T201
 
 
 class SyncManager:

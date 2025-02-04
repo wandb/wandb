@@ -203,7 +203,7 @@ class SystemMonitor:
             logger.error(f"Error joining system monitor process: {e}")
         self._process = None
 
-    def probe(self, publish: bool = True) -> None:
+    def probe(self, publish: bool = True) -> dict:
         logger.info("Collecting system info")
         # collect static info about the hardware from registered assets
         hardware_info: dict = {
@@ -220,3 +220,5 @@ class SystemMonitor:
             logger.info("Publishing system info")
             self.system_info.publish(system_info)
             logger.info("Finished publishing system info")
+
+        return system_info

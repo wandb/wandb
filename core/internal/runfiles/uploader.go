@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/Khan/genqlient/graphql"
@@ -121,8 +122,14 @@ func (u *uploader) Process(record *spb.FilesRecord) {
 		}
 		runPath := *maybeRunPath
 
-		u.knownFile(runPath).
-			SetCategory(filetransfer.RunFileKindFromProto(file.GetType()))
+		category := filetransfer.RunFileKindFromProto(file.GetType())
+		// Files under media/ always count as media files, but the client does
+		// not always mark their type.
+		if category == filetransfer.RunFileKindOther &&
+			strings.HasPrefix(file.GetPath(), "media") {
+			category = filetransfer.RunFileKindMedia
+		}
+		u.knownFile(runPath).SetCategory(category)
 
 		switch file.GetPolicy() {
 		case spb.FilesItem_NOW:

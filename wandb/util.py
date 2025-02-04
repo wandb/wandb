@@ -854,20 +854,52 @@ def no_retry_4xx(e: Exception) -> bool:
 
 
 def parse_backend_error_messages(response: requests.Response) -> List[str]:
-    errors: List[str] = []
+    """Returns error messages stored in a backend response.
+
+    If the response is not in an expected format, an empty list is returned.
+
+    Args:
+        response: A response to an HTTP request to the W&B server.
+    """
     try:
         data = response.json()
-    except ValueError:
-        return errors
+    except requests.JSONDecodeError:
+        return []
 
-    if "errors" in data and isinstance(data["errors"], list):
-        for error in data["errors"]:
-            # Our tests and potentially some api endpoints return a string error?
-            if isinstance(error, str):
-                error = {"message": error}
-            if "message" in error:
-                errors.append(error["message"])
-    return errors
+    if not isinstance(data, dict):
+        return []
+
+    # Backend error values are returned in one of two ways:
+    # - A string containing the error message
+    # - A JSON object with a "message" field that is a string
+    def get_message(err: Any) -> Optional[str]:
+        if isinstance(error, str):
+            return error
+        elif (
+            isinstance(error, dict)
+            and (message := error.get("message"))
+            and isinstance(message, str)
+        ):
+            return message
+        else:
+            return None
+
+    # The response can contain an "error" field with a single error
+    # or an "errors" field with a list of errors.
+    if error := data.get("error"):
+        message = get_message(error)
+        return [message] if message else []
+
+    elif (errors := data.get("errors")) and isinstance(errors, list):
+        messages: List[str] = []
+        for error in errors:
+            message = get_message(error)
+            if message:
+                messages.append(message)
+        return messages
+
+    else:
+        return []
 
 
 def no_retry_auth(e: Any) -> bool:
@@ -1266,7 +1298,7 @@ def prompt_choices(
 ) -> str:
     """Allow a user to choose from a list of options."""
     for i, choice in enumerate(choices):
-        wandb.termlog(f"({i+1}) {choice}")
+        wandb.termlog(f"({i + 1}) {choice}")
 
     idx = -1
     while idx < 0 or idx > len(choices) - 1:
@@ -1717,9 +1749,17 @@ def _get_max_cli_version() -> Union[str, None]:
 
 
 def _is_offline() -> bool:
-    return (  # type: ignore[no-any-return]
-        wandb.run is not None and wandb.run.settings._offline
-    ) or wandb.setup().settings._offline  # type: ignore
+    """Returns true if wandb is configured to be offline.
+
+    If there is an active run, returns whether the run is offline.
+    Otherwise, returns the default mode, which is affected by explicit settings
+    passed to `wandb.setup()`, environment variables, and W&B configuration
+    files.
+    """
+    if wandb.run:
+        return wandb.run.settings._offline
+    else:
+        return wandb.setup().settings._offline
 
 
 def ensure_text(

@@ -24,10 +24,11 @@ def test_disabled_summary(user):
     run = wandb.init(mode="disabled")
     run.summary["cat"] = 2
     run.summary["nested"] = dict(level=3)
-    print(run.summary["cat"])
-    print(run.summary.cat)
+    assert "cat" in run.summary
+    assert run.summary["cat"] == 2
+    assert run.summary.cat == 2
     with pytest.raises(KeyError):
-        print(run.summary["dog"])
+        _ = run.summary["dog"]
     assert run.summary["nested"]["level"] == 3
 
 
@@ -67,7 +68,7 @@ def test_access_properties(user):
     assert run.dir
     assert run.disabled
     assert run.entity
-    assert run.project == ""
+    assert run.project == "dummy"
     assert not run.resumed
     assert run.start_time
     assert run.starting_step == 0
@@ -91,7 +92,7 @@ def test_access_properties(user):
     assert run.get_project_url() is None
     assert run.get_sweep_url() is None
     assert run.get_url() is None
-    assert run.project_name() == ""
+    assert run.project_name() == "dummy"
 
     assert run.status() is None
 

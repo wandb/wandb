@@ -10,7 +10,6 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 import gzip
 import logging
-import os
 import time
 from abc import abstractmethod
 from pathlib import Path
@@ -91,17 +90,10 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> "PolicyName":
 
 
 class InterfaceBase:
-    _run: Optional["Run"]
     _drop: bool
 
     def __init__(self) -> None:
-        self._run = None
         self._drop = False
-
-    def _hack_set_run(self, run: "Run") -> None:
-        self._run = run
-        current_pid = os.getpid()
-        self._run._set_iface_pid(current_pid)
 
     def publish_header(self) -> None:
         header = pb.HeaderRecord()
@@ -144,11 +136,41 @@ class InterfaceBase:
             update.value_json = json_dumps_safer(json_friendly(val)[0])
         return config
 
-    def _make_run(self, run: "Run") -> pb.RunRecord:
+    def _make_run(self, run: "Run") -> pb.RunRecord:  # noqa: C901
         proto_run = pb.RunRecord()
-        run._make_proto_run(proto_run)
+        if run._settings.entity is not None:
+            proto_run.entity = run._settings.entity
+        if run._settings.project is not None:
+            proto_run.project = run._settings.project
+        if run._settings.run_group is not None:
+            proto_run.run_group = run._settings.run_group
+        if run._settings.run_job_type is not None:
+            proto_run.job_type = run._settings.run_job_type
+        if run._settings.run_id is not None:
+            proto_run.run_id = run._settings.run_id
+        if run._settings.run_name is not None:
+            proto_run.display_name = run._settings.run_name
+        if run._settings.run_notes is not None:
+            proto_run.notes = run._settings.run_notes
+        if run._settings.run_tags is not None:
+            for tag in run._settings.run_tags:
+                proto_run.tags.append(tag)
+        if run._start_time is not None:
+            proto_run.start_time.FromMicroseconds(int(run._start_time * 1e6))
+        if run._starting_step is not None:
+            proto_run.starting_step = run._starting_step
+        if run._settings.git_remote_url is not None:
+            proto_run.git.remote_url = run._settings.git_remote_url
+        if run._settings.git_commit is not None:
+            proto_run.git.commit = run._settings.git_commit
+        if run._settings.sweep_id is not None:
+            proto_run.sweep_id = run._settings.sweep_id
         if run._settings.host:
             proto_run.host = run._settings.host
+        if run._settings.resumed:
+            proto_run.resumed = run._settings.resumed
+        if run._forked:
+            proto_run.forked = run._forked
         if run._config is not None:
             config_dict = run._config._as_dict()  # type: ignore
             self._make_config(data=config_dict, obj=proto_run.config)
@@ -186,6 +208,13 @@ class InterfaceBase:
     def _publish_config(self, cfg: pb.ConfigRecord) -> None:
         raise NotImplementedError
 
+    def publish_metadata(self, metadata: pb.MetadataRequest) -> None:
+        self._publish_metadata(metadata)
+
+    @abstractmethod
+    def _publish_metadata(self, metadata: pb.MetadataRequest) -> None:
+        raise NotImplementedError
+
     @abstractmethod
     def _publish_metric(self, metric: pb.MetricRecord) -> None:
         raise NotImplementedError
@@ -198,7 +227,12 @@ class InterfaceBase:
             update.value_json = json.dumps(v)
         return summary
 
-    def _summary_encode(self, value: Any, path_from_root: str) -> dict:
+    def _summary_encode(
+        self,
+        value: Any,
+        path_from_root: str,
+        run: "Run",
+    ) -> dict:
         """Normalize, compress, and encode sub-objects for backend storage.
 
         value: Object to encode.
@@ -216,12 +250,14 @@ class InterfaceBase:
             json_value = {}
             for key, value in value.items():  # noqa: B020
                 json_value[key] = self._summary_encode(
-                    value, path_from_root + "." + key
+                    value,
+                    path_from_root + "." + key,
+                    run=run,
                 )
             return json_value
         else:
             friendly_value, converted = json_friendly(
-                val_to_json(self._run, path_from_root, value, namespace="summary")
+                val_to_json(run, path_from_root, value, namespace="summary")
             )
             json_value, compressed = maybe_compress_summary(
                 friendly_value, get_h5_typename(value)
@@ -233,7 +269,11 @@ class InterfaceBase:
 
             return json_value
 
-    def _make_summary(self, summary_record: sr.SummaryRecord) -> pb.SummaryRecord:
+    def _make_summary(
+        self,
+        summary_record: sr.SummaryRecord,
+        run: "Run",
+    ) -> pb.SummaryRecord:
         pb_summary_record = pb.SummaryRecord()
 
         for item in summary_record.update:
@@ -248,7 +288,11 @@ class InterfaceBase:
                 pb_summary_item.key = item.key[0]
 
             path_from_root = ".".join(item.key)
-            json_value = self._summary_encode(item.value, path_from_root)
+            json_value = self._summary_encode(
+                item.value,
+                path_from_root,
+                run=run,
+            )
             json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
@@ -269,8 +313,12 @@ class InterfaceBase:
 
         return pb_summary_record
 
-    def publish_summary(self, summary_record: sr.SummaryRecord) -> None:
-        pb_summary_record = self._make_summary(summary_record)
+    def publish_summary(
+        self,
+        run: "Run",
+        summary_record: sr.SummaryRecord,
+    ) -> None:
+        pb_summary_record = self._make_summary(summary_record, run=run)
         self._publish_summary(pb_summary_record)
 
     @abstractmethod
@@ -616,15 +664,13 @@ class InterfaceBase:
 
     def publish_partial_history(
         self,
+        run: "Run",
         data: dict,
         user_step: int,
         step: Optional[int] = None,
         flush: Optional[bool] = None,
         publish_step: bool = True,
-        run: Optional["Run"] = None,
     ) -> None:
-        run = run or self._run
-
         data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
         data.pop("_step", None)
 
@@ -651,12 +697,11 @@ class InterfaceBase:
 
     def publish_history(
         self,
+        run: "Run",
         data: dict,
         step: Optional[int] = None,
-        run: Optional["Run"] = None,
         publish_step: bool = True,
     ) -> None:
-        run = run or self._run
         data = history_dict_to_json(run, data, step=step)
         history = pb.HistoryRecord()
         if publish_step:
@@ -692,7 +737,7 @@ class InterfaceBase:
             otype = pb.OutputRecord.OutputType.STDERR
         else:
             # TODO(jhr): throw error?
-            print("unknown type")
+            termwarn("unknown type")
         o = pb.OutputRecord(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
         self._publish_output(o)
@@ -712,7 +757,7 @@ class InterfaceBase:
             otype = pb.OutputRawRecord.OutputType.STDERR
         else:
             # TODO(jhr): throw error?
-            print("unknown type")
+            termwarn("unknown type")
         o = pb.OutputRawRecord(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
         self._publish_output_raw(o)
@@ -842,40 +887,22 @@ class InterfaceBase:
         run_record = self._make_run(run)
         return self._deliver_run(run_record)
 
-    def deliver_sync(
+    def deliver_finish_sync(
         self,
-        start_offset: int,
-        final_offset: int,
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
-        run_id: Optional[str] = None,
-        skip_output_raw: Optional[bool] = None,
     ) -> MailboxHandle:
-        sync = pb.SyncRequest(
-            start_offset=start_offset,
-            final_offset=final_offset,
-        )
-        if entity:
-            sync.overwrite.entity = entity
-        if project:
-            sync.overwrite.project = project
-        if run_id:
-            sync.overwrite.run_id = run_id
-        if skip_output_raw:
-            sync.skip.output_raw = skip_output_raw
-        return self._deliver_sync(sync)
+        sync = pb.SyncFinishRequest()
+        return self._deliver_finish_sync(sync)
 
     @abstractmethod
-    def _deliver_sync(self, sync: pb.SyncRequest) -> MailboxHandle:
+    def _deliver_finish_sync(self, sync: pb.SyncFinishRequest) -> MailboxHandle:
         raise NotImplementedError
 
     @abstractmethod
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
         raise NotImplementedError
 
-    def deliver_run_start(self, run_pb: pb.RunRecord) -> MailboxHandle:
-        run_start = pb.RunStartRequest()
-        run_start.run.CopyFrom(run_pb)
+    def deliver_run_start(self, run: "Run") -> MailboxHandle:
+        run_start = pb.RunStartRequest(run=self._make_run(run))
         return self._deliver_run_start(run_start)
 
     @abstractmethod
@@ -925,12 +952,22 @@ class InterfaceBase:
         raise NotImplementedError
 
     def deliver_get_system_metrics(self) -> MailboxHandle:
-        get_summary = pb.GetSystemMetricsRequest()
-        return self._deliver_get_system_metrics(get_summary)
+        get_system_metrics = pb.GetSystemMetricsRequest()
+        return self._deliver_get_system_metrics(get_system_metrics)
 
     @abstractmethod
     def _deliver_get_system_metrics(
         self, get_summary: pb.GetSystemMetricsRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_get_system_metadata(self) -> MailboxHandle:
+        get_system_metadata = pb.GetSystemMetadataRequest()
+        return self._deliver_get_system_metadata(get_system_metadata)
+
+    @abstractmethod
+    def _deliver_get_system_metadata(
+        self, get_system_metadata: pb.GetSystemMetadataRequest
     ) -> MailboxHandle:
         raise NotImplementedError
 

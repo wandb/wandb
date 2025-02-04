@@ -63,6 +63,11 @@ func (s *Settings) GetIdentityTokenFile() string {
 	return s.Proto.IdentityTokenFile.GetValue()
 }
 
+// Path to file for writing temporary access tokens.
+func (s *Settings) GetCredentialsFile() string {
+	return s.Proto.CredentialsFile.GetValue()
+}
+
 // Whether we are in offline mode.
 func (s *Settings) IsOffline() bool {
 	return s.Proto.XOffline.GetValue()
@@ -106,10 +111,20 @@ func (s *Settings) GetEntity() string {
 	return s.Proto.Entity.GetValue()
 }
 
+// The name of the run.
+func (s *Settings) GetDisplayName() string {
+	return s.Proto.RunName.GetValue()
+}
+
 // The start time of the run in microseconds since the Unix epoch.
 func (s *Settings) GetStartTime() time.Time {
 	seconds := s.Proto.XStartTime.GetValue()
 	return time.UnixMicro(int64(seconds * 1e6))
+}
+
+// The hostname of the machine running the run.
+func (s *Settings) GetHostname() string {
+	return s.Proto.Host.GetValue()
 }
 
 // The root directory that will be used to derive other paths.
@@ -138,6 +153,11 @@ func (s *Settings) GetFilesDir() string {
 // Unix glob patterns relative to `files_dir` to not upload.
 func (s *Settings) GetIgnoreGlobs() []string {
 	return s.Proto.IgnoreGlobs.GetValue()
+}
+
+// The directory for syncing the run from the transaction log.
+func (s *Settings) GetSyncDir() string {
+	return s.Proto.SyncDir.GetValue()
 }
 
 // The URL for the W&B backend.
@@ -410,8 +430,12 @@ func (s *Settings) IsDisableStats() bool {
 	return s.Proto.XDisableStats.GetValue()
 }
 
-func (s *Settings) IsPrimaryNode() bool {
-	return s.Proto.XPrimaryNode.GetValue()
+// Determines whether to save internal wandb files and metadata.
+//
+// In a distributed setting, this is useful for avoiding file overwrites from secondary processes
+// when only system metrics and logs are needed, as the primary process handles the main logging.
+func (s *Settings) IsPrimary() bool {
+	return s.Proto.XPrimary.GetValue()
 }
 
 // The size of the buffer for system metrics.
@@ -434,9 +458,19 @@ func (s *Settings) GetStatsDiskPaths() []string {
 	return s.Proto.XStatsDiskPaths.GetValue()
 }
 
+// The indices of GPU devices to monitor.
+func (s *Settings) GetStatsGpuDeviceIds() []int32 {
+	return s.Proto.XStatsGpuDeviceIds.GetValue()
+}
+
 // The path to the Neuron monitor config file.
 func (s *Settings) GetStatsNeuronMonitorConfigPath() string {
 	return s.Proto.XStatsNeuronMonitorConfigPath.GetValue()
+}
+
+// The OpenMetrics API query.
+func (s *Settings) GetStatsDcgmExporter() string {
+	return s.Proto.XStatsDcgmExporter.GetValue()
 }
 
 // The OpenMetrics endpoints to monitor.
@@ -483,4 +517,9 @@ func (s *Settings) UpdateProject(project string) {
 // Updates the run's display name.
 func (s *Settings) UpdateDisplayName(displayName string) {
 	s.Proto.RunName = &wrapperspb.StringValue{Value: displayName}
+}
+
+// Updates the run ID.
+func (s *Settings) UpdateRunID(runID string) {
+	s.Proto.RunId = &wrapperspb.StringValue{Value: runID}
 }

@@ -9,10 +9,12 @@ import (
 	"sync"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/pfxout"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -48,6 +50,9 @@ type Stream struct {
 	// settings is the settings for the stream
 	settings *settings.Settings
 
+	// reader is the reader for the stream
+	reader *Reader
+
 	// handler is the handler for the stream
 	handler *Handler
 
@@ -68,6 +73,7 @@ func streamLogger(
 	settings *settings.Settings,
 	sentryClient *sentry_ext.Client,
 	loggerPath string,
+	logLevel slog.Level,
 ) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
@@ -91,17 +97,6 @@ func streamLogger(
 	}
 	writer := io.MultiWriter(writers...)
 
-	// TODO: add a log level to the settings
-	level := slog.LevelInfo
-	if os.Getenv("WANDB_CORE_DEBUG") != "" {
-		level = slog.LevelDebug
-	}
-
-	opts := &slog.HandlerOptions{
-		Level: level,
-		// AddSource: true,
-	}
-
 	sentryClient.SetUser(
 		settings.GetEntity(),
 		settings.GetEmail(),
@@ -109,14 +104,22 @@ func streamLogger(
 	)
 
 	logger := observability.NewCoreLogger(
-		slog.New(slog.NewJSONHandler(writer, opts)),
-		observability.WithTags(observability.Tags{}),
-		observability.WithCaptureMessage(sentryClient.CaptureMessage),
-		observability.WithCaptureException(sentryClient.CaptureException),
-		observability.WithReraise(sentryClient.Reraise),
+		slog.New(slog.NewJSONHandler(
+			writer,
+			&slog.HandlerOptions{
+				Level: logLevel,
+				// AddSource: true,
+			},
+		)),
+		&observability.CoreLoggerParams{
+			Tags:   observability.Tags{},
+			Sentry: sentryClient,
+		},
 	)
-	logger.Info("using version", "core version", version.Version)
-	logger.Info("created symlink", "path", targetPath)
+	logger.Info("stream: starting",
+		"core version", version.Version,
+		"symlink path", targetPath,
+	)
 
 	tags := observability.Tags{
 		"run_id":   settings.GetRunID(),
@@ -132,75 +135,69 @@ func streamLogger(
 	return logger
 }
 
-type StreamOptions struct {
+type StreamParams struct {
 	Commit     string
 	Settings   *settings.Settings
 	Sentry     *sentry_ext.Client
 	LoggerPath string
+	LogLevel   slog.Level
 }
 
 // NewStream creates a new stream with the given settings and responders.
 func NewStream(
-	opts StreamOptions,
+	params StreamParams,
 ) *Stream {
 	operations := wboperation.NewOperations()
 
-	logger := streamLogger(opts.Settings, opts.Sentry, opts.LoggerPath)
+	logger := streamLogger(
+		params.Settings,
+		params.Sentry,
+		params.LoggerPath,
+		params.LogLevel,
+	)
 	s := &Stream{
 		runWork:      runwork.New(BufferSize, logger),
 		logger:       logger,
-		settings:     opts.Settings,
-		sentryClient: opts.Sentry,
-	}
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		// We log an error but continue anyway with an empty hostname string.
-		// Better behavior would be to inform the user and turn off any
-		// components that rely on the hostname, but it's not easy to do
-		// with our current code structure.
-		s.logger.CaptureError(
-			fmt.Errorf("stream: could not get hostname: %v", err))
-		hostname = ""
+		settings:     params.Settings,
+		sentryClient: params.Sentry,
 	}
 
 	// TODO: replace this with a logger that can be read by the user
 	peeker := &observability.Peeker{}
 	terminalPrinter := observability.NewPrinter()
 
-	backendOrNil := NewBackend(s.logger, opts.Settings)
+	backendOrNil := NewBackend(s.logger, params.Settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	fileWatcher := watcher.New(watcher.Params{Logger: s.logger})
 	tbHandler := tensorboard.NewTBHandler(tensorboard.Params{
 		ExtraWork: s.runWork,
 		Logger:    s.logger,
 		Settings:  s.settings,
-		Hostname:  hostname,
 	})
 	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
 	var runfilesUploaderOrNil runfiles.Uploader
 	if backendOrNil != nil {
-		graphqlClientOrNil = NewGraphQLClient(backendOrNil, opts.Settings, peeker)
+		graphqlClientOrNil = NewGraphQLClient(backendOrNil, params.Settings, peeker)
 		fileStreamOrNil = NewFileStream(
 			backendOrNil,
 			s.logger,
 			operations,
 			terminalPrinter,
-			opts.Settings,
+			params.Settings,
 			peeker,
 		)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileTransferStats,
 			s.logger,
-			opts.Settings,
+			params.Settings,
 		)
 		runfilesUploaderOrNil = NewRunfilesUploader(
 			s.runWork,
 			s.logger,
 			operations,
-			opts.Settings,
+			params.Settings,
 			fileStreamOrNil,
 			fileTransferManagerOrNil,
 			fileWatcher,
@@ -208,33 +205,45 @@ func NewStream(
 		)
 	}
 
-	mailbox := mailbox.New()
+	featureProvider := featurechecker.NewServerFeaturesCache(
+		s.runWork.BeforeEndCtx(),
+		graphqlClientOrNil,
+		s.logger,
+	)
 
-	s.handler = NewHandler(opts.Commit,
+	mailbox := mailbox.New()
+	if s.settings.IsSync() {
+		s.reader = NewReader(ReaderParams{
+			Logger:   s.logger,
+			Settings: s.settings,
+			RunWork:  s.runWork,
+		})
+	} else {
+		s.writer = NewWriter(WriterParams{
+			Logger:   s.logger,
+			Settings: s.settings,
+			FwdChan:  make(chan runwork.Work, BufferSize),
+		})
+	}
+
+	s.handler = NewHandler(
 		HandlerParams{
-			Logger:            s.logger,
-			Operations:        operations,
-			Settings:          s.settings,
+			Commit:            params.Commit,
+			FeatureProvider:   featureProvider,
+			FileTransferStats: fileTransferStats,
 			FwdChan:           make(chan runwork.Work, BufferSize),
+			Logger:            s.logger,
+			Mailbox:           mailbox,
+			Operations:        operations,
 			OutChan:           make(chan *spb.Result, BufferSize),
+			Settings:          s.settings,
 			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings, s.runWork),
 			TBHandler:         tbHandler,
-			FileTransferStats: fileTransferStats,
-			Mailbox:           mailbox,
 			TerminalPrinter:   terminalPrinter,
 		},
 	)
 
-	s.writer = NewWriter(
-		WriterParams{
-			Logger:   s.logger,
-			Settings: s.settings,
-			FwdChan:  make(chan runwork.Work, BufferSize),
-		},
-	)
-
 	s.sender = NewSender(
-		s.runWork,
 		SenderParams{
 			Logger:              s.logger,
 			Operations:          operations,
@@ -251,6 +260,7 @@ func NewStream(
 			GraphqlClient:       graphqlClientOrNil,
 			OutChan:             make(chan *spb.Result, BufferSize),
 			Mailbox:             mailbox,
+			RunWork:             s.runWork,
 		},
 	)
 
@@ -287,6 +297,7 @@ func (s *Stream) UpdateRunURLTag() {
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
 func (s *Stream) Start() {
+
 	// handle the client requests with the handler
 	s.wg.Add(1)
 	go func() {
@@ -295,18 +306,34 @@ func (s *Stream) Start() {
 	}()
 
 	// write the data to a transaction log
-	s.wg.Add(1)
-	go func() {
-		s.writer.Do(s.handler.fwdChan)
-		s.wg.Done()
-	}()
+	if !s.settings.IsSync() {
 
-	// send the data to the server
-	s.wg.Add(1)
-	go func() {
-		s.sender.Do(s.writer.fwdChan)
-		s.wg.Done()
-	}()
+		s.wg.Add(1)
+		go func() {
+			s.writer.Do(s.handler.fwdChan)
+			s.wg.Done()
+		}()
+
+		// send the data to the server
+		s.wg.Add(1)
+		go func() {
+			s.sender.Do(s.writer.fwdChan)
+			s.wg.Done()
+		}()
+
+	} else {
+		s.wg.Add(1)
+		go func() {
+			s.reader.Do()
+			s.wg.Done()
+		}()
+
+		s.wg.Add(1)
+		go func() {
+			s.sender.Do(s.handler.fwdChan)
+			s.wg.Done()
+		}()
+	}
 
 	// handle dispatching between components
 	for _, ch := range []chan *spb.Result{s.handler.outChan, s.sender.outChan} {
@@ -323,9 +350,9 @@ func (s *Stream) Start() {
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
-func (s *Stream) HandleRecord(rec *spb.Record) {
-	s.logger.Debug("handling record", "record", rec)
-	s.runWork.AddWork(runwork.WorkFromRecord(rec))
+func (s *Stream) HandleRecord(record *spb.Record) {
+	s.logger.Debug("handling record", "record", record.GetRecordType())
+	s.runWork.AddWork(runwork.WorkFromRecord(record))
 }
 
 // Close waits for all run messages to be fully processed.
@@ -351,10 +378,45 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 
 	s.Close()
 
-	if s.settings.IsOffline() {
-		PrintFooterOffline(s.settings.Proto)
+	printFooter(s.settings)
+}
+
+func printFooter(settings *settings.Settings) {
+	formatter := pfxout.New(
+		pfxout.WithColor("wandb", pfxout.BrightBlue),
+	)
+
+	formatter.Println("")
+	if settings.IsOffline() {
+		formatter.Println("You can sync this run to the cloud by running:")
+		formatter.Println(
+			pfxout.WithStyle(
+				fmt.Sprintf("wandb sync %v", settings.GetSyncDir()),
+				pfxout.Bold,
+			),
+		)
 	} else {
-		run := s.handler.GetRun()
-		PrintFooterOnline(run, s.settings.Proto)
+		formatter.Println(
+			fmt.Sprintf(
+				"🚀 View run %v at: %v",
+				pfxout.WithColor(settings.GetDisplayName(), pfxout.Yellow),
+				pfxout.WithColor(settings.GetRunURL(), pfxout.Blue),
+			),
+		)
 	}
+
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return
+	}
+	relLogDir, err := filepath.Rel(currentDir, settings.GetLogDir())
+	if err != nil {
+		return
+	}
+	formatter.Println(
+		fmt.Sprintf(
+			"Find logs at: %v",
+			pfxout.WithColor(relLogDir, pfxout.BrightMagenta),
+		),
+	)
 }

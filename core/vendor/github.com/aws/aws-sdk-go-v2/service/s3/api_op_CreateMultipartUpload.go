@@ -332,6 +332,12 @@ type CreateMultipartUploadInput struct {
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumAlgorithm types.ChecksumAlgorithm
 
+	// Indicates the checksum type that you want Amazon S3 to use to calculate the
+	// object’s checksum value. For more information, see [Checking object integrity in the Amazon S3 User Guide].
+	//
+	// [Checking object integrity in the Amazon S3 User Guide]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
+	ChecksumType types.ChecksumType
+
 	// Specifies presentational information for the object.
 	ContentDisposition *string
 
@@ -632,7 +638,7 @@ type CreateMultipartUploadInput struct {
 	SSECustomerKeyMD5 *string
 
 	// Specifies the Amazon Web Services KMS Encryption Context to use for object
-	// encryption. The value of this header is a Base64-encoded string of a UTF-8
+	// encryption. The value of this header is a Base64 encoded string of a UTF-8
 	// encoded JSON, which contains the encryption context as key-value pairs.
 	//
 	// Directory buckets - You can optionally provide an explicit encryption context
@@ -779,6 +785,12 @@ type CreateMultipartUploadOutput struct {
 	// The algorithm that was used to create a checksum of the object.
 	ChecksumAlgorithm types.ChecksumAlgorithm
 
+	//  Indicates the checksum type that you want Amazon S3 to use to calculate the
+	// object’s checksum value. For more information, see [Checking object integrity in the Amazon S3 User Guide].
+	//
+	// [Checking object integrity in the Amazon S3 User Guide]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
+	ChecksumType types.ChecksumType
+
 	// Object key for which the multipart upload was initiated.
 	Key *string
 
@@ -803,7 +815,7 @@ type CreateMultipartUploadOutput struct {
 	SSECustomerKeyMD5 *string
 
 	// If present, indicates the Amazon Web Services KMS Encryption Context to use for
-	// object encryption. The value of this header is a Base64-encoded string of a
+	// object encryption. The value of this header is a Base64 encoded string of a
 	// UTF-8 encoded JSON, which contains the encryption context as key-value pairs.
 	SSEKMSEncryptionContext *string
 

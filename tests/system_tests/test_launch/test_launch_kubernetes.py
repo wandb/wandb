@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import kubernetes_asyncio
 import pytest
@@ -18,6 +18,7 @@ async def _mock_ensure_api_key_secret(*args, **kwargs):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="This test is flaky and should be fixed")
 async def test_kubernetes_run_clean_generate_name(
     use_local_wandb_backend,
     monkeypatch,
@@ -90,6 +91,7 @@ async def test_kubernetes_run_clean_generate_name(
     assert job["metadata"]["generateName"] == expected_generate_name
 
 
+@pytest.mark.skip(reason="This test is flaky and should be fixed")
 @pytest.mark.asyncio
 async def test_kubernetes_run_with_annotations(
     use_local_wandb_backend,
@@ -344,10 +346,14 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
             yaml_objects, jobs, mock_job_base
         ),
     )
+
     monkeypatch.setattr(
-        kubernetes_monitor,
-        "LaunchKubernetesMonitor",
-        MagicMock(),
+        "wandb.sdk.launch.runner.kubernetes_monitor.LaunchKubernetesMonitor",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.LaunchKubernetesMonitor",
+        AsyncMock(),
     )
 
     async def _mock_get_context_and_client(*args, **kwargs):

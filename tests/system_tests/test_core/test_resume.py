@@ -37,7 +37,12 @@ def test_resume_tags_add_after_resume(user, test_settings):
     run_id = run.id
     run.finish()
 
-    run = wandb.init(id=run_id, resume="must", project="tags", settings=test_settings())
+    run = wandb.init(
+        id=run_id,
+        resume="must",
+        project="tags",
+        settings=test_settings(),
+    )
     run.tags += ("tag7",)
     assert run.tags == ("tag7",)
     run.finish()
@@ -70,7 +75,7 @@ def test_resume_output_log(wandb_backend_spy):
         ),
     ) as run:
         run_id = run.id
-        print(f"started {run_id}")
+        print(f"started {run_id}")  # noqa: T201
 
     with wandb.init(
         id=run_id,
@@ -81,7 +86,7 @@ def test_resume_output_log(wandb_backend_spy):
             console_multipart=True,
         ),
     ) as run:
-        print(f"resumed {run_id}")
+        print(f"resumed {run_id}")  # noqa: T201
         run.log({"metric": 1})
 
     with wandb_backend_spy.freeze() as snapshot:

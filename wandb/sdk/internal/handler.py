@@ -39,6 +39,7 @@ from wandb.proto.wandb_internal_pb2 import (
 
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util
+from ..wandb_metadata import Metadata
 from . import context, sample, tb_watcher
 from .settings_static import SettingsStatic
 from .system.system_monitor import SystemMonitor
@@ -119,6 +120,7 @@ class HandleManager:
 
         self._tb_watcher = None
         self._system_monitor = None
+        self._metadata: Optional[Metadata] = None
         self._step = 0
 
         self._track_time = None
@@ -175,6 +177,9 @@ class HandleManager:
 
     def handle_request_cancel(self, record: Record) -> None:
         self._dispatch_record(record)
+
+    def handle_request_metadata(self, record: Record) -> None:
+        logger.warning("Metadata updates are ignored when using the legacy service.")
 
     def handle_request_defer(self, record: Record) -> None:
         defer = record.request.defer
@@ -700,7 +705,10 @@ class HandleManager:
             not (self._settings.x_disable_meta or self._settings.x_disable_machine_info)
             and not run_start.run.resumed
         ):
-            self._system_monitor.probe(publish=True)
+            try:
+                self._metadata = Metadata(**self._system_monitor.probe(publish=True))
+            except Exception as e:
+                logger.error("Error probing system metadata: %s", e)
 
         self._tb_watcher = tb_watcher.TBWatcher(
             self._settings, interface=self._interface, run_proto=run_start.run
@@ -776,6 +784,16 @@ class HandleManager:
                 SystemMetricsBuffer(record=buff)
             )
 
+        self._respond_result(result)
+
+    def handle_request_get_system_metadata(self, record: Record) -> None:
+        result = proto_util._result_from_record(record)
+        if self._system_monitor is None or self._metadata is None:
+            return
+
+        result.response.get_system_metadata_response.metadata.CopyFrom(
+            self._metadata.to_proto()
+        )
         self._respond_result(result)
 
     def handle_tbrecord(self, record: Record) -> None:

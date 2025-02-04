@@ -24,16 +24,16 @@ def _server_accepts_client_ids() -> bool:
     # The latest SDK version that is < "0.11.0" was released on 2021/06/29.
     # AS OF NOW, 2024/11/06, we assume that all customer's server deployments accept
     # client IDs.
-    #
-    # If there are any users with issues on an older backend, customers can disable the
-    # setting `allow_offline_artifacts` to revert the SDK's behavior back to not
-    # using client IDs in offline mode.
-    if (
-        util._is_offline()
-        and wandb.run
-        and not wandb.run.settings.allow_offline_artifacts
-    ):
-        return False
+
+    if util._is_offline():
+        # If there are any users with issues on an older backend, customers can disable the
+        # setting `allow_offline_artifacts` to revert the SDK's behavior back to not
+        # using client IDs in offline mode.
+        if wandb.run and not wandb.run.settings.allow_offline_artifacts:
+            return False
+        # Assume client IDs are accepted
+        else:
+            return True
 
     # If the script is online, request the max_cli_version and ensure the server
     # is of a high enough version.
@@ -135,7 +135,7 @@ class WBValue:
     def init_from_json(
         json_obj: dict, source_artifact: "Artifact"
     ) -> Optional["WBValue"]:
-        """Initialize a `WBValue` from a JSON blob based on the class that creatd it.
+        """Initialize a `WBValue` from a JSON blob based on the class that created it.
 
         Looks through all subclasses and tries to match the json obj with the class
         which created it. It will then call that subclass' `from_json` method.

@@ -8,7 +8,6 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
-	"os"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -42,7 +41,7 @@ func NewBackend(
 			fmt.Errorf("stream_init: failed to parse base URL: %v", err))
 	}
 
-	credentialProvider, err := api.NewCredentialProvider(settings)
+	credentialProvider, err := api.NewCredentialProvider(settings, logger.Logger)
 	if err != nil {
 		logger.CaptureFatalAndPanic(
 			fmt.Errorf("stream_init: failed to fetch credentials: %v", err))
@@ -106,10 +105,18 @@ func NewGraphQLClient(
 	// sure that the username setting is populated correctly. Leaving this as is
 	// for now just to avoid breakage in the service account feature.
 	graphqlHeaders := map[string]string{
-		"X-WANDB-USERNAME":   os.Getenv("WANDB_USERNAME"),
-		"X-WANDB-USER-EMAIL": os.Getenv("WANDB_USER_EMAIL"),
+		"X-WANDB-USERNAME":   settings.GetUserName(),
+		"X-WANDB-USER-EMAIL": settings.GetEmail(),
 	}
 	maps.Copy(graphqlHeaders, settings.GetExtraHTTPHeaders())
+	// This header is used to indicate to the backend that the run is in shared
+	// mode to prevent a race condition when two UpsertRun requests are made
+	// simultaneously for the same run ID in shared mode. For regular runs, this
+	// would result in a 409 conflict error, but for shared runs, the backend
+	// returns a retryable error.
+	if settings.IsSharedMode() {
+		graphqlHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
+	}
 
 	opts := api.ClientOptions{
 		RetryPolicy:        clients.CheckRetry,
@@ -156,7 +163,7 @@ func NewFileStream(
 	}
 
 	opts := api.ClientOptions{
-		RetryPolicy:        filestream.RetryPolicy,
+		RetryPolicy:        clients.RetryMostFailures,
 		RetryMax:           filestream.DefaultRetryMax,
 		RetryWaitMin:       filestream.DefaultRetryWaitMin,
 		RetryWaitMax:       filestream.DefaultRetryWaitMax,

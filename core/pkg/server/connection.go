@@ -27,12 +27,13 @@ const (
 	maxMessageSize = 2 * 1024 * 1024 * 1024 // 2GB max message size
 )
 
-type ConnectionOptions struct {
+type ConnectionParams struct {
 	StreamMux    *stream.StreamMux
 	Conn         net.Conn
 	SentryClient *sentry_ext.Client
 	Commit       string
 	LoggerPath   string
+	LogLevel     slog.Level
 }
 
 // Connection represents a client-server connection in the context of a streaming session.
@@ -42,11 +43,12 @@ type ConnectionOptions struct {
 // and outgoing responses, maintaining the state of the connection, and providing
 // error reporting mechanisms.
 type Connection struct {
-	// ctx is the context for the connection
-	ctx context.Context
+	// connLifetimeCtx is cancelled when the connection should be closed.
+	connLifetimeCtx context.Context
 
-	// cancel is the cancel function for the connection
-	cancel context.CancelFunc
+	// stopServer signals the server to shut down, which also closes all
+	// connections.
+	stopServer context.CancelFunc
 
 	// The underlying network connection. This represents the raw TCP connection
 	// layer that facilitates communication between the client and the server.
@@ -77,41 +79,42 @@ type Connection struct {
 	// The current W&B Git commit hash, identifying the specific version of the binary.
 	commit string
 
+	// sentryClient is the sentry client
 	sentryClient *sentry_ext.Client
-	loggerPath   string
+
+	// loggerPath is the path to the logger
+	loggerPath string
+
+	// logLevel is the log level
+	logLevel slog.Level
 }
 
 func NewConnection(
-	ctx context.Context,
-	cancel context.CancelFunc,
-	opts ConnectionOptions,
+	serverLifetimeCtx context.Context,
+	stopServer context.CancelFunc,
+	params ConnectionParams,
 ) *Connection {
-
 	return &Connection{
-		ctx:          ctx,
-		cancel:       cancel,
-		streamMux:    opts.StreamMux,
-		conn:         opts.Conn,
-		commit:       opts.Commit,
-		id:           opts.Conn.RemoteAddr().String(), // TODO: check if this is properly unique
-		inChan:       make(chan *spb.ServerRequest, BufferSize),
-		outChan:      make(chan *spb.ServerResponse, BufferSize),
-		closed:       &atomic.Bool{},
-		sentryClient: opts.SentryClient,
-		loggerPath:   opts.LoggerPath,
+		connLifetimeCtx: serverLifetimeCtx,
+		stopServer:      stopServer,
+		streamMux:       params.StreamMux,
+		conn:            params.Conn,
+		commit:          params.Commit,
+		id:              params.Conn.RemoteAddr().String(), // TODO: check if this is properly unique
+		inChan:          make(chan *spb.ServerRequest, BufferSize),
+		outChan:         make(chan *spb.ServerResponse, BufferSize),
+		closed:          &atomic.Bool{},
+		sentryClient:    params.SentryClient,
+		loggerPath:      params.LoggerPath,
+		logLevel:        params.LogLevel,
 	}
 }
 
-// ManageConnectionData manages the lifecycle of the connection.
+// ManageConnectionData processes the connection until the server shuts down,
+// the peer closes the connection, or an error is encountered.
 //
-// This function concurrently handles the following:
-// - Reading and processing incoming data from the connection.
-// - Handling the processed incoming data.
-// - Writing outgoing data to the connection.
-//
-// It listens for a cancellation signal from the shared context, which triggers
-// the closing of the connection and ensures that all processing is complete
-// before the connection is closed.
+// After this exits, any messages that were received without error have been
+// processed and the underlying connection has been closed.
 func (nc *Connection) ManageConnectionData() {
 	slog.Info("connection: ManageConnectionData: new connection created", "id", nc.id)
 
@@ -135,8 +138,13 @@ func (nc *Connection) ManageConnectionData() {
 		nc.processOutgoingData()
 	}()
 
-	// Wait for the context cancellation signal to close the connection
-	<-nc.ctx.Done()
+	<-nc.connLifetimeCtx.Done()
+
+	// Close the underlying connection, which allows the above goroutines
+	// to eventually exit if the connection was not already closed.
+	//
+	// From this point, the peer will receive errors when trying to write
+	// to or read from the connection.
 	nc.Close()
 
 	wg.Wait()
@@ -213,9 +221,19 @@ func (nc *Connection) processIncomingData() {
 		msg := &spb.ServerRequest{}
 		if err := proto.Unmarshal(scanner.Bytes(), msg); err != nil {
 			slog.Error(
-				"connection: unmarshalling error",
+				"connection: unmarshalling error, breaking connection",
 				"error", err,
 				"id", nc.id)
+
+			// Stop the server because a client is misbehaving, and it is no
+			// longer guaranteed that the server will receive a teardown
+			// request.
+			//
+			// The failsafe mechanism that shuts down the server if the parent
+			// process exits is not reliable here, as the client may be waiting
+			// for the server to shut down before exiting.
+			nc.stopServer()
+			break
 		} else {
 			nc.inChan <- msg
 		}
@@ -315,18 +333,20 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	// if we are in offline mode, we don't want to send any data to sentry
 	var sentryClient *sentry_ext.Client
 	if settings.IsOffline() {
-		sentryClient = sentry_ext.New(sentry_ext.Params{DSN: ""})
+		sentryClient = sentry_ext.New(sentry_ext.Params{Disabled: true})
 	} else {
 		sentryClient = nc.sentryClient
 	}
 
 	nc.stream = stream.NewStream(
-		stream.StreamOptions{
-			Commit:     nc.commit,
+		stream.StreamParams{
 			Settings:   settings,
+			Commit:     nc.commit,
+			LogLevel:   nc.logLevel,
 			Sentry:     sentryClient,
 			LoggerPath: nc.loggerPath,
-		})
+		},
+	)
 	nc.stream.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
 	nc.stream.Start()
 	slog.Info("handleInformInit: stream started", "streamId", streamId, "id", nc.id)
@@ -492,9 +512,7 @@ func (nc *Connection) handleInformFinish(msg *spb.ServerInformFinishRequest) {
 // complete and close with the provided exit code.
 func (nc *Connection) handleInformTeardown(teardown *spb.ServerInformTeardownRequest) {
 	slog.Info("handleInformTeardown: server teardown initiated", "id", nc.id)
-
-	// Cancel the context, stopping the server and all active connections.
-	nc.cancel()
+	nc.stopServer()
 
 	// Close all streams and wait for completion, passing the provided exit code.
 	nc.streamMux.FinishAndCloseAllStreams(teardown.ExitCode)
@@ -502,18 +520,16 @@ func (nc *Connection) handleInformTeardown(teardown *spb.ServerInformTeardownReq
 	slog.Info("handleInformTeardown: server shutdown complete", "id", nc.id)
 }
 
-// Close closes the connection and releases all associated resources.
+// Close closes the underlying TCP connection.
 //
-// This method closes the underlying network connection. It ensures that all
-// resources associated with the connection are properly released.
+// Any blocked reads or writes will return an error.
 func (nc *Connection) Close() {
-	slog.Info("connection: Close: initiating connection closure", "id", nc.id)
+	slog.Info("connection: closing", "id", nc.id)
 
-	// Attempt to close the underlying connection
 	if err := nc.conn.Close(); err != nil {
-		slog.Error("connection: Close: failed to close connection", "error", err, "id", nc.id)
+		slog.Error("connection: error closing", "error", err, "id", nc.id)
 	} else {
-		slog.Info("connection: Close: connection successfully closed", "id", nc.id)
+		slog.Info("connection: closed successfully", "id", nc.id)
 	}
 }
 

@@ -25,8 +25,6 @@ if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import Record, Result
     from wandb.sdk.lib import service_connection
 
-    from ..wandb_run import Run
-
     RecordQueue = Union["queue.Queue[Record]", multiprocessing.Queue[Record]]
     ResultQueue = Union["queue.Queue[Result]", multiprocessing.Queue[Result]]
 
@@ -54,7 +52,7 @@ class Backend:
     interface: Optional[InterfaceBase]
     _internal_pid: Optional[int]
     wandb_process: Optional[multiprocessing.process.BaseProcess]
-    _settings: Optional[Settings]
+    _settings: Settings
     record_q: Optional["RecordQueue"]
     result_q: Optional["ResultQueue"]
     _mailbox: Mailbox
@@ -62,7 +60,7 @@ class Backend:
     def __init__(
         self,
         mailbox: Mailbox,
-        settings: Optional[Settings] = None,
+        settings: Settings,
         log_level: Optional[int] = None,
         service: "Optional[service_connection.ServiceConnection]" = None,
     ) -> None:
@@ -84,12 +82,7 @@ class Backend:
         self._save_mod_path: Optional[str] = None
         self._save_mod_spec = None
 
-    def _hack_set_run(self, run: "Run") -> None:
-        assert self.interface
-        self.interface._hack_set_run(run)
-
     def _multiprocessing_setup(self) -> None:
-        assert self._settings
         if self._settings.start_method == "thread":
             return
 
@@ -141,11 +134,14 @@ class Backend:
     def ensure_launched(self) -> None:
         """Launch backend worker if not running."""
         if self._service:
-            self.interface = self._service.make_interface(self._mailbox)
+            assert self._settings.run_id
+            self.interface = self._service.make_interface(
+                self._mailbox,
+                stream_id=self._settings.run_id,
+            )
             return
 
-        assert self._settings
-        settings = self._settings.copy()
+        settings = self._settings.model_copy()
         settings.x_log_level = self._log_level or logging.DEBUG
 
         start_method = settings.start_method

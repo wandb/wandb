@@ -15,11 +15,23 @@ import stat
 import tempfile
 import time
 from copy import copy
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
-from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Literal, Sequence, Type, cast
-from urllib.parse import urlparse
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterator,
+    Literal,
+    Sequence,
+    Type,
+    cast,
+    final,
+)
+from urllib.parse import quote, urljoin, urlparse
 
 import requests
 
@@ -32,6 +44,7 @@ from wandb.errors.term import termerror, termlog, termwarn
 from wandb.sdk.artifacts._validators import (
     ensure_logged,
     ensure_not_finalized,
+    is_artifact_registry_project,
     validate_aliases,
     validate_tags,
 )
@@ -71,6 +84,14 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.message_future import MessageFuture
+
+
+@final
+@dataclass
+class _DeferredArtifactManifest:
+    """A lightweight wrapper around the manifest URL, used to indicate deferred loading of the actual manifest."""
+
+    url: str
 
 
 class Artifact:
@@ -169,8 +190,8 @@ class Artifact:
         self._incremental: bool = incremental
         self._use_as: str | None = use_as
         self._state: ArtifactState = ArtifactState.PENDING
-        self._manifest: ArtifactManifest | None = ArtifactManifestV1(
-            self._storage_policy
+        self._manifest: ArtifactManifest | _DeferredArtifactManifest | None = (
+            ArtifactManifestV1(self._storage_policy)
         )
         self._commit_hash: str | None = None
         self._file_count: int | None = None
@@ -379,7 +400,7 @@ class Artifact:
         except (LookupError, TypeError):
             self._manifest = None
         else:
-            self._manifest = self._load_manifest(manifest_url)
+            self._manifest = _DeferredArtifactManifest(manifest_url)
 
         self._commit_hash = attrs["commitHash"]
         self._file_count = attrs["fileCount"]
@@ -531,6 +552,91 @@ class Artifact:
     def type(self) -> str:
         """The artifact's type. Common types include `dataset` or `model`."""
         return self._type
+
+    @property
+    @ensure_logged
+    def url(self) -> str:
+        """
+        Constructs the URL of the artifact.
+
+        Returns:
+            str: The URL of the artifact.
+        """
+        try:
+            base_url = self._client.app_url  # type: ignore[union-attr]
+        except AttributeError:
+            return ""
+
+        if self.collection.is_sequence():
+            return self._construct_standard_url(base_url)
+        if is_artifact_registry_project(self.project):
+            return self._construct_registry_url(base_url)
+        if self._type == "model" or self.project == "model-registry":
+            return self._construct_model_registry_url(base_url)
+        return self._construct_standard_url(base_url)
+
+    def _construct_standard_url(self, base_url: str) -> str:
+        if not all(
+            [
+                base_url,
+                self.entity,
+                self.project,
+                self._type,
+                self.collection.name,
+                self._version,
+            ]
+        ):
+            return ""
+        return urljoin(
+            base_url,
+            f"{self.entity}/{self.project}/artifacts/{quote(self._type)}/{quote(self.collection.name)}/{self._version}",
+        )
+
+    def _construct_registry_url(self, base_url: str) -> str:
+        if not all(
+            [
+                base_url,
+                self.entity,
+                self.project,
+                self.collection.name,
+                self._version,
+            ]
+        ):
+            return ""
+
+        try:
+            org, *_ = InternalApi()._fetch_orgs_and_org_entities_from_entity(
+                self.entity
+            )
+        except ValueError:
+            return ""
+
+        selection_path = quote(
+            f"{self.entity}/{self.project}/{self.collection.name}", safe=""
+        )
+        return urljoin(
+            base_url,
+            f"orgs/{org.display_name}/registry/{self._type}?selectionPath={selection_path}&view=membership&version={self._version}",
+        )
+
+    def _construct_model_registry_url(self, base_url: str) -> str:
+        if not all(
+            [
+                base_url,
+                self.entity,
+                self.project,
+                self.collection.name,
+                self._version,
+            ]
+        ):
+            return ""
+        selection_path = quote(
+            f"{self.entity}/{self.project}/{self.collection.name}", safe=""
+        )
+        return urljoin(
+            base_url,
+            f"{self.entity}/registry/model?selectionPath={selection_path}&view=membership&version={self._version}",
+        )
 
     @property
     def description(self) -> str | None:
@@ -685,6 +791,12 @@ class Artifact:
         The manifest lists all of its contents, and can't be changed once the artifact
         has been logged.
         """
+        if isinstance(self._manifest, _DeferredArtifactManifest):
+            # A deferred manifest URL flags a deferred download request,
+            # so fetch the manifest to override the placeholder object
+            self._manifest = self._load_manifest(self._manifest.url)
+            return self._manifest
+
         if self._manifest is None:
             query = gql(
                 """
@@ -715,9 +827,9 @@ class Artifact:
                 },
             )
             attrs = response["project"]["artifact"]
-            self._manifest = self._load_manifest(
-                attrs["currentManifest"]["file"]["directUrl"]
-            )
+            manifest_url = attrs["currentManifest"]["file"]["directUrl"]
+            self._manifest = self._load_manifest(manifest_url)
+
         return self._manifest
 
     @property
@@ -1685,11 +1797,7 @@ class Artifact:
         from wandb.sdk.backend.backend import Backend
 
         if wandb.run is None:
-            # ensure wandb-core is up and running
-            from wandb.sdk import wandb_setup
-
-            wl = wandb_setup.setup()
-            assert wl is not None
+            wl = wandb.setup()
 
             stream_id = generate_id()
 
@@ -1702,9 +1810,7 @@ class Artifact:
             settings.files_dir.value = str(tmp_dir / "files")
             settings.run_id.value = stream_id
 
-            service = wl.service
-            assert service
-
+            service = wl.ensure_service()
             service.inform_init(settings=settings, run_id=stream_id)
 
             mailbox = Mailbox()
@@ -1941,7 +2047,7 @@ class Artifact:
             else:
                 ref_count += 1
         if ref_count > 0:
-            print("Warning: skipped verification of {} refs".format(ref_count))
+            termwarn(f"skipped verification of {ref_count} refs")
 
     @ensure_logged
     def file(self, root: str | None = None) -> StrPath:

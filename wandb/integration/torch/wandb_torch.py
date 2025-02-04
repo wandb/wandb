@@ -441,7 +441,7 @@ class TorchGraph(wandb.data_types.Graph):
         decoder.weight encoder
         decoder.bias decoder
         """
-        # TODO: We're currently not using this, but I left it here incase we want to resurrect! - CVP
+        # TODO: We're currently not using this, but I left it here in case we want to resurrect! - CVP
         torch = util.get_module("torch", "Could not import torch")
 
         module_nodes_by_hash = {id(n): n for n in module_graph.nodes}

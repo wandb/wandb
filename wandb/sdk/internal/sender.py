@@ -52,9 +52,9 @@ from wandb.sdk.lib import (
     filesystem,
     proto_util,
     redirect,
+    retry,
     telemetry,
 )
-from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
 
 if TYPE_CHECKING:
@@ -323,7 +323,6 @@ class SendManager:
 
         Exclusively used in `sync.py`.
         """
-        print(root_dir)
         files_dir = os.path.join(root_dir, "files")
         settings = wandb.Settings(
             x_files_dir=files_dir,
@@ -389,7 +388,7 @@ class SendManager:
         try:
             self._api.set_local_context(api_context)
             send_handler(record)
-        except ContextCancelledError:
+        except retry.RetryCancelledError:
             logger.debug(f"Record cancelled: {record_type}")
             self._context_keeper.release(context_id)
         finally:
@@ -1202,7 +1201,10 @@ class SendManager:
         start_us = self._run.start_time.ToMicroseconds()
         d = dict()
         for item in stats.item:
-            d[item.key] = json.loads(item.value_json)
+            try:
+                d[item.key] = json.loads(item.value_json)
+            except json.JSONDecodeError:
+                logger.error("error decoding stats json: %s", item.value_json)
         row: Dict[str, Any] = dict(system=d)
         self._flatten(row)
         row["_wandb"] = True
@@ -1336,7 +1338,7 @@ class SendManager:
         if not line.endswith("\n"):
             self._partial_output.setdefault(stream, "")
             if line.startswith("\r"):
-                # TODO: maybe we shouldnt just drop this, what if there was some \ns in the partial
+                # TODO: maybe we shouldn't just drop this, what if there was some \ns in the partial
                 # that should probably be the check instead of not line.endswith(\n")
                 # logger.info(f"Dropping data {self._partial_output[stream]}")
                 self._partial_output[stream] = ""

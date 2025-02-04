@@ -5,7 +5,10 @@
 //! Metrics are collected from the following sources:
 //! - Nvidia GPUs (Linux and Windows only)
 //! - Apple ARM Mac GPUs and CPUs (ARM Mac only)
+//! - AMD GPUs (Linux only)
 mod analytics;
+#[cfg(target_os = "linux")]
+mod gpu_amd;
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 mod gpu_apple;
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -29,6 +32,8 @@ use tonic;
 use tonic::{transport::Server, Request, Response, Status};
 
 use chrono::Utc;
+#[cfg(target_os = "linux")]
+use gpu_amd::GpuAmd;
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 use gpu_apple::ThreadSafeSampler;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
@@ -58,13 +63,13 @@ struct Args {
     /// Portfile to write the gRPC server port to.
     ///
     /// Used to establish communication between the parent process (wandb-core) and the service.
-    #[arg(short, long)]
+    #[arg(long)]
     portfile: String,
 
     /// Parent process ID.
     ///
     /// If provided, the program will exit if the parent process is no longer alive.
-    #[arg(short, long, default_value_t = 0)]
+    #[arg(long, default_value_t = 0)]
     ppid: i32,
 
     /// Verbose logging.
@@ -95,6 +100,9 @@ pub struct SystemMonitorImpl {
     /// Nvidia GPU monitor (Linux and Windows only).
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     nvidia_gpu: Option<tokio::sync::Mutex<NvidiaGpu>>,
+    /// AMD GPU monitor (Linux only).
+    #[cfg(target_os = "linux")]
+    amd_gpu: Option<GpuAmd>,
 }
 
 impl SystemMonitorImpl {
@@ -123,7 +131,20 @@ impl SystemMonitorImpl {
                 Some(tokio::sync::Mutex::new(gpu))
             }
             Err(e) => {
-                warn!("Failed to initialize NVIDIA GPU monitoring: {}", e);
+                debug!("Failed to initialize NVIDIA GPU monitoring: {}", e);
+                None
+            }
+        };
+
+        // Initialize the AMD GPU monitor (Linux only)
+        #[cfg(target_os = "linux")]
+        let amd_gpu = match GpuAmd::new() {
+            Some(gpu) => {
+                debug!("Successfully initialized AMD GPU monitoring");
+                Some(gpu)
+            }
+            None => {
+                debug!("Failed to initialize AMD GPU monitoring");
                 None
             }
         };
@@ -135,6 +156,8 @@ impl SystemMonitorImpl {
             apple_sampler,
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             nvidia_gpu,
+            #[cfg(target_os = "linux")]
+            amd_gpu,
         };
 
         // An async task that monitors the parent process ppid, if provided.
@@ -161,7 +184,11 @@ impl SystemMonitorImpl {
     }
 
     /// Collect system metrics.
-    async fn sample(&self, pid: i32) -> Vec<(String, metrics::MetricValue)> {
+    async fn sample(
+        &self,
+        pid: i32,
+        gpu_device_ids: Option<Vec<i32>>,
+    ) -> Vec<(String, metrics::MetricValue)> {
         let mut all_metrics = Vec::new();
 
         let timestamp = std::time::SystemTime::now()
@@ -188,15 +215,28 @@ impl SystemMonitorImpl {
             }
         }
 
-        // Nvidia metrics (Linux and Windows only)
+        // Nvidia GPU metrics (Linux and Windows only)
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         if let Some(nvidia_gpu) = &self.nvidia_gpu {
-            match nvidia_gpu.lock().await.get_metrics(pid) {
+            match nvidia_gpu.lock().await.get_metrics(pid, gpu_device_ids) {
                 Ok(nvidia_metrics) => {
                     all_metrics.extend(nvidia_metrics);
                 }
                 Err(e) => {
                     warn!("Failed to get Nvidia metrics: {}", e);
+                }
+            }
+        }
+
+        // AMD GPU metrics
+        #[cfg(target_os = "linux")]
+        if let Some(amd_gpu) = &self.amd_gpu {
+            match amd_gpu.get_metrics() {
+                Ok(amd_metrics) => {
+                    all_metrics.extend(amd_metrics);
+                }
+                Err(e) => {
+                    warn!("Failed to get AMD metrics: {}", e);
                 }
             }
         }
@@ -210,7 +250,7 @@ impl SystemMonitorImpl {
 impl SystemMonitor for SystemMonitorImpl {
     /// Tear down the system monitor service.
     async fn tear_down(&self, request: Request<()>) -> Result<Response<()>, Status> {
-        debug!("Got a request to shutdown: {:?}", request);
+        debug!("Received a request to shutdown: {:?}", request);
 
         // Signal the gRPC server to shutdown
         let mut sender = self.shutdown_sender.lock().await;
@@ -225,9 +265,11 @@ impl SystemMonitor for SystemMonitorImpl {
         &self,
         request: Request<GetMetadataRequest>,
     ) -> Result<Response<Record>, Status> {
-        debug!("Got a request to get metadata: {:?}", request);
+        debug!("Received a request to get metadata: {:?}", request);
 
-        let all_metrics: Vec<(String, metrics::MetricValue)> = self.sample(0).await;
+        // Do not apply any filters for metadata.
+        // TODO: reconsider if necessary.
+        let all_metrics: Vec<(String, metrics::MetricValue)> = self.sample(0, None).await;
         let samples: HashMap<String, &metrics::MetricValue> = all_metrics
             .iter()
             .map(|(name, value)| (name.to_string(), value))
@@ -246,7 +288,7 @@ impl SystemMonitor for SystemMonitorImpl {
             }
         }
 
-        // Nvidia metadata (Linux and Windows only)
+        // Nvidia GPU metadata (Linux and Windows only)
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         {
             if let Some(nvidia_gpu) = &self.nvidia_gpu {
@@ -256,6 +298,18 @@ impl SystemMonitor for SystemMonitorImpl {
                     metadata_request.gpu_type = nvidia_metadata.gpu_type;
                     metadata_request.cuda_version = nvidia_metadata.cuda_version;
                     metadata_request.gpu_nvidia = nvidia_metadata.gpu_nvidia;
+                }
+            }
+        }
+
+        // AMD GPU metadata (Linux only)
+        #[cfg(target_os = "linux")]
+        {
+            if let Some(amd_gpu) = &self.amd_gpu {
+                if let Ok(amd_metadata) = amd_gpu.get_metadata() {
+                    metadata_request.gpu_count = amd_metadata.gpu_count;
+                    metadata_request.gpu_type = amd_metadata.gpu_type;
+                    metadata_request.gpu_amd = amd_metadata.gpu_amd;
                 }
             }
         }
@@ -275,19 +329,32 @@ impl SystemMonitor for SystemMonitorImpl {
         &self,
         request: Request<GetStatsRequest>,
     ) -> Result<Response<Record>, Status> {
-        debug!("Got a request to get stats: {:?}", request);
+        debug!("Received a request to get stats: {:?}", request);
 
-        let pid = request.into_inner().pid;
-        let all_metrics = self.sample(pid).await;
+        let request = request.into_inner();
+
+        let pid = request.pid;
+
+        let gpu_device_ids = if request.gpu_device_ids.is_empty() {
+            None
+        } else {
+            Some(request.gpu_device_ids)
+        };
+
+        let all_metrics = self.sample(pid, gpu_device_ids).await;
 
         let stats_items: Vec<StatsItem> = all_metrics
             .iter()
-            .map(|(name, value)| StatsItem {
-                key: name.to_string(),
-                value_json: value.to_string(),
+            .filter(|(name, _)| !name.starts_with('_')) // Skip internal metrics
+            .filter_map(|(name, value)| {
+                serde_json::to_string(value).ok().map(|json_str| StatsItem {
+                    key: name.to_string(),
+                    value_json: json_str,
+                })
             })
             .collect();
 
+        // Assign a timestamp to the stats record
         let record = Record {
             record_type: Some(RecordType::Stats(StatsRecord {
                 timestamp: Some(current_timestamp()),

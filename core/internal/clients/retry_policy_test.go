@@ -31,7 +31,7 @@ func TestDefaultRetryPolicy(t *testing.T) {
 			resp := httptest.NewRecorder().Result()
 			resp.StatusCode = tc.statusCode
 
-			retry, err := clients.DefaultRetryPolicy(context.Background(), resp, nil)
+			retry, err := clients.RetryMostFailures(context.Background(), resp, nil)
 
 			assert.Equal(t, tc.shouldRetry, retry)
 			if err != nil {

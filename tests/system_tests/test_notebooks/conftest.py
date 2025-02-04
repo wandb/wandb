@@ -59,7 +59,7 @@ def mocked_ipython(monkeypatch):
     monkeypatch.setattr(ipython, "in_jupyter", lambda: True)
 
     def run_cell(cell):
-        print("Running cell: ", cell)
+        print("Running cell: ", cell)  # noqa: T201
         exec(cell)
 
     mock_get_ipython_result = MagicMock()
@@ -91,16 +91,16 @@ class WandbNotebookClient(NotebookClient):
                     store_history=False if idx == 0 else store_history,
                 )
             except CellExecutionError as e:
-                print("Cell output before exception:")
-                print("=============================")
+                print("Cell output before exception:")  # noqa: T201
+                print("=============================")  # noqa: T201
                 for output in cell["outputs"]:
                     if output["output_type"] == "stream":
-                        print(output["text"])
+                        print(output["text"])  # noqa: T201
                 raise e
             for output in executed_cell["outputs"]:
                 if output["output_type"] == "error" and nb_cell_id != 0:
-                    print(f"Error in cell: {nb_cell_id}")
-                    print("\n".join(output["traceback"]))
+                    print(f"Error in cell: {nb_cell_id}")  # noqa: T201
+                    print("\n".join(output["traceback"]))  # noqa: T201
                     raise ValueError(output["evalue"])
             executed_cells.append(executed_cell)
 
@@ -188,8 +188,26 @@ def notebook(user, run_id, assets_path):
         kernel_name: str = "wandb_python",
         notebook_type: ipython.PythonType = "jupyter",
         save_code: bool = True,
+        skip_api_key_env: bool = False,
         **kwargs: Any,
     ):
+        """Sets up a copy of the provided notebook name in a temporary directory.
+
+        As part of the setup process all environment variables starting with 'WANDB',
+        are copied into the notebook as an initial setup cell.
+
+        Args:
+            nb_name: The name of the notebook to load from the assets directory.
+            kernel_name: The name given to the kernel used to run the notebook.
+            notebook_type: The type of notebook to use, from the ipython.PythonType list.
+            save_code: Whether to set the WANDB_SAVE_CODE environment variable in the setup cell.
+            skip_api_key_env: Whether to delete the WANDB_API_KEY environment variable in the setup cell.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            A context manager yielding a WandbNotebookClient object. Which can be used to execute
+            the notebook cells and retrieve the output.
+        """
         nb_path = assets_path(pathlib.Path("notebooks") / nb_name)
         shutil.copy(nb_path, os.path.join(os.getcwd(), os.path.basename(nb_path)))
         with open(nb_path) as f:
@@ -216,8 +234,11 @@ def notebook(user, run_id, assets_path):
             "import pytest\n"
             "mp = pytest.MonkeyPatch()\n"
             "import wandb\n"
-            f"mp.setattr(wandb.sdk.lib.ipython, '_get_python_type', lambda: '{notebook_type}')"
+            f"mp.setattr(wandb.sdk.lib.ipython, '_get_python_type', lambda: '{notebook_type}')\n"
         )
+
+        if skip_api_key_env:
+            setup_cell.write("mp.delenv('WANDB_API_KEY')\n")
 
         # inject:
         nb.cells.insert(0, nbformat.v4.new_code_cell(setup_cell.getvalue()))

@@ -165,7 +165,7 @@ def wandb_internal(
         exc_info = thread.get_exception()
         if exc_info:
             logger.error(f"Thread {thread.name}:", exc_info=exc_info)
-            print(f"Thread {thread.name}:", file=sys.stderr)
+            print(f"Thread {thread.name}:", file=sys.stderr)  # noqa: T201
             traceback.print_exception(*exc_info)
             wandb._sentry.exception(exc_info)
             wandb.termerror("Internal wandb error: file data was not synced")

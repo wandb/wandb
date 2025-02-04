@@ -454,7 +454,9 @@ class TBEventConsumer:
                 row[chart.spec.table_key] = chart.table
 
         self._tbwatcher._interface.publish_history(
-            row, run=self._internal_run, publish_step=False
+            self._internal_run,
+            row,
+            publish_step=False,
         )
 
 
@@ -492,7 +494,7 @@ class TBHistory:
                     self._step, len(dropped_keys)
                 )
             )
-            print("\t" + ("\n\t".join(dropped_keys)))
+            print("\t" + ("\n\t".join(dropped_keys)))  # noqa: T201
         self._data["_step"] = self._step
         self._added.append(self._data)
         self._step += 1

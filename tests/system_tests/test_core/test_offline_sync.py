@@ -58,7 +58,6 @@ def test_beta_sync_two_runs(user, test_settings, runner):
     run2.finish()
 
     result = runner.invoke(cli.beta, ["sync", ".wandb"])
-    print(result.output)
     assert result.exit_code == 0
     assert f"{run.id}" in result.output
     assert f"{run2.id}" in result.output

@@ -465,6 +465,9 @@ func bucketExistsStateRetryable(ctx context.Context, input *HeadBucketInput, out
 		}
 	}
 
+	if err != nil {
+		return false, err
+	}
 	return true, nil
 }
 
@@ -634,6 +637,9 @@ func bucketNotExistsStateRetryable(ctx context.Context, input *HeadBucketInput, 
 		}
 	}
 
+	if err != nil {
+		return false, err
+	}
 	return true, nil
 }
 

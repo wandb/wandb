@@ -53,11 +53,12 @@ impl Default for GpuMetricAvailability {
             uncorrected_memory_errors: true,
             fan_speed: true,
             encoder_utilization: false, // TODO: questionable utility, expensive to retrieve
-            link_gen: true,
-            link_speed: true,
-            link_width: true,
-            max_link_gen: true,
-            max_link_width: true,
+            // TODO: enable these metrics
+            link_gen: false,
+            link_speed: false,
+            link_width: false,
+            max_link_gen: false,
+            max_link_width: false,
         }
     }
 }
@@ -110,7 +111,7 @@ pub fn get_lib_path() -> Result<PathBuf, NvmlError> {
     }
 }
 
-/// A struct to collect metrics from NVIDIA GPUs using NVML.
+/// Struct to collect metrics from NVIDIA GPUs using NVML.
 pub struct NvidiaGpu {
     nvml: Nvml,
     cuda_version: String,
@@ -268,6 +269,8 @@ impl NvidiaGpu {
     /// # Arguments
     ///
     /// * `pid` - The process ID to monitor for GPU usage.
+    /// * `gpu_device_ids` - An optional list of GPU device IDs to monitor. If not provided,
+    ///  all GPUs are monitored.
     ///
     /// # Returns
     ///
@@ -278,7 +281,11 @@ impl NvidiaGpu {
     ///
     /// This function should return an error only if an internal NVML call fails.
     /// ```
-    pub fn get_metrics(&mut self, pid: i32) -> Result<Vec<(String, MetricValue)>, NvmlError> {
+    pub fn get_metrics(
+        &mut self,
+        pid: i32,
+        gpu_device_ids: Option<Vec<i32>>,
+    ) -> Result<Vec<(String, MetricValue)>, NvmlError> {
         let mut metrics: Vec<(String, MetricValue)> = vec![];
 
         metrics.push((
@@ -291,6 +298,14 @@ impl NvidiaGpu {
         ));
 
         for di in 0..self.device_count {
+            // Skip GPU if not in the list of device IDs to monitor.
+            // If no device IDs are provided, monitor all GPUs.
+            if let Some(ref gpu_device_ids) = gpu_device_ids {
+                if !gpu_device_ids.contains(&(di as i32)) {
+                    continue;
+                }
+            }
+
             let device = match self.nvml.device_by_index(di) {
                 Ok(device) => device,
                 Err(_e) => {
@@ -511,9 +526,15 @@ impl NvidiaGpu {
 
             // Corrected Memory Errors
             if availability.corrected_memory_errors {
+                // NOTE: Nvidia GPUs provide two ECC counters: volatile and aggregate.
+                // The volatile counter resets on driver or GPU reset, while the
+                // aggregate counter persists for the GPU's lifetime. After row
+                // remapping repairs ECC errors, the aggregate counter remains
+                // non-zero and can falsely indicate a problem. Using the volatile
+                // counter avoids this confusion.
                 match device.memory_error_counter(
                     nvml_wrapper::enum_wrappers::device::MemoryError::Corrected,
-                    nvml_wrapper::enum_wrappers::device::EccCounter::Aggregate,
+                    nvml_wrapper::enum_wrappers::device::EccCounter::Volatile,
                     nvml_wrapper::enum_wrappers::device::MemoryLocation::Device,
                 ) {
                     Ok(errors) => {
@@ -532,7 +553,7 @@ impl NvidiaGpu {
             if availability.uncorrected_memory_errors {
                 match device.memory_error_counter(
                     nvml_wrapper::enum_wrappers::device::MemoryError::Uncorrected,
-                    nvml_wrapper::enum_wrappers::device::EccCounter::Aggregate,
+                    nvml_wrapper::enum_wrappers::device::EccCounter::Volatile,
                     nvml_wrapper::enum_wrappers::device::MemoryLocation::Device,
                 ) {
                     Ok(errors) => {
@@ -601,7 +622,7 @@ impl NvidiaGpu {
                 {
                     Ok(link_speed) => {
                         metrics.push((
-                            format!("_gpu.{}.pcieLinkSpeed", di),
+                            format!("gpu.{}.pcieLinkSpeed", di),
                             MetricValue::Int(link_speed as i64),
                         ));
                     }
@@ -616,7 +637,7 @@ impl NvidiaGpu {
                 match device.current_pcie_link_width() {
                     Ok(link_width) => {
                         metrics.push((
-                            format!("_gpu.{}.pcieLinkWidth", di),
+                            format!("gpu.{}.pcieLinkWidth", di),
                             MetricValue::Int(link_width as i64),
                         ));
                     }
@@ -631,7 +652,7 @@ impl NvidiaGpu {
                 match device.max_pcie_link_gen() {
                     Ok(max_link_gen) => {
                         metrics.push((
-                            format!("_gpu.{}.maxPcieLinkGen", di),
+                            format!("gpu.{}.maxPcieLinkGen", di),
                             MetricValue::Int(max_link_gen as i64),
                         ));
                     }
@@ -646,7 +667,7 @@ impl NvidiaGpu {
                 match device.max_pcie_link_width() {
                     Ok(max_link_width) => {
                         metrics.push((
-                            format!("_gpu.{}.maxPcieLinkWidth", di),
+                            format!("gpu.{}.maxPcieLinkWidth", di),
                             MetricValue::Int(max_link_width as i64),
                         ));
                     }
@@ -675,13 +696,13 @@ impl NvidiaGpu {
         metadata_request.gpu_count = n_gpu;
         // TODO: do not assume all GPUs are the same
         if let Some(value) = samples.get("_gpu.0.name") {
-            if let MetricValue::String(gpu_name) = value {
-                metadata_request.gpu_type = gpu_name.to_string();
+            if let MetricValue::String(ref gpu_name) = value {
+                metadata_request.gpu_type = gpu_name.clone();
             }
         }
         if let Some(value) = samples.get("_cuda_version") {
-            if let MetricValue::String(cuda_version) = value {
-                metadata_request.cuda_version = cuda_version.to_string();
+            if let MetricValue::String(ref cuda_version) = value {
+                metadata_request.cuda_version = cuda_version.clone();
             }
         }
 
@@ -690,7 +711,9 @@ impl NvidiaGpu {
                 ..Default::default()
             };
             if let Some(value) = samples.get(&format!("_gpu.{}.name", i)) {
-                gpu_nvidia.name = value.to_string();
+                if let MetricValue::String(ref gpu_name) = value {
+                    gpu_nvidia.name = gpu_name.clone();
+                }
             }
             if let Some(value) = samples.get(&format!("_gpu.{}.memoryTotal", i)) {
                 if let MetricValue::Int(memory_total) = value {
@@ -705,7 +728,9 @@ impl NvidiaGpu {
             }
             // architecture
             if let Some(value) = samples.get(&format!("_gpu.{}.architecture", i)) {
-                gpu_nvidia.architecture = value.to_string();
+                if let MetricValue::String(ref architecture) = value {
+                    gpu_nvidia.architecture = architecture.clone();
+                }
             }
             metadata_request.gpu_nvidia.push(gpu_nvidia);
         }

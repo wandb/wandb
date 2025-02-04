@@ -4,7 +4,6 @@ See wandb_integration_test.py for tests that launch a real backend server.
 """
 
 import glob
-import inspect
 import io
 import os
 import tempfile
@@ -14,9 +13,9 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
+import requests
 import wandb
 from wandb.sdk.lib import filesystem
-from wandb.sdk.wandb_init import init as real_wandb_init
 
 
 @pytest.fixture
@@ -61,15 +60,6 @@ def mock_sagemaker():
         create=True,
     ):
         yield
-
-
-def test_wandb_init_fixture_args(wandb_init):
-    """Test that the fixture args are in sync with the real wandb.init()."""
-    # comparing lists of args as order also matters
-    assert (
-        inspect.getfullargspec(real_wandb_init).args
-        == inspect.getfullargspec(wandb_init).args
-    )
 
 
 def test_sagemaker_key():
@@ -455,6 +445,23 @@ def test_log_empty_string(wandb_backend_spy):
     with wandb_backend_spy.freeze() as snapshot:
         history = snapshot.history(run_id=run.id)
         assert history[0]["cool"] == ""
+
+
+def test_log_table_offline_no_network(user, monkeypatch):
+    num_network_calls_made = 0
+    original_request = requests.Session.request
+
+    def mock_request(self, *args, **kwargs):
+        nonlocal num_network_calls_made
+        num_network_calls_made += 1
+        return original_request(self, *args, **kwargs)
+
+    monkeypatch.setattr(requests.Session, "request", mock_request)
+    run = wandb.init(mode="offline")
+    run.log({"table": wandb.Table()})
+    run.finish()
+    assert num_network_calls_made == 0
+    assert run.offline is True
 
 
 # ----------------------------------

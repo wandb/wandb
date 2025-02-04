@@ -3,7 +3,7 @@ package core
 import (
 	"sync"
 
-	"github.com/wandb/wandb/experimental/client-go/pkg/wandb"
+	"github.com/wandb/wandb/experimental/go-sdk/pkg/wandb"
 )
 
 type RunKeeper struct {

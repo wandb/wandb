@@ -5,6 +5,7 @@ from unittest import mock
 import pytest
 import wandb
 from wandb.errors import CommError, UsageError
+from wandb.sdk.lib import runid
 
 
 def test_upsert_bucket_409(wandb_backend_spy):
@@ -117,3 +118,46 @@ def test_resume_auto_failure(user, tmp_path):
         assert run.id == "resume-me"
         run.finish(exit_code=3)
         assert os.path.exists(resume_fname)
+
+
+def test_reinit_existing_run_with_reinit_true():
+    """Test that reinit with an existing run returns a new run."""
+    original_run = wandb.init(mode="offline")
+    new_run = wandb.init(mode="offline", reinit=True)
+    assert new_run != original_run
+
+
+def test_reinit_existing_run_with_reinit_false():
+    """Test that reinit with a run active returns the same run."""
+    original_run = wandb.init(mode="offline")
+    new_run = wandb.init(mode="offline", reinit=False)
+    assert new_run == original_run
+
+
+def test_init_param_telemetry(wandb_backend_spy):
+    with wandb.init(
+        name="my-test-run",
+        id=runid.generate_id(),
+        config={"a": 123},
+        tags=["one", "two"],
+    ) as run:
+        pass
+
+    with wandb_backend_spy.freeze() as snapshot:
+        features = snapshot.telemetry(run_id=run.id)["3"]
+        assert 13 in features  # set_init_name
+        assert 14 in features  # set_init_id
+        assert 15 in features  # set_init_tags
+        assert 16 in features  # set_init_config
+
+
+def test_init_param_not_set_telemetry(wandb_backend_spy):
+    with wandb.init() as run:
+        pass
+
+    with wandb_backend_spy.freeze() as snapshot:
+        features = snapshot.telemetry(run_id=run.id)["3"]
+        assert 13 not in features  # set_init_name
+        assert 14 not in features  # set_init_id
+        assert 15 not in features  # set_init_tags
+        assert 16 not in features  # set_init_config

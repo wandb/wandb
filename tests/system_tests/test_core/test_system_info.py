@@ -5,8 +5,6 @@ import unittest.mock
 import pytest
 import wandb
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import context
-from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.system.system_info import SystemInfo
 from wandb.sdk.lib import ipython
 
@@ -32,31 +30,6 @@ def meta(interface):
         return SystemInfo(settings=settings, interface=interface)
 
     yield meta_helper
-
-
-@pytest.fixture()
-def send_manager(
-    runner,
-    git_repo,
-    record_q,
-    result_q,
-    interface,
-):
-    def send_manager_helper(run, meta):
-        # test_settings.update(save_code=True, source=wandb.sdk.wandb_settings.Source.INIT)
-        context_keeper = context.ContextKeeper()
-        sm = SendManager(
-            settings=run.settings,
-            record_q=record_q,
-            result_q=result_q,
-            interface=interface,
-            context_keeper=context_keeper,
-        )
-        meta.backend_interface.publish_run(run)
-        sm.send(record_q.get())
-        return sm
-
-    yield send_manager_helper
 
 
 def test_executable_outside_cwd(meta, test_settings):
@@ -92,9 +65,9 @@ def test_commit_hash_sent_correctly(user, git_repo):
     # disable_git is False is by default
     # so run object should have git info
     run = wandb.init()
-    assert run._commit is not None
-    assert run._commit == git_repo.last_commit
-    assert run._remote_url is None
+    assert run._settings.git_commit is not None
+    assert run._settings.git_commit == git_repo.last_commit
+    assert run._settings.git_remote_url is None
     run.finish()
 
 
@@ -107,5 +80,5 @@ def test_commit_hash_not_sent_when_disable(user, git_repo):
     with unittest.mock.patch.dict("os.environ", WANDB_DISABLE_GIT="true"):
         run = wandb.init()
         assert git_repo.last_commit
-        assert run._commit is None
+        assert run._settings.git_commit is None
         run.finish()
