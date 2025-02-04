@@ -23,7 +23,7 @@ def test_write_netrc():
         (stat.S_IRUSR, "write"),
     ],
 )
-def test_write_netrc_permission_errors(tmp_path, mock_wandb_log, permission, error_msg):
+def test_netrc_permission_errors(tmp_path, mock_wandb_log, permission, error_msg):
     netrc_path = str(tmp_path / "netrc")
     os.environ["NETRC"] = netrc_path
     with open(netrc_path, "w") as f:
@@ -35,9 +35,10 @@ def test_write_netrc_permission_errors(tmp_path, mock_wandb_log, permission, err
     )
     assert not logged_in
     assert mock_wandb_log.warned(
-        f"You do not have {error_msg} permissions for {netrc_path}"
+        f"Cannot access {netrc_path}. In order to persist your API key,"
+        + "\nGrant read & write permissions for your user to the file,"
+        + '\nor specify a different file with the environment variable "NETRC={new_netrc_path}".'
     )
-    assert mock_wandb_log.warned("We will be unable to save/update your API key.")
 
 
 def test_write_netrc_permission_oserror(tmp_path, mock_wandb_log):
@@ -57,4 +58,3 @@ def test_write_netrc_permission_oserror(tmp_path, mock_wandb_log):
         )
         assert not logged_in
         assert mock_wandb_log.errored(f"Unable to read permissions for {netrc_path}")
-        assert mock_wandb_log.warned("We will be unable to save/update your API key.")
