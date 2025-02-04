@@ -921,9 +921,7 @@ class Api:
         Examples:
             Find runs in my_project where config.experiment_name has been set to "foo"
             ```
-            api.runs(
-                path="my_entity/my_project", filters={"config.experiment_name": "foo"}
-            )
+            api.runs(path="my_entity/my_project", filters={"config.experiment_name": "foo"})
             ```
 
             Find runs in my_project where config.experiment_name has been set to "foo" or "bar"
