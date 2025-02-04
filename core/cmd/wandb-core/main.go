@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -60,10 +59,6 @@ func main() {
 	})
 	defer sentryClient.Flush(2)
 
-	// store commit hash in context
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, observability.Commit, commit)
-
 	var loggerPath string
 	if file, err := observability.GetLoggerPath(); err != nil {
 		slog.Error("failed to get logger path", "error", err)
@@ -91,7 +86,6 @@ func main() {
 	}
 
 	srv, err := server.NewServer(
-		ctx,
 		&server.ServerParams{
 			ListenIPAddress: "127.0.0.1:0",
 			PortFilename:    *portFilename,
