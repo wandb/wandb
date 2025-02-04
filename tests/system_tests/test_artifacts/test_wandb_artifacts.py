@@ -522,7 +522,7 @@ def test_add_reference_local_dir_with_name(artifact):
     here = Path.cwd()
     artifact.add_reference(f"file://{here!s}", name="top")
 
-    assert artifact.digest == "72414374bfd4b0f60a116e7267845f71"
+    assert artifact.digest == "f718baf2d4c910dc6ccd0d9c586fa00f"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["top/file1.txt"] == {
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
