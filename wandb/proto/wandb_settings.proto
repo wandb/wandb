@@ -47,7 +47,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 188
+// TODO: Next ID: 189
 message Settings {
   reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137;
 
@@ -346,6 +346,9 @@ message Settings {
   //
   // Set to False in distributed training when only the main process should determine the final state.
   google.protobuf.BoolValue x_update_finish_state = 183;
+
+  // Interval in seconds between polling for run stop status.
+  google.protobuf.Int32Value x_run_stop_polling_interval = 188;
 
   // Flag to allow table artifacts to be synced in offline mode.
   //

@@ -20,7 +20,7 @@ import platform
 import sys
 import tempfile
 import time
-from typing import Any, Literal, Sequence
+from typing import Any, Callable, Literal, Sequence
 
 if sys.version_info >= (3, 11):
     from typing import Self
@@ -1480,7 +1480,5 @@ def init(  # noqa: C901
         if wl:
             wl._get_logger().exception("error in wandb.init()", exc_info=e)
 
-        # Need to build delay into this sentry capture because our exit hooks
-        # mess with sentry's ability to send out errors before the program ends.
         wandb._sentry.reraise(e)
         raise AssertionError()  # should never get here

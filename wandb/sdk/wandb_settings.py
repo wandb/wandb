@@ -13,7 +13,7 @@ import socket
 import sys
 import tempfile
 from datetime import datetime
-from typing import Any, Literal, Sequence
+from typing import Any, Callable, Literal, Sequence
 from urllib.parse import quote, unquote, urlencode
 
 if sys.version_info >= (3, 11):
@@ -38,7 +38,7 @@ from wandb import env, termwarn, util
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 
-from .lib import apikey, credentials, ipython
+from .lib import apikey, credentials, interrupt, ipython
 from .lib.gitlib import GitRepo
 from .lib.run_moment import RunMoment
 
@@ -532,6 +532,15 @@ class Settings(BaseModel, validate_assignment=True):
     TODO: Not implemented in wandb-core.
     """
 
+    x_on_run_stop: Callable[[], None] | None = Field(
+        default=interrupt.interrupt_main,
+        exclude=True,
+    )
+    """Callback to run when the run is stopped in the UI.
+
+    TODO: check the signature of the callback, which should be `Callable[[], None]`.
+    """
+
     x_primary: bool = Field(
         default=True, validation_alias=AliasChoices("x_primary", "x_primary_node")
     )
@@ -549,11 +558,14 @@ class Settings(BaseModel, validate_assignment=True):
     Please use `http_proxy` and `https_proxy` instead.
     """
 
-    x_runqueue_item_id: str | None = None
-    """ID of the Launch run queue item being processed."""
-
     x_require_legacy_service: bool = False
     """Force the use of legacy wandb service."""
+
+    x_run_stop_polling_interval: int = 15
+    """Interval in seconds for polling the run stop signal from the UI."""
+
+    x_runqueue_item_id: str | None = None
+    """ID of the Launch run queue item being processed."""
 
     x_save_requirements: bool = True
     """Flag to save the requirements file."""
