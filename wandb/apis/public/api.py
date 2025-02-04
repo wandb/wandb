@@ -913,35 +913,51 @@ class Api:
         - `username`: The username of the user who initiated the run
 
         Additionally, you can filter by items in the run config or summary metrics.
-        Such as `config.experiment_name`, `summary_metrics.loss`, etc.
+        Such as `config.experiment_name.value`, `summary_metrics.loss`, etc.
 
-        You can compose more complex filters using the `$and`, `$or`, `$not`,
-        and other operations specified by the MongoDB query language.
+        You can compose more complex filters using the the following operations:
+        - `$and`: returns all items that match the conditions of both clauses.
+        - `$or`: returns all items that match the conditions of either clause.
+        - `$nor`: returns all items that do not match the conditions of either clause.
+        - `$eq`: returns all items that are equal to a specified value.
+        - `$ne`: returns all items that are not equal to a specified value.
+        - `$gt`: returns all items that are greater than a specified value.
+        - `$gte`: returns all items that are greater than or equal to a specified value.
+        - `$lt`: returns all items that are less than a specified value.
+        - `$lte`: returns all items that are less than or equal to a specified value.
+        - `$in`: returns all items that match any of the values specified in an array.
+        - `$nin`: returns all items that do not match any of the values specified in an array.
+        - `$exists`: returns all items that have the specified field.
+        - `$regex`: returns all items that match a specified regular expression.
+
 
         Examples:
-            Find runs in my_project where config.experiment_name has been set to "foo"
+            Find runs in my_project where config.experiment_name.value has been set to "foo"
             ```
-            api.runs(path="my_entity/my_project", filters={"config.experiment_name": "foo"})
+            api.runs(
+                path="my_entity/my_project",
+                filters={"config.experiment_name.value": "foo"},
+            )
             ```
 
-            Find runs in my_project where config.experiment_name has been set to "foo" or "bar"
+            Find runs in my_project where config.experiment_name.value has been set to "foo" or "bar"
             ```
             api.runs(
                 path="my_entity/my_project",
                 filters={
                     "$or": [
-                        {"config.experiment_name": "foo"},
-                        {"config.experiment_name": "bar"},
+                        {"config.experiment_name.value": "foo"},
+                        {"config.experiment_name.value": "bar"},
                     ]
                 },
             )
             ```
 
-            Find runs in my_project where config.experiment_name matches a regex (anchors are not supported)
+            Find runs in my_project where config.experiment_name.value matches a regex (anchors are not supported)
             ```
             api.runs(
                 path="my_entity/my_project",
-                filters={"config.experiment_name": {"$regex": "b.*"}},
+                filters={"config.experiment_name.value": {"$regex": "b.*"}},
             )
             ```
 
@@ -962,10 +978,8 @@ class Api:
             path: (str) path to project, should be in the form: "entity/project"
             filters: (dict) queries for specific runs using the MongoDB query language.
                 You can filter by run properties such as config.key, summary_metrics.key, state, entity, createdAt, etc.
-                For example: `{"config.experiment_name": "foo"}` would find runs with a config entry
+                For example: `{"config.experiment_name.value": "foo"}` would find runs with a config entry
                     of experiment name set to "foo"
-                You can compose operations to make more complicated queries,
-                    see Reference for the language is at  https://docs.mongodb.com/manual/reference/operator/query
             order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
                 If you prepend order with a + order is ascending.
                 If you prepend order with a - order is descending (default).
