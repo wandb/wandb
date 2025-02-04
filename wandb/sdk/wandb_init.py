@@ -20,7 +20,7 @@ import platform
 import sys
 import tempfile
 import time
-from typing import Any, Callable, Literal, Sequence
+from typing import Any, Literal, Sequence
 
 if sys.version_info >= (3, 11):
     from typing import Self
