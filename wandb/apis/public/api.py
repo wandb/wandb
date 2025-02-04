@@ -900,7 +900,23 @@ class Api:
     ):
         """Return a set of runs from a project that match the filters provided.
 
-        You can filter by `config.*`, `summary_metrics.*`, `tags`, `state`, `entity`, `createdAt`, etc.
+        Fields you can filter by include:
+        - `createdAt`: The timestamp when the run was created. (in ISO 8601 format, e.g. "2023-01-01T12:00:00Z")
+        - `displayName`: The human-readable display name of the run. (e.g. "eager-fox-1")
+        - `duration`: The total runtime of the run in seconds.
+        - `group`: The group name used to organize related runs together.
+        - `host`: The hostname where the run was executed.
+        - `jobType`: The type of job or purpose of the run.
+        - `name`: The unique identifier of the run. (e.g. "a1b2cdef")
+        - `state`: The current state of the run.
+        - `tags`: The tags associated with the run.
+        - `username`: The username of the user who initiated the run
+
+        Additionally, you can filter by items in the run config or summary metrics.
+        Such as `config.experiment_name`, `summary_metrics.loss`, etc.
+
+        You can compose more complex filters using the `$and`, `$or`, `$not`,
+        and other operations specified by the MongoDB query language.
 
         Examples:
             Find runs in my_project where config.experiment_name has been set to "foo"
@@ -932,7 +948,8 @@ class Api:
             Find runs in my_project where the run name matches a regex (anchors are not supported)
             ```
             api.runs(
-                path="my_entity/my_project", filters={"display_name": {"$regex": "^foo.*"}}
+                path="my_entity/my_project",
+                filters={"display_name": {"$regex": "^foo.*"}},
             )
             ```
 
