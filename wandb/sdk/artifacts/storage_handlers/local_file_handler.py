@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Sequence
 from urllib.parse import ParseResult
 
@@ -83,11 +84,15 @@ class LocalFileHandler(StorageHandler):
         # Note, we follow symlinks for files contained within the directory
         entries = []
 
+        # If checksum=False, the file's hash should only
+        # depend on its absolute path/URI, not its contents
+
+        # Closure func for calculating the file hash from its path
         def md5(path: str) -> B64MD5:
             return (
                 md5_file_b64(path)
                 if checksum
-                else md5_string(str(os.stat(path).st_size))
+                else md5_string(Path(path).resolve().as_uri())
             )
 
         if os.path.isdir(local_path):
