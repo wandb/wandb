@@ -220,10 +220,19 @@ func (nc *Connection) processIncomingData() {
 	for scanner.Scan() {
 		msg := &spb.ServerRequest{}
 		if err := proto.Unmarshal(scanner.Bytes(), msg); err != nil {
+			dataLen := len(scanner.Bytes())
+			dataTrunc := scanner.Bytes()
+			if len(dataTrunc) > 1<<10 {
+				dataTrunc = dataTrunc[:1<<10]
+			}
+
 			slog.Error(
 				"connection: unmarshalling error, breaking connection",
 				"error", err,
-				"id", nc.id)
+				"id", nc.id,
+				"token_len", dataLen,
+				"token_1kb", dataTrunc,
+			)
 
 			// Stop the server because a client is misbehaving, and it is no
 			// longer guaranteed that the server will receive a teardown
