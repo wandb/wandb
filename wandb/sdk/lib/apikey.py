@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import dataclasses
 import os
 import platform
 import stat
 import sys
 import textwrap
-from enum import Enum
 from functools import partial
 
 # import Literal
@@ -36,10 +36,11 @@ LOGIN_CHOICES = [
 ]
 
 
-class _NetrcPermissions(Enum):
-    NETRC_EXISTS = os.F_OK
-    NETRC_READ_ACCESS = os.R_OK
-    NETRC_WRITE_ACCESS = os.W_OK
+@dataclasses.dataclass(frozen=True)
+class _NetrcPermissions:
+    exists: bool
+    read_access: bool
+    write_access: bool
 
 
 Mode = Literal["allow", "must", "never", "false", "true"]
@@ -183,7 +184,7 @@ def prompt_api_key(  # noqa: C901
 
 def check_netrc_access(
     netrc_path: str,
-) -> dict[_NetrcPermissions, bool]:
+) -> _NetrcPermissions:
     """Check if we can read and write to the netrc file."""
     file_exists = False
     write_access = False
@@ -200,11 +201,11 @@ def check_netrc_access(
     except OSError as e:
         wandb.termerror(f"Unable to read permissions for {netrc_path}, {e}")
 
-    return {
-        _NetrcPermissions.NETRC_EXISTS: file_exists,
-        _NetrcPermissions.NETRC_WRITE_ACCESS: write_access,
-        _NetrcPermissions.NETRC_READ_ACCESS: read_access,
-    }
+    return _NetrcPermissions(
+        exists=file_exists,
+        write_access=write_access,
+        read_access=read_access,
+    )
 
 
 def write_netrc(host: str, entity: str, key: str) -> bool:
@@ -222,10 +223,7 @@ def write_netrc(host: str, entity: str, key: str) -> bool:
     netrc_path = get_netrc_file_path()
     netrc_access = check_netrc_access(netrc_path)
 
-    if (
-        not netrc_access[_NetrcPermissions.NETRC_WRITE_ACCESS]
-        or not netrc_access[_NetrcPermissions.NETRC_READ_ACCESS]
-    ):
+    if not netrc_access.write_access or not netrc_access.read_access:
         wandb.termwarn(
             f"Cannot access {netrc_path}. In order to persist your API key,"
             + "\nGrant read & write permissions for your user to the file,"
@@ -233,13 +231,18 @@ def write_netrc(host: str, entity: str, key: str) -> bool:
         )
         return False
 
+    machine_line = f"machine {normalized_host}"
+    orig_lines = None
     try:
-        machine_line = f"machine {normalized_host}"
-        orig_lines = None
-        if netrc_access[_NetrcPermissions.NETRC_EXISTS]:
-            with open(netrc_path) as f:
-                orig_lines = f.read().strip().split("\n")
+        with open(netrc_path) as f:
+            orig_lines = f.read().strip().split("\n")
+    except FileNotFoundError:
+        wandb.termlog("No netrc file found, creating one.")
+    except OSError:
+        wandb.termerror(f"Unable to read {netrc_path}")
+        return False
 
+    try:
         with open(netrc_path, "w") as f:
             if orig_lines:
                 # delete this machine from the file if it's already there.
@@ -303,18 +306,13 @@ def api_key(settings: Optional["Settings"] = None) -> Optional[str]:
         return settings.api_key
 
     netrc_access = check_netrc_access(get_netrc_file_path())
+    if netrc_access.exists and not netrc_access.read_access:
+        wandb.termwarn(f"Cannot access {get_netrc_file_path()}.")
+        return None
 
-    if netrc_access[_NetrcPermissions.NETRC_EXISTS]:
+    if netrc_access.exists:
         auth = get_netrc_auth(settings.base_url)
         if auth:
             return auth[-1]
-
-    if (
-        netrc_access[_NetrcPermissions.NETRC_EXISTS]
-        and not netrc_access[_NetrcPermissions.NETRC_READ_ACCESS]
-    ):
-        wandb.termwarn(
-            f"Cannot access {get_netrc_file_path()}.\n" + "Prompting for API key."
-        )
 
     return None

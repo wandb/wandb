@@ -6,13 +6,44 @@ import pytest
 from wandb import wandb, wandb_lib
 
 
-def test_write_netrc():
+def test_write_netrc(mock_wandb_log):
     api_key = "X" * 40
-    res = wandb_lib.apikey.write_netrc("http://localhost", "vanpelt", api_key)
-    assert res
+    logged_in = wandb_lib.apikey.write_netrc("http://localhost", "vanpelt", api_key)
+    assert logged_in
+    assert mock_wandb_log.logged("No netrc file found, creating one.")
     with open(wandb_lib.apikey.get_netrc_file_path()) as f:
         assert f.read() == (
             "machine localhost\n  login vanpelt\n  password {}\n".format(api_key)
+        )
+
+
+def test_write_netrc_update_existing(tmp_path):
+    settings = wandb.Settings(base_url="http://localhost")
+    old_api_key = "X" * 40
+    netrc_path = str(tmp_path / "netrc")
+    os.environ["NETRC"] = netrc_path
+    with open(netrc_path, "w") as f:
+        f.writelines(
+            [
+                "machine otherhost\n  login other-user\n  password password123\n",
+                "machine localhost\n  login random-user\n  password " + old_api_key,
+            ]
+        )
+    os.chmod(netrc_path, stat.S_IRUSR | stat.S_IWUSR)
+    assert wandb_lib.apikey.api_key(settings) == old_api_key
+
+    new_api_key = "Y" * 40
+    logged_in = wandb_lib.apikey.write_netrc(
+        "http://localhost", "random-user", new_api_key
+    )
+    assert logged_in
+    assert wandb_lib.apikey.api_key(settings) == new_api_key
+    with open(netrc_path) as f:
+        assert f.read() == (
+            "machine otherhost\n  login other-user\n  password password123\n"
+            "machine localhost\n  login random-user\n  password {}\n".format(
+                new_api_key
+            )
         )
 
 
@@ -36,11 +67,11 @@ def test_netrc_permission_errors(
     api_key = "X" * 40
     with mock.patch(
         "wandb.sdk.lib.apikey.check_netrc_access",
-        return_value={
-            wandb_lib.apikey._NetrcPermissions.NETRC_EXISTS: True,
-            wandb_lib.apikey._NetrcPermissions.NETRC_READ_ACCESS: read_permission,
-            wandb_lib.apikey._NetrcPermissions.NETRC_WRITE_ACCESS: write_permission,
-        },
+        return_value=wandb_lib.apikey._NetrcPermissions(
+            exists=True,
+            read_access=read_permission,
+            write_access=write_permission,
+        ),
     ):
         logged_in = wandb_lib.apikey.write_netrc(
             "http://localhost", "random-user", api_key
@@ -84,7 +115,7 @@ def test_write_netrc_permission_oserror(tmp_path, mock_wandb_log):
         "builtins.open",
         mock.mock_open(),
     ) as mock_file:
-        mock_file.side_effect = OSError
+        mock_file.side_effect = [mock_file.return_value, OSError()]
         logged_in = wandb_lib.apikey.write_netrc(
             "http://localhost", "random-user", api_key
         )
@@ -111,14 +142,12 @@ def test_read_apikey_no_netrc_access(tmp_path, monkeypatch, mock_wandb_log):
 
     with mock.patch(
         "wandb.sdk.lib.apikey.check_netrc_access",
-        return_value={
-            wandb_lib.apikey._NetrcPermissions.NETRC_EXISTS: True,
-            wandb_lib.apikey._NetrcPermissions.NETRC_READ_ACCESS: False,
-            wandb_lib.apikey._NetrcPermissions.NETRC_WRITE_ACCESS: False,
-        },
+        return_value=wandb_lib.apikey._NetrcPermissions(
+            exists=True,
+            read_access=False,
+            write_access=False,
+        ),
     ):
         api_key = wandb_lib.apikey.api_key(settings)
         assert api_key is None
-        assert mock_wandb_log.warned(
-            f"Cannot access {netrc_path}.\n" + "Prompting for API key."
-        )
+        assert mock_wandb_log.warned(f"Cannot access {netrc_path}.")
