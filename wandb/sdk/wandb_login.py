@@ -162,7 +162,7 @@ class _WandbLogin:
             repeat=False,
         )
 
-    def configure_api_key(self, key: str) -> None:
+    def try_save_api_key(self, key: str) -> None:
         """Saves the API key and updates the the global setup object."""
         if self._settings._notebook and not self._settings.silent:
             wandb.termwarn(
@@ -172,7 +172,10 @@ class _WandbLogin:
                 "`wandb login` from the command line."
             )
         if key:
-            apikey.write_key(self._settings, key)
+            try:
+                apikey.write_key(self._settings, key)
+            except apikey.WriteNetrcError as e:
+                wandb.termwarn(str(e))
 
     def update_session(
         self,
@@ -305,7 +308,7 @@ def _login(
         wlogin._verify_login(key)
 
     if not key_is_pre_configured:
-        wlogin.configure_api_key(key)
+        wlogin.try_save_api_key(key)
         wlogin.update_session(key, status=key_status)
         wlogin._update_global_anonymous_setting()
 

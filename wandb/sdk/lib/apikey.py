@@ -43,6 +43,10 @@ class _NetrcPermissions:
     write_access: bool
 
 
+class WriteNetrcError(Exception):
+    """Raised when we cannot write to the netrc file."""
+
+
 Mode = Literal["allow", "must", "never", "false", "true"]
 
 
@@ -208,28 +212,26 @@ def check_netrc_access(
     )
 
 
-def write_netrc(host: str, entity: str, key: str) -> bool:
+def write_netrc(host: str, entity: str, key: str):
     """Add our host and key to .netrc."""
     _, key_suffix = key.split("-", 1) if "-" in key else ("", key)
     if len(key_suffix) != 40:
-        wandb.termerror(
+        raise ValueError(
             "API-key must be exactly 40 characters long: {} ({} chars)".format(
                 key_suffix, len(key_suffix)
             )
         )
-        return False
 
     normalized_host = urlparse(host).netloc
     netrc_path = get_netrc_file_path()
     netrc_access = check_netrc_access(netrc_path)
 
     if not netrc_access.write_access or not netrc_access.read_access:
-        wandb.termwarn(
-            f"Cannot access {netrc_path}. In order to persist your API key,"
-            + "\nGrant read & write permissions for your user to the file,"
-            + '\nor specify a different file with the environment variable "NETRC={new_netrc_path}".'
+        raise WriteNetrcError(
+            f"Cannot access {netrc_path}. In order to persist your API key, "
+            "grant read and write permissions for your user to the file "
+            'or specify a different file with the environment variable "NETRC=<new_netrc_path>".'
         )
-        return False
 
     machine_line = f"machine {normalized_host}"
     orig_lines = None
@@ -238,9 +240,8 @@ def write_netrc(host: str, entity: str, key: str) -> bool:
             orig_lines = f.read().strip().split("\n")
     except FileNotFoundError:
         wandb.termlog("No netrc file found, creating one.")
-    except OSError:
-        wandb.termerror(f"Unable to read {netrc_path}")
-        return False
+    except OSError as e:
+        raise WriteNetrcError(f"Unable to read {netrc_path}") from e
 
     try:
         with open(netrc_path, "w") as f:
@@ -270,10 +271,8 @@ def write_netrc(host: str, entity: str, key: str) -> bool:
                 ).format(host=normalized_host, entity=entity, key=key)
             )
         os.chmod(netrc_path, stat.S_IRUSR | stat.S_IWUSR)
-        return True
-    except OSError:
-        wandb.termerror(f"Unable to write {netrc_path}")
-        return False
+    except OSError as e:
+        raise WriteNetrcError(f"Unable to write {netrc_path}") from e
 
 
 def write_key(
