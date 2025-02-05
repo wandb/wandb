@@ -515,8 +515,6 @@ class Settings(BaseModel, validate_assignment=True):
 
     This is used to group data by on the frontend and can be used to distinguish data
     from different processes in a distributed training job.
-
-    TODO: in shared mode, generate a unique label if not provided.
     """
 
     x_live_policy_rate_limit: int | None = None
@@ -1333,7 +1331,8 @@ class Settings(BaseModel, validate_assignment=True):
         ):
             self.save_code = env.should_save_code()
 
-        self.disable_git = env.disable_git()
+        if os.getenv(env.DISABLE_GIT) is not None:
+            self.disable_git = env.disable_git()
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
@@ -1355,8 +1354,8 @@ class Settings(BaseModel, validate_assignment=True):
                 f"couldn't find {self.notebook_name}.",
             )
 
-        # host and username are populated by apply_env_vars if corresponding env
-        # vars exist -- but if they don't, we'll fill them in here
+        # host is populated by update_from_env_vars if the corresponding env
+        # vars exist -- but if they don't, we'll fill them in here.
         if self.host is None:
             self.host = socket.gethostname()  # type: ignore
 
@@ -1379,8 +1378,15 @@ class Settings(BaseModel, validate_assignment=True):
         program = self.program or self._get_program()
 
         if program is not None:
-            repo = GitRepo()
-            root = repo.root or os.getcwd()
+            try:
+                root = (
+                    GitRepo().root or os.getcwd()
+                    if not self.disable_git
+                    else os.getcwd()
+                )
+            except Exception:
+                # if the git command fails, fall back to the current working directory
+                root = os.getcwd()
 
             self.program_relpath = self.program_relpath or self._get_program_relpath(
                 program, root

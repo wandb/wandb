@@ -877,7 +877,7 @@ class _WandbInit:
                 tel.feature.core = True
             if settings._shared:
                 wandb.termwarn(
-                    "The `_shared` feature is experimental and may change. "
+                    "The `shared` mode feature is experimental and may change. "
                     "Please contact support@wandb.com for guidance and to report any issues."
                 )
                 tel.feature.shared_mode = True
@@ -920,6 +920,16 @@ class _WandbInit:
                 f"Starting a new run with run id {run.id}."
             )
         error: wandb.Error | None = None
+
+        # In shared mode, generate a unique label if not provided.
+        # The label is used to distinguish between system metrics and console logs
+        # from different writers to the same run.
+        if settings._shared and not settings.x_label:
+            # TODO: If executed in a known distributed environment (e.g. Ray or SLURM),
+            #   use the env vars to generate a label (e.g. SLURM_JOB_ID or RANK)
+            prefix = settings.host or ""
+            label = runid.generate_id()
+            settings.x_label = f"{prefix}-{label}" if prefix else label
 
         timeout = settings.init_timeout
 
