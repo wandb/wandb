@@ -1480,7 +1480,5 @@ def init(  # noqa: C901
         if wl:
             wl._get_logger().exception("error in wandb.init()", exc_info=e)
 
-        # Need to build delay into this sentry capture because our exit hooks
-        # mess with sentry's ability to send out errors before the program ends.
         wandb._sentry.reraise(e)
         raise AssertionError()  # should never get here

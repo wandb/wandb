@@ -151,6 +151,7 @@ class RunStatusChecker:
 
     _stop_status_lock: threading.Lock
     _stop_status_handle: MailboxHandle | None
+    _on_stop_requested: Callable[[], None]
     _network_status_lock: threading.Lock
     _network_status_handle: MailboxHandle | None
     _internal_messages_lock: threading.Lock
@@ -162,9 +163,11 @@ class RunStatusChecker:
         stop_polling_interval: int = 15,
         retry_polling_interval: int = 5,
         internal_messages_polling_interval: int = 10,
+        on_stop_requested: Callable[[], None] = interrupt.interrupt_main,
     ) -> None:
         self._interface = interface
         self._stop_polling_interval = stop_polling_interval
+        self._on_stop_requested = on_stop_requested
         self._retry_polling_interval = retry_polling_interval
         self._internal_messages_polling_interval = internal_messages_polling_interval
 
@@ -288,7 +291,7 @@ class RunStatusChecker:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
                 if not wandb.agents.pyagent.is_running():  # type: ignore
-                    interrupt.interrupt_main()
+                    self._on_stop_requested()
                     return
 
         try:
@@ -531,6 +534,7 @@ class Run:
     _exit_code: int | None
 
     _run_status_checker: RunStatusChecker | None
+    _on_stop: Callable[[], None] | None
 
     _sampled_history: SampledHistoryResponse | None
     _final_summary: GetSummaryResponse | None
@@ -636,6 +640,7 @@ class Run:
 
         # Created when the run "starts".
         self._run_status_checker = None
+        self._on_stop = None
 
         self._sampled_history = None
         self._final_summary = None
@@ -2422,6 +2427,8 @@ class Run:
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(
                 interface=self._backend.interface,
+                stop_polling_interval=self._settings.x_run_stop_polling_interval,
+                on_stop_requested=self._settings.x_on_run_stop,
             )
             self._run_status_checker.start()
 
