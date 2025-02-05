@@ -75,7 +75,7 @@ aws = [
 azure = ["azure-identity", "azure-storage-blob"]
 media = [
     "numpy",
-    "moviepy",
+    "moviepy>=1.0.0",
     # imageio is a dependency of moviepy but incase that changes we also pin it here
     "imageio",
     "pillow",
