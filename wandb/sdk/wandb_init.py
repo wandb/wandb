@@ -1212,7 +1212,7 @@ def init(  # noqa: C901
             on the system, such as checking the git root or the current program
             file. If we can't infer the project name, the project will default to
             `"uncategorized"`.
-        dir: An absolute path to the directory where experiment logs and
+        dir: The absolute path to the directory where experiment logs and
             metadata files are stored. If not specified, this defaults
             to the `./wandb` directory. Note that this does not affect the
             location where artifacts are stored when calling `download()`.
