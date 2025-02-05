@@ -111,9 +111,7 @@ func NewGraphQLClient(
 	maps.Copy(graphqlHeaders, settings.GetExtraHTTPHeaders())
 	// This header is used to indicate to the backend that the run is in shared
 	// mode to prevent a race condition when two UpsertRun requests are made
-	// simultaneously for the same run ID in shared mode. For regular runs, this
-	// would result in a 409 conflict error, but for shared runs, the backend
-	// returns a retryable error.
+	// simultaneously for the same run ID in shared mode.
 	if settings.IsSharedMode() {
 		graphqlHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
 	}

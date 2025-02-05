@@ -33,9 +33,14 @@ message OpenMetricsFilters {
 // Used to communicate the moment in a run at which forking or resuming should
 // take place.
 message RunMoment {
-  string run = 1;     // The name of the run to fork from.
-  double value = 2;   // The value of the metric to fork at.
-  string metric = 3;  // The name of the metric to use to find a fork point.
+  // The name of the run to fork from.
+  string run = 1;
+
+  // The value of the metric to fork at.
+  double value = 2;
+
+  // The name of the metric to use to find a fork point.
+  string metric = 3;
 }
 
 // Settings for the SDK.
