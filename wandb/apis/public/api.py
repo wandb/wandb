@@ -932,7 +932,7 @@ class Api:
 
 
         Examples:
-            Find runs in my_project where config.experiment_name.value has been set to "foo"
+            Find runs in my_project where config.experiment_name has been set to "foo"
             ```
             api.runs(
                 path="my_entity/my_project",
@@ -940,7 +940,7 @@ class Api:
             )
             ```
 
-            Find runs in my_project where config.experiment_name.value has been set to "foo" or "bar"
+            Find runs in my_project where config.experiment_name has been set to "foo" or "bar"
             ```
             api.runs(
                 path="my_entity/my_project",
@@ -953,7 +953,7 @@ class Api:
             )
             ```
 
-            Find runs in my_project where config.experiment_name.value matches a regex (anchors are not supported)
+            Find runs in my_project where config.experiment_name matches a regex (anchors are not supported)
             ```
             api.runs(
                 path="my_entity/my_project",
@@ -969,6 +969,14 @@ class Api:
             )
             ```
 
+            Find runs in my_project with a loss value of 0.5 nested in a dictionary under model1 in the summary metrics
+            ```
+            api.runs(
+                path="my_entity/my_project",
+                filters={"summary_metrics.model1.loss.value": 0.5},
+            )
+            ```
+
             Find runs in my_project sorted by ascending loss
             ```
             api.runs(path="my_entity/my_project", order="+summary_metrics.loss")
@@ -980,6 +988,8 @@ class Api:
                 You can filter by run properties such as config.key, summary_metrics.key, state, entity, createdAt, etc.
                 For example: `{"config.experiment_name.value": "foo"}` would find runs with a config entry
                     of experiment name set to "foo"
+                You can compose operations to make more complicated queries,
+                    see Reference for the language at https://docs.mongodb.com/manual/reference/operator/query
             order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
                 If you prepend order with a + order is ascending.
                 If you prepend order with a - order is descending (default).
