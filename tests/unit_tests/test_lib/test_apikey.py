@@ -8,8 +8,7 @@ from wandb import wandb, wandb_lib
 
 def test_write_netrc(mock_wandb_log):
     api_key = "X" * 40
-    logged_in = wandb_lib.apikey.write_netrc("http://localhost", "vanpelt", api_key)
-    assert logged_in
+    wandb_lib.apikey.write_netrc("http://localhost", "vanpelt", api_key)
     assert mock_wandb_log.logged("No netrc file found, creating one.")
     with open(wandb_lib.apikey.get_netrc_file_path()) as f:
         assert f.read() == (
@@ -33,10 +32,7 @@ def test_write_netrc_update_existing(tmp_path):
     assert wandb_lib.apikey.api_key(settings) == old_api_key
 
     new_api_key = "Y" * 40
-    logged_in = wandb_lib.apikey.write_netrc(
-        "http://localhost", "random-user", new_api_key
-    )
-    assert logged_in
+    wandb_lib.apikey.write_netrc("http://localhost", "random-user", new_api_key)
     assert wandb_lib.apikey.api_key(settings) == new_api_key
     with open(netrc_path) as f:
         assert f.read() == (
@@ -73,14 +69,12 @@ def test_netrc_permission_errors(
             write_access=write_permission,
         ),
     ):
-        logged_in = wandb_lib.apikey.write_netrc(
-            "http://localhost", "random-user", api_key
-        )
-        assert not logged_in
-        assert mock_wandb_log.warned(
-            f"Cannot access {netrc_path}. In order to persist your API key,"
-            + "\nGrant read & write permissions for your user to the file,"
-            + '\nor specify a different file with the environment variable "NETRC={new_netrc_path}".'
+        with pytest.raises(wandb_lib.apikey.WriteNetrcError) as expected_error:
+            wandb_lib.apikey.write_netrc("http://localhost", "random-user", api_key)
+        assert str(expected_error.value) == (
+            f"Cannot access {netrc_path}. In order to persist your API key, "
+            "grant read and write permissions for your user to the file "
+            'or specify a different file with the environment variable "NETRC=<new_netrc_path>".'
         )
 
 
@@ -96,11 +90,12 @@ def test_stat_netrc_permission_oserror(tmp_path, mock_wandb_log):
         "os.stat",
         side_effect=OSError,
     ):
-        logged_in = wandb_lib.apikey.write_netrc(
-            "http://localhost", "random-user", api_key
-        )
-        assert not logged_in
-        assert mock_wandb_log.errored(f"Unable to read permissions for {netrc_path}")
+        with pytest.raises(wandb_lib.apikey.WriteNetrcError) as expected_error:
+            wandb_lib.apikey.write_netrc("http://localhost", "random-user", api_key)
+            assert (
+                str(expected_error.value)
+                == f"Unable to read permissions for {netrc_path}"
+            )
 
 
 def test_write_netrc_permission_oserror(tmp_path, mock_wandb_log):
@@ -116,11 +111,9 @@ def test_write_netrc_permission_oserror(tmp_path, mock_wandb_log):
         mock.mock_open(),
     ) as mock_file:
         mock_file.side_effect = [mock_file.return_value, OSError()]
-        logged_in = wandb_lib.apikey.write_netrc(
-            "http://localhost", "random-user", api_key
-        )
-        assert not logged_in
-        assert mock_wandb_log.errored(f"Unable to write {netrc_path}")
+        with pytest.raises(wandb_lib.apikey.WriteNetrcError) as expected_error:
+            wandb_lib.apikey.write_netrc("http://localhost", "random-user", api_key)
+        assert str(expected_error.value) == f"Unable to write {netrc_path}"
 
 
 def test_read_apikey(tmp_path, monkeypatch):
