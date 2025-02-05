@@ -1222,10 +1222,10 @@ def init(  # noqa: C901
             on the system, such as checking the git root or the current program
             file. If we can't infer the project name, the project will default to
             `"uncategorized"`.
-        dir: An absolute path to the directory where metadata and downloaded
-            files will be stored. When calling `download()` on an artifact, files
-            will be saved to this directory. If not specified, this defaults to
-            the `./wandb` directory.
+        dir: An absolute path to the directory where experiment logs and
+            metadata files are stored. If not specified, this defaults to
+            the `./wandb` directory. Note that this does not affect the
+            location where artifacts are stored when calling `download()`.
         id: A unique identifier for this run, used for resuming. It must be unique
             within the project and cannot be reused once a run is deleted. The
             identifier must not contain any of the following special characters:
