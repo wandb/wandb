@@ -999,10 +999,11 @@ class _WandbInit:
         assert backend.interface
 
         run_start_handle = backend.interface.deliver_run_start(run)
-        # TODO: add progress to let user know we are doing something
-        run_start_result = run_start_handle.wait(timeout=30)
-        if run_start_result is None:
-            run_start_handle.abandon()
+        try:
+            # TODO: add progress to let user know we are doing something
+            run_start_handle.wait_or(timeout=30)
+        except TimeoutError:
+            pass
 
         assert self._wl is not None
         self.run = run
@@ -1092,11 +1093,12 @@ def _attach(
     assert backend.interface
 
     attach_handle = backend.interface.deliver_attach(attach_id)
-    # TODO: add progress to let user know we are doing something
-    attach_result = attach_handle.wait(timeout=30)
-    if not attach_result:
-        attach_handle.abandon()
+    try:
+        # TODO: add progress to let user know we are doing something
+        attach_result = attach_handle.wait_or(timeout=30)
+    except TimeoutError:
         raise UsageError("Timeout attaching to run")
+
     attach_response = attach_result.response.attach_response
     if attach_response.error and attach_response.error.message:
         raise UsageError(f"Failed to attach to run: {attach_response.error.message}")

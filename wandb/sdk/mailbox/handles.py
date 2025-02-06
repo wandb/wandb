@@ -83,27 +83,6 @@ class MailboxHandle:
         with self._lock:
             return self._result
 
-    def wait(self, *, timeout: float) -> pb.Result | None:
-        """DEPRECATED. Wait for a response or a timeout.
-
-        Args:
-            timeout: A finite number of seconds or -1 to never time out.
-
-        Returns:
-            The result if it arrives before the timeout or has already arrived.
-            On timeout, returns None.
-
-        Raises:
-            HandleAbandonedError: If the handle becomes abandoned.
-        """
-        try:
-            if timeout == -1:
-                return self.wait_or(timeout=None)
-            else:
-                return self.wait_or(timeout=timeout)
-        except TimeoutError:
-            return None
-
     def wait_or(self, *, timeout: float | None) -> pb.Result:
         """Wait for a response or a timeout.
 
