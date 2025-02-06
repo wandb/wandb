@@ -166,6 +166,9 @@ def test_init_param_not_set_telemetry(wandb_backend_spy):
 @pytest.mark.wandb_core_only
 def test_shared_mode_x_label(wandb_backend_spy):
     """Test that reinit with a run active returns the same run."""
+    with wandb.init() as run:
+        assert run.settings.x_label is None
+
     with wandb.init(
         settings=wandb.Settings(
             mode="shared",

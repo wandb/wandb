@@ -293,6 +293,16 @@ class _WandbInit:
 
         settings.x_start_time = time.time()
 
+        # In shared mode, generate a unique label if not provided.
+        # The label is used to distinguish between system metrics and console logs
+        # from different writers to the same run.
+        if settings._shared and not settings.x_label:
+            # TODO: If executed in a known distributed environment (e.g. Ray or SLURM),
+            #   use the env vars to generate a label (e.g. SLURM_JOB_ID or RANK)
+            prefix = settings.host or ""
+            label = runid.generate_id()
+            settings.x_label = f"{prefix}-{label}" if prefix else label
+
         return settings
 
     def _load_autoresume_run_id(self, resume_file: pathlib.Path) -> str | None:
@@ -920,16 +930,6 @@ class _WandbInit:
                 f"Starting a new run with run id {run.id}."
             )
         error: wandb.Error | None = None
-
-        # In shared mode, generate a unique label if not provided.
-        # The label is used to distinguish between system metrics and console logs
-        # from different writers to the same run.
-        if settings._shared and not settings.x_label:
-            # TODO: If executed in a known distributed environment (e.g. Ray or SLURM),
-            #   use the env vars to generate a label (e.g. SLURM_JOB_ID or RANK)
-            prefix = settings.host or ""
-            label = runid.generate_id()
-            settings.x_label = f"{prefix}-{label}" if prefix else label
 
         timeout = settings.init_timeout
 
