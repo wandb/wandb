@@ -14,7 +14,7 @@ hypothesis-fspaths
 Pillow
 pandas
 polars
-moviepy
+moviepy >= 1.0.0
 imageio[ffmpeg]
 matplotlib
 soundfile
