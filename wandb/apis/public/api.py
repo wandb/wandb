@@ -915,7 +915,8 @@ class Api:
         Additionally, you can filter by items in the run config or summary metrics.
         Such as `config.experiment_name.value`, `summary_metrics.loss`, etc.
 
-        You can compose more complex filters using the MongoDB query language.
+        For more complex filtering, you can use MongoDB query operators.
+        For details, see: https://docs.mongodb.com/manual/reference/operator/query
         The following operations are supported:
         - `$and`
         - `$or`
@@ -931,14 +932,13 @@ class Api:
         - `$exists`
         - `$regex`
 
-        MongoDB query language reference: https://docs.mongodb.com/manual/reference/operator/query
 
         Examples:
             Find runs in my_project where config.experiment_name has been set to "foo"
             ```
             api.runs(
                 path="my_entity/my_project",
-                filters={"config.experiment_name.value": "foo"},
+                filters={"config.experiment_name": "foo"},
             )
             ```
 
@@ -948,8 +948,8 @@ class Api:
                 path="my_entity/my_project",
                 filters={
                     "$or": [
-                        {"config.experiment_name.value": "foo"},
-                        {"config.experiment_name.value": "bar"},
+                        {"config.experiment_name": "foo"},
+                        {"config.experiment_name": "bar"},
                     ]
                 },
             )
@@ -959,7 +959,7 @@ class Api:
             ```
             api.runs(
                 path="my_entity/my_project",
-                filters={"config.experiment_name.value": {"$regex": "b.*"}},
+                filters={"config.experiment_name": {"$regex": "b.*"}},
             )
             ```
 
@@ -968,6 +968,14 @@ class Api:
             api.runs(
                 path="my_entity/my_project",
                 filters={"display_name": {"$regex": "^foo.*"}},
+            )
+            ```
+
+            Find runs in my_project where config.experiment contains a nested field "category" with value "testing"
+            ```
+            api.runs(
+                path="my_entity/my_project",
+                filters={"config.experiment.category": "testing"},
             )
             ```
 
