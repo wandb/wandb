@@ -163,7 +163,7 @@ class _WandbLogin:
         )
 
     def try_save_api_key(self, key: str) -> None:
-        """Saves the API key and updates the the global setup object."""
+        """Saves the API key to disk for future use."""
         if self._settings._notebook and not self._settings.silent:
             wandb.termwarn(
                 "If you're specifying your api key in code, ensure this "
