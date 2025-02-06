@@ -63,6 +63,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterable,
     List,
     Literal,
     Optional,
@@ -113,6 +114,25 @@ summary: wandb_summary.Summary
 _sentry: Sentry
 api: InternalApi
 patched: Dict[str, List[Callable]]
+
+def require(
+    requirement: str | Iterable[str] | None = None,
+    experiment: str | Iterable[str] | None = None,
+) -> None:
+    """Indicate which experimental features are used by the script.
+
+    This should be called before any other `wandb` functions, ideally right
+    after importing `wandb`.
+
+    Args:
+        requirement: The name of a feature to require or an iterable of
+            feature names.
+        experiment: An alias for `requirement`.
+
+    Raises:
+        wandb.errors.UnsupportedError: If a feature name is unknown.
+    """
+    ...
 
 def setup(settings: Settings | None = None) -> _WandbSetup:
     """Prepares W&B for use in the current process and its children.
