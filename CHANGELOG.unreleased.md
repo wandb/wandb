@@ -16,3 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - changed moviepy constraint to >=1.0.0 (@jacobromero in https://github.com/wandb/wandb/pull/9419)
+
+### Fixed
+
+- Fixed incorrect logging of an "wandb.Video requires moviepy \[...\]" exception when using moviepy v2. (@Daraan in https://github.com/wandb/wandb/pull/9375)
