@@ -128,9 +128,15 @@ def connect(name: str) -> None:
 
 def _start_interactively(name: str) -> None:
     with _info_file() as info:
-        if name in info.servers:
-            _echo_bad(f"Server {name} is already running.")
-            sys.exit(1)
+        if prev := info.servers.get(name):
+            app_health_url = f"http://{prev.hostname}:{prev.base_port}/healthz"
+            fixture_health_url = f"http://{prev.hostname}:{prev.fixture_port}/health"
+
+            if _check_health(app_health_url) and _check_health(fixture_health_url):
+                _echo_bad(f"Server {name!r} is already running and healthy.")
+                sys.exit(1)
+
+            _echo_info(f"Server {name!r} is no longer running or healthy.  Restarting.")
 
         server = _ServerInfo(
             managed=True,
@@ -143,20 +149,20 @@ def _start_interactively(name: str) -> None:
         _start_container(name=name).apply_ports(server)
 
         if not _check_health(
-            f"http://localhost:{server.base_port}/healthz",
+            f"http://{server.hostname}:{server.base_port}/healthz",
             timeout=30,
         ):
-            _echo_bad("Server did not become healthy in time (base).")
+            _echo_bad(f"Server {name!r} did not become healthy in time (base).")
             sys.exit(1)
 
         if not _check_health(
-            f"http://localhost:{server.fixture_port}/health",
+            f"http://{server.hostname}:{server.fixture_port}/health",
             timeout=30,
         ):
-            _echo_bad("Server did not become healthy in time (fixtures).")
+            _echo_bad(f"Server {name!r} did not become healthy in time (fixtures).")
             sys.exit(1)
 
-        _echo_good("Server is up and healthy!")
+        _echo_good(f"Server {name!r} is up and healthy!")
 
 
 def _start_external(

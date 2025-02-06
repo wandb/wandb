@@ -161,3 +161,22 @@ def test_init_param_not_set_telemetry(wandb_backend_spy):
         assert 14 not in features  # set_init_id
         assert 15 not in features  # set_init_tags
         assert 16 not in features  # set_init_config
+
+
+@pytest.mark.wandb_core_only
+def test_shared_mode_x_label(wandb_backend_spy):
+    """Test that reinit with a run active returns the same run."""
+    with wandb.init(
+        settings=wandb.Settings(
+            mode="shared",
+        )
+    ) as run:
+        assert run.settings.x_label is not None
+
+    with wandb.init(
+        settings=wandb.Settings(
+            mode="shared",
+            x_label="node-rank",
+        )
+    ) as run:
+        assert run.settings.x_label == "node-rank"

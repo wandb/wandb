@@ -2582,6 +2582,8 @@ pub struct GpuNvidiaInfo {
     pub cuda_cores: u32,
     #[prost(string, tag = "4")]
     pub architecture: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub uuid: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GpuAmdInfo {

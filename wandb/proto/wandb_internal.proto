@@ -1245,6 +1245,7 @@ message GpuNvidiaInfo {
   uint64 memory_total = 2;
   uint32 cuda_cores = 3;
   string architecture = 4;
+  string uuid = 5;
 }
 
 message GpuAmdInfo {

@@ -1,5 +1,6 @@
 import argparse
 import json
+import logging
 import multiprocessing as mp
 import random
 import string
@@ -11,9 +12,7 @@ from typing import List, Literal
 import numpy as np
 import wandb
 
-from .setup_helper import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class Timer:
@@ -243,7 +242,7 @@ class PayloadGenerator:
             num_of_columns = self.sparse_metric_count
             num_of_rows = self.metric_key_size
 
-            columns = [f"Field_{i+1}" for i in range(num_of_columns)]
+            columns = [f"Field_{i + 1}" for i in range(num_of_columns)]
             data = [
                 [
                     self.random_string(self.metric_key_size)
@@ -500,7 +499,7 @@ def run_parallel_experiment(
                 num_steps=num_steps,
                 num_metrics=num_metrics,
                 metric_key_size=metric_key_size,
-                output_file=log_folder / f"results.{i+1}.json",
+                output_file=str(log_folder / f"results.{i + 1}.json"),
                 data_type=data_type,
             ).run,
             kwargs=dict(
