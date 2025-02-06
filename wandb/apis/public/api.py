@@ -24,6 +24,7 @@ import requests
 from pydantic import ValidationError
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
+from wandb_graphql import introspection_query
 
 import wandb
 from wandb import env, util
@@ -1746,6 +1747,11 @@ class Api:
             # Omit the response data, it's likely to add unhelpful noise
             msg = f"Unexpected response while deleting automation {id_!r}"
             raise ValueError(msg) from e
+
+    def introspect_server(self):
+        query = gql(introspection_query)
+        data = self.client.execute(query)
+        return data
 
 
 @dataclass
