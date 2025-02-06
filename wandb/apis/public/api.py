@@ -1139,6 +1139,12 @@ class Api:
             entity = InternalApi()._resolve_org_entity_name(
                 entity=settings_entity, organization=org
             )
+
+        if entity is None:
+            raise ValueError(
+                "Could not determine entity. Please include the entity as part of the collection name path."
+            )
+
         return public.ArtifactCollection(
             self.client, entity, project, collection_name, type_name
         )
@@ -1211,6 +1217,12 @@ class Api:
             entity = InternalApi()._resolve_org_entity_name(
                 entity=settings_entity, organization=organization
             )
+
+        if entity is None:
+            raise ValueError(
+                "Could not determine entity. Please include the entity as part of the artifact name path."
+            )
+
         artifact = wandb.Artifact._from_name(
             entity=entity,
             project=project,
