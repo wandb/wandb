@@ -2594,7 +2594,10 @@ class Run:
         else:
             exit_handle = self._backend.interface.deliver_finish_without_exit()
 
-        with progress.progress_printer(self._printer) as progress_printer:
+        with progress.progress_printer(
+            self._printer,
+            default_text="Finishing up...",
+        ) as progress_printer:
             # Wait for the run to complete.
             wait_with_progress(
                 exit_handle,
