@@ -5,7 +5,6 @@ See interface.py for how interface classes relate to each other.
 """
 
 import logging
-import time
 from abc import abstractmethod
 from multiprocessing.process import BaseProcess
 from typing import Any, Optional, cast
@@ -28,8 +27,6 @@ class InterfaceShared(InterfaceBase):
     _process_check: bool
     _router: Optional[MessageRouter]
     _mailbox: Optional[Mailbox]
-    _transport_success_timestamp: float
-    _transport_failed: bool
 
     def __init__(
         self,
@@ -38,8 +35,6 @@ class InterfaceShared(InterfaceBase):
         mailbox: Optional[Any] = None,
     ) -> None:
         super().__init__()
-        self._transport_success_timestamp = time.monotonic()
-        self._transport_failed = False
         self._process = process
         self._router = None
         self._process_check = process_check
@@ -49,20 +44,6 @@ class InterfaceShared(InterfaceBase):
     @abstractmethod
     def _init_router(self) -> None:
         raise NotImplementedError
-
-    @property
-    def transport_failed(self) -> bool:
-        return self._transport_failed
-
-    @property
-    def transport_success_timestamp(self) -> float:
-        return self._transport_success_timestamp
-
-    def _transport_mark_failed(self) -> None:
-        self._transport_failed = True
-
-    def _transport_mark_success(self) -> None:
-        self._transport_success_timestamp = time.monotonic()
 
     def _publish_output(self, outdata: pb.OutputRecord) -> None:
         rec = pb.Record()
@@ -541,22 +522,6 @@ class InterfaceShared(InterfaceBase):
     ) -> MailboxHandle:
         record = self._make_request(run_status=run_status)
         return self._deliver_record(record)
-
-    def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:
-        if self._transport_failed:
-            return True
-
-        now = time.monotonic()
-        if now < self._transport_success_timestamp + keepalive_interval:
-            return False
-
-        try:
-            self.publish_keepalive()
-        except Exception:
-            self._transport_mark_failed()
-        else:
-            self._transport_mark_success()
-        return self._transport_failed
 
     def join(self) -> None:
         super().join()
