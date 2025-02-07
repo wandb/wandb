@@ -21,9 +21,16 @@ from http import HTTPStatus
 from typing import Any, Dict, Iterator, List, Optional, Set, Union
 
 import requests
+from graphql import print_ast
 from pydantic import ValidationError
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
+from wandb_graphql import (
+    GraphQLSchema,
+    build_client_schema,
+    introspection_query,
+    print_ast,
+)
 
 import wandb
 from wandb import env, util
@@ -1586,7 +1593,7 @@ class Api:
         Returns:
             A list of automations.
         """
-        from ._query_compat import rewrite_compatible_query
+        from ._gql_compat import rewrite_gql_request
 
         # Crude client-side filtering
         # TODO: we should handle this in the backend instead
@@ -1598,27 +1605,28 @@ class Api:
         # For now, we need to use different queries depending on whether entity is given
         if entity is None:
             # For backward server compatibility
-            compat_query = rewrite_compatible_query(
+            override_query = rewrite_gql_request(
+                self._introspection_schema(),
                 AutomationsForViewer.QUERY,
-                self.client,
             )
+            print(print_ast(override_query))
             paginator = AutomationsForViewer(
                 client=self.client,
                 variables={},
                 per_page=per_page,
-                compat_query=compat_query,
+                override_query=override_query,
             )
         else:
             # For backward server compatibility
-            compat_query = rewrite_compatible_query(
+            override_query = rewrite_gql_request(
+                self._introspection_schema(),
                 AutomationsByEntity.QUERY,
-                self.client,
             )
             paginator = AutomationsByEntity(
                 client=self.client,
                 variables={"entityName": entity},
                 per_page=per_page,
-                compat_query=compat_query,
+                override_query=override_query,
             )
 
         yield from filter(_should_keep, paginator)
@@ -1652,6 +1660,11 @@ class Api:
         if action not in supported.action_types:
             raise ValueError(f"Server does not support automation action: {action!r}")
 
+    def _introspection_schema(self) -> GraphQLSchema:
+        query = gql(introspection_query)
+        data = self.client.execute(query)
+        return build_client_schema(data)
+
     def create_automation(
         self,
         obj: Union[NewAutomation, PreparedAutomation],
@@ -1674,7 +1687,7 @@ class Api:
         Returns:
             The created automation after it has been saved to the server.
         """
-        from ._query_compat import rewrite_compatible_query
+        from ._gql_compat import rewrite_gql_request
 
         gql_input = prepare_create_input(obj, **updates)
 
@@ -1684,7 +1697,10 @@ class Api:
         # and/or recover from a conflicting automation
         name = gql_input.name
 
-        mutation = rewrite_compatible_query(gql(CREATE_FILTER_TRIGGER_GQL), self.client)
+        mutation = rewrite_gql_request(
+            self._introspection_schema(),
+            gql(CREATE_FILTER_TRIGGER_GQL),
+        )
         variables = {"params": gql_input.model_dump(exclude_none=True)}
 
         try:

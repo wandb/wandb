@@ -30,17 +30,17 @@ class AutomationsByEntity(Paginator[Automation]):
 
     last_response: ProjectConnectionFields | None
 
-    compat_query: Document  #: Query may need to be rewritten for compatibility.
+    override_query: Document  #: Query may need to be rewritten for compatibility.
 
     def __init__(
         self,
         client: _Client,
         variables: Mapping[str, Any],
         per_page: int = 50,  # We don't allow unbounded paging
-        compat_query: Document | None = None,
+        override_query: Document | None = None,
     ):
         super().__init__(client, variables, per_page)
-        self.compat_query = compat_query or self.QUERY
+        self.override_query = override_query or self.QUERY
 
     @property
     def more(self) -> bool:
@@ -60,7 +60,7 @@ class AutomationsByEntity(Paginator[Automation]):
     def _update_response(self) -> None:
         """Fetch the raw response data for the current page."""
         data: dict[str, Any] = self.client.execute(
-            self.compat_query, variable_values=self.variables
+            self.override_query, variable_values=self.variables
         )
         try:
             page_data = data["searchScope"]["projects"]
@@ -82,17 +82,17 @@ class AutomationsForViewer(Paginator[Automation]):
 
     last_response: ProjectConnectionFields | None
 
-    compat_query: Document  #: Query may need to be rewritten for compatibility.
+    override_query: Document  #: Query may need to be rewritten for compatibility.
 
     def __init__(
         self,
         client: _Client,
         variables: Mapping[str, Any],
         per_page: int = 50,  # We don't allow unbounded paging
-        compat_query: Document | None = None,
+        override_query: Document | None = None,
     ):
         super().__init__(client, variables, per_page)
-        self.compat_query = compat_query or self.QUERY
+        self.override_query = override_query or self.QUERY
 
     @property
     def more(self) -> bool:
@@ -112,7 +112,7 @@ class AutomationsForViewer(Paginator[Automation]):
     def _update_response(self) -> None:
         """Fetch the raw response data for the current page."""
         data: dict[str, Any] = self.client.execute(
-            self.compat_query, variable_values=self.variables
+            self.override_query, variable_values=self.variables
         )
         try:
             page_data = data["searchScope"]["projects"]
