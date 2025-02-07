@@ -5,7 +5,6 @@ from __future__ import annotations
 import contextlib
 from typing import Iterable, Iterator
 
-import wandb
 from wandb import env
 from wandb.proto import wandb_internal_pb2 as pb
 
@@ -32,13 +31,10 @@ def print_sync_dedupe_stats(
 
 
 @contextlib.contextmanager
-def progress_printer(
-    printer: p.Printer,
-    settings: wandb.Settings | None = None,
-) -> Iterator[ProgressPrinter]:
+def progress_printer(printer: p.Printer) -> Iterator[ProgressPrinter]:
     """Context manager providing an object for printing run progress."""
     with printer.dynamic_text() as text_area:
-        yield ProgressPrinter(printer, text_area, settings)
+        yield ProgressPrinter(printer, text_area)
         printer.progress_close()
 
 
@@ -49,14 +45,9 @@ class ProgressPrinter:
         self,
         printer: p.Printer,
         progress_text_area: p.DynamicText | None,
-        settings: wandb.Settings | None,
     ) -> None:
-        self._show_operation_stats = (
-            settings
-            and settings.x_show_operation_stats
-            # Not implemented by the legacy service.
-            and not env.is_require_legacy_service()
-        )
+        # Not implemented by the legacy service.
+        self._show_operation_stats = not env.is_require_legacy_service()
         self._printer = printer
         self._progress_text_area = progress_text_area
         self._tick = 0

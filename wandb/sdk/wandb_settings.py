@@ -564,9 +564,6 @@ class Settings(BaseModel, validate_assignment=True):
     x_service_wait: float = 30.0
     """Time in seconds to wait for the wandb-core internal service to start."""
 
-    x_show_operation_stats: bool = True
-    """Whether to show statistics about internal operations such as data uploads."""
-
     x_start_time: float | None = None
     """The start time of the run in seconds since the Unix epoch."""
 
