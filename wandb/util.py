@@ -872,7 +872,7 @@ def parse_backend_error_messages(response: requests.Response) -> List[str]:
     # Backend error values are returned in one of two ways:
     # - A string containing the error message
     # - A JSON object with a "message" field that is a string
-    def get_message(err: Any) -> Optional[str]:
+    def get_message(error: Any) -> Optional[str]:
         if isinstance(error, str):
             return error
         elif (
