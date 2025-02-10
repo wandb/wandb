@@ -107,7 +107,8 @@ def run_pytest(
         # Required for the importers tests
         "WANDB_TEST_SERVER_URL2": session.env.get("WANDB_TEST_SERVER_URL2"),
         # Required for functional tests with openai
-        "OPENAI_API_KEY": session.env.get("OPENAI_API_KEY"),
+        "OPENAI_API_KEY": session.env.get("OPENAI_API_KEY")
+        or os.environ.get("OPENAI_API_KEY"),
     }
 
     # Print 20 slowest tests.
@@ -173,7 +174,6 @@ def unit_tests(session: nox.Session) -> None:
         "-r",
         "requirements_dev.txt",
         # For test_reports:
-        ".[reports]",
         "polyfactory",
     )
 
