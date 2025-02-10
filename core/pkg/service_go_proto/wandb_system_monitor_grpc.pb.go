@@ -11,7 +11,6 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -20,191 +19,191 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SystemMonitor_GetStats_FullMethodName    = "/wandb_internal.SystemMonitor/GetStats"
-	SystemMonitor_GetMetadata_FullMethodName = "/wandb_internal.SystemMonitor/GetMetadata"
-	SystemMonitor_TearDown_FullMethodName    = "/wandb_internal.SystemMonitor/TearDown"
+	SystemMonitorService_GetStats_FullMethodName    = "/wandb_internal.SystemMonitorService/GetStats"
+	SystemMonitorService_GetMetadata_FullMethodName = "/wandb_internal.SystemMonitorService/GetMetadata"
+	SystemMonitorService_TearDown_FullMethodName    = "/wandb_internal.SystemMonitorService/TearDown"
 )
 
-// SystemMonitorClient is the client API for SystemMonitor service.
+// SystemMonitorServiceClient is the client API for SystemMonitorService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// SystemMonitor gRPC service.
+// SystemMonitorService gRPC service.
 //
 // This service is used to collect system metrics from the host machine.
-type SystemMonitorClient interface {
+type SystemMonitorServiceClient interface {
 	// GetStats samples system metrics.
-	GetStats(ctx context.Context, in *GetStatsRequest, opts ...grpc.CallOption) (*Record, error)
+	GetStats(ctx context.Context, in *GetStatsRequest, opts ...grpc.CallOption) (*GetStatsResponse, error)
 	// GetMetadata returns static metadata about the system.
-	GetMetadata(ctx context.Context, in *GetMetadataRequest, opts ...grpc.CallOption) (*Record, error)
-	// TearDown tears down the system monitor.
-	TearDown(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	GetMetadata(ctx context.Context, in *GetMetadataRequest, opts ...grpc.CallOption) (*GetMetadataResponse, error)
+	// TearDown instructs the system monitor to shut down.
+	TearDown(ctx context.Context, in *TearDownRequest, opts ...grpc.CallOption) (*TearDownResponse, error)
 }
 
-type systemMonitorClient struct {
+type systemMonitorServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewSystemMonitorClient(cc grpc.ClientConnInterface) SystemMonitorClient {
-	return &systemMonitorClient{cc}
+func NewSystemMonitorServiceClient(cc grpc.ClientConnInterface) SystemMonitorServiceClient {
+	return &systemMonitorServiceClient{cc}
 }
 
-func (c *systemMonitorClient) GetStats(ctx context.Context, in *GetStatsRequest, opts ...grpc.CallOption) (*Record, error) {
+func (c *systemMonitorServiceClient) GetStats(ctx context.Context, in *GetStatsRequest, opts ...grpc.CallOption) (*GetStatsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Record)
-	err := c.cc.Invoke(ctx, SystemMonitor_GetStats_FullMethodName, in, out, cOpts...)
+	out := new(GetStatsResponse)
+	err := c.cc.Invoke(ctx, SystemMonitorService_GetStats_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *systemMonitorClient) GetMetadata(ctx context.Context, in *GetMetadataRequest, opts ...grpc.CallOption) (*Record, error) {
+func (c *systemMonitorServiceClient) GetMetadata(ctx context.Context, in *GetMetadataRequest, opts ...grpc.CallOption) (*GetMetadataResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Record)
-	err := c.cc.Invoke(ctx, SystemMonitor_GetMetadata_FullMethodName, in, out, cOpts...)
+	out := new(GetMetadataResponse)
+	err := c.cc.Invoke(ctx, SystemMonitorService_GetMetadata_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *systemMonitorClient) TearDown(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *systemMonitorServiceClient) TearDown(ctx context.Context, in *TearDownRequest, opts ...grpc.CallOption) (*TearDownResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, SystemMonitor_TearDown_FullMethodName, in, out, cOpts...)
+	out := new(TearDownResponse)
+	err := c.cc.Invoke(ctx, SystemMonitorService_TearDown_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// SystemMonitorServer is the server API for SystemMonitor service.
-// All implementations must embed UnimplementedSystemMonitorServer
+// SystemMonitorServiceServer is the server API for SystemMonitorService service.
+// All implementations must embed UnimplementedSystemMonitorServiceServer
 // for forward compatibility.
 //
-// SystemMonitor gRPC service.
+// SystemMonitorService gRPC service.
 //
 // This service is used to collect system metrics from the host machine.
-type SystemMonitorServer interface {
+type SystemMonitorServiceServer interface {
 	// GetStats samples system metrics.
-	GetStats(context.Context, *GetStatsRequest) (*Record, error)
+	GetStats(context.Context, *GetStatsRequest) (*GetStatsResponse, error)
 	// GetMetadata returns static metadata about the system.
-	GetMetadata(context.Context, *GetMetadataRequest) (*Record, error)
-	// TearDown tears down the system monitor.
-	TearDown(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
-	mustEmbedUnimplementedSystemMonitorServer()
+	GetMetadata(context.Context, *GetMetadataRequest) (*GetMetadataResponse, error)
+	// TearDown instructs the system monitor to shut down.
+	TearDown(context.Context, *TearDownRequest) (*TearDownResponse, error)
+	mustEmbedUnimplementedSystemMonitorServiceServer()
 }
 
-// UnimplementedSystemMonitorServer must be embedded to have
+// UnimplementedSystemMonitorServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedSystemMonitorServer struct{}
+type UnimplementedSystemMonitorServiceServer struct{}
 
-func (UnimplementedSystemMonitorServer) GetStats(context.Context, *GetStatsRequest) (*Record, error) {
+func (UnimplementedSystemMonitorServiceServer) GetStats(context.Context, *GetStatsRequest) (*GetStatsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetStats not implemented")
 }
-func (UnimplementedSystemMonitorServer) GetMetadata(context.Context, *GetMetadataRequest) (*Record, error) {
+func (UnimplementedSystemMonitorServiceServer) GetMetadata(context.Context, *GetMetadataRequest) (*GetMetadataResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetMetadata not implemented")
 }
-func (UnimplementedSystemMonitorServer) TearDown(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+func (UnimplementedSystemMonitorServiceServer) TearDown(context.Context, *TearDownRequest) (*TearDownResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method TearDown not implemented")
 }
-func (UnimplementedSystemMonitorServer) mustEmbedUnimplementedSystemMonitorServer() {}
-func (UnimplementedSystemMonitorServer) testEmbeddedByValue()                       {}
+func (UnimplementedSystemMonitorServiceServer) mustEmbedUnimplementedSystemMonitorServiceServer() {}
+func (UnimplementedSystemMonitorServiceServer) testEmbeddedByValue()                              {}
 
-// UnsafeSystemMonitorServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to SystemMonitorServer will
+// UnsafeSystemMonitorServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to SystemMonitorServiceServer will
 // result in compilation errors.
-type UnsafeSystemMonitorServer interface {
-	mustEmbedUnimplementedSystemMonitorServer()
+type UnsafeSystemMonitorServiceServer interface {
+	mustEmbedUnimplementedSystemMonitorServiceServer()
 }
 
-func RegisterSystemMonitorServer(s grpc.ServiceRegistrar, srv SystemMonitorServer) {
-	// If the following call pancis, it indicates UnimplementedSystemMonitorServer was
+func RegisterSystemMonitorServiceServer(s grpc.ServiceRegistrar, srv SystemMonitorServiceServer) {
+	// If the following call pancis, it indicates UnimplementedSystemMonitorServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&SystemMonitor_ServiceDesc, srv)
+	s.RegisterService(&SystemMonitorService_ServiceDesc, srv)
 }
 
-func _SystemMonitor_GetStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _SystemMonitorService_GetStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetStatsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SystemMonitorServer).GetStats(ctx, in)
+		return srv.(SystemMonitorServiceServer).GetStats(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SystemMonitor_GetStats_FullMethodName,
+		FullMethod: SystemMonitorService_GetStats_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SystemMonitorServer).GetStats(ctx, req.(*GetStatsRequest))
+		return srv.(SystemMonitorServiceServer).GetStats(ctx, req.(*GetStatsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SystemMonitor_GetMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _SystemMonitorService_GetMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetMetadataRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SystemMonitorServer).GetMetadata(ctx, in)
+		return srv.(SystemMonitorServiceServer).GetMetadata(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SystemMonitor_GetMetadata_FullMethodName,
+		FullMethod: SystemMonitorService_GetMetadata_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SystemMonitorServer).GetMetadata(ctx, req.(*GetMetadataRequest))
+		return srv.(SystemMonitorServiceServer).GetMetadata(ctx, req.(*GetMetadataRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SystemMonitor_TearDown_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+func _SystemMonitorService_TearDown_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TearDownRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SystemMonitorServer).TearDown(ctx, in)
+		return srv.(SystemMonitorServiceServer).TearDown(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SystemMonitor_TearDown_FullMethodName,
+		FullMethod: SystemMonitorService_TearDown_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SystemMonitorServer).TearDown(ctx, req.(*emptypb.Empty))
+		return srv.(SystemMonitorServiceServer).TearDown(ctx, req.(*TearDownRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// SystemMonitor_ServiceDesc is the grpc.ServiceDesc for SystemMonitor service.
+// SystemMonitorService_ServiceDesc is the grpc.ServiceDesc for SystemMonitorService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var SystemMonitor_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "wandb_internal.SystemMonitor",
-	HandlerType: (*SystemMonitorServer)(nil),
+var SystemMonitorService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "wandb_internal.SystemMonitorService",
+	HandlerType: (*SystemMonitorServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "GetStats",
-			Handler:    _SystemMonitor_GetStats_Handler,
+			Handler:    _SystemMonitorService_GetStats_Handler,
 		},
 		{
 			MethodName: "GetMetadata",
-			Handler:    _SystemMonitor_GetMetadata_Handler,
+			Handler:    _SystemMonitorService_GetMetadata_Handler,
 		},
 		{
 			MethodName: "TearDown",
-			Handler:    _SystemMonitor_TearDown_Handler,
+			Handler:    _SystemMonitorService_TearDown_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
