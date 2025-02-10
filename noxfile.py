@@ -281,6 +281,8 @@ def experimental_tests(session: nox.Session):
     run_pytest(
         session,
         paths=(session.posargs or ["tests/system_tests/test_experimental"]),
+        # TODO: increase as more tests are added
+        opts={"n": "1"},
     )
 
 
