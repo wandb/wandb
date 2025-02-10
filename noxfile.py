@@ -97,15 +97,16 @@ def run_pytest(
     opts = opts or {}
     pytest_opts = []
     pytest_env = {
-        "USERNAME": session.env.get("USERNAME"),
+        "USERNAME": session.env.get("USERNAME") or os.environ.get("USERNAME"),
         "PATH": session.env.get("PATH") or os.environ.get("PATH"),
-        "USERPROFILE": session.env.get("USERPROFILE"),
+        "USERPROFILE": session.env.get("USERPROFILE") or os.environ.get("USERPROFILE"),
         # Tool settings are often set here. We invoke Docker in system tests,
         # which uses auth information from the home directory.
-        "HOME": session.env.get("HOME"),
-        "CI": session.env.get("CI"),
+        "HOME": session.env.get("HOME") or os.environ.get("HOME"),
+        "CI": session.env.get("CI") or os.environ.get("CI"),
         # Required for the importers tests
-        "WANDB_TEST_SERVER_URL2": session.env.get("WANDB_TEST_SERVER_URL2"),
+        "WANDB_TEST_SERVER_URL2": session.env.get("WANDB_TEST_SERVER_URL2")
+        or os.environ.get("WANDB_TEST_SERVER_URL2"),
         # Required for functional tests with openai
         "OPENAI_API_KEY": session.env.get("OPENAI_API_KEY")
         or os.environ.get("OPENAI_API_KEY"),
