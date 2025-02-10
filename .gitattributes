@@ -5,6 +5,7 @@ core/vendor/** linguist-vendored
 **/*_pb2.py linguist-generated
 **/*_pb2.pyi linguist-generated
 **/*.pb.go linguist-generated
+gpu_stats/src/wandb_internal.rs linguist-generated
 
 # Our own generated files.
 *_generated.py linguist-generated
