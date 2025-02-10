@@ -293,6 +293,16 @@ class _WandbInit:
 
         settings.x_start_time = time.time()
 
+        # In shared mode, generate a unique label if not provided.
+        # The label is used to distinguish between system metrics and console logs
+        # from different writers to the same run.
+        if settings._shared and not settings.x_label:
+            # TODO: If executed in a known distributed environment (e.g. Ray or SLURM),
+            #   use the env vars to generate a label (e.g. SLURM_JOB_ID or RANK)
+            prefix = settings.host or ""
+            label = runid.generate_id()
+            settings.x_label = f"{prefix}-{label}" if prefix else label
+
         return settings
 
     def _load_autoresume_run_id(self, resume_file: pathlib.Path) -> str | None:
@@ -921,16 +931,6 @@ class _WandbInit:
             )
         error: wandb.Error | None = None
 
-        # In shared mode, generate a unique label if not provided.
-        # The label is used to distinguish between system metrics and console logs
-        # from different writers to the same run.
-        if settings._shared and not settings.x_label:
-            # TODO: If executed in a known distributed environment (e.g. Ray or SLURM),
-            #   use the env vars to generate a label (e.g. SLURM_JOB_ID or RANK)
-            prefix = settings.host or ""
-            label = runid.generate_id()
-            settings.x_label = f"{prefix}-{label}" if prefix else label
-
         timeout = settings.init_timeout
 
         self._logger.info(
@@ -1222,10 +1222,10 @@ def init(  # noqa: C901
             on the system, such as checking the git root or the current program
             file. If we can't infer the project name, the project will default to
             `"uncategorized"`.
-        dir: An absolute path to the directory where metadata and downloaded
-            files will be stored. When calling `download()` on an artifact, files
-            will be saved to this directory. If not specified, this defaults to
-            the `./wandb` directory.
+        dir: The absolute path to the directory where experiment logs and
+            metadata files are stored. If not specified, this defaults
+            to the `./wandb` directory. Note that this does not affect the
+            location where artifacts are stored when calling `download()`.
         id: A unique identifier for this run, used for resuming. It must be unique
             within the project and cannot be reused once a run is deleted. The
             identifier must not contain any of the following special characters:

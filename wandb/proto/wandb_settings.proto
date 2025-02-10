@@ -54,7 +54,7 @@ message RunMoment {
 //
 // Next ID: 188
 message Settings {
-  reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137;
+  reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137, 176;
 
   // The W&B API key.
   //
@@ -331,15 +331,6 @@ message Settings {
 
   // Explicitly require wandb-core to not be used.
   google.protobuf.BoolValue x_require_legacy_service = 173;
-
-  // Feature flag controlling the rollout of an improved run.finish() UX.
-  //
-  // Defaults to true, but is kept now to make this functionality easy to
-  // disable. Ignored when using `wandb.require("legacy-service")`.
-  //
-  // Remove a month after the next release after 0.19.0 (probably in
-  // January 2025).
-  google.protobuf.BoolValue x_show_operation_stats = 176;
 
   // Determines whether to save internal wandb files and metadata.
   //
