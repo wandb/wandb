@@ -98,7 +98,7 @@ def run_pytest(
     pytest_opts = []
     pytest_env = {
         "USERNAME": session.env.get("USERNAME"),
-        "PATH": session.env.get("PATH"),
+        "PATH": session.env.get("PATH") or os.environ.get("PATH"),
         "USERPROFILE": session.env.get("USERPROFILE"),
         # Tool settings are often set here. We invoke Docker in system tests,
         # which uses auth information from the home directory.
