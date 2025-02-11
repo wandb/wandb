@@ -2111,15 +2111,6 @@ class Run:
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
 
-        # Pop this run (hopefully) from the run stack, to support the "reinit"
-        # functionality of wandb.init().
-        #
-        # TODO: It's not clear how _global_run_stack could have length other
-        # than 1 at this point in the code. If you're reading this, consider
-        # refactoring this thing.
-        if self._wl and len(self._wl._global_run_stack) > 0:
-            self._wl._global_run_stack.pop()
-
         # Run hooks that need to happen before the last messages to the
         # internal service, like Jupyter hooks.
         for hook in self._teardown_hooks:

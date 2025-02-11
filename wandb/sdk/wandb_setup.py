@@ -28,7 +28,6 @@ from .lib import config_util, server
 
 if TYPE_CHECKING:
     from wandb.sdk.lib.service_connection import ServiceConnection
-    from wandb.sdk.wandb_run import Run
     from wandb.sdk.wandb_settings import Settings
 
 
@@ -89,9 +88,6 @@ class _WandbSetup:
         self._config: dict | None = None
         self._server: server.Server | None = None
         self._pid = pid
-
-        # keep track of multiple runs, so we can unwind with join()s
-        self._global_run_stack: list[Run] = []
 
         # TODO(jhr): defer strict checks until settings are fully initialized
         #            and logging is ready
