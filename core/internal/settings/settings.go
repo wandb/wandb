@@ -426,8 +426,8 @@ func (s *Settings) IsDisableMachineInfo() bool {
 }
 
 // Whether to disable system metrics collection.
-func (s *Settings) IsDisableStats() bool {
-	return s.Proto.XDisableStats.GetValue()
+func (s *Settings) IsDisableSystemMetrics() bool {
+	return s.Proto.DisableSystemMetrics.GetValue()
 }
 
 // Determines whether to save internal wandb files and metadata.

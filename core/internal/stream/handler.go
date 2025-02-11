@@ -536,7 +536,7 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 	h.handleMetadata(metadata)
 
 	// start the system monitor
-	if !h.settings.IsDisableStats() && !h.settings.IsDisableMachineInfo() {
+	if !h.settings.IsDisableSystemMetrics() && !h.settings.IsDisableMachineInfo() {
 		h.systemMonitor.Start()
 	}
 

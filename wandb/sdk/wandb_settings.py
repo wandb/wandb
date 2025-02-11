@@ -156,6 +156,12 @@ class Settings(BaseModel, validate_assignment=True):
     disable_job_creation: bool = True
     """Whether to disable the creation of a job artifact for W&B Launch."""
 
+    disable_system_metrics: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("disable_system_metrics", "x_disable_stats"),
+    )
+    """Flag to disable the collection of system metrics."""
+
     docker: str | None = None
     """The Docker image used to execute the script."""
 
@@ -411,9 +417,6 @@ class Settings(BaseModel, validate_assignment=True):
 
     This is deprecated and will be removed in future versions.
     """
-
-    x_disable_stats: bool = False
-    """Flag to disable the collection of system metrics."""
 
     x_disable_viewer: bool = False
     """Flag to disable the early viewer query."""

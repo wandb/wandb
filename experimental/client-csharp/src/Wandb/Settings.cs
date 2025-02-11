@@ -275,7 +275,7 @@ namespace Wandb
                 WandbDir = WandbDir,
                 // TODO: we do not capture extra info by default, but
                 // we could make this configurable in the future
-                XDisableStats = true,
+                DisableSystemMetrics = true,
                 DisableGit = true,
                 XDisableMeta = true,
                 DisableCode = true,

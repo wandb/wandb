@@ -301,7 +301,7 @@ def test_preprocess_base_url(url, processed_url):
     "setting",
     [
         "x_disable_meta",
-        "x_disable_stats",
+        "disable_system_metrics",
         "x_disable_viewer",
         "disable_code",
         "disable_git",

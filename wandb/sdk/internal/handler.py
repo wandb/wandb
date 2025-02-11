@@ -698,7 +698,7 @@ class HandleManager:
             self._interface,
         )
         if not (
-            self._settings.x_disable_stats or self._settings.x_disable_machine_info
+            self._settings.disable_system_metrics or self._settings.x_disable_machine_info
         ):
             self._system_monitor.start()
         if (

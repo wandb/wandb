@@ -101,7 +101,7 @@ func NewSystemMonitor(
 	sm.logger.Debug(fmt.Sprintf("monitor: sampling interval: %v", sm.samplingInterval))
 
 	// Early return if stats collection is disabled
-	if settings.IsDisableStats() {
+	if settings.IsDisableSystemMetrics() {
 		return sm
 	}
 
