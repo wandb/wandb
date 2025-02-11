@@ -8,6 +8,7 @@ import time
 from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+import contextlib
 
 import click
 import requests
@@ -503,16 +504,11 @@ def check_sweeps(api: Api) -> bool:
     }
 
     try:
-        original_stdout = sys.stdout
-        sys.stdout = io.StringIO()
-
-        sweep_id = wandb.sweep(
-            sweep=sweep_config, project=PROJECT_NAME, entity=api.default_entity
-        )
-
-        sys.stdout = original_stdout
+        with contextlib.redirect_stdout(io.StringIO()):
+            sweep_id = wandb.sweep(
+                sweep=sweep_config, project=PROJECT_NAME, entity=api.default_entity
+            )
     except Exception as e:
-        sys.stdout = original_stdout
         failed_test_strings.append(f"Failed to create sweep: {e}")
         print_results(failed_test_strings, False)
         return False
