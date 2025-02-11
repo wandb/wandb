@@ -1426,7 +1426,7 @@ def init(  # noqa: C901
     wl: wandb_setup._WandbSetup | None = None
 
     try:
-        wl = wandb.setup()
+        wl = wandb_setup._setup(start_service=False)
 
         wi = _WandbInit(wl, init_telemetry)
 
