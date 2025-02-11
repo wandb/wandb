@@ -71,8 +71,8 @@ class MessageRouter:
                 # resulting in EOFError.  message_loop needs to exit..
                 logger.warning("EOFError seen in message_loop")
                 break
-            except MessageRouterClosedError:
-                logger.warning("message_loop has been closed")
+            except MessageRouterClosedError as e:
+                logger.warning("message_loop has been closed", exc_info=e)
                 break
             if not msg:
                 continue
