@@ -68,7 +68,7 @@ def site_packages_dir(session: nox.Session) -> pathlib.Path:
         )
 
 
-def get_circleci_splits(session: nox.Session) -> tuple[int, int]:
+def get_circleci_splits() -> tuple[int, int]:
     """Returns the test splitting arguments from our CircleCI config.
 
     When using test splitting, CircleCI sets the CIRCLE_NODE_TOTAL and
@@ -137,7 +137,7 @@ def run_pytest(
     pytest_opts.append("--maxprocesses=10")
 
     # (pytest-split) Run a subset of tests only (for external parallelism).
-    (circle_node_index, circle_node_total) = get_circleci_splits(session)
+    (circle_node_index, circle_node_total) = get_circleci_splits()
     if circle_node_total > 0:
         pytest_opts.append(f"--splits={circle_node_total}")
         pytest_opts.append(f"--group={int(circle_node_index) + 1}")

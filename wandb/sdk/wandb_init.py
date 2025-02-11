@@ -773,28 +773,18 @@ class _WandbInit:
             f"\nconfig: {config.base_no_artifacts}"
         )
 
-        if (
-            settings.reinit or (settings._jupyter and settings.reinit is not False)
-        ) and len(self._wl._global_run_stack) > 0:
-            if len(self._wl._global_run_stack) > 1:
-                wandb.termwarn(
-                    "Launching multiple wandb runs using Python's threading"
-                    " module is not well-supported."
-                    " Please use multiprocessing instead."
-                    " Finishing previous run before initializing another."
-                )
+        if wandb.run is not None and os.getpid() == wandb.run._init_pid:
+            if settings.reinit:
+                self._logger.info(f"finishing previous run: {wandb.run.id}")
+                wandb.run.finish()
+            else:
+                self._logger.info("wandb.init() called while a run is active")
 
-            latest_run = self._wl._global_run_stack[-1]
-            self._logger.info(f"found existing run on stack: {latest_run.id}")
-            latest_run.finish()
-        elif wandb.run is not None and os.getpid() == wandb.run._init_pid:
-            self._logger.info("wandb.init() called when a run is still active")
+                # NOTE: Updates telemetry on the pre-existing run.
+                with telemetry.context() as tel:
+                    tel.feature.init_return_run = True
 
-            # NOTE: Updates telemetry on the pre-existing run.
-            with telemetry.context() as tel:
-                tel.feature.init_return_run = True
-
-            return wandb.run
+                return wandb.run
 
         self._logger.info("starting backend")
 
@@ -1010,7 +1000,6 @@ class _WandbInit:
             run_start_handle.abandon()
 
         assert self._wl is not None
-        self._wl._global_run_stack.append(run)
         self.run = run
 
         run._handle_launch_artifact_overrides()
