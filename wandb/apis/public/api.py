@@ -913,7 +913,7 @@ class Api:
         - `username`: The username of the user who initiated the run
 
         Additionally, you can filter by items in the run config or summary metrics.
-        Such as `config.experiment_name.value`, `summary_metrics.loss`, etc.
+        Such as `config.experiment_name`, `summary_metrics.loss`, etc.
 
         For more complex filtering, you can use MongoDB query operators.
         For details, see: https://docs.mongodb.com/manual/reference/operator/query
@@ -996,7 +996,7 @@ class Api:
             path: (str) path to project, should be in the form: "entity/project"
             filters: (dict) queries for specific runs using the MongoDB query language.
                 You can filter by run properties such as config.key, summary_metrics.key, state, entity, createdAt, etc.
-                For example: `{"config.experiment_name.value": "foo"}` would find runs with a config entry
+                For example: `{"config.experiment_name": "foo"}` would find runs with a config entry
                     of experiment name set to "foo"
             order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
                 If you prepend order with a + order is ascending.
