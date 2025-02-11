@@ -1,5 +1,6 @@
 """Utilities for wandb verify."""
 
+import contextlib
 import getpass
 import io
 import os
@@ -7,7 +8,6 @@ import time
 from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-import contextlib
 
 import click
 import requests
