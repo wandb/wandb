@@ -78,8 +78,8 @@ def get_circleci_splits(session: nox.Session) -> tuple[int, int]:
     This returns (index, total), with 0 <= index < total, if the variables
     are set. Otherwise, returns (0, 0).
     """
-    circle_node_total = session.env.get("CIRCLE_NODE_TOTAL")
-    circle_node_index = session.env.get("CIRCLE_NODE_INDEX")
+    circle_node_total = os.environ.get("CIRCLE_NODE_TOTAL")
+    circle_node_index = os.environ.get("CIRCLE_NODE_INDEX")
 
     if circle_node_total and circle_node_index:
         return (int(circle_node_index), int(circle_node_total))
