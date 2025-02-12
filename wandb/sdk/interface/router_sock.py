@@ -25,8 +25,8 @@ class MessageSockRouter(MessageRouter):
     def _read_message(self) -> Optional["pb.Result"]:
         try:
             resp = self._sock_client.read_server_response(timeout=1)
-        except SockClientClosedError:
-            raise MessageRouterClosedError
+        except SockClientClosedError as e:
+            raise MessageRouterClosedError from e
         if not resp:
             return None
         msg = resp.result_communicate
