@@ -2794,11 +2794,13 @@ def verify(host):
     wandb_verify.check_wandb_version(api)
     check_run_success = wandb_verify.check_run(api)
     check_artifacts_success = wandb_verify.check_artifacts()
+    check_sweeps_success = wandb_verify.check_sweeps(api)
     if not (
         check_artifacts_success
         and check_run_success
         and large_post_success
         and url_success
+        and check_sweeps_success
     ):
         sys.exit(1)
 
