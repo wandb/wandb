@@ -212,11 +212,13 @@ class Registry(Attrs):
                 }
             }
         """)
-        artifact_types = [
-            {"name": artifact_type}
+
+        new_types = [
+            artifact_type
             for artifact_type in accepted_artifact_types
             if artifact_type not in self._artifact_types
         ]
+        artifact_types = [{"name": artifact_type} for artifact_type in new_types]
 
         response = self.client.execute(
             mutation,
@@ -328,7 +330,7 @@ class Registry(Attrs):
             )
         except Exception as e:
             if e.response.status_code == 404:
-                raise KeyError(
+                raise ValueError(
                     f"Registry {self.name} not found in organization {self.organization}"
                 )
             raise e
