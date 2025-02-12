@@ -514,7 +514,7 @@ class Run:
         Currently, there is a parallel `Run` object in the `wandb.Api`. Eventually these
         two objects will be merged.
 
-        Attributes:
+    Attributes:
             summary: (Summary) Single values set for each `wandb.log()` key. By
                 default, summary is set to the last value logged. You can manually
                 set summary to the best value, like max accuracy, instead of the
