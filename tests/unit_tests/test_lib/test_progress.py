@@ -1,7 +1,6 @@
 from typing import Iterator
 
 import pytest
-import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.lib import printer as p
 from wandb.sdk.lib import progress
@@ -15,20 +14,14 @@ def dynamic_progress_printer(
     # Ensure dynamic text is supported.
     _ = emulated_terminal
 
-    with progress.progress_printer(
-        p.new_printer(),
-        settings=wandb.Settings(x_show_operation_stats=True),
-    ) as progress_printer:
+    with progress.progress_printer(p.new_printer()) as progress_printer:
         yield progress_printer
 
 
 @pytest.fixture()
 def static_progress_printer() -> Iterator[progress.ProgressPrinter]:
     """A ProgressPrinter that writes to a file or dumb terminal."""
-    with progress.progress_printer(
-        p.new_printer(),
-        settings=wandb.Settings(x_show_operation_stats=True),
-    ) as progress_printer:
+    with progress.progress_printer(p.new_printer()) as progress_printer:
         yield progress_printer
 
 

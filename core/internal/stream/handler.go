@@ -550,7 +550,7 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 }
 
 func (h *Handler) handleRequestPythonPackages(_ *spb.Record, request *spb.PythonPackagesRequest) {
-	if !h.settings.IsPrimaryNode() {
+	if !h.settings.IsPrimary() {
 		return
 	}
 	// write all requirements to a file
@@ -592,7 +592,7 @@ func (h *Handler) handleRequestPythonPackages(_ *spb.Record, request *spb.Python
 }
 
 func (h *Handler) handleCodeSave() {
-	if !h.settings.IsPrimaryNode() {
+	if !h.settings.IsPrimary() {
 		return
 	}
 
@@ -635,7 +635,7 @@ func (h *Handler) handleCodeSave() {
 
 func (h *Handler) handlePatchSave() {
 	// capture git state
-	if h.settings.IsDisableGit() || h.settings.IsDisableMachineInfo() || !h.settings.IsPrimaryNode() {
+	if h.settings.IsDisableGit() || h.settings.IsDisableMachineInfo() || !h.settings.IsPrimary() {
 		return
 	}
 
@@ -681,7 +681,7 @@ func (h *Handler) handlePatchSave() {
 }
 
 func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
-	if h.settings.IsDisableMeta() || h.settings.IsDisableMachineInfo() || !h.settings.IsPrimaryNode() {
+	if h.settings.IsDisableMeta() || h.settings.IsDisableMachineInfo() || !h.settings.IsPrimary() {
 		return
 	}
 
@@ -1061,17 +1061,7 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		h.runTimer.Elapsed().Seconds(),
 	)
 
-	// When running in "shared" mode, there can be multiple writers to the same
-	// run (for example running on different machines). In that case, the
-	// backend determines the step, and the client ID identifies which metrics
-	// came from the same writer. Otherwise, we must set the step explicitly.
-	if h.settings.IsSharedMode() {
-		// TODO: useStep must be false here
-		h.partialHistory.SetString(
-			pathtree.PathOf("_client_id"),
-			h.clientID,
-		)
-	} else if useStep {
+	if !h.settings.IsSharedMode() && useStep {
 		h.partialHistory.SetInt(
 			pathtree.PathOf("_step"),
 			h.partialHistoryStep,

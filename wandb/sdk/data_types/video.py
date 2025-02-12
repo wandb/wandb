@@ -138,21 +138,12 @@ class Video(BatchableMedia):
             fps = fps or 4
             self._encode(fps=fps)
 
-    def _encode(self, fps: int = 4) -> None:
-        # Try to import ImageSequenceClip from the appropriate MoviePy module
-        mpy = None
-        try:
-            # Attempt to load moviepy.editor for MoviePy < 2.0
-            mpy = util.get_module(
-                "moviepy.editor",
-                required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
-            )
-        except wandb.Error:
-            # Fallback to moviepy for MoviePy >= 2.0
-            mpy = util.get_module(
-                "moviepy",
-                required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
-            )
+    def encode(self, fps: int = 4) -> None:
+        # import ImageSequenceClip from the appropriate MoviePy module
+        mpy = util.get_module(
+            "moviepy.video.io.ImageSequenceClip",
+            required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
+        )
 
         tensor = self._prepare_video(self.data)
         _, self._height, self._width, self._channels = tensor.shape  # type: ignore

@@ -95,6 +95,7 @@ class GpuNvidiaInfo(BaseModel, validate_assignment=True):
     memory_total: int | None = None
     cuda_cores: int | None = None
     architecture: str | None = None
+    uuid: str | None = None
 
     def to_proto(self) -> wandb_internal_pb2.GpuNvidiaInfo:
         return wandb_internal_pb2.GpuNvidiaInfo(
@@ -102,6 +103,7 @@ class GpuNvidiaInfo(BaseModel, validate_assignment=True):
             memory_total=self.memory_total or 0,
             cuda_cores=self.cuda_cores or 0,
             architecture=self.architecture or "",
+            uuid=self.uuid or "",
         )
 
     @classmethod
@@ -111,6 +113,7 @@ class GpuNvidiaInfo(BaseModel, validate_assignment=True):
             memory_total=proto.memory_total,
             cuda_cores=proto.cuda_cores,
             architecture=proto.architecture,
+            uuid=proto.uuid,
         )
 
 
@@ -233,78 +236,135 @@ class Metadata(BaseModel, validate_assignment=True):
 
     NOTE: Definitions must be kept in sync with wandb_internal.proto::MetadataRequest.
 
-    Attributes:
-        os (str, optional): Operating system.
-        python (str, optional): Python version.
-        heartbeat_at (datetime, optional): Timestamp of last heartbeat.
-        started_at (datetime, optional): Timestamp of run start.
-        docker (str, optional): Docker image.
-        cuda (str, optional): CUDA version.
-        args (List[str]): Command-line arguments.
-        state (str, optional): Run state.
-        program (str, optional): Program name.
-        code_path (str, optional): Path to code.
-        git (GitRepoRecord, optional): Git repository information.
-        email (str, optional): Email address.
-        root (str, optional): Root directory.
-        host (str, optional): Host name.
-        username (str, optional): Username.
-        executable (str, optional): Python executable path.
-        code_path_local (str, optional): Local code path.
-        colab (str, optional): Colab URL.
-        cpu_count (int, optional): CPU count.
-        cpu_count_logical (int, optional): Logical CPU count.
-        gpu_type (str, optional): GPU type.
-        disk (Dict[str, DiskInfo]): Disk information.
-        memory (MemoryInfo, optional): Memory information.
-        cpu (CpuInfo, optional): CPU information.
-        apple (AppleInfo, optional): Apple silicon information.
-        gpu_nvidia (List[GpuNvidiaInfo]): NVIDIA GPU information.
-        gpu_amd (List[GpuAmdInfo]): AMD GPU information.
-        slurm (Dict[str, str]): Slurm environment information.
-        cuda_version (str, optional): CUDA version.
-        trainium (TrainiumInfo, optional): Trainium information.
-        tpu (TPUInfo, optional): TPU information.
+    Examples:
+        Update Run metadata:
+
+        ```python
+        with wandb.init(settings=settings) as run:
+            run._metadata.gpu_nvidia = [
+                {
+                    "name": "Tesla T4",
+                    "memory_total": "16106127360",
+                    "cuda_cores": 2560,
+                    "architecture": "Turing",
+                },
+                ...,
+            ]
+
+            run._metadata.gpu_type = "Tesla T4"
+            run._metadata.gpu_count = 42
+
+            run._metadata.tpu = {
+                "name": "v6e",
+                "hbm_gib": 32,
+                "devices_per_chip": 1,
+                "count": 1337,
+            }
+        ```
     """
 
-    # TODO: Pydantic configuration.
     model_config = ConfigDict(
         extra="ignore",  # ignore extra fields
         validate_default=True,  # validate default values
+        use_attribute_docstrings=True,  # for field descriptions
+        revalidate_instances="always",
     )
 
     os: str | None = None
+    """Operating system."""
+
     python: str | None = None
+    """Python version."""
+
     heartbeat_at: datetime | None = Field(default=None, alias="heartbeatAt")
+    """Timestamp of last heartbeat."""
+
     started_at: datetime | None = Field(default=None, alias="startedAt")
+    """Timestamp of run start."""
+
     docker: str | None = None
+    """Docker image."""
+
     cuda: str | None = None
+    """CUDA version."""
+
     args: list[str] = Field(default_factory=list)
+    """Command-line arguments."""
+
     state: str | None = None
+    """Run state."""
+
     program: str | None = None
+    """Program name."""
+
     code_path: str | None = Field(default=None, alias="codePath")
+    """Path to code."""
+
     git: GitRepoRecord | None = None
+    """Git repository information."""
+
     email: str | None = None
+    """Email address."""
+
     root: str | None = None
+    """Root directory."""
+
     host: str | None = None
+    """Host name."""
+
     username: str | None = None
+    """Username."""
+
     executable: str | None = None
+    """Python executable path."""
+
     code_path_local: str | None = Field(default=None, alias="codePathLocal")
+    """Local code path."""
+
     colab: str | None = None
+    """Colab URL."""
+
     cpu_count: int | None = Field(default=None, alias="cpuCount")
+    """CPU count."""
+
     cpu_count_logical: int | None = Field(default=None, alias="cpuCountLogical")
+    """Logical CPU count."""
+
     gpu_type: str | None = Field(default=None, alias="gpuType")
+    """GPU type."""
+
     gpu_count: int | None = Field(default=None, alias="gpuCount")
+    """GPU count."""
+
     disk: dict[str, DiskInfo] = Field(default_factory=dict)
+    """Disk information."""
+
     memory: MemoryInfo | None = None
+    """Memory information."""
+
     cpu: CpuInfo | None = None
+    """CPU information."""
+
     apple: AppleInfo | None = None
+    """Apple silicon information."""
+
     gpu_nvidia: list[GpuNvidiaInfo] = Field(default_factory=list, alias="gpuNvidia")
+    """NVIDIA GPU information."""
+
     gpu_amd: list[GpuAmdInfo] = Field(default_factory=list, alias="gpuAmd")
+    """AMD GPU information."""
+
     slurm: dict[str, str] = Field(default_factory=dict)
+    """Slurm environment information."""
+
     cuda_version: str | None = Field(default=None, alias="cudaVersion")
+    """CUDA version."""
+
     trainium: TrainiumInfo | None = None
+    """Trainium information."""
+
     tpu: TPUInfo | None = None
+    """TPU information."""
 
     def __init__(self, **data):
         super().__init__(**data)

@@ -47,7 +47,7 @@ from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
 )
-from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
+from wandb.sdk.lib.paths import FilePathStr, StrPath
 from wandb.util import (
     _is_artifact_object,
     _is_artifact_string,
@@ -453,63 +453,72 @@ class RunStatus:
 class Run:
     """A unit of computation logged by wandb. Typically, this is an ML experiment.
 
-    Create a run with `wandb.init()`:
+        Create a run with `wandb.init()`:
+    <<<<<<< HEAD
 
-    ```python
-    import wandb
+    =======
+    >>>>>>> main
+        ```python
+        import wandb
 
-    run = wandb.init()
-    ```
+        run = wandb.init()
+        ```
 
-    There is only ever at most one active `wandb.Run` in any process,
-    and it is accessible as `wandb.run`:
+        There is only ever at most one active `wandb.Run` in any process,
+        and it is accessible as `wandb.run`:
+    <<<<<<< HEAD
 
-    ```python
-    import wandb
+    =======
+    >>>>>>> main
+        ```python
+        import wandb
 
-    assert wandb.run is None
+        assert wandb.run is None
 
-    wandb.init()
+        wandb.init()
 
-    assert wandb.run is not None
-    ```
-    anything you log with `wandb.log` will be sent to that run.
+        assert wandb.run is not None
+        ```
+        anything you log with `wandb.log` will be sent to that run.
 
-    If you want to start more runs in the same script or notebook, you'll need to
-    finish the run that is in-flight. Runs can be finished with `wandb.finish` or
-    by using them in a `with` block:
+        If you want to start more runs in the same script or notebook, you'll need to
+        finish the run that is in-flight. Runs can be finished with `wandb.finish` or
+        by using them in a `with` block:
+    <<<<<<< HEAD
 
-    ```python
-    import wandb
+    =======
+    >>>>>>> main
+        ```python
+        import wandb
 
-    wandb.init()
-    wandb.finish()
+        wandb.init()
+        wandb.finish()
 
-    assert wandb.run is None
+        assert wandb.run is None
 
-    with wandb.init() as run:
-        pass  # log data here
+        with wandb.init() as run:
+            pass  # log data here
 
-    assert wandb.run is None
-    ```
+        assert wandb.run is None
+        ```
 
-    See the documentation for `wandb.init` for more on creating runs, or check out
-    [our guide to `wandb.init`](https://docs.wandb.ai/guides/track/launch).
+        See the documentation for `wandb.init` for more on creating runs, or check out
+        [our guide to `wandb.init`](https://docs.wandb.ai/guides/track/launch).
 
-    In distributed training, you can either create a single run in the rank 0 process
-    and then log information only from that process, or you can create a run in each process,
-    logging from each separately, and group the results together with the `group` argument
-    to `wandb.init`. For more details on distributed training with W&B, check out
-    [our guide](https://docs.wandb.ai/guides/track/log/distributed-training).
+        In distributed training, you can either create a single run in the rank 0 process
+        and then log information only from that process, or you can create a run in each process,
+        logging from each separately, and group the results together with the `group` argument
+        to `wandb.init`. For more details on distributed training with W&B, check out
+        [our guide](https://docs.wandb.ai/guides/track/log/distributed-training).
 
-    Currently, there is a parallel `Run` object in the `wandb.Api`. Eventually these
-    two objects will be merged.
+        Currently, there is a parallel `Run` object in the `wandb.Api`. Eventually these
+        two objects will be merged.
 
-    Attributes:
-        summary: (Summary) Single values set for each `wandb.log()` key. By
-            default, summary is set to the last value logged. You can manually
-            set summary to the best value, like max accuracy, instead of the
-            final value.
+        Attributes:
+            summary: (Summary) Single values set for each `wandb.log()` key. By
+                default, summary is set to the last value logged. You can manually
+                set summary to the best value, like max accuracy, instead of the
+                final value.
     """
 
     _telemetry_obj: telemetry.TelemetryRecord
@@ -547,8 +556,6 @@ class Run:
 
     _init_pid: int
     _attach_pid: int
-    _iface_pid: int | None
-    _iface_port: int | None
 
     _attach_id: str | None
     _is_attached: bool
@@ -595,6 +602,10 @@ class Run:
         self._config._set_callback(self._config_callback)
         self._config._set_artifact_callback(self._config_artifact_callback)
         self._config._set_settings(self._settings)
+
+        # The _wandb key is always expected on the run config.
+        wandb_key = "_wandb"
+        self._config._update({wandb_key: dict()})
 
         # TODO: perhaps this should be a property that is a noop on a finished run
         self.summary = wandb_summary.Summary(
@@ -659,30 +670,12 @@ class Run:
             process_context="user",
         )
 
-        # Populate config
-        config = config or dict()
-        wandb_key = "_wandb"
-        config.setdefault(wandb_key, dict())
         self._launch_artifact_mapping: dict[str, Any] = {}
         self._unique_launch_artifact_sequence_names: dict[str, Any] = {}
-        if self._settings.save_code and self._settings.program_relpath:
-            config[wandb_key]["code_path"] = LogicalPath(
-                os.path.join("code", self._settings.program_relpath)
-            )
 
-        if self._settings.fork_from is not None:
-            config[wandb_key]["branch_point"] = {
-                "run_id": self._settings.fork_from.run,
-                "step": self._settings.fork_from.value,
-            }
-
-        if self._settings.resume_from is not None:
-            config[wandb_key]["branch_point"] = {
-                "run_id": self._settings.resume_from.run,
-                "step": self._settings.resume_from.value,
-            }
-
-        self._config._update(config, ignore_locked=True)
+        # Populate config
+        config = config or dict()
+        self._config._update(config, allow_val_change=True, ignore_locked=True)
 
         if sweep_config:
             self._config.merge_locked(
@@ -707,10 +700,6 @@ class Run:
         if launch_trace_id:
             self._config[wandb_key]["launch_trace_id"] = launch_trace_id
 
-        # interface pid and port configured when backend is configured (See _hack_set_run)
-        # TODO: using pid isn't the best for windows as pid reuse can happen more often than unix
-        self._iface_pid = None
-        self._iface_port = None
         self._attach_id = None
         self._is_attached = False
         self._is_finished = False
@@ -720,12 +709,6 @@ class Run:
         # for now, use runid as attach id, this could/should be versioned in the future
         if not self._settings.x_disable_service:
             self._attach_id = self._settings.run_id
-
-    def _set_iface_pid(self, iface_pid: int) -> None:
-        self._iface_pid = iface_pid
-
-    def _set_iface_port(self, iface_port: int) -> None:
-        self._iface_port = iface_port
 
     def _handle_launch_artifact_overrides(self) -> None:
         if self._settings.launch and (os.environ.get("WANDB_ARTIFACTS") is not None):
@@ -1327,7 +1310,7 @@ class Run:
         with telemetry.context(run=self) as tel:
             tel.feature.set_summary = True
         if self._backend and self._backend.interface:
-            self._backend.interface.publish_summary(summary_record)
+            self._backend.interface.publish_summary(self, summary_record)
 
     def _on_progress_get_summary(self, handle: MailboxProgress) -> None:
         pass
@@ -1442,6 +1425,7 @@ class Run:
 
         not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
         self._backend.interface.publish_partial_history(
+            self,
             data,
             user_step=self._step,
             step=step,
@@ -1799,7 +1783,7 @@ class Run:
         ```
 
         ```python
-        # Image from PIL
+        # Image from NumPy
         import numpy as np
         from PIL import Image as PILImage
         import wandb
@@ -1808,7 +1792,10 @@ class Run:
         examples = []
         for i in range(3):
             pixels = np.random.randint(
-                low=0, high=256, size=(100, 100, 3), dtype=np.uint8
+                low=0,
+                high=256,
+                size=(100, 100, 3),
+                dtype=np.uint8,
             )
             pil_image = PILImage.fromarray(pixels, mode="RGB")
             image = wandb.Image(pil_image, caption=f"random field {i}")
@@ -1817,14 +1804,17 @@ class Run:
         ```
 
         ```python
-        # Video from numpy
+        # Video from NumPy
         import numpy as np
         import wandb
 
         run = wandb.init()
         # axes are (time, channel, height, width)
         frames = np.random.randint(
-            low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8
+            low=0,
+            high=256,
+            size=(10, 3, 100, 100),
+            dtype=np.uint8,
         )
         run.log({"video": wandb.Video(frames, fps=4)})
         ```
@@ -2130,15 +2120,6 @@ class Run:
         logger.info(f"finishing run {self._get_path()}")
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
-
-        # Pop this run (hopefully) from the run stack, to support the "reinit"
-        # functionality of wandb.init().
-        #
-        # TODO: It's not clear how _global_run_stack could have length other
-        # than 1 at this point in the code. If you're reading this, consider
-        # refactoring this thing.
-        if self._wl and len(self._wl._global_run_stack) > 0:
-            self._wl._global_run_stack.pop()
 
         # Run hooks that need to happen before the last messages to the
         # internal service, like Jupyter hooks.
@@ -2626,10 +2607,7 @@ class Run:
 
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
-        with progress.progress_printer(
-            self._printer,
-            self._settings,
-        ) as progress_printer:
+        with progress.progress_printer(self._printer) as progress_printer:
             # Wait for the run to complete.
             _ = exit_handle.wait(
                 timeout=-1,
@@ -3471,9 +3449,13 @@ class Run:
         ```
         """
         artifact = self.use_artifact(artifact_or_name=name)
-        assert (
-            "model" in str(artifact.type.lower())
-        ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
+        if "model" not in str(artifact.type.lower()):
+            raise AssertionError(
+                "You can only use this method for 'model' artifacts."
+                " For an artifact to be a 'model' artifact, its type property"
+                " must contain the substring 'model'."
+            )
+
         path = artifact.download()
 
         # If returned directory contains only one file, return path to that file
@@ -3565,18 +3547,25 @@ class Run:
         ```
         """
         name_parts = registered_model_name.split("/")
-        assert (
-            len(name_parts) == 1
-        ), "Please provide only the name of the registered model. Do not append the entity or project name."
+        if len(name_parts) != 1:
+            raise AssertionError(
+                "Please provide only the name of the registered model."
+                " Do not append the entity or project name."
+            )
+
         project = "model-registry"
         target_path = self.entity + "/" + project + "/" + registered_model_name
 
         public_api = self._public_api()
         try:
             artifact = public_api._artifact(name=f"{name}:latest")
-            assert (
-                "model" in str(artifact.type.lower())
-            ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
+            if "model" not in str(artifact.type.lower()):
+                raise AssertionError(
+                    "You can only use this method for 'model' artifacts."
+                    " For an artifact to be a 'model' artifact, its type"
+                    " property must contain the substring 'model'."
+                )
+
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type=artifact.type
             )
@@ -3846,14 +3835,14 @@ class Run:
         if not settings.quiet:
             # TODO: add verbosity levels and add this to higher levels
             printer.display(
-                f'{printer.emoji("star")} View project at {printer.link(project_url)}'
+                f"{printer.emoji('star')} View project at {printer.link(project_url)}"
             )
             if sweep_url:
                 printer.display(
-                    f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
+                    f"{printer.emoji('broom')} View sweep at {printer.link(sweep_url)}"
                 )
         printer.display(
-            f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
+            f"{printer.emoji('rocket')} View run at {printer.link(run_url)}",
         )
 
         if run_name and settings.anonymous in ["allow", "must"]:

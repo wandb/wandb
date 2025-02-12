@@ -1360,7 +1360,7 @@ func (s *Sender) uploadSummaryFile() {
 		return
 	}
 
-	if !s.settings.IsPrimaryNode() {
+	if !s.settings.IsPrimary() {
 		return
 	}
 
@@ -1390,7 +1390,7 @@ func (s *Sender) uploadConfigFile() {
 		return
 	}
 
-	if !s.settings.IsPrimaryNode() {
+	if !s.settings.IsPrimary() {
 		return
 	}
 

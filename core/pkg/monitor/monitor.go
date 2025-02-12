@@ -145,6 +145,18 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 		sm.assets = append(sm.assets, trainium)
 	}
 
+	// DCGM Exporter.
+	if url := settings.GetStatsDcgmExporter(); url != "" {
+		params := DCGMExporterParams{
+			URL:     url,
+			Headers: settings.GetStatsOpenMetricsHeaders(),
+			Logger:  sm.logger,
+		}
+		if de := NewDCGMExporter(params); de != nil {
+			sm.assets = append(sm.assets, de)
+		}
+	}
+
 	// OpenMetrics endpoints to monitor.
 	if endpoints := settings.GetStatsOpenMetricsEndpoints(); endpoints != nil {
 		for name, url := range endpoints {
@@ -306,11 +318,7 @@ func (sm *SystemMonitor) monitorAsset(asset Asset) {
 				sm.logger.CaptureError(
 					fmt.Errorf("monitor: %v: error sampling metrics: %v", asset.Name(), err),
 				)
-				// shutdown the asset to be on the safe side
-				if closer, ok := asset.(interface{ Close() }); ok {
-					closer.Close()
-				}
-				return
+				continue
 			}
 
 			if metrics == nil || len(metrics.Item) == 0 {

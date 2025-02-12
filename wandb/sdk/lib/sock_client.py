@@ -256,10 +256,8 @@ class SockClient:
                 data = self._sock.recv(self._bufsize)
             except socket.timeout:
                 break
-            except ConnectionResetError:
-                raise SockClientClosedError
-            except OSError:
-                raise SockClientClosedError
+            except OSError as e:
+                raise SockClientClosedError from e
             finally:
                 if timeout:
                     self._sock.settimeout(None)

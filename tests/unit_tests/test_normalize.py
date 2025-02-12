@@ -1,51 +1,87 @@
-import json
+from __future__ import annotations
+
+import re
+from typing import NoReturn
 
 import pytest
 import requests
 from wandb.apis.normalize import normalize_exceptions
-from wandb.errors import CommError, Error
+from wandb.errors import CommError
 
 
-def raise_exception():
-    raise Exception("test")
-
-
-def response_factory(status_code, json_data=None):
+def _http_response(
+    status_code: int,
+    body: bytes | None = None,
+    reason: str | None = None,
+):
     response = requests.Response()
-    if json_data is not None:
-        response._content = json.dumps(json_data).encode()
+    if body is not None:
+        response._content = body
+    if reason is not None:
+        response.reason = reason
     response.status_code = status_code
     return response
 
 
-def raise_http_error(response):
-    raise requests.HTTPError("HTTP error occurred", response=response)
+def test_exception():
+    @normalize_exceptions
+    def fn():
+        raise Exception("test")
+
+    with pytest.raises(CommError, match="test"):
+        fn()
 
 
-def raise_wandb_error():
-    raise Error("W&B error occurred")
+@normalize_exceptions
+def _raise_normalized_http_error(response: requests.Response) -> NoReturn:
+    raise requests.HTTPError(response=response)
+
+
+def test_empty_http_error():
+    resp = _http_response(404)
+
+    with pytest.raises(CommError, match="HTTP 404"):
+        _raise_normalized_http_error(resp)
+
+
+def test_http_error_with_reason():
+    resp = _http_response(404, reason="Not Found")
+
+    with pytest.raises(CommError, match=re.escape("HTTP 404 (Not Found)")):
+        _raise_normalized_http_error(resp)
 
 
 @pytest.mark.parametrize(
-    "func, args, error, message",
+    "body, message",
     [
-        (raise_exception, (), CommError, "test"),
-        (raise_http_error, (response_factory(404),), CommError, r"<Response \[404\]>"),
-        (
-            raise_http_error,
-            (response_factory(404, {"errors": "not found"}),),
-            CommError,
-            r"<Response \[404\]>",
-        ),
-        (
-            raise_http_error,
-            (response_factory(404, {"errors": ["not found"]}),),
-            CommError,
-            "not found",
-        ),
-        (raise_wandb_error, (), Error, "W&B error occurred"),
+        (b"not JSON", "HTTP 500: not JSON"),
+        (b'"JSON string"', 'HTTP 500: "JSON string"'),
+        (b'{"bad field": 123}', 'HTTP 500: {"bad field": 123}'),
+        (b'{"error": 123}', 'HTTP 500: {"error": 123}'),
+        (b'{"errors": 123}', 'HTTP 500: {"errors": 123}'),
+        (b'{"errors": "string"}', 'HTTP 500: {"errors": "string"}'),
     ],
 )
-def test_normalize_http_error(func, args, error, message):
-    with pytest.raises(error, match=message):
-        normalize_exceptions(func)(*args)
+def test_http_error_invalid_body(body, message):
+    resp = _http_response(500, body=body)
+
+    with pytest.raises(CommError, match=re.escape(message)):
+        _raise_normalized_http_error(resp)
+
+
+@pytest.mark.parametrize(
+    "body, message",
+    [
+        (b'{"error": "string"}', "HTTP 500: string"),
+        (b'{"error": {"message": "message"}}', "HTTP 500: message"),
+        (
+            b'{"errors": ["string", {"message": "nested message"}]}',
+            "HTTP 500: string; nested message",
+        ),
+    ],
+)
+def test_http_error_valid_body(body, message):
+    resp = _http_response(500, body=body)
+
+    with pytest.raises(CommError, match=re.escape(message)):
+        _raise_normalized_http_error(resp)

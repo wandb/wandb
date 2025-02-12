@@ -63,6 +63,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterable,
     List,
     Literal,
     Optional,
@@ -103,7 +104,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.19.3.dev1"
+__version__: str = "0.19.7.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -113,6 +114,13 @@ summary: wandb_summary.Summary
 _sentry: Sentry
 api: InternalApi
 patched: Dict[str, List[Callable]]
+
+def require(
+    requirement: str | Iterable[str] | None = None,
+    experiment: str | Iterable[str] | None = None,
+) -> None:
+    """<sdk/wandb_require.py::require>"""
+    ...
 
 def setup(settings: Settings | None = None) -> _WandbSetup:
     """<sdk/wandb_setup.py::setup>"""
