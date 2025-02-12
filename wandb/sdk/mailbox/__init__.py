@@ -11,3 +11,4 @@ continuously reads data from the service and passes it to the mailbox.
 
 from .handles import HandleAbandonedError, MailboxHandle
 from .mailbox import Mailbox
+from .wait_with_progress import wait_all_with_progress, wait_with_progress
