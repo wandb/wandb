@@ -10,6 +10,7 @@ For more on using `wandb.init()`, including code snippets, check out our
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import dataclasses
 import json
@@ -42,7 +43,7 @@ from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import SummaryDisabled, filesystem, module, paths, printer, telemetry
 from .lib.deprecate import Deprecated, deprecate
-from .lib.mailbox import Mailbox, MailboxProgress
+from .mailbox import Mailbox, wait_with_progress
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings
@@ -757,11 +758,6 @@ class _WandbInit:
         )
         return drun
 
-    def _on_progress_init(self, handle: MailboxProgress) -> None:
-        line = "Waiting for wandb.init()...\r"
-        percent_done = handle.percent_done
-        self.printer.progress_update(line, percent_done=percent_done)
-
     def init(self, settings: Settings, config: _ConfigParts) -> Run:  # noqa: C901
         self._logger.info("calling init triggers")
         trigger.call("on_init")
@@ -905,7 +901,6 @@ class _WandbInit:
         run._set_teardown_hooks(self._teardown_hooks)
 
         assert backend.interface
-        mailbox.enable_keepalive()
         backend.interface.publish_header()
 
         # Using GitRepo() blocks & can be slow, depending on user's current git setup.
@@ -928,11 +923,11 @@ class _WandbInit:
         )
 
         run_init_handle = backend.interface.deliver_run(run)
-        result = run_init_handle.wait(
-            timeout=timeout,
-            on_progress=self._on_progress_init,
-            cancel=True,
-        )
+
+        async def display_init_message() -> None:
+            while True:
+                self.printer.progress_update("Waiting for wandb.init()...\r")
+                await asyncio.sleep(1)
 
         # Raise an error if deliver_run failed.
         #
@@ -941,8 +936,16 @@ class _WandbInit:
         #
         # TODO: Remove try-except once x_disable_service is removed.
         try:
-            if not result or not result.run_result:
-                run_init_handle._cancel()
+            try:
+                result = wait_with_progress(
+                    run_init_handle,
+                    timeout=timeout,
+                    progress_after=1,
+                    display_progress=display_init_message,
+                )
+
+            except TimeoutError:
+                run_init_handle.cancel(backend.interface)
 
                 # This may either be an issue with the W&B server (a CommError)
                 # or a bug in the SDK (an Error). We cannot distinguish between
@@ -952,6 +955,8 @@ class _WandbInit:
                     " Please try increasing the timeout with the `init_timeout`"
                     " setting: `wandb.init(settings=wandb.Settings(init_timeout=120))`."
                 )
+
+            assert result.run_result
 
             if error := ProtobufErrorHandler.to_exception(result.run_result.error):
                 raise error
@@ -1085,8 +1090,6 @@ def _attach(
     run._set_library(_wl)
     run._set_backend(backend)
     assert backend.interface
-
-    mailbox.enable_keepalive()
 
     attach_handle = backend.interface.deliver_attach(attach_id)
     # TODO: add progress to let user know we are doing something

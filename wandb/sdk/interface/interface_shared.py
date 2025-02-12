@@ -13,9 +13,9 @@ from typing import Any, Optional, cast
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
+from wandb.sdk.mailbox import Mailbox, MailboxHandle
 from wandb.util import json_dumps_safer, json_friendly
 
-from ..lib.mailbox import Mailbox, MailboxHandle
 from .interface import InterfaceBase
 from .message_future import MessageFuture
 from .router import MessageRouter
@@ -462,7 +462,10 @@ class InterfaceShared(InterfaceBase):
 
     def _deliver_record(self, record: pb.Record) -> MailboxHandle:
         mailbox = self._get_mailbox()
-        handle = mailbox._deliver_record(record, interface=self)
+
+        handle = mailbox.require_response(record)
+        self._publish(record)
+
         return handle
 
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:

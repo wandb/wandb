@@ -24,10 +24,7 @@ def any_timeout(request):
 
 @pytest.fixture(params=[-3.2, -1, 0])
 def immediate_timeout(request):
-    """A timeout value that should be an immediate timeout.
-
-    Not intended for the `wait()` method, which treats -1 specially.
-    """
+    """A timeout value that should be an immediate timeout."""
     return request.param
 
 
