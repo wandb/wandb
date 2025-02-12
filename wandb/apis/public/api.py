@@ -18,7 +18,6 @@ import urllib
 from typing import Any, Dict, List, Optional
 
 import requests
-from wandb.sdk.artifacts.registry_visibility import RegistryVisibility
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
@@ -38,6 +37,7 @@ from wandb.apis.public.utils import (
     parse_org_from_registry_path,
 )
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
+from wandb.sdk.artifacts.registry_visibility import RegistryVisibility
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
@@ -918,9 +918,7 @@ class Api:
         Examples:
             Find runs in my_project where config.experiment_name has been set to "foo"
             ```
-            api.runs(
-                path="my_entity/my_project", filters={"config.experiment_name": "foo"}
-            )
+            api.runs(path="my_entity/my_project", filters={"config.experiment_name": "foo"})
             ```
 
             Find runs in my_project where config.experiment_name has been set to "foo" or "bar"
@@ -1419,9 +1417,7 @@ class Api:
 
             Find all collections in the registries with the name "my_collection" and the tag "my_tag"
             ```
-            api.registries().collections(
-                filter={"name": "my_collection", "tag": "my_tag"}
-            )
+            api.registries().collections(filter={"name": "my_collection", "tag": "my_tag"})
             ```
 
             Find all artifact versions in the registries with a collection name that contains "my_collection" and a version that has the alias "best"
