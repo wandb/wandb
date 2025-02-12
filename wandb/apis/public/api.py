@@ -18,6 +18,7 @@ import urllib
 from typing import Any, Dict, List, Optional
 
 import requests
+from wandb.sdk.artifacts.registry_visibility import RegistryVisibility
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
@@ -26,8 +27,16 @@ from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.registries import Registries
-from wandb.apis.public.utils import PathType, parse_org_from_registry_path
+from wandb.apis.public.registries import (
+    Registries,
+    Registry,
+    _fetch_org_entity_from_organization,
+)
+from wandb.apis.public.utils import (
+    PathType,
+    fetch_org_from_settings_or_entity,
+    parse_org_from_registry_path,
+)
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
@@ -909,7 +918,9 @@ class Api:
         Examples:
             Find runs in my_project where config.experiment_name has been set to "foo"
             ```
-            api.runs(path="my_entity/my_project", filters={"config.experiment_name": "foo"})
+            api.runs(
+                path="my_entity/my_project", filters={"config.experiment_name": "foo"}
+            )
             ```
 
             Find runs in my_project where config.experiment_name has been set to "foo" or "bar"
@@ -936,7 +947,8 @@ class Api:
             Find runs in my_project where the run name matches a regex (anchors are not supported)
             ```
             api.runs(
-                path="my_entity/my_project", filters={"display_name": {"$regex": "^foo.*"}}
+                path="my_entity/my_project",
+                filters={"display_name": {"$regex": "^foo.*"}},
             )
             ```
 
@@ -1407,7 +1419,9 @@ class Api:
 
             Find all collections in the registries with the name "my_collection" and the tag "my_tag"
             ```
-            api.registries().collections(filter={"name": "my_collection", "tag": "my_tag"})
+            api.registries().collections(
+                filter={"name": "my_collection", "tag": "my_tag"}
+            )
             ```
 
             Find all artifact versions in the registries with a collection name that contains "my_collection" and a version that has the alias "best"
@@ -1438,26 +1452,63 @@ class Api:
         Returns:
             A registry iterator.
         """
-        if organization is None:
-            organization = self.settings["organization"]
-            if organization is None:
-                # Fetch the org via the Entity. Won't work if default entity is a personal entity and belongs to multiple orgs
-                entity = self.settings["entity"] or self.default_entity
-                if entity is None:
-                    raise ValueError(
-                        "No entity specified and can't fetch organization from the entity"
-                    )
-                entity_orgs = InternalApi()._fetch_orgs_and_org_entities_from_entity(
-                    entity
-                )
-                if len(entity_orgs) == 0:
-                    raise ValueError(
-                        "No organizations found for entity. Please specify an organization in the settings."
-                    )
-                if len(entity_orgs) > 1:
-                    raise ValueError(
-                        "Multiple organizations found for entity. Please specify an organization in the settings."
-                    )
-                organization = entity_orgs[0].display_name
-
+        organization = organization or fetch_org_from_settings_or_entity(
+            self.settings, self.default_entity
+        )
         return Registries(self.client, organization, filter)
+
+    def registry(self, name: str, organization: Optional[str] = None) -> Registry:
+        """Return a registry by name.
+
+        Args:
+            name: (str) The name of the registry. This is without the `wandb-registry-` prefix.
+            organization: (str, optional) The organization of the registry.
+                If no organization is set in the settings, the organization will be fetched from the entity if the entity only belongs to one organization.
+
+        Returns:
+            A registry object.
+        """
+        organization = organization or fetch_org_from_settings_or_entity(
+            self.settings, self.default_entity
+        )
+        full_name = f"wandb-registry-{name}"
+        org_entity = _fetch_org_entity_from_organization(self.client, organization)
+        registry = Registry(self.client, organization, org_entity, full_name, {})
+        registry.load()
+        return registry
+
+    def create_registry(
+        self,
+        name: str,
+        organization: Optional[str] = None,
+        description: Optional[str] = None,
+        registry_visibility: RegistryVisibility = RegistryVisibility.ORGANIZATION,
+        accepted_artifact_types: Optional[List[str]] = None,
+    ) -> Registry:
+        """Create a new registry.
+
+        Args:
+            name: (str) The name of the registry.
+            organization: (str, optional) The organization of the registry.
+                If no organization is set in the settings, the organization will be fetched from the entity if the entity only belongs to one organization.
+            description: (str, optional) The description of the registry.
+            registry_visibility: (str, optional) The visibility of the registry.
+                RegistryVisibility.ORGANIZATION: Anyone in the organization can view this registry. You can edit their roles later from the settings in the UI.
+                RegistryVisibility.RESTRICTED: Only invited members via the UI can access this registry. Public sharing is disabled.
+            accepted_artifact_types: (list, optional) The accepted artifact types of the registry. If not specified, all types are accepted.
+                Note: allowed types added to the registry cannot be removed later.
+
+        Returns:
+            A registry object.
+        """
+        organization = organization or fetch_org_from_settings_or_entity(
+            self.settings, self.default_entity
+        )
+        return Registry.create(
+            self.client,
+            organization,
+            name,
+            description,
+            registry_visibility,
+            accepted_artifact_types,
+        )

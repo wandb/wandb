@@ -1,7 +1,8 @@
 """Public API: registries."""
 
 import json
-from typing import Any, Dict, Optional
+from functools import lru_cache
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb_gql import gql
 
@@ -9,7 +10,15 @@ import wandb
 from wandb.apis.attrs import Attrs
 from wandb.apis.paginator import Paginator
 from wandb.apis.public.artifacts import ArtifactCollection
-from wandb.sdk.artifacts.graphql_fragments import _gql_artifact_fragment
+from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
+from wandb.sdk.artifacts.graphql_fragments import (
+    _gql_artifact_fragment,
+    _gql_registry_fragment,
+)
+from wandb.sdk.artifacts.registry_visibility import RegistryVisibility
+
+if TYPE_CHECKING:
+    from wandb_gql import Client
 
 
 class Registries(Paginator):
@@ -17,7 +26,7 @@ class Registries(Paginator):
 
     def __init__(
         self,
-        client,
+        client: "Client",
         organization: str,
         filter: Optional[Dict[str, Any]] = None,
         per_page: Optional[int] = 100,
@@ -25,7 +34,8 @@ class Registries(Paginator):
         self.client = client
         self.organization = organization
         self.filter = filter or {}
-        self.QUERY = gql("""
+        self.QUERY = gql(
+            """
             query Registries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
                 organization(name: $organization) {
                     orgEntity {
@@ -37,23 +47,16 @@ class Registries(Paginator):
                             }
                             edges {
                                 node {
-                                    allowAllArtifactTypesInRegistry
-                                    artifactTypes(includeAll: true) {
-                                        edges {
-                                            node {
-                                                name
-                                            }
-                                        }
-                                    }
-                                    name
-                                    description
+                                    ...RegistryFragment
                                 }
                             }
                         }
                     }
                 }
             }
-        """)
+        """
+            + _gql_registry_fragment()
+        )
         variables = {
             "organization": organization,
             "filters": json.dumps(self.filter),
@@ -118,19 +121,65 @@ class Registries(Paginator):
 class Registry(Attrs):
     """Registry in the Global registry."""
 
-    def __init__(self, client, organization, entity, project, attrs):
+    def __init__(
+        self,
+        client: "Client",
+        organization: str,
+        entity: str,
+        full_name: str,
+        attrs: Dict[str, Any],
+    ):
         self.client = client
-        self.full_name = project
-        self.name = self.full_name.replace("wandb-registry-", "")
-        self.entity = entity
-        self.organization = organization
-        self.description = attrs.get("description", "")
-        self.allow_all_artifact_types = attrs.get(
+        self._full_name = full_name
+        self._name = self.full_name.replace(REGISTRY_PREFIX, "")
+        self._entity = entity
+        self._organization = organization
+        self._description = attrs.get("description", "")
+        self._allow_all_artifact_types = attrs.get(
             "allowAllArtifactTypesInRegistry", False
         )
-        self.artifact_types = [
+        self._artifact_types = [
             t["node"]["name"] for t in attrs.get("artifactTypes", {}).get("edges", [])
         ]
+        self._id = attrs.get("id", "")
+        self._created_at = attrs.get("createdAt", "")
+        self._updated_at = attrs.get("updatedAt", "")
+
+    @property
+    def full_name(self):
+        return self._full_name
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def entity(self):
+        return self._entity
+
+    @property
+    def organization(self):
+        return self._organization
+
+    @property
+    def description(self):
+        return self._description
+
+    @property
+    def allow_all_artifact_types(self):
+        return self._allow_all_artifact_types
+
+    @property
+    def artifact_types(self):
+        return self._artifact_types
+
+    @property
+    def created_at(self):
+        return self._created_at
+
+    @property
+    def updated_at(self):
+        return self._updated_at
 
     @property
     def path(self):
@@ -148,13 +197,171 @@ class Registry(Attrs):
         }
         return Versions(self.client, self.organization, registry_filter, None, filter)
 
+    def add_artifact_type(self, accepted_artifact_types: Optional[list[str]] = None):
+        if accepted_artifact_types is None:
+            return
+
+        mutation = gql("""
+            mutation CreateArtifactTypes($entityName: String!, $projectName: String!, $artifactTypes: [ArtifactTypeInput!]!) {
+                createArtifactTypes(
+                    input: {entityName: $entityName, projectName: $projectName, artifactTypes: $artifactTypes}
+                ) {
+                    artifactTypes {
+                        name
+                    }
+                }
+            }
+        """)
+        artifact_types = [
+            {"name": artifact_type}
+            for artifact_type in accepted_artifact_types
+            if artifact_type not in self._artifact_types
+        ]
+
+        response = self.client.execute(
+            mutation,
+            variable_values={
+                "entityName": self.entity,
+                "projectName": self.full_name,
+                "artifactTypes": artifact_types,
+            },
+        )
+        new_types = [
+            artifact_type["name"]
+            for artifact_type in response["createArtifactTypes"]["artifactTypes"]
+        ]
+        self._artifact_types.extend(new_types)
+
+    @classmethod
+    def create(
+        cls,
+        client: "Client",
+        organization: str,
+        name: str,
+        description: Optional[str] = None,
+        registry_visibility: RegistryVisibility = RegistryVisibility.ORGANIZATION,
+        accepted_artifact_types: Optional[list[str]] = None,
+    ):
+        org_entity = _fetch_org_entity_from_organization(client, organization)
+
+        full_name = REGISTRY_PREFIX + name
+        # Check if registry already exists
+        existing_registry = Registries(client, organization, filter={"name": full_name})
+        if existing_registry:
+            raise ValueError(
+                f"Registry {name} already exists in organization {organization}, please use a different name."
+            )
+
+        mutation = gql(
+            """
+            mutation UpsertRegistryProject($description: String, $entityName: String, $name: String, $access: String, $allowAllArtifactTypesInRegistry: Boolean) {
+            upsertModel(
+                input: {description: $description, entityName: $entityName, name: $name, access: $access, allowAllArtifactTypesInRegistry: $allowAllArtifactTypesInRegistry}
+            ) {
+                project {
+                    ...RegistryFragment
+                }
+                inserted
+                }
+            }
+        """
+            + _gql_registry_fragment()
+        )
+        response = client.execute(
+            mutation,
+            variable_values={
+                "description": description,
+                "entityName": org_entity,
+                "name": full_name,
+                "access": registry_visibility.value,
+                "allowAllArtifactTypesInRegistry": accepted_artifact_types is None,
+            },
+        )
+        if not response["upsertModel"]["inserted"]:
+            raise ValueError(
+                f"Failed to create registry {name} in organization {organization}"
+            )
+
+        registry = Registry(
+            client,
+            organization,
+            org_entity,
+            full_name,
+            response["upsertModel"]["project"],
+        )
+
+        registry.add_artifact_type(accepted_artifact_types)
+
+        return registry
+
+    def delete(self):
+        mutation = gql("""
+            mutation deleteModel($id: String!) {
+                deleteModel(input: {id: $id}) {
+                    success
+                    __typename
+                }
+            }
+        """)
+        self.client.execute(mutation, variable_values={"id": self._id})
+
+    def load(self):
+        # TODO: make this not duplicate code from init
+        try:
+            response = self.client.execute(
+                gql(
+                    """
+                    query Registry($name: String, $entityName: String) {
+                        entity(name: $entityName) {
+                            project(name: $name) {
+                                ...RegistryFragment
+                            }
+                        }
+                    }
+                """
+                    + _gql_registry_fragment()
+                ),
+                variable_values={
+                    "name": self.full_name,
+                    "entityName": self.entity,
+                },
+            )
+        except Exception as e:
+            if e.response.status_code == 404:
+                raise KeyError(
+                    f"Registry {self.name} not found in organization {self.organization}"
+                )
+            raise e
+        if response["entity"] is None:
+            raise ValueError(
+                f"Registry {self.name} not found in organization {self.organization}"
+            )
+        self.attrs = response["entity"]["project"]
+        if self.attrs is None:
+            raise ValueError(
+                f"Registry {self.name} not found in organization {self.organization}"
+            )
+        self._id = self.attrs.get("id", "")
+        if self._id is None:
+            raise ValueError(f"Registry {self.name}'s id is not found")
+        self._artifact_types = [
+            t["node"]["name"]
+            for t in self.attrs.get("artifactTypes", {}).get("edges", [])
+        ]
+        self._description = self.attrs.get("description", "")
+        self._allow_all_artifact_types = self.attrs.get(
+            "allowAllArtifactTypesInRegistry", False
+        )
+        self._created_at = self.attrs.get("createdAt", "")
+        self._updated_at = self.attrs.get("updatedAt", "")
+
 
 class Collections(Paginator):
     """Iterator that returns Artifact collections."""
 
     def __init__(
         self,
-        client,
+        client: "Client",
         organization: str,
         registry_filter: Optional[Dict[str, Any]] = None,
         collection_filter: Optional[Dict[str, Any]] = None,
@@ -301,7 +508,7 @@ class Versions(Paginator):
 
     def __init__(
         self,
-        client,
+        client: "Client",
         organization: str,
         registry_filter: Optional[Dict[str, Any]] = None,
         collection_filter: Optional[Dict[str, Any]] = None,
@@ -423,3 +630,33 @@ class Versions(Paginator):
             ]["edges"]
         )
         return artifacts
+
+
+@lru_cache(maxsize=10)
+def _fetch_org_entity_from_organization(client: "Client", organization: str) -> str:
+    """Fetch the org entity from the organization.
+
+    Args:
+        client (Client): Graphql client.
+        organization (str): The organization to fetch the org entity for.
+    """
+    query = gql("""
+        query FetchOrgEntityFromOrganization($organization: String!) {
+            organization(name: $organization) {
+                    orgEntity {
+                        name
+                    }
+                }
+            }
+        """)
+    response = client.execute(query, variable_values={"organization": organization})
+    if response["organization"]["orgEntity"]:
+        if not response["organization"]["orgEntity"]["name"]:
+            return ValueError(
+                f"Organization entity for organization: {organization} is empty"
+            )
+        return response["organization"]["orgEntity"]["name"]
+    else:
+        raise ValueError(
+            f"Organization entity for organization: {organization} not found"
+        )

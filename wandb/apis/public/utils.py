@@ -2,7 +2,9 @@ import re
 from enum import Enum
 from urllib.parse import urlparse
 
+from wandb._iterutils import one
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
+from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
 def parse_s3_url_to_s3_uri(url) -> str:
@@ -66,3 +68,38 @@ def parse_org_from_registry_path(path: str, path_type: PathType) -> str:
         if is_artifact_registry_project(project):
             return org
     return ""
+
+
+def fetch_org_from_settings_or_entity(
+    settings: dict,
+    default_entity: str | None,
+) -> str:
+    """Fetch the org and org entity for registry APIs.
+
+    Returns the org from the settings if available. If no org is passed in or set, the entity is used to fetch the org.
+
+    Args:
+        organization (str | None): The organization to fetch the org for.
+        settings (dict): The settings to fetch the org for.
+        default_entity (str | None): The default entity to fetch the org for.
+    """
+    organization = settings["organization"]
+    if organization is None:
+        # Fetch the org via the Entity. Won't work if default entity is a personal entity and belongs to multiple orgs
+        entity = settings["entity"] or default_entity
+        if entity is None:
+            raise ValueError(
+                "No entity specified and can't fetch organization from the entity"
+            )
+        entity_orgs = InternalApi()._fetch_orgs_and_org_entities_from_entity(entity)
+        entity_org = one(
+            entity_orgs,
+            too_short=ValueError(
+                "No organizations found for entity. Please specify an organization in the settings."
+            ),
+            too_long=ValueError(
+                "Multiple organizations found for entity. Please specify an organization in the settings."
+            ),
+        )
+        organization = entity_org.display_name
+    return organization
