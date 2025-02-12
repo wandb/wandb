@@ -61,8 +61,7 @@ def _sync(
     backend.interface._stream_id = stream_id  # type: ignore
 
     handle = backend.interface.deliver_finish_sync()
-    result = handle.wait(timeout=-1)
-    assert result and result.response
+    result = handle.wait_or(timeout=None)
     response = result.response.sync_response
     if response.url:
         termlog(f"Synced {p} to {util.app_url(response.url)}")

@@ -1842,9 +1842,8 @@ class Artifact:
             skip_cache=skip_cache,
             path_prefix=path_prefix,
         )
-        result = handle.wait(timeout=-1)
+        result = handle.wait_or(timeout=None)
 
-        assert result is not None
         response = result.response.download_artifact_response
         if response.error_message:
             raise ValueError(f"Error downloading artifact: {response.error_message}")

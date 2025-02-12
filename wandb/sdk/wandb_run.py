@@ -233,10 +233,13 @@ class RunStatusChecker:
                 set_handle(local_handle)
 
             try:
-                result = local_handle.wait(timeout=timeout)
+                result = local_handle.wait_or(timeout=timeout)
             except HandleAbandonedError:
                 # This can happen if the service process dies.
                 break
+            except TimeoutError:
+                result = None
+
             with lock:
                 set_handle(None)
 
@@ -1304,9 +1307,12 @@ class Run:
         if not self._backend or not self._backend.interface:
             return {}
         handle = self._backend.interface.deliver_get_summary()
-        result = handle.wait(timeout=self._settings.summary_timeout)
-        if not result:
+
+        try:
+            result = handle.wait_or(timeout=self._settings.summary_timeout)
+        except TimeoutError:
             return {}
+
         get_summary_response = result.response.get_summary_response
         return proto_util.dict_from_proto_list(get_summary_response.item)
 
@@ -2153,8 +2159,7 @@ class Run:
             return RunStatus()
 
         handle_run_status = self._backend.interface.deliver_request_run_status()
-        result = handle_run_status.wait(timeout=-1)
-        assert result
+        result = handle_run_status.wait_or(timeout=None)
         sync_data = result.response.run_status_response
 
         sync_time = None
@@ -2603,8 +2608,7 @@ class Run:
 
         # Print some final statistics.
         poll_exit_handle = self._backend.interface.deliver_poll_exit()
-        result = poll_exit_handle.wait(timeout=-1)
-        assert result
+        result = poll_exit_handle.wait_or(timeout=None)
         progress.print_sync_dedupe_stats(
             self._printer,
             result.response.poll_exit_response,
@@ -2612,8 +2616,7 @@ class Run:
 
         self._poll_exit_response = result.response.poll_exit_response
         internal_messages_handle = self._backend.interface.deliver_internal_messages()
-        result = internal_messages_handle.wait(timeout=-1)
-        assert result
+        result = internal_messages_handle.wait_or(timeout=None)
         self._internal_messages_response = result.response.internal_messages_response
 
         # dispatch all our final requests
@@ -2623,12 +2626,10 @@ class Run:
             self._backend.interface.deliver_request_sampled_history()
         )
 
-        result = sampled_history_handle.wait(timeout=-1)
-        assert result
+        result = sampled_history_handle.wait_or(timeout=None)
         self._sampled_history = result.response.sampled_history_response
 
-        result = final_summary_handle.wait(timeout=-1)
-        assert result
+        result = final_summary_handle.wait_or(timeout=None)
         self._final_summary = result.response.get_summary_response
 
         if self._backend:
@@ -2934,13 +2935,10 @@ class Run:
             wandb.termwarn(
                 "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
             )
-        result = handle.wait(timeout=-1)
-        if result is None:
-            handle.abandon()
-        else:
-            response = result.response.link_artifact_response
-            if response.error_message:
-                wandb.termerror(response.error_message)
+        result = handle.wait_or(timeout=None)
+        response = result.response.link_artifact_response
+        if response.error_message:
+            wandb.termerror(response.error_message)
 
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach
@@ -3652,16 +3650,18 @@ class Run:
             return {}
 
         handle = self._backend.interface.deliver_get_system_metrics()
-        result = handle.wait(timeout=1)
 
-        if result:
+        try:
+            result = handle.wait_or(timeout=1)
+        except TimeoutError:
+            return {}
+        else:
             try:
                 response = result.response.get_system_metrics_response
-                if response:
-                    return pb_to_dict(response)
+                return pb_to_dict(response) if response else {}
             except Exception as e:
                 logger.error("Error getting system metrics: %s", e)
-        return {}
+                return {}
 
     @property
     @_run_decorator._attach
@@ -3680,10 +3680,11 @@ class Run:
             self.__metadata._set_callback(self._metadata_callback)
 
         handle = self._backend.interface.deliver_get_system_metadata()
-        result = handle.wait(timeout=1)
 
-        if not result:
-            logger.error("Error getting run metadata: no result")
+        try:
+            result = handle.wait_or(timeout=1)
+        except TimeoutError:
+            logger.error("Error getting run metadata: timeout")
             return None
 
         try:

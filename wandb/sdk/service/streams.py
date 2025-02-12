@@ -80,7 +80,7 @@ class StreamRecord:
         self._wait_thread_active()
 
     def _wait_thread_active(self) -> None:
-        self._iface.deliver_status().wait(timeout=-1)
+        self._iface.deliver_status().wait_or(timeout=None)
 
     def join(self) -> None:
         self._iface.join()
@@ -331,20 +331,16 @@ class StreamMux:
             sampled_history_handle = stream.interface.deliver_request_sampled_history()
             internal_messages_handle = stream.interface.deliver_internal_messages()
 
-            result = internal_messages_handle.wait(timeout=-1)
-            assert result
+            result = internal_messages_handle.wait_or(timeout=None)
             internal_messages_response = result.response.internal_messages_response
 
-            result = poll_exit_handle.wait(timeout=-1)
-            assert result
+            result = poll_exit_handle.wait_or(timeout=None)
             poll_exit_response = result.response.poll_exit_response
 
-            result = sampled_history_handle.wait(timeout=-1)
-            assert result
+            result = sampled_history_handle.wait_or(timeout=None)
             sampled_history = result.response.sampled_history_response
 
-            result = final_summary_handle.wait(timeout=-1)
-            assert result
+            result = final_summary_handle.wait_or(timeout=None)
             final_summary = result.response.get_summary_response
 
             Run._footer(
