@@ -12,7 +12,7 @@ from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator
 from wandb.errors.term import termlog
-from wandb.sdk.artifacts.graphql_fragments import (
+from wandb.sdk.artifacts._graphql_fragments import (
     ARTIFACT_FILES_FRAGMENT,
     ARTIFACTS_TYPES_FRAGMENT,
 )
