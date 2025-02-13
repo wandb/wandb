@@ -9,7 +9,6 @@ if TYPE_CHECKING:
 from wandb_gql import gql
 
 import wandb
-from wandb.apis.attrs import Attrs
 from wandb.apis.paginator import Paginator
 from wandb.apis.public.artifacts import ArtifactCollection
 from wandb.sdk.artifacts._graphql_fragments import (
