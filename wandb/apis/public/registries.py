@@ -357,6 +357,9 @@ class Versions(Paginator):
                                     artifact {
                                         ...ArtifactFragment
                                     }
+                                    aliases {
+                                        alias
+                                    }
                                 }
                             }
                         }
@@ -364,7 +367,7 @@ class Versions(Paginator):
                 }
             }
             """
-            + _gql_artifact_fragment()
+            + _gql_artifact_fragment(include_aliases=False)
         )
 
         variables = {
@@ -424,6 +427,7 @@ class Versions(Paginator):
                 + str(a["node"]["versionIndex"]),
                 a["node"]["artifact"],
                 self.client,
+                a["node"]["aliases"],
             )
             for a in self.last_response["organization"]["orgEntity"][
                 "artifactMemberships"

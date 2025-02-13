@@ -43,7 +43,7 @@ ARTIFACT_FILES_FRAGMENT = """fragment ArtifactFilesFragment on Artifact {
 }"""
 
 
-def _gql_artifact_fragment() -> str:
+def _gql_artifact_fragment(include_aliases: bool = True) -> str:
     """Return a GraphQL query fragment with all parseable Artifact attributes."""
     allowed_fields = set(InternalApi().server_artifact_introspection())
 
@@ -54,6 +54,23 @@ def _gql_artifact_fragment() -> str:
     ttl_is_inherited = "ttlIsInherited" if supports_ttl else ""
 
     tags = "tags {name}" if supports_tags else ""
+
+    # The goal is to move all artifact aliases fetches to the membership level in the future
+    # but this is a quick fix to unblock the registry work
+    aliases = (
+        """aliases {
+                artifactCollection {
+                    project {
+                        entityName
+                        name
+                    }
+                    name
+                }
+                alias
+            }"""
+        if include_aliases
+        else ""
+    )
 
     return f"""
         fragment ArtifactFragment on Artifact {{
@@ -73,16 +90,7 @@ def _gql_artifact_fragment() -> str:
             metadata
             {ttl_duration_seconds}
             {ttl_is_inherited}
-            aliases {{
-                artifactCollection {{
-                    project {{
-                        entityName
-                        name
-                    }}
-                    name
-                }}
-                alias
-            }}
+            {aliases}
             {tags}
             state
             currentManifest {{
