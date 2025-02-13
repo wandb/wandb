@@ -1,0 +1,55 @@
+client:
+  name: basic
+tools: {}
+targets:
+  "AppleStats-release.exe": ["<AppleStats-release.exe>"]
+  "AppleStats-release.module": ["<AppleStats-release.module>"]
+  "PackageStructure": ["<PackageStructure>"]
+  "main": ["<AppleStats-release.exe>","<AppleStats-release.module>"]
+  "test": ["<AppleStats-release.exe>","<AppleStats-release.module>"]
+default: "main"
+nodes:
+  "/Users/estellaxin/Projects/wandb/apple_stats/Sources/":
+    is-directory-structure: true
+    content-exclusion-patterns: [".git",".build"]
+commands:
+  "<AppleStats-release.exe>":
+    tool: phony
+    inputs: ["/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats"]
+    outputs: ["<AppleStats-release.exe>"]
+
+  "<AppleStats-release.module>":
+    tool: phony
+    inputs: ["/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/Store.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/SystemKit.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/constants.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/extensions.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/helpers.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/main.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/protocol.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/smc.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/types.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.swiftmodule"]
+    outputs: ["<AppleStats-release.module>"]
+
+  "C.AppleStats-release.exe":
+    tool: shell
+    inputs: ["/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/Store.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/SystemKit.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/constants.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/extensions.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/helpers.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/main.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/protocol.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/smc.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/types.swift.o"]
+    outputs: ["/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats"]
+    description: "Linking ./.build/arm64-apple-macosx/release/AppleStats"
+    args: ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc","-g","-L","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release","-o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats","-module-name","AppleStats","-emit-executable","-Xlinker","-dead_strip","-Xlinker","-alias","-Xlinker","_AppleStats_main","-Xlinker","_main","-Xlinker","-rpath","-Xlinker","@loader_path","@/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.product/Objects.LinkFileList","-Xlinker","-rpath","-Xlinker","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.5/macosx","-target","arm64-apple-macosx10.14","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-cross-module-optimization"]
+
+  "C.AppleStats-release.module":
+    tool: swift-compiler
+    inputs: ["/Users/estellaxin/Projects/wandb/apple_stats/Sources/Store.swift","/Users/estellaxin/Projects/wandb/apple_stats/Sources/SystemKit.swift","/Users/estellaxin/Projects/wandb/apple_stats/Sources/constants.swift","/Users/estellaxin/Projects/wandb/apple_stats/Sources/extensions.swift","/Users/estellaxin/Projects/wandb/apple_stats/Sources/helpers.swift","/Users/estellaxin/Projects/wandb/apple_stats/Sources/main.swift","/Users/estellaxin/Projects/wandb/apple_stats/Sources/protocol.swift","/Users/estellaxin/Projects/wandb/apple_stats/Sources/smc.swift","/Users/estellaxin/Projects/wandb/apple_stats/Sources/types.swift"]
+    outputs: ["/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/Store.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/SystemKit.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/constants.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/extensions.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/helpers.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/main.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/protocol.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/smc.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/types.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.swiftmodule"]
+    executable: "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    module-name: "AppleStats"
+    module-output-path: "/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.swiftmodule"
+    import-paths: ["/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release"]
+    temps-path: "/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build"
+    objects: ["/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/Store.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/SystemKit.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/constants.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/extensions.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/helpers.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/main.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/protocol.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/smc.swift.o","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/AppleStats.build/types.swift.o"]
+    other-args: ["-target","arm64-apple-macosx10.14","-swift-version","5","-O","-g","-j10","-DSWIFT_PACKAGE","-module-cache-path","/Users/estellaxin/Projects/wandb/apple_stats/.build/arm64-apple-macosx/release/ModuleCache","-parseable-output","-Xfrontend","-entry-point-function-name","-Xfrontend","AppleStats_main","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-cross-module-optimization","-Xcc","-isysroot","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-Xcc","-fPIC","-package-name","apple_stats"]
+    sources: ["/Users/estellaxin/Projects/wandb/apple_stats/Sources/Store.swift","/Users/estellaxin/Projects/wandb/apple_stats/Sources/SystemKit.swift","/Users/estellaxin/Projects/wandb/apple_stats/Sources/constants.swift","/Users/estellaxin/Projects/wandb/apple_stats/Sources/extensions.swift","/Users/estellaxin/Projects/wandb/apple_stats/Sources/helpers.swift","/Users/estellaxin/Projects/wandb/apple_stats/Sources/main.swift","/Users/estellaxin/Projects/wandb/apple_stats/Sources/protocol.swift","/Users/estellaxin/Projects/wandb/apple_stats/Sources/smc.swift","/Users/estellaxin/Projects/wandb/apple_stats/Sources/types.swift"]
+    is-library: false
+    enable-whole-module-optimization: true
+    num-threads: 10
+
+  "PackageStructure":
+    tool: package-structure-tool
+    inputs: ["/Users/estellaxin/Projects/wandb/apple_stats/Sources/","/Users/estellaxin/Projects/wandb/apple_stats/Package.swift","/Users/estellaxin/Projects/wandb/apple_stats/Package.resolved"]
+    outputs: ["<PackageStructure>"]
+    description: "Planning build"
+    allow-missing-inputs: true
+

@@ -1,0 +1,47 @@
+2023-07-14 05:07:44,971 INFO    MainThread:41699 [wandb_setup.py:_flush():76] Current SDK version is 0.15.6.dev1
+2023-07-14 05:07:44,974 INFO    MainThread:41699 [wandb_setup.py:_flush():76] Configure stats pid to 41699
+2023-07-14 05:07:44,977 INFO    MainThread:41699 [wandb_setup.py:_flush():76] Loading settings from /Users/estellaxin/.config/wandb/settings
+2023-07-14 05:07:44,979 INFO    MainThread:41699 [wandb_setup.py:_flush():76] Loading settings from /private/var/folders/vh/k98fyx251l792bbzj485tdnw0000gp/T/tmp194ab4mm/wandb/settings
+2023-07-14 05:07:44,981 WARNING MainThread:41699 [wandb_setup.py:_flush():76] Unknown environment variable: WANDB_ERROR_REPORTING
+2023-07-14 05:07:44,983 INFO    MainThread:41699 [wandb_setup.py:_flush():76] Loading settings from environment variables: {'_network_buffer': '1000', 'username': 'test_artifact_log_with_network_error', 'base_url': 'http://localhost:63747', 'api_key': '***REDACTED***'}
+2023-07-14 05:07:44,985 INFO    MainThread:41699 [wandb_setup.py:_flush():76] Applying setup settings: {'_disable_service': False}
+2023-07-14 05:07:44,987 INFO    MainThread:41699 [wandb_setup.py:_flush():76] Inferring run settings from compute environment: {'program': '<python with no main file>'}
+2023-07-14 05:07:44,992 INFO    MainThread:41699 [wandb_init.py:_log_setup():507] Logging user logs to /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_artifact_log_with_network_error/wandb/run-20230714_050744-5ve0hy9f/logs/debug.log
+2023-07-14 05:07:44,994 INFO    MainThread:41699 [wandb_init.py:_log_setup():508] Logging internal logs to /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_artifact_log_with_network_error/wandb/run-20230714_050744-5ve0hy9f/logs/debug-internal.log
+2023-07-14 05:07:44,997 INFO    MainThread:41699 [wandb_init.py:init():547] calling init triggers
+2023-07-14 05:07:44,999 INFO    MainThread:41699 [wandb_init.py:init():554] wandb.init called with sweep_config: {}
+config: {}
+2023-07-14 05:07:45,001 INFO    MainThread:41699 [wandb_init.py:init():596] starting backend
+2023-07-14 05:07:45,003 INFO    MainThread:41699 [wandb_init.py:init():600] setting up manager
+2023-07-14 05:07:45,012 INFO    MainThread:41699 [backend.py:_multiprocessing_setup():106] multiprocessing start_methods=spawn,fork,forkserver, using: spawn
+2023-07-14 05:07:45,017 INFO    MainThread:41699 [wandb_init.py:init():606] backend started and connected
+2023-07-14 05:07:45,039 INFO    MainThread:41699 [wandb_init.py:init():697] updated telemetry
+2023-07-14 05:07:45,042 INFO    MainThread:41699 [wandb_init.py:init():730] communicating run to backend with 60.0 second timeout
+2023-07-14 05:07:45,086 INFO    MainThread:41699 [wandb_run.py:_on_init():2174] communicating current version
+2023-07-14 05:07:45,713 INFO    MainThread:41699 [wandb_run.py:_on_init():2183] got version response 
+2023-07-14 05:07:45,718 INFO    MainThread:41699 [wandb_init.py:init():781] starting run threads in backend
+2023-07-14 05:07:45,809 INFO    MainThread:41699 [wandb_run.py:_console_start():2153] atexit reg
+2023-07-14 05:07:45,813 INFO    MainThread:41699 [wandb_run.py:_redirect():2008] redirect: off
+2023-07-14 05:07:45,818 INFO    MainThread:41699 [wandb_init.py:init():822] run started, returning control to user process
+2023-07-14 05:07:49,046 INFO    MainThread:41699 [retry.py:__call__():172] Retry attempt failed:
+Traceback (most recent call last):
+  File "/Users/estellaxin/Projects/wandb/wandb/sdk/lib/retry.py", line 131, in __call__
+    result = self._call_fn(*args, **kwargs)
+  File "/Users/estellaxin/Projects/wandb/wandb/apis/public.py", line 210, in execute
+    return self._client.execute(*args, **kwargs)
+  File "/Users/estellaxin/Projects/wandb/wandb/vendor/gql-0.2.0/wandb_gql/client.py", line 52, in execute
+    result = self._get_result(document, *args, **kwargs)
+  File "/Users/estellaxin/Projects/wandb/wandb/vendor/gql-0.2.0/wandb_gql/client.py", line 60, in _get_result
+    return self.transport.execute(document, *args, **kwargs)
+  File "/Users/estellaxin/Projects/wandb/wandb/sdk/lib/gql_request.py", line 56, in execute
+    request.raise_for_status()
+  File "/Users/estellaxin/Projects/wandb/.tox/py38/lib/python3.8/site-packages/requests/models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: INTERNAL SERVER ERROR for url: http://localhost:63747/graphql
+2023-07-14 05:08:21,477 INFO    MainThread:41699 [wandb_run.py:_finish():1888] finishing run mock_server_entity/test/5ve0hy9f
+2023-07-14 05:08:21,523 INFO    MainThread:41699 [wandb_run.py:_atexit_cleanup():2122] got exitcode: 0
+2023-07-14 05:08:21,527 INFO    MainThread:41699 [wandb_run.py:_restore():2105] restore
+2023-07-14 05:08:21,530 INFO    MainThread:41699 [wandb_run.py:_restore():2111] restore done
+2023-07-14 05:08:39,575 INFO    MainThread:41699 [wandb_run.py:_footer_history_summary_info():3475] rendering history
+2023-07-14 05:08:39,612 INFO    MainThread:41699 [wandb_run.py:_footer_history_summary_info():3507] rendering summary
+2023-07-14 05:08:39,615 INFO    MainThread:41699 [wandb_run.py:_footer_sync_info():3434] logging synced files

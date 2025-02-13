@@ -1,0 +1,74 @@
+wandb: Tracking run with wandb version 0.13.5.dev1
+wandb: W&B syncing is set to `offline` in this directory.  
+wandb: Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+Calling init with args: {} Namespace(epochs=50, heavy=True, sleep_every=15)
+Environ: {'WANDB_REQUIRE_SERVICE': 'True', 'WANDB_REQUIRE_REPORT_EDITING_V0': 'True', 'WANDB_USERNAME': 'test_sync_in_progress', 'WANDB_BASE_URL': 'http://localhost:65264', 'WANDB_ERROR_REPORTING': 'false', 'WANDB_API_KEY': '1824812581259009ca9981580f8f8a9012409eee', 'WANDB_MODE': 'offline', 'WANDB_DIR': '/Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress', 'WANDB_CONSOLE': 'off'}
+Init called with config {'epochs': 50, 'heavy': True, 'sleep_every': 15}
+loss: 7.961146780429152
+sleeping
+loss: 13.986237024601957
+loss: 40.69924568715556
+loss: 43.657043561876186
+loss: 26.28918252255052
+loss: 0.6502726977115936
+loss: 8.863356638351183
+loss: 23.892257592867004
+loss: 10.215919817565707
+loss: 25.76470210676909
+loss: 6.952337312691643
+loss: 8.554486970397818
+loss: 21.585057470204173
+loss: 3.9368341416058774
+loss: 16.871347555612253
+loss: 0.48719459513012264
+sleeping
+loss: 13.585295821482015
+loss: 2.9476720728095125
+loss: 16.812147519171983
+loss: 4.007785600886619
+loss: 5.7251737755150405
+loss: 8.507142281824395
+loss: 25.525805512746913
+loss: 3.583159985985811
+loss: 14.322078300339063
+loss: 11.663876537613216
+loss: 8.17686796457716
+loss: 11.732794052215008
+loss: 9.293984372888582
+loss: 20.990030326095148
+loss: 15.83024534901083
+sleeping
+loss: 17.409109700590847
+loss: 14.081731149275146
+loss: 2.920284095367795
+loss: 14.044510034016508
+loss: 5.1370075713742445
+loss: 8.015460082171208
+loss: 4.079126948812366
+loss: 7.400052253359698
+loss: 7.753812993516644
+loss: 7.550089290794225
+loss: 1.7208037290674132
+loss: 6.3343067683745415
+loss: 0.21192238066084712
+loss: 1.3959644197386476
+loss: 4.46942428897293
+sleeping
+loss: 2.99227203235157
+loss: 1.8812028613884526
+loss: 0.9139117584759433
+loss: 0.6951925708410678
+Finished
+wandb: Waiting for W&B process to finish... (success).
+wandb: - 0.000 MB of 0.000 MB uploaded (0.000 MB deduped)wandb: 
+wandb: Run history:
+wandb: cool ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb: loss ▂▃██▁▂▅▃▂▂▄▂▁▃▁▄▂▂▅▂▃▂▃▂▄▄▃▁▂▂▂▂▂▁▂▁▂▁▁▁
+wandb: 
+wandb: Run summary:
+wandb: cool True
+wandb: loss 0.69519
+wandb: 
+wandb: You can sync this run to the cloud by running:
+wandb: wandb sync /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/offline-run-20221219_203216-189o96rs
+wandb: Find logs at: ./wandb/offline-run-20221219_203216-189o96rs/logs

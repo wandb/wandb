@@ -1,0 +1,10 @@
+2023-07-14 05:07:27,899 INFO    StreamThr :55084 [internal.py:wandb_internal():86] W&B internal server running at pid: 55084, started at: 2023-07-14 05:07:27.898605
+2023-07-14 05:07:27,913 DEBUG   HandlerThread:55084 [handler.py:handle_request():144] handle_request: status
+2023-07-14 05:07:27,918 INFO    WriterThread:55084 [datastore.py:open_for_write():85] open: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_resume_never_failure/wandb/run-20230714_050727-u77dm3mf/run-u77dm3mf.wandb
+2023-07-14 05:07:27,920 DEBUG   SenderThread:55084 [sender.py:send():359] send: header
+2023-07-14 05:07:27,977 DEBUG   SenderThread:55084 [sender.py:send():359] send: run
+2023-07-14 05:07:27,979 INFO    SenderThread:55084 [sender.py:_maybe_setup_resume():738] checking resume status for None/test/u77dm3mf
+2023-07-14 05:07:27,996 DEBUG   HandlerThread:55084 [handler.py:handle_request():144] handle_request: shutdown
+2023-07-14 05:07:27,996 INFO    HandlerThread:55084 [handler.py:finish():857] shutting down handler
+2023-07-14 05:07:28,979 INFO    WriterThread:55084 [datastore.py:close():294] close: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_resume_never_failure/wandb/run-20230714_050727-u77dm3mf/run-u77dm3mf.wandb
+2023-07-14 05:07:28,991 INFO    SenderThread:55084 [sender.py:finish():1533] shutting down sender

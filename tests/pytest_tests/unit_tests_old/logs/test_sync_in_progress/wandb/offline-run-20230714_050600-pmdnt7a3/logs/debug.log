@@ -1,0 +1,24 @@
+2023-07-14 05:06:00,692 INFO    MainThread:53760 [wandb_setup.py:_flush():76] Current SDK version is 0.15.6.dev1
+2023-07-14 05:06:00,692 INFO    MainThread:53760 [wandb_setup.py:_flush():76] Configure stats pid to 53760
+2023-07-14 05:06:00,692 INFO    MainThread:53760 [wandb_setup.py:_flush():76] Loading settings from /Users/estellaxin/.config/wandb/settings
+2023-07-14 05:06:00,692 INFO    MainThread:53760 [wandb_setup.py:_flush():76] Loading settings from /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_sync_in_progress/wandb/settings
+2023-07-14 05:06:00,692 WARNING MainThread:53760 [wandb_setup.py:_flush():76] Unknown environment variable: WANDB_ERROR_REPORTING
+2023-07-14 05:06:00,692 INFO    MainThread:53760 [wandb_setup.py:_flush():76] Loading settings from environment variables: {'_network_buffer': '1000', 'username': 'test_sync_in_progress', 'base_url': 'http://localhost:63747', 'api_key': '***REDACTED***', 'mode': 'offline', 'root_dir': '/Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_sync_in_progress', 'console': 'off'}
+2023-07-14 05:06:00,692 INFO    MainThread:53760 [wandb_setup.py:_flush():76] Applying setup settings: {'_disable_service': False}
+2023-07-14 05:06:00,692 INFO    MainThread:53760 [wandb_setup.py:_flush():76] Inferring run settings from compute environment: {'program_relpath': 'tests/pytest_tests/unit_tests_old/logs/test_sync_in_progress/train.py', 'program': 'train.py'}
+2023-07-14 05:06:00,692 INFO    MainThread:53760 [wandb_init.py:_log_setup():507] Logging user logs to /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_sync_in_progress/wandb/offline-run-20230714_050600-pmdnt7a3/logs/debug.log
+2023-07-14 05:06:00,692 INFO    MainThread:53760 [wandb_init.py:_log_setup():508] Logging internal logs to /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_sync_in_progress/wandb/offline-run-20230714_050600-pmdnt7a3/logs/debug-internal.log
+2023-07-14 05:06:00,693 INFO    MainThread:53760 [wandb_init.py:init():547] calling init triggers
+2023-07-14 05:06:00,693 INFO    MainThread:53760 [wandb_init.py:init():554] wandb.init called with sweep_config: {}
+config: {'epochs': 50, 'heavy': True, 'sleep_every': 15}
+2023-07-14 05:06:00,693 INFO    MainThread:53760 [wandb_init.py:init():596] starting backend
+2023-07-14 05:06:00,693 INFO    MainThread:53760 [wandb_init.py:init():600] setting up manager
+2023-07-14 05:06:00,696 INFO    MainThread:53760 [backend.py:_multiprocessing_setup():106] multiprocessing start_methods=spawn,fork,forkserver, using: spawn
+2023-07-14 05:06:00,701 INFO    MainThread:53760 [wandb_init.py:init():606] backend started and connected
+2023-07-14 05:06:00,706 INFO    MainThread:53760 [wandb_init.py:init():697] updated telemetry
+2023-07-14 05:06:00,747 INFO    MainThread:53760 [wandb_init.py:init():730] communicating run to backend with 60.0 second timeout
+2023-07-14 05:06:00,757 INFO    MainThread:53760 [wandb_init.py:init():781] starting run threads in backend
+2023-07-14 05:06:00,893 INFO    MainThread:53760 [wandb_run.py:_console_start():2153] atexit reg
+2023-07-14 05:06:00,893 INFO    MainThread:53760 [wandb_run.py:_redirect():2008] redirect: off
+2023-07-14 05:06:00,894 INFO    MainThread:53760 [wandb_init.py:init():822] run started, returning control to user process
+2023-07-14 05:06:10,331 WARNING MsgRouterThr:53760 [router.py:message_loop():77] message_loop has been closed

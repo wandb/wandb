@@ -1,0 +1,21 @@
+{
+    "os": "macOS-12.2.1-arm64-arm-64bit",
+    "python": "3.8.13",
+    "heartbeatAt": "2022-12-20T01:31:54.477730",
+    "startedAt": "2022-12-20T01:31:53.951880",
+    "docker": null,
+    "cpu_count": 10,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "<python with no main file>",
+    "git": {
+        "remote": "git@github.com:wandb/wandb.git",
+        "commit": "35cd368c41562f1c1540afc0f74112da9aa2659d"
+    },
+    "email": "estella.xin@wandb.com",
+    "root": "/Users/estellaxin/Projects/wandb",
+    "host": "test",
+    "username": "test_footer_server_message%5B200-footer-my%20first%20hint%5D",
+    "executable": "/Users/estellaxin/Projects/wandb/.tox/py38/bin/python"
+}

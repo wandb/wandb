@@ -1,0 +1,74 @@
+wandb: Tracking run with wandb version 0.15.6.dev1
+wandb: W&B syncing is set to `offline` in this directory.  
+wandb: Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+Calling init with args: {} Namespace(epochs=50, heavy=True, sleep_every=15)
+Environ: {'WANDB__NETWORK_BUFFER': '1000', 'WANDB_ERROR_REPORTING': 'false', 'WANDB_USERNAME': 'test_sync_in_progress', 'WANDB_BASE_URL': 'http://localhost:63747', 'WANDB_API_KEY': '1824812581259009ca9981580f8f8a9012409eee', 'WANDB_MODE': 'offline', 'WANDB_DIR': '/Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_sync_in_progress', 'WANDB_CONSOLE': 'off'}
+Init called with config {'epochs': 50, 'heavy': True, 'sleep_every': 15}
+loss: 41.39761473284824
+sleeping
+loss: 35.050742840843874
+loss: 36.28559551890908
+loss: 19.59040980885313
+loss: 38.74498274324308
+loss: 30.610938988856926
+loss: 23.355771021808827
+loss: 17.856448759658825
+loss: 40.03332185919754
+loss: 22.687326218123488
+loss: 32.734788666606015
+loss: 7.185877809867418
+loss: 21.030684330161396
+loss: 16.821187912630442
+loss: 14.816868001256584
+loss: 8.539921544967203
+sleeping
+loss: 24.004396978983273
+loss: 32.88575605063532
+loss: 22.658684483217844
+loss: 12.773506148644852
+loss: 28.56072938492757
+loss: 19.426974647613196
+loss: 3.185164358847648
+loss: 16.3733545942431
+loss: 23.697279530612413
+loss: 5.5420661970929626
+loss: 15.155758784867198
+loss: 8.046674133137763
+loss: 13.50806455609646
+loss: 13.87015849753213
+loss: 18.26500335704617
+sleeping
+loss: 1.0272042495525056
+loss: 9.587389165305325
+loss: 9.012104532983056
+loss: 3.280707630901407
+loss: 4.7020103463199225
+loss: 11.256528177295106
+loss: 12.59913576371698
+loss: 2.3016834904926977
+loss: 1.6805928652218767
+loss: 8.740563926126342
+loss: 7.87559162374331
+loss: 6.5917114310811735
+loss: 3.5649410776438333
+loss: 5.340363380304959
+loss: 0.3082283503377775
+sleeping
+loss: 1.5326806075554797
+loss: 1.37594218127867
+loss: 1.783914203799422
+loss: 0.03794694214177996
+Finished
+wandb: Waiting for W&B process to finish... (success).
+wandb: 
+wandb: Run history:
+wandb: cool ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb: loss █▇▇▄▆▅▄█▇▂▅▄▂▅▇▅▆▄▂▄▂▄▂▃▄▁▃▃▂▃▃▁▂▂▂▂▁▁▁▁
+wandb: 
+wandb: Run summary:
+wandb: cool True
+wandb: loss 0.03795
+wandb: 
+wandb: You can sync this run to the cloud by running:
+wandb: wandb sync /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_sync_in_progress/wandb/offline-run-20230714_050600-pmdnt7a3
+wandb: Find logs at: ./wandb/offline-run-20230714_050600-pmdnt7a3/logs

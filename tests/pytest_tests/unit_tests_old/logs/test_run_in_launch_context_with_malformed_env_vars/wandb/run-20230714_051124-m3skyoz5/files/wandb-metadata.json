@@ -1,0 +1,27 @@
+{
+    "os": "macOS-12.2.1-arm64-arm-64bit",
+    "python": "3.8.13",
+    "heartbeatAt": "2023-07-14T09:11:24.916824",
+    "startedAt": "2023-07-14T09:11:24.426492",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "<python with no main file>",
+    "host": "test",
+    "username": "test_run_in_launch_context_with_malformed_env_vars",
+    "executable": "/Users/estellaxin/Projects/wandb/.tox/py38/bin/python",
+    "cpu_count": 10,
+    "cpu_count_logical": 10,
+    "disk": {
+        "total": 926.3517189025879,
+        "used": 23.592041015625
+    },
+    "gpuapple": {
+        "type": "arm",
+        "vendor": "Apple"
+    },
+    "memory": {
+        "total": 64.0
+    }
+}

@@ -1,0 +1,40 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.13.5.dev1
+    framework: keras
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    python_version: 3.8.13
+    start_time: 1671500028.809935
+    t:
+      1:
+      - 2
+      - 3
+      - 12
+      - 55
+      2:
+      - 2
+      - 3
+      - 12
+      - 55
+      3:
+      - 2
+      - 23
+      - 37
+      4: 3.8.13
+      5: 0.13.5.dev1
+      8:
+      - 4
+      - 5
+test_reference_download:
+  desc: null
+  value:
+    _type: artifactVersion
+    _version: v0
+    id: 67f920c2a8775732b4795ea771743060
+    sequenceName: mnist
+    usedAs: test_reference_download
+    version: v0

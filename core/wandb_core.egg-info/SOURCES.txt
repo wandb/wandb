@@ -1,0 +1,12 @@
+MANIFEST.in
+README.md
+pyproject.toml
+setup.py
+wandb_core/AppleStats
+wandb_core/__init__.py
+wandb_core/wandb-core
+wandb_core.egg-info/PKG-INFO
+wandb_core.egg-info/SOURCES.txt
+wandb_core.egg-info/dependency_links.txt
+wandb_core.egg-info/not-zip-safe
+wandb_core.egg-info/top_level.txt

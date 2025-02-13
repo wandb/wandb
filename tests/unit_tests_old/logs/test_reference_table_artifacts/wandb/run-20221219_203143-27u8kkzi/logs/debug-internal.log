@@ -1,0 +1,140 @@
+2022-12-19 20:31:43,712 INFO    StreamThr :47402 [internal.py:wandb_internal():88] W&B internal server running at pid: 47402, started at: 2022-12-19 20:31:43.709617
+2022-12-19 20:31:43,719 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: status
+2022-12-19 20:31:43,880 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: status
+2022-12-19 20:31:43,908 DEBUG   SenderThread:47402 [sender.py:send():303] send: header
+2022-12-19 20:31:43,910 DEBUG   SenderThread:47402 [sender.py:send():303] send: run
+2022-12-19 20:31:43,909 INFO    WriterThread:47402 [datastore.py:open_for_write():75] open: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_reference_table_artifacts/wandb/run-20221219_203143-27u8kkzi/run-27u8kkzi.wandb
+2022-12-19 20:31:43,941 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: check_version
+2022-12-19 20:31:43,942 INFO    SenderThread:47402 [dir_watcher.py:__init__():216] watching files in: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_reference_table_artifacts/wandb/run-20221219_203143-27u8kkzi/files
+2022-12-19 20:31:43,942 INFO    SenderThread:47402 [sender.py:_start_run_threads():928] run started: 27u8kkzi with start time 1671499903.696063
+2022-12-19 20:31:43,942 DEBUG   SenderThread:47402 [sender.py:send():303] send: summary
+2022-12-19 20:31:43,942 INFO    SenderThread:47402 [sender.py:_save_file():1171] saving file wandb-summary.json with policy end
+2022-12-19 20:31:43,942 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: check_version
+2022-12-19 20:31:44,400 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: run_start
+2022-12-19 20:31:44,404 DEBUG   HandlerThread:47402 [meta.py:__init__():34] meta init
+2022-12-19 20:31:44,406 DEBUG   HandlerThread:47402 [meta.py:__init__():49] meta init done
+2022-12-19 20:31:44,406 DEBUG   HandlerThread:47402 [meta.py:probe():215] probe
+2022-12-19 20:31:44,412 DEBUG   HandlerThread:47402 [meta.py:_setup_git():205] setup git
+2022-12-19 20:31:44,465 DEBUG   HandlerThread:47402 [meta.py:_setup_git():212] setup git done
+2022-12-19 20:31:44,466 DEBUG   HandlerThread:47402 [meta.py:_save_pip():53] save pip
+2022-12-19 20:31:44,468 DEBUG   HandlerThread:47402 [meta.py:_save_pip():67] save pip done
+2022-12-19 20:31:44,471 DEBUG   HandlerThread:47402 [meta.py:probe():253] probe done
+2022-12-19 20:31:44,644 DEBUG   SenderThread:47402 [sender.py:send():303] send: files
+2022-12-19 20:31:44,645 INFO    SenderThread:47402 [sender.py:_save_file():1171] saving file wandb-metadata.json with policy now
+2022-12-19 20:31:44,652 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: stop_status
+2022-12-19 20:31:44,654 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: stop_status
+2022-12-19 20:31:44,665 DEBUG   SenderThread:47402 [sender.py:send():303] send: telemetry
+2022-12-19 20:31:44,676 INFO    Thread-16 :47402 [upload_job.py:push():143] Uploaded file /var/folders/vh/k98fyx251l792bbzj485tdnw0000gp/T/tmpu0qoucy7wandb/3k77r14f-wandb-metadata.json
+2022-12-19 20:31:44,680 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: log_artifact
+2022-12-19 20:31:44,682 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: log_artifact
+2022-12-19 20:31:44,711 INFO    SenderThread:47402 [sender.py:send_request_log_artifact():1222] logged artifact A - {'aliases': [{'alias': 'v0', 'artifactCollectionName': 'A'}], 'artifactSequence': {'name': 'A'}, 'artifactType': {'name': 'dataset'}, 'createdAt': '2022-12-19T20:31:44.710325', 'currentManifest': {'file': {'directUrl': '/storage?file=wandb_manifest.json&id=0f5cb675bbe0ce5ee382749a2dbb1dce'}}, 'description': '', 'digest': 'abc123', 'fileCount': 10, 'id': '0f5cb675bbe0ce5ee382749a2dbb1dce', 'labels': [], 'metadata': '{}', 'size': 10000, 'state': 'COMMITTED', 'updatedAt': '2022-12-19T20:31:44.710328', 'versionIndex': 0, 'version': 'v0'}
+2022-12-19 20:31:44,712 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: log_artifact
+2022-12-19 20:31:44,712 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: log_artifact
+2022-12-19 20:31:44,742 INFO    SenderThread:47402 [sender.py:send_request_log_artifact():1222] logged artifact A - {'aliases': [{'alias': 'v0', 'artifactCollectionName': 'A'}], 'artifactSequence': {'name': 'A'}, 'artifactType': {'name': 'dataset'}, 'createdAt': '2022-12-19T20:31:44.741161', 'currentManifest': {'file': {'directUrl': '/storage?file=wandb_manifest.json&id=af045248500069ff5dbb2fe0200f39ea'}}, 'description': '', 'digest': 'abc123', 'fileCount': 10, 'id': 'af045248500069ff5dbb2fe0200f39ea', 'labels': [], 'metadata': '{}', 'size': 10000, 'state': 'COMMITTED', 'updatedAt': '2022-12-19T20:31:44.741164', 'versionIndex': 0, 'version': 'v0'}
+2022-12-19 20:31:44,742 DEBUG   SenderThread:47402 [sender.py:send():303] send: telemetry
+2022-12-19 20:31:44,742 DEBUG   SenderThread:47402 [sender.py:send():303] send: exit
+2022-12-19 20:31:44,742 INFO    SenderThread:47402 [sender.py:send_exit():442] handling exit code: 0
+2022-12-19 20:31:44,742 INFO    SenderThread:47402 [sender.py:send_exit():444] handling runtime: 0
+2022-12-19 20:31:44,743 INFO    SenderThread:47402 [sender.py:_save_file():1171] saving file wandb-summary.json with policy end
+2022-12-19 20:31:44,743 INFO    SenderThread:47402 [sender.py:send_exit():450] send defer
+2022-12-19 20:31:44,744 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:31:44,744 INFO    HandlerThread:47402 [handler.py:handle_request_defer():161] handle defer: 0
+2022-12-19 20:31:44,744 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:31:44,744 INFO    SenderThread:47402 [sender.py:send_request_defer():459] handle sender defer: 0
+2022-12-19 20:31:44,744 INFO    SenderThread:47402 [sender.py:transition_state():463] send defer: 1
+2022-12-19 20:31:44,744 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:31:44,744 INFO    HandlerThread:47402 [handler.py:handle_request_defer():161] handle defer: 1
+2022-12-19 20:31:44,945 INFO    Thread-12 :47402 [dir_watcher.py:_on_file_created():275] file/dir created: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_reference_table_artifacts/wandb/run-20221219_203143-27u8kkzi/files/wandb-summary.json
+2022-12-19 20:31:44,945 INFO    Thread-12 :47402 [dir_watcher.py:_on_file_created():275] file/dir created: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_reference_table_artifacts/wandb/run-20221219_203143-27u8kkzi/files/requirements.txt
+2022-12-19 20:31:44,945 INFO    Thread-12 :47402 [dir_watcher.py:_on_file_created():275] file/dir created: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_reference_table_artifacts/wandb/run-20221219_203143-27u8kkzi/files/wandb-metadata.json
+2022-12-19 20:31:48,028 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: poll_exit
+2022-12-19 20:31:48,028 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:31:48,029 INFO    SenderThread:47402 [sender.py:send_request_defer():459] handle sender defer: 1
+2022-12-19 20:31:48,029 INFO    SenderThread:47402 [sender.py:transition_state():463] send defer: 2
+2022-12-19 20:31:48,029 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: poll_exit
+2022-12-19 20:31:48,030 DEBUG   SenderThread:47402 [sender.py:send():303] send: telemetry
+2022-12-19 20:31:48,030 DEBUG   SenderThread:47402 [sender.py:send():303] send: stats
+2022-12-19 20:31:48,030 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:31:48,030 INFO    HandlerThread:47402 [handler.py:handle_request_defer():161] handle defer: 2
+2022-12-19 20:31:48,031 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:31:48,032 INFO    SenderThread:47402 [sender.py:send_request_defer():459] handle sender defer: 2
+2022-12-19 20:31:48,032 INFO    SenderThread:47402 [sender.py:transition_state():463] send defer: 3
+2022-12-19 20:31:48,032 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:31:48,032 INFO    HandlerThread:47402 [handler.py:handle_request_defer():161] handle defer: 3
+2022-12-19 20:31:48,032 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:31:48,032 INFO    SenderThread:47402 [sender.py:send_request_defer():459] handle sender defer: 3
+2022-12-19 20:31:48,033 INFO    SenderThread:47402 [sender.py:transition_state():463] send defer: 4
+2022-12-19 20:31:48,033 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:31:48,033 INFO    HandlerThread:47402 [handler.py:handle_request_defer():161] handle defer: 4
+2022-12-19 20:31:48,033 DEBUG   SenderThread:47402 [sender.py:send():303] send: summary
+2022-12-19 20:31:48,033 INFO    SenderThread:47402 [sender.py:_save_file():1171] saving file wandb-summary.json with policy end
+2022-12-19 20:31:48,033 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:31:48,034 INFO    SenderThread:47402 [sender.py:send_request_defer():459] handle sender defer: 4
+2022-12-19 20:31:48,034 INFO    SenderThread:47402 [sender.py:transition_state():463] send defer: 5
+2022-12-19 20:31:48,034 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:31:48,034 INFO    HandlerThread:47402 [handler.py:handle_request_defer():161] handle defer: 5
+2022-12-19 20:31:48,034 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:31:48,034 INFO    SenderThread:47402 [sender.py:send_request_defer():459] handle sender defer: 5
+2022-12-19 20:31:48,046 INFO    SenderThread:47402 [sender.py:transition_state():463] send defer: 6
+2022-12-19 20:31:48,046 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:31:48,046 INFO    HandlerThread:47402 [handler.py:handle_request_defer():161] handle defer: 6
+2022-12-19 20:31:48,046 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:31:48,046 INFO    SenderThread:47402 [sender.py:send_request_defer():459] handle sender defer: 6
+2022-12-19 20:31:48,046 INFO    SenderThread:47402 [sender.py:transition_state():463] send defer: 7
+2022-12-19 20:31:48,048 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:31:48,048 INFO    HandlerThread:47402 [handler.py:handle_request_defer():161] handle defer: 7
+2022-12-19 20:31:48,048 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:31:48,048 INFO    SenderThread:47402 [sender.py:send_request_defer():459] handle sender defer: 7
+2022-12-19 20:31:48,048 INFO    SenderThread:47402 [dir_watcher.py:finish():362] shutting down directory watcher
+2022-12-19 20:31:48,973 INFO    SenderThread:47402 [dir_watcher.py:_on_file_modified():292] file/dir modified: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_reference_table_artifacts/wandb/run-20221219_203143-27u8kkzi/files/wandb-summary.json
+2022-12-19 20:31:48,974 INFO    SenderThread:47402 [dir_watcher.py:_on_file_modified():292] file/dir modified: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_reference_table_artifacts/wandb/run-20221219_203143-27u8kkzi/files/config.yaml
+2022-12-19 20:31:48,984 INFO    SenderThread:47402 [dir_watcher.py:finish():392] scan: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_reference_table_artifacts/wandb/run-20221219_203143-27u8kkzi/files
+2022-12-19 20:31:48,984 INFO    SenderThread:47402 [dir_watcher.py:finish():406] scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_reference_table_artifacts/wandb/run-20221219_203143-27u8kkzi/files/requirements.txt requirements.txt
+2022-12-19 20:31:48,984 INFO    SenderThread:47402 [dir_watcher.py:finish():406] scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_reference_table_artifacts/wandb/run-20221219_203143-27u8kkzi/files/config.yaml config.yaml
+2022-12-19 20:31:48,984 INFO    SenderThread:47402 [dir_watcher.py:finish():406] scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_reference_table_artifacts/wandb/run-20221219_203143-27u8kkzi/files/wandb-summary.json wandb-summary.json
+2022-12-19 20:31:48,984 INFO    SenderThread:47402 [dir_watcher.py:finish():406] scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_reference_table_artifacts/wandb/run-20221219_203143-27u8kkzi/files/wandb-metadata.json wandb-metadata.json
+2022-12-19 20:31:48,985 INFO    SenderThread:47402 [sender.py:transition_state():463] send defer: 8
+2022-12-19 20:31:48,990 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:31:48,990 INFO    HandlerThread:47402 [handler.py:handle_request_defer():161] handle defer: 8
+2022-12-19 20:31:48,994 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:31:48,994 INFO    SenderThread:47402 [sender.py:send_request_defer():459] handle sender defer: 8
+2022-12-19 20:31:48,994 INFO    SenderThread:47402 [file_pusher.py:finish():168] shutting down file pusher
+2022-12-19 20:31:49,041 INFO    Thread-17 :47402 [upload_job.py:push():143] Uploaded file /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_reference_table_artifacts/wandb/run-20221219_203143-27u8kkzi/files/requirements.txt
+2022-12-19 20:31:49,044 INFO    Thread-18 :47402 [upload_job.py:push():143] Uploaded file /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_reference_table_artifacts/wandb/run-20221219_203143-27u8kkzi/files/config.yaml
+2022-12-19 20:31:49,044 INFO    Thread-19 :47402 [upload_job.py:push():143] Uploaded file /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_reference_table_artifacts/wandb/run-20221219_203143-27u8kkzi/files/wandb-summary.json
+2022-12-19 20:31:49,249 INFO    Thread-11 :47402 [sender.py:transition_state():463] send defer: 9
+2022-12-19 20:31:49,250 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:31:49,250 INFO    HandlerThread:47402 [handler.py:handle_request_defer():161] handle defer: 9
+2022-12-19 20:31:49,250 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:31:49,250 INFO    SenderThread:47402 [sender.py:send_request_defer():459] handle sender defer: 9
+2022-12-19 20:31:49,250 INFO    SenderThread:47402 [file_pusher.py:join():173] waiting for file pusher
+2022-12-19 20:31:49,250 INFO    SenderThread:47402 [sender.py:transition_state():463] send defer: 10
+2022-12-19 20:31:49,250 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:31:49,251 INFO    HandlerThread:47402 [handler.py:handle_request_defer():161] handle defer: 10
+2022-12-19 20:31:49,251 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:31:49,251 INFO    SenderThread:47402 [sender.py:send_request_defer():459] handle sender defer: 10
+2022-12-19 20:31:49,254 INFO    SenderThread:47402 [sender.py:transition_state():463] send defer: 11
+2022-12-19 20:31:49,254 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:31:49,254 INFO    HandlerThread:47402 [handler.py:handle_request_defer():161] handle defer: 11
+2022-12-19 20:31:49,254 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:31:49,254 INFO    SenderThread:47402 [sender.py:send_request_defer():459] handle sender defer: 11
+2022-12-19 20:31:49,255 INFO    SenderThread:47402 [sender.py:transition_state():463] send defer: 12
+2022-12-19 20:31:49,255 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:31:49,255 INFO    HandlerThread:47402 [handler.py:handle_request_defer():161] handle defer: 12
+2022-12-19 20:31:49,255 DEBUG   SenderThread:47402 [sender.py:send():303] send: final
+2022-12-19 20:31:49,255 DEBUG   SenderThread:47402 [sender.py:send():303] send: footer
+2022-12-19 20:31:49,256 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:31:49,256 INFO    SenderThread:47402 [sender.py:send_request_defer():459] handle sender defer: 12
+2022-12-19 20:31:49,258 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: poll_exit
+2022-12-19 20:31:49,258 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: poll_exit
+2022-12-19 20:31:49,259 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: server_info
+2022-12-19 20:31:49,259 DEBUG   SenderThread:47402 [sender.py:send_request():317] send_request: server_info
+2022-12-19 20:31:49,260 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: get_summary
+2022-12-19 20:31:49,261 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: sampled_history
+2022-12-19 20:31:49,270 DEBUG   HandlerThread:47402 [handler.py:handle_request():138] handle_request: shutdown
+2022-12-19 20:31:49,270 INFO    HandlerThread:47402 [handler.py:finish():814] shutting down handler
+2022-12-19 20:31:50,257 INFO    WriterThread:47402 [datastore.py:close():279] close: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_reference_table_artifacts/wandb/run-20221219_203143-27u8kkzi/run-27u8kkzi.wandb
+2022-12-19 20:31:50,272 INFO    SenderThread:47402 [sender.py:finish():1331] shutting down sender
+2022-12-19 20:31:50,272 INFO    SenderThread:47402 [file_pusher.py:finish():168] shutting down file pusher
+2022-12-19 20:31:50,272 INFO    SenderThread:47402 [file_pusher.py:join():173] waiting for file pusher
+2022-12-19 20:31:51,272 INFO    MainThread:47402 [internal.py:handle_exit():78] Internal process exited

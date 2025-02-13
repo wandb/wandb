@@ -1,0 +1,175 @@
+2023-07-14 05:07:18,207 INFO    StreamThr :54916 [internal.py:wandb_internal():86] W&B internal server running at pid: 54916, started at: 2023-07-14 05:07:18.207286
+2023-07-14 05:07:18,213 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: status
+2023-07-14 05:07:18,217 INFO    WriterThread:54916 [datastore.py:open_for_write():85] open: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_lazy_artifact_passthrough/wandb/run-20230714_050718-bnplycgm/run-bnplycgm.wandb
+2023-07-14 05:07:18,218 DEBUG   SenderThread:54916 [sender.py:send():359] send: header
+2023-07-14 05:07:18,218 DEBUG   SenderThread:54916 [sender.py:send():359] send: run
+2023-07-14 05:07:18,252 INFO    SenderThread:54916 [dir_watcher.py:__init__():211] watching files in: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_lazy_artifact_passthrough/wandb/run-20230714_050718-bnplycgm/files
+2023-07-14 05:07:18,252 INFO    SenderThread:54916 [sender.py:_start_run_threads():1101] run started: bnplycgm with start time 1689325638.188821
+2023-07-14 05:07:18,259 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: summary_record
+2023-07-14 05:07:18,260 INFO    SenderThread:54916 [sender.py:_save_file():1355] saving file wandb-summary.json with policy end
+2023-07-14 05:07:18,267 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: check_version
+2023-07-14 05:07:18,270 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: check_version
+2023-07-14 05:07:18,626 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: run_start
+2023-07-14 05:07:18,730 DEBUG   HandlerThread:54916 [system_info.py:__init__():31] System info init
+2023-07-14 05:07:18,730 DEBUG   HandlerThread:54916 [system_info.py:__init__():46] System info init done
+2023-07-14 05:07:18,730 INFO    HandlerThread:54916 [system_monitor.py:start():181] Starting system monitor
+2023-07-14 05:07:18,730 INFO    SystemMonitor:54916 [system_monitor.py:_start():145] Starting system asset monitoring threads
+2023-07-14 05:07:18,731 INFO    SystemMonitor:54916 [interfaces.py:start():190] Started cpu monitoring
+2023-07-14 05:07:18,731 INFO    HandlerThread:54916 [system_monitor.py:probe():201] Collecting system info
+2023-07-14 05:07:18,731 INFO    SystemMonitor:54916 [interfaces.py:start():190] Started disk monitoring
+2023-07-14 05:07:18,733 INFO    SystemMonitor:54916 [interfaces.py:start():190] Started gpuapple monitoring
+2023-07-14 05:07:18,737 INFO    SystemMonitor:54916 [interfaces.py:start():190] Started memory monitoring
+2023-07-14 05:07:18,738 INFO    SystemMonitor:54916 [interfaces.py:start():190] Started network monitoring
+2023-07-14 05:07:18,740 DEBUG   HandlerThread:54916 [system_info.py:probe():195] Probing system
+2023-07-14 05:07:18,748 DEBUG   HandlerThread:54916 [gitlib.py:_init_repo():53] git repository is invalid
+2023-07-14 05:07:18,749 DEBUG   HandlerThread:54916 [system_info.py:probe():240] Probing system done
+2023-07-14 05:07:18,749 DEBUG   HandlerThread:54916 [system_monitor.py:probe():210] {'os': 'macOS-12.2.1-arm64-arm-64bit', 'python': '3.8.13', 'heartbeatAt': '2023-07-14T09:07:18.740404', 'startedAt': '2023-07-14T09:07:18.161337', 'docker': None, 'cuda': None, 'args': (), 'state': 'running', 'program': '<python with no main file>', 'host': 'test', 'username': 'test_lazy_artifact_passthrough', 'executable': '/Users/estellaxin/Projects/wandb/.tox/py38/bin/python', 'cpu_count': 10, 'cpu_count_logical': 10, 'disk': {'total': 926.3517189025879, 'used': 23.592041015625}, 'gpuapple': {'type': 'arm', 'vendor': 'Apple'}, 'memory': {'total': 64.0}}
+2023-07-14 05:07:18,749 INFO    HandlerThread:54916 [system_monitor.py:probe():211] Finished collecting system info
+2023-07-14 05:07:18,749 INFO    HandlerThread:54916 [system_monitor.py:probe():214] Publishing system info
+2023-07-14 05:07:18,749 DEBUG   HandlerThread:54916 [system_info.py:_save_pip():51] Saving list of pip packages installed into the current environment
+2023-07-14 05:07:18,749 DEBUG   HandlerThread:54916 [system_info.py:_save_pip():67] Saving pip packages done
+2023-07-14 05:07:18,750 INFO    HandlerThread:54916 [system_monitor.py:probe():216] Finished publishing system info
+2023-07-14 05:07:18,764 DEBUG   SenderThread:54916 [sender.py:send():359] send: files
+2023-07-14 05:07:18,764 INFO    SenderThread:54916 [sender.py:_save_file():1355] saving file wandb-metadata.json with policy now
+2023-07-14 05:07:18,769 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: stop_status
+2023-07-14 05:07:18,770 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: stop_status
+2023-07-14 05:07:18,777 DEBUG   SenderThread:54916 [sender.py:send():359] send: telemetry
+2023-07-14 05:07:18,787 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: log_artifact
+2023-07-14 05:07:18,787 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: log_artifact
+2023-07-14 05:07:18,791 INFO    wandb-upload_0:54916 [upload_job.py:push():131] Uploaded file /var/folders/vh/k98fyx251l792bbzj485tdnw0000gp/T/tmpn12hxug4wandb/erlbfx2r-wandb-metadata.json
+2023-07-14 05:07:18,801 INFO    SenderThread:54916 [sender.py:send_request_log_artifact():1421] logged artifact test_lazy_artifact_passthrough - {'aliases': [{'alias': 'v0', 'artifactCollectionName': 'test_lazy_artifact_passthrough'}], 'artifactSequence': {'name': 'test_lazy_artifact_passthrough'}, 'artifactType': {'name': 'dataset'}, 'createdAt': '2023-07-14T05:07:18.800951', 'currentManifest': {'file': {'directUrl': '/storage?file=wandb_manifest.json&id=ad4d74ac0e4167c6cf4aaad9d59b9b44'}}, 'description': '', 'digest': 'abc123', 'fileCount': 10, 'id': 'ad4d74ac0e4167c6cf4aaad9d59b9b44', 'labels': [], 'metadata': '{}', 'size': 10000, 'state': 'COMMITTED', 'updatedAt': '2023-07-14T05:07:18.800956', 'versionIndex': 0, 'version': 'v0'}
+2023-07-14 05:07:18,902 DEBUG   SenderThread:54916 [sender.py:send():359] send: telemetry
+2023-07-14 05:07:18,906 DEBUG   SenderThread:54916 [sender.py:send():359] send: exit
+2023-07-14 05:07:18,906 INFO    SenderThread:54916 [sender.py:send_exit():564] handling exit code: 0
+2023-07-14 05:07:18,906 INFO    SenderThread:54916 [sender.py:send_exit():566] handling runtime: 0
+2023-07-14 05:07:18,906 INFO    SenderThread:54916 [sender.py:_save_file():1355] saving file wandb-summary.json with policy end
+2023-07-14 05:07:18,906 INFO    SenderThread:54916 [sender.py:send_exit():572] send defer
+2023-07-14 05:07:18,906 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:07:18,906 INFO    HandlerThread:54916 [handler.py:handle_request_defer():170] handle defer: 0
+2023-07-14 05:07:18,906 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:07:18,907 INFO    SenderThread:54916 [sender.py:send_request_defer():588] handle sender defer: 0
+2023-07-14 05:07:18,907 INFO    SenderThread:54916 [sender.py:transition_state():592] send defer: 1
+2023-07-14 05:07:18,907 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:07:18,907 INFO    HandlerThread:54916 [handler.py:handle_request_defer():170] handle defer: 1
+2023-07-14 05:07:18,907 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:07:18,907 INFO    SenderThread:54916 [sender.py:send_request_defer():588] handle sender defer: 1
+2023-07-14 05:07:18,907 INFO    SenderThread:54916 [sender.py:transition_state():592] send defer: 2
+2023-07-14 05:07:18,907 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:07:18,907 INFO    HandlerThread:54916 [handler.py:handle_request_defer():170] handle defer: 2
+2023-07-14 05:07:18,907 INFO    HandlerThread:54916 [system_monitor.py:finish():190] Stopping system monitor
+2023-07-14 05:07:18,907 DEBUG   SystemMonitor:54916 [system_monitor.py:_start():159] Starting system metrics aggregation loop
+2023-07-14 05:07:18,907 DEBUG   SystemMonitor:54916 [system_monitor.py:_start():166] Finished system metrics aggregation loop
+2023-07-14 05:07:18,907 DEBUG   SystemMonitor:54916 [system_monitor.py:_start():170] Publishing last batch of metrics
+2023-07-14 05:07:18,908 INFO    HandlerThread:54916 [interfaces.py:finish():202] Joined cpu monitor
+2023-07-14 05:07:18,908 INFO    HandlerThread:54916 [interfaces.py:finish():202] Joined disk monitor
+2023-07-14 05:07:19,261 INFO    Thread-12 :54916 [dir_watcher.py:_on_file_created():271] file/dir created: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_lazy_artifact_passthrough/wandb/run-20230714_050718-bnplycgm/files/requirements.txt
+2023-07-14 05:07:19,262 INFO    Thread-12 :54916 [dir_watcher.py:_on_file_created():271] file/dir created: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_lazy_artifact_passthrough/wandb/run-20230714_050718-bnplycgm/files/wandb-metadata.json
+2023-07-14 05:07:19,262 INFO    Thread-12 :54916 [dir_watcher.py:_on_file_created():271] file/dir created: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_lazy_artifact_passthrough/wandb/run-20230714_050718-bnplycgm/files/wandb-summary.json
+2023-07-14 05:07:19,599 INFO    HandlerThread:54916 [interfaces.py:finish():202] Joined gpuapple monitor
+2023-07-14 05:07:19,599 INFO    HandlerThread:54916 [interfaces.py:finish():202] Joined memory monitor
+2023-07-14 05:07:19,599 INFO    HandlerThread:54916 [interfaces.py:finish():202] Joined network monitor
+2023-07-14 05:07:19,601 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:07:19,601 INFO    SenderThread:54916 [sender.py:send_request_defer():588] handle sender defer: 2
+2023-07-14 05:07:19,601 INFO    SenderThread:54916 [sender.py:transition_state():592] send defer: 3
+2023-07-14 05:07:19,601 DEBUG   SenderThread:54916 [sender.py:send():359] send: telemetry
+2023-07-14 05:07:19,601 DEBUG   SenderThread:54916 [sender.py:send():359] send: stats
+2023-07-14 05:07:19,601 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:07:19,601 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: telemetry_record
+2023-07-14 05:07:19,601 INFO    HandlerThread:54916 [handler.py:handle_request_defer():170] handle defer: 3
+2023-07-14 05:07:19,601 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: sender_mark
+2023-07-14 05:07:19,602 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:07:19,602 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: status_report
+2023-07-14 05:07:19,602 INFO    SenderThread:54916 [sender.py:send_request_defer():588] handle sender defer: 3
+2023-07-14 05:07:19,602 INFO    SenderThread:54916 [sender.py:transition_state():592] send defer: 4
+2023-07-14 05:07:19,602 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:07:19,602 INFO    HandlerThread:54916 [handler.py:handle_request_defer():170] handle defer: 4
+2023-07-14 05:07:19,602 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:07:19,602 INFO    SenderThread:54916 [sender.py:send_request_defer():588] handle sender defer: 4
+2023-07-14 05:07:19,602 INFO    SenderThread:54916 [sender.py:transition_state():592] send defer: 5
+2023-07-14 05:07:19,603 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:07:19,603 INFO    HandlerThread:54916 [handler.py:handle_request_defer():170] handle defer: 5
+2023-07-14 05:07:19,603 DEBUG   SenderThread:54916 [sender.py:send():359] send: summary
+2023-07-14 05:07:19,603 INFO    SenderThread:54916 [sender.py:_save_file():1355] saving file wandb-summary.json with policy end
+2023-07-14 05:07:19,604 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:07:19,604 INFO    SenderThread:54916 [sender.py:send_request_defer():588] handle sender defer: 5
+2023-07-14 05:07:19,604 INFO    SenderThread:54916 [sender.py:transition_state():592] send defer: 6
+2023-07-14 05:07:19,604 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:07:19,604 INFO    HandlerThread:54916 [handler.py:handle_request_defer():170] handle defer: 6
+2023-07-14 05:07:19,605 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:07:19,605 INFO    SenderThread:54916 [sender.py:send_request_defer():588] handle sender defer: 6
+2023-07-14 05:07:19,609 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: status_report
+2023-07-14 05:07:19,616 INFO    SenderThread:54916 [sender.py:transition_state():592] send defer: 7
+2023-07-14 05:07:19,616 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:07:19,616 INFO    HandlerThread:54916 [handler.py:handle_request_defer():170] handle defer: 7
+2023-07-14 05:07:19,617 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:07:19,617 INFO    SenderThread:54916 [sender.py:send_request_defer():588] handle sender defer: 7
+2023-07-14 05:07:19,617 INFO    SenderThread:54916 [sender.py:transition_state():592] send defer: 8
+2023-07-14 05:07:19,618 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:07:19,618 INFO    HandlerThread:54916 [handler.py:handle_request_defer():170] handle defer: 8
+2023-07-14 05:07:19,618 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:07:19,618 INFO    SenderThread:54916 [sender.py:send_request_defer():588] handle sender defer: 8
+2023-07-14 05:07:19,618 INFO    SenderThread:54916 [job_builder.py:build():280] Attempting to build job artifact
+2023-07-14 05:07:19,618 INFO    SenderThread:54916 [job_builder.py:_get_source_type():400] no source found
+2023-07-14 05:07:19,618 INFO    SenderThread:54916 [sender.py:transition_state():592] send defer: 9
+2023-07-14 05:07:19,618 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:07:19,619 INFO    HandlerThread:54916 [handler.py:handle_request_defer():170] handle defer: 9
+2023-07-14 05:07:19,619 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:07:19,619 INFO    SenderThread:54916 [sender.py:send_request_defer():588] handle sender defer: 9
+2023-07-14 05:07:19,619 INFO    SenderThread:54916 [dir_watcher.py:finish():358] shutting down directory watcher
+2023-07-14 05:07:19,906 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: poll_exit
+2023-07-14 05:07:20,263 INFO    Thread-12 :54916 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_lazy_artifact_passthrough/wandb/run-20230714_050718-bnplycgm/files/config.yaml
+2023-07-14 05:07:20,264 INFO    SenderThread:54916 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_lazy_artifact_passthrough/wandb/run-20230714_050718-bnplycgm/files/wandb-summary.json
+2023-07-14 05:07:20,264 INFO    SenderThread:54916 [dir_watcher.py:finish():388] scan: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_lazy_artifact_passthrough/wandb/run-20230714_050718-bnplycgm/files
+2023-07-14 05:07:20,265 INFO    SenderThread:54916 [dir_watcher.py:finish():402] scan save: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_lazy_artifact_passthrough/wandb/run-20230714_050718-bnplycgm/files/requirements.txt requirements.txt
+2023-07-14 05:07:20,265 INFO    SenderThread:54916 [dir_watcher.py:finish():402] scan save: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_lazy_artifact_passthrough/wandb/run-20230714_050718-bnplycgm/files/config.yaml config.yaml
+2023-07-14 05:07:20,265 INFO    SenderThread:54916 [dir_watcher.py:finish():402] scan save: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_lazy_artifact_passthrough/wandb/run-20230714_050718-bnplycgm/files/wandb-summary.json wandb-summary.json
+2023-07-14 05:07:20,265 INFO    SenderThread:54916 [dir_watcher.py:finish():402] scan save: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_lazy_artifact_passthrough/wandb/run-20230714_050718-bnplycgm/files/wandb-metadata.json wandb-metadata.json
+2023-07-14 05:07:20,265 INFO    SenderThread:54916 [sender.py:transition_state():592] send defer: 10
+2023-07-14 05:07:20,265 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: poll_exit
+2023-07-14 05:07:20,266 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:07:20,266 INFO    HandlerThread:54916 [handler.py:handle_request_defer():170] handle defer: 10
+2023-07-14 05:07:20,274 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:07:20,274 INFO    SenderThread:54916 [sender.py:send_request_defer():588] handle sender defer: 10
+2023-07-14 05:07:20,274 INFO    SenderThread:54916 [file_pusher.py:finish():159] shutting down file pusher
+2023-07-14 05:07:20,306 INFO    wandb-upload_1:54916 [upload_job.py:push():131] Uploaded file /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_lazy_artifact_passthrough/wandb/run-20230714_050718-bnplycgm/files/config.yaml
+2023-07-14 05:07:20,308 INFO    wandb-upload_2:54916 [upload_job.py:push():131] Uploaded file /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_lazy_artifact_passthrough/wandb/run-20230714_050718-bnplycgm/files/wandb-summary.json
+2023-07-14 05:07:20,312 INFO    wandb-upload_0:54916 [upload_job.py:push():131] Uploaded file /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_lazy_artifact_passthrough/wandb/run-20230714_050718-bnplycgm/files/requirements.txt
+2023-07-14 05:07:20,517 INFO    Thread-11 :54916 [sender.py:transition_state():592] send defer: 11
+2023-07-14 05:07:20,517 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:07:20,517 INFO    HandlerThread:54916 [handler.py:handle_request_defer():170] handle defer: 11
+2023-07-14 05:07:20,517 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:07:20,517 INFO    SenderThread:54916 [sender.py:send_request_defer():588] handle sender defer: 11
+2023-07-14 05:07:20,517 INFO    SenderThread:54916 [file_pusher.py:join():164] waiting for file pusher
+2023-07-14 05:07:20,517 INFO    SenderThread:54916 [sender.py:transition_state():592] send defer: 12
+2023-07-14 05:07:20,518 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:07:20,518 INFO    HandlerThread:54916 [handler.py:handle_request_defer():170] handle defer: 12
+2023-07-14 05:07:20,518 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:07:20,519 INFO    SenderThread:54916 [sender.py:send_request_defer():588] handle sender defer: 12
+2023-07-14 05:07:20,519 INFO    SenderThread:54916 [file_stream.py:finish():593] file stream finish called
+2023-07-14 05:07:20,526 INFO    SenderThread:54916 [file_stream.py:finish():597] file stream finish is done
+2023-07-14 05:07:20,526 INFO    SenderThread:54916 [sender.py:transition_state():592] send defer: 13
+2023-07-14 05:07:20,527 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:07:20,527 INFO    HandlerThread:54916 [handler.py:handle_request_defer():170] handle defer: 13
+2023-07-14 05:07:20,528 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:07:20,528 INFO    SenderThread:54916 [sender.py:send_request_defer():588] handle sender defer: 13
+2023-07-14 05:07:20,528 INFO    SenderThread:54916 [sender.py:transition_state():592] send defer: 14
+2023-07-14 05:07:20,528 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:07:20,528 INFO    HandlerThread:54916 [handler.py:handle_request_defer():170] handle defer: 14
+2023-07-14 05:07:20,529 DEBUG   SenderThread:54916 [sender.py:send():359] send: final
+2023-07-14 05:07:20,529 DEBUG   SenderThread:54916 [sender.py:send():359] send: footer
+2023-07-14 05:07:20,529 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:07:20,529 INFO    SenderThread:54916 [sender.py:send_request_defer():588] handle sender defer: 14
+2023-07-14 05:07:20,532 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: poll_exit
+2023-07-14 05:07:20,532 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: server_info
+2023-07-14 05:07:20,532 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: get_summary
+2023-07-14 05:07:20,532 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: sampled_history
+2023-07-14 05:07:20,532 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: job_info
+2023-07-14 05:07:20,533 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: poll_exit
+2023-07-14 05:07:20,533 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: server_info
+2023-07-14 05:07:20,541 DEBUG   SenderThread:54916 [sender.py:send_request():386] send_request: job_info
+2023-07-14 05:07:20,545 DEBUG   HandlerThread:54916 [handler.py:handle_request():144] handle_request: shutdown
+2023-07-14 05:07:20,545 INFO    HandlerThread:54916 [handler.py:finish():857] shutting down handler
+2023-07-14 05:07:21,537 INFO    WriterThread:54916 [datastore.py:close():294] close: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_lazy_artifact_passthrough/wandb/run-20230714_050718-bnplycgm/run-bnplycgm.wandb
+2023-07-14 05:07:21,542 INFO    SenderThread:54916 [sender.py:finish():1533] shutting down sender
+2023-07-14 05:07:21,542 INFO    SenderThread:54916 [file_pusher.py:finish():159] shutting down file pusher
+2023-07-14 05:07:21,542 INFO    SenderThread:54916 [file_pusher.py:join():164] waiting for file pusher

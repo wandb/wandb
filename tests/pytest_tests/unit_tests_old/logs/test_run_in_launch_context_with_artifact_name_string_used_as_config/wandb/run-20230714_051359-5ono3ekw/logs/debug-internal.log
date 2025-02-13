@@ -1,0 +1,152 @@
+2023-07-14 05:13:59,295 INFO    StreamThr :59504 [internal.py:wandb_internal():86] W&B internal server running at pid: 59504, started at: 2023-07-14 05:13:59.294844
+2023-07-14 05:13:59,295 DEBUG   HandlerThread:59504 [handler.py:handle_request():144] handle_request: status
+2023-07-14 05:13:59,307 INFO    WriterThread:59504 [datastore.py:open_for_write():85] open: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_run_in_launch_context_with_artifact_name_string_used_as_config/wandb/run-20230714_051359-5ono3ekw/run-5ono3ekw.wandb
+2023-07-14 05:13:59,307 DEBUG   SenderThread:59504 [sender.py:send():359] send: header
+2023-07-14 05:13:59,323 DEBUG   SenderThread:59504 [sender.py:send():359] send: run
+2023-07-14 05:13:59,341 INFO    SenderThread:59504 [dir_watcher.py:__init__():211] watching files in: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_run_in_launch_context_with_artifact_name_string_used_as_config/wandb/run-20230714_051359-5ono3ekw/files
+2023-07-14 05:13:59,342 INFO    SenderThread:59504 [sender.py:_start_run_threads():1101] run started: 5ono3ekw with start time 1689326039.295284
+2023-07-14 05:13:59,346 DEBUG   SenderThread:59504 [sender.py:send_request():386] send_request: summary_record
+2023-07-14 05:13:59,346 INFO    SenderThread:59504 [sender.py:_save_file():1355] saving file wandb-summary.json with policy end
+2023-07-14 05:13:59,351 DEBUG   HandlerThread:59504 [handler.py:handle_request():144] handle_request: check_version
+2023-07-14 05:13:59,351 DEBUG   SenderThread:59504 [sender.py:send_request():386] send_request: check_version
+2023-07-14 05:13:59,491 DEBUG   HandlerThread:59504 [handler.py:handle_request():144] handle_request: run_start
+2023-07-14 05:13:59,515 DEBUG   HandlerThread:59504 [system_info.py:__init__():31] System info init
+2023-07-14 05:13:59,515 DEBUG   HandlerThread:59504 [system_info.py:__init__():46] System info init done
+2023-07-14 05:13:59,515 INFO    HandlerThread:59504 [system_monitor.py:start():181] Starting system monitor
+2023-07-14 05:13:59,515 INFO    SystemMonitor:59504 [system_monitor.py:_start():145] Starting system asset monitoring threads
+2023-07-14 05:13:59,515 INFO    HandlerThread:59504 [system_monitor.py:probe():201] Collecting system info
+2023-07-14 05:13:59,516 INFO    SystemMonitor:59504 [interfaces.py:start():190] Started cpu monitoring
+2023-07-14 05:13:59,516 INFO    SystemMonitor:59504 [interfaces.py:start():190] Started disk monitoring
+2023-07-14 05:13:59,516 DEBUG   HandlerThread:59504 [system_info.py:probe():195] Probing system
+2023-07-14 05:13:59,517 INFO    SystemMonitor:59504 [interfaces.py:start():190] Started gpuapple monitoring
+2023-07-14 05:13:59,522 INFO    SystemMonitor:59504 [interfaces.py:start():190] Started memory monitoring
+2023-07-14 05:13:59,523 INFO    SystemMonitor:59504 [interfaces.py:start():190] Started network monitoring
+2023-07-14 05:13:59,527 DEBUG   HandlerThread:59504 [gitlib.py:_init_repo():53] git repository is invalid
+2023-07-14 05:13:59,528 DEBUG   HandlerThread:59504 [system_info.py:probe():240] Probing system done
+2023-07-14 05:13:59,528 DEBUG   HandlerThread:59504 [system_monitor.py:probe():210] {'os': 'macOS-12.2.1-arm64-arm-64bit', 'python': '3.8.13', 'heartbeatAt': '2023-07-14T09:13:59.520723', 'startedAt': '2023-07-14T09:13:59.284975', 'docker': None, 'cuda': None, 'args': (), 'state': 'running', 'program': '<python with no main file>', 'host': 'test', 'username': 'test_run_in_launch_context_with_artifact_name_string_used_as_config', 'executable': '/Users/estellaxin/Projects/wandb/.tox/py38/bin/python', 'cpu_count': 10, 'cpu_count_logical': 10, 'disk': {'total': 926.3517189025879, 'used': 23.592041015625}, 'gpuapple': {'type': 'arm', 'vendor': 'Apple'}, 'memory': {'total': 64.0}}
+2023-07-14 05:13:59,528 INFO    HandlerThread:59504 [system_monitor.py:probe():211] Finished collecting system info
+2023-07-14 05:13:59,528 INFO    HandlerThread:59504 [system_monitor.py:probe():214] Publishing system info
+2023-07-14 05:13:59,528 DEBUG   HandlerThread:59504 [system_info.py:_save_pip():51] Saving list of pip packages installed into the current environment
+2023-07-14 05:13:59,529 DEBUG   HandlerThread:59504 [system_info.py:_save_pip():67] Saving pip packages done
+2023-07-14 05:13:59,529 INFO    HandlerThread:59504 [system_monitor.py:probe():216] Finished publishing system info
+2023-07-14 05:13:59,542 DEBUG   SenderThread:59504 [sender.py:send():359] send: files
+2023-07-14 05:13:59,542 INFO    SenderThread:59504 [sender.py:_save_file():1355] saving file wandb-metadata.json with policy now
+2023-07-14 05:13:59,546 DEBUG   SenderThread:59504 [sender.py:send():359] send: files
+2023-07-14 05:13:59,546 INFO    SenderThread:59504 [sender.py:_save_file():1355] saving file launch_metadata.json with policy live
+2023-07-14 05:13:59,546 DEBUG   SenderThread:59504 [sender.py:send():359] send: files
+2023-07-14 05:13:59,546 INFO    SenderThread:59504 [sender.py:_save_file():1355] saving file launch_metadata.json with policy live
+2023-07-14 05:13:59,550 DEBUG   HandlerThread:59504 [handler.py:handle_request():144] handle_request: stop_status
+2023-07-14 05:13:59,551 DEBUG   SenderThread:59504 [sender.py:send_request():386] send_request: stop_status
+2023-07-14 05:13:59,563 DEBUG   SenderThread:59504 [sender.py:send():359] send: telemetry
+2023-07-14 05:13:59,576 INFO    wandb-upload_0:59504 [upload_job.py:push():131] Uploaded file /var/folders/vh/k98fyx251l792bbzj485tdnw0000gp/T/tmpj61_x69uwandb/ny7e97e0-wandb-metadata.json
+2023-07-14 05:13:59,576 INFO    wandb-upload_1:59504 [upload_job.py:push():131] Uploaded file /var/folders/vh/k98fyx251l792bbzj485tdnw0000gp/T/tmpj61_x69uwandb/mwldalw7-launch_metadata.json
+2023-07-14 05:14:00,348 INFO    Thread-12 :59504 [dir_watcher.py:_on_file_created():271] file/dir created: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_run_in_launch_context_with_artifact_name_string_used_as_config/wandb/run-20230714_051359-5ono3ekw/files/requirements.txt
+2023-07-14 05:14:00,348 INFO    Thread-12 :59504 [dir_watcher.py:_on_file_created():271] file/dir created: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_run_in_launch_context_with_artifact_name_string_used_as_config/wandb/run-20230714_051359-5ono3ekw/files/wandb-summary.json
+2023-07-14 05:14:00,348 INFO    Thread-12 :59504 [dir_watcher.py:_on_file_created():271] file/dir created: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_run_in_launch_context_with_artifact_name_string_used_as_config/wandb/run-20230714_051359-5ono3ekw/files/wandb-metadata.json
+2023-07-14 05:14:01,807 DEBUG   SenderThread:59504 [sender.py:send():359] send: telemetry
+2023-07-14 05:14:01,808 DEBUG   SenderThread:59504 [sender.py:send():359] send: exit
+2023-07-14 05:14:01,808 INFO    SenderThread:59504 [sender.py:send_exit():564] handling exit code: 0
+2023-07-14 05:14:01,808 INFO    SenderThread:59504 [sender.py:send_exit():566] handling runtime: 2
+2023-07-14 05:14:01,808 INFO    SenderThread:59504 [sender.py:_save_file():1355] saving file wandb-summary.json with policy end
+2023-07-14 05:14:01,808 INFO    SenderThread:59504 [sender.py:send_exit():572] send defer
+2023-07-14 05:14:01,808 DEBUG   HandlerThread:59504 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:14:01,808 INFO    HandlerThread:59504 [handler.py:handle_request_defer():170] handle defer: 0
+2023-07-14 05:14:01,809 DEBUG   SenderThread:59504 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:14:01,809 INFO    SenderThread:59504 [sender.py:send_request_defer():588] handle sender defer: 0
+2023-07-14 05:14:01,809 INFO    SenderThread:59504 [sender.py:transition_state():592] send defer: 1
+2023-07-14 05:14:01,809 DEBUG   HandlerThread:59504 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:14:01,809 INFO    HandlerThread:59504 [handler.py:handle_request_defer():170] handle defer: 1
+2023-07-14 05:14:01,809 DEBUG   SenderThread:59504 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:14:01,809 INFO    SenderThread:59504 [sender.py:send_request_defer():588] handle sender defer: 1
+2023-07-14 05:14:01,809 INFO    SenderThread:59504 [sender.py:transition_state():592] send defer: 2
+2023-07-14 05:14:01,809 DEBUG   HandlerThread:59504 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:14:01,809 INFO    HandlerThread:59504 [handler.py:handle_request_defer():170] handle defer: 2
+2023-07-14 05:14:01,809 INFO    HandlerThread:59504 [system_monitor.py:finish():190] Stopping system monitor
+2023-07-14 05:14:01,809 DEBUG   SystemMonitor:59504 [system_monitor.py:_start():159] Starting system metrics aggregation loop
+2023-07-14 05:14:01,809 DEBUG   SystemMonitor:59504 [system_monitor.py:_start():166] Finished system metrics aggregation loop
+2023-07-14 05:14:01,810 DEBUG   SystemMonitor:59504 [system_monitor.py:_start():170] Publishing last batch of metrics
+2023-07-14 05:14:01,810 INFO    HandlerThread:59504 [interfaces.py:finish():202] Joined cpu monitor
+2023-07-14 05:14:01,810 INFO    HandlerThread:59504 [interfaces.py:finish():202] Joined disk monitor
+2023-07-14 05:14:01,810 INFO    HandlerThread:59504 [interfaces.py:finish():202] Joined gpuapple monitor
+2023-07-14 05:14:01,810 INFO    HandlerThread:59504 [interfaces.py:finish():202] Joined memory monitor
+2023-07-14 05:14:01,810 INFO    HandlerThread:59504 [interfaces.py:finish():202] Joined network monitor
+2023-07-14 05:14:01,811 DEBUG   SenderThread:59504 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:14:01,811 INFO    SenderThread:59504 [sender.py:send_request_defer():588] handle sender defer: 2
+2023-07-14 05:14:01,811 INFO    SenderThread:59504 [sender.py:transition_state():592] send defer: 3
+2023-07-14 05:14:01,811 DEBUG   SenderThread:59504 [sender.py:send():359] send: telemetry
+2023-07-14 05:14:01,811 DEBUG   SenderThread:59504 [sender.py:send():359] send: stats
+2023-07-14 05:14:01,811 DEBUG   SenderThread:59504 [sender.py:send_request():386] send_request: telemetry_record
+2023-07-14 05:14:01,811 DEBUG   HandlerThread:59504 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:14:01,811 DEBUG   SenderThread:59504 [sender.py:send_request():386] send_request: sender_mark
+2023-07-14 05:14:01,811 INFO    HandlerThread:59504 [handler.py:handle_request_defer():170] handle defer: 3
+2023-07-14 05:14:01,812 DEBUG   HandlerThread:59504 [handler.py:handle_request():144] handle_request: status_report
+2023-07-14 05:14:01,812 DEBUG   SenderThread:59504 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:14:01,812 INFO    SenderThread:59504 [sender.py:send_request_defer():588] handle sender defer: 3
+2023-07-14 05:14:01,812 INFO    SenderThread:59504 [sender.py:transition_state():592] send defer: 4
+2023-07-14 05:14:01,812 DEBUG   HandlerThread:59504 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:14:01,812 INFO    HandlerThread:59504 [handler.py:handle_request_defer():170] handle defer: 4
+2023-07-14 05:14:01,812 DEBUG   SenderThread:59504 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:14:01,812 INFO    SenderThread:59504 [sender.py:send_request_defer():588] handle sender defer: 4
+2023-07-14 05:14:01,812 INFO    SenderThread:59504 [sender.py:transition_state():592] send defer: 5
+2023-07-14 05:14:01,812 DEBUG   HandlerThread:59504 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:14:01,812 INFO    HandlerThread:59504 [handler.py:handle_request_defer():170] handle defer: 5
+2023-07-14 05:14:01,813 DEBUG   SenderThread:59504 [sender.py:send():359] send: summary
+2023-07-14 05:14:01,813 INFO    SenderThread:59504 [sender.py:_save_file():1355] saving file wandb-summary.json with policy end
+2023-07-14 05:14:01,813 DEBUG   SenderThread:59504 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:14:01,813 INFO    SenderThread:59504 [sender.py:send_request_defer():588] handle sender defer: 5
+2023-07-14 05:14:01,813 INFO    SenderThread:59504 [sender.py:transition_state():592] send defer: 6
+2023-07-14 05:14:01,813 DEBUG   HandlerThread:59504 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:14:01,813 INFO    HandlerThread:59504 [handler.py:handle_request_defer():170] handle defer: 6
+2023-07-14 05:14:01,813 DEBUG   SenderThread:59504 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:14:01,813 INFO    SenderThread:59504 [sender.py:send_request_defer():588] handle sender defer: 6
+2023-07-14 05:14:01,817 DEBUG   HandlerThread:59504 [handler.py:handle_request():144] handle_request: status_report
+2023-07-14 05:14:01,824 INFO    SenderThread:59504 [sender.py:transition_state():592] send defer: 7
+2023-07-14 05:14:01,824 DEBUG   HandlerThread:59504 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:14:01,824 INFO    HandlerThread:59504 [handler.py:handle_request_defer():170] handle defer: 7
+2023-07-14 05:14:01,824 DEBUG   SenderThread:59504 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:14:01,824 INFO    SenderThread:59504 [sender.py:send_request_defer():588] handle sender defer: 7
+2023-07-14 05:14:01,824 INFO    SenderThread:59504 [sender.py:transition_state():592] send defer: 8
+2023-07-14 05:14:01,824 DEBUG   HandlerThread:59504 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:14:01,824 INFO    HandlerThread:59504 [handler.py:handle_request_defer():170] handle defer: 8
+2023-07-14 05:14:01,824 DEBUG   SenderThread:59504 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:14:01,824 INFO    SenderThread:59504 [sender.py:send_request_defer():588] handle sender defer: 8
+2023-07-14 05:14:01,824 INFO    SenderThread:59504 [job_builder.py:build():280] Attempting to build job artifact
+2023-07-14 05:14:01,825 INFO    SenderThread:59504 [job_builder.py:_get_source_type():400] no source found
+2023-07-14 05:14:01,825 INFO    SenderThread:59504 [sender.py:transition_state():592] send defer: 9
+2023-07-14 05:14:01,825 DEBUG   HandlerThread:59504 [handler.py:handle_request():144] handle_request: defer
+2023-07-14 05:14:01,825 INFO    HandlerThread:59504 [handler.py:handle_request_defer():170] handle defer: 9
+2023-07-14 05:14:01,825 DEBUG   SenderThread:59504 [sender.py:send_request():386] send_request: defer
+2023-07-14 05:14:01,825 INFO    SenderThread:59504 [sender.py:send_request_defer():588] handle sender defer: 9
+2023-07-14 05:14:01,825 INFO    SenderThread:59504 [dir_watcher.py:finish():358] shutting down directory watcher
+2023-07-14 05:14:02,350 INFO    SenderThread:59504 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_run_in_launch_context_with_artifact_name_string_used_as_config/wandb/run-20230714_051359-5ono3ekw/files/config.yaml
+2023-07-14 05:14:02,351 INFO    SenderThread:59504 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_run_in_launch_context_with_artifact_name_string_used_as_config/wandb/run-20230714_051359-5ono3ekw/files/wandb-summary.json
+2023-07-14 05:14:02,351 INFO    SenderThread:59504 [dir_watcher.py:finish():388] scan: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_run_in_launch_context_with_artifact_name_string_used_as_config/wandb/run-20230714_051359-5ono3ekw/files
+2023-07-14 05:14:02,351 INFO    SenderThread:59504 [dir_watcher.py:finish():402] scan save: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_run_in_launch_context_with_artifact_name_string_used_as_config/wandb/run-20230714_051359-5ono3ekw/files/launch_metadata.json launch_metadata.json
+2023-07-14 05:14:02,808 DEBUG   HandlerThread:59504 [handler.py:handle_request():144] handle_request: poll_exit
+2023-07-14 05:14:02,808 INFO    HandlerThread:59504 [handler.py:finish():857] shutting down handler
+2023-07-14 05:14:02,808 INFO    WriterThread:59504 [datastore.py:close():294] close: /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_run_in_launch_context_with_artifact_name_string_used_as_config/wandb/run-20230714_051359-5ono3ekw/run-5ono3ekw.wandb
+2023-07-14 05:14:03,314 ERROR   StreamThr :59504 [internal.py:wandb_internal():174] Thread SenderThread:
+Traceback (most recent call last):
+  File "/Users/estellaxin/Projects/wandb/.tox/py38/lib/python3.8/site-packages/wandb/sdk/internal/internal_util.py", line 49, in run
+    self._run()
+  File "/Users/estellaxin/Projects/wandb/.tox/py38/lib/python3.8/site-packages/wandb/sdk/internal/internal_util.py", line 100, in _run
+    self._process(record)
+  File "/Users/estellaxin/Projects/wandb/.tox/py38/lib/python3.8/site-packages/wandb/sdk/internal/internal.py", line 328, in _process
+    self._sm.send(record)
+  File "/Users/estellaxin/Projects/wandb/.tox/py38/lib/python3.8/site-packages/wandb/sdk/internal/sender.py", line 366, in send
+    send_handler(record)
+  File "/Users/estellaxin/Projects/wandb/.tox/py38/lib/python3.8/site-packages/wandb/sdk/internal/sender.py", line 388, in send_request
+    send_handler(record)
+  File "/Users/estellaxin/Projects/wandb/.tox/py38/lib/python3.8/site-packages/wandb/sdk/internal/sender.py", line 624, in send_request_defer
+    self._dir_watcher.finish()
+  File "/Users/estellaxin/Projects/wandb/.tox/py38/lib/python3.8/site-packages/wandb/filesync/dir_watcher.py", line 403, in finish
+    self._get_file_event_handler(file_path, save_name).finish()
+  File "/Users/estellaxin/Projects/wandb/.tox/py38/lib/python3.8/site-packages/wandb/filesync/dir_watcher.py", line 181, in finish
+    self.on_modified(force=True)
+  File "/Users/estellaxin/Projects/wandb/.tox/py38/lib/python3.8/site-packages/wandb/filesync/dir_watcher.py", line 167, in on_modified
+    if self.current_size == 0:
+  File "/Users/estellaxin/Projects/wandb/.tox/py38/lib/python3.8/site-packages/wandb/filesync/dir_watcher.py", line 133, in current_size
+    return os.path.getsize(self.file_path)
+  File "/Users/estellaxin/.pyenv/versions/3.8.13/lib/python3.8/genericpath.py", line 50, in getsize
+    return os.stat(filename).st_size
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_run_in_launch_context_with_artifact_name_string_used_as_config/wandb/run-20230714_051359-5ono3ekw/files/launch_metadata.json'

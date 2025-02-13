@@ -1,0 +1,36 @@
+wandb_version: 1
+
+epochs:
+  desc: null
+  value: 50
+heavy:
+  desc: null
+  value: true
+sleep_every:
+  desc: null
+  value: 15
+_wandb:
+  desc: null
+  value:
+    python_version: 3.8.13
+    cli_version: 0.15.6.dev1
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    start_time: 1689325560.702914
+    t:
+      1:
+      - 55
+      2:
+      - 55
+      3:
+      - 4
+      - 16
+      - 23
+      - 37
+      - 42
+      - 44
+      4: 3.8.13
+      5: 0.15.6.dev1
+      8:
+      - 4
+      - 5

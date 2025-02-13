@@ -1,0 +1,188 @@
+2022-12-19 20:33:00,920 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Configure stats pid to 47199
+2022-12-19 20:33:00,920 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from /Users/estellaxin/.config/wandb/settings
+2022-12-19 20:33:00,920 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_resume_must_failure/wandb/settings
+2022-12-19 20:33:00,920 WARNING MainThread:47199 [wandb_setup.py:_flush():68] Unknown environment variable: WANDB_REQUIRE_REPORT_EDITING_V0
+2022-12-19 20:33:00,920 WARNING MainThread:47199 [wandb_setup.py:_flush():68] Unknown environment variable: WANDB_ERROR_REPORTING
+2022-12-19 20:33:00,920 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from environment variables: {'_require_service': 'True', 'username': 'test_resume_must_failure', 'base_url': 'http://localhost:65203', 'api_key': '***REDACTED***'}
+2022-12-19 20:33:00,920 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Inferring run settings from compute environment: {'program': '<python with no main file>'}
+2022-12-19 20:33:00,920 INFO    MainThread:47199 [wandb_init.py:_log_setup():476] Logging user logs to /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_resume_must_failure/wandb/run-20221219_203300-1pxc5fn0/logs/debug.log
+2022-12-19 20:33:00,921 INFO    MainThread:47199 [wandb_init.py:_log_setup():477] Logging internal logs to /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_resume_must_failure/wandb/run-20221219_203300-1pxc5fn0/logs/debug-internal.log
+2022-12-19 20:33:00,921 INFO    MainThread:47199 [wandb_init.py:init():516] calling init triggers
+2022-12-19 20:33:00,921 INFO    MainThread:47199 [wandb_init.py:init():519] wandb.init called with sweep_config: {}
+config: {}
+2022-12-19 20:33:00,921 INFO    MainThread:47199 [wandb_init.py:init():569] starting backend
+2022-12-19 20:33:00,921 INFO    MainThread:47199 [wandb_init.py:init():573] setting up manager
+2022-12-19 20:33:00,928 INFO    MainThread:47199 [backend.py:_multiprocessing_setup():102] multiprocessing start_methods=spawn,fork,forkserver, using: spawn
+2022-12-19 20:33:00,929 INFO    MainThread:47199 [wandb_init.py:init():580] backend started and connected
+2022-12-19 20:33:00,939 INFO    MainThread:47199 [wandb_init.py:init():658] updated telemetry
+2022-12-19 20:33:00,975 INFO    MainThread:47199 [wandb_init.py:init():693] communicating run to backend with 60 second timeout
+2022-12-19 20:33:01,353 ERROR   MainThread:47199 [wandb_init.py:init():713] encountered error: resume='must' but run (1pxc5fn0) doesn't exist
+2022-12-19 20:33:02,495 WARNING MsgRouterThr:47199 [router.py:message_loop():77] message_loop has been closed
+2022-12-19 20:33:04,795 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Configure stats pid to 47199
+2022-12-19 20:33:04,795 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from /Users/estellaxin/.config/wandb/settings
+2022-12-19 20:33:04,795 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_resume_auto_failure/wandb/settings
+2022-12-19 20:33:04,795 WARNING MainThread:47199 [wandb_setup.py:_flush():68] Unknown environment variable: WANDB_REQUIRE_REPORT_EDITING_V0
+2022-12-19 20:33:04,795 WARNING MainThread:47199 [wandb_setup.py:_flush():68] Unknown environment variable: WANDB_ERROR_REPORTING
+2022-12-19 20:33:04,795 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from environment variables: {'_require_service': 'True', 'username': 'test_resume_auto_failure', 'base_url': 'http://localhost:65203', 'api_key': '***REDACTED***', 'root_dir': '/Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_resume_auto_failure'}
+2022-12-19 20:33:04,795 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Inferring run settings from compute environment: {'program': '<python with no main file>'}
+2022-12-19 20:33:04,796 INFO    MainThread:47199 [wandb_init.py:_log_setup():476] Logging user logs to /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_resume_auto_failure/wandb/run-20221219_203304-resume-me/logs/debug.log
+2022-12-19 20:33:04,796 INFO    MainThread:47199 [wandb_init.py:_log_setup():477] Logging internal logs to /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_resume_auto_failure/wandb/run-20221219_203304-resume-me/logs/debug-internal.log
+2022-12-19 20:33:04,796 INFO    MainThread:47199 [wandb_init.py:init():516] calling init triggers
+2022-12-19 20:33:04,796 INFO    MainThread:47199 [wandb_init.py:init():519] wandb.init called with sweep_config: {}
+config: {}
+2022-12-19 20:33:04,796 INFO    MainThread:47199 [wandb_init.py:init():569] starting backend
+2022-12-19 20:33:04,796 INFO    MainThread:47199 [wandb_init.py:init():573] setting up manager
+2022-12-19 20:33:04,803 INFO    MainThread:47199 [backend.py:_multiprocessing_setup():102] multiprocessing start_methods=spawn,fork,forkserver, using: spawn
+2022-12-19 20:33:04,803 INFO    MainThread:47199 [wandb_init.py:init():580] backend started and connected
+2022-12-19 20:33:04,813 INFO    MainThread:47199 [wandb_init.py:init():658] updated telemetry
+2022-12-19 20:33:04,846 INFO    MainThread:47199 [wandb_init.py:init():693] communicating run to backend with 60 second timeout
+2022-12-19 20:33:04,997 INFO    MainThread:47199 [wandb_init.py:init():722] run resumed
+2022-12-19 20:33:04,999 INFO    MainThread:47199 [wandb_run.py:_on_init():2000] communicating current version
+2022-12-19 20:33:05,368 INFO    MainThread:47199 [wandb_run.py:_on_init():2004] got version response upgrade_message: "wandb version 0.13.7 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+delete_message: "wandb version 0.13.5.dev1 has been retired!  Please upgrade."
+
+2022-12-19 20:33:05,369 INFO    MainThread:47199 [wandb_init.py:init():728] starting run threads in backend
+2022-12-19 20:33:05,587 INFO    MainThread:47199 [wandb_run.py:_console_start():1980] atexit reg
+2022-12-19 20:33:05,588 INFO    MainThread:47199 [wandb_run.py:_redirect():1838] redirect: SettingsConsole.OFF
+2022-12-19 20:33:05,588 INFO    MainThread:47199 [wandb_init.py:init():765] run started, returning control to user process
+2022-12-19 20:33:05,589 INFO    MainThread:47199 [wandb_run.py:_finish():1746] finishing run mock_server_entity/test/resume-me
+2022-12-19 20:33:05,589 INFO    MainThread:47199 [wandb_run.py:_atexit_cleanup():1949] got exitcode: 3
+2022-12-19 20:33:05,589 INFO    MainThread:47199 [wandb_run.py:_restore():1932] restore
+2022-12-19 20:33:05,589 INFO    MainThread:47199 [wandb_run.py:_restore():1938] restore done
+2022-12-19 20:33:09,267 INFO    MainThread:47199 [wandb_run.py:_footer_history_summary_info():3377] rendering history
+2022-12-19 20:33:09,267 INFO    MainThread:47199 [wandb_run.py:_footer_history_summary_info():3409] rendering summary
+2022-12-19 20:33:09,269 INFO    MainThread:47199 [wandb_run.py:_footer_sync_info():3333] logging synced files
+2022-12-19 20:33:13,300 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Configure stats pid to 47199
+2022-12-19 20:33:13,301 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from /Users/estellaxin/.config/wandb/settings
+2022-12-19 20:33:13,301 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_live_policy_file_upload/wandb/settings
+2022-12-19 20:33:13,301 WARNING MainThread:47199 [wandb_setup.py:_flush():68] Unknown environment variable: WANDB_REQUIRE_REPORT_EDITING_V0
+2022-12-19 20:33:13,301 WARNING MainThread:47199 [wandb_setup.py:_flush():68] Unknown environment variable: WANDB_ERROR_REPORTING
+2022-12-19 20:33:13,301 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from environment variables: {'_require_service': 'True', 'username': 'test_live_policy_file_upload', 'base_url': 'http://localhost:65203', 'api_key': '***REDACTED***'}
+2022-12-19 20:33:13,301 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Inferring run settings from compute environment: {'program': '<python with no main file>'}
+2022-12-19 20:33:13,301 INFO    MainThread:47199 [wandb_init.py:_log_setup():476] Logging user logs to /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_live_policy_file_upload/wandb/run-20221219_203313-3bls5o1m/logs/debug.log
+2022-12-19 20:33:13,301 INFO    MainThread:47199 [wandb_init.py:_log_setup():477] Logging internal logs to /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_live_policy_file_upload/wandb/run-20221219_203313-3bls5o1m/logs/debug-internal.log
+2022-12-19 20:33:13,301 INFO    MainThread:47199 [wandb_init.py:init():516] calling init triggers
+2022-12-19 20:33:13,301 INFO    MainThread:47199 [wandb_init.py:init():519] wandb.init called with sweep_config: {}
+config: {}
+2022-12-19 20:33:13,301 INFO    MainThread:47199 [wandb_init.py:init():569] starting backend
+2022-12-19 20:33:13,301 INFO    MainThread:47199 [wandb_init.py:init():573] setting up manager
+2022-12-19 20:33:13,310 INFO    MainThread:47199 [wandb_init.py:init():580] backend started and connected
+2022-12-19 20:33:13,318 INFO    MainThread:47199 [wandb_init.py:init():658] updated telemetry
+2022-12-19 20:33:13,432 INFO    MainThread:47199 [wandb_init.py:init():693] communicating run to backend with 60 second timeout
+2022-12-19 20:33:13,576 INFO    MainThread:47199 [wandb_run.py:_on_init():2000] communicating current version
+2022-12-19 20:33:13,895 INFO    MainThread:47199 [wandb_run.py:_on_init():2004] got version response upgrade_message: "wandb version 0.13.7 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+delete_message: "wandb version 0.13.5.dev1 has been retired!  Please upgrade."
+
+2022-12-19 20:33:13,895 INFO    MainThread:47199 [wandb_init.py:init():728] starting run threads in backend
+2022-12-19 20:33:14,065 INFO    MainThread:47199 [wandb_run.py:_console_start():1980] atexit reg
+2022-12-19 20:33:14,065 INFO    MainThread:47199 [wandb_run.py:_redirect():1838] redirect: SettingsConsole.OFF
+2022-12-19 20:33:14,066 INFO    MainThread:47199 [wandb_init.py:init():765] run started, returning control to user process
+2022-12-19 20:33:21,179 INFO    MainThread:47199 [wandb_run.py:_finish():1746] finishing run mock_server_entity/test/3bls5o1m
+2022-12-19 20:33:21,180 INFO    MainThread:47199 [wandb_run.py:_atexit_cleanup():1949] got exitcode: 0
+2022-12-19 20:33:21,180 INFO    MainThread:47199 [wandb_run.py:_restore():1932] restore
+2022-12-19 20:33:21,180 INFO    MainThread:47199 [wandb_run.py:_restore():1938] restore done
+2022-12-19 20:33:25,879 INFO    MainThread:47199 [wandb_run.py:_footer_history_summary_info():3377] rendering history
+2022-12-19 20:33:25,880 INFO    MainThread:47199 [wandb_run.py:_footer_history_summary_info():3409] rendering summary
+2022-12-19 20:33:25,882 INFO    MainThread:47199 [wandb_run.py:_footer_sync_info():3333] logging synced files
+2022-12-19 20:33:28,727 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Configure stats pid to 47199
+2022-12-19 20:33:28,728 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from /Users/estellaxin/.config/wandb/settings
+2022-12-19 20:33:28,728 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_local_warning__True-False-False__/wandb/settings
+2022-12-19 20:33:28,728 WARNING MainThread:47199 [wandb_setup.py:_flush():68] Unknown environment variable: WANDB_REQUIRE_REPORT_EDITING_V0
+2022-12-19 20:33:28,728 WARNING MainThread:47199 [wandb_setup.py:_flush():68] Unknown environment variable: WANDB_ERROR_REPORTING
+2022-12-19 20:33:28,728 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from environment variables: {'_require_service': 'True', 'username': 'test_local_warning%5BTrue-False-False%5D', 'base_url': 'http://localhost:65203', 'api_key': '***REDACTED***'}
+2022-12-19 20:33:28,728 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Inferring run settings from compute environment: {'program': '<python with no main file>'}
+2022-12-19 20:33:28,728 INFO    MainThread:47199 [wandb_init.py:_log_setup():476] Logging user logs to /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_local_warning__True-False-False__/wandb/run-20221219_203328-2ku11rci/logs/debug.log
+2022-12-19 20:33:28,728 INFO    MainThread:47199 [wandb_init.py:_log_setup():477] Logging internal logs to /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_local_warning__True-False-False__/wandb/run-20221219_203328-2ku11rci/logs/debug-internal.log
+2022-12-19 20:33:28,728 INFO    MainThread:47199 [wandb_init.py:init():516] calling init triggers
+2022-12-19 20:33:28,728 INFO    MainThread:47199 [wandb_init.py:init():519] wandb.init called with sweep_config: {}
+config: {}
+2022-12-19 20:33:28,728 INFO    MainThread:47199 [wandb_init.py:init():569] starting backend
+2022-12-19 20:33:28,728 INFO    MainThread:47199 [wandb_init.py:init():573] setting up manager
+2022-12-19 20:33:28,736 INFO    MainThread:47199 [backend.py:_multiprocessing_setup():102] multiprocessing start_methods=spawn,fork,forkserver, using: spawn
+2022-12-19 20:33:28,755 INFO    MainThread:47199 [wandb_init.py:init():580] backend started and connected
+2022-12-19 20:33:28,804 INFO    MainThread:47199 [wandb_init.py:init():658] updated telemetry
+2022-12-19 20:33:28,836 INFO    MainThread:47199 [wandb_init.py:init():693] communicating run to backend with 60 second timeout
+2022-12-19 20:33:29,423 INFO    MainThread:47199 [wandb_run.py:_on_init():2000] communicating current version
+2022-12-19 20:33:29,691 INFO    MainThread:47199 [wandb_run.py:_on_init():2004] got version response upgrade_message: "wandb version 0.13.7 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+delete_message: "wandb version 0.13.5.dev1 has been retired!  Please upgrade."
+
+2022-12-19 20:33:29,692 INFO    MainThread:47199 [wandb_init.py:init():728] starting run threads in backend
+2022-12-19 20:33:29,981 INFO    MainThread:47199 [wandb_run.py:_console_start():1980] atexit reg
+2022-12-19 20:33:29,981 INFO    MainThread:47199 [wandb_run.py:_redirect():1838] redirect: SettingsConsole.OFF
+2022-12-19 20:33:29,982 INFO    MainThread:47199 [wandb_init.py:init():765] run started, returning control to user process
+2022-12-19 20:33:29,982 INFO    MainThread:47199 [wandb_run.py:_finish():1746] finishing run mock_server_entity/test/2ku11rci
+2022-12-19 20:33:29,982 INFO    MainThread:47199 [wandb_run.py:_atexit_cleanup():1949] got exitcode: 0
+2022-12-19 20:33:29,983 INFO    MainThread:47199 [wandb_run.py:_restore():1932] restore
+2022-12-19 20:33:29,983 INFO    MainThread:47199 [wandb_run.py:_restore():1938] restore done
+2022-12-19 20:33:36,729 INFO    MainThread:47199 [wandb_run.py:_footer_history_summary_info():3377] rendering history
+2022-12-19 20:33:36,729 INFO    MainThread:47199 [wandb_run.py:_footer_history_summary_info():3409] rendering summary
+2022-12-19 20:33:36,731 INFO    MainThread:47199 [wandb_run.py:_footer_sync_info():3333] logging synced files
+2022-12-19 20:33:38,998 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Configure stats pid to 47199
+2022-12-19 20:33:38,998 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from /Users/estellaxin/.config/wandb/settings
+2022-12-19 20:33:38,998 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_artifact_string_run_config_set_item/wandb/settings
+2022-12-19 20:33:38,998 WARNING MainThread:47199 [wandb_setup.py:_flush():68] Unknown environment variable: WANDB_REQUIRE_REPORT_EDITING_V0
+2022-12-19 20:33:38,998 WARNING MainThread:47199 [wandb_setup.py:_flush():68] Unknown environment variable: WANDB_ERROR_REPORTING
+2022-12-19 20:33:38,998 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from environment variables: {'_require_service': 'True', 'username': 'test_artifact_string_run_config_set_item', 'base_url': 'http://localhost:65203', 'api_key': '***REDACTED***'}
+2022-12-19 20:33:38,998 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Inferring run settings from compute environment: {'program': '<python with no main file>'}
+2022-12-19 20:33:38,998 INFO    MainThread:47199 [wandb_init.py:_log_setup():476] Logging user logs to /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_artifact_string_run_config_set_item/wandb/run-20221219_203338-22ewq8k0/logs/debug.log
+2022-12-19 20:33:38,998 INFO    MainThread:47199 [wandb_init.py:_log_setup():477] Logging internal logs to /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_artifact_string_run_config_set_item/wandb/run-20221219_203338-22ewq8k0/logs/debug-internal.log
+2022-12-19 20:33:38,998 INFO    MainThread:47199 [wandb_init.py:init():516] calling init triggers
+2022-12-19 20:33:38,998 INFO    MainThread:47199 [wandb_init.py:init():519] wandb.init called with sweep_config: {}
+config: {}
+2022-12-19 20:33:38,998 INFO    MainThread:47199 [wandb_init.py:init():569] starting backend
+2022-12-19 20:33:38,998 INFO    MainThread:47199 [wandb_init.py:init():573] setting up manager
+2022-12-19 20:33:39,005 INFO    MainThread:47199 [backend.py:_multiprocessing_setup():102] multiprocessing start_methods=spawn,fork,forkserver, using: spawn
+2022-12-19 20:33:39,006 INFO    MainThread:47199 [wandb_init.py:init():580] backend started and connected
+2022-12-19 20:33:39,012 INFO    MainThread:47199 [wandb_init.py:init():658] updated telemetry
+2022-12-19 20:33:39,041 INFO    MainThread:47199 [wandb_init.py:init():693] communicating run to backend with 60 second timeout
+2022-12-19 20:33:39,181 INFO    MainThread:47199 [wandb_run.py:_on_init():2000] communicating current version
+2022-12-19 20:33:39,456 INFO    MainThread:47199 [wandb_run.py:_on_init():2004] got version response upgrade_message: "wandb version 0.13.7 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+delete_message: "wandb version 0.13.5.dev1 has been retired!  Please upgrade."
+
+2022-12-19 20:33:39,457 INFO    MainThread:47199 [wandb_init.py:init():728] starting run threads in backend
+2022-12-19 20:33:39,654 INFO    MainThread:47199 [wandb_run.py:_console_start():1980] atexit reg
+2022-12-19 20:33:39,654 INFO    MainThread:47199 [wandb_run.py:_redirect():1838] redirect: SettingsConsole.OFF
+2022-12-19 20:33:39,655 INFO    MainThread:47199 [wandb_init.py:init():765] run started, returning control to user process
+2022-12-19 20:33:39,683 INFO    MainThread:47199 [wandb_config.py:__setitem__():148] config set dataset = <Artifact QXJ0aWZhY3Q6NTI1MDk4> - <bound method Run._config_callback of <wandb.sdk.wandb_run.Run object at 0x2c6172eb0>>
+2022-12-19 20:33:39,683 INFO    MainThread:47199 [wandb_run.py:_config_callback():1160] config_cb dataset <Artifact QXJ0aWZhY3Q6NTI1MDk4> None
+2022-12-19 20:33:39,683 INFO    MainThread:47199 [wandb_run.py:_finish():1746] finishing run mock_server_entity/test/22ewq8k0
+2022-12-19 20:33:39,683 INFO    MainThread:47199 [wandb_run.py:_atexit_cleanup():1949] got exitcode: 0
+2022-12-19 20:33:39,683 INFO    MainThread:47199 [wandb_run.py:_restore():1932] restore
+2022-12-19 20:33:39,684 INFO    MainThread:47199 [wandb_run.py:_restore():1938] restore done
+2022-12-19 20:33:43,494 INFO    MainThread:47199 [wandb_run.py:_footer_history_summary_info():3377] rendering history
+2022-12-19 20:33:43,494 INFO    MainThread:47199 [wandb_run.py:_footer_history_summary_info():3409] rendering summary
+2022-12-19 20:33:43,496 INFO    MainThread:47199 [wandb_run.py:_footer_sync_info():3333] logging synced files
+2022-12-19 20:33:46,324 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Configure stats pid to 47199
+2022-12-19 20:33:46,324 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from /Users/estellaxin/.config/wandb/settings
+2022-12-19 20:33:46,324 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_public_artifact_run_config_update/wandb/settings
+2022-12-19 20:33:46,324 WARNING MainThread:47199 [wandb_setup.py:_flush():68] Unknown environment variable: WANDB_REQUIRE_REPORT_EDITING_V0
+2022-12-19 20:33:46,324 WARNING MainThread:47199 [wandb_setup.py:_flush():68] Unknown environment variable: WANDB_ERROR_REPORTING
+2022-12-19 20:33:46,324 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Loading settings from environment variables: {'_require_service': 'True', 'username': 'test_public_artifact_run_config_update', 'base_url': 'http://localhost:65203', 'api_key': '***REDACTED***'}
+2022-12-19 20:33:46,324 INFO    MainThread:47199 [wandb_setup.py:_flush():68] Inferring run settings from compute environment: {'program': '<python with no main file>'}
+2022-12-19 20:33:46,324 INFO    MainThread:47199 [wandb_init.py:_log_setup():476] Logging user logs to /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_public_artifact_run_config_update/wandb/run-20221219_203346-2wmy2hiu/logs/debug.log
+2022-12-19 20:33:46,324 INFO    MainThread:47199 [wandb_init.py:_log_setup():477] Logging internal logs to /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_public_artifact_run_config_update/wandb/run-20221219_203346-2wmy2hiu/logs/debug-internal.log
+2022-12-19 20:33:46,324 INFO    MainThread:47199 [wandb_init.py:init():516] calling init triggers
+2022-12-19 20:33:46,325 INFO    MainThread:47199 [wandb_init.py:init():519] wandb.init called with sweep_config: {}
+config: {}
+2022-12-19 20:33:46,325 INFO    MainThread:47199 [wandb_init.py:init():569] starting backend
+2022-12-19 20:33:46,325 INFO    MainThread:47199 [wandb_init.py:init():573] setting up manager
+2022-12-19 20:33:46,334 INFO    MainThread:47199 [backend.py:_multiprocessing_setup():102] multiprocessing start_methods=spawn,fork,forkserver, using: spawn
+2022-12-19 20:33:46,335 INFO    MainThread:47199 [wandb_init.py:init():580] backend started and connected
+2022-12-19 20:33:46,345 INFO    MainThread:47199 [wandb_init.py:init():658] updated telemetry
+2022-12-19 20:33:46,380 INFO    MainThread:47199 [wandb_init.py:init():693] communicating run to backend with 60 second timeout
+2022-12-19 20:33:46,588 INFO    MainThread:47199 [wandb_run.py:_on_init():2000] communicating current version
+2022-12-19 20:33:46,700 INFO    MainThread:47199 [wandb_run.py:_on_init():2004] got version response upgrade_message: "wandb version 0.13.7 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+delete_message: "wandb version 0.13.5.dev1 has been retired!  Please upgrade."
+
+2022-12-19 20:33:46,700 INFO    MainThread:47199 [wandb_init.py:init():728] starting run threads in backend
+2022-12-19 20:33:46,946 INFO    MainThread:47199 [wandb_run.py:_console_start():1980] atexit reg
+2022-12-19 20:33:46,946 INFO    MainThread:47199 [wandb_run.py:_redirect():1838] redirect: SettingsConsole.OFF
+2022-12-19 20:33:46,947 INFO    MainThread:47199 [wandb_init.py:init():765] run started, returning control to user process
+2022-12-19 20:33:46,967 INFO    MainThread:47199 [wandb_run.py:_config_callback():1160] config_cb None None {'dataset': <Artifact QXJ0aWZhY3Q6NTI1MDk4>}
+2022-12-19 20:33:46,968 INFO    MainThread:47199 [wandb_run.py:_finish():1746] finishing run mock_server_entity/test/2wmy2hiu
+2022-12-19 20:33:46,968 INFO    MainThread:47199 [wandb_run.py:_atexit_cleanup():1949] got exitcode: 0
+2022-12-19 20:33:46,969 INFO    MainThread:47199 [wandb_run.py:_restore():1932] restore
+2022-12-19 20:33:46,969 INFO    MainThread:47199 [wandb_run.py:_restore():1938] restore done
+2022-12-19 20:33:51,865 INFO    MainThread:47199 [wandb_run.py:_footer_history_summary_info():3377] rendering history
+2022-12-19 20:33:51,865 INFO    MainThread:47199 [wandb_run.py:_footer_history_summary_info():3409] rendering summary
+2022-12-19 20:33:51,866 INFO    MainThread:47199 [wandb_run.py:_footer_sync_info():3333] logging synced files

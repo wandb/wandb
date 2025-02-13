@@ -1,0 +1,17 @@
+wandb: launch: agent test_agent polling on project test, queues default, running 0 out of a maximum of 1 jobs
+wandb: launch: Launch agent received job:
+wandb: {'runQueueItemId': '1',
+wandb:  'runSpec': {'entity': 'mock_server_entity',
+wandb:              'project': 'test_project',
+wandb:              'resource': 'local',
+wandb:              'uri': 'https://wandb.ai/mock_server_entity/test_project/runs/1'}}
+wandb:
+wandb: ERROR launch: Error running job: Traceback (most recent call last):
+wandb: ERROR   File "/Users/estellaxin/Projects/wandb/wandb/sdk/launch/agent/agent.py", line 438, in loop
+wandb: ERROR     self.run_job(job, queue, file_saver)
+wandb: ERROR   File "/Users/estellaxin/Projects/wandb/wandb/sdk/launch/agent/agent.py", line 361, in run_job
+wandb: ERROR     self._pool.apply_async(
+wandb: ERROR TypeError: <lambda>() takes 2 positional arguments but 3 were given
+wandb: ERROR
+wandb: launch: Shutting down, active jobs:
+wandb: launch: agent test_agent polling on project test, queues default, running 0 out of a maximum of 1 jobs

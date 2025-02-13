@@ -1,0 +1,33 @@
+2022-12-19 20:31:49,812 INFO    MainThread:47214 [wandb_setup.py:_flush():68] Configure stats pid to 47214
+2022-12-19 20:31:49,812 INFO    MainThread:47214 [wandb_setup.py:_flush():68] Loading settings from /Users/estellaxin/.config/wandb/settings
+2022-12-19 20:31:49,812 INFO    MainThread:47214 [wandb_setup.py:_flush():68] Loading settings from /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_footer_server_message__--my%20first%20hint__/wandb/settings
+2022-12-19 20:31:49,812 WARNING MainThread:47214 [wandb_setup.py:_flush():68] Unknown environment variable: WANDB_REQUIRE_REPORT_EDITING_V0
+2022-12-19 20:31:49,812 WARNING MainThread:47214 [wandb_setup.py:_flush():68] Unknown environment variable: WANDB_ERROR_REPORTING
+2022-12-19 20:31:49,812 INFO    MainThread:47214 [wandb_setup.py:_flush():68] Loading settings from environment variables: {'_require_service': 'True', 'username': 'test_footer_server_message%5B--my%20first%20hint%5D', 'base_url': 'http://localhost:65271', 'api_key': '***REDACTED***'}
+2022-12-19 20:31:49,812 INFO    MainThread:47214 [wandb_setup.py:_flush():68] Inferring run settings from compute environment: {'program': '<python with no main file>'}
+2022-12-19 20:31:49,812 INFO    MainThread:47214 [wandb_init.py:_log_setup():476] Logging user logs to /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_footer_server_message__--my%20first%20hint__/wandb/run-20221219_203149-2uqqy7ig/logs/debug.log
+2022-12-19 20:31:49,812 INFO    MainThread:47214 [wandb_init.py:_log_setup():477] Logging internal logs to /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_footer_server_message__--my%20first%20hint__/wandb/run-20221219_203149-2uqqy7ig/logs/debug-internal.log
+2022-12-19 20:31:49,812 INFO    MainThread:47214 [wandb_init.py:init():516] calling init triggers
+2022-12-19 20:31:49,812 INFO    MainThread:47214 [wandb_init.py:init():519] wandb.init called with sweep_config: {}
+config: {}
+2022-12-19 20:31:49,812 INFO    MainThread:47214 [wandb_init.py:init():569] starting backend
+2022-12-19 20:31:49,812 INFO    MainThread:47214 [wandb_init.py:init():573] setting up manager
+2022-12-19 20:31:49,821 INFO    MainThread:47214 [backend.py:_multiprocessing_setup():102] multiprocessing start_methods=spawn,fork,forkserver, using: spawn
+2022-12-19 20:31:49,824 INFO    MainThread:47214 [wandb_init.py:init():580] backend started and connected
+2022-12-19 20:31:49,831 INFO    MainThread:47214 [wandb_init.py:init():658] updated telemetry
+2022-12-19 20:31:49,862 INFO    MainThread:47214 [wandb_init.py:init():693] communicating run to backend with 60 second timeout
+2022-12-19 20:31:49,989 INFO    MainThread:47214 [wandb_run.py:_on_init():2000] communicating current version
+2022-12-19 20:31:50,297 INFO    MainThread:47214 [wandb_run.py:_on_init():2004] got version response upgrade_message: "wandb version 0.13.7 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+delete_message: "wandb version 0.13.5.dev1 has been retired!  Please upgrade."
+
+2022-12-19 20:31:50,297 INFO    MainThread:47214 [wandb_init.py:init():728] starting run threads in backend
+2022-12-19 20:31:50,462 INFO    MainThread:47214 [wandb_run.py:_console_start():1980] atexit reg
+2022-12-19 20:31:50,462 INFO    MainThread:47214 [wandb_run.py:_redirect():1838] redirect: SettingsConsole.OFF
+2022-12-19 20:31:50,464 INFO    MainThread:47214 [wandb_init.py:init():765] run started, returning control to user process
+2022-12-19 20:31:50,465 INFO    MainThread:47214 [wandb_run.py:_finish():1746] finishing run mock_server_entity/test/2uqqy7ig
+2022-12-19 20:31:50,465 INFO    MainThread:47214 [wandb_run.py:_atexit_cleanup():1949] got exitcode: 0
+2022-12-19 20:31:50,465 INFO    MainThread:47214 [wandb_run.py:_restore():1932] restore
+2022-12-19 20:31:50,465 INFO    MainThread:47214 [wandb_run.py:_restore():1938] restore done
+2022-12-19 20:31:53,291 INFO    MainThread:47214 [wandb_run.py:_footer_history_summary_info():3377] rendering history
+2022-12-19 20:31:53,291 INFO    MainThread:47214 [wandb_run.py:_footer_history_summary_info():3409] rendering summary
+2022-12-19 20:31:53,293 INFO    MainThread:47214 [wandb_run.py:_footer_sync_info():3333] logging synced files

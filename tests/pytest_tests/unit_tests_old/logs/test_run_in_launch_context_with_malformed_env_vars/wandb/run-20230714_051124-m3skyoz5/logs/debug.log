@@ -1,0 +1,34 @@
+2023-07-14 05:11:24,430 INFO    MainThread:41701 [wandb_setup.py:_flush():76] Current SDK version is 0.15.6.dev1
+2023-07-14 05:11:24,468 INFO    MainThread:41701 [wandb_setup.py:_flush():76] Configure stats pid to 41701
+2023-07-14 05:11:24,471 INFO    MainThread:41701 [wandb_setup.py:_flush():76] Loading settings from /Users/estellaxin/.config/wandb/settings
+2023-07-14 05:11:24,474 INFO    MainThread:41701 [wandb_setup.py:_flush():76] Loading settings from /private/var/folders/vh/k98fyx251l792bbzj485tdnw0000gp/T/tmpxrhf89sk/wandb/settings
+2023-07-14 05:11:24,476 WARNING MainThread:41701 [wandb_setup.py:_flush():76] Unknown environment variable: WANDB_ERROR_REPORTING
+2023-07-14 05:11:24,479 WARNING MainThread:41701 [wandb_setup.py:_flush():76] Unknown environment variable: WANDB_ARTIFACTS
+2023-07-14 05:11:24,482 WARNING MainThread:41701 [wandb_setup.py:_flush():76] Unknown environment variable: WANDB_CONFIG
+2023-07-14 05:11:24,484 INFO    MainThread:41701 [wandb_setup.py:_flush():76] Loading settings from environment variables: {'_network_buffer': '1000', 'username': 'test_run_in_launch_context_with_malformed_env_vars', 'base_url': 'http://localhost:58022', 'api_key': '***REDACTED***'}
+2023-07-14 05:11:24,487 INFO    MainThread:41701 [wandb_setup.py:_flush():76] Applying setup settings: {'_disable_service': False}
+2023-07-14 05:11:24,490 INFO    MainThread:41701 [wandb_setup.py:_flush():76] Inferring run settings from compute environment: {'program': '<python with no main file>'}
+2023-07-14 05:11:24,496 INFO    MainThread:41701 [wandb_init.py:_log_setup():507] Logging user logs to /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_run_in_launch_context_with_malformed_env_vars/wandb/run-20230714_051124-m3skyoz5/logs/debug.log
+2023-07-14 05:11:24,499 INFO    MainThread:41701 [wandb_init.py:_log_setup():508] Logging internal logs to /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_run_in_launch_context_with_malformed_env_vars/wandb/run-20230714_051124-m3skyoz5/logs/debug-internal.log
+2023-07-14 05:11:24,502 INFO    MainThread:41701 [wandb_init.py:init():547] calling init triggers
+2023-07-14 05:11:24,505 INFO    MainThread:41701 [wandb_init.py:init():554] wandb.init called with sweep_config: {}
+config: {'epochs': 2, 'lr': 0.004}
+2023-07-14 05:11:24,508 INFO    MainThread:41701 [wandb_init.py:init():596] starting backend
+2023-07-14 05:11:24,511 INFO    MainThread:41701 [wandb_init.py:init():600] setting up manager
+2023-07-14 05:11:24,523 INFO    MainThread:41701 [backend.py:_multiprocessing_setup():106] multiprocessing start_methods=spawn,fork,forkserver, using: spawn
+2023-07-14 05:11:24,528 INFO    MainThread:41701 [wandb_init.py:init():606] backend started and connected
+2023-07-14 05:11:24,557 INFO    MainThread:41701 [wandb_init.py:init():697] updated telemetry
+2023-07-14 05:11:24,561 INFO    MainThread:41701 [wandb_init.py:init():730] communicating run to backend with 60.0 second timeout
+2023-07-14 05:11:24,598 INFO    MainThread:41701 [wandb_run.py:_on_init():2174] communicating current version
+2023-07-14 05:11:24,877 INFO    MainThread:41701 [wandb_run.py:_on_init():2183] got version response 
+2023-07-14 05:11:24,880 INFO    MainThread:41701 [wandb_init.py:init():781] starting run threads in backend
+2023-07-14 05:11:24,953 INFO    MainThread:41701 [wandb_run.py:_console_start():2153] atexit reg
+2023-07-14 05:11:24,957 INFO    MainThread:41701 [wandb_run.py:_redirect():2008] redirect: off
+2023-07-14 05:11:24,961 INFO    MainThread:41701 [wandb_init.py:init():822] run started, returning control to user process
+2023-07-14 05:11:24,964 INFO    MainThread:41701 [wandb_run.py:_finish():1888] finishing run mock_server_entity/test/m3skyoz5
+2023-07-14 05:11:24,966 INFO    MainThread:41701 [wandb_run.py:_atexit_cleanup():2122] got exitcode: 0
+2023-07-14 05:11:24,969 INFO    MainThread:41701 [wandb_run.py:_restore():2105] restore
+2023-07-14 05:11:24,972 INFO    MainThread:41701 [wandb_run.py:_restore():2111] restore done
+2023-07-14 05:11:27,869 INFO    MainThread:41701 [wandb_run.py:_footer_history_summary_info():3475] rendering history
+2023-07-14 05:11:27,878 INFO    MainThread:41701 [wandb_run.py:_footer_history_summary_info():3507] rendering summary
+2023-07-14 05:11:27,891 INFO    MainThread:41701 [wandb_run.py:_footer_sync_info():3434] logging synced files

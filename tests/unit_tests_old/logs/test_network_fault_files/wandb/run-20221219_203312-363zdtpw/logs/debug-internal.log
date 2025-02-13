@@ -1,0 +1,153 @@
+2022-12-19 20:33:12,759 INFO    StreamThr :48600 [internal.py:wandb_internal():88] W&B internal server running at pid: 48600, started at: 2022-12-19 20:33:12.757425
+2022-12-19 20:33:12,761 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: status
+2022-12-19 20:33:12,933 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: status
+2022-12-19 20:33:12,935 DEBUG   SenderThread:48600 [sender.py:send():303] send: header
+2022-12-19 20:33:12,935 DEBUG   SenderThread:48600 [sender.py:send():303] send: run
+2022-12-19 20:33:12,939 INFO    WriterThread:48600 [datastore.py:open_for_write():75] open: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_network_fault_files/wandb/run-20221219_203312-363zdtpw/run-363zdtpw.wandb
+2022-12-19 20:33:12,962 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: check_version
+2022-12-19 20:33:12,962 INFO    SenderThread:48600 [dir_watcher.py:__init__():216] watching files in: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_network_fault_files/wandb/run-20221219_203312-363zdtpw/files
+2022-12-19 20:33:12,962 INFO    SenderThread:48600 [sender.py:_start_run_threads():928] run started: 363zdtpw with start time 1671499992.743583
+2022-12-19 20:33:12,962 DEBUG   SenderThread:48600 [sender.py:send():303] send: summary
+2022-12-19 20:33:12,962 INFO    SenderThread:48600 [sender.py:_save_file():1171] saving file wandb-summary.json with policy end
+2022-12-19 20:33:12,963 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: check_version
+2022-12-19 20:33:13,276 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: run_start
+2022-12-19 20:33:13,281 DEBUG   HandlerThread:48600 [meta.py:__init__():34] meta init
+2022-12-19 20:33:13,281 DEBUG   HandlerThread:48600 [meta.py:__init__():49] meta init done
+2022-12-19 20:33:13,281 DEBUG   HandlerThread:48600 [meta.py:probe():215] probe
+2022-12-19 20:33:13,288 DEBUG   HandlerThread:48600 [meta.py:_setup_git():205] setup git
+2022-12-19 20:33:13,418 DEBUG   HandlerThread:48600 [meta.py:_setup_git():212] setup git done
+2022-12-19 20:33:13,418 DEBUG   HandlerThread:48600 [meta.py:_save_pip():53] save pip
+2022-12-19 20:33:13,419 DEBUG   HandlerThread:48600 [meta.py:_save_pip():67] save pip done
+2022-12-19 20:33:13,419 DEBUG   HandlerThread:48600 [meta.py:probe():253] probe done
+2022-12-19 20:33:13,549 DEBUG   SenderThread:48600 [sender.py:send():303] send: files
+2022-12-19 20:33:13,549 INFO    SenderThread:48600 [sender.py:_save_file():1171] saving file wandb-metadata.json with policy now
+2022-12-19 20:33:13,555 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: stop_status
+2022-12-19 20:33:13,557 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: stop_status
+2022-12-19 20:33:13,564 DEBUG   SenderThread:48600 [sender.py:send():303] send: telemetry
+2022-12-19 20:33:13,565 DEBUG   SenderThread:48600 [sender.py:send():303] send: telemetry
+2022-12-19 20:33:13,565 DEBUG   SenderThread:48600 [sender.py:send():303] send: exit
+2022-12-19 20:33:13,565 INFO    SenderThread:48600 [sender.py:send_exit():442] handling exit code: 0
+2022-12-19 20:33:13,566 INFO    SenderThread:48600 [sender.py:send_exit():444] handling runtime: 0
+2022-12-19 20:33:13,568 INFO    SenderThread:48600 [sender.py:_save_file():1171] saving file wandb-summary.json with policy end
+2022-12-19 20:33:13,568 INFO    SenderThread:48600 [sender.py:send_exit():450] send defer
+2022-12-19 20:33:13,568 ERROR   Thread-16 :48600 [internal_api.py:upload_file():1884] upload_file exception http://localhost:65209/storage?file=wandb-metadata.json&run=363zdtpw: 500 Server Error: INTERNAL SERVER ERROR for url: http://localhost:65209/storage?file=wandb-metadata.json&run=363zdtpw
+2022-12-19 20:33:13,568 ERROR   Thread-16 :48600 [internal_api.py:upload_file():1886] upload_file request headers: {'User-Agent': 'python-requests/2.28.1', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive', 'Content-Length': '667', 'Authorization': 'Basic dXNlcjpmMzk5NDU5OWEwOTY3YmVhNDA2ODY0YTU4NDYzNmMzZmRiZWYyZGE1'}
+2022-12-19 20:33:13,569 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:33:13,569 ERROR   Thread-16 :48600 [internal_api.py:upload_file():1888] upload_file response body: b'{"errors": ["Server down"]}'
+2022-12-19 20:33:13,569 INFO    HandlerThread:48600 [handler.py:handle_request_defer():161] handle defer: 0
+2022-12-19 20:33:13,569 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:33:13,569 INFO    SenderThread:48600 [sender.py:send_request_defer():459] handle sender defer: 0
+2022-12-19 20:33:13,569 INFO    SenderThread:48600 [sender.py:transition_state():463] send defer: 1
+2022-12-19 20:33:13,569 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:33:13,569 INFO    HandlerThread:48600 [handler.py:handle_request_defer():161] handle defer: 1
+2022-12-19 20:33:13,966 INFO    Thread-12 :48600 [dir_watcher.py:_on_file_created():275] file/dir created: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_network_fault_files/wandb/run-20221219_203312-363zdtpw/files/wandb-summary.json
+2022-12-19 20:33:13,966 INFO    Thread-12 :48600 [dir_watcher.py:_on_file_created():275] file/dir created: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_network_fault_files/wandb/run-20221219_203312-363zdtpw/files/requirements.txt
+2022-12-19 20:33:13,966 INFO    Thread-12 :48600 [dir_watcher.py:_on_file_created():275] file/dir created: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_network_fault_files/wandb/run-20221219_203312-363zdtpw/files/wandb-metadata.json
+2022-12-19 20:33:14,820 ERROR   Thread-16 :48600 [internal_api.py:upload_file():1884] upload_file exception http://localhost:65209/storage?file=wandb-metadata.json&run=363zdtpw: 500 Server Error: INTERNAL SERVER ERROR for url: http://localhost:65209/storage?file=wandb-metadata.json&run=363zdtpw
+2022-12-19 20:33:14,820 ERROR   Thread-16 :48600 [internal_api.py:upload_file():1886] upload_file request headers: {'User-Agent': 'python-requests/2.28.1', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive', 'Content-Length': '667', 'Authorization': 'Basic dXNlcjpmMzk5NDU5OWEwOTY3YmVhNDA2ODY0YTU4NDYzNmMzZmRiZWYyZGE1'}
+2022-12-19 20:33:14,820 ERROR   Thread-16 :48600 [internal_api.py:upload_file():1888] upload_file response body: b'{"errors": ["Server down"]}'
+2022-12-19 20:33:15,433 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: poll_exit
+2022-12-19 20:33:15,433 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:33:15,434 INFO    SenderThread:48600 [sender.py:send_request_defer():459] handle sender defer: 1
+2022-12-19 20:33:15,434 INFO    SenderThread:48600 [sender.py:transition_state():463] send defer: 2
+2022-12-19 20:33:15,434 DEBUG   SenderThread:48600 [sender.py:send():303] send: telemetry
+2022-12-19 20:33:15,434 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: poll_exit
+2022-12-19 20:33:15,435 DEBUG   SenderThread:48600 [sender.py:send():303] send: stats
+2022-12-19 20:33:15,435 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:33:15,436 INFO    HandlerThread:48600 [handler.py:handle_request_defer():161] handle defer: 2
+2022-12-19 20:33:15,437 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:33:15,437 INFO    SenderThread:48600 [sender.py:send_request_defer():459] handle sender defer: 2
+2022-12-19 20:33:15,437 INFO    SenderThread:48600 [sender.py:transition_state():463] send defer: 3
+2022-12-19 20:33:15,437 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:33:15,440 INFO    HandlerThread:48600 [handler.py:handle_request_defer():161] handle defer: 3
+2022-12-19 20:33:15,440 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:33:15,440 INFO    SenderThread:48600 [sender.py:send_request_defer():459] handle sender defer: 3
+2022-12-19 20:33:15,441 INFO    SenderThread:48600 [sender.py:transition_state():463] send defer: 4
+2022-12-19 20:33:15,441 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:33:15,441 INFO    HandlerThread:48600 [handler.py:handle_request_defer():161] handle defer: 4
+2022-12-19 20:33:15,441 DEBUG   SenderThread:48600 [sender.py:send():303] send: summary
+2022-12-19 20:33:15,442 INFO    SenderThread:48600 [sender.py:_save_file():1171] saving file wandb-summary.json with policy end
+2022-12-19 20:33:15,442 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:33:15,442 INFO    SenderThread:48600 [sender.py:send_request_defer():459] handle sender defer: 4
+2022-12-19 20:33:15,442 INFO    SenderThread:48600 [sender.py:transition_state():463] send defer: 5
+2022-12-19 20:33:15,442 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:33:15,442 INFO    HandlerThread:48600 [handler.py:handle_request_defer():161] handle defer: 5
+2022-12-19 20:33:15,442 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:33:15,442 INFO    SenderThread:48600 [sender.py:send_request_defer():459] handle sender defer: 5
+2022-12-19 20:33:15,453 INFO    SenderThread:48600 [sender.py:transition_state():463] send defer: 6
+2022-12-19 20:33:15,454 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:33:15,454 INFO    HandlerThread:48600 [handler.py:handle_request_defer():161] handle defer: 6
+2022-12-19 20:33:15,454 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:33:15,454 INFO    SenderThread:48600 [sender.py:send_request_defer():459] handle sender defer: 6
+2022-12-19 20:33:15,454 INFO    SenderThread:48600 [sender.py:transition_state():463] send defer: 7
+2022-12-19 20:33:15,454 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:33:15,454 INFO    HandlerThread:48600 [handler.py:handle_request_defer():161] handle defer: 7
+2022-12-19 20:33:15,454 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:33:15,454 INFO    SenderThread:48600 [sender.py:send_request_defer():459] handle sender defer: 7
+2022-12-19 20:33:15,455 INFO    SenderThread:48600 [dir_watcher.py:finish():362] shutting down directory watcher
+2022-12-19 20:33:15,567 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: poll_exit
+2022-12-19 20:33:15,975 INFO    SenderThread:48600 [dir_watcher.py:_on_file_modified():292] file/dir modified: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_network_fault_files/wandb/run-20221219_203312-363zdtpw/files/wandb-summary.json
+2022-12-19 20:33:15,975 INFO    SenderThread:48600 [dir_watcher.py:_on_file_modified():292] file/dir modified: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_network_fault_files/wandb/run-20221219_203312-363zdtpw/files/config.yaml
+2022-12-19 20:33:15,976 INFO    SenderThread:48600 [dir_watcher.py:finish():392] scan: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_network_fault_files/wandb/run-20221219_203312-363zdtpw/files
+2022-12-19 20:33:15,976 INFO    SenderThread:48600 [dir_watcher.py:finish():406] scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_network_fault_files/wandb/run-20221219_203312-363zdtpw/files/requirements.txt requirements.txt
+2022-12-19 20:33:15,976 INFO    SenderThread:48600 [dir_watcher.py:finish():406] scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_network_fault_files/wandb/run-20221219_203312-363zdtpw/files/config.yaml config.yaml
+2022-12-19 20:33:15,976 INFO    SenderThread:48600 [dir_watcher.py:finish():406] scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_network_fault_files/wandb/run-20221219_203312-363zdtpw/files/wandb-summary.json wandb-summary.json
+2022-12-19 20:33:15,977 INFO    SenderThread:48600 [dir_watcher.py:finish():406] scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_network_fault_files/wandb/run-20221219_203312-363zdtpw/files/wandb-metadata.json wandb-metadata.json
+2022-12-19 20:33:15,977 INFO    SenderThread:48600 [sender.py:transition_state():463] send defer: 8
+2022-12-19 20:33:15,977 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: poll_exit
+2022-12-19 20:33:15,981 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:33:15,988 INFO    HandlerThread:48600 [handler.py:handle_request_defer():161] handle defer: 8
+2022-12-19 20:33:15,989 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:33:15,989 INFO    SenderThread:48600 [sender.py:send_request_defer():459] handle sender defer: 8
+2022-12-19 20:33:15,989 INFO    SenderThread:48600 [file_pusher.py:finish():168] shutting down file pusher
+2022-12-19 20:33:16,009 ERROR   Thread-18 :48600 [internal_api.py:upload_file():1884] upload_file exception http://localhost:65209/storage?file=config.yaml&run=363zdtpw: 500 Server Error: INTERNAL SERVER ERROR for url: http://localhost:65209/storage?file=config.yaml&run=363zdtpw
+2022-12-19 20:33:16,009 ERROR   Thread-18 :48600 [internal_api.py:upload_file():1886] upload_file request headers: {'User-Agent': 'python-requests/2.28.1', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive', 'Content-Length': '418', 'Authorization': 'Basic dXNlcjpmMzk5NDU5OWEwOTY3YmVhNDA2ODY0YTU4NDYzNmMzZmRiZWYyZGE1'}
+2022-12-19 20:33:16,009 ERROR   Thread-18 :48600 [internal_api.py:upload_file():1888] upload_file response body: b'{"errors": ["Server down"]}'
+2022-12-19 20:33:16,010 ERROR   Thread-17 :48600 [internal_api.py:upload_file():1884] upload_file exception http://localhost:65209/storage?file=requirements.txt&run=363zdtpw: 500 Server Error: INTERNAL SERVER ERROR for url: http://localhost:65209/storage?file=requirements.txt&run=363zdtpw
+2022-12-19 20:33:16,010 ERROR   Thread-17 :48600 [internal_api.py:upload_file():1886] upload_file request headers: {'User-Agent': 'python-requests/2.28.1', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive', 'Content-Length': '3934', 'Authorization': 'Basic dXNlcjpmMzk5NDU5OWEwOTY3YmVhNDA2ODY0YTU4NDYzNmMzZmRiZWYyZGE1'}
+2022-12-19 20:33:16,010 ERROR   Thread-17 :48600 [internal_api.py:upload_file():1888] upload_file response body: b'{"errors": ["Server down"]}'
+2022-12-19 20:33:16,012 ERROR   Thread-19 :48600 [internal_api.py:upload_file():1884] upload_file exception http://localhost:65209/storage?file=wandb-summary.json&run=363zdtpw: 500 Server Error: INTERNAL SERVER ERROR for url: http://localhost:65209/storage?file=wandb-summary.json&run=363zdtpw
+2022-12-19 20:33:16,012 ERROR   Thread-19 :48600 [internal_api.py:upload_file():1886] upload_file request headers: {'User-Agent': 'python-requests/2.28.1', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive', 'Content-Length': '26', 'Authorization': 'Basic dXNlcjpmMzk5NDU5OWEwOTY3YmVhNDA2ODY0YTU4NDYzNmMzZmRiZWYyZGE1'}
+2022-12-19 20:33:16,012 ERROR   Thread-19 :48600 [internal_api.py:upload_file():1888] upload_file response body: b'{"errors": ["Server down"]}'
+2022-12-19 20:33:16,572 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: poll_exit
+2022-12-19 20:33:16,572 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: poll_exit
+2022-12-19 20:33:17,134 INFO    Thread-19 :48600 [upload_job.py:push():143] Uploaded file /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_network_fault_files/wandb/run-20221219_203312-363zdtpw/files/wandb-summary.json
+2022-12-19 20:33:17,166 INFO    Thread-16 :48600 [upload_job.py:push():143] Uploaded file /var/folders/vh/k98fyx251l792bbzj485tdnw0000gp/T/tmpxy23yas6wandb/25phq5d1-wandb-metadata.json
+2022-12-19 20:33:17,193 INFO    Thread-17 :48600 [upload_job.py:push():143] Uploaded file /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_network_fault_files/wandb/run-20221219_203312-363zdtpw/files/requirements.txt
+2022-12-19 20:33:17,227 INFO    Thread-18 :48600 [upload_job.py:push():143] Uploaded file /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_network_fault_files/wandb/run-20221219_203312-363zdtpw/files/config.yaml
+2022-12-19 20:33:17,432 INFO    Thread-11 :48600 [sender.py:transition_state():463] send defer: 9
+2022-12-19 20:33:17,434 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:33:17,434 INFO    HandlerThread:48600 [handler.py:handle_request_defer():161] handle defer: 9
+2022-12-19 20:33:17,434 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:33:17,434 INFO    SenderThread:48600 [sender.py:send_request_defer():459] handle sender defer: 9
+2022-12-19 20:33:17,434 INFO    SenderThread:48600 [file_pusher.py:join():173] waiting for file pusher
+2022-12-19 20:33:17,434 INFO    SenderThread:48600 [sender.py:transition_state():463] send defer: 10
+2022-12-19 20:33:17,434 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:33:17,434 INFO    HandlerThread:48600 [handler.py:handle_request_defer():161] handle defer: 10
+2022-12-19 20:33:17,434 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:33:17,434 INFO    SenderThread:48600 [sender.py:send_request_defer():459] handle sender defer: 10
+2022-12-19 20:33:17,454 INFO    SenderThread:48600 [sender.py:transition_state():463] send defer: 11
+2022-12-19 20:33:17,454 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:33:17,454 INFO    HandlerThread:48600 [handler.py:handle_request_defer():161] handle defer: 11
+2022-12-19 20:33:17,454 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:33:17,454 INFO    SenderThread:48600 [sender.py:send_request_defer():459] handle sender defer: 11
+2022-12-19 20:33:17,454 INFO    SenderThread:48600 [sender.py:transition_state():463] send defer: 12
+2022-12-19 20:33:17,455 DEBUG   SenderThread:48600 [sender.py:send():303] send: final
+2022-12-19 20:33:17,455 DEBUG   SenderThread:48600 [sender.py:send():303] send: footer
+2022-12-19 20:33:17,455 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: defer
+2022-12-19 20:33:17,455 INFO    HandlerThread:48600 [handler.py:handle_request_defer():161] handle defer: 12
+2022-12-19 20:33:17,455 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: defer
+2022-12-19 20:33:17,455 INFO    SenderThread:48600 [sender.py:send_request_defer():459] handle sender defer: 12
+2022-12-19 20:33:17,457 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: poll_exit
+2022-12-19 20:33:17,457 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: server_info
+2022-12-19 20:33:17,457 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: poll_exit
+2022-12-19 20:33:17,458 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: get_summary
+2022-12-19 20:33:17,458 DEBUG   SenderThread:48600 [sender.py:send_request():317] send_request: server_info
+2022-12-19 20:33:17,459 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: sampled_history
+2022-12-19 20:33:17,477 DEBUG   HandlerThread:48600 [handler.py:handle_request():138] handle_request: shutdown
+2022-12-19 20:33:17,478 INFO    HandlerThread:48600 [handler.py:finish():814] shutting down handler
+2022-12-19 20:33:18,456 INFO    WriterThread:48600 [datastore.py:close():279] close: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_network_fault_files/wandb/run-20221219_203312-363zdtpw/run-363zdtpw.wandb
+2022-12-19 20:33:18,479 INFO    SenderThread:48600 [sender.py:finish():1331] shutting down sender
+2022-12-19 20:33:18,479 INFO    SenderThread:48600 [file_pusher.py:finish():168] shutting down file pusher
+2022-12-19 20:33:18,479 INFO    SenderThread:48600 [file_pusher.py:join():173] waiting for file pusher
+2022-12-19 20:33:19,480 INFO    MainThread:48600 [internal.py:handle_exit():78] Internal process exited

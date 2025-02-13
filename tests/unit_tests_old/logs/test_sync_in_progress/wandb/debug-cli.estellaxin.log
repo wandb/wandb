@@ -1,0 +1,144 @@
+2022-12-19 20:32:23 INFO open for scan: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/run-189o96rs.wandb
+2022-12-19 20:32:23 INFO watching files in: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files
+2022-12-19 20:32:23 INFO run started: 189o96rs with start time 1671499936.798146
+2022-12-19 20:32:23 INFO saving file wandb-metadata.json with policy now
+2022-12-19 20:32:23 INFO shutting down sender
+2022-12-19 20:32:23 INFO shutting down directory watcher
+2022-12-19 20:32:24 INFO Uploaded file /var/folders/vh/k98fyx251l792bbzj485tdnw0000gp/T/tmpkb13akpywandb/1obehfqd-wandb-metadata.json
+2022-12-19 20:32:24 INFO scan: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files
+2022-12-19 20:32:24 INFO scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/requirements.txt requirements.txt
+2022-12-19 20:32:24 INFO scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/config.yaml config.yaml
+2022-12-19 20:32:24 INFO scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/wandb-metadata.json wandb-metadata.json
+2022-12-19 20:32:24 INFO shutting down file pusher
+2022-12-19 20:32:24 INFO waiting for file pusher
+2022-12-19 20:32:24 INFO Uploaded file /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/requirements.txt
+2022-12-19 20:32:24 INFO Uploaded file /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/config.yaml
+2022-12-19 20:32:32 INFO open for scan: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/run-189o96rs.wandb
+2022-12-19 20:32:32 INFO watching files in: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files
+2022-12-19 20:32:32 INFO run started: 189o96rs with start time 1671499936.798146
+2022-12-19 20:32:32 INFO saving file wandb-metadata.json with policy now
+2022-12-19 20:32:32 INFO Uploaded file /var/folders/vh/k98fyx251l792bbzj485tdnw0000gp/T/tmp_0xcty31wandb/3f8lytab-wandb-metadata.json
+2022-12-19 20:32:32 INFO saving file wandb-summary.json with policy end
+2022-12-19 20:32:32 INFO handling exit code: 0
+2022-12-19 20:32:32 INFO handling runtime: 8
+2022-12-19 20:32:32 INFO saving file wandb-summary.json with policy end
+2022-12-19 20:32:32 INFO send defer
+2022-12-19 20:32:32 INFO handle sender defer: 0
+2022-12-19 20:32:32 INFO send defer: 1
+2022-12-19 20:32:32 INFO handle sender defer: 1
+2022-12-19 20:32:32 INFO send defer: 2
+2022-12-19 20:32:32 INFO handle sender defer: 2
+2022-12-19 20:32:32 INFO send defer: 3
+2022-12-19 20:32:32 INFO handle sender defer: 3
+2022-12-19 20:32:32 INFO send defer: 4
+2022-12-19 20:32:32 INFO handle sender defer: 4
+2022-12-19 20:32:32 INFO send defer: 5
+2022-12-19 20:32:32 INFO handle sender defer: 5
+2022-12-19 20:32:32 INFO send defer: 6
+2022-12-19 20:32:32 INFO handle sender defer: 6
+2022-12-19 20:32:32 INFO send defer: 7
+2022-12-19 20:32:32 INFO handle sender defer: 7
+2022-12-19 20:32:32 INFO shutting down directory watcher
+2022-12-19 20:32:33 INFO file/dir modified: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/config.yaml
+2022-12-19 20:32:33 INFO file/dir modified: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/wandb-summary.json
+2022-12-19 20:32:33 INFO scan: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files
+2022-12-19 20:32:33 INFO scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/requirements.txt requirements.txt
+2022-12-19 20:32:33 INFO scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/config.yaml config.yaml
+2022-12-19 20:32:33 INFO scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/wandb-summary.json wandb-summary.json
+2022-12-19 20:32:33 INFO scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/wandb-metadata.json wandb-metadata.json
+2022-12-19 20:32:33 INFO send defer: 8
+2022-12-19 20:32:33 INFO handle sender defer: 8
+2022-12-19 20:32:33 INFO shutting down file pusher
+2022-12-19 20:32:33 INFO shutting down sender
+2022-12-19 20:32:33 INFO shutting down file pusher
+2022-12-19 20:32:33 INFO waiting for file pusher
+2022-12-19 20:32:33 INFO Uploaded file /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/requirements.txt
+2022-12-19 20:32:33 INFO Uploaded file /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/wandb-summary.json
+2022-12-19 20:32:33 INFO Uploaded file /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/config.yaml
+2022-12-19 20:32:33 INFO send defer: 9
+2022-12-19 20:32:41 INFO open for scan: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/run-189o96rs.wandb
+2022-12-19 20:32:41 INFO watching files in: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files
+2022-12-19 20:32:41 INFO run started: 189o96rs with start time 1671499936.798146
+2022-12-19 20:32:41 INFO saving file wandb-metadata.json with policy now
+2022-12-19 20:32:41 INFO Uploaded file /var/folders/vh/k98fyx251l792bbzj485tdnw0000gp/T/tmpsr_c9ewrwandb/y0djoudq-wandb-metadata.json
+2022-12-19 20:32:41 INFO saving file wandb-summary.json with policy end
+2022-12-19 20:32:41 INFO handling exit code: 0
+2022-12-19 20:32:41 INFO handling runtime: 8
+2022-12-19 20:32:41 INFO saving file wandb-summary.json with policy end
+2022-12-19 20:32:41 INFO send defer
+2022-12-19 20:32:41 INFO handle sender defer: 0
+2022-12-19 20:32:41 INFO send defer: 1
+2022-12-19 20:32:41 INFO handle sender defer: 1
+2022-12-19 20:32:41 INFO send defer: 2
+2022-12-19 20:32:41 INFO handle sender defer: 2
+2022-12-19 20:32:41 INFO send defer: 3
+2022-12-19 20:32:41 INFO handle sender defer: 3
+2022-12-19 20:32:41 INFO send defer: 4
+2022-12-19 20:32:41 INFO handle sender defer: 4
+2022-12-19 20:32:41 INFO send defer: 5
+2022-12-19 20:32:41 INFO handle sender defer: 5
+2022-12-19 20:32:41 INFO send defer: 6
+2022-12-19 20:32:41 INFO handle sender defer: 6
+2022-12-19 20:32:41 INFO send defer: 7
+2022-12-19 20:32:41 INFO handle sender defer: 7
+2022-12-19 20:32:41 INFO shutting down directory watcher
+2022-12-19 20:32:42 INFO file/dir modified: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/config.yaml
+2022-12-19 20:32:42 INFO file/dir modified: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/wandb-summary.json
+2022-12-19 20:32:42 INFO scan: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files
+2022-12-19 20:32:42 INFO scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/requirements.txt requirements.txt
+2022-12-19 20:32:42 INFO scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/config.yaml config.yaml
+2022-12-19 20:32:42 INFO scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/wandb-summary.json wandb-summary.json
+2022-12-19 20:32:42 INFO scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/wandb-metadata.json wandb-metadata.json
+2022-12-19 20:32:42 INFO send defer: 8
+2022-12-19 20:32:42 INFO handle sender defer: 8
+2022-12-19 20:32:42 INFO shutting down file pusher
+2022-12-19 20:32:42 INFO shutting down sender
+2022-12-19 20:32:42 INFO shutting down file pusher
+2022-12-19 20:32:42 INFO waiting for file pusher
+2022-12-19 20:32:42 INFO Uploaded file /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/requirements.txt
+2022-12-19 20:32:42 INFO Uploaded file /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/config.yaml
+2022-12-19 20:32:42 INFO Uploaded file /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/wandb-summary.json
+2022-12-19 20:32:42 INFO send defer: 9
+2022-12-19 20:32:47 INFO open for scan: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/run-189o96rs.wandb
+2022-12-19 20:32:47 INFO watching files in: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files
+2022-12-19 20:32:47 INFO run started: 189o96rs with start time 1671499936.798146
+2022-12-19 20:32:47 INFO saving file wandb-metadata.json with policy now
+2022-12-19 20:32:47 INFO saving file wandb-summary.json with policy end
+2022-12-19 20:32:47 INFO handling exit code: 0
+2022-12-19 20:32:47 INFO handling runtime: 8
+2022-12-19 20:32:47 INFO saving file wandb-summary.json with policy end
+2022-12-19 20:32:47 INFO send defer
+2022-12-19 20:32:47 INFO handle sender defer: 0
+2022-12-19 20:32:47 INFO send defer: 1
+2022-12-19 20:32:47 INFO handle sender defer: 1
+2022-12-19 20:32:47 INFO send defer: 2
+2022-12-19 20:32:47 INFO handle sender defer: 2
+2022-12-19 20:32:47 INFO send defer: 3
+2022-12-19 20:32:47 INFO handle sender defer: 3
+2022-12-19 20:32:47 INFO send defer: 4
+2022-12-19 20:32:47 INFO handle sender defer: 4
+2022-12-19 20:32:47 INFO send defer: 5
+2022-12-19 20:32:47 INFO handle sender defer: 5
+2022-12-19 20:32:47 INFO Uploaded file /var/folders/vh/k98fyx251l792bbzj485tdnw0000gp/T/tmppir0qfnrwandb/3htll95b-wandb-metadata.json
+2022-12-19 20:32:47 INFO send defer: 6
+2022-12-19 20:32:47 INFO handle sender defer: 6
+2022-12-19 20:32:47 INFO send defer: 7
+2022-12-19 20:32:47 INFO handle sender defer: 7
+2022-12-19 20:32:47 INFO shutting down directory watcher
+2022-12-19 20:32:48 INFO file/dir modified: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/config.yaml
+2022-12-19 20:32:48 INFO file/dir modified: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/wandb-summary.json
+2022-12-19 20:32:48 INFO scan: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files
+2022-12-19 20:32:48 INFO scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/requirements.txt requirements.txt
+2022-12-19 20:32:48 INFO scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/config.yaml config.yaml
+2022-12-19 20:32:48 INFO scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/wandb-summary.json wandb-summary.json
+2022-12-19 20:32:48 INFO scan save: /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/wandb-metadata.json wandb-metadata.json
+2022-12-19 20:32:48 INFO send defer: 8
+2022-12-19 20:32:48 INFO handle sender defer: 8
+2022-12-19 20:32:48 INFO shutting down file pusher
+2022-12-19 20:32:48 INFO shutting down sender
+2022-12-19 20:32:48 INFO shutting down file pusher
+2022-12-19 20:32:48 INFO waiting for file pusher
+2022-12-19 20:32:48 INFO Uploaded file /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/requirements.txt
+2022-12-19 20:32:48 INFO Uploaded file /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/config.yaml
+2022-12-19 20:32:48 INFO Uploaded file /Users/estellaxin/Projects/wandb/tests/unit_tests_old/logs/test_sync_in_progress/wandb/latest-run/files/wandb-summary.json
+2022-12-19 20:32:48 INFO send defer: 9

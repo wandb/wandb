@@ -1,0 +1,3 @@
+[console_scripts]
+wandb = wandb.cli.cli:cli
+wb = wandb.cli.cli:cli

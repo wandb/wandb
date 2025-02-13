@@ -1,0 +1,33 @@
+{
+    "os": "macOS-12.2.1-arm64-arm-64bit",
+    "python": "3.8.13",
+    "heartbeatAt": "2023-07-14T09:09:13.164586",
+    "startedAt": "2023-07-14T09:09:12.590416",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "<python with no main file>",
+    "git": {
+        "remote": "git@github.com:me/my-repo.git",
+        "commit": "29c15e893e36efad84001f4484b4813fbacd55a0"
+    },
+    "email": null,
+    "root": "/Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_manual_git_run_metadata_from_settings",
+    "host": "test",
+    "username": "test_manual_git_run_metadata_from_settings",
+    "executable": "/Users/estellaxin/Projects/wandb/.tox/py38/bin/python",
+    "cpu_count": 10,
+    "cpu_count_logical": 10,
+    "disk": {
+        "total": 926.3517189025879,
+        "used": 23.592041015625
+    },
+    "gpuapple": {
+        "type": "arm",
+        "vendor": "Apple"
+    },
+    "memory": {
+        "total": 64.0
+    }
+}

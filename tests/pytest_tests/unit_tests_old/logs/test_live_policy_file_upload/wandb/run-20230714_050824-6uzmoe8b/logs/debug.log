@@ -1,0 +1,31 @@
+2023-07-14 05:08:24,655 INFO    MainThread:41736 [wandb_setup.py:_flush():76] Current SDK version is 0.15.6.dev1
+2023-07-14 05:08:24,658 INFO    MainThread:41736 [wandb_setup.py:_flush():76] Configure stats pid to 41736
+2023-07-14 05:08:24,659 INFO    MainThread:41736 [wandb_setup.py:_flush():76] Loading settings from /Users/estellaxin/.config/wandb/settings
+2023-07-14 05:08:24,661 INFO    MainThread:41736 [wandb_setup.py:_flush():76] Loading settings from /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_live_policy_file_upload/wandb/settings
+2023-07-14 05:08:24,662 WARNING MainThread:41736 [wandb_setup.py:_flush():76] Unknown environment variable: WANDB_ERROR_REPORTING
+2023-07-14 05:08:24,663 INFO    MainThread:41736 [wandb_setup.py:_flush():76] Loading settings from environment variables: {'_network_buffer': '1000', 'username': 'test_live_policy_file_upload', 'base_url': 'http://localhost:62059', 'api_key': '***REDACTED***'}
+2023-07-14 05:08:24,664 INFO    MainThread:41736 [wandb_setup.py:_flush():76] Applying setup settings: {'_disable_service': False}
+2023-07-14 05:08:24,665 INFO    MainThread:41736 [wandb_setup.py:_flush():76] Inferring run settings from compute environment: {'program': '<python with no main file>'}
+2023-07-14 05:08:24,667 INFO    MainThread:41736 [wandb_init.py:_log_setup():507] Logging user logs to /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_live_policy_file_upload/wandb/run-20230714_050824-6uzmoe8b/logs/debug.log
+2023-07-14 05:08:24,668 INFO    MainThread:41736 [wandb_init.py:_log_setup():508] Logging internal logs to /Users/estellaxin/Projects/wandb/tests/pytest_tests/unit_tests_old/logs/test_live_policy_file_upload/wandb/run-20230714_050824-6uzmoe8b/logs/debug-internal.log
+2023-07-14 05:08:24,670 INFO    MainThread:41736 [wandb_init.py:init():547] calling init triggers
+2023-07-14 05:08:24,671 INFO    MainThread:41736 [wandb_init.py:init():554] wandb.init called with sweep_config: {}
+config: {}
+2023-07-14 05:08:24,673 INFO    MainThread:41736 [wandb_init.py:init():596] starting backend
+2023-07-14 05:08:24,675 INFO    MainThread:41736 [wandb_init.py:init():600] setting up manager
+2023-07-14 05:08:24,680 INFO    MainThread:41736 [wandb_init.py:init():606] backend started and connected
+2023-07-14 05:08:24,705 INFO    MainThread:41736 [wandb_init.py:init():697] updated telemetry
+2023-07-14 05:08:24,755 INFO    MainThread:41736 [wandb_init.py:init():730] communicating run to backend with 60.0 second timeout
+2023-07-14 05:08:24,793 INFO    MainThread:41736 [wandb_run.py:_on_init():2174] communicating current version
+2023-07-14 05:08:24,980 INFO    MainThread:41736 [wandb_run.py:_on_init():2183] got version response 
+2023-07-14 05:08:24,987 INFO    MainThread:41736 [wandb_init.py:init():781] starting run threads in backend
+2023-07-14 05:08:25,223 INFO    MainThread:41736 [wandb_run.py:_console_start():2153] atexit reg
+2023-07-14 05:08:25,226 INFO    MainThread:41736 [wandb_run.py:_redirect():2008] redirect: off
+2023-07-14 05:08:25,228 INFO    MainThread:41736 [wandb_init.py:init():822] run started, returning control to user process
+2023-07-14 05:08:32,350 INFO    MainThread:41736 [wandb_run.py:_finish():1888] finishing run mock_server_entity/test/6uzmoe8b
+2023-07-14 05:08:32,364 INFO    MainThread:41736 [wandb_run.py:_atexit_cleanup():2122] got exitcode: 0
+2023-07-14 05:08:32,365 INFO    MainThread:41736 [wandb_run.py:_restore():2105] restore
+2023-07-14 05:08:32,366 INFO    MainThread:41736 [wandb_run.py:_restore():2111] restore done
+2023-07-14 05:08:34,079 INFO    MainThread:41736 [wandb_run.py:_footer_history_summary_info():3475] rendering history
+2023-07-14 05:08:34,123 INFO    MainThread:41736 [wandb_run.py:_footer_history_summary_info():3507] rendering summary
+2023-07-14 05:08:34,129 INFO    MainThread:41736 [wandb_run.py:_footer_sync_info():3434] logging synced files

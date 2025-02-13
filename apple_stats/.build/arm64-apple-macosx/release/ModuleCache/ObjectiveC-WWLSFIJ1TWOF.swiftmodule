@@ -1,0 +1,36 @@
+---
+path:            '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx/prebuilt-modules/14.2/ObjectiveC.swiftmodule/arm64e-apple-macos.swiftmodule'
+dependencies:
+  - mtime:           1701956013000000000
+    path:            '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx/prebuilt-modules/14.2/ObjectiveC.swiftmodule/arm64e-apple-macos.swiftmodule'
+    size:            42984
+  - mtime:           1699769759000000000
+    path:            'usr/lib/swift/Swift.swiftmodule/arm64e-apple-macos.swiftinterface'
+    size:            2073796
+    sdk_relative:    true
+  - mtime:           1699758686000000000
+    path:            'usr/include/Darwin.apinotes'
+    size:            1133
+    sdk_relative:    true
+  - mtime:           1698525730000000000
+    path:            'usr/include/objc/ObjectiveC.apinotes'
+    size:            11147
+    sdk_relative:    true
+  - mtime:           1699773597000000000
+    path:            'usr/lib/swift/Darwin.swiftmodule/arm64e-apple-macos.swiftinterface'
+    size:            25392
+    sdk_relative:    true
+  - mtime:           1699769764000000000
+    path:            'usr/lib/swift/_Concurrency.swiftmodule/arm64e-apple-macos.swiftinterface'
+    size:            147503
+    sdk_relative:    true
+  - mtime:           1699773718000000000
+    path:            'usr/lib/swift/_StringProcessing.swiftmodule/arm64e-apple-macos.swiftinterface'
+    size:            21923
+    sdk_relative:    true
+  - mtime:           1699774208000000000
+    path:            'usr/lib/swift/ObjectiveC.swiftmodule/arm64e-apple-macos.swiftinterface'
+    size:            4662
+    sdk_relative:    true
+version:         1
+...
