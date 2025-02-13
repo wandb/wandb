@@ -26,7 +26,12 @@ from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.utils import PathType, parse_org_from_registry_path
+from wandb.apis.public.registries import Registries
+from wandb.apis.public.utils import (
+    PathType,
+    fetch_org_from_settings_or_entity,
+    parse_org_from_registry_path,
+)
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
@@ -1449,3 +1454,60 @@ class Api:
             return True
         except wandb.errors.CommError:
             return False
+
+    def registries(
+        self,
+        organization: Optional[str] = None,
+        filter: Optional[Dict[str, Any]] = None,
+    ) -> Registries:
+        """Returns a Registry iterator.
+
+        Use the iterator to search and filter registries, collections,
+        or artifact versions across your organization's registry.
+
+        Examples:
+            Find all registries with the names that contain "model"
+            ```python
+            import wandb
+
+            api = wandb.Api()  # specify an org if your entity belongs to multiple orgs
+            api.registries(filter={"name": {"$regex": "model"}})
+            ```
+
+            Find all collections in the registries with the name "my_collection" and the tag "my_tag"
+            ```python
+            api.registries().collections(filter={"name": "my_collection", "tag": "my_tag"})
+            ```
+
+            Find all artifact versions in the registries with a collection name that contains "my_collection" and a version that has the alias "best"
+            ```python
+            api.registries().collections(
+                filter={"name": {"$regex": "my_collection"}}
+            ).versions(filter={"alias": "best"})
+            ```
+
+            Find all artifact versions in the registries that contain "model" and have the tag "prod" or alias "best"
+            ```python
+            api.registries(filter={"name": {"$regex": "model"}}).versions(
+                filter={"$or": [{"tag": "prod"}, {"alias": "best"}]}
+            )
+            ```
+
+        Args:
+            organization: (str, optional) The organization of the registry to fetch.
+                If not specified, use the organization specified in the user's settings.
+            filter: (dict, optional) MongoDB-style filter to apply to each object in the registry iterator.
+                Fields available to filter for collections are
+                    `name`, `description`, `created_at`, `updated_at`.
+                Fields available to filter for collections are
+                    `name`, `tag`, `description`, `created_at`, `updated_at`
+                Fields available to filter for versions are
+                    `tag`, `alias`, `created_at`, `updated_at`, `metadata`
+
+        Returns:
+            A registry iterator.
+        """
+        organization = organization or fetch_org_from_settings_or_entity(
+            self.settings, self.default_entity
+        )
+        return Registries(self.client, organization, filter)
