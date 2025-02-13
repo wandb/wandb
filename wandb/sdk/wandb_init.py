@@ -10,6 +10,7 @@ For more on using `wandb.init()`, including code snippets, check out our
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import dataclasses
 import json
@@ -42,7 +43,7 @@ from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import SummaryDisabled, filesystem, module, paths, printer, telemetry
 from .lib.deprecate import Deprecated, deprecate
-from .lib.mailbox import Mailbox, MailboxProgress
+from .mailbox import Mailbox, wait_with_progress
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings
@@ -292,6 +293,16 @@ class _WandbInit:
             settings.project = wandb.util.auto_project_name(settings.program)
 
         settings.x_start_time = time.time()
+
+        # In shared mode, generate a unique label if not provided.
+        # The label is used to distinguish between system metrics and console logs
+        # from different writers to the same run.
+        if settings._shared and not settings.x_label:
+            # TODO: If executed in a known distributed environment (e.g. Ray or SLURM),
+            #   use the env vars to generate a label (e.g. SLURM_JOB_ID or RANK)
+            prefix = settings.host or ""
+            label = runid.generate_id()
+            settings.x_label = f"{prefix}-{label}" if prefix else label
 
         return settings
 
@@ -747,11 +758,6 @@ class _WandbInit:
         )
         return drun
 
-    def _on_progress_init(self, handle: MailboxProgress) -> None:
-        line = "Waiting for wandb.init()...\r"
-        percent_done = handle.percent_done
-        self.printer.progress_update(line, percent_done=percent_done)
-
     def init(self, settings: Settings, config: _ConfigParts) -> Run:  # noqa: C901
         self._logger.info("calling init triggers")
         trigger.call("on_init")
@@ -763,28 +769,18 @@ class _WandbInit:
             f"\nconfig: {config.base_no_artifacts}"
         )
 
-        if (
-            settings.reinit or (settings._jupyter and settings.reinit is not False)
-        ) and len(self._wl._global_run_stack) > 0:
-            if len(self._wl._global_run_stack) > 1:
-                wandb.termwarn(
-                    "Launching multiple wandb runs using Python's threading"
-                    " module is not well-supported."
-                    " Please use multiprocessing instead."
-                    " Finishing previous run before initializing another."
-                )
+        if wandb.run is not None and os.getpid() == wandb.run._init_pid:
+            if settings.reinit:
+                self._logger.info(f"finishing previous run: {wandb.run.id}")
+                wandb.run.finish()
+            else:
+                self._logger.info("wandb.init() called while a run is active")
 
-            latest_run = self._wl._global_run_stack[-1]
-            self._logger.info(f"found existing run on stack: {latest_run.id}")
-            latest_run.finish()
-        elif wandb.run is not None and os.getpid() == wandb.run._init_pid:
-            self._logger.info("wandb.init() called when a run is still active")
+                # NOTE: Updates telemetry on the pre-existing run.
+                with telemetry.context() as tel:
+                    tel.feature.init_return_run = True
 
-            # NOTE: Updates telemetry on the pre-existing run.
-            with telemetry.context() as tel:
-                tel.feature.init_return_run = True
-
-            return wandb.run
+                return wandb.run
 
         self._logger.info("starting backend")
 
@@ -877,7 +873,7 @@ class _WandbInit:
                 tel.feature.core = True
             if settings._shared:
                 wandb.termwarn(
-                    "The `_shared` feature is experimental and may change. "
+                    "The `shared` mode feature is experimental and may change. "
                     "Please contact support@wandb.com for guidance and to report any issues."
                 )
                 tel.feature.shared_mode = True
@@ -905,7 +901,6 @@ class _WandbInit:
         run._set_teardown_hooks(self._teardown_hooks)
 
         assert backend.interface
-        mailbox.enable_keepalive()
         backend.interface.publish_header()
 
         # Using GitRepo() blocks & can be slow, depending on user's current git setup.
@@ -928,11 +923,11 @@ class _WandbInit:
         )
 
         run_init_handle = backend.interface.deliver_run(run)
-        result = run_init_handle.wait(
-            timeout=timeout,
-            on_progress=self._on_progress_init,
-            cancel=True,
-        )
+
+        async def display_init_message() -> None:
+            while True:
+                self.printer.progress_update("Waiting for wandb.init()...\r")
+                await asyncio.sleep(1)
 
         # Raise an error if deliver_run failed.
         #
@@ -941,8 +936,16 @@ class _WandbInit:
         #
         # TODO: Remove try-except once x_disable_service is removed.
         try:
-            if not result or not result.run_result:
-                run_init_handle._cancel()
+            try:
+                result = wait_with_progress(
+                    run_init_handle,
+                    timeout=timeout,
+                    progress_after=1,
+                    display_progress=display_init_message,
+                )
+
+            except TimeoutError:
+                run_init_handle.cancel(backend.interface)
 
                 # This may either be an issue with the W&B server (a CommError)
                 # or a bug in the SDK (an Error). We cannot distinguish between
@@ -952,6 +955,8 @@ class _WandbInit:
                     " Please try increasing the timeout with the `init_timeout`"
                     " setting: `wandb.init(settings=wandb.Settings(init_timeout=120))`."
                 )
+
+            assert result.run_result
 
             if error := ProtobufErrorHandler.to_exception(result.run_result.error):
                 raise error
@@ -994,13 +999,13 @@ class _WandbInit:
         assert backend.interface
 
         run_start_handle = backend.interface.deliver_run_start(run)
-        # TODO: add progress to let user know we are doing something
-        run_start_result = run_start_handle.wait(timeout=30)
-        if run_start_result is None:
-            run_start_handle.abandon()
+        try:
+            # TODO: add progress to let user know we are doing something
+            run_start_handle.wait_or(timeout=30)
+        except TimeoutError:
+            pass
 
         assert self._wl is not None
-        self._wl._global_run_stack.append(run)
         self.run = run
 
         run._handle_launch_artifact_overrides()
@@ -1087,14 +1092,13 @@ def _attach(
     run._set_backend(backend)
     assert backend.interface
 
-    mailbox.enable_keepalive()
-
     attach_handle = backend.interface.deliver_attach(attach_id)
-    # TODO: add progress to let user know we are doing something
-    attach_result = attach_handle.wait(timeout=30)
-    if not attach_result:
-        attach_handle.abandon()
+    try:
+        # TODO: add progress to let user know we are doing something
+        attach_result = attach_handle.wait_or(timeout=30)
+    except TimeoutError:
         raise UsageError("Timeout attaching to run")
+
     attach_response = attach_result.response.attach_response
     if attach_response.error and attach_response.error.message:
         raise UsageError(f"Failed to attach to run: {attach_response.error.message}")
@@ -1212,10 +1216,10 @@ def init(  # noqa: C901
             on the system, such as checking the git root or the current program
             file. If we can't infer the project name, the project will default to
             `"uncategorized"`.
-        dir: An absolute path to the directory where metadata and downloaded
-            files will be stored. When calling `download()` on an artifact, files
-            will be saved to this directory. If not specified, this defaults to
-            the `./wandb` directory.
+        dir: The absolute path to the directory where experiment logs and
+            metadata files are stored. If not specified, this defaults
+            to the `./wandb` directory. Note that this does not affect the
+            location where artifacts are stored when calling `download()`.
         id: A unique identifier for this run, used for resuming. It must be unique
             within the project and cannot be reused once a run is deleted. The
             identifier must not contain any of the following special characters:
@@ -1416,7 +1420,7 @@ def init(  # noqa: C901
     wl: wandb_setup._WandbSetup | None = None
 
     try:
-        wl = wandb.setup()
+        wl = wandb_setup._setup(start_service=False)
 
         wi = _WandbInit(wl, init_telemetry)
 

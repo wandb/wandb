@@ -9,8 +9,8 @@ from multiprocessing.process import BaseProcess
 from typing import TYPE_CHECKING, Optional
 
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.mailbox import Mailbox
 
-from ..lib.mailbox import Mailbox
 from .interface_queue import InterfaceQueue
 from .router_relay import MessageRelayRouter
 

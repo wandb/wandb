@@ -5,17 +5,15 @@ See interface.py for how interface classes relate to each other.
 """
 
 import logging
-import time
 from abc import abstractmethod
 from multiprocessing.process import BaseProcess
 from typing import Any, Optional, cast
 
-import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
+from wandb.sdk.mailbox import Mailbox, MailboxHandle
 from wandb.util import json_dumps_safer, json_friendly
 
-from ..lib.mailbox import Mailbox, MailboxHandle
 from .interface import InterfaceBase
 from .message_future import MessageFuture
 from .router import MessageRouter
@@ -28,8 +26,6 @@ class InterfaceShared(InterfaceBase):
     _process_check: bool
     _router: Optional[MessageRouter]
     _mailbox: Optional[Mailbox]
-    _transport_success_timestamp: float
-    _transport_failed: bool
 
     def __init__(
         self,
@@ -38,8 +34,6 @@ class InterfaceShared(InterfaceBase):
         mailbox: Optional[Any] = None,
     ) -> None:
         super().__init__()
-        self._transport_success_timestamp = time.monotonic()
-        self._transport_failed = False
         self._process = process
         self._router = None
         self._process_check = process_check
@@ -49,20 +43,6 @@ class InterfaceShared(InterfaceBase):
     @abstractmethod
     def _init_router(self) -> None:
         raise NotImplementedError
-
-    @property
-    def transport_failed(self) -> bool:
-        return self._transport_failed
-
-    @property
-    def transport_success_timestamp(self) -> float:
-        return self._transport_success_timestamp
-
-    def _transport_mark_failed(self) -> None:
-        self._transport_failed = True
-
-    def _transport_mark_success(self) -> None:
-        self._transport_success_timestamp = time.monotonic()
 
     def _publish_output(self, outdata: pb.OutputRecord) -> None:
         rec = pb.Record()
@@ -114,15 +94,8 @@ class InterfaceShared(InterfaceBase):
             item.value_json = json_dumps_safer(json_friendly(v)[0])
         return stats
 
-    def _make_login(self, api_key: Optional[str] = None) -> pb.LoginRequest:
-        login = pb.LoginRequest()
-        if api_key:
-            login.api_key = api_key
-        return login
-
     def _make_request(  # noqa: C901
         self,
-        login: Optional[pb.LoginRequest] = None,
         get_summary: Optional[pb.GetSummaryRequest] = None,
         pause: Optional[pb.PauseRequest] = None,
         resume: Optional[pb.ResumeRequest] = None,
@@ -158,9 +131,7 @@ class InterfaceShared(InterfaceBase):
         metadata: Optional[pb.MetadataRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
-        if login:
-            request.login.CopyFrom(login)
-        elif get_summary:
+        if get_summary:
             request.get_summary.CopyFrom(get_summary)
         elif pause:
             request.pause.CopyFrom(pause)
@@ -321,21 +292,6 @@ class InterfaceShared(InterfaceBase):
         future = self._router.send_and_receive(rec, local=local)
         return future
 
-    def communicate_login(
-        self, api_key: Optional[str] = None, timeout: Optional[int] = 15
-    ) -> pb.LoginResponse:
-        login = self._make_login(api_key)
-        rec = self._make_request(login=login)
-        result = self._communicate(rec, timeout=timeout)
-        if result is None:
-            # TODO: friendlier error message here
-            raise wandb.Error(
-                "Couldn't communicate with backend after {} seconds".format(timeout)
-            )
-        login_response = result.response.login_response
-        assert login_response
-        return login_response
-
     def _publish_defer(self, state: "pb.DeferRequest.DeferState.V") -> None:
         defer = pb.DeferRequest(state=state)
         rec = self._make_request(defer=defer)
@@ -356,11 +312,6 @@ class InterfaceShared(InterfaceBase):
     def publish_final(self) -> None:
         final = pb.FinalRecord()
         rec = self._make_record(final=final)
-        self._publish(rec)
-
-    def publish_login(self, api_key: Optional[str] = None) -> None:
-        login = self._make_login(api_key)
-        rec = self._make_request(login=login)
         self._publish(rec)
 
     def _publish_pause(self, pause: pb.PauseRequest) -> None:
@@ -410,9 +361,12 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(use_artifact=use_artifact)
         self._publish(rec)
 
-    def _communicate_artifact(self, log_artifact: pb.LogArtifactRequest) -> Any:
+    def _deliver_artifact(
+        self,
+        log_artifact: pb.LogArtifactRequest,
+    ) -> MailboxHandle:
         rec = self._make_request(log_artifact=log_artifact)
-        return self._communicate_async(rec)
+        return self._deliver_record(rec)
 
     def _deliver_download_artifact(
         self, download_artifact: pb.DownloadArtifactRequest
@@ -462,7 +416,10 @@ class InterfaceShared(InterfaceBase):
 
     def _deliver_record(self, record: pb.Record) -> MailboxHandle:
         mailbox = self._get_mailbox()
-        handle = mailbox._deliver_record(record, interface=self)
+
+        handle = mailbox.require_response(record)
+        self._publish(record)
+
         return handle
 
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
@@ -538,22 +495,6 @@ class InterfaceShared(InterfaceBase):
     ) -> MailboxHandle:
         record = self._make_request(run_status=run_status)
         return self._deliver_record(record)
-
-    def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:
-        if self._transport_failed:
-            return True
-
-        now = time.monotonic()
-        if now < self._transport_success_timestamp + keepalive_interval:
-            return False
-
-        try:
-            self.publish_keepalive()
-        except Exception:
-            self._transport_mark_failed()
-        else:
-            self._transport_mark_success()
-        return self._transport_failed
 
     def join(self) -> None:
         super().join()
