@@ -6,7 +6,6 @@ import random
 import string
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import List, Literal
 
 import numpy as np
@@ -288,14 +287,21 @@ class PayloadGenerator:
         """
         payloads = []
         # Video properties for HD video
-        frame_width = 1280 
+        frame_width = 1280
         frame_height = 720
         fps = 16
         video_len_in_sec = self.metric_key_size
-        video_prefixes=["video_acc", "video_prob", "video_loss", "video_labels"]
+        video_prefixes = ["video_acc", "video_prob", "video_loss", "video_labels"]
         for i in range(self.num_of_unique_payload):
-            frames = np.random.randint(0, 256, (video_len_in_sec * fps, frame_height, frame_width, 3), dtype=np.uint8)
-            video_obj = wandb.Video(frames, fps=fps, caption=f"Randomly generated video {i}")
+            frames = np.random.randint(
+                0,
+                256,
+                (video_len_in_sec * fps, frame_height, frame_width, 3),
+                dtype=np.uint8,
+            )
+            video_obj = wandb.Video(
+                frames, fps=fps, caption=f"Randomly generated video {i}"
+            )
 
             payloads.append(
                 {
@@ -388,7 +394,6 @@ class Experiment:
 
         for p in processes:
             p.join()
-
 
     def single_run(self):
         """Run a simple experiment to log metrics to W&B.
@@ -528,7 +533,7 @@ if __name__ == "__main__":
         "--metric-key-size",
         type=int,
         default=10,
-        help="The length of metric names. If the --data-type is \"video\", "
+        help='The length of metric names. If the --data-type is "video", '
         "then this represents the video length in second.",
     )
     parser.add_argument(
@@ -627,7 +632,6 @@ if __name__ == "__main__":
         help="The number of wandb instances to launch",
     )
 
-
     args = parser.parse_args()
 
     fork_from_str = ""
@@ -651,5 +655,4 @@ if __name__ == "__main__":
         project=args.project,
     )
 
-    experiment.parallel_runs(args.parallel);
-
+    experiment.parallel_runs(args.parallel)
