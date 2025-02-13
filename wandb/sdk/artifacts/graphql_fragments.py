@@ -96,3 +96,23 @@ def _gql_artifact_fragment() -> str:
             updatedAt
         }}
     """
+
+
+def _gql_registry_fragment() -> str:
+    return """
+        fragment RegistryFragment on Project {
+           id
+            allowAllArtifactTypesInRegistry
+            artifactTypes(includeAll: true) {
+                edges {
+                    node {
+                        name
+                    }
+                }
+            }
+            name
+            description
+            createdAt
+            updatedAt
+        }
+    """
