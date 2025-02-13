@@ -600,6 +600,10 @@ message Request {
     RunFinishWithoutExitRequest run_finish_without_exit = 79;
     GetSystemMetadataRequest get_system_metadata = 80;
     SyncFinishRequest sync_finish = 81;
+
+    // Requests information about tasks the service is performing.
+    OperationStatsRequest operations = 82;
+
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -634,6 +638,7 @@ message Response {
     SyncResponse sync_response = 70;
     RunFinishWithoutExitResponse run_finish_without_exit_response = 72;
     GetSystemMetadataResponse get_system_metadata_response = 73;
+    OperationStatsResponse operations_response = 74;
     TestInjectResponse test_inject_response = 1000;
   }
 }
@@ -793,6 +798,14 @@ message PollExitResponse {
   FilePusherStats pusher_stats = 3;
   FileCounts file_counts = 4;
   OperationStats operation_stats = 5;
+}
+
+message OperationStatsRequest {
+  _RequestInfo _info = 200;
+}
+
+message OperationStatsResponse {
+  OperationStats operation_stats = 1;
 }
 
 // Information about ongoing operations in the internal process.
