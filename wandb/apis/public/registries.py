@@ -119,7 +119,7 @@ class Registries(Paginator):
         ]
 
 
-class Registry(Attrs):
+class Registry:
     """A single registry in the Registry."""
 
     def __init__(
@@ -132,7 +132,7 @@ class Registry(Attrs):
     ):
         self.client = client
         self._full_name = full_name
-        self._name = self.full_name.replace(REGISTRY_PREFIX, "")
+        self._name = full_name.replace(REGISTRY_PREFIX, "")
         self._entity = entity
         self._organization = organization
         self._description = attrs.get("description", "")
