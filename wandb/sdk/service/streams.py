@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import functools
-import multiprocessing
 import queue
 import threading
 import time
@@ -63,13 +62,10 @@ class StreamRecord:
         self._record_q = queue.Queue()
         self._result_q = queue.Queue()
         self._relay_q = queue.Queue()
-        process = multiprocessing.current_process()
         self._iface = InterfaceRelay(
             record_q=self._record_q,
             result_q=self._result_q,
             relay_q=self._relay_q,
-            process=process,
-            process_check=False,
             mailbox=self._mailbox,
         )
         self._settings = settings
