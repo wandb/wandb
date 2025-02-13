@@ -5,7 +5,6 @@ See interface.py for how interface classes relate to each other.
 """
 
 import logging
-import time
 from abc import abstractmethod
 from multiprocessing.process import BaseProcess
 from typing import Any, Optional, cast
@@ -13,9 +12,9 @@ from typing import Any, Optional, cast
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
+from wandb.sdk.mailbox import Mailbox, MailboxHandle
 from wandb.util import json_dumps_safer, json_friendly
 
-from ..lib.mailbox import Mailbox, MailboxHandle
 from .interface import InterfaceBase
 from .message_future import MessageFuture
 from .router import MessageRouter
@@ -28,8 +27,6 @@ class InterfaceShared(InterfaceBase):
     _process_check: bool
     _router: Optional[MessageRouter]
     _mailbox: Optional[Mailbox]
-    _transport_success_timestamp: float
-    _transport_failed: bool
 
     def __init__(
         self,
@@ -38,8 +35,6 @@ class InterfaceShared(InterfaceBase):
         mailbox: Optional[Any] = None,
     ) -> None:
         super().__init__()
-        self._transport_success_timestamp = time.monotonic()
-        self._transport_failed = False
         self._process = process
         self._router = None
         self._process_check = process_check
@@ -49,20 +44,6 @@ class InterfaceShared(InterfaceBase):
     @abstractmethod
     def _init_router(self) -> None:
         raise NotImplementedError
-
-    @property
-    def transport_failed(self) -> bool:
-        return self._transport_failed
-
-    @property
-    def transport_success_timestamp(self) -> float:
-        return self._transport_success_timestamp
-
-    def _transport_mark_failed(self) -> None:
-        self._transport_failed = True
-
-    def _transport_mark_success(self) -> None:
-        self._transport_success_timestamp = time.monotonic()
 
     def _publish_output(self, outdata: pb.OutputRecord) -> None:
         rec = pb.Record()
@@ -462,7 +443,10 @@ class InterfaceShared(InterfaceBase):
 
     def _deliver_record(self, record: pb.Record) -> MailboxHandle:
         mailbox = self._get_mailbox()
-        handle = mailbox._deliver_record(record, interface=self)
+
+        handle = mailbox.require_response(record)
+        self._publish(record)
+
         return handle
 
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
@@ -538,22 +522,6 @@ class InterfaceShared(InterfaceBase):
     ) -> MailboxHandle:
         record = self._make_request(run_status=run_status)
         return self._deliver_record(record)
-
-    def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:
-        if self._transport_failed:
-            return True
-
-        now = time.monotonic()
-        if now < self._transport_success_timestamp + keepalive_interval:
-            return False
-
-        try:
-            self.publish_keepalive()
-        except Exception:
-            self._transport_mark_failed()
-        else:
-            self._transport_mark_success()
-        return self._transport_failed
 
     def join(self) -> None:
         super().join()

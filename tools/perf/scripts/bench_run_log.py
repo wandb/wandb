@@ -1,5 +1,6 @@
 import argparse
 import json
+import logging
 import multiprocessing as mp
 import random
 import string
@@ -11,9 +12,7 @@ from typing import List, Literal
 import numpy as np
 import wandb
 
-from .setup_helper import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class Timer:
@@ -243,7 +242,7 @@ class PayloadGenerator:
             num_of_columns = self.sparse_metric_count
             num_of_rows = self.metric_key_size
 
-            columns = [f"Field_{i+1}" for i in range(num_of_columns)]
+            columns = [f"Field_{i + 1}" for i in range(num_of_columns)]
             data = [
                 [
                     self.random_string(self.metric_key_size)
@@ -497,6 +496,7 @@ class Experiment:
         logger.info(json.dumps(result_data, indent=4))
         total_time = (datetime.now() - start_time).total_seconds()
         logger.info(f"\nTotal run duration: {total_time:.2f} seconds")
+
 
 
 if __name__ == "__main__":

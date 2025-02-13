@@ -18,7 +18,7 @@ from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.internal import wandb_internal
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.lib.mailbox import Mailbox
+from wandb.sdk.mailbox import Mailbox
 from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:

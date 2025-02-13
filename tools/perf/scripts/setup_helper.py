@@ -1,23 +1,15 @@
 import logging
 
+from . import _PACKAGE_LOGGER
 
-def get_logger(name: str, log_file: str = "perf.log") -> logging.Logger:
-    """Creates and configures a logger that writes to both screen and log file.
 
-    Args:
-        name (str): The name of the logger.
-        log_file (str): The file to log messages to. Default is 'perf.log'.
-
-    Returns:
-        logging.Logger: The configured logger instance.
-    """
-    # Create a custom logger
-    logger = logging.getLogger(name)
-    logger.setLevel(logging.DEBUG)  # Set the desired level of logging
+def setup_package_logger() -> None:
+    """Configure the package logger to write to a file and to the screen."""
+    _PACKAGE_LOGGER.setLevel(logging.DEBUG)
 
     # Create handlers for screen (console) and file logging
     console_handler = logging.StreamHandler()
-    file_handler = logging.FileHandler(log_file)
+    file_handler = logging.FileHandler("perf.log")
 
     # Set the logging level for each handler
     console_handler.setLevel(logging.INFO)  # Info level for console
@@ -31,7 +23,5 @@ def get_logger(name: str, log_file: str = "perf.log") -> logging.Logger:
     file_handler.setFormatter(formatter)
 
     # Add the handlers to the logger
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
-
-    return logger
+    _PACKAGE_LOGGER.addHandler(console_handler)
+    _PACKAGE_LOGGER.addHandler(file_handler)

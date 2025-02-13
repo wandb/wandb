@@ -5,7 +5,7 @@ import wandb
 
 
 @pytest.mark.parametrize(
-    "x_primary_node, files",
+    "x_primary, files",
     [
         (
             True,
@@ -21,8 +21,8 @@ import wandb
     ],
 )
 @pytest.mark.wandb_core_only
-def test_upload_wandb_files(wandb_backend_spy, x_primary_node, files):
-    with wandb.init(settings=wandb.Settings(x_primary_node=x_primary_node)) as run:
+def test_upload_wandb_files(wandb_backend_spy, x_primary, files):
+    with wandb.init(settings=wandb.Settings(x_primary=x_primary)) as run:
         pass
 
     with wandb_backend_spy.freeze() as snapshot:
@@ -41,7 +41,7 @@ def test_upload_wandb_files(wandb_backend_spy, x_primary_node, files):
 @pytest.mark.skipif(platform.system() != "Windows", reason="Windows only")
 def test_upload_wandb_files_windows_with_label(wandb_backend_spy, x_label, files):
     with wandb.init(
-        settings=wandb.Settings(x_label=x_label, x_primary_node=False),
+        settings=wandb.Settings(x_label=x_label, x_primary=False),
     ) as run:
         pass
 
@@ -60,7 +60,7 @@ def test_upload_wandb_files_windows_with_label(wandb_backend_spy, x_label, files
 @pytest.mark.skipif(platform.system() != "Windows", reason="Linux only")
 def test_upload_wandb_files_non_windows_with_label(wandb_backend_spy, x_label, files):
     with wandb.init(
-        settings=wandb.Settings(x_label=x_label, x_primary_node=False),
+        settings=wandb.Settings(x_label=x_label, x_primary=False),
     ) as run:
         pass
 

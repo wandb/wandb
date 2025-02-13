@@ -70,9 +70,9 @@ from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
 from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
-from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_id
+from wandb.sdk.mailbox import Mailbox
 
 reset_path = util.vendor_setup()
 
@@ -1823,8 +1823,6 @@ class Artifact:
 
             assert backend.interface
             backend.interface._stream_id = stream_id  # type: ignore
-
-            mailbox.enable_keepalive()
         else:
             assert wandb.run._backend
             backend = wandb.run._backend
@@ -1844,11 +1842,8 @@ class Artifact:
             skip_cache=skip_cache,
             path_prefix=path_prefix,
         )
-        result = handle.wait(timeout=-1)
+        result = handle.wait_or(timeout=None)
 
-        if result is None:
-            handle.abandon()
-        assert result is not None
         response = result.response.download_artifact_response
         if response.error_message:
             raise ValueError(f"Error downloading artifact: {response.error_message}")
