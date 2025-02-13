@@ -1124,7 +1124,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 		clients.UpsertBucketRetryPolicy,
 	)
 
-	operation := s.operations.New("updating run metadata")
+	operation := s.operations.New("creating run")
 	defer operation.Finish()
 	ctx = operation.Context(ctx)
 

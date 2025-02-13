@@ -979,6 +979,10 @@ class InterfaceBase:
     def _deliver_exit(self, exit_data: pb.RunExitRecord) -> MailboxHandle:
         raise NotImplementedError
 
+    @abstractmethod
+    def deliver_operation_stats(self) -> MailboxHandle:
+        raise NotImplementedError
+
     def deliver_poll_exit(self) -> MailboxHandle:
         poll_exit = pb.PollExitRequest()
         return self._deliver_poll_exit(poll_exit)
