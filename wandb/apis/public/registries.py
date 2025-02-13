@@ -1,16 +1,21 @@
 """Public API: registries."""
 
 import json
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
+
+if TYPE_CHECKING:
+    from wandb_gql import Client
 
 from wandb_gql import gql
 
 import wandb
-from wandb.apis.attrs import Attrs
 from wandb.apis.paginator import Paginator
 from wandb.apis.public.artifacts import ArtifactCollection
+from wandb.sdk.artifacts._graphql_fragments import (
+    _gql_artifact_fragment,
+    _gql_registry_fragment,
+)
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
-from wandb.sdk.artifacts.graphql_fragments import _gql_artifact_fragment
 
 
 class Registries(Paginator):
@@ -18,7 +23,7 @@ class Registries(Paginator):
 
     def __init__(
         self,
-        client,
+        client: "Client",
         organization: str,
         filter: Optional[Dict[str, Any]] = None,
         per_page: Optional[int] = 100,
@@ -26,7 +31,8 @@ class Registries(Paginator):
         self.client = client
         self.organization = organization
         self.filter = _inject_registry_prefix_in_name(filter or {})
-        self.QUERY = gql("""
+        self.QUERY = gql(
+            """
             query Registries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
                 organization(name: $organization) {
                     orgEntity {
@@ -38,23 +44,16 @@ class Registries(Paginator):
                             }
                             edges {
                                 node {
-                                    allowAllArtifactTypesInRegistry
-                                    artifactTypes(includeAll: true) {
-                                        edges {
-                                            node {
-                                                name
-                                            }
-                                        }
-                                    }
-                                    name
-                                    description
+                                    ...RegistryFragment
                                 }
                             }
                         }
                     }
                 }
             }
-        """)
+        """
+            + _gql_registry_fragment()
+        )
         variables = {
             "organization": organization,
             "filters": json.dumps(self.filter),
@@ -119,22 +118,68 @@ class Registries(Paginator):
         ]
 
 
-class Registry(Attrs):
+class Registry:
     """A single registry in the Registry."""
 
-    def __init__(self, client, organization, entity, project, attrs):
+    def __init__(
+        self,
+        client: "Client",
+        organization: str,
+        entity: str,
+        full_name: str,
+        attrs: Dict[str, Any],
+    ):
         self.client = client
-        self.full_name = project
-        self.name = self.full_name.replace(REGISTRY_PREFIX, "")
-        self.entity = entity
-        self.organization = organization
-        self.description = attrs.get("description", "")
-        self.allow_all_artifact_types = attrs.get(
+        self._full_name = full_name
+        self._name = full_name.replace(REGISTRY_PREFIX, "")
+        self._entity = entity
+        self._organization = organization
+        self._description = attrs.get("description", "")
+        self._allow_all_artifact_types = attrs.get(
             "allowAllArtifactTypesInRegistry", False
         )
-        self.artifact_types = [
+        self._artifact_types = [
             t["node"]["name"] for t in attrs.get("artifactTypes", {}).get("edges", [])
         ]
+        self._id = attrs.get("id", "")
+        self._created_at = attrs.get("createdAt", "")
+        self._updated_at = attrs.get("updatedAt", "")
+
+    @property
+    def full_name(self):
+        return self._full_name
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def entity(self):
+        return self._entity
+
+    @property
+    def organization(self):
+        return self._organization
+
+    @property
+    def description(self):
+        return self._description
+
+    @property
+    def allow_all_artifact_types(self):
+        return self._allow_all_artifact_types
+
+    @property
+    def artifact_types(self):
+        return self._artifact_types
+
+    @property
+    def created_at(self):
+        return self._created_at
+
+    @property
+    def updated_at(self):
+        return self._updated_at
 
     @property
     def path(self):
@@ -158,7 +203,7 @@ class Collections(Paginator):
 
     def __init__(
         self,
-        client,
+        client: "Client",
         organization: str,
         registry_filter: Optional[Dict[str, Any]] = None,
         collection_filter: Optional[Dict[str, Any]] = None,
@@ -306,7 +351,7 @@ class Versions(Paginator):
 
     def __init__(
         self,
-        client,
+        client: "Client",
         organization: str,
         registry_filter: Optional[Dict[str, Any]] = None,
         collection_filter: Optional[Dict[str, Any]] = None,
