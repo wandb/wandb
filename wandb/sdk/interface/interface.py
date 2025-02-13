@@ -35,7 +35,7 @@ from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib import json_util as json
-from wandb.sdk.mailbox import MailboxHandle
+from wandb.sdk.mailbox import HandleAbandonedError, MailboxHandle
 from wandb.util import (
     WandBJSONEncoderOld,
     get_h5_typename,
@@ -877,10 +877,22 @@ class InterfaceBase:
         # Drop indicates that the internal process has already been shutdown
         if self._drop:
             return
-        _ = self._communicate_shutdown()
+
+        handle = self._deliver_shutdown()
+
+        try:
+            handle.wait_or(timeout=30)
+        except TimeoutError:
+            # This can happen if the server fails to respond due to a bug
+            # or due to being very busy.
+            logger.warning("timed out communicating shutdown")
+        except HandleAbandonedError:
+            # This can happen if the connection to the server is closed
+            # before a response is read.
+            logger.warning("handle abandoned while communicating shutdown")
 
     @abstractmethod
-    def _communicate_shutdown(self) -> None:
+    def _deliver_shutdown(self) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_run(self, run: "Run") -> MailboxHandle:

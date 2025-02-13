@@ -15,7 +15,6 @@ from wandb.sdk.mailbox import Mailbox, MailboxHandle
 from wandb.util import json_dumps_safer, json_friendly
 
 from .interface import InterfaceBase
-from .message_future import MessageFuture
 from .router import MessageRouter
 
 logger = logging.getLogger("wandb")
@@ -281,20 +280,6 @@ class InterfaceShared(InterfaceBase):
     def _publish(self, record: pb.Record, local: Optional[bool] = None) -> None:
         raise NotImplementedError
 
-    def _communicate(
-        self, rec: pb.Record, timeout: Optional[int] = 30, local: Optional[bool] = None
-    ) -> Optional[pb.Result]:
-        return self._communicate_async(rec, local=local).get(timeout=timeout)
-
-    def _communicate_async(
-        self, rec: pb.Record, local: Optional[bool] = None
-    ) -> MessageFuture:
-        assert self._router
-        if self._process_check and self._process and not self._process.is_alive():
-            raise Exception("The wandb backend process has shutdown")
-        future = self._router.send_and_receive(rec, local=local)
-        return future
-
     def _publish_defer(self, state: "pb.DeferRequest.DeferState.V") -> None:
         defer = pb.DeferRequest(state=state)
         rec = self._make_request(defer=defer)
@@ -406,11 +391,10 @@ class InterfaceShared(InterfaceBase):
         record = self._make_request(keepalive=keepalive)
         self._publish(record)
 
-    def _communicate_shutdown(self) -> None:
-        # shutdown
+    def _deliver_shutdown(self) -> MailboxHandle:
         request = pb.Request(shutdown=pb.ShutdownRequest())
         record = self._make_record(request=request)
-        _ = self._communicate(record)
+        return self._deliver_record(record)
 
     def _get_mailbox(self) -> Mailbox:
         mailbox = self._mailbox
