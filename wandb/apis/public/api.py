@@ -913,12 +913,46 @@ class Api:
     ):
         """Return a set of runs from a project that match the filters provided.
 
-        You can filter by `config.*`, `summary_metrics.*`, `tags`, `state`, `entity`, `createdAt`, etc.
+        Fields you can filter by include:
+        - `createdAt`: The timestamp when the run was created. (in ISO 8601 format, e.g. "2023-01-01T12:00:00Z")
+        - `displayName`: The human-readable display name of the run. (e.g. "eager-fox-1")
+        - `duration`: The total runtime of the run in seconds.
+        - `group`: The group name used to organize related runs together.
+        - `host`: The hostname where the run was executed.
+        - `jobType`: The type of job or purpose of the run.
+        - `name`: The unique identifier of the run. (e.g. "a1b2cdef")
+        - `state`: The current state of the run.
+        - `tags`: The tags associated with the run.
+        - `username`: The username of the user who initiated the run
+
+        Additionally, you can filter by items in the run config or summary metrics.
+        Such as `config.experiment_name`, `summary_metrics.loss`, etc.
+
+        For more complex filtering, you can use MongoDB query operators.
+        For details, see: https://docs.mongodb.com/manual/reference/operator/query
+        The following operations are supported:
+        - `$and`
+        - `$or`
+        - `$nor`
+        - `$eq`
+        - `$ne`
+        - `$gt`
+        - `$gte`
+        - `$lt`
+        - `$lte`
+        - `$in`
+        - `$nin`
+        - `$exists`
+        - `$regex`
+
 
         Examples:
             Find runs in my_project where config.experiment_name has been set to "foo"
             ```
-            api.runs(path="my_entity/my_project", filters={"config.experiment_name": "foo"})
+            api.runs(
+                path="my_entity/my_project",
+                filters={"config.experiment_name": "foo"},
+            )
             ```
 
             Find runs in my_project where config.experiment_name has been set to "foo" or "bar"
@@ -950,6 +984,22 @@ class Api:
             )
             ```
 
+            Find runs in my_project where config.experiment contains a nested field "category" with value "testing"
+            ```
+            api.runs(
+                path="my_entity/my_project",
+                filters={"config.experiment.category": "testing"},
+            )
+            ```
+
+            Find runs in my_project with a loss value of 0.5 nested in a dictionary under model1 in the summary metrics
+            ```
+            api.runs(
+                path="my_entity/my_project",
+                filters={"summary_metrics.model1.loss": 0.5},
+            )
+            ```
+
             Find runs in my_project sorted by ascending loss
             ```
             api.runs(path="my_entity/my_project", order="+summary_metrics.loss")
@@ -961,8 +1011,6 @@ class Api:
                 You can filter by run properties such as config.key, summary_metrics.key, state, entity, createdAt, etc.
                 For example: `{"config.experiment_name": "foo"}` would find runs with a config entry
                     of experiment name set to "foo"
-                You can compose operations to make more complicated queries,
-                    see Reference for the language is at  https://docs.mongodb.com/manual/reference/operator/query
             order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
                 If you prepend order with a + order is ascending.
                 If you prepend order with a - order is descending (default).
@@ -1153,6 +1201,12 @@ class Api:
             entity = InternalApi()._resolve_org_entity_name(
                 entity=settings_entity, organization=org
             )
+
+        if entity is None:
+            raise ValueError(
+                "Could not determine entity. Please include the entity as part of the collection name path."
+            )
+
         return public.ArtifactCollection(
             self.client, entity, project, collection_name, type_name
         )
@@ -1225,6 +1279,12 @@ class Api:
             entity = InternalApi()._resolve_org_entity_name(
                 entity=settings_entity, organization=organization
             )
+
+        if entity is None:
+            raise ValueError(
+                "Could not determine entity. Please include the entity as part of the artifact name path."
+            )
+
         artifact = wandb.Artifact._from_name(
             entity=entity,
             project=project,

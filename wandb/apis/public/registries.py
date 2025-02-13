@@ -64,6 +64,9 @@ class Registries(Paginator):
 
         super().__init__(client, variables, per_page)
 
+    def __bool__(self):
+        return len(self) > 0
+
     def collections(self, filter: Optional[Dict[str, Any]] = None) -> "Collections":
         return Collections(self.client, self.organization, self.filter, filter)
 
@@ -452,6 +455,9 @@ class Collections(Paginator):
 
         super().__init__(client, variables, per_page)
 
+    def __bool__(self):
+        return len(self) > 0
+
     def versions(self, filter: Optional[Dict[str, Any]] = None) -> "Versions":
         return Versions(
             self.client,
@@ -586,6 +592,9 @@ class Versions(Paginator):
         }
 
         super().__init__(client, variables, per_page)
+
+    def __bool__(self):
+        return len(self) > 0
 
     @property
     def length(self):

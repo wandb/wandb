@@ -12,8 +12,8 @@ from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.interface.interface_sock import InterfaceSock
 from wandb.sdk.lib import service_token
 from wandb.sdk.lib.exit_hooks import ExitHooks
-from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.sock_client import SockClient, SockClientTimeoutError
+from wandb.sdk.mailbox import Mailbox
 from wandb.sdk.service import service
 
 
