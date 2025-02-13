@@ -5,8 +5,10 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sync"
+	"syscall"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/featurechecker"
@@ -116,6 +118,17 @@ func streamLogger(
 			Sentry: sentryClient,
 		},
 	)
+
+	// Log when we receive a shutdown signal
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGINT)
+	signal.Notify(c, syscall.SIGTERM)
+	go func() {
+		sig := <-c
+		logger.Info("received shutdown signal", "signal", sig)
+		os.Exit(0)
+	}()
+
 	logger.Info("stream: starting",
 		"core version", version.Version,
 		"symlink path", targetPath,
