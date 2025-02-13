@@ -6,7 +6,6 @@ See interface.py for how interface classes relate to each other.
 
 import logging
 from abc import abstractmethod
-from multiprocessing.process import BaseProcess
 from typing import Any, Optional, cast
 
 from wandb.proto import wandb_internal_pb2 as pb
@@ -21,21 +20,12 @@ logger = logging.getLogger("wandb")
 
 
 class InterfaceShared(InterfaceBase):
-    process: Optional[BaseProcess]
-    _process_check: bool
     _router: Optional[MessageRouter]
     _mailbox: Optional[Mailbox]
 
-    def __init__(
-        self,
-        process: Optional[BaseProcess] = None,
-        process_check: bool = True,
-        mailbox: Optional[Any] = None,
-    ) -> None:
+    def __init__(self, mailbox: Optional[Any] = None) -> None:
         super().__init__()
-        self._process = process
         self._router = None
-        self._process_check = process_check
         self._mailbox = mailbox
         self._init_router()
 
