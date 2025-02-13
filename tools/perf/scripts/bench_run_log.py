@@ -281,19 +281,27 @@ class PayloadGenerator:
     def generate_video(self) -> List[dict[str, wandb.Video]]:
         """Generates a payload for logging videos.
 
+        This function creates HD videos that are 1280 x 720 with 16 frames per second as payload
+        for logging.  It used self.metric_key_size as the video length in second.
+
         Returns:
             List: A list of dictionary with video data.
         """
         payloads = []
-        for _ in range(self.num_of_unique_payload):
-            # Create a random video (50 frames, 64x64 pixels, 3 channels for RGB)
-            frames = np.random.randint(0, 256, (50, 64, 64, 3), dtype=np.uint8)
-            video_obj = wandb.Video(frames, fps=10, caption="Randomly generated video")
+        # Video properties for HD video
+        frame_width = 1280 
+        frame_height = 720
+        fps = 16
+        video_len_in_sec = self.metric_key_size
+        video_prefixes=["video_acc", "video_prob", "video_loss", "video_labels"]
+        for i in range(self.num_of_unique_payload):
+            frames = np.random.randint(0, 256, (video_len_in_sec * fps, frame_height, frame_width, 3), dtype=np.uint8)
+            video_obj = wandb.Video(frames, fps=fps, caption=f"Randomly generated video {i}")
 
             payloads.append(
                 {
-                    self.random_string(self.metric_key_size): video_obj
-                    for _ in range(self.sparse_metric_count)
+                    f"{video_prefixes[s%4]}/{i}_{s}": video_obj
+                    for s in range(self.sparse_metric_count)
                 }
             )
 
@@ -364,6 +372,24 @@ class Experiment:
     def run(self, repeat: int = 1):
         for _ in range(repeat):
             self.single_run()
+
+    def parallel_runs(self, num_of_parallel_runs: int = 1):
+        """Runs multiple instances of single_run() in parallel processes.
+
+        Args:
+            num_of_parallel_runs (int): Number of parallel runs to execute.
+        """
+        wandb.setup()
+        processes = []
+        for i in range(num_of_parallel_runs):
+            p = mp.Process(target=self.run)
+            p.start()
+            logger.info(f"The {i}-th process (pid: {p.pid}) has started.")
+            processes.append(p)
+
+        for p in processes:
+            p.join()
+
 
     def single_run(self):
         """Run a simple experiment to log metrics to W&B.
@@ -507,6 +533,7 @@ def run_parallel_experiment(
                 repeat=1,
             ),
         )
+
         p.start()
         logger.info(f"The {i}-th process (pid: {p.pid}) has started.")
         processes.append(p)
@@ -545,7 +572,8 @@ if __name__ == "__main__":
         "--metric-key-size",
         type=int,
         default=10,
-        help="The length of metric names.",
+        help="The length of metric names. If the --data-type is \"video\", "
+        "then this represents the video length in second.",
     )
     parser.add_argument(
         "-o",
@@ -635,6 +663,15 @@ if __name__ == "__main__":
         help="The W&B project to log to.",
     )
 
+    parser.add_argument(
+        "-z",
+        "--parallel",
+        type=int,
+        default=1,
+        help="The number of wandb instances to launch",
+    )
+
+
     args = parser.parse_args()
 
     fork_from_str = ""
@@ -642,7 +679,7 @@ if __name__ == "__main__":
         fork_from_str = f"{args.fork_run_id}?_step={args.fork_step}"
         logger.info(f"Setting fork_from = {fork_from_str}")
 
-    Experiment(
+    experiment = Experiment(
         num_steps=args.steps,
         num_metrics=args.num_metrics,
         metric_key_size=args.metric_key_size,
@@ -656,4 +693,7 @@ if __name__ == "__main__":
         dense_metric_count=args.dense_metric_count,
         fork_from=fork_from_str,
         project=args.project,
-    ).run(args.repeat)
+    )
+
+    experiment.parallel_runs(args.parallel);
+
