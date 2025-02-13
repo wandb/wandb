@@ -205,9 +205,6 @@ class HandleManager:
         # defer is used to drive the sender finish state machine
         self._dispatch_record(record, always_send=True)
 
-    def handle_request_login(self, record: Record) -> None:
-        self._dispatch_record(record)
-
     def handle_request_python_packages(self, record: Record) -> None:
         self._dispatch_record(record)
 

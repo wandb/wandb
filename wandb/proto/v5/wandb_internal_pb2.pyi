@@ -2080,9 +2080,7 @@ global___ResumeResponse = ResumeResponse
 
 @typing.final
 class LoginRequest(google.protobuf.message.Message):
-    """
-    LoginRequest: wandb/sdk/wandb_login
-    """
+    """Old request, no longer used for logging in (if it ever was)."""
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 

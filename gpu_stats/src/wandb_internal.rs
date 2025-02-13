@@ -1841,8 +1841,7 @@ pub struct ResumeRequest {
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct ResumeResponse {}
-///
-/// LoginRequest: wandb/sdk/wandb_login
+/// Old request, no longer used for logging in (if it ever was).
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct LoginRequest {
     #[prost(string, tag = "1")]
