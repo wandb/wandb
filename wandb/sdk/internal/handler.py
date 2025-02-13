@@ -889,6 +889,10 @@ class HandleManager:
         self._respond_result(result)
         self._stopped.set()
 
+    def handle_request_operations(self, record: Record) -> None:
+        """No-op. Not implemented for the legacy-service."""
+        self._respond_result(proto_util._result_from_record(record))
+
     def finish(self) -> None:
         logger.info("shutting down handler")
         if self._system_monitor is not None:
