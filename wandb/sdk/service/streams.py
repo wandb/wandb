@@ -309,7 +309,10 @@ class StreamMux:
             handle = stream.interface.deliver_exit(exit_code)
             exit_handles.append(handle)
 
-        with progress.progress_printer(printer) as progress_printer:
+        with progress.progress_printer(
+            printer,
+            default_text="Finishing up...",
+        ) as progress_printer:
             # todo: should we wait for the max timeout (?) of all exit handles or just wait forever?
             # timeout = max(stream._settings._exit_timeout for stream in streams.values())
             wait_all_with_progress(
