@@ -1491,7 +1491,6 @@ class SendManager:
             self._job_builder.set_partial_source_id(use.id)
 
     def send_request_log_artifact(self, record: "Record") -> None:
-        assert record.control.req_resp
         result = proto_util._result_from_record(record)
         artifact = record.request.log_artifact.artifact
         history_step = record.request.log_artifact.history_step
