@@ -499,50 +499,6 @@ class Experiment:
         logger.info(f"\nTotal run duration: {total_time:.2f} seconds")
 
 
-def run_parallel_experiment(
-    *,
-    num_processes: int,
-    num_steps: int,
-    num_metrics: int,
-    data_type: Literal["scalar", "audio", "video", "image", "table", "prefixed_scalar"],
-    metric_key_size: int,
-    log_folder: Path,
-):
-    """A helper function to start multiple wandb runs in parallel.
-
-    Args:
-        num_of_processes: Number of parallel wandb runs to start.
-        num_steps: Number of steps within the loop.
-        num_metrics: Number of metrics to log per step.
-        data_type: Wandb data type for the test payload
-        metric_key_size: The length of metric names.
-        log_folder: The root directory where results will be stored.
-    """
-    wandb.setup()
-    processes = []
-    for i in range(num_processes):
-        p = mp.Process(
-            target=Experiment(
-                num_steps=num_steps,
-                num_metrics=num_metrics,
-                metric_key_size=metric_key_size,
-                output_file=log_folder / f"results.{i+1}.json",
-                data_type=data_type,
-            ).run,
-            kwargs=dict(
-                repeat=1,
-            ),
-        )
-
-        p.start()
-        logger.info(f"The {i}-th process (pid: {p.pid}) has started.")
-        processes.append(p)
-
-    # now wait for all processes to finish and exit
-    for p in processes:
-        p.join()
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
