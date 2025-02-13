@@ -119,7 +119,7 @@ class Registries(Paginator):
 
 
 class Registry(Attrs):
-    """Registry in the Global registry."""
+    """A single registry in the Registry."""
 
     def __init__(self, client, organization, entity, project, attrs):
         self.client = client
@@ -153,7 +153,7 @@ class Registry(Attrs):
 
 
 class Collections(Paginator):
-    """Iterator that returns Artifact collections."""
+    """Iterator that returns Artifact collections in the Registry."""
 
     def __init__(
         self,
@@ -190,8 +190,6 @@ class Collections(Paginator):
                 $perPage: Int
             ) {
                 organization(name: $organization) {
-                    id
-                    name
                     orgEntity {
                         name
                         artifactCollections(
@@ -303,7 +301,7 @@ class Collections(Paginator):
 
 
 class Versions(Paginator):
-    """Iterator that returns Artifact versions."""
+    """Iterator that returns Artifact versions in the Registry."""
 
     def __init__(
         self,
