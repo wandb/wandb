@@ -503,7 +503,6 @@ class Experiment:
         logger.info(f"\nTotal run duration: {total_time:.2f} seconds")
 
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
