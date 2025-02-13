@@ -7,7 +7,8 @@ Router to manage responses from a queue.
 import queue
 from typing import TYPE_CHECKING, Optional
 
-from ..lib.mailbox import Mailbox
+from wandb.sdk.mailbox import Mailbox
+
 from .router import MessageRouter
 
 if TYPE_CHECKING:

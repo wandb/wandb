@@ -8,7 +8,8 @@ import logging
 from multiprocessing.process import BaseProcess
 from typing import TYPE_CHECKING, Optional
 
-from ..lib.mailbox import Mailbox
+from wandb.sdk.mailbox import Mailbox
+
 from .interface_shared import InterfaceShared
 from .router_queue import MessageQueueRouter
 
