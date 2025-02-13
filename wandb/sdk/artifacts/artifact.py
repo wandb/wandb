@@ -19,18 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    Iterator,
-    Literal,
-    Sequence,
-    Type,
-    cast,
-    final,
-)
+from typing import IO, Any, Dict, Iterator, Literal, Sequence, Type, cast, final
 from urllib.parse import quote, urljoin, urlparse
 
 import requests
@@ -72,7 +61,7 @@ from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_id
-from wandb.sdk.mailbox import Mailbox
+from wandb.sdk.mailbox import Mailbox, MailboxHandle
 
 reset_path = util.vendor_setup()
 
@@ -81,9 +70,6 @@ from wandb_gql import gql  # noqa: E402
 reset_path()
 
 logger = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    from wandb.sdk.interface.message_future import MessageFuture
 
 
 @final
@@ -160,7 +146,7 @@ class Artifact:
         self._tmp_dir: tempfile.TemporaryDirectory | None = None
         self._added_objs: dict[int, tuple[WBValue, ArtifactManifestEntry]] = {}
         self._added_local_paths: dict[str, ArtifactManifestEntry] = {}
-        self._save_future: MessageFuture | None = None
+        self._save_handle: MailboxHandle | None = None
         self._download_roots: set[str] = set()
         # Set by new_draft(), otherwise the latest artifact will be used as the base.
         self._base_id: str | None = None
@@ -901,7 +887,7 @@ class Artifact:
         return self._state == ArtifactState.PENDING
 
     def _is_draft_save_started(self) -> bool:
-        return self._save_future is not None
+        return self._save_handle is not None
 
     def save(
         self,
@@ -944,10 +930,12 @@ class Artifact:
         else:
             wandb.run.log_artifact(self)
 
-    def _set_save_future(
-        self, save_future: MessageFuture, client: RetryingClient
+    def _set_save_handle(
+        self,
+        save_handle: MailboxHandle,
+        client: RetryingClient,
     ) -> None:
-        self._save_future = save_future
+        self._save_handle = save_handle
         self._client = client
 
     def wait(self, timeout: int | None = None) -> Artifact:
@@ -960,13 +948,16 @@ class Artifact:
             An `Artifact` object.
         """
         if self.is_draft():
-            if self._save_future is None:
+            if self._save_handle is None:
                 raise ArtifactNotLoggedError(type(self).wait.__qualname__, self)
-            result = self._save_future.get(timeout)
-            if not result:
+
+            try:
+                result = self._save_handle.wait_or(timeout=timeout)
+            except TimeoutError as e:
                 raise WaitTimeoutError(
                     "Artifact upload wait timed out, failed to fetch Artifact response"
-                )
+                ) from e
+
             response = result.response.log_artifact_response
             if response.error_message:
                 raise ValueError(response.error_message)

@@ -3238,7 +3238,7 @@ class Run:
         self._assert_can_log_artifact(artifact)
         if self._backend and self._backend.interface:
             if not self._settings._offline:
-                future = self._backend.interface.communicate_artifact(
+                handle = self._backend.interface.deliver_artifact(
                     self,
                     artifact,
                     aliases,
@@ -3248,7 +3248,7 @@ class Run:
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-                artifact._set_save_future(future, self._public_api().client)
+                artifact._set_save_handle(handle, self._public_api().client)
             else:
                 self._backend.interface.publish_artifact(
                     self,
