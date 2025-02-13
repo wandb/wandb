@@ -9,7 +9,6 @@ from abc import abstractmethod
 from multiprocessing.process import BaseProcess
 from typing import Any, Optional, cast
 
-import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.mailbox import Mailbox, MailboxHandle
@@ -95,15 +94,8 @@ class InterfaceShared(InterfaceBase):
             item.value_json = json_dumps_safer(json_friendly(v)[0])
         return stats
 
-    def _make_login(self, api_key: Optional[str] = None) -> pb.LoginRequest:
-        login = pb.LoginRequest()
-        if api_key:
-            login.api_key = api_key
-        return login
-
     def _make_request(  # noqa: C901
         self,
-        login: Optional[pb.LoginRequest] = None,
         get_summary: Optional[pb.GetSummaryRequest] = None,
         pause: Optional[pb.PauseRequest] = None,
         resume: Optional[pb.ResumeRequest] = None,
@@ -139,9 +131,7 @@ class InterfaceShared(InterfaceBase):
         metadata: Optional[pb.MetadataRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
-        if login:
-            request.login.CopyFrom(login)
-        elif get_summary:
+        if get_summary:
             request.get_summary.CopyFrom(get_summary)
         elif pause:
             request.pause.CopyFrom(pause)
@@ -302,21 +292,6 @@ class InterfaceShared(InterfaceBase):
         future = self._router.send_and_receive(rec, local=local)
         return future
 
-    def communicate_login(
-        self, api_key: Optional[str] = None, timeout: Optional[int] = 15
-    ) -> pb.LoginResponse:
-        login = self._make_login(api_key)
-        rec = self._make_request(login=login)
-        result = self._communicate(rec, timeout=timeout)
-        if result is None:
-            # TODO: friendlier error message here
-            raise wandb.Error(
-                "Couldn't communicate with backend after {} seconds".format(timeout)
-            )
-        login_response = result.response.login_response
-        assert login_response
-        return login_response
-
     def _publish_defer(self, state: "pb.DeferRequest.DeferState.V") -> None:
         defer = pb.DeferRequest(state=state)
         rec = self._make_request(defer=defer)
@@ -337,11 +312,6 @@ class InterfaceShared(InterfaceBase):
     def publish_final(self) -> None:
         final = pb.FinalRecord()
         rec = self._make_record(final=final)
-        self._publish(rec)
-
-    def publish_login(self, api_key: Optional[str] = None) -> None:
-        login = self._make_login(api_key)
-        rec = self._make_request(login=login)
         self._publish(rec)
 
     def _publish_pause(self, pause: pb.PauseRequest) -> None:

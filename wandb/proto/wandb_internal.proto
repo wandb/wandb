@@ -681,9 +681,7 @@ message ResumeRequest {
 
 message ResumeResponse {}
 
-/*
- * LoginRequest: wandb/sdk/wandb_login
- */
+// Old request, no longer used for logging in (if it ever was).
 message LoginRequest {
   string api_key = 1;
   _RequestInfo _info = 200;

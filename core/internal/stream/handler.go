@@ -307,8 +307,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		// The above been removed from the client but are kept here for now.
 		// Should be removed in the future.
 
-	case *spb.Request_Login:
-		h.handleRequestLogin(record)
 	case *spb.Request_RunStatus:
 		h.handleRequestRunStatus(record)
 	case *spb.Request_Metadata:
@@ -373,13 +371,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 	default:
 		h.logger.CaptureFatalAndPanic(
 			fmt.Errorf("handler: handleRequest: unknown request type %T", x))
-	}
-}
-
-func (h *Handler) handleRequestLogin(record *spb.Record) {
-	// TODO: implement login if it is needed
-	if record.GetControl().GetReqResp() {
-		h.respond(record, &spb.Response{})
 	}
 }
 

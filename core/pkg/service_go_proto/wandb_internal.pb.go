@@ -5744,7 +5744,7 @@ func (*ResumeResponse) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{60}
 }
 
-// LoginRequest: wandb/sdk/wandb_login
+// Old request, no longer used for logging in (if it ever was).
 type LoginRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
