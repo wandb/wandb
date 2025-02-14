@@ -1,11 +1,21 @@
 import re
 from enum import Enum
-from typing import Optional
+from functools import cache
+from typing import TYPE_CHECKING, Optional
 from urllib.parse import urlparse
 
+from wandb_gql import gql
+
+import wandb
 from wandb._iterutils import one
+from wandb.apis.public._generated.operations import SERVER_FEATURES_QUERY_GQL
+from wandb.apis.public._generated.server_features_query import ServerFeaturesQuery
+from wandb.proto.v3.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
+
+if TYPE_CHECKING:
+    from wandb_gql import Client
 
 
 def parse_s3_url_to_s3_uri(url) -> str:
@@ -103,3 +113,38 @@ def fetch_org_from_settings_or_entity(
         )
         organization = entity_org.display_name
     return organization
+
+
+@cache
+def check_server_feature(client: "Client", feature: ServerFeature) -> bool:
+    """Check if a server feature is enabled.
+
+    Args:
+        feature (ServerFeature): The feature to check.
+
+    Returns:
+        bool: True if the feature is enabled, False otherwise.
+    """
+    # Validate that feature is a valid ServerFeature
+    if not ServerFeature.Name(feature):
+        raise ValueError(
+            f"Invalid feature: {feature}. Must be a valid ServerFeature enum value."
+        )
+
+    try:
+        response = client.execute(gql(SERVER_FEATURES_QUERY_GQL))
+    except Exception as e:
+        wandb.termwarn(
+            "Possible that the server doesn't support the feature query, please make sure you are on an updated server release version",
+            e,
+        )
+        return False
+    query = ServerFeaturesQuery.model_validate(response)
+
+    feature_name = ServerFeature.Name(feature)
+    if query.server_info and query.server_info.features:
+        for feature_info in query.server_info.features:
+            if feature_info and feature_info.name == feature_name:
+                return feature_info.is_enabled
+
+    return False
