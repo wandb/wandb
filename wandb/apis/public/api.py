@@ -27,11 +27,13 @@ from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries import Registries
+from wandb.apis.public.server_feature_query import check_server_feature
 from wandb.apis.public.utils import (
     PathType,
     fetch_org_from_settings_or_entity,
     parse_org_from_registry_path,
 )
+from wandb.proto.v3.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
@@ -1507,6 +1509,10 @@ class Api:
         Returns:
             A registry iterator.
         """
+        if not check_server_feature(ServerFeature.REGISTRY_ARTIFACT_FETCH):
+            raise ValueError(
+                "Registry artifact fetch is not enabled on this server version, please upgrade in order to use registries search."
+            )
         organization = organization or fetch_org_from_settings_or_entity(
             self.settings, self.default_entity
         )

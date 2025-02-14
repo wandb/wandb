@@ -31,12 +31,14 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     LARGE_FILENAMES: _ServerFeature.ValueType  # 0
     ARTIFACT_TAGS: _ServerFeature.ValueType  # 1
     CLIENT_IDS: _ServerFeature.ValueType  # 2
+    ARTIFACT_REGISTRY_SEARCH: _ServerFeature.ValueType  # 3
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper): ...
 
 LARGE_FILENAMES: ServerFeature.ValueType  # 0
 ARTIFACT_TAGS: ServerFeature.ValueType  # 1
 CLIENT_IDS: ServerFeature.ValueType  # 2
+ARTIFACT_REGISTRY_SEARCH: ServerFeature.ValueType  # 3
 global___ServerFeature = ServerFeature
 
 @typing_extensions.final
