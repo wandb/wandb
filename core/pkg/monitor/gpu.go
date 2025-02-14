@@ -12,7 +12,6 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // GPU is used to monitor Nvidia and Apple ARM GPUs.
@@ -31,7 +30,7 @@ type GPU struct {
 	cmd *exec.Cmd
 	// gRPC client connection and client for GPU metrics.
 	conn   *grpc.ClientConn
-	client spb.SystemMonitorClient
+	client spb.SystemMonitorServiceClient
 }
 
 func NewGPU(
@@ -91,7 +90,7 @@ func NewGPU(
 	}
 	g.conn = conn
 
-	client := spb.NewSystemMonitorClient(g.conn)
+	client := spb.NewSystemMonitorServiceClient(g.conn)
 	g.client = client
 
 	return g
@@ -137,7 +136,7 @@ func (g *GPU) Sample() (*spb.StatsRecord, error) {
 		return nil, err
 	}
 
-	metrics := stats.GetStats()
+	metrics := stats.GetRecord().GetStats()
 	if len(metrics.Item) == 0 {
 		return nil, nil
 	}
@@ -151,12 +150,12 @@ func (g *GPU) Probe() *spb.MetadataRequest {
 	if err != nil {
 		return nil
 	}
-	return metadata.GetRequest().GetMetadata()
+	return metadata.GetRecord().GetRequest().GetMetadata()
 }
 
 // Close shuts down the gpu_stats binary and releases resources.
 func (g *GPU) Close() {
-	if _, err := g.client.TearDown(context.Background(), &emptypb.Empty{}); err == nil { // ignore error
+	if _, err := g.client.TearDown(context.Background(), &spb.TearDownRequest{}); err == nil { // ignore error
 		g.conn.Close()
 		// Wait for the process to exit to prevent zombie processes.
 		// This is a best-effort attempt to clean up the process.

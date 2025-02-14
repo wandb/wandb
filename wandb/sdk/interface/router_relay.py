@@ -6,7 +6,8 @@ Router to manage responses from a queue with relay.
 
 from typing import TYPE_CHECKING
 
-from ..lib.mailbox import Mailbox
+from wandb.sdk.mailbox import Mailbox
+
 from .router_queue import MessageQueueRouter
 
 if TYPE_CHECKING:

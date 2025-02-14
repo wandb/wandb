@@ -10,7 +10,8 @@ import uuid
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Dict, Optional
 
-from ..lib import mailbox
+from wandb.sdk import mailbox
+
 from .message_future import MessageFuture
 
 if TYPE_CHECKING:
@@ -63,20 +64,25 @@ class MessageRouter:
         raise NotImplementedError
 
     def message_loop(self) -> None:
-        while not self._join_event.is_set():
-            try:
-                msg = self._read_message()
-            except EOFError:
-                # On abnormal shutdown the queue will be destroyed underneath
-                # resulting in EOFError.  message_loop needs to exit..
-                logger.warning("EOFError seen in message_loop")
-                break
-            except MessageRouterClosedError:
-                logger.warning("message_loop has been closed")
-                break
-            if not msg:
-                continue
-            self._handle_msg_rcv(msg)
+        try:
+            while not self._join_event.is_set():
+                try:
+                    msg = self._read_message()
+                except EOFError:
+                    # On abnormal shutdown the queue will be destroyed underneath
+                    # resulting in EOFError.  message_loop needs to exit..
+                    logger.warning("EOFError seen in message_loop")
+                    break
+                except MessageRouterClosedError as e:
+                    logger.warning("message_loop has been closed", exc_info=e)
+                    break
+                if not msg:
+                    continue
+                self._handle_msg_rcv(msg)
+
+        finally:
+            if self._mailbox:
+                self._mailbox.close()
 
     def send_and_receive(
         self, rec: "pb.Record", local: Optional[bool] = None

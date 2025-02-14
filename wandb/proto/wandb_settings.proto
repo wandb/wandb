@@ -33,9 +33,14 @@ message OpenMetricsFilters {
 // Used to communicate the moment in a run at which forking or resuming should
 // take place.
 message RunMoment {
-  string run = 1;     // The name of the run to fork from.
-  double value = 2;   // The value of the metric to fork at.
-  string metric = 3;  // The name of the metric to use to find a fork point.
+  // The name of the run to fork from.
+  string run = 1;
+
+  // The value of the metric to fork at.
+  double value = 2;
+
+  // The name of the metric to use to find a fork point.
+  string metric = 3;
 }
 
 // Settings for the SDK.
@@ -49,7 +54,7 @@ message RunMoment {
 //
 // Next ID: 188
 message Settings {
-  reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137;
+  reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137, 176;
 
   // The W&B API key.
   //
@@ -326,15 +331,6 @@ message Settings {
 
   // Explicitly require wandb-core to not be used.
   google.protobuf.BoolValue x_require_legacy_service = 173;
-
-  // Feature flag controlling the rollout of an improved run.finish() UX.
-  //
-  // Defaults to true, but is kept now to make this functionality easy to
-  // disable. Ignored when using `wandb.require("legacy-service")`.
-  //
-  // Remove a month after the next release after 0.19.0 (probably in
-  // January 2025).
-  google.protobuf.BoolValue x_show_operation_stats = 176;
 
   // Determines whether to save internal wandb files and metadata.
   //
