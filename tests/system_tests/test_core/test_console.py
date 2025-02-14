@@ -17,6 +17,40 @@ if os.name != "nt":
     console_modes.append("redirect")
 
 
+def _wait_for_legacy_service_transaction_log():
+    """Wait to allow for legacy-service to write the transaction log file.
+
+    When legacy-service receives a shutdown request initiated by `run.finish()`,
+    it sets an internal Event and responds immediately. The writer thread has
+    a loop similar to this:
+
+        while not event.is_set():
+            try:
+                record = self._input_q.get(timeout=1)
+            except queue.Empty:
+                continue
+            self._process(record)
+
+        self._finish()
+
+    After the event is set, it may be an entire second before
+    `input_q.get(timeout=1)` times out and `self._finish()` is invoked.
+    The writer thread's `self._finish()` flushes the transaction log file,
+    which is completely in-memory until this point in these tests.
+
+    Within that time, the test's `run.finish()` or Run context manager returns.
+    If the test tries to read the transaction log file too quickly, it observes
+    an empty file and fails.
+
+    NOTE: Prior to https://github.com/wandb/wandb/pull/9469, this sleep was
+    not entirely necessary because of another 1-second wait in the client itself
+    that followed a similar pattern as the above. Tests used to put a sleep
+    before `run.finish()`, likely to allow the writer thread to process
+    any buffered records if the CI worker is slow.
+    """
+    time.sleep(2)
+
+
 @pytest.mark.parametrize("console", console_modes)
 def test_run_with_console_redirect(user, capfd, console):
     tqdm = pytest.importorskip("tqdm")
@@ -55,7 +89,7 @@ def test_offline_compression(user, capfd, console):
 
             print("\x1b[A\r\x1b[J\x1b[A\r\x1b[1J")  # noqa: T201
 
-            time.sleep(2)
+        _wait_for_legacy_service_transaction_log()
 
         binary_log_file = (
             os.path.join(os.path.dirname(run_dir), "run-" + run_id) + ".wandb"
@@ -102,7 +136,8 @@ def test_very_long_output(user, capfd, console, numpy):
                 print("LOG" * 1000000)  # noqa: T201
                 print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m" * 100)  # noqa: T201
                 print("===finish===")  # noqa: T201
-                time.sleep(5)
+
+            _wait_for_legacy_service_transaction_log()
 
             binary_log_file = (
                 os.path.join(os.path.dirname(run_dir), "run-" + run_id) + ".wandb"
@@ -128,6 +163,8 @@ def test_no_numpy(user, capfd, console):
         ):
             with wandb.init(settings={"console": console}) as run:
                 print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m")  # noqa: T201
+
+            _wait_for_legacy_service_transaction_log()
 
             binary_log_file = (
                 os.path.join(os.path.dirname(run.dir), "run-" + run.id) + ".wandb"

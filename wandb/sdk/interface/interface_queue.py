@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Optional
 from wandb.sdk.mailbox import Mailbox
 
 from .interface_shared import InterfaceShared
-from .router_queue import MessageQueueRouter
 
 if TYPE_CHECKING:
     from queue import Queue
@@ -34,12 +33,6 @@ class InterfaceQueue(InterfaceShared):
         self.result_q = result_q
         self._process = process
         super().__init__(mailbox=mailbox)
-
-    def _init_router(self) -> None:
-        if self.record_q and self.result_q:
-            self._router = MessageQueueRouter(
-                self.record_q, self.result_q, mailbox=self._mailbox
-            )
 
     def _publish(self, record: "pb.Record", local: Optional[bool] = None) -> None:
         if self._process and not self._process.is_alive():

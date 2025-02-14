@@ -14,24 +14,14 @@ from wandb.sdk.mailbox import Mailbox, MailboxHandle
 from wandb.util import json_dumps_safer, json_friendly
 
 from .interface import InterfaceBase
-from .router import MessageRouter
 
 logger = logging.getLogger("wandb")
 
 
 class InterfaceShared(InterfaceBase):
-    _router: Optional[MessageRouter]
-    _mailbox: Optional[Mailbox]
-
-    def __init__(self, mailbox: Optional[Any] = None) -> None:
+    def __init__(self, mailbox: Optional[Mailbox] = None) -> None:
         super().__init__()
-        self._router = None
         self._mailbox = mailbox
-        self._init_router()
-
-    @abstractmethod
-    def _init_router(self) -> None:
-        raise NotImplementedError
 
     def _publish_output(self, outdata: pb.OutputRecord) -> None:
         rec = pb.Record()
@@ -499,9 +489,3 @@ class InterfaceShared(InterfaceBase):
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(run_status=run_status)
         return self._deliver_record(record)
-
-    def join(self) -> None:
-        super().join()
-
-        if self._router:
-            self._router.join()
