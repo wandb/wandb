@@ -298,9 +298,12 @@ type RunMoment struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Run    string  `protobuf:"bytes,1,opt,name=run,proto3" json:"run,omitempty"`       // The name of the run to fork from.
-	Value  float64 `protobuf:"fixed64,2,opt,name=value,proto3" json:"value,omitempty"` // The value of the metric to fork at.
-	Metric string  `protobuf:"bytes,3,opt,name=metric,proto3" json:"metric,omitempty"` // The name of the metric to use to find a fork point.
+	// The name of the run to fork from.
+	Run string `protobuf:"bytes,1,opt,name=run,proto3" json:"run,omitempty"`
+	// The value of the metric to fork at.
+	Value float64 `protobuf:"fixed64,2,opt,name=value,proto3" json:"value,omitempty"`
+	// The name of the metric to use to find a fork point.
+	Metric string `protobuf:"bytes,3,opt,name=metric,proto3" json:"metric,omitempty"`
 }
 
 func (x *RunMoment) Reset() {

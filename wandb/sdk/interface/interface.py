@@ -35,6 +35,7 @@ from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib import json_util as json
+from wandb.sdk.mailbox import HandleAbandonedError, MailboxHandle
 from wandb.util import (
     WandBJSONEncoderOld,
     get_h5_typename,
@@ -46,9 +47,7 @@ from wandb.util import (
 )
 
 from ..data_types.utils import history_dict_to_json, val_to_json
-from ..lib.mailbox import MailboxHandle
 from . import summary_record as sr
-from .message_future import MessageFuture
 
 MANIFEST_FILE_SIZE_THRESHOLD = 100_000
 
@@ -561,7 +560,7 @@ class InterfaceBase:
     def _publish_use_artifact(self, proto_artifact: pb.UseArtifactRecord) -> None:
         raise NotImplementedError
 
-    def communicate_artifact(
+    def deliver_artifact(
         self,
         run: "Run",
         artifact: "Artifact",
@@ -571,7 +570,7 @@ class InterfaceBase:
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
-    ) -> MessageFuture:
+    ) -> MailboxHandle:
         proto_run = self._make_run(run)
         proto_artifact = self._make_artifact(artifact)
         proto_artifact.run_id = proto_run.run_id
@@ -589,13 +588,14 @@ class InterfaceBase:
         if history_step is not None:
             log_artifact.history_step = history_step
         log_artifact.staging_dir = get_staging_dir()
-        resp = self._communicate_artifact(log_artifact)
+        resp = self._deliver_artifact(log_artifact)
         return resp
 
     @abstractmethod
-    def _communicate_artifact(
-        self, log_artifact: pb.LogArtifactRequest
-    ) -> MessageFuture:
+    def _deliver_artifact(
+        self,
+        log_artifact: pb.LogArtifactRequest,
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_download_artifact(
@@ -877,10 +877,22 @@ class InterfaceBase:
         # Drop indicates that the internal process has already been shutdown
         if self._drop:
             return
-        _ = self._communicate_shutdown()
+
+        handle = self._deliver_shutdown()
+
+        try:
+            handle.wait_or(timeout=30)
+        except TimeoutError:
+            # This can happen if the server fails to respond due to a bug
+            # or due to being very busy.
+            logger.warning("timed out communicating shutdown")
+        except HandleAbandonedError:
+            # This can happen if the connection to the server is closed
+            # before a response is read.
+            logger.warning("handle abandoned while communicating shutdown")
 
     @abstractmethod
-    def _communicate_shutdown(self) -> None:
+    def _deliver_shutdown(self) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_run(self, run: "Run") -> MailboxHandle:
@@ -977,6 +989,10 @@ class InterfaceBase:
 
     @abstractmethod
     def _deliver_exit(self, exit_data: pb.RunExitRecord) -> MailboxHandle:
+        raise NotImplementedError
+
+    @abstractmethod
+    def deliver_operation_stats(self) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_poll_exit(self) -> MailboxHandle:

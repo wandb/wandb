@@ -307,8 +307,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		// The above been removed from the client but are kept here for now.
 		// Should be removed in the future.
 
-	case *spb.Request_Login:
-		h.handleRequestLogin(record)
 	case *spb.Request_RunStatus:
 		h.handleRequestRunStatus(record)
 	case *spb.Request_Metadata:
@@ -367,19 +365,14 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestRunFinishWithoutExit(record)
 	case *spb.Request_ServerFeature:
 		h.handleRequestServerFeature(record, x.ServerFeature)
+	case *spb.Request_Operations:
+		h.handleRequestOperations(record)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRequest: request type is nil"))
 	default:
 		h.logger.CaptureFatalAndPanic(
 			fmt.Errorf("handler: handleRequest: unknown request type %T", x))
-	}
-}
-
-func (h *Handler) handleRequestLogin(record *spb.Record) {
-	// TODO: implement login if it is needed
-	if record.GetControl().GetReqResp() {
-		h.respond(record, &spb.Response{})
 	}
 }
 
@@ -443,6 +436,16 @@ func (h *Handler) handleRequestDownloadArtifact(record *spb.Record) {
 
 func (h *Handler) handleRequestLinkArtifact(record *spb.Record) {
 	h.fwdRecord(record)
+}
+
+func (h *Handler) handleRequestOperations(record *spb.Record) {
+	h.respond(record, &spb.Response{
+		ResponseType: &spb.Response_OperationsResponse{
+			OperationsResponse: &spb.OperationStatsResponse{
+				OperationStats: h.operations.ToProto(),
+			},
+		},
+	})
 }
 
 func (h *Handler) handleRequestPollExit(record *spb.Record) {

@@ -28,7 +28,6 @@ from .lib import config_util, server
 
 if TYPE_CHECKING:
     from wandb.sdk.lib.service_connection import ServiceConnection
-    from wandb.sdk.wandb_run import Run
     from wandb.sdk.wandb_settings import Settings
 
 
@@ -89,9 +88,6 @@ class _WandbSetup:
         self._config: dict | None = None
         self._server: server.Server | None = None
         self._pid = pid
-
-        # keep track of multiple runs, so we can unwind with join()s
-        self._global_run_stack: list[Run] = []
 
         # TODO(jhr): defer strict checks until settings are fully initialized
         #            and logging is ready
@@ -298,18 +294,33 @@ def singleton() -> _WandbSetup | None:
         return None
 
 
-def _setup(settings: Settings | None = None) -> _WandbSetup:
-    """Set up library context."""
+def _setup(
+    settings: Settings | None = None,
+    start_service: bool = True,
+) -> _WandbSetup:
+    """Set up library context.
+
+    Args:
+        settings: Global settings to set, or updates to the global settings
+            if the singleton has already been initialized.
+        start_service: Whether to start up the service process.
+            NOTE: A service process will only be started if allowed by the
+            global settings (after the given updates). The service will not
+            start up if the mode resolves to "disabled".
+    """
     global _singleton
 
     pid = os.getpid()
 
     if _singleton and _singleton._pid == pid:
         _singleton._update(settings=settings)
-        return _singleton
     else:
         _singleton = _WandbSetup(settings=settings, pid=pid)
-        return _singleton
+
+    if start_service and not _singleton.settings._noop:
+        _singleton.ensure_service()
+
+    return _singleton
 
 
 def setup(settings: Settings | None = None) -> _WandbSetup:

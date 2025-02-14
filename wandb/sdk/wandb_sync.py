@@ -6,8 +6,8 @@ from wandb.errors.term import termerror, termlog
 
 from . import wandb_setup
 from .backend.backend import Backend
-from .lib.mailbox import Mailbox
 from .lib.runid import generate_id
+from .mailbox import Mailbox
 
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2
@@ -60,10 +60,8 @@ def _sync(
     assert backend.interface
     backend.interface._stream_id = stream_id  # type: ignore
 
-    mailbox.enable_keepalive()
     handle = backend.interface.deliver_finish_sync()
-    result = handle.wait(timeout=-1)
-    assert result and result.response
+    result = handle.wait_or(timeout=None)
     response = result.response.sync_response
     if response.url:
         termlog(f"Synced {p} to {util.app_url(response.url)}")
