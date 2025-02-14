@@ -10,6 +10,7 @@ from wandb.proto import wandb_settings_pb2
 from wandb.sdk import wandb_settings
 from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.interface.interface_sock import InterfaceSock
+from wandb.sdk.interface.router_sock import MessageSockRouter
 from wandb.sdk.lib import service_token
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.sock_client import SockClient, SockClientTimeoutError
@@ -115,6 +116,9 @@ class ServiceConnection:
         """Returns a new ServiceConnection.
 
         Args:
+            mailbox: The mailbox to use for all communication over the socket.
+            router: A handle to the thread that reads from the socket and
+                updates the mailbox.
             client: A socket that's connected to the service.
             proc: The service process if we own it, or None otherwise.
             cleanup: A callback to run on teardown before doing anything.
@@ -124,9 +128,12 @@ class ServiceConnection:
         self._torn_down = False
         self._cleanup = cleanup
 
-    def make_interface(self, mailbox: Mailbox, stream_id: str) -> InterfaceBase:
+        self._mailbox = Mailbox()
+        self._router = MessageSockRouter(self._client, self._mailbox)
+
+    def make_interface(self, stream_id: str) -> InterfaceBase:
         """Returns an interface for communicating with the service."""
-        return InterfaceSock(self._client, mailbox, stream_id=stream_id)
+        return InterfaceSock(self._client, self._mailbox, stream_id=stream_id)
 
     def send_record(self, record: pb.Record) -> None:
         """Sends data to the service."""
@@ -206,6 +213,9 @@ class ServiceConnection:
 
         # Clear the service token to prevent new connections from being made.
         service_token.clear_service_token()
+
+        # Stop reading responses on the socket.
+        self._router.join()
 
         self._client.send(
             inform_teardown=spb.ServerInformTeardownRequest(
