@@ -66,7 +66,7 @@ type Settings struct {
 	DisableCode           bool     `env:"WANDB_DISABLE_CODE"`
 	DisableGit            bool     `env:"WANDB_DISABLE_GIT"`
 	DisableJobCreation    bool     `env:"WANDB_DISABLE_JOB_CREATION"`
-	DisableStats          bool     `env:"WANDB_DISABLE_STATS"`
+	DisableSystemMetrics  bool     `env:"WANDB_DISABLE_SYSTEM_METRICS"`
 	DisableMeta           bool     `env:"WANDB_DISABLE_META"`
 	Email                 string   `env:"WANDB_USER_EMAIL"`
 	Entity                string   `env:"WANDB_ENTITY"`
@@ -226,11 +226,11 @@ func (s *Settings) ToProto() *spb.Settings {
 
 		Resume: &wrapperspb.StringValue{Value: string(ZeroIfNil(s.Resume))},
 
-		DisableGit:         &wrapperspb.BoolValue{Value: s.DisableGit},
-		DisableCode:        &wrapperspb.BoolValue{Value: s.DisableCode},
-		XDisableStats:      &wrapperspb.BoolValue{Value: s.DisableStats},
-		XDisableMeta:       &wrapperspb.BoolValue{Value: s.DisableMeta},
-		DisableJobCreation: &wrapperspb.BoolValue{Value: s.DisableJobCreation},
+		DisableGit:           &wrapperspb.BoolValue{Value: s.DisableGit},
+		DisableCode:          &wrapperspb.BoolValue{Value: s.DisableCode},
+		DisableSystemMetrics: &wrapperspb.BoolValue{Value: s.DisableSystemMetrics},
+		XDisableMeta:         &wrapperspb.BoolValue{Value: s.DisableMeta},
+		DisableJobCreation:   &wrapperspb.BoolValue{Value: s.DisableJobCreation},
 
 		Console: &wrapperspb.StringValue{Value: string(s.Console)},
 

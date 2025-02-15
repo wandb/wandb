@@ -289,7 +289,7 @@ message Settings {
   google.protobuf.BoolValue x_disable_machine_info = 158;
 
   // Whether to disable system metrics collection.
-  google.protobuf.BoolValue x_disable_stats = 10;
+  google.protobuf.BoolValue disable_system_metrics = 10;
 
   // The size of the buffer for system metrics.
   google.protobuf.Int32Value x_stats_buffer_size = 161;

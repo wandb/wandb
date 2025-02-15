@@ -94,8 +94,8 @@ def test_media_in_config(user, test_settings):
 
 
 def test_init_with_settings(user, test_settings):
-    with wandb.init(settings=wandb.Settings(x_disable_stats=True)) as run:
-        assert run.settings.x_disable_stats
+    with wandb.init(settings=wandb.Settings(disable_system_metrics=True)) as run:
+        assert run.settings.disable_system_metrics
 
 
 def test_attach_same_process(user, test_settings):
