@@ -1332,7 +1332,7 @@ class Run:
     def _datatypes_callback(self, fname: str) -> None:
         if not self._backend or not self._backend.interface:
             return
-        files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
+        files: FilesDict = dict(files=[(GlobStr(fname), "now")])
         self._backend.interface.publish_files(files)
 
     def _pop_all_charts(
