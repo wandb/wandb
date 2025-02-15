@@ -24,7 +24,7 @@ from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.paginator import Paginator
+from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.sdk.lib import ipython, json_util, runid
 from wandb.sdk.lib.paths import LogicalPath
@@ -61,7 +61,7 @@ RUN_FRAGMENT = """fragment RunFragment on Run {
 }"""
 
 
-class Runs(Paginator):
+class Runs(SizedPaginator["Run"]):
     """An iterable collection of runs associated with a project and optional filter.
 
     This is generally used indirectly via the `Api`.runs method.
