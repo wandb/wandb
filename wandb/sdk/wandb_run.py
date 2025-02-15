@@ -1323,7 +1323,12 @@ class Run:
     def _datatypes_callback(self, fname: str) -> None:
         if not self._backend or not self._backend.interface:
             return
-        files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
+
+        file_name = (
+            glob.escape(fname) if self.settings.x_require_legacy_service else fname
+        )
+
+        files: FilesDict = dict(files=[(GlobStr(file_name), "now")])
         self._backend.interface.publish_files(files)
 
     def _pop_all_charts(

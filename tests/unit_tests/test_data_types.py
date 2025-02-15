@@ -1437,7 +1437,8 @@ def test_partitioned_table():
 ################################################################################
 
 
-def test_media_keys_escaped_as_glob_for_publish(mock_run):
+@pytest.mark.skip_wandb_core(reason="Wandb core does not need glob strings.")
+def test_media_keys_escaped_as_glob_for_publish(mock_run, test_settings):
     media_to_test = [
         wandb.Image(
             np.zeros((28, 28)),
@@ -1480,7 +1481,9 @@ def test_media_keys_escaped_as_glob_for_publish(mock_run):
     ]
 
     for media in media_to_test:
-        run = mock_run(use_magic_mock=True)
+        settings = test_settings()
+        settings.update_from_env_vars(os.environ)
+        run = mock_run(use_magic_mock=True, settings=settings)
         weird_key = "[weirdkey]"
         media.bind_to_run(run, weird_key, 0)
         published_globs = [

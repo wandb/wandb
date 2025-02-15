@@ -55,6 +55,9 @@ def _link_and_save_file(
     elif not os.path.exists(wandb_path):
         os.symlink(abs_path, wandb_path)
     # TODO(jhr): need to figure out policy, live/throttled?
+    file_name = (
+        glob.escape(file_name) if settings.x_require_legacy_service else file_name
+    )
     interface.publish_files(dict(files=[(GlobStr(glob.escape(file_name)), "live")]))
 
 
