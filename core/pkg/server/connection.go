@@ -302,7 +302,7 @@ func (nc *Connection) handleIncomingRequests() {
 		case *spb.ServerRequest_InformStart:
 			nc.handleInformStart(x.InformStart)
 		case *spb.ServerRequest_InformAttach:
-			nc.handleInformAttach(x.InformAttach)
+			nc.handleInformAttach(msg.RequestId, x.InformAttach)
 		case *spb.ServerRequest_RecordPublish:
 			nc.handleInformRecord(x.RecordPublish)
 		case *spb.ServerRequest_RecordCommunicate:
@@ -390,7 +390,10 @@ func (nc *Connection) handleInformStart(msg *spb.ServerInformStartRequest) {
 // from the client. It attaches a new client connection to an existing stream
 // and sends an update to the client with the stream settings. The client can
 // then use these settings to update its local state.
-func (nc *Connection) handleInformAttach(msg *spb.ServerInformAttachRequest) {
+func (nc *Connection) handleInformAttach(
+	requestID string,
+	msg *spb.ServerInformAttachRequest,
+) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Debug("handle record received", "streamId", streamId, "id", nc.id)
 	var err error
@@ -402,6 +405,7 @@ func (nc *Connection) handleInformAttach(msg *spb.ServerInformAttachRequest) {
 		// TODO: we should redo this attach logic, so that the stream handles
 		//       the attach logic
 		resp := &spb.ServerResponse{
+			RequestId: requestID,
 			ServerResponseType: &spb.ServerResponse_InformAttachResponse{
 				InformAttachResponse: &spb.ServerInformAttachResponse{
 					XInfo:    msg.XInfo,

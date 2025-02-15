@@ -177,9 +177,9 @@ class SockClient:
             inform_finish=inform_finish,
             inform_teardown=inform_teardown,
         )
-        # TODO: this solution is fragile, but for checking attach
-        # it should be relatively stable.
-        # This pass would be solved as part of the fix in https://wandb.atlassian.net/browse/WB-8709
+
+        # HACK: This assumes nothing else is reading on the socket, and that
+        # the next response is for this request.
         response = self.read_server_response(timeout=1)
 
         if response is None:
@@ -213,11 +213,13 @@ class SockClient:
 
     def send_record_communicate(self, record: "pb.Record") -> None:
         server_req = spb.ServerRequest()
+        server_req.request_id = record.control.mailbox_slot
         server_req.record_communicate.CopyFrom(record)
         self.send_server_request(server_req)
 
     def send_record_publish(self, record: "pb.Record") -> None:
         server_req = spb.ServerRequest()
+        server_req.request_id = record.control.mailbox_slot
         server_req.record_publish.CopyFrom(record)
         self.send_server_request(server_req)
 
