@@ -31,8 +31,7 @@ class Registries(Paginator):
         self.client = client
         self.organization = organization
         self.filter = _inject_registry_prefix_in_name(filter or {})
-        self.QUERY = gql(
-            """
+        self.QUERY = gql("""
             query Registries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
                 organization(name: $organization) {
                     orgEntity {
