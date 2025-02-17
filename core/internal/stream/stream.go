@@ -116,6 +116,7 @@ func streamLogger(
 			Sentry: sentryClient,
 		},
 	)
+
 	logger.Info("stream: starting",
 		"core version", version.Version,
 		"symlink path", targetPath,
