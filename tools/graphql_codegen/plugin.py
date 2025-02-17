@@ -16,7 +16,7 @@ from typing import Any, Iterable, Iterator
 
 from ariadne_codegen import Plugin
 from graphlib import TopologicalSorter  # noqa # Run this only with python 3.9+
-from graphql import GraphQLSchema
+from graphql import GraphQLObjectType, GraphQLSchema, TypeMetaFieldDef
 
 from .plugin_utils import (
     apply_ruff,
@@ -168,6 +168,16 @@ class GraphQLCodegenPlugin(Plugin):
 
     def __init__(self, schema: GraphQLSchema, config_dict: dict[str, Any]) -> None:
         super().__init__(schema, config_dict)
+
+        # Workaround: add introspection fields to Query type if they don't exist
+        query_type = schema.query_type
+        if query_type and isinstance(query_type, GraphQLObjectType):
+            if "__type" not in query_type.fields:
+                query_type.fields["__type"] = TypeMetaFieldDef
+            # if "__schema" not in query_type.fields:
+            #     query_type.fields["__schema"] = SchemaMetaFieldDef
+            # if "__typename" not in query_type.fields:
+            #     query_type.fields["__typename"] = TypeNameMetaFieldDef
 
         codegen_config: dict[str, Any] = config_dict["tool"]["ariadne-codegen"]
 
