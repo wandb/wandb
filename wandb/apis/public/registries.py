@@ -1,7 +1,7 @@
 """Public API: registries."""
 
 import json
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence
 
 if TYPE_CHECKING:
     from wandb_gql import Client
@@ -30,7 +30,7 @@ class Registries(Paginator):
     ):
         self.client = client
         self.organization = organization
-        self.filter = _inject_registry_prefix_in_name(filter or {})
+        self.filter = _ensure_registry_prefix_on_names(filter or {})
         self.QUERY = gql(
             """
             query Registries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
@@ -482,51 +482,31 @@ class Versions(Paginator):
         return artifacts
 
 
-def _inject_registry_prefix_in_name(query, in_name=False, skip_transform=False):
+def _ensure_registry_prefix_on_names(query, in_name=False):
     """Traverse the filter to prepend the `name` key value with the registry prefix unless the value is a regex.
 
     - in_name: True if we are under a "name" key (or propagating from one).
-    - skip_transform: True if we should not transform string values (e.g. within a regex).
 
     EX: {"name": "model"} -> {"name": "wandb-registry-model"}
     """
-    if isinstance(query, dict):
+    if isinstance((txt := query), str):
+        if in_name:
+            return txt if txt.startswith(REGISTRY_PREFIX) else f"{REGISTRY_PREFIX}{txt}"
+        return txt
+    if isinstance((dct := query), Mapping):
         new_dict = {}
-        for key, value in query.items():
+        for key, obj in dct.items():
             if key == "name":
-                # If the value for "name" is a dict and it contains "$regex",
-                # then we want to leave it unchanged.
-                if isinstance(value, dict) and "$regex" in value:
-                    new_dict[key] = value
-                else:
-                    # Otherwise, process with in_name True.
-                    new_dict[key] = _inject_registry_prefix_in_name(
-                        value, in_name=True, skip_transform=False
-                    )
+                new_dict[key] = _ensure_registry_prefix_on_names(obj, in_name=True)
             elif key == "$regex":
                 # For regex operator, we skip transformation of its value.
-                new_dict[key] = value
+                new_dict[key] = obj
             else:
                 # For any other key, propagate the in_name and skip_transform flags as-is.
-                new_dict[key] = _inject_registry_prefix_in_name(
-                    value, in_name=in_name, skip_transform=skip_transform
-                )
+                new_dict[key] = _ensure_registry_prefix_on_names(obj, in_name=in_name)
         return new_dict
-    elif isinstance(query, list):
-        return [
-            _inject_registry_prefix_in_name(
-                item, in_name=in_name, skip_transform=skip_transform
-            )
-            for item in query
-        ]
-    elif isinstance(query, str):
-        # If skip_transform is active, don't transform the string.
-        if skip_transform:
-            return query
-        if in_name:
-            return REGISTRY_PREFIX + query
-        else:
-            return query
-    else:
-        # For numbers, booleans, None, etc., just return the value unchanged.
-        return query
+    if isinstance((objs := query), Sequence):
+        return list(
+            map(lambda x: _ensure_registry_prefix_on_names(x, in_name=in_name), objs)
+        )
+    return query
