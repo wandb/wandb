@@ -125,20 +125,15 @@ def check_server_feature(client: "Client", feature: ServerFeature) -> bool:
     Returns:
         bool: True if the feature is enabled, False otherwise.
     """
-    # Validate that feature is a valid ServerFeature
-    if not ServerFeature.Name(feature):
-        raise ValueError(
-            f"Invalid feature: {feature}. Must be a valid ServerFeature enum value."
-        )
-
     try:
         response = client.execute(gql(SERVER_FEATURES_QUERY_GQL))
     except Exception as e:
-        wandb.termwarn(
-            "Possible that the server doesn't support the feature query, please make sure you are on an updated server release version",
-            e,
-        )
-        return False
+        if 'Cannot query field "features" on type "ServerInfo".' in str(e):
+            wandb.termwarn(
+                "Possible that the server doesn't support the feature query, please make sure you are on an updated server release version"
+            )
+            return False
+        raise e
     query = ServerFeaturesQuery.model_validate(response)
 
     feature_name = ServerFeature.Name(feature)
