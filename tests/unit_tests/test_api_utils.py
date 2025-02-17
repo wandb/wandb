@@ -1,8 +1,12 @@
+from unittest.mock import patch
+
 import pytest
 from wandb.apis.public.utils import (
+    check_server_feature,
     fetch_org_from_settings_or_entity,
     parse_org_from_registry_path,
 )
+from wandb.proto.v3.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.internal.internal_api import _OrgNames
 
 
@@ -95,3 +99,66 @@ def test_multiple_orgs_raises_error(mock_fetch_orgs_and_org_entities_from_entity
     settings = {"organization": None, "entity": "multi-org-user-entity"}
     with pytest.raises(ValueError, match="Multiple organizations found for entity"):
         fetch_org_from_settings_or_entity(settings)
+
+
+ENABLED_FEATURE_RESPONSE = {
+    "serverInfo": {
+        "features": [
+            {"name": "LARGE_FILENAMES", "isEnabled": True},
+            {"name": "ARTIFACT_TAGS", "isEnabled": False},
+        ]
+    }
+}
+
+NO_FEATURES_RESPONSE = {"serverInfo": {"features": []}}
+
+
+@pytest.fixture
+def mock_client():
+    with patch("wandb_gql.Client") as mock:
+        mock.return_value = None
+        yield mock
+
+
+def test_feature_enabled(mock_client):
+    mock_client.execute.return_value = ENABLED_FEATURE_RESPONSE
+    result = check_server_feature(mock_client, ServerFeature.LARGE_FILENAMES)
+
+    assert result
+
+
+def test_feature_disabled(mock_client):
+    mock_client.execute.return_value = ENABLED_FEATURE_RESPONSE
+    result = check_server_feature(mock_client, ServerFeature.ARTIFACT_TAGS)
+
+    assert result is False
+
+
+def test_feature_not_in_response(mock_client):
+    mock_client.execute.return_value = ENABLED_FEATURE_RESPONSE
+    result = check_server_feature(mock_client, ServerFeature.ARTIFACT_REGISTRY_SEARCH)
+
+    assert result is False
+
+
+def test_empty_features_list(mock_client):
+    mock_client.execute.return_value = NO_FEATURES_RESPONSE
+    result = check_server_feature(mock_client, ServerFeature.LARGE_FILENAMES)
+
+    assert result is False
+
+
+def test_server_not_supporting_features(mock_client):
+    error_msg = 'Cannot query field "features" on type "ServerInfo".'
+    mock_client.execute.side_effect = Exception(error_msg)
+
+    result = check_server_feature(mock_client, ServerFeature.LARGE_FILENAMES)
+
+    assert result is False
+
+
+def test_other_server_error(mock_client):
+    mock_client.execute.side_effect = Exception("Some other error")
+
+    with pytest.raises(Exception, match="Some other error"):
+        check_server_feature(mock_client, ServerFeature.LARGE_FILENAMES)
