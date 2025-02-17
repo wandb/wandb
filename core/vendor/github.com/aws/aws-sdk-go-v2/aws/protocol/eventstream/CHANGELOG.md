@@ -1,3 +1,7 @@
+# v1.6.9 (2025-02-14)
+
+* **Bug Fix**: Remove max limit on event stream messages
+
 # v1.6.8 (2025-01-24)
 
 * **Dependency Update**: Upgrade to smithy-go v1.22.2.
