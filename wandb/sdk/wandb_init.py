@@ -10,7 +10,6 @@ For more on using `wandb.init()`, including code snippets, check out our
 
 from __future__ import annotations
 
-import asyncio
 import copy
 import dataclasses
 import json
@@ -35,7 +34,7 @@ from wandb.errors import CommError, Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
-from wandb.sdk.lib import runid
+from wandb.sdk.lib import progress, runid
 from wandb.sdk.lib.paths import StrPath
 from wandb.util import _is_artifact_representation
 
@@ -925,9 +924,16 @@ class _WandbInit:
         run_init_handle = backend.interface.deliver_run(run)
 
         async def display_init_message() -> None:
-            while True:
-                self.printer.progress_update("Waiting for wandb.init()...\r")
-                await asyncio.sleep(1)
+            assert backend.interface
+
+            with progress.progress_printer(
+                self.printer,
+                default_text="Waiting for wandb.init()...",
+            ) as progress_printer:
+                await progress.loop_printing_operation_stats(
+                    progress_printer,
+                    backend.interface,
+                )
 
         # Raise an error if deliver_run failed.
         #
