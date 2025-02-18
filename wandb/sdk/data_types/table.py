@@ -4,11 +4,11 @@ import codecs
 import datetime
 import logging
 import os
+from typing import Optional
 
 import wandb
 from wandb import util
 from wandb.sdk.lib import runid
-from typing import Optional
 
 from . import _dtypes
 from ._private import MEDIA_TMP
