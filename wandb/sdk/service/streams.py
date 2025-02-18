@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import functools
-import multiprocessing
 import queue
 import threading
 import time
@@ -57,19 +56,16 @@ class StreamRecord:
     _settings: SettingsStatic
     _started: bool
 
-    def __init__(self, settings: SettingsStatic, mailbox: Mailbox) -> None:
+    def __init__(self, settings: SettingsStatic) -> None:
         self._started = False
-        self._mailbox = mailbox
+        self._mailbox = Mailbox()
         self._record_q = queue.Queue()
         self._result_q = queue.Queue()
         self._relay_q = queue.Queue()
-        process = multiprocessing.current_process()
         self._iface = InterfaceRelay(
             record_q=self._record_q,
             result_q=self._result_q,
             relay_q=self._relay_q,
-            process=process,
-            process_check=False,
             mailbox=self._mailbox,
         )
         self._settings = settings
@@ -137,7 +133,6 @@ class StreamMux:
     _action_q: queue.Queue[StreamAction]
     _stopped: Event
     _pid_checked_ts: float | None
-    _mailbox: Mailbox
 
     def __init__(self) -> None:
         self._streams_lock = threading.Lock()
@@ -147,7 +142,6 @@ class StreamMux:
         self._stopped = Event()
         self._action_q = queue.Queue()
         self._pid_checked_ts = None
-        self._mailbox = Mailbox()
 
     def _get_stopped_event(self) -> Event:
         # TODO: clean this up, there should be a better way to abstract this
@@ -204,7 +198,7 @@ class StreamMux:
             return stream
 
     def _process_add(self, action: StreamAction) -> None:
-        stream = StreamRecord(action._data, mailbox=self._mailbox)
+        stream = StreamRecord(action._data)
         # run_id = action.stream_id  # will want to fix if a streamid != runid
         settings = action._data
         thread = StreamThread(
@@ -309,7 +303,10 @@ class StreamMux:
             handle = stream.interface.deliver_exit(exit_code)
             exit_handles.append(handle)
 
-        with progress.progress_printer(printer) as progress_printer:
+        with progress.progress_printer(
+            printer,
+            default_text="Finishing up...",
+        ) as progress_printer:
             # todo: should we wait for the max timeout (?) of all exit handles or just wait forever?
             # timeout = max(stream._settings._exit_timeout for stream in streams.values())
             wait_all_with_progress(

@@ -20,6 +20,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - changed moviepy constraint to >=1.0.0 (@jacobromero in https://github.com/wandb/wandb/pull/9419)
+- `wandb.init()` displays more detailed information, in particular when it is stuck retrying HTTP errors (@timoffex in https://github.com/wandb/wandb/pull/9431)
 
 ### Removed
 
