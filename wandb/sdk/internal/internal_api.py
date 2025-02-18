@@ -115,6 +115,7 @@ if TYPE_CHECKING:
         root_dir: Optional[str]
         api_key: Optional[str]
         entity: Optional[str]
+        organization: Optional[str]
         project: Optional[str]
         _extra_http_headers: Optional[Mapping[str, str]]
         _proxies: Optional[Mapping[str, str]]
@@ -256,6 +257,7 @@ class Api:
             "root_dir": None,
             "api_key": None,
             "entity": None,
+            "organization": None,
             "project": None,
             "_extra_http_headers": None,
             "_proxies": None,
@@ -489,7 +491,8 @@ class Api:
                 {
                     "entity": "models",
                     "base_url": "https://api.wandb.ai",
-                    "project": None
+                    "project": None,
+                    "organization": "my-org",
                 }
         """
         result = self.default_settings.copy()
@@ -501,6 +504,14 @@ class Api:
                         Settings.DEFAULT_SECTION,
                         "entity",
                         fallback=result.get("entity"),
+                    ),
+                    env=self._environ,
+                ),
+                "organization": env.get_organization(
+                    self._settings.get(
+                        Settings.DEFAULT_SECTION,
+                        "organization",
+                        fallback=result.get("organization"),
                     ),
                     env=self._environ,
                 ),
