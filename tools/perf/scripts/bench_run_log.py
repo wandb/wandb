@@ -161,12 +161,10 @@ class PayloadGenerator:
             List: A list of dictionaries with the scalar data.
         """
         # Generate dense metrics if applicable
-        dense_metrics = (
-            {
-                self.random_string(self.metric_key_size): random.randint(1, 10**2)
-                for _ in range(self.dense_metric_count)
-            }
-        )
+        dense_metrics = {
+            self.random_string(self.metric_key_size): random.randint(1, 10**2)
+            for _ in range(self.dense_metric_count)
+        }
 
         # Log example dense metric if available
         if dense_metrics:
@@ -175,18 +173,12 @@ class PayloadGenerator:
 
         if self.sparse_stride_size > 0:
             # Generate a single payload for sparse logging every X steps
-            self.sparse_metrics = (
-                {
-                    f"sparse/acc{i}": random.randint(1, 10**2)
-                    for i in range(self.sparse_metric_count)
-                }
-            )
+            self.sparse_metrics = {
+                f"sparse/acc{i}": random.randint(1, 10**2)
+                for i in range(self.sparse_metric_count)
+            }
 
-            payloads = [
-                {
-                    **dense_metrics
-                }
-            ]
+            payloads = [{**dense_metrics}]
 
         else:
             # Generate payloads with sparse metrics + optional dense metrics prepended
@@ -194,7 +186,9 @@ class PayloadGenerator:
                 {
                     **dense_metrics,
                     **{
-                        self.random_string(self.metric_key_size): random.randint(1, 10**2)
+                        self.random_string(self.metric_key_size): random.randint(
+                            1, 10**2
+                        )
                         for _ in range(self.metrics_count_per_step)
                     },
                 }
@@ -212,12 +206,10 @@ class PayloadGenerator:
             List: A list of dictionaries with the scalar data.
         """
         # Generate dense metrics if applicable
-        dense_metrics = (
-            {
-                f"dense/accuracy{i}": random.randint(1, 10**2)
-                for i in range(self.dense_metric_count)
-            }
-        )
+        dense_metrics = {
+            f"dense/accuracy{i}": random.randint(1, 10**2)
+            for i in range(self.dense_metric_count)
+        }
 
         # Log example dense metric if available
         if dense_metrics:
@@ -226,18 +218,12 @@ class PayloadGenerator:
 
         if self.sparse_stride_size > 0:
             # Generate a single payload for sparse logging every X steps
-            self.sparse_metrics = (
-                {
-                    f"sparse/acc{i}": random.randint(1, 10**2)
-                    for i in range(self.sparse_metric_count)
-                }
-            )
-            
-            payloads = [
-                {
-                    **dense_metrics
-                }
-            ]
+            self.sparse_metrics = {
+                f"sparse/acc{i}": random.randint(1, 10**2)
+                for i in range(self.sparse_metric_count)
+            }
+
+            payloads = [{**dense_metrics}]
 
         else:
             # Generate payloads with sparse metrics + optional dense metrics prepended
