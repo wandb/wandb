@@ -191,20 +191,22 @@ class Table(Media):
     This class is the primary class used to generate the Table Visualizer
     in the UI: https://docs.wandb.ai/guides/data-vis/tables.
 
-    Args:
+    Attributes:
         columns (List[str]): Names of the columns in the table.
             Defaults to ["Input", "Output", "Expected"].
         data: (List[List[any]]) 2D row-oriented array of values.
-        dataframe (pandas.DataFrame) : DataFrame object used to create the table.
+        dataframe (pandas.DataFrame): DataFrame object used to create the table.
             When set, `data` and `columns` arguments are ignored.
-        optional (Union[bool,List[bool]]): Determines if `None` values are allowed. Default to True
+        optional (Union[bool,List[bool]]): Determines if `None` values are
+            allowed. Default to `True`.
             - If a singular bool value, then the optionality is enforced for all
-            columns specified at construction time
+            columns specified at construction time.
             - If a list of bool values, then the optionality is applied to each
-            column - should be the same length as `columns`
-            applies to all columns. A list of bool values applies to each respective column.
-        allow_mixed_types (bool): Determines if columns are allowed to have mixed types
-            (disables type validation). Defaults to False
+            column - should be the same length as `columns`.
+            applies to all columns. A list of bool values applies to each
+            respective column.
+        allow_mixed_types (bool): Determines if columns are allowed to have
+            mixed types (disables type validation). Defaults to False.
     """
 
     MAX_ROWS = 10000
@@ -315,12 +317,14 @@ class Table(Media):
     def cast(self, col_name, dtype, optional=False):
         """Casts a column to a specific data type.
 
-        This can be one of the normal python classes, an internal W&B type, or an
-        example object, like an instance of wandb.Image or wandb.Classes.
+        This can be one of the normal python classes, an internal W&B type,
+        or an example object, like an instance of wandb.Image or
+        wandb.Classes.
 
         Args:
             col_name (str): The name of the column to cast.
-            dtype (class, wandb.wandb_sdk.interface._dtypes.Type, any): The target dtype.
+            dtype (class, wandb.wandb_sdk.interface._dtypes.Type, any): The
+                target dtype.
             optional (bool): If the column should allow Nones.
         """
         assert col_name in self.columns

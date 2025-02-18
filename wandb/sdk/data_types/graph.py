@@ -243,19 +243,20 @@ class Node(WBValue):
 
 
 class Graph(Media):
-    """Wandb class for graphs.
+    """W&B class for graphs.
 
-    This class is typically used for saving and displaying neural net models.  It
-    represents the graph as an array of nodes and edges.  The nodes can have
+    This class is typically used for saving and displaying neural net models.
+    It represents the graph as an array of nodes and edges. The nodes can have
     labels that can be visualized by wandb.
 
     Attributes:
         format (string): Format to help wandb display the graph nicely.
-        nodes ([wandb.Node]): List of wandb.Nodes
+        nodes ([wandb.Node]): List of `wandb.Nodes`.
         nodes_by_id (dict): dict of ids -> nodes
-        edges ([(wandb.Node, wandb.Node)]): List of pairs of nodes interpreted as edges
-        loaded (boolean): Flag to tell whether the graph is completely loaded
-        root (wandb.Node): root node of the graph
+        edges ([(wandb.Node, wandb.Node)]): List of pairs of nodes interpreted
+            as edges.
+        loaded (boolean): Flag to tell whether the graph is completely loaded.
+        root (wandb.Node): Root node of the graph.
 
     Examples:
 
@@ -264,7 +265,7 @@ class Graph(Media):
     ```python
     import wandb
 
-    Graph.from_keras(keras_model)
+    wandb.Graph.from_keras(keras_model)
     ```
     """  # noqa: D412
 

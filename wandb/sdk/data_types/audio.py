@@ -11,7 +11,7 @@ from .base_types.media import BatchableMedia
 
 
 class Audio(BatchableMedia):
-    """Wandb class for audio clips.
+    """W&B class for audio clips.
 
     Attributes:
         data_or_path (string or numpy array): A path to an audio file

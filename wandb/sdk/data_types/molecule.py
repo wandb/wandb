@@ -23,10 +23,11 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Molecule(BatchableMedia):
-    """Wandb class for 3D Molecular data.
+    """W&B class for 3D Molecular data.
 
     Args:
-        data_or_path: Molecule can be initialized from a file name or an io object.
+        data_or_path: Molecule can be initialized from a file name or
+            an io object.
         caption: Caption associated with the molecule for display.
     """
 

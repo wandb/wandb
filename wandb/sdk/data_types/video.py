@@ -50,20 +50,21 @@ class Video(BatchableMedia):
     """Format a video for logging to W&B.
 
     Args:
-        data_or_path: Video can be initialized with a path to a file or an io object.
-            The format must be "gif", "mp4", "webm" or "ogg".
+        data_or_path: Video can be initialized with a path to a file or an
+            io object. The format must be "gif", "mp4", "webm" or "ogg".
             The format must be specified with the format argument.
             Video can be initialized with a numpy tensor.
             The numpy tensor must be either 4 dimensional or 5 dimensional.
             Channels should be (time, channel, height, width) or
             (batch, time, channel, height width)
-        caption: caption associated with the video for display
-        fps: The frame rate to use when encoding raw video frames. Default value is 4.
-            This parameter has no effect when data_or_path is a string, or bytes.
-        format: Format of video, necessary if initializing with path or io object.
+        caption: Caption associated with the video for display.
+        fps: The frame rate to use when encoding raw video frames.
+            Default value is 4. This parameter has no effect when
+            data_or_path is a string, or bytes.
+        format: Format of video, necessary if initializing with path or io
+            object.
 
     Examples:
-    <!--yeadoc-test:log-video-numpy-->
 
     Log a numpy array as a video
 

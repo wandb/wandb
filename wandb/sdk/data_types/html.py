@@ -16,7 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Html(BatchableMedia):
-    """Wandb class for arbitrary html.
+    """W&B class for arbitrary html.
 
     Args:
         data: HTML to display in wandb
