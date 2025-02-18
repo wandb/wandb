@@ -419,13 +419,15 @@ jobs:
   unit-tests-go:
     docker:
       - image: cimg/go:<<pipeline.parameters.go_version>>
+        environment:
+          WANDB_ERROR_REPORTING: false
     steps:
       - checkout
       - run:
           name: Run wandb core's Go tests and collect coverage
           command: |
             cd core
-            go test -race -coverprofile=coverage.txt -covermode=atomic ./...
+            go test -race -coverprofile=coverage.txt -covermode=atomic ./... -- -no-observability
       - codecov/upload: { flags: unit }
 
   # Download the local-testcontainer image corresponding to the latest server release

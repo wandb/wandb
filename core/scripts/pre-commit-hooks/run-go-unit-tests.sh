@@ -15,4 +15,4 @@ cd "$(dirname $(dirname $(dirname "$0")))" || fail
 FILES=$(go list ./... | grep -v /vendor/) || fail
 
 # Run the unit tests
-go test -tags=unit -timeout 30s -short -v ${FILES} || fail
+go test -tags=unit -timeout 30s -short -v ${FILES} -- -no-observability || fail
