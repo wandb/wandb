@@ -58,14 +58,15 @@ class Video(BatchableMedia):
             The numpy tensor must be either 4 dimensional or 5 dimensional.
             Channels should be (time, channel, height, width) or
             (batch, time, channel, height width)
-        caption (Optional[str]):  caption associated with the video for display
+        caption (Optional[str]): caption associated with the video for display.
         fps (int): The frame rate to use when encoding raw video frames.
             Default value is 4. This parameter has no effect when
-            data_or_path is a string, or bytes.
+            `data_or_path` is a string, or bytes.
         format (Optional[str]): format of video, necessary if initializing
             with path or io object.
 
     Examples:
+
     Log a numpy array as a video
 
     ```python

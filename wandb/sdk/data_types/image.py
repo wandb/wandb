@@ -69,12 +69,11 @@ class Image(BatchableMedia):
     for more information on modes.
 
     Args:
-        data_or_path (numpy array, string, io): Accepts numpy array of
+        data_or_path: Accepts numpy array of
             image data, or a PIL image. The class attempts to infer
             the data format and converts it.
-        mode (string): The PIL mode for an image.
-            Most common are "L", "RGB", "RGBA".
-        caption  (string): Label for display of image.
+        mode: The PIL mode for an image. Most common are "L", "RGB", "RGBA".
+        caption: Label for display of image.
 
     When logging a `torch.Tensor` as a `wandb.Image`, images are
     normalized. If you do not want to normalize your images,

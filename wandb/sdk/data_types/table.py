@@ -16,6 +16,7 @@ from .base_types.media import Media, _numpy_arrays_to_lists
 from .base_types.wb_value import WBValue
 from .utils import _json_helper
 
+
 class _TableLinkMixin:
     def set_table(self, table):
         self._table = table
@@ -184,8 +185,9 @@ class Table(Media):
     """The Table class used to display and analyze tabular data.
 
     Unlike traditional spreadsheets, Tables support numerous types of data:
-    scalar values, strings, numpy arrays, and most subclasses of `wandb.data_types.Media`.
-    This means you can embed `Images`, `Video`, `Audio`, and other sorts of rich, annotated media
+    scalar values, strings, numpy arrays, and most subclasses of
+    `wandb.data_types.Media`.This means you can embed `Images`, `Video`,
+    `Audio`, and other sorts of rich, annotated media
     directly in Tables, alongside other traditional scalar values.
 
     This class is the primary class used to generate the Table Visualizer
@@ -195,16 +197,18 @@ class Table(Media):
         columns (List[str]): Names of the columns in the table.
             Defaults to ["Input", "Output", "Expected"].
         data (List[List[any]]): 2D row-oriented array of values.
-        dataframe (pandas.DataFrame): DataFrame object used to create the table.
-            When set, `data` and `columns` arguments are ignored.
-        optional (Union[bool,List[bool]]): Determines if `None` values are allowed. Default to True
-            - If a singular bool value, then the optionality is enforced for all
-            columns specified at construction time
-            - If a list of bool values, then the optionality is applied to each
-            column - should be the same length as `columns`
-            applies to all columns. A list of bool values applies to each respective column.
-        allow_mixed_types (bool): Determines if columns are allowed to have mixed types
-            (disables type validation). Defaults to False
+        dataframe (pandas.DataFrame): DataFrame object used to create the
+            table. When set, `data` and `columns` arguments are ignored.
+        optional (Union[bool, List[bool]]): Determines if `None` values are
+            allowed. Default to `True`.
+        - If a singular bool value, then the optionality is enforced for
+        all columns specified at construction time.
+        - If a list of bool values, then the optionality is applied to each
+        column. Should be the same length as `columns`.
+        Applies to all columns. A list of bool values applies to each
+        respective column.
+        allow_mixed_types (bool): Determines if columns are allowed to have
+            mixed types (disables type validation). Defaults to `False`.
     """
 
     MAX_ROWS = 10000
@@ -667,7 +671,9 @@ class Table(Media):
                 }
             )
         else:
-            raise ValueError("_to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+            raise ValueError(
+                "_to_json accepts wandb_run.Run or wandb_artifact.Artifact"
+            )
 
         return json_dict
 
@@ -832,7 +838,7 @@ class Table(Media):
                 self.columns = self.columns[:-1]
             raise err
 
-    def get_column(self, name:str , convert_to: Optional[str]=None):
+    def get_column(self, name: str, convert_to: Optional[str] = None):
         """Retrieves a column from the table and optionally converts it to a NumPy object.
 
         Args:
