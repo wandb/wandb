@@ -192,7 +192,6 @@ class Object3D(BatchableMedia):
             file_type which must be one of SUPPORTED_TYPES.
 
     Examples:
-
     The shape of the numpy array must be one of either
 
     ```text
