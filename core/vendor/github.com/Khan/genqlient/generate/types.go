@@ -147,6 +147,13 @@ func (typ *goEnumType) WriteDefinition(w io.Writer, g *generator) error {
 			val.GoName, typ.GoName, val.GraphQLName)
 	}
 	fmt.Fprintf(w, ")\n")
+
+	// Add slice with all enums.
+	fmt.Fprintf(w, "var All%s = []%s{\n", typ.GoName, typ.GoName)
+	for _, val := range typ.Values {
+		fmt.Fprintf(w, "%s,\n", val.GoName)
+	}
+	fmt.Fprintf(w, "}\n")
 	return nil
 }
 
@@ -344,7 +351,7 @@ func (typ *goStructType) FlattenedFields() ([]*selector, error) {
 		field := queue[0]
 		queue = queue[1:]
 		if field.IsEmbedded() {
-			typ, ok := field.GoType.(*goStructType)
+			structField, ok := field.GoType.(*goStructType)
 			if !ok {
 				// Should never happen: embeds correspond to named fragments,
 				// and even if the fragment is of interface type in GraphQL,
@@ -358,7 +365,7 @@ func (typ *goStructType) FlattenedFields() ([]*selector, error) {
 			}
 
 			// Enqueue the embedded fields for our BFS.
-			for _, subField := range typ.Fields {
+			for _, subField := range structField.Fields {
 				queue = append(queue,
 					&selector{subField, field.Selector + "." + subField.Selector()})
 			}
