@@ -1,6 +1,6 @@
 import re
 from enum import Enum
-from functools import cache
+from functools import lru_cache
 from typing import TYPE_CHECKING, Optional
 from urllib.parse import urlparse
 
@@ -115,7 +115,7 @@ def fetch_org_from_settings_or_entity(
     return organization
 
 
-@cache
+@lru_cache(maxsize=128)
 def check_server_feature(client: "Client", feature: ServerFeature) -> bool:
     """Check if a server feature is enabled.
 
