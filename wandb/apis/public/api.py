@@ -25,6 +25,7 @@ import wandb
 from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
+from wandb.apis.public._gql_compat import SchemaInfo
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.integrations import (
     Integrations,
@@ -64,6 +65,7 @@ class RetryingClient:
     def __init__(self, client: Client):
         self._server_info = None
         self._client = client
+        self._schema_info: SchemaInfo | None = None
 
     @property
     def app_url(self):
@@ -92,6 +94,44 @@ class RetryingClient:
         if self._server_info is None:
             self._server_info = self.execute(self.INFO_QUERY).get("serverInfo")
         return self._server_info
+
+    @property
+    def schema_info(self) -> SchemaInfo:
+        # Get/cache schema info from the server for rewriting queries for backward compatibility
+        if self._schema_info is None:
+            introspection_query = gql(
+                """
+                query GetSupportedTypes {
+                    __schema {
+                        types {
+                            name
+                            fields {
+                                name
+                                type {
+                                    kind
+                                    name
+                                    ofType {
+                                        kind
+                                        name
+                                        ofType {
+                                            kind
+                                            name
+                                            ofType {
+                                                kind
+                                                name
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                """
+            )
+            result = self.execute(introspection_query)
+            self._schema_info = SchemaInfo(**result["__schema"])
+        return self._schema_info
 
     def version_supported(self, min_version: str) -> bool:  # noqa: D102  # User not encouraged to use this class directly
         from wandb.util import parse_version
