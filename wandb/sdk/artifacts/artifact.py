@@ -349,7 +349,7 @@ class Artifact:
         # The future of aliases is to move all alias fetches to the membership level
         # so we don't have to do the collection fetches below
         if aliases:
-            processed_aliases = [a["alias"] for a in aliases]
+            processed_aliases = aliases
         else:
             processed_aliases = [
                 obj["alias"]

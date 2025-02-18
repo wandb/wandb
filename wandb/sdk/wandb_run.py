@@ -1496,7 +1496,7 @@ class Run:
         if run_obj.notes:
             self._settings.run_notes = run_obj.notes
         if run_obj.tags:
-            self._settings.run_tags = run_obj.tags
+            self._settings.run_tags = tuple(run_obj.tags)
         if run_obj.sweep_id:
             self._settings.sweep_id = run_obj.sweep_id
         if run_obj.host:
@@ -2594,7 +2594,10 @@ class Run:
         else:
             exit_handle = self._backend.interface.deliver_finish_without_exit()
 
-        with progress.progress_printer(self._printer) as progress_printer:
+        with progress.progress_printer(
+            self._printer,
+            default_text="Finishing up...",
+        ) as progress_printer:
             # Wait for the run to complete.
             wait_with_progress(
                 exit_handle,

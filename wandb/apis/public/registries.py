@@ -473,7 +473,7 @@ class Versions(Paginator):
                 + str(a["node"]["versionIndex"]),
                 a["node"]["artifact"],
                 self.client,
-                a["node"]["aliases"],
+                [alias["alias"] for alias in a["node"]["aliases"]],
             )
             for a in self.last_response["organization"]["orgEntity"][
                 "artifactMemberships"

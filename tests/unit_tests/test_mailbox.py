@@ -207,6 +207,14 @@ def test_require_response_raises_if_address_is_set():
         mailbox.require_response(record)
 
 
+def test_require_response_raises_if_closed():
+    mailbox = mb.Mailbox()
+    mailbox.close()
+
+    with pytest.raises(mb.MailboxClosedError):
+        mailbox.require_response(pb.Record())
+
+
 def test_deliver_unknown_address():
     mailbox = mb.Mailbox()
     result = pb.Result()

@@ -365,6 +365,8 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestRunFinishWithoutExit(record)
 	case *spb.Request_ServerFeature:
 		h.handleRequestServerFeature(record, x.ServerFeature)
+	case *spb.Request_Operations:
+		h.handleRequestOperations(record)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRequest: request type is nil"))
@@ -434,6 +436,16 @@ func (h *Handler) handleRequestDownloadArtifact(record *spb.Record) {
 
 func (h *Handler) handleRequestLinkArtifact(record *spb.Record) {
 	h.fwdRecord(record)
+}
+
+func (h *Handler) handleRequestOperations(record *spb.Record) {
+	h.respond(record, &spb.Response{
+		ResponseType: &spb.Response_OperationsResponse{
+			OperationsResponse: &spb.OperationStatsResponse{
+				OperationStats: h.operations.ToProto(),
+			},
+		},
+	})
 }
 
 func (h *Handler) handleRequestPollExit(record *spb.Record) {

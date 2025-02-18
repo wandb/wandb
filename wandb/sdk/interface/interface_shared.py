@@ -6,7 +6,6 @@ See interface.py for how interface classes relate to each other.
 
 import logging
 from abc import abstractmethod
-from multiprocessing.process import BaseProcess
 from typing import Any, Optional, cast
 
 from wandb.proto import wandb_internal_pb2 as pb
@@ -15,28 +14,18 @@ from wandb.sdk.mailbox import Mailbox, MailboxHandle
 from wandb.util import json_dumps_safer, json_friendly
 
 from .interface import InterfaceBase
-from .message_future import MessageFuture
 from .router import MessageRouter
 
 logger = logging.getLogger("wandb")
 
 
 class InterfaceShared(InterfaceBase):
-    process: Optional[BaseProcess]
-    _process_check: bool
     _router: Optional[MessageRouter]
     _mailbox: Optional[Mailbox]
 
-    def __init__(
-        self,
-        process: Optional[BaseProcess] = None,
-        process_check: bool = True,
-        mailbox: Optional[Any] = None,
-    ) -> None:
+    def __init__(self, mailbox: Optional[Any] = None) -> None:
         super().__init__()
-        self._process = process
         self._router = None
-        self._process_check = process_check
         self._mailbox = mailbox
         self._init_router()
 
@@ -103,6 +92,7 @@ class InterfaceShared(InterfaceBase):
         stop_status: Optional[pb.StopStatusRequest] = None,
         internal_messages: Optional[pb.InternalMessagesRequest] = None,
         network_status: Optional[pb.NetworkStatusRequest] = None,
+        operation_stats: Optional[pb.OperationStatsRequest] = None,
         poll_exit: Optional[pb.PollExitRequest] = None,
         partial_history: Optional[pb.PartialHistoryRequest] = None,
         sampled_history: Optional[pb.SampledHistoryRequest] = None,
@@ -145,6 +135,8 @@ class InterfaceShared(InterfaceBase):
             request.internal_messages.CopyFrom(internal_messages)
         elif network_status:
             request.network_status.CopyFrom(network_status)
+        elif operation_stats:
+            request.operations.CopyFrom(operation_stats)
         elif poll_exit:
             request.poll_exit.CopyFrom(poll_exit)
         elif partial_history:
@@ -278,20 +270,6 @@ class InterfaceShared(InterfaceBase):
     def _publish(self, record: pb.Record, local: Optional[bool] = None) -> None:
         raise NotImplementedError
 
-    def _communicate(
-        self, rec: pb.Record, timeout: Optional[int] = 30, local: Optional[bool] = None
-    ) -> Optional[pb.Result]:
-        return self._communicate_async(rec, local=local).get(timeout=timeout)
-
-    def _communicate_async(
-        self, rec: pb.Record, local: Optional[bool] = None
-    ) -> MessageFuture:
-        assert self._router
-        if self._process_check and self._process and not self._process.is_alive():
-            raise Exception("The wandb backend process has shutdown")
-        future = self._router.send_and_receive(rec, local=local)
-        return future
-
     def _publish_defer(self, state: "pb.DeferRequest.DeferState.V") -> None:
         defer = pb.DeferRequest(state=state)
         rec = self._make_request(defer=defer)
@@ -403,11 +381,10 @@ class InterfaceShared(InterfaceBase):
         record = self._make_request(keepalive=keepalive)
         self._publish(record)
 
-    def _communicate_shutdown(self) -> None:
-        # shutdown
+    def _deliver_shutdown(self) -> MailboxHandle:
         request = pb.Request(shutdown=pb.ShutdownRequest())
         record = self._make_record(request=request)
-        _ = self._communicate(record)
+        return self._deliver_record(record)
 
     def _get_mailbox(self) -> Mailbox:
         mailbox = self._mailbox
@@ -452,6 +429,10 @@ class InterfaceShared(InterfaceBase):
 
     def _deliver_exit(self, exit_data: pb.RunExitRecord) -> MailboxHandle:
         record = self._make_record(exit=exit_data)
+        return self._deliver_record(record)
+
+    def deliver_operation_stats(self):
+        record = self._make_request(operation_stats=pb.OperationStatsRequest())
         return self._deliver_record(record)
 
     def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:

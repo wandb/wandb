@@ -231,7 +231,7 @@ github.com/aws/aws-sdk-go-v2/internal/endpoints/v2
 # github.com/aws/aws-sdk-go-v2/internal/ini v1.8.2
 ## explicit; go 1.21
 github.com/aws/aws-sdk-go-v2/internal/ini
-# github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.31
+# github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.32
 ## explicit; go 1.21
 github.com/aws/aws-sdk-go-v2/internal/v4a
 github.com/aws/aws-sdk-go-v2/internal/v4a/internal/crypto
@@ -239,18 +239,18 @@ github.com/aws/aws-sdk-go-v2/internal/v4a/internal/v4
 # github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.2
 ## explicit; go 1.21
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding
-# github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.5.5
+# github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.6.0
 ## explicit; go 1.21
 github.com/aws/aws-sdk-go-v2/service/internal/checksum
 # github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.13
 ## explicit; go 1.21
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url
-# github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.12
+# github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.13
 ## explicit; go 1.21
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared/arn
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared/config
-# github.com/aws/aws-sdk-go-v2/service/s3 v1.75.2
+# github.com/aws/aws-sdk-go-v2/service/s3 v1.76.1
 ## explicit; go 1.21
 github.com/aws/aws-sdk-go-v2/service/s3
 github.com/aws/aws-sdk-go-v2/service/s3/internal/arn
@@ -341,7 +341,7 @@ github.com/cyphar/filepath-securejoin
 # github.com/davecgh/go-spew v1.1.1
 ## explicit
 github.com/davecgh/go-spew/spew
-# github.com/ebitengine/purego v0.8.1
+# github.com/ebitengine/purego v0.8.2
 ## explicit; go 1.18
 github.com/ebitengine/purego
 github.com/ebitengine/purego/internal/cgo
@@ -604,7 +604,7 @@ github.com/prometheus/client_golang/prometheus/internal
 # github.com/prometheus/client_model v0.6.1
 ## explicit; go 1.19
 github.com/prometheus/client_model/go
-# github.com/prometheus/common v0.61.0
+# github.com/prometheus/common v0.62.0
 ## explicit; go 1.21
 github.com/prometheus/common/config
 github.com/prometheus/common/expfmt
@@ -620,7 +620,7 @@ github.com/radovskyb/watcher
 # github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3
 ## explicit; go 1.13
 github.com/sergi/go-diff/diffmatchpatch
-# github.com/shirou/gopsutil/v4 v4.24.12
+# github.com/shirou/gopsutil/v4 v4.25.1
 ## explicit; go 1.18
 github.com/shirou/gopsutil/v4/common
 github.com/shirou/gopsutil/v4/cpu
@@ -999,7 +999,7 @@ google.golang.org/grpc/xds/internal/xdsclient/xdslbregistry
 google.golang.org/grpc/xds/internal/xdsclient/xdslbregistry/converter
 google.golang.org/grpc/xds/internal/xdsclient/xdsresource
 google.golang.org/grpc/xds/internal/xdsclient/xdsresource/version
-# google.golang.org/protobuf v1.36.4
+# google.golang.org/protobuf v1.36.5
 ## explicit; go 1.21
 google.golang.org/protobuf/encoding/protodelim
 google.golang.org/protobuf/encoding/protojson
