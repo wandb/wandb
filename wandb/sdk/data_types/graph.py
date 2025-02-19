@@ -260,9 +260,8 @@ class Graph(Media):
 
     Examples:
 
-    Import a keras model
-
     ```python
+    # Import a keras model
     import wandb
 
     wandb.Graph.from_keras(keras_model)
