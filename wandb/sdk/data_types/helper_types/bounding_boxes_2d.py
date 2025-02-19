@@ -53,7 +53,7 @@ class BoundingBoxes2D(JSONMetadata):
         import numpy as np
         import wandb
 
-        wandb.init()
+        run = wandb.init()
         image = np.random.randint(low=0, high=256, size=(200, 300, 3))
 
         class_labels = {0: "person", 1: "car", 2: "road", 3: "building"}
@@ -77,7 +77,11 @@ class BoundingBoxes2D(JSONMetadata):
                         },
                         {
                             # another box expressed in the pixel domain
-                            "position": {"middle": [150, 20], "width": 68, "height": 112},
+                            "position": {
+                                "middle": [150, 20],
+                                "width": 68,
+                                "height": 112,
+                            },
                             "domain": "pixel",
                             "class_id": 3,
                             "box_caption": "a building",
@@ -90,7 +94,7 @@ class BoundingBoxes2D(JSONMetadata):
             },
         )
 
-        wandb.log({"driving_scene": img})
+        run.log({"driving_scene": img})
         ```
 
         ### Log a bounding box overlay to a Table
@@ -99,7 +103,7 @@ class BoundingBoxes2D(JSONMetadata):
         import numpy as np
         import wandb
 
-        wandb.init()
+        run = wandb.init()
         image = np.random.randint(low=0, high=256, size=(200, 300, 3))
 
         class_labels = {0: "person", 1: "car", 2: "road", 3: "building"}
@@ -132,7 +136,11 @@ class BoundingBoxes2D(JSONMetadata):
                         },
                         {
                             # another box expressed in the pixel domain
-                            "position": {"middle": [150, 20], "width": 68, "height": 112},
+                            "position": {
+                                "middle": [150, 20],
+                                "width": 68,
+                                "height": 112,
+                            },
                             "domain": "pixel",
                             "class_id": 3,
                             "box_caption": "a building",
@@ -148,7 +156,7 @@ class BoundingBoxes2D(JSONMetadata):
 
         table = wandb.Table(columns=["image"])
         table.add_data(img)
-        wandb.log({"driving_scene": table})
+        run.log({"driving_scene": table})
         ```
     """
 

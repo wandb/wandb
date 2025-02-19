@@ -38,7 +38,7 @@ class ImageMask(Media):
         import numpy as np
         import wandb
 
-        wandb.init()
+        run = wandb.init()
         image = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
         predicted_mask = np.empty((100, 100), dtype=np.uint8)
         ground_truth_mask = np.empty((100, 100), dtype=np.uint8)
@@ -58,14 +58,17 @@ class ImageMask(Media):
         masked_image = wandb.Image(
             image,
             masks={
-                "predictions": {"mask_data": predicted_mask, "class_labels": class_labels},
+                "predictions": {
+                    "mask_data": predicted_mask,
+                    "class_labels": class_labels,
+                },
                 "ground_truth": {
                     "mask_data": ground_truth_mask,
                     "class_labels": class_labels,
                 },
             },
         )
-        wandb.log({"img_with_masks": masked_image})
+        run.log({"img_with_masks": masked_image})
         ```
 
         ### Log a masked image inside a Table
@@ -74,7 +77,7 @@ class ImageMask(Media):
         import numpy as np
         import wandb
 
-        wandb.init()
+        run = wandb.init()
         image = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
         predicted_mask = np.empty((100, 100), dtype=np.uint8)
         ground_truth_mask = np.empty((100, 100), dtype=np.uint8)
@@ -103,7 +106,10 @@ class ImageMask(Media):
         masked_image = wandb.Image(
             image,
             masks={
-                "predictions": {"mask_data": predicted_mask, "class_labels": class_labels},
+                "predictions": {
+                    "mask_data": predicted_mask,
+                    "class_labels": class_labels,
+                },
                 "ground_truth": {
                     "mask_data": ground_truth_mask,
                     "class_labels": class_labels,
@@ -114,7 +120,7 @@ class ImageMask(Media):
 
         table = wandb.Table(columns=["image"])
         table.add_data(masked_image)
-        wandb.log({"random_field": table})
+        run.log({"random_field": table})
         ```
     """
 
