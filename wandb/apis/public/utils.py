@@ -83,10 +83,9 @@ def fetch_org_from_settings_or_entity(
         settings (dict): The settings to fetch the org for.
         default_entity (str | None): The default entity to fetch the org for.
     """
-    organization = settings["organization"]
-    if organization is None:
+    if (organization := settings.get("organization")) is None:
         # Fetch the org via the Entity. Won't work if default entity is a personal entity and belongs to multiple orgs
-        entity = settings["entity"] or default_entity
+        entity = settings.get("entity") or default_entity
         if entity is None:
             raise ValueError(
                 "No entity specified and can't fetch organization from the entity"

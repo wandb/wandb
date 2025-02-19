@@ -21,6 +21,30 @@ from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 class Registries(Paginator):
     """Iterator that returns Registries."""
 
+    QUERY = gql(
+        """
+        query Registries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
+            organization(name: $organization) {
+                orgEntity {
+                    name
+                    projects(filters: $filters, after: $cursor, first: $perPage) {
+                        pageInfo {
+                            endCursor
+                            hasNextPage
+                        }
+                        edges {
+                            node {
+                                ...RegistryFragment
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+        + _gql_registry_fragment()
+    )
+
     def __init__(
         self,
         client: "Client",
@@ -31,29 +55,6 @@ class Registries(Paginator):
         self.client = client
         self.organization = organization
         self.filter = filter or {}
-        self.QUERY = gql(
-            """
-            query Registries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
-                organization(name: $organization) {
-                    orgEntity {
-                        name
-                        projects(filters: $filters, after: $cursor, first: $perPage) {
-                            pageInfo {
-                                endCursor
-                                hasNextPage
-                            }
-                            edges {
-                                node {
-                                    ...RegistryFragment
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        """
-            + _gql_registry_fragment()
-        )
         variables = {
             "organization": organization,
             "filters": json.dumps(self.filter),
@@ -62,18 +63,23 @@ class Registries(Paginator):
         super().__init__(client, variables, per_page)
 
     def __bool__(self):
-        return len(self) > 0
+        return len(self) > 0 or len(self.objects) > 0
 
     def collections(self, filter: Optional[Dict[str, Any]] = None) -> "Collections":
-        return Collections(self.client, self.organization, self.filter, filter)
+        return Collections(
+            self.client,
+            self.organization,
+            registry_filter=self.filter,
+            collection_filter=filter,
+        )
 
     def versions(self, filter: Optional[Dict[str, Any]] = None) -> "Versions":
         return Versions(
             self.client,
             self.organization,
-            self.filter,
-            None,
-            filter,
+            registry_filter=self.filter,
+            collection_filter=None,
+            artifact_filter=filter,
         )
 
     @property
@@ -104,6 +110,8 @@ class Registries(Paginator):
             return None
 
     def convert_objects(self):
+        if not self.last_response:
+            return []
         return [
             Registry(
                 self.client,
@@ -201,6 +209,70 @@ class Registry:
 class Collections(Paginator):
     """Iterator that returns Artifact collections in the Registry."""
 
+    QUERY = gql(
+        """
+        query Collections(
+            $organization: String!,
+            $registryFilter: JSONString,
+            $collectionFilter: JSONString,
+            $collectionTypes: [ArtifactCollectionType!],
+            $cursor: String,
+            $perPage: Int
+        ) {
+            organization(name: $organization) {
+                orgEntity {
+                    name
+                    artifactCollections(
+                        projectFilters: $registryFilter,
+                        filters: $collectionFilter,
+                        collectionTypes: $collectionTypes,
+                        after: $cursor,
+                        first: $perPage
+                    ) {
+                        totalCount
+                        pageInfo {
+                            endCursor
+                            hasNextPage
+                        }
+                        edges {
+                            cursor
+                            node {
+                                id
+                                name
+                                description
+                                createdAt
+                                tags {
+                                    edges {
+                                        node {
+                                            name
+                                        }
+                                    }
+                                }
+                                project {
+                                    name
+                                    entity {
+                                        name
+                                    }
+                                }
+                                defaultArtifactType {
+                                    name
+                                }
+                                aliases {
+                                    edges {
+                                        node {
+                                            alias
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+    )
+
     def __init__(
         self,
         client: "Client",
@@ -226,80 +298,18 @@ class Collections(Paginator):
             "perPage": per_page,
         }
 
-        self.QUERY = gql("""
-            query Collections(
-                $organization: String!,
-                $registryFilter: JSONString,
-                $collectionFilter: JSONString,
-                $collectionTypes: [ArtifactCollectionType!],
-                $cursor: String,
-                $perPage: Int
-            ) {
-                organization(name: $organization) {
-                    orgEntity {
-                        name
-                        artifactCollections(
-                            projectFilters: $registryFilter,
-                            filters: $collectionFilter,
-                            collectionTypes: $collectionTypes,
-                            after: $cursor,
-                            first: $perPage
-                        ) {
-                            totalCount
-                            pageInfo {
-                                endCursor
-                                hasNextPage
-                            }
-                            edges {
-                                cursor
-                                node {
-                                    id
-                                    name
-                                    description
-                                    createdAt
-                                    tags {
-                                        edges {
-                                            node {
-                                                name
-                                            }
-                                        }
-                                    }
-                                    project {
-                                        name
-                                        entity {
-                                            name
-                                        }
-                                    }
-                                    defaultArtifactType {
-                                        name
-                                    }
-                                    aliases {
-                                        edges {
-                                            node {
-                                                alias
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        """)
-
         super().__init__(client, variables, per_page)
 
     def __bool__(self):
-        return len(self) > 0
+        return len(self) > 0 or len(self.objects) > 0
 
     def versions(self, filter: Optional[Dict[str, Any]] = None) -> "Versions":
         return Versions(
             self.client,
             self.organization,
-            self.registry_filter,
-            self.collection_filter,
-            filter,
+            registry_filter=self.registry_filter,
+            collection_filter=self.collection_filter,
+            artifact_filter=filter,
         )
 
     @property
@@ -330,6 +340,8 @@ class Collections(Paginator):
             return None
 
     def convert_objects(self):
+        if not self.last_response:
+            return []
         return [
             ArtifactCollection(
                 self.client,
@@ -349,6 +361,58 @@ class Collections(Paginator):
 class Versions(Paginator):
     """Iterator that returns Artifact versions in the Registry."""
 
+    QUERY = gql(
+        """
+        query Versions(
+            $organization: String!,
+            $registryFilter: JSONString,
+            $collectionFilter: JSONString,
+            $artifactFilter: JSONString,
+            $cursor: String,
+            $perPage: Int
+        ) {
+            organization(name: $organization) {
+                orgEntity {
+                    name
+                    artifactMemberships(
+                        projectFilters: $registryFilter,
+                        collectionFilters: $collectionFilter,
+                        filters: $artifactFilter,
+                        after: $cursor,
+                        first: $perPage
+                    ) {
+                        pageInfo {
+                            endCursor
+                            hasNextPage
+                        }
+                        edges {
+                            node {
+                                artifactCollection {
+                                    project {
+                                        name
+                                        entity {
+                                            name
+                                        }
+                                    }
+                                    name
+                                }
+                                versionIndex
+                                artifact {
+                                    ...ArtifactFragment
+                                }
+                                aliases {
+                                    alias
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+        + _gql_artifact_fragment(include_aliases=False)
+    )
+
     def __init__(
         self,
         client: "Client",
@@ -363,58 +427,6 @@ class Versions(Paginator):
         self.registry_filter = registry_filter
         self.collection_filter = collection_filter
         self.artifact_filter = artifact_filter or {}
-
-        self.QUERY = gql(
-            """
-            query Versions(
-                $organization: String!,
-                $registryFilter: JSONString,
-                $collectionFilter: JSONString,
-                $artifactFilter: JSONString,
-                $cursor: String,
-                $perPage: Int
-            ) {
-                organization(name: $organization) {
-                    orgEntity {
-                        name
-                        artifactMemberships(
-                            projectFilters: $registryFilter,
-                            collectionFilters: $collectionFilter,
-                            filters: $artifactFilter,
-                            after: $cursor,
-                            first: $perPage
-                        ) {
-                            pageInfo {
-                                endCursor
-                                hasNextPage
-                            }
-                            edges {
-                                node {
-                                    artifactCollection {
-                                        project {
-                                            name
-                                            entity {
-                                                name
-                                            }
-                                        }
-                                        name
-                                    }
-                                    versionIndex
-                                    artifact {
-                                        ...ArtifactFragment
-                                    }
-                                    aliases {
-                                        alias
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            """
-            + _gql_artifact_fragment(include_aliases=False)
-        )
 
         variables = {
             "registryFilter": json.dumps(self.registry_filter)
@@ -432,7 +444,7 @@ class Versions(Paginator):
         super().__init__(client, variables, per_page)
 
     def __bool__(self):
-        return len(self) > 0
+        return len(self) > 0 or len(self.objects) > 0
 
     @property
     def length(self):
@@ -464,6 +476,8 @@ class Versions(Paginator):
             return None
 
     def convert_objects(self):
+        if not self.last_response:
+            return []
         artifacts = (
             wandb.Artifact._from_attrs(
                 a["node"]["artifactCollection"]["project"]["entity"]["name"],
