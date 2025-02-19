@@ -361,58 +361,6 @@ class Collections(Paginator):
 class Versions(Paginator):
     """Iterator that returns Artifact versions in the Registry."""
 
-    QUERY = gql(
-        """
-        query Versions(
-            $organization: String!,
-            $registryFilter: JSONString,
-            $collectionFilter: JSONString,
-            $artifactFilter: JSONString,
-            $cursor: String,
-            $perPage: Int
-        ) {
-            organization(name: $organization) {
-                orgEntity {
-                    name
-                    artifactMemberships(
-                        projectFilters: $registryFilter,
-                        collectionFilters: $collectionFilter,
-                        filters: $artifactFilter,
-                        after: $cursor,
-                        first: $perPage
-                    ) {
-                        pageInfo {
-                            endCursor
-                            hasNextPage
-                        }
-                        edges {
-                            node {
-                                artifactCollection {
-                                    project {
-                                        name
-                                        entity {
-                                            name
-                                        }
-                                    }
-                                    name
-                                }
-                                versionIndex
-                                artifact {
-                                    ...ArtifactFragment
-                                }
-                                aliases {
-                                    alias
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        """
-        + _gql_artifact_fragment(include_aliases=False)
-    )
-
     def __init__(
         self,
         client: "Client",
@@ -427,6 +375,57 @@ class Versions(Paginator):
         self.registry_filter = registry_filter
         self.collection_filter = collection_filter
         self.artifact_filter = artifact_filter or {}
+        self.QUERY = gql(
+            """
+            query Versions(
+                $organization: String!,
+                $registryFilter: JSONString,
+                $collectionFilter: JSONString,
+                $artifactFilter: JSONString,
+                $cursor: String,
+                $perPage: Int
+            ) {
+                organization(name: $organization) {
+                    orgEntity {
+                        name
+                        artifactMemberships(
+                            projectFilters: $registryFilter,
+                            collectionFilters: $collectionFilter,
+                            filters: $artifactFilter,
+                            after: $cursor,
+                            first: $perPage
+                        ) {
+                            pageInfo {
+                                endCursor
+                                hasNextPage
+                            }
+                            edges {
+                                node {
+                                    artifactCollection {
+                                        project {
+                                            name
+                                            entity {
+                                                name
+                                            }
+                                        }
+                                        name
+                                    }
+                                    versionIndex
+                                    artifact {
+                                        ...ArtifactFragment
+                                    }
+                                    aliases {
+                                        alias
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """
+            + _gql_artifact_fragment(include_aliases=False)
+        )
 
         variables = {
             "registryFilter": json.dumps(self.registry_filter)
