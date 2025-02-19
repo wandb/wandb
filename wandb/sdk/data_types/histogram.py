@@ -34,8 +34,9 @@ class Histogram(WBValue):
 
     Examples:
 
+    Generate histogram from a sequence
+
     ```python
-    # Generate histogram from a sequence
     import wandb
 
     wandb.Histogram([1, 2, 3])
