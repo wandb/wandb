@@ -65,16 +65,17 @@ class Video(BatchableMedia):
             object.
 
     Examples:
+
     Log a numpy array as a video
 
     ```python
     import numpy as np
     import wandb
 
-    wandb.init()
+    run = wandb.init()
     # axes are (time, channel, height, width)
     frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
-    wandb.log({"video": wandb.Video(frames, fps=4)})
+    run.log({"video": wandb.Video(frames, fps=4)})
     ```
     """
 
@@ -142,20 +143,12 @@ class Video(BatchableMedia):
 
         <!-- lazydoc-ignore: internal -->
         """
-        # Try to import ImageSequenceClip from the appropriate MoviePy module
-        mpy = None
-        try:
-            # Attempt to load moviepy.editor for MoviePy < 2.0
-            mpy = util.get_module(
-                "moviepy.editor",
-                required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
-            )
-        except wandb.Error:
-            # Fallback to moviepy for MoviePy >= 2.0
-            mpy = util.get_module(
-                "moviepy",
-                required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
-            )
+
+        # import ImageSequenceClip from the appropriate MoviePy module
+        mpy = util.get_module(
+            "moviepy.video.io.ImageSequenceClip",
+            required='wandb.Video requires moviepy when passing raw data. Install with "pip install wandb[media]"',
+        )
 
         tensor = self._prepare_video(self.data)
         _, self._height, self._width, self._channels = tensor.shape  # type: ignore

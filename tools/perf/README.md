@@ -6,13 +6,12 @@ All the performance tests and setup files for the SDK are inside this experiment
 
 ## Setting up a perf container
 1. Go to your wandb repo
-2. Go to experimental/perf
+2. Go to tools/perf
 3. Build the docker image
-   docker build -t perfimage .
 4. Start a container
-   docker run perfimage
+   docker run -d perfimage
 5. Log into the container
-   docker ssh exec -it container_id /bin/bash
+   docker exec -it container_id /bin/bash
 
 ## Starting a load test
 Once you are logged into your container
@@ -20,8 +19,9 @@ Once you are logged into your container
    export WANDB_API_KEY=<your key>
    export WANDB_BASE_URL=<your W&B server URL>
 2. cd /opt/ns
-3. python -m scripts.run_load_test -t log_scalar
-4. The test results are saved locally on the same directory
+3. export PYTHONPATH=$(pwd)
+4. python -m scripts.run_load_tests -t log_scalar
+5. The test results are saved locally on the same directory
 
 ## Pushing performance test results and metrics to W&B
 After you have a test run, you can optional push the results to W&B for easier visualization

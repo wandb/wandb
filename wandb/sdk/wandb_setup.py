@@ -28,7 +28,6 @@ from .lib import config_util, server
 
 if TYPE_CHECKING:
     from wandb.sdk.lib.service_connection import ServiceConnection
-    from wandb.sdk.wandb_run import Run
     from wandb.sdk.wandb_settings import Settings
 
 
@@ -89,9 +88,6 @@ class _WandbSetup:
         self._config: dict | None = None
         self._server: server.Server | None = None
         self._pid = pid
-
-        # keep track of multiple runs, so we can unwind with join()s
-        self._global_run_stack: list[Run] = []
 
         # TODO(jhr): defer strict checks until settings are fully initialized
         #            and logging is ready
@@ -177,42 +173,30 @@ class _WandbSetup:
     def _get_entity(self) -> str | None:
         if self._settings and self._settings._offline:
             return None
-        if self._server is None:
-            self._load_viewer()
-        assert self._server is not None
-        entity = self._server._viewer.get("entity")
+        entity = self.viewer.get("entity")
         return entity
 
     def _get_username(self) -> str | None:
         if self._settings and self._settings._offline:
             return None
-        if self._server is None:
-            self._load_viewer()
-        assert self._server is not None
-        return self._server._viewer.get("username")
+        return self.viewer.get("username")
 
     def _get_teams(self) -> list[str]:
         if self._settings and self._settings._offline:
             return []
-        if self._server is None:
-            self._load_viewer()
-        assert self._server is not None
-        teams = self._server._viewer.get("teams")
+        teams = self.viewer.get("teams")
         if teams:
             teams = [team["node"]["name"] for team in teams["edges"]]
         return teams or []
 
-    def _load_viewer(self) -> None:
-        if self._settings and self._settings._offline:
-            return
-        s = server.Server(settings=self._settings)
-        s.query_with_timeout()
-        self._server = s
+    @property
+    def viewer(self) -> dict[str, Any]:
+        if self._server is None:
+            self._server = server.Server(settings=self._settings)
+
+        return self._server.viewer
 
     def _load_user_settings(self) -> dict[str, Any] | None:
-        if self._server is None:
-            self._load_viewer()
-
         # offline?
         if self._server is None:
             return None
@@ -222,7 +206,7 @@ class _WandbSetup:
         if "code_saving_enabled" in flags:
             user_settings["save_code"] = flags["code_saving_enabled"]
 
-        email = self._server._viewer.get("email", None)
+        email = self.viewer.get("email", None)
         if email:
             user_settings["email"] = email
 
@@ -310,18 +294,33 @@ def singleton() -> _WandbSetup | None:
         return None
 
 
-def _setup(settings: Settings | None = None) -> _WandbSetup:
-    """Set up library context."""
+def _setup(
+    settings: Settings | None = None,
+    start_service: bool = True,
+) -> _WandbSetup:
+    """Set up library context.
+
+    Args:
+        settings: Global settings to set, or updates to the global settings
+            if the singleton has already been initialized.
+        start_service: Whether to start up the service process.
+            NOTE: A service process will only be started if allowed by the
+            global settings (after the given updates). The service will not
+            start up if the mode resolves to "disabled".
+    """
     global _singleton
 
     pid = os.getpid()
 
     if _singleton and _singleton._pid == pid:
         _singleton._update(settings=settings)
-        return _singleton
     else:
         _singleton = _WandbSetup(settings=settings, pid=pid)
-        return _singleton
+
+    if start_service and not _singleton.settings._noop:
+        _singleton.ensure_service()
+
+    return _singleton
 
 
 def setup(settings: Settings | None = None) -> _WandbSetup:

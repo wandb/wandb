@@ -10,7 +10,6 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 import gzip
 import logging
-import os
 import time
 from abc import abstractmethod
 from pathlib import Path
@@ -36,6 +35,7 @@ from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib import json_util as json
+from wandb.sdk.mailbox import HandleAbandonedError, MailboxHandle
 from wandb.util import (
     WandBJSONEncoderOld,
     get_h5_typename,
@@ -47,9 +47,7 @@ from wandb.util import (
 )
 
 from ..data_types.utils import history_dict_to_json, val_to_json
-from ..lib.mailbox import MailboxHandle
 from . import summary_record as sr
-from .message_future import MessageFuture
 
 MANIFEST_FILE_SIZE_THRESHOLD = 100_000
 
@@ -91,17 +89,10 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> "PolicyName":
 
 
 class InterfaceBase:
-    _run: Optional["Run"]
     _drop: bool
 
     def __init__(self) -> None:
-        self._run = None
         self._drop = False
-
-    def _hack_set_run(self, run: "Run") -> None:
-        self._run = run
-        current_pid = os.getpid()
-        self._run._set_iface_pid(current_pid)
 
     def publish_header(self) -> None:
         header = pb.HeaderRecord()
@@ -235,7 +226,12 @@ class InterfaceBase:
             update.value_json = json.dumps(v)
         return summary
 
-    def _summary_encode(self, value: Any, path_from_root: str) -> dict:
+    def _summary_encode(
+        self,
+        value: Any,
+        path_from_root: str,
+        run: "Run",
+    ) -> dict:
         """Normalize, compress, and encode sub-objects for backend storage.
 
         value: Object to encode.
@@ -253,12 +249,14 @@ class InterfaceBase:
             json_value = {}
             for key, value in value.items():  # noqa: B020
                 json_value[key] = self._summary_encode(
-                    value, path_from_root + "." + key
+                    value,
+                    path_from_root + "." + key,
+                    run=run,
                 )
             return json_value
         else:
             friendly_value, converted = json_friendly(
-                val_to_json(self._run, path_from_root, value, namespace="summary")
+                val_to_json(run, path_from_root, value, namespace="summary")
             )
             json_value, compressed = maybe_compress_summary(
                 friendly_value, get_h5_typename(value)
@@ -270,7 +268,11 @@ class InterfaceBase:
 
             return json_value
 
-    def _make_summary(self, summary_record: sr.SummaryRecord) -> pb.SummaryRecord:
+    def _make_summary(
+        self,
+        summary_record: sr.SummaryRecord,
+        run: "Run",
+    ) -> pb.SummaryRecord:
         pb_summary_record = pb.SummaryRecord()
 
         for item in summary_record.update:
@@ -285,7 +287,11 @@ class InterfaceBase:
                 pb_summary_item.key = item.key[0]
 
             path_from_root = ".".join(item.key)
-            json_value = self._summary_encode(item.value, path_from_root)
+            json_value = self._summary_encode(
+                item.value,
+                path_from_root,
+                run=run,
+            )
             json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
@@ -306,8 +312,12 @@ class InterfaceBase:
 
         return pb_summary_record
 
-    def publish_summary(self, summary_record: sr.SummaryRecord) -> None:
-        pb_summary_record = self._make_summary(summary_record)
+    def publish_summary(
+        self,
+        run: "Run",
+        summary_record: sr.SummaryRecord,
+    ) -> None:
+        pb_summary_record = self._make_summary(summary_record, run=run)
         self._publish_summary(pb_summary_record)
 
     @abstractmethod
@@ -550,7 +560,7 @@ class InterfaceBase:
     def _publish_use_artifact(self, proto_artifact: pb.UseArtifactRecord) -> None:
         raise NotImplementedError
 
-    def communicate_artifact(
+    def deliver_artifact(
         self,
         run: "Run",
         artifact: "Artifact",
@@ -560,7 +570,7 @@ class InterfaceBase:
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
-    ) -> MessageFuture:
+    ) -> MailboxHandle:
         proto_run = self._make_run(run)
         proto_artifact = self._make_artifact(artifact)
         proto_artifact.run_id = proto_run.run_id
@@ -578,13 +588,14 @@ class InterfaceBase:
         if history_step is not None:
             log_artifact.history_step = history_step
         log_artifact.staging_dir = get_staging_dir()
-        resp = self._communicate_artifact(log_artifact)
+        resp = self._deliver_artifact(log_artifact)
         return resp
 
     @abstractmethod
-    def _communicate_artifact(
-        self, log_artifact: pb.LogArtifactRequest
-    ) -> MessageFuture:
+    def _deliver_artifact(
+        self,
+        log_artifact: pb.LogArtifactRequest,
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_download_artifact(
@@ -653,15 +664,13 @@ class InterfaceBase:
 
     def publish_partial_history(
         self,
+        run: "Run",
         data: dict,
         user_step: int,
         step: Optional[int] = None,
         flush: Optional[bool] = None,
         publish_step: bool = True,
-        run: Optional["Run"] = None,
     ) -> None:
-        run = run or self._run
-
         data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
         data.pop("_step", None)
 
@@ -688,12 +697,11 @@ class InterfaceBase:
 
     def publish_history(
         self,
+        run: "Run",
         data: dict,
         step: Optional[int] = None,
-        run: Optional["Run"] = None,
         publish_step: bool = True,
     ) -> None:
-        run = run or self._run
         data = history_dict_to_json(run, data, step=step)
         history = pb.HistoryRecord()
         if publish_step:
@@ -869,10 +877,22 @@ class InterfaceBase:
         # Drop indicates that the internal process has already been shutdown
         if self._drop:
             return
-        _ = self._communicate_shutdown()
+
+        handle = self._deliver_shutdown()
+
+        try:
+            handle.wait_or(timeout=30)
+        except TimeoutError:
+            # This can happen if the server fails to respond due to a bug
+            # or due to being very busy.
+            logger.warning("timed out communicating shutdown")
+        except HandleAbandonedError:
+            # This can happen if the connection to the server is closed
+            # before a response is read.
+            logger.warning("handle abandoned while communicating shutdown")
 
     @abstractmethod
-    def _communicate_shutdown(self) -> None:
+    def _deliver_shutdown(self) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_run(self, run: "Run") -> MailboxHandle:
@@ -969,6 +989,10 @@ class InterfaceBase:
 
     @abstractmethod
     def _deliver_exit(self, exit_data: pb.RunExitRecord) -> MailboxHandle:
+        raise NotImplementedError
+
+    @abstractmethod
+    def deliver_operation_stats(self) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_poll_exit(self) -> MailboxHandle:

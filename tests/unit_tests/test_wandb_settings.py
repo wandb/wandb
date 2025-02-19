@@ -12,6 +12,7 @@ import wandb
 from wandb import Settings
 from wandb.errors import UsageError
 from wandb.sdk.lib.credentials import DEFAULT_WANDB_CREDENTIALS_FILE
+from wandb.sdk.lib.run_moment import RunMoment
 
 
 def test_unexpected_arguments():
@@ -487,7 +488,6 @@ def test_setup_offline(test_settings):
     login_settings = test_settings().copy()
     login_settings.mode = "offline"
     assert wandb.setup(settings=login_settings)._get_entity() is None
-    assert wandb.setup(settings=login_settings)._load_viewer() is None
 
 
 def test_mutual_exclusion_of_branching_args():
@@ -499,3 +499,25 @@ def test_mutual_exclusion_of_branching_args():
 def test_root_dir_pathlib_path():
     settings = Settings(root_dir=pathlib.Path("foo"))
     assert settings.root_dir == "foo"
+
+
+@pytest.mark.parametrize(
+    "setting",
+    (
+        "fork_from",
+        "resume_from",
+    ),
+)
+def test_rewind(setting):
+    settings = Settings()
+    setattr(settings, setting, "train-2025-01-12_05-02-41-823103-39?_step=10000")
+
+    assert getattr(settings, setting) == RunMoment(
+        run="train-2025-01-12_05-02-41-823103-39",
+        metric="_step",
+        value=10000,
+    )
+    proto = settings.to_proto()
+    assert getattr(proto, setting).run == "train-2025-01-12_05-02-41-823103-39"
+    assert getattr(proto, setting).metric == "_step"
+    assert getattr(proto, setting).value == 10000

@@ -63,6 +63,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterable,
     List,
     Literal,
     Optional,
@@ -103,7 +104,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.19.3.dev1"
+__version__: str = "0.19.7.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -113,6 +114,25 @@ summary: wandb_summary.Summary
 _sentry: Sentry
 api: InternalApi
 patched: Dict[str, List[Callable]]
+
+def require(
+    requirement: str | Iterable[str] | None = None,
+    experiment: str | Iterable[str] | None = None,
+) -> None:
+    """Indicate which experimental features are used by the script.
+
+    This should be called before any other `wandb` functions, ideally right
+    after importing `wandb`.
+
+    Args:
+        requirement: The name of a feature to require or an iterable of
+            feature names.
+        experiment: An alias for `requirement`.
+
+    Raises:
+        wandb.errors.UnsupportedError: If a feature name is unknown.
+    """
+    ...
 
 def setup(settings: Settings | None = None) -> _WandbSetup:
     """Prepares W&B for use in the current process and its children.
@@ -271,10 +291,10 @@ def init(
             on the system, such as checking the git root or the current program
             file. If we can't infer the project name, the project will default to
             `"uncategorized"`.
-        dir: An absolute path to the directory where metadata and downloaded
-            files will be stored. When calling `download()` on an artifact, files
-            will be saved to this directory. If not specified, this defaults to
-            the `./wandb` directory.
+        dir: The absolute path to the directory where experiment logs and
+            metadata files are stored. If not specified, this defaults
+            to the `./wandb` directory. Note that this does not affect the
+            location where artifacts are stored when calling `download()`.
         id: A unique identifier for this run, used for resuming. It must be unique
             within the project and cannot be reused once a run is deleted. The
             identifier must not contain any of the following special characters:
@@ -595,7 +615,6 @@ def log(
         [our guides to logging](https://docs.wandb.com/guides/track/log).
 
         ### Basic usage
-        <!--yeadoc-test:init-and-log-basic-->
         ```python
         import wandb
 
@@ -604,7 +623,6 @@ def log(
         ```
 
         ### Incremental logging
-        <!--yeadoc-test:init-and-log-incremental-->
         ```python
         import wandb
 
@@ -615,7 +633,6 @@ def log(
         ```
 
         ### Histogram
-        <!--yeadoc-test:init-and-log-histogram-->
         ```python
         import numpy as np
         import wandb
@@ -627,7 +644,6 @@ def log(
         ```
 
         ### Image from numpy
-        <!--yeadoc-test:init-and-log-image-numpy-->
         ```python
         import numpy as np
         import wandb
@@ -642,7 +658,6 @@ def log(
         ```
 
         ### Image from PIL
-        <!--yeadoc-test:init-and-log-image-pillow-->
         ```python
         import numpy as np
         from PIL import Image as PILImage
@@ -651,7 +666,12 @@ def log(
         run = wandb.init()
         examples = []
         for i in range(3):
-            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+            pixels = np.random.randint(
+                low=0,
+                high=256,
+                size=(100, 100, 3),
+                dtype=np.uint8,
+            )
             pil_image = PILImage.fromarray(pixels, mode="RGB")
             image = wandb.Image(pil_image, caption=f"random field {i}")
             examples.append(image)
@@ -659,19 +679,22 @@ def log(
         ```
 
         ### Video from numpy
-        <!--yeadoc-test:init-and-log-video-numpy-->
         ```python
         import numpy as np
         import wandb
 
         run = wandb.init()
         # axes are (time, channel, height, width)
-        frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
+        frames = np.random.randint(
+            low=0,
+            high=256,
+            size=(10, 3, 100, 100),
+            dtype=np.uint8,
+        )
         run.log({"video": wandb.Video(frames, fps=4)})
         ```
 
         ### Matplotlib Plot
-        <!--yeadoc-test:init-and-log-matplotlib-->
         ```python
         from matplotlib import pyplot as plt
         import numpy as np

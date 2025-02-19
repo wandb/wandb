@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import atexit
 import functools
 import glob
@@ -43,11 +44,12 @@ from wandb.proto.wandb_internal_pb2 import (
 )
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal import job_builder
+from wandb.sdk.lib import asyncio_compat
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
 )
-from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
+from wandb.sdk.lib.paths import FilePathStr, StrPath
 from wandb.util import (
     _is_artifact_object,
     _is_artifact_string,
@@ -82,7 +84,7 @@ from .lib import (
     telemetry,
 )
 from .lib.exit_hooks import ExitHooks
-from .lib.mailbox import MailboxError, MailboxHandle, MailboxProbe, MailboxProgress
+from .mailbox import HandleAbandonedError, MailboxHandle, wait_with_progress
 from .wandb_alerts import AlertLevel
 from .wandb_metadata import Metadata
 from .wandb_settings import Settings
@@ -229,23 +231,20 @@ class RunStatusChecker:
                 if self._join_event.is_set():
                     break
                 set_handle(local_handle)
+
             try:
-                result = local_handle.wait(timeout=timeout, release=False)
-            except MailboxError:
-                # background threads are oportunistically getting results
-                # from the internal process but the internal process could
-                # be shutdown at any time.  In this case assume that the
-                # thread should exit silently.   This is possible
-                # because we do not have an atexit handler for the user
-                # process which quiesces active threads.
+                result = local_handle.wait_or(timeout=timeout)
+            except HandleAbandonedError:
+                # This can happen if the service process dies.
                 break
+            except TimeoutError:
+                result = None
+
             with lock:
                 set_handle(None)
 
             if result:
                 process(result)
-                # if request finished, clear the handle to send on the next interval
-                local_handle.abandon()
                 local_handle = None
 
             time_elapsed = time.monotonic() - time_probe
@@ -454,7 +453,6 @@ class Run:
     """A unit of computation logged by wandb. Typically, this is an ML experiment.
 
     Create a run with `wandb.init()`:
-    <!--yeadoc-test:run-object-basic-->
     ```python
     import wandb
 
@@ -463,7 +461,6 @@ class Run:
 
     There is only ever at most one active `wandb.Run` in any process,
     and it is accessible as `wandb.run`:
-    <!--yeadoc-test:global-run-object-->
     ```python
     import wandb
 
@@ -478,7 +475,6 @@ class Run:
     If you want to start more runs in the same script or notebook, you'll need to
     finish the run that is in-flight. Runs can be finished with `wandb.finish` or
     by using them in a `with` block:
-    <!--yeadoc-test:run-context-manager-->
     ```python
     import wandb
 
@@ -547,8 +543,6 @@ class Run:
 
     _init_pid: int
     _attach_pid: int
-    _iface_pid: int | None
-    _iface_port: int | None
 
     _attach_id: str | None
     _is_attached: bool
@@ -595,6 +589,10 @@ class Run:
         self._config._set_callback(self._config_callback)
         self._config._set_artifact_callback(self._config_artifact_callback)
         self._config._set_settings(self._settings)
+
+        # The _wandb key is always expected on the run config.
+        wandb_key = "_wandb"
+        self._config._update({wandb_key: dict()})
 
         # TODO: perhaps this should be a property that is a noop on a finished run
         self.summary = wandb_summary.Summary(
@@ -659,30 +657,12 @@ class Run:
             process_context="user",
         )
 
-        # Populate config
-        config = config or dict()
-        wandb_key = "_wandb"
-        config.setdefault(wandb_key, dict())
         self._launch_artifact_mapping: dict[str, Any] = {}
         self._unique_launch_artifact_sequence_names: dict[str, Any] = {}
-        if self._settings.save_code and self._settings.program_relpath:
-            config[wandb_key]["code_path"] = LogicalPath(
-                os.path.join("code", self._settings.program_relpath)
-            )
 
-        if self._settings.fork_from is not None:
-            config[wandb_key]["branch_point"] = {
-                "run_id": self._settings.fork_from.run,
-                "step": self._settings.fork_from.value,
-            }
-
-        if self._settings.resume_from is not None:
-            config[wandb_key]["branch_point"] = {
-                "run_id": self._settings.resume_from.run,
-                "step": self._settings.resume_from.value,
-            }
-
-        self._config._update(config, ignore_locked=True)
+        # Populate config
+        config = config or dict()
+        self._config._update(config, allow_val_change=True, ignore_locked=True)
 
         if sweep_config:
             self._config.merge_locked(
@@ -707,10 +687,6 @@ class Run:
         if launch_trace_id:
             self._config[wandb_key]["launch_trace_id"] = launch_trace_id
 
-        # interface pid and port configured when backend is configured (See _hack_set_run)
-        # TODO: using pid isn't the best for windows as pid reuse can happen more often than unix
-        self._iface_pid = None
-        self._iface_port = None
         self._attach_id = None
         self._is_attached = False
         self._is_finished = False
@@ -720,12 +696,6 @@ class Run:
         # for now, use runid as attach id, this could/should be versioned in the future
         if not self._settings.x_disable_service:
             self._attach_id = self._settings.run_id
-
-    def _set_iface_pid(self, iface_pid: int) -> None:
-        self._iface_pid = iface_pid
-
-    def _set_iface_port(self, iface_port: int) -> None:
-        self._iface_port = iface_port
 
     def _handle_launch_artifact_overrides(self) -> None:
         if self._settings.launch and (os.environ.get("WANDB_ARTIFACTS") is not None):
@@ -1327,13 +1297,7 @@ class Run:
         with telemetry.context(run=self) as tel:
             tel.feature.set_summary = True
         if self._backend and self._backend.interface:
-            self._backend.interface.publish_summary(summary_record)
-
-    def _on_progress_get_summary(self, handle: MailboxProgress) -> None:
-        pass
-        # TODO(jhr): enable printing for get_summary in later mailbox dev phase
-        # line = "Waiting for run.summary data..."
-        # self._printer.display(line)
+            self._backend.interface.publish_summary(self, summary_record)
 
     def _summary_get_current_summary_callback(self) -> dict[str, Any]:
         if self._is_finished:
@@ -1343,12 +1307,12 @@ class Run:
         if not self._backend or not self._backend.interface:
             return {}
         handle = self._backend.interface.deliver_get_summary()
-        result = handle.wait(
-            timeout=self._settings.summary_timeout,
-            on_progress=self._on_progress_get_summary,
-        )
-        if not result:
+
+        try:
+            result = handle.wait_or(timeout=self._settings.summary_timeout)
+        except TimeoutError:
             return {}
+
         get_summary_response = result.response.get_summary_response
         return proto_util.dict_from_proto_list(get_summary_response.item)
 
@@ -1442,6 +1406,7 @@ class Run:
 
         not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
         self._backend.interface.publish_partial_history(
+            self,
             data,
             user_step=self._step,
             step=step,
@@ -1531,7 +1496,7 @@ class Run:
         if run_obj.notes:
             self._settings.run_notes = run_obj.notes
         if run_obj.tags:
-            self._settings.run_tags = run_obj.tags
+            self._settings.run_tags = tuple(run_obj.tags)
         if run_obj.sweep_id:
             self._settings.sweep_id = run_obj.sweep_id
         if run_obj.host:
@@ -1756,7 +1721,6 @@ class Run:
             [our guides to logging](https://docs.wandb.com/guides/track/log).
 
             ### Basic usage
-            <!--yeadoc-test:init-and-log-basic-->
             ```python
             import wandb
 
@@ -1765,7 +1729,6 @@ class Run:
             ```
 
             ### Incremental logging
-            <!--yeadoc-test:init-and-log-incremental-->
             ```python
             import wandb
 
@@ -1776,7 +1739,6 @@ class Run:
             ```
 
             ### Histogram
-            <!--yeadoc-test:init-and-log-histogram-->
             ```python
             import numpy as np
             import wandb
@@ -1788,7 +1750,6 @@ class Run:
             ```
 
             ### Image from numpy
-            <!--yeadoc-test:init-and-log-image-numpy-->
             ```python
             import numpy as np
             import wandb
@@ -1803,7 +1764,6 @@ class Run:
             ```
 
             ### Image from PIL
-            <!--yeadoc-test:init-and-log-image-pillow-->
             ```python
             import numpy as np
             from PIL import Image as PILImage
@@ -1813,7 +1773,10 @@ class Run:
             examples = []
             for i in range(3):
                 pixels = np.random.randint(
-                    low=0, high=256, size=(100, 100, 3), dtype=np.uint8
+                    low=0,
+                    high=256,
+                    size=(100, 100, 3),
+                    dtype=np.uint8,
                 )
                 pil_image = PILImage.fromarray(pixels, mode="RGB")
                 image = wandb.Image(pil_image, caption=f"random field {i}")
@@ -1822,7 +1785,6 @@ class Run:
             ```
 
             ### Video from numpy
-            <!--yeadoc-test:init-and-log-video-numpy-->
             ```python
             import numpy as np
             import wandb
@@ -1830,13 +1792,15 @@ class Run:
             run = wandb.init()
             # axes are (time, channel, height, width)
             frames = np.random.randint(
-                low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8
+                low=0,
+                high=256,
+                size=(10, 3, 100, 100),
+                dtype=np.uint8,
             )
             run.log({"video": wandb.Video(frames, fps=4)})
             ```
 
             ### Matplotlib Plot
-            <!--yeadoc-test:init-and-log-matplotlib-->
             ```python
             from matplotlib import pyplot as plt
             import numpy as np
@@ -2140,15 +2104,6 @@ class Run:
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
 
-        # Pop this run (hopefully) from the run stack, to support the "reinit"
-        # functionality of wandb.init().
-        #
-        # TODO: It's not clear how _global_run_stack could have length other
-        # than 1 at this point in the code. If you're reading this, consider
-        # refactoring this thing.
-        if self._wl and len(self._wl._global_run_stack) > 0:
-            self._wl._global_run_stack.pop()
-
         # Run hooks that need to happen before the last messages to the
         # internal service, like Jupyter hooks.
         for hook in self._teardown_hooks:
@@ -2204,8 +2159,7 @@ class Run:
             return RunStatus()
 
         handle_run_status = self._backend.interface.deliver_request_run_status()
-        result = handle_run_status.wait(timeout=-1)
-        assert result
+        result = handle_run_status.wait_or(timeout=None)
         sync_data = result.response.run_status_response
 
         sync_time = None
@@ -2592,31 +2546,38 @@ class Run:
         else:
             return artifact
 
-    def _on_probe_exit(self, probe_handle: MailboxProbe) -> None:
-        handle = probe_handle.get_mailbox_handle()
-        if handle:
-            result = handle.wait(timeout=0, release=False)
-            if not result:
-                return
-            probe_handle.set_probe_result(result)
-        assert self._backend and self._backend.interface
-        handle = self._backend.interface.deliver_poll_exit()
-        probe_handle.set_mailbox_handle(handle)
-
-    def _on_progress_exit(
+    async def _display_finish_stats(
         self,
         progress_printer: progress.ProgressPrinter,
-        progress_handle: MailboxProgress,
     ) -> None:
-        probe_handles = progress_handle.get_probe_handles()
-        if not probe_handles or len(probe_handles) != 1:
-            return
+        last_result: Result | None = None
 
-        result = probe_handles[0].get_probe_result()
-        if not result:
-            return
+        async def loop_update_printer() -> None:
+            while True:
+                if last_result:
+                    progress_printer.update(
+                        [last_result.response.poll_exit_response],
+                    )
+                await asyncio.sleep(0.1)
 
-        progress_printer.update([result.response.poll_exit_response])
+        async def loop_poll_exit() -> None:
+            nonlocal last_result
+            assert self._backend and self._backend.interface
+
+            while True:
+                handle = self._backend.interface.deliver_poll_exit()
+
+                time_start = time.monotonic()
+                last_result = await handle.wait_async(timeout=None)
+
+                # Update at most once a second.
+                time_elapsed = time.monotonic() - time_start
+                if time_elapsed < 1:
+                    await asyncio.sleep(1 - time_elapsed)
+
+        async with asyncio_compat.open_task_group() as task_group:
+            task_group.start_soon(loop_update_printer())
+            task_group.start_soon(loop_poll_exit())
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")
@@ -2633,25 +2594,24 @@ class Run:
         else:
             exit_handle = self._backend.interface.deliver_finish_without_exit()
 
-        exit_handle.add_probe(on_probe=self._on_probe_exit)
-
         with progress.progress_printer(
             self._printer,
-            self._settings,
+            default_text="Finishing up...",
         ) as progress_printer:
             # Wait for the run to complete.
-            _ = exit_handle.wait(
-                timeout=-1,
-                on_progress=functools.partial(
-                    self._on_progress_exit,
+            wait_with_progress(
+                exit_handle,
+                timeout=None,
+                progress_after=1,
+                display_progress=functools.partial(
+                    self._display_finish_stats,
                     progress_printer,
                 ),
             )
 
         # Print some final statistics.
         poll_exit_handle = self._backend.interface.deliver_poll_exit()
-        result = poll_exit_handle.wait(timeout=-1)
-        assert result
+        result = poll_exit_handle.wait_or(timeout=None)
         progress.print_sync_dedupe_stats(
             self._printer,
             result.response.poll_exit_response,
@@ -2659,8 +2619,7 @@ class Run:
 
         self._poll_exit_response = result.response.poll_exit_response
         internal_messages_handle = self._backend.interface.deliver_internal_messages()
-        result = internal_messages_handle.wait(timeout=-1)
-        assert result
+        result = internal_messages_handle.wait_or(timeout=None)
         self._internal_messages_response = result.response.internal_messages_response
 
         # dispatch all our final requests
@@ -2670,12 +2629,10 @@ class Run:
             self._backend.interface.deliver_request_sampled_history()
         )
 
-        result = sampled_history_handle.wait(timeout=-1)
-        assert result
+        result = sampled_history_handle.wait_or(timeout=None)
         self._sampled_history = result.response.sampled_history_response
 
-        result = final_summary_handle.wait(timeout=-1)
-        assert result
+        result = final_summary_handle.wait_or(timeout=None)
         self._final_summary = result.response.get_summary_response
 
         if self._backend:
@@ -2981,13 +2938,10 @@ class Run:
             wandb.termwarn(
                 "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
             )
-        result = handle.wait(timeout=-1)
-        if result is None:
-            handle.abandon()
-        else:
-            response = result.response.link_artifact_response
-            if response.error_message:
-                wandb.termerror(response.error_message)
+        result = handle.wait_or(timeout=None)
+        response = result.response.link_artifact_response
+        if response.error_message:
+            wandb.termerror(response.error_message)
 
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach
@@ -3287,7 +3241,7 @@ class Run:
         self._assert_can_log_artifact(artifact)
         if self._backend and self._backend.interface:
             if not self._settings._offline:
-                future = self._backend.interface.communicate_artifact(
+                handle = self._backend.interface.deliver_artifact(
                     self,
                     artifact,
                     aliases,
@@ -3297,7 +3251,7 @@ class Run:
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-                artifact._set_save_future(future, self._public_api().client)
+                artifact._set_save_handle(handle, self._public_api().client)
             else:
                 self._backend.interface.publish_artifact(
                     self,
@@ -3487,9 +3441,13 @@ class Run:
             path: (str) path to downloaded model artifact file(s).
         """
         artifact = self.use_artifact(artifact_or_name=name)
-        assert (
-            "model" in str(artifact.type.lower())
-        ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
+        if "model" not in str(artifact.type.lower()):
+            raise AssertionError(
+                "You can only use this method for 'model' artifacts."
+                " For an artifact to be a 'model' artifact, its type property"
+                " must contain the substring 'model'."
+            )
+
         path = artifact.download()
 
         # If returned directory contains only one file, return path to that file
@@ -3571,18 +3529,25 @@ class Run:
             None
         """
         name_parts = registered_model_name.split("/")
-        assert (
-            len(name_parts) == 1
-        ), "Please provide only the name of the registered model. Do not append the entity or project name."
+        if len(name_parts) != 1:
+            raise AssertionError(
+                "Please provide only the name of the registered model."
+                " Do not append the entity or project name."
+            )
+
         project = "model-registry"
         target_path = self.entity + "/" + project + "/" + registered_model_name
 
         public_api = self._public_api()
         try:
             artifact = public_api._artifact(name=f"{name}:latest")
-            assert (
-                "model" in str(artifact.type.lower())
-            ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
+            if "model" not in str(artifact.type.lower()):
+                raise AssertionError(
+                    "You can only use this method for 'model' artifacts."
+                    " For an artifact to be a 'model' artifact, its type"
+                    " property must contain the substring 'model'."
+                )
+
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type=artifact.type
             )
@@ -3688,16 +3653,18 @@ class Run:
             return {}
 
         handle = self._backend.interface.deliver_get_system_metrics()
-        result = handle.wait(timeout=1)
 
-        if result:
+        try:
+            result = handle.wait_or(timeout=1)
+        except TimeoutError:
+            return {}
+        else:
             try:
                 response = result.response.get_system_metrics_response
-                if response:
-                    return pb_to_dict(response)
+                return pb_to_dict(response) if response else {}
             except Exception as e:
                 logger.error("Error getting system metrics: %s", e)
-        return {}
+                return {}
 
     @property
     @_run_decorator._attach
@@ -3716,10 +3683,11 @@ class Run:
             self.__metadata._set_callback(self._metadata_callback)
 
         handle = self._backend.interface.deliver_get_system_metadata()
-        result = handle.wait(timeout=1)
 
-        if not result:
-            logger.error("Error getting run metadata: no result")
+        try:
+            result = handle.wait_or(timeout=1)
+        except TimeoutError:
+            logger.error("Error getting run metadata: timeout")
             return None
 
         try:
@@ -3852,14 +3820,14 @@ class Run:
         if not settings.quiet:
             # TODO: add verbosity levels and add this to higher levels
             printer.display(
-                f'{printer.emoji("star")} View project at {printer.link(project_url)}'
+                f"{printer.emoji('star')} View project at {printer.link(project_url)}"
             )
             if sweep_url:
                 printer.display(
-                    f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
+                    f"{printer.emoji('broom')} View sweep at {printer.link(sweep_url)}"
                 )
         printer.display(
-            f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
+            f"{printer.emoji('rocket')} View run at {printer.link(run_url)}",
         )
 
         if run_name and settings.anonymous in ["allow", "must"]:

@@ -12,8 +12,8 @@ from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.interface.interface_sock import InterfaceSock
 from wandb.sdk.lib import service_token
 from wandb.sdk.lib.exit_hooks import ExitHooks
-from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.sock_client import SockClient, SockClientTimeoutError
+from wandb.sdk.mailbox import Mailbox
 from wandb.sdk.service import service
 
 
@@ -124,9 +124,9 @@ class ServiceConnection:
         self._torn_down = False
         self._cleanup = cleanup
 
-    def make_interface(self, mailbox: Mailbox) -> InterfaceBase:
+    def make_interface(self, mailbox: Mailbox, stream_id: str) -> InterfaceBase:
         """Returns an interface for communicating with the service."""
-        return InterfaceSock(self._client, mailbox)
+        return InterfaceSock(self._client, mailbox, stream_id=stream_id)
 
     def send_record(self, record: pb.Record) -> None:
         """Sends data to the service."""

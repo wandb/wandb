@@ -79,6 +79,7 @@ class Image(BatchableMedia):
     to a PIL Image.
 
     Examples:
+    
     ```python
     # Create a wandb.Image from a numpy array
     import numpy as np

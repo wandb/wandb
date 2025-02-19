@@ -52,9 +52,9 @@ from wandb.sdk.lib import (
     filesystem,
     proto_util,
     redirect,
+    retry,
     telemetry,
 )
-from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
 
 if TYPE_CHECKING:
@@ -388,7 +388,7 @@ class SendManager:
         try:
             self._api.set_local_context(api_context)
             send_handler(record)
-        except ContextCancelledError:
+        except retry.RetryCancelledError:
             logger.debug(f"Record cancelled: {record_type}")
             self._context_keeper.release(context_id)
         finally:
@@ -543,23 +543,6 @@ class SendManager:
             except Exception as e:
                 logger.warning(f"Error emptying retry queue: {e}")
         self._respond_result(result)
-
-    def send_request_login(self, record: "Record") -> None:
-        # TODO: do something with api_key or anonymous?
-        # TODO: return an error if we aren't logged in?
-        self._api.reauth()
-        viewer = self.get_viewer_info()
-        server_info = self.get_server_info()
-        # self._login_flags = json.loads(viewer.get("flags", "{}"))
-        # self._login_entity = viewer.get("entity")
-        if server_info:
-            logger.info(f"Login server info: {server_info}")
-        self._entity = viewer.get("entity")
-        if record.control.req_resp:
-            result = proto_util._result_from_record(record)
-            if self._entity:
-                result.response.login_response.active_entity = self._entity
-            self._respond_result(result)
 
     def send_exit(self, record: "Record") -> None:
         # track where the exit came from
@@ -1491,7 +1474,6 @@ class SendManager:
             self._job_builder.set_partial_source_id(use.id)
 
     def send_request_log_artifact(self, record: "Record") -> None:
-        assert record.control.req_resp
         result = proto_util._result_from_record(record)
         artifact = record.request.log_artifact.artifact
         history_step = record.request.log_artifact.history_step

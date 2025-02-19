@@ -1,11 +1,12 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/processlib"
@@ -60,10 +61,6 @@ func main() {
 	})
 	defer sentryClient.Flush(2)
 
-	// store commit hash in context
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, observability.Commit, commit)
-
 	var loggerPath string
 	if file, err := observability.GetLoggerPath(); err != nil {
 		slog.Error("failed to get logger path", "error", err)
@@ -90,8 +87,16 @@ func main() {
 		defer file.Close()
 	}
 
+	// Log when we receive a shutdown signal
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-c
+		slog.Info("received shutdown signal", "signal", sig)
+		os.Exit(0)
+	}()
+
 	srv, err := server.NewServer(
-		ctx,
 		&server.ServerParams{
 			ListenIPAddress: "127.0.0.1:0",
 			PortFilename:    *portFilename,
