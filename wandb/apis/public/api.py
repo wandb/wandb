@@ -51,12 +51,18 @@ from wandb.sdk.automations import (
 from wandb.sdk.automations._generated import (
     CREATE_FILTER_TRIGGER_GQL,
     DELETE_TRIGGER_GQL,
+    UPDATE_FILTER_TRIGGER_GQL,
     CreateFilterTrigger,
     CreateFilterTriggerInput,
     DeleteTrigger,
     DeleteTriggerResult,
+    UpdateFilterTrigger,
 )
-from wandb.sdk.automations._utils import AutomationParams, prepare_create_input
+from wandb.sdk.automations._utils import (
+    AutomationParams,
+    prepare_create_input,
+    prepare_update_input,
+)
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
@@ -1778,6 +1784,65 @@ class Api:
         except ValidationError as e:
             # Omit the response data, it's likely to add unhelpful noise
             msg = f"Unexpected response while creating automation {name!r}"
+            raise ValueError(msg) from e
+
+    @normalize_exceptions
+    def update_automation(
+        self,
+        obj: Automation,
+        *,
+        create_missing: bool = False,
+        **updates: Unpack[AutomationParams],
+    ) -> Automation:
+        """Update an existing automation to the state of the given automation.
+
+        Args:
+            obj: The automation to update.  Must be an existing automation.
+            create_missing (bool):
+                If True, and the automation does not exist, create it.
+            updates:
+                Any final updates to apply to the automation before
+                updating it.  These override previously-set values, if any.
+        """
+        from ._query_compat import rewrite_compatible_query
+
+        gql_input = prepare_update_input(obj, **updates)
+
+        self._check_server_support_for_automation(gql_input)
+
+        # keep the name on hand, if needed later to report on errors
+        name = gql_input.name
+
+        mutation = rewrite_compatible_query(gql(UPDATE_FILTER_TRIGGER_GQL), self.client)
+        variables = {"params": gql_input.model_dump(exclude_none=True)}
+
+        try:
+            data = self.client.execute(mutation, variable_values=variables)
+        except requests.HTTPError as e:
+            status = HTTPStatus(e.response.status_code)
+            if status is HTTPStatus.NOT_FOUND:  # 404
+                if create_missing:
+                    wandb.termlog(f"Automation {name!r} not found.  Creating...")
+                    return self.create_automation(obj)
+                else:
+                    wandb.termerror(f"Automation {name!r} not found.")
+
+            # Not a (known) recoverable HTTP error
+            wandb.termerror(f"Got response status {status!r}: {e.response.text!r}")
+            raise e
+
+        try:
+            result = UpdateFilterTrigger.model_validate(data).update_filter_trigger
+            return Automation.model_validate(result.trigger)
+        except AttributeError as e:
+            # This should not happen on a 200 response, but if it does, it means
+            # one of the top-level fields was None.  Showing the response data in
+            # full is unlikely to add much noise, so we may as well.
+            msg = f"Unexpected response while updating automation {name!r}: {data!r}"
+            raise ValueError(msg) from e
+        except ValidationError as e:
+            # Omit the response data, it's likely to add unhelpful noise
+            msg = f"Unexpected response while updating automation {name!r}"
             raise ValueError(msg) from e
 
     def delete_automation(self, obj: Union[str, Automation]) -> DeleteTriggerResult:
