@@ -519,7 +519,7 @@ class Table(Media):
 
     @classmethod
     def get_media_subdir(cls):
-        """Get media subdir for Table files.
+        """Get media subdirectory.
 
         <!-- lazydoc-ignore: internal -->
         """
@@ -527,7 +527,7 @@ class Table(Media):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
-        """Factory method to create an Table object from a JSON object.
+        """Deserialize JSON object into it's class representation.
 
         <!-- lazydoc-ignore: internal -->
         """

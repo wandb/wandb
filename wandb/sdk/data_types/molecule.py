@@ -204,7 +204,7 @@ class Molecule(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls: Type["Molecule"]) -> str:
-        """Get media subdir for Moldecule files.
+        """Get media subdirectory.
 
         <!-- lazydoc-ignore: internal -->
         """

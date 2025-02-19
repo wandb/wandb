@@ -381,7 +381,7 @@ class Image(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls: Type["Image"]) -> str:
-        """Get media subdir for Audio files.
+        """Get media subdirectory.
 
         <!-- lazydoc-ignore: internal -->
         """
@@ -542,7 +542,7 @@ class Image(BatchableMedia):
         key: str,
         step: Union[int, str],
     ) -> dict:
-        """Combine a list of images into a meta dictionary object describing the child images.
+        """Convert a sequence of Image objects to a JSON representation.
 
         <!-- lazydoc-ignore: internal -->
         """
@@ -703,7 +703,7 @@ class Image(BatchableMedia):
             )
 
     def to_data_array(self) -> List[Any]:
-        """Convert ot data array.
+        """Convert to data array.
 
         <!-- lazydoc-ignore: internal -->
         """

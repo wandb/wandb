@@ -56,7 +56,7 @@ class Audio(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls):
-        """Get media subdir for Audio files.
+        """Get media subdirectory.
 
         <!-- lazydoc-ignore: internal -->
         """
@@ -64,7 +64,7 @@ class Audio(BatchableMedia):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
-        """Factory method to create an Audio object from a JSON object.
+        """Deserialize JSON object into it's class representation.
 
         <!-- lazydoc-ignore: internal -->
         """
@@ -142,7 +142,7 @@ class Audio(BatchableMedia):
 
     @classmethod
     def sample_rates(cls, audio_list):
-        """Get the sample rates of the audio files.
+        """Get sample rates of the audio files.
 
         <!-- lazydoc-ignore: internal -->
         """

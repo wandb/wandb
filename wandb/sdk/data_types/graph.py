@@ -308,7 +308,7 @@ class Graph(Media):
 
     @classmethod
     def get_media_subdir(cls):
-        """Get media subdir for graph files.
+        """Get media subdirectory.
 
         <!-- lazydoc-ignore: internal -->
         """

@@ -423,7 +423,7 @@ class Object3D(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls: Type["Object3D"]) -> str:
-        """Get media subdir for Object3D files.
+        """Get media subdirectory.
 
         <!-- lazydoc-ignore: internal -->
         """

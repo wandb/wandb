@@ -79,7 +79,7 @@ class Html(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls: Type["Html"]) -> str:
-        """Get media subdir for HTML files.
+        """Get media subdirectory.
 
         <!-- lazydoc-ignore: internal -->
         """
@@ -98,7 +98,7 @@ class Html(BatchableMedia):
     def from_json(
         cls: Type["Html"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Html":
-        """Factory method to create an HTML object from a JSON object.
+        """Deserialize a JSON object into it's class representation.
 
         <!-- lazydoc-ignore: internal -->
         """
