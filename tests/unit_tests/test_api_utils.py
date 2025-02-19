@@ -1,10 +1,8 @@
 import pytest
 from wandb.apis.public.utils import (
-    check_server_feature_with_fallback,
     fetch_org_from_settings_or_entity,
     parse_org_from_registry_path,
 )
-from wandb.proto.v3.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.internal.internal_api import _OrgNames
 
 
@@ -97,104 +95,3 @@ def test_multiple_orgs_raises_error(mock_fetch_orgs_and_org_entities_from_entity
     settings = {"organization": None, "entity": "multi-org-user-entity"}
     with pytest.raises(ValueError, match="Multiple organizations found for entity"):
         fetch_org_from_settings_or_entity(settings)
-
-
-ENABLED_FEATURE_RESPONSE = {
-    "serverInfo": {
-        "features": [
-            {"name": "LARGE_FILENAMES", "isEnabled": True},
-            {"name": "ARTIFACT_TAGS", "isEnabled": False},
-        ]
-    }
-}
-
-
-@pytest.fixture
-def mock_client(mocker):
-    mock = mocker.patch("wandb_gql.Client")
-    mock.return_value = None
-    yield mock
-
-
-@pytest.fixture
-def mock_client_with_enabled_features(mock_client):
-    mock_client.execute.return_value = ENABLED_FEATURE_RESPONSE
-    yield mock_client
-
-
-NO_FEATURES_RESPONSE = {"serverInfo": {"features": []}}
-
-
-@pytest.fixture
-def mock_client_with_no_features(mock_client):
-    mock_client.execute.return_value = NO_FEATURES_RESPONSE
-    yield mock_client
-
-
-@pytest.fixture
-def mock_client_with_error_no_field(mock_client):
-    error_msg = 'Cannot query field "features" on type "ServerInfo".'
-    mock_client.execute.side_effect = Exception(error_msg)
-    yield mock_client
-
-
-@pytest.fixture
-def mock_client_with_random_error(mock_client):
-    error_msg = "Some random error"
-    mock_client.execute.side_effect = Exception(error_msg)
-    yield mock_client
-
-
-@pytest.mark.parametrize(
-    "fixture_name, feature, expected_result, expected_error",
-    [
-        # Test enabled features
-        (
-            "mock_client_with_enabled_features",
-            ServerFeature.LARGE_FILENAMES,
-            True,
-            False,
-        ),
-        # Test disabled features
-        (
-            "mock_client_with_enabled_features",
-            ServerFeature.ARTIFACT_TAGS,
-            False,
-            False,
-        ),
-        # Test features not in response
-        (
-            "mock_client_with_enabled_features",
-            ServerFeature.ARTIFACT_REGISTRY_SEARCH,
-            False,
-            False,
-        ),
-        # Test empty features list
-        ("mock_client_with_no_features", ServerFeature.LARGE_FILENAMES, False, False),
-        # Test server not supporting features
-        (
-            "mock_client_with_error_no_field",
-            ServerFeature.LARGE_FILENAMES,
-            False,
-            False,
-        ),
-        # Test other server errors
-        ("mock_client_with_random_error", ServerFeature.LARGE_FILENAMES, False, True),
-    ],
-)
-def test_server_feature_checks(
-    request,
-    fixture_name,
-    feature,
-    expected_result,
-    expected_error,
-):
-    """Test check_server_feature with various scenarios."""
-    client = request.getfixturevalue(fixture_name)
-
-    if expected_error:
-        with pytest.raises(Exception, match="Some random error"):
-            check_server_feature_with_fallback(client, feature, "my-feature-name")
-    else:
-        result = check_server_feature_with_fallback(client, feature, "my-feature-name")
-        assert result == expected_result
