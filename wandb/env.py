@@ -34,6 +34,7 @@ USERNAME = "WANDB_USERNAME"
 USER_EMAIL = "WANDB_USER_EMAIL"
 PROJECT = "WANDB_PROJECT"
 ENTITY = "WANDB_ENTITY"
+ORGANIZATION = "WANDB_ORGANIZATION"
 BASE_URL = "WANDB_BASE_URL"
 APP_URL = "WANDB_APP_URL"
 PROGRAM = "WANDB_PROGRAM"
@@ -282,6 +283,15 @@ def get_entity(
         env = os.environ
 
     return env.get(ENTITY, default)
+
+
+def get_organization(
+    default: str | None = None, env: MutableMapping | None = None
+) -> str | None:
+    if env is None:
+        env = os.environ
+
+    return env.get(ORGANIZATION, default)
 
 
 def get_base_url(

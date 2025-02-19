@@ -1,3 +1,8 @@
+# v1.77.0 (2025-02-14)
+
+* **Feature**: Added support for Content-Range header in HeadObject response.
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.76.1 (2025-02-10)
 
 * **Dependency Update**: Updated to the latest SDK module versions
