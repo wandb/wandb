@@ -1,21 +1,22 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Callable, Coroutine, List, cast
+from typing import Any, Callable, Coroutine, List, TypeVar, cast
 
-from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.lib import asyncio_compat
 
-from . import handles
+from .mailbox_handle import MailboxHandleT
+
+_T = TypeVar("_T")
 
 
 def wait_with_progress(
-    handle: handles.MailboxHandle,
+    handle: MailboxHandleT[_T],
     *,
     timeout: float | None,
     progress_after: float,
     display_progress: Callable[[], Coroutine[Any, Any, None]],
-) -> pb.Result:
+) -> _T:
     """Wait for a handle, possibly displaying progress to the user.
 
     Equivalent to passing a single handle to `wait_all_with_progress`.
@@ -29,12 +30,12 @@ def wait_with_progress(
 
 
 def wait_all_with_progress(
-    handle_list: list[handles.MailboxHandle],
+    handle_list: list[MailboxHandleT[_T]],
     *,
     timeout: float | None,
     progress_after: float,
     display_progress: Callable[[], Coroutine[Any, Any, None]],
-) -> list[pb.Result]:
+) -> list[_T]:
     """Wait for multiple handles, possibly displaying progress to the user.
 
     Args:
@@ -70,7 +71,7 @@ def wait_all_with_progress(
     except TimeoutError:
         pass
 
-    async def progress_loop_with_timeout() -> list[pb.Result]:
+    async def progress_loop_with_timeout() -> list[_T]:
         with asyncio_compat.cancel_on_exit(display_progress()):
             if timeout is not None:
                 elapsed_time = time.monotonic() - start_time
@@ -87,10 +88,10 @@ def wait_all_with_progress(
 
 
 def _wait_handles(
-    handle_list: list[handles.MailboxHandle],
+    handle_list: list[MailboxHandleT[_T]],
     *,
     timeout: float,
-) -> list[pb.Result]:
+) -> list[_T]:
     """Wait for multiple mailbox handles.
 
     Returns:
@@ -100,7 +101,7 @@ def _wait_handles(
         TimeoutError: If the overall timeout expires.
         HandleAbandonedError: If any handle becomes abandoned.
     """
-    results: list[pb.Result] = []
+    results: list[_T] = []
 
     start_time = time.monotonic()
     for handle in handle_list:
@@ -112,15 +113,15 @@ def _wait_handles(
 
 
 async def _wait_handles_async(
-    handle_list: list[handles.MailboxHandle],
+    handle_list: list[MailboxHandleT[_T]],
     *,
     timeout: float | None,
-) -> list[pb.Result]:
+) -> list[_T]:
     """Asynchronously wait for multiple mailbox handles.
 
     Just like _wait_handles.
     """
-    results: list[pb.Result | None] = [None for _ in handle_list]
+    results: list[_T | None] = [None for _ in handle_list]
 
     async def wait_single(index: int) -> None:
         handle = handle_list[index]
@@ -131,4 +132,4 @@ async def _wait_handles_async(
             task_group.start_soon(wait_single(index))
 
     # NOTE: `list` is not subscriptable until Python 3.10, so we use List.
-    return cast(List[pb.Result], results)
+    return cast(List[_T], results)
