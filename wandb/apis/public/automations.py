@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import sys
 from itertools import chain
-from typing import Any, ClassVar, Iterable, List
+from typing import Any, ClassVar, Iterable, List, Mapping
 
 from pydantic import TypeAdapter, ValidationError
 from wandb_gql import gql
 from wandb_graphql.language.ast import Document
 
-from wandb.apis.paginator import Paginator
+from wandb.apis.paginator import Paginator, _Client
 from wandb.sdk.automations import Automation
 from wandb.sdk.automations._generated import (
     GET_TRIGGERS_BY_ENTITY_GQL,
@@ -29,6 +29,17 @@ class AutomationsByEntity(Paginator[Automation]):
 
     last_response: ProjectConnectionFields | None
 
+    def __init__(
+        self,
+        client: _Client,
+        variables: Mapping[str, Any],
+        per_page: int = 50,  # We don't allow unbounded paging
+    ):
+        super().__init__(client, variables, per_page)
+
+        # TODO: To be safe, rewrite the GQL query for backward server compatibility
+        self._query = self.QUERY
+
     @property
     def more(self) -> bool:
         """Whether there are more items to fetch."""
@@ -47,7 +58,7 @@ class AutomationsByEntity(Paginator[Automation]):
     def _update_response(self) -> None:
         """Fetch the raw response data for the current page."""
         data: dict[str, Any] = self.client.execute(
-            self.QUERY, variable_values=self.variables
+            self._query, variable_values=self.variables
         )
         try:
             page_data = data["searchScope"]["projects"]
@@ -69,6 +80,17 @@ class AutomationsForViewer(Paginator[Automation]):
 
     last_response: ProjectConnectionFields | None
 
+    def __init__(
+        self,
+        client: _Client,
+        variables: Mapping[str, Any],
+        per_page: int = 50,  # We don't allow unbounded paging
+    ):
+        super().__init__(client, variables, per_page)
+
+        # TODO: To be safe, rewrite the GQL query for backward server compatibility
+        self._query = self.QUERY
+
     @property
     def more(self) -> bool:
         """Whether there are more items to fetch."""
@@ -87,7 +109,7 @@ class AutomationsForViewer(Paginator[Automation]):
     def _update_response(self) -> None:
         """Fetch the raw response data for the current page."""
         data: dict[str, Any] = self.client.execute(
-            self.QUERY, variable_values=self.variables
+            self._query, variable_values=self.variables
         )
         try:
             page_data = data["searchScope"]["projects"]

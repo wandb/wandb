@@ -1583,7 +1583,7 @@ pub struct AlertResult {}
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 80, 81, 82, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 80, 81, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1665,9 +1665,6 @@ pub mod request {
         GetSystemMetadata(super::GetSystemMetadataRequest),
         #[prost(message, tag = "81")]
         SyncFinish(super::SyncFinishRequest),
-        /// Requests information about tasks the service is performing.
-        #[prost(message, tag = "82")]
-        Operations(super::OperationStatsRequest),
         #[prost(message, tag = "1000")]
         TestInject(super::TestInjectRequest),
     }
@@ -1678,7 +1675,7 @@ pub mod request {
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 73, 74, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 73, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1736,8 +1733,6 @@ pub mod response {
         RunFinishWithoutExitResponse(super::RunFinishWithoutExitResponse),
         #[prost(message, tag = "73")]
         GetSystemMetadataResponse(super::GetSystemMetadataResponse),
-        #[prost(message, tag = "74")]
-        OperationsResponse(super::OperationStatsResponse),
         #[prost(message, tag = "1000")]
         TestInjectResponse(super::TestInjectResponse),
     }
@@ -1984,16 +1979,6 @@ pub struct PollExitResponse {
     #[prost(message, optional, tag = "4")]
     pub file_counts: ::core::option::Option<FileCounts>,
     #[prost(message, optional, tag = "5")]
-    pub operation_stats: ::core::option::Option<OperationStats>,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct OperationStatsRequest {
-    #[prost(message, optional, tag = "200")]
-    pub info: ::core::option::Option<RequestInfo>,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct OperationStatsResponse {
-    #[prost(message, optional, tag = "1")]
     pub operation_stats: ::core::option::Option<OperationStats>,
 }
 /// Information about ongoing operations in the internal process.
@@ -2828,6 +2813,10 @@ pub enum ServerFeature {
     LargeFilenames = 0,
     ArtifactTags = 1,
     ClientIds = 2,
+    ArtifactRegistrySearch = 3,
+    AutomationEventRunMetric = 4,
+    AutomationEventRunMetricChange = 5,
+    AutomationActionNoOp = 6,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2839,6 +2828,10 @@ impl ServerFeature {
             Self::LargeFilenames => "LARGE_FILENAMES",
             Self::ArtifactTags => "ARTIFACT_TAGS",
             Self::ClientIds => "CLIENT_IDS",
+            Self::ArtifactRegistrySearch => "ARTIFACT_REGISTRY_SEARCH",
+            Self::AutomationEventRunMetric => "AUTOMATION_EVENT_RUN_METRIC",
+            Self::AutomationEventRunMetricChange => "AUTOMATION_EVENT_RUN_METRIC_CHANGE",
+            Self::AutomationActionNoOp => "AUTOMATION_ACTION_NO_OP",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2847,6 +2840,12 @@ impl ServerFeature {
             "LARGE_FILENAMES" => Some(Self::LargeFilenames),
             "ARTIFACT_TAGS" => Some(Self::ArtifactTags),
             "CLIENT_IDS" => Some(Self::ClientIds),
+            "ARTIFACT_REGISTRY_SEARCH" => Some(Self::ArtifactRegistrySearch),
+            "AUTOMATION_EVENT_RUN_METRIC" => Some(Self::AutomationEventRunMetric),
+            "AUTOMATION_EVENT_RUN_METRIC_CHANGE" => {
+                Some(Self::AutomationEventRunMetricChange)
+            }
+            "AUTOMATION_ACTION_NO_OP" => Some(Self::AutomationActionNoOp),
             _ => None,
         }
     }

@@ -1,0 +1,44 @@
+# NOTE: Paths are relative to the root of the repo
+
+[tool.ariadne-codegen]
+schema_path = "core/api/graphql/schemas/schema-latest.graphql"
+queries_path = "tools/graphql_codegen/utils/"
+
+files_to_include = [
+    "tools/graphql_codegen/include/base.py",
+    "tools/graphql_codegen/include/typing_compat.py",
+]
+
+# From ariadne-codegen, we don't currently need the generated httpx client,
+# exceptions, etc., so drop the modules generated for these, in favor of
+# the existing internal GQL client.
+modules_to_drop = [
+    "async_base_client",
+    "base_client",
+    # We'll swap in a module with our own custom base class
+    "base_model",
+    "client",
+    "exceptions",
+]
+
+
+target_package_path = "wandb/apis/public"
+target_package_name = "_generated"
+
+include_all_inputs = false # Only generate input types needed for queries
+include_all_enums = false  # Only generate enums needed for queries
+
+plugins = [
+    "ariadne_codegen.contrib.extract_operations.ExtractOperationsPlugin",
+    "graphql_codegen.plugin.FixFragmentOrder",
+    "graphql_codegen.plugin.GraphQLCodegenPlugin",
+]
+
+[tool.ariadne-codegen.scalars.ID]
+type = ".base.GQLId"
+
+[tool.ariadne-codegen.scalars.JSONString]
+type = ".base.SerializedToJson"
+
+[tool.ariadne-codegen.scalars.DateTime]
+type = "datetime.datetime"
