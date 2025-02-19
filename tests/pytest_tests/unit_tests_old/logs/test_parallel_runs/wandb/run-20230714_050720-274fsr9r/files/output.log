@@ -1,4 +1,0 @@
-Init called with config {'epochs': 2, 'heavy': False, 'sleep_every': 0}
-loss: 0.62317548673073
-loss: 0.5134862408186568
-Finished

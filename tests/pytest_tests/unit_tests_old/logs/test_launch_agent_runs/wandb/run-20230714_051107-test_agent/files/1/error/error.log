@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "/Users/estellaxin/Projects/wandb/wandb/sdk/launch/agent/agent.py", line 438, in loop
-    self.run_job(job, queue, file_saver)
-  File "/Users/estellaxin/Projects/wandb/wandb/sdk/launch/agent/agent.py", line 361, in run_job
-    self._pool.apply_async(
-TypeError: <lambda>() takes 2 positional arguments but 3 were given
