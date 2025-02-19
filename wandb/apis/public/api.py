@@ -29,7 +29,7 @@ from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries import Registries
 from wandb.apis.public.utils import (
     PathType,
-    check_server_feature,
+    check_server_feature_with_fallback,
     fetch_org_from_settings_or_entity,
     parse_org_from_registry_path,
 )
@@ -1478,7 +1478,9 @@ class Api:
 
             Find all collections in the registries with the name "my_collection" and the tag "my_tag"
             ```python
-            api.registries().collections(filter={"name": "my_collection", "tag": "my_tag"})
+            api.registries().collections(
+                filter={"name": "my_collection", "tag": "my_tag"}
+            )
             ```
 
             Find all artifact versions in the registries with a collection name that contains "my_collection" and a version that has the alias "best"
@@ -1509,11 +1511,13 @@ class Api:
         Returns:
             A registry iterator.
         """
-        if not check_server_feature(
-            self.client, ServerFeature.ARTIFACT_REGISTRY_SEARCH
+        if not check_server_feature_with_fallback(
+            client=self.client,
+            feature=ServerFeature.ARTIFACT_REGISTRY_SEARCH,
+            feature_name="Registry search API",
         ):
-            raise SystemError(
-                "Registry artifact fetch is not enabled on this wandb server version, please upgrade in order to use registries search."
+            raise RuntimeError(
+                "Registry search API is not enabled on this wandb server version, please upgrade your server version."
             )
         organization = organization or fetch_org_from_settings_or_entity(
             self.settings, self.default_entity

@@ -1,8 +1,6 @@
-from unittest.mock import patch
-
 import pytest
 from wandb.apis.public.utils import (
-    check_server_feature,
+    check_server_feature_with_fallback,
     fetch_org_from_settings_or_entity,
     parse_org_from_registry_path,
 )
@@ -110,55 +108,93 @@ ENABLED_FEATURE_RESPONSE = {
     }
 }
 
+
+@pytest.fixture
+def mock_client(mocker):
+    mock = mocker.patch("wandb_gql.Client")
+    mock.return_value = None
+    yield mock
+
+
+@pytest.fixture
+def mock_client_with_enabled_features(mock_client):
+    mock_client.execute.return_value = ENABLED_FEATURE_RESPONSE
+    yield mock_client
+
+
 NO_FEATURES_RESPONSE = {"serverInfo": {"features": []}}
 
 
 @pytest.fixture
-def mock_client():
-    with patch("wandb_gql.Client") as mock:
-        mock.return_value = None
-        yield mock
-
-
-def test_feature_enabled(mock_client):
-    mock_client.execute.return_value = ENABLED_FEATURE_RESPONSE
-    result = check_server_feature(mock_client, ServerFeature.LARGE_FILENAMES)
-
-    assert result
-
-
-def test_feature_disabled(mock_client):
-    mock_client.execute.return_value = ENABLED_FEATURE_RESPONSE
-    result = check_server_feature(mock_client, ServerFeature.ARTIFACT_TAGS)
-
-    assert result is False
-
-
-def test_feature_not_in_response(mock_client):
-    mock_client.execute.return_value = ENABLED_FEATURE_RESPONSE
-    result = check_server_feature(mock_client, ServerFeature.ARTIFACT_REGISTRY_SEARCH)
-
-    assert result is False
-
-
-def test_empty_features_list(mock_client):
+def mock_client_with_no_features(mock_client):
     mock_client.execute.return_value = NO_FEATURES_RESPONSE
-    result = check_server_feature(mock_client, ServerFeature.LARGE_FILENAMES)
-
-    assert result is False
+    yield mock_client
 
 
-def test_server_not_supporting_features(mock_client):
+@pytest.fixture
+def mock_client_with_error_no_field(mock_client):
     error_msg = 'Cannot query field "features" on type "ServerInfo".'
     mock_client.execute.side_effect = Exception(error_msg)
-
-    result = check_server_feature(mock_client, ServerFeature.LARGE_FILENAMES)
-
-    assert result is False
+    yield mock_client
 
 
-def test_other_server_error(mock_client):
-    mock_client.execute.side_effect = Exception("Some other error")
+@pytest.fixture
+def mock_client_with_random_error(mock_client):
+    error_msg = "Some random error"
+    mock_client.execute.side_effect = Exception(error_msg)
+    yield mock_client
 
-    with pytest.raises(Exception, match="Some other error"):
-        check_server_feature(mock_client, ServerFeature.LARGE_FILENAMES)
+
+@pytest.mark.parametrize(
+    "fixture_name, feature, expected_result, expected_error",
+    [
+        # Test enabled features
+        (
+            "mock_client_with_enabled_features",
+            ServerFeature.LARGE_FILENAMES,
+            True,
+            False,
+        ),
+        # Test disabled features
+        (
+            "mock_client_with_enabled_features",
+            ServerFeature.ARTIFACT_TAGS,
+            False,
+            False,
+        ),
+        # Test features not in response
+        (
+            "mock_client_with_enabled_features",
+            ServerFeature.ARTIFACT_REGISTRY_SEARCH,
+            False,
+            False,
+        ),
+        # Test empty features list
+        ("mock_client_with_no_features", ServerFeature.LARGE_FILENAMES, False, False),
+        # Test server not supporting features
+        (
+            "mock_client_with_error_no_field",
+            ServerFeature.LARGE_FILENAMES,
+            False,
+            False,
+        ),
+        # Test other server errors
+        ("mock_client_with_random_error", ServerFeature.LARGE_FILENAMES, False, True),
+    ],
+)
+def test_server_feature_checks(
+    request,
+    fixture_name,
+    feature,
+    expected_result,
+    expected_error,
+):
+    """Test check_server_feature with various scenarios."""
+    client = request.getfixturevalue(fixture_name)
+
+    if expected_error:
+        with pytest.raises(Exception, match="Some random error"):
+            check_server_feature_with_fallback(client, feature, "my-feature-name")
+    else:
+        result = check_server_feature_with_fallback(client, feature, "my-feature-name")
+        assert result == expected_result
