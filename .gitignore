@@ -41,10 +41,3 @@ gpu_stats/target/
 # Outputs of tools/local_wandb_server.py
 tools/local_wandb_server.state.lock
 tools/local_wandb_server.state
-apple_stats/*
-core/wandb_core.egg-info/*
-wandb.egg-info/*
-tests/pytest_tests/unit_tests_old/*
-tests/unit_tests_old/*
-# **/_generated/*.py
-apple_stats/.build/release.yaml
