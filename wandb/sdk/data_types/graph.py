@@ -292,6 +292,10 @@ class Graph(Media):
         }
 
     def bind_to_run(self, *args, **kwargs):
+        """Bind this object to a run.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         data = self._to_graph_json()
         tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".graph.json")
         data = _numpy_arrays_to_lists(data)
@@ -304,9 +308,17 @@ class Graph(Media):
 
     @classmethod
     def get_media_subdir(cls):
+        """Get media subdir for graph files.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return os.path.join("media", "graph")
 
     def to_json(self, run):
+        """Returns the JSON representation expected by the backend.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         json_dict = super().to_json(run)
         json_dict["_type"] = self._log_type
         return json_dict
@@ -315,12 +327,20 @@ class Graph(Media):
         return self.nodes_by_id[nid]
 
     def pprint(self):
+        """Pretty print the graph.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         for edge in self.edges:
             pprint.pprint(edge.attributes)  # noqa: T203
         for node in self.nodes:
             pprint.pprint(node.attributes)  # noqa: T203
 
     def add_node(self, node=None, **node_kwargs):
+        """Add a node to the graph.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if node is None:
             node = Node(**node_kwargs)
         elif node_kwargs:
@@ -333,6 +353,10 @@ class Graph(Media):
         return node
 
     def add_edge(self, from_node, to_node):
+        """Add an edge to the graph.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         edge = Edge(from_node, to_node)
         self.edges.append(edge)
 
@@ -340,7 +364,13 @@ class Graph(Media):
 
     @classmethod
     def from_keras(cls, model):
-        # TODO: his method requires a refactor to work with the keras 3.
+        """Create a graph from a Keras model.
+
+        This method is not supported for Keras 3.0.0 and above.
+        Requires a refactor.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         graph = cls()
         # Shamelessly copied (then modified) from keras/keras/utils/layer_utils.py
         sequential_like = cls._is_sequential(model)

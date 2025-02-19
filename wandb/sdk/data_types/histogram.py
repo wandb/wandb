@@ -89,6 +89,10 @@ class Histogram(WBValue):
             raise ValueError("len(bins) must be len(histogram) + 1")
 
     def to_json(self, run: Optional[Union["LocalRun", "Artifact"]] = None) -> dict:
+        """Returns the JSON representation expected by the backend.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return {"_type": self._log_type, "values": self.histogram, "bins": self.bins}
 
     def __sizeof__(self) -> int:

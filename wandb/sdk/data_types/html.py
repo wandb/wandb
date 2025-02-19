@@ -57,6 +57,10 @@ class Html(BatchableMedia):
             self._set_file(data_path, is_tmp=False)
 
     def inject_head(self) -> None:
+        """Inject a <head> tag into the HTML.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         join = ""
         if "<head>" in self.html:
             parts = self.html.split("<head>", 1)
@@ -75,9 +79,17 @@ class Html(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls: Type["Html"]) -> str:
+        """Get media subdir for HTML files.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return os.path.join("media", "html")
 
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        """Returns the JSON representation expected by the backend.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         return json_dict
@@ -86,6 +98,10 @@ class Html(BatchableMedia):
     def from_json(
         cls: Type["Html"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Html":
+        """Factory method to create an HTML object from a JSON object.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return cls(source_artifact.get_entry(json_obj["path"]).download(), inject=False)
 
     @classmethod
@@ -96,6 +112,10 @@ class Html(BatchableMedia):
         key: str,
         step: Union[int, str],
     ) -> dict:
+        """Convert a sequence of HTML objects to a JSON representation.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         base_path = os.path.join(run.dir, cls.get_media_subdir())
         filesystem.mkdir_exists_ok(base_path)
 

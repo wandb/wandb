@@ -56,10 +56,18 @@ class Audio(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls):
+        """Get media subdir for Audio files.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return os.path.join("media", "audio")
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
+        """Factory method to create an Audio object from a JSON object.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return cls(
             source_artifact.get_entry(json_obj["path"]).download(),
             caption=json_obj["caption"],
@@ -68,6 +76,10 @@ class Audio(BatchableMedia):
     def bind_to_run(
         self, run, key, step, id_=None, ignore_copy_err: Optional[bool] = None
     ):
+        """Bind this object to a run.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.path_is_reference(self._path):
             raise ValueError(
                 "Audio media created by a reference to external storage cannot currently be added to a run"
@@ -76,6 +88,10 @@ class Audio(BatchableMedia):
         return super().bind_to_run(run, key, step, id_, ignore_copy_err)
 
     def to_json(self, run):
+        """Returns the JSON representation expected by the backend.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         json_dict = super().to_json(run)
         json_dict.update(
             {
@@ -87,6 +103,10 @@ class Audio(BatchableMedia):
 
     @classmethod
     def seq_to_json(cls, seq, run, key, step):
+        """Convert a sequence of Audio objects to a JSON representation.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         audio_list = list(seq)
 
         util.get_module(
@@ -114,14 +134,26 @@ class Audio(BatchableMedia):
 
     @classmethod
     def durations(cls, audio_list):
+        """Calculate the duration of the audio files.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return [a._duration for a in audio_list]
 
     @classmethod
     def sample_rates(cls, audio_list):
+        """Get the sample rates of the audio files.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return [a._sample_rate for a in audio_list]
 
     @classmethod
     def captions(cls, audio_list):
+        """Get the captions of the audio files.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         captions = [a._caption for a in audio_list]
         if all(c is None for c in captions):
             return False
@@ -129,6 +161,10 @@ class Audio(BatchableMedia):
             return ["" if c is None else c for c in captions]
 
     def resolve_ref(self):
+        """Resolve the reference to the actual file path.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.path_is_reference(self._path):
             # this object was already created using a ref:
             return self._path

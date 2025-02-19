@@ -138,6 +138,10 @@ class Video(BatchableMedia):
             self.encode(fps=fps)
 
     def encode(self, fps: int = 4) -> None:
+        """Encode the video data to a file.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # Try to import ImageSequenceClip from the appropriate MoviePy module
         mpy = None
         try:
@@ -189,9 +193,17 @@ class Video(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls: Type["Video"]) -> str:
+        """Get media subdirectory for video files.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return os.path.join("media", "videos")
 
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        """Returns the JSON representation expected by the backend.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
 
@@ -248,6 +260,10 @@ class Video(BatchableMedia):
         key: str,
         step: Union[int, str],
     ) -> dict:
+        """Convert a sequence of Video objects to a JSON representation.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         base_path = os.path.join(run.dir, cls.get_media_subdir())
         filesystem.mkdir_exists_ok(base_path)
 

@@ -343,6 +343,10 @@ class Image(BatchableMedia):
     def from_json(
         cls: Type["Image"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Image":
+        """Factory method to create an Audio object from a JSON object.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         classes: Optional[Classes] = None
         if json_obj.get("classes") is not None:
             value = source_artifact.get(json_obj["classes"]["path"])
@@ -377,6 +381,10 @@ class Image(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls: Type["Image"]) -> str:
+        """Get media subdir for Audio files.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return os.path.join("media", "images")
 
     def bind_to_run(
@@ -387,6 +395,10 @@ class Image(BatchableMedia):
         id_: Optional[Union[int, str]] = None,
         ignore_copy_err: Optional[bool] = None,
     ) -> None:
+        """Bind this object to a run.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # For Images, we are going to avoid copying the image file to the run.
         # We should make this common functionality for all media types, but that
         # requires a broader UI refactor. This model can easily be moved to the
@@ -421,6 +433,10 @@ class Image(BatchableMedia):
                 )
 
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        """Returns the JSON representation expected by the backend.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         from wandb.sdk.wandb_run import Run
 
         json_dict = super().to_json(run_or_artifact)
@@ -475,7 +491,10 @@ class Image(BatchableMedia):
         return json_dict
 
     def guess_mode(self, data: "np.ndarray") -> str:
-        """Guess what type of image the np.array is representing."""
+        """Guess what type of image the np.array is representing.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: do we want to support dimensions being at the beginning of the array?
         if data.ndim == 2:
             return "L"
@@ -494,6 +513,8 @@ class Image(BatchableMedia):
 
         Convert floating point image on the range [0,1] and integer images on the range
         [0,255] to uint8, clipping if necessary.
+
+        <!-- lazydoc-ignore: internal -->
         """
         np = util.get_module(
             "numpy",
@@ -521,7 +542,10 @@ class Image(BatchableMedia):
         key: str,
         step: Union[int, str],
     ) -> dict:
-        """Combine a list of images into a meta dictionary object describing the child images."""
+        """Combine a list of images into a meta dictionary object describing the child images.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if TYPE_CHECKING:
             seq = cast(Sequence["Image"], seq)
 
@@ -595,6 +619,10 @@ class Image(BatchableMedia):
         run_key: str,
         step: Union[int, str],
     ) -> Union[List[Optional[dict]], bool]:
+        """Collect all masks from a list of images.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         all_mask_groups: List[Optional[dict]] = []
         for image in images:
             if image._masks:
@@ -618,6 +646,10 @@ class Image(BatchableMedia):
         run_key: str,
         step: Union[int, str],
     ) -> Union[List[Optional[dict]], bool]:
+        """Collect all boxes from a list of images.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         all_box_groups: List[Optional[dict]] = []
         for image in images:
             if image._boxes:
@@ -637,6 +669,10 @@ class Image(BatchableMedia):
     def all_captions(
         cls: Type["Image"], images: Sequence["Media"]
     ) -> Union[bool, Sequence[Optional[str]]]:
+        """Get captions from a list of images.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return cls.captions(images)
 
     def __ne__(self, other: object) -> bool:
@@ -667,6 +703,10 @@ class Image(BatchableMedia):
             )
 
     def to_data_array(self) -> List[Any]:
+        """Convert ot data array.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         res = []
         if self.image is not None:
             data = list(self.image.getdata())
