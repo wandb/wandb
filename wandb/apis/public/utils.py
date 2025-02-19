@@ -1,6 +1,5 @@
 import re
 from enum import Enum
-from functools import lru_cache
 from typing import TYPE_CHECKING, Optional
 from urllib.parse import urlparse
 
@@ -8,8 +7,7 @@ from wandb_gql import gql
 
 import wandb
 from wandb._iterutils import one
-from wandb.apis.public._generated.operations import SERVER_FEATURES_QUERY_GQL
-from wandb.apis.public._generated.server_features_query import ServerFeaturesQuery
+from wandb.apis.public._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.proto.v3.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -114,25 +112,20 @@ def fetch_org_from_settings_or_entity(
     return organization
 
 
-@lru_cache(maxsize=128)
 def check_server_feature(client: "Client", feature: ServerFeature) -> bool:
     """Check if a server feature is enabled.
 
     Args:
+        client (Client): The wandb client instance.
         feature (ServerFeature): The feature to check.
 
     Returns:
         bool: True if the feature is enabled, False otherwise.
+
+    Raises:
+        Exception: If server doesn't support feature queries or other errors occur
     """
-    try:
-        response = client.execute(gql(SERVER_FEATURES_QUERY_GQL))
-    except Exception as e:
-        if 'Cannot query field "features" on type "ServerInfo".' in str(e):
-            wandb.termwarn(
-                "Possible that the server doesn't support the feature query, please make sure you are on an updated server release version"
-            )
-            return False
-        raise e
+    response = client.execute(gql(SERVER_FEATURES_QUERY_GQL))
     query = ServerFeaturesQuery.model_validate(response)
 
     feature_name = ServerFeature.Name(feature)
@@ -142,3 +135,33 @@ def check_server_feature(client: "Client", feature: ServerFeature) -> bool:
                 return feature_info.is_enabled
 
     return False
+
+
+def check_server_feature_with_fallback(
+    client: "Client", feature: ServerFeature, feature_name: str
+) -> bool:
+    """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
+
+    Good to use for features that have a fallback mechanism for older servers.
+
+    Args:
+        client (Client): The wandb client instance.
+        feature (ServerFeature): The feature to check.
+        feature_name (str): The name of the feature to check. Used for logging purposes.
+
+    Returns:
+        bool: True if the feature is enabled, False otherwise.
+
+    Exceptions:
+        Exception: If an error other than the server not supporting feature queries occurs.
+    """
+    try:
+        return check_server_feature(client, feature)
+    except Exception as e:
+        if 'Cannot query field "features" on type "ServerInfo".' in str(e):
+            wandb.termwarn(
+                f"""Server might be too old to support the feature: {feature_name}.
+                Please make sure you are on an updated server or contact support at support@wandb.com"""
+            )
+            return False
+        raise e
