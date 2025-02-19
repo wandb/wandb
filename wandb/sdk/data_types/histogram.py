@@ -45,10 +45,13 @@ class Histogram(WBValue):
     Efficiently initialize from np.histogram.
 
     ```python
+    import numpy as np
+    import wandb
+
     hist = np.histogram(data)
     wandb.Histogram(np_histogram=hist)
     ```
-    """  # noqa: D412
+    """
 
     MAX_LENGTH: int = 512
     _log_type = "histogram"

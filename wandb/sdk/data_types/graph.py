@@ -267,7 +267,7 @@ class Graph(Media):
 
     wandb.Graph.from_keras(keras_model)
     ```
-    """  # noqa: D412
+    """
 
     _log_type = "graph-file"
 
