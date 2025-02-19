@@ -33,8 +33,7 @@ class Histogram(WBValue):
         histogram  ([int]): Number of elements falling in each bin.
 
     Examples:
-
-    Generate histogram from a sequence
+    Generate histogram from a sequence.
 
     ```python
     import wandb

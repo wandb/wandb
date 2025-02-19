@@ -259,8 +259,7 @@ class Graph(Media):
         root (wandb.Node): Root node of the graph.
 
     Examples:
-
-    Import a keras model
+    Import a keras model.
 
     ```python
     import wandb
