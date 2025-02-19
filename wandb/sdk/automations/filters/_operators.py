@@ -3,13 +3,25 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING, Any, Generic, Iterable, Tuple, TypeVar, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Generic,
+    Iterable,
+    Tuple,
+    TypeVar,
+    Union,
+    cast,
+    overload,
+)
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.main import IncEx
 
 if TYPE_CHECKING:
     from typing_extensions import TypeAlias
+
+    from wandb.sdk.automations.events import MetricFilter, RunMetricFilter
 
 if sys.version_info >= (3, 12):
     from typing import Literal, override
@@ -99,7 +111,17 @@ class OpDict(BaseModel, Generic[InnerT]):
     def __or__(self, other: Any) -> Or:
         return Or(inner=[self, other])
 
-    def __and__(self, other: Any) -> And:
+    @overload
+    def __and__(self, other: MetricFilter) -> RunMetricFilter: ...
+    @overload
+    def __and__(self, other: Any) -> And: ...
+
+    def __and__(self, other: Any) -> And | RunMetricFilter:
+        from wandb.sdk.automations.events import MetricFilter
+
+        # Special handling `run_filter & metric_filter`
+        if isinstance(other, MetricFilter):
+            return other.__and__(self)
         return And(inner=[self, other])
 
     def __invert__(self) -> Not:
