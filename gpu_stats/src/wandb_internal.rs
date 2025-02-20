@@ -2828,6 +2828,7 @@ pub enum ServerFeature {
     LargeFilenames = 0,
     ArtifactTags = 1,
     ClientIds = 2,
+    ArtifactRegistrySearch = 3,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2839,6 +2840,7 @@ impl ServerFeature {
             Self::LargeFilenames => "LARGE_FILENAMES",
             Self::ArtifactTags => "ARTIFACT_TAGS",
             Self::ClientIds => "CLIENT_IDS",
+            Self::ArtifactRegistrySearch => "ARTIFACT_REGISTRY_SEARCH",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2847,6 +2849,7 @@ impl ServerFeature {
             "LARGE_FILENAMES" => Some(Self::LargeFilenames),
             "ARTIFACT_TAGS" => Some(Self::ArtifactTags),
             "CLIENT_IDS" => Some(Self::ClientIds),
+            "ARTIFACT_REGISTRY_SEARCH" => Some(Self::ArtifactRegistrySearch),
             _ => None,
         }
     }
