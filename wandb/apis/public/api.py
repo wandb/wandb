@@ -34,7 +34,6 @@ from wandb.apis.public.utils import (
     parse_org_from_registry_path,
 )
 from wandb.proto.wandb_internal_pb2 import ServerFeature
-
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
@@ -1511,7 +1510,6 @@ class Api:
         Returns:
             A registry iterator.
         """
-
         if not self._check_server_feature_with_fallback(
             ServerFeature.ARTIFACT_REGISTRY_SEARCH
         ):
