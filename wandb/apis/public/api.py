@@ -1525,7 +1525,6 @@ class Api:
         )
         return Registries(self.client, organization, filter)
 
-
     def _check_server_feature(self, feature: ServerFeature) -> bool:
         """Check if a server feature is enabled.
 
