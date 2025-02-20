@@ -132,7 +132,7 @@
         "types/types_exported_test.go",
         "validators.go"
     ],
-    "go": "1.15",
+    "go": "1.22",
     "module": "github.com/aws/aws-sdk-go-v2/service/s3",
     "unstable": false
 }
