@@ -96,11 +96,6 @@ jobs:
         with:
           go-version-file: core/go.mod
 
-      - name: Set Go build environment
-        run: |
-          echo "CGO_ENABLED=0" >> $GITHUB_ENV
-          echo "MACOSX_DEPLOYMENT_TARGET=10.14" >> $GITHUB_ENV
-
       ##################################################
       # Vendor dependencies
       ##################################################
@@ -138,6 +133,7 @@ jobs:
               -v {wheel}
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=10.14
+            CGO_ENABLED=0
 
       - uses: actions/upload-artifact@v4
         with:
