@@ -68,6 +68,7 @@ func (d *Dispatcher) handleRespond(result *spb.Result) {
 
 	if ok {
 		responder.Respond(&spb.ServerResponse{
+			RequestId: result.GetControl().GetMailboxSlot(),
 			ServerResponseType: &spb.ServerResponse_ResultCommunicate{
 				ResultCommunicate: result,
 			},
