@@ -1,3 +1,7 @@
+# v1.6.10 (2025-02-18)
+
+* **Bug Fix**: Bump go version to 1.22
+
 # v1.6.9 (2025-02-14)
 
 * **Bug Fix**: Remove max limit on event stream messages
