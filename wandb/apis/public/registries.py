@@ -65,6 +65,14 @@ class Registries(Paginator):
     def __bool__(self):
         return len(self) > 0 or len(self.objects) > 0
 
+    def __next__(self):
+        # Implement custom next since its possible to load empty pages because of auth
+        self.index += 1
+        while len(self.objects) <= self.index:
+            if not self._load_page():
+                raise StopIteration
+        return self.objects[self.index]
+
     def collections(self, filter: Optional[Dict[str, Any]] = None) -> "Collections":
         return Collections(
             self.client,
@@ -311,6 +319,14 @@ class Collections(Paginator):
     def __bool__(self):
         return len(self) > 0 or len(self.objects) > 0
 
+    def __next__(self):
+        # Implement custom next since its possible to load empty pages because of auth
+        self.index += 1
+        while len(self.objects) <= self.index:
+            if not self._load_page():
+                raise StopIteration
+        return self.objects[self.index]
+
     def versions(self, filter: Optional[Dict[str, Any]] = None) -> "Versions":
         return Versions(
             self.client,
@@ -457,6 +473,14 @@ class Versions(Paginator):
         }
 
         super().__init__(client, variables, per_page)
+
+    def __next__(self):
+        # Implement custom next since its possible to load empty pages because of auth
+        self.index += 1
+        while len(self.objects) <= self.index:
+            if not self._load_page():
+                raise StopIteration
+        return self.objects[self.index]
 
     def __bool__(self):
         return len(self) > 0 or len(self.objects) > 0
