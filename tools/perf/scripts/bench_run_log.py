@@ -8,6 +8,8 @@ import time
 from datetime import datetime
 from typing import List, Literal
 
+from .setup_helper import setup_package_logger
+
 import numpy as np
 import wandb
 
@@ -530,6 +532,7 @@ class Experiment:
 
 
 if __name__ == "__main__":
+    setup_package_logger()
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-r",
