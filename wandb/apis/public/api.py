@@ -34,6 +34,7 @@ from wandb.apis.public.utils import (
     parse_org_from_registry_path,
 )
 from wandb.proto.wandb_internal_pb2 import ServerFeature
+
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
@@ -1510,6 +1511,7 @@ class Api:
         Returns:
             A registry iterator.
         """
+
         if not self._check_server_feature_with_fallback(
             ServerFeature.ARTIFACT_REGISTRY_SEARCH
         ):
@@ -1517,10 +1519,12 @@ class Api:
                 "Registry search API is not enabled on this wandb server version. "
                 "Please upgrade your server version or contact support at support@wandb.com."
             )
+
         organization = organization or fetch_org_from_settings_or_entity(
             self.settings, self.default_entity
         )
         return Registries(self.client, organization, filter)
+
 
     def _check_server_feature(self, feature: ServerFeature) -> bool:
         """Check if a server feature is enabled.
