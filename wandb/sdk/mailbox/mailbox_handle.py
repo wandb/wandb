@@ -4,8 +4,6 @@ import abc
 import sys
 from typing import TYPE_CHECKING, Callable, Generic, TypeVar
 
-from wandb.proto import wandb_internal_pb2 as pb
-
 # Necessary to break an import loop.
 if TYPE_CHECKING:
     from wandb.sdk.interface import interface
@@ -24,10 +22,10 @@ class HandleAbandonedError(Exception):
     """The handle has no response and has been abandoned."""
 
 
-class MailboxHandleT(abc.ABC, Generic[_T]):
+class MailboxHandle(abc.ABC, Generic[_T]):
     """A thread-safe handle that allows waiting for a response to a request."""
 
-    def map(self, fn: Callable[[_T], _S]) -> MailboxHandleT[_S]:
+    def map(self, fn: Callable[[_T], _S]) -> MailboxHandle[_S]:
         """Returns a transformed handle.
 
         Methods on the returned handle call methods on this handle, but the
@@ -93,15 +91,12 @@ class MailboxHandleT(abc.ABC, Generic[_T]):
         """
 
 
-MailboxHandle = MailboxHandleT[pb.Result]
-
-
-class _MailboxMappedHandle(Generic[_S], MailboxHandleT[_S]):
+class _MailboxMappedHandle(Generic[_S], MailboxHandle[_S]):
     """A mailbox handle whose result is derived from another handle."""
 
     def __init__(
         self,
-        handle: MailboxHandleT[_T],
+        handle: MailboxHandle[_T],
         fn: Callable[[_T], _S],
     ) -> None:
         self._handle = handle
