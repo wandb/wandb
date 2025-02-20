@@ -98,8 +98,8 @@ jobs:
 
       - name: Set Go build environment
         run: |
-          echo "CGO_CFLAGS=-mmacosx-version-min=10.14" >> $GITHUB_ENV
-          echo "CGO_LDFLAGS=-mmacosx-version-min=10.14" >> $GITHUB_ENV
+          echo "CGO_ENABLED=0" >> $GITHUB_ENV
+          echo "MACOSX_DEPLOYMENT_TARGET=10.14" >> $GITHUB_ENV
 
       ##################################################
       # Vendor dependencies
