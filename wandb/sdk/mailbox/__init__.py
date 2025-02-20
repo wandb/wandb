@@ -10,7 +10,7 @@ continuously reads data from the service and passes it to the mailbox.
 """
 
 from .mailbox import Mailbox, MailboxClosedError
-from .mailbox_handle import HandleAbandonedError, MailboxHandle, MailboxHandleT
+from .mailbox_handle import HandleAbandonedError, MailboxHandle
 from .wait_with_progress import wait_all_with_progress, wait_with_progress
 
 __all__ = [
@@ -18,7 +18,6 @@ __all__ = [
     "MailboxClosedError",
     "HandleAbandonedError",
     "MailboxHandle",
-    "MailboxHandleT",
     "wait_all_with_progress",
     "wait_with_progress",
 ]

@@ -290,7 +290,7 @@ class StreamMux:
 
         # fixme: for now we have a single printer for all streams,
         # and jupyter is disabled if at least single stream's setting set `_jupyter` to false
-        exit_handles: list[MailboxHandle] = []
+        exit_handles: list[MailboxHandle[pb.Result]] = []
 
         # only finish started streams, non started streams failed early
         started_streams: dict[str, StreamRecord] = {}

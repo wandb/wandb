@@ -8,7 +8,7 @@ import threading
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 
-from .mailbox_handle import MailboxHandleT
+from .mailbox_handle import MailboxHandle
 from .response_handle import MailboxResponseHandle
 
 _logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ class Mailbox:
     def require_response(
         self,
         request: spb.ServerRequest | pb.Record,
-    ) -> MailboxHandleT[spb.ServerResponse]:
+    ) -> MailboxHandle[spb.ServerResponse]:
         """Set a response address on a request.
 
         Args:
