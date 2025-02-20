@@ -8,7 +8,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.2
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.0
 	github.com/Khan/genqlient v0.7.0
-	github.com/aws/aws-sdk-go-v2 v1.36.1
+	github.com/aws/aws-sdk-go-v2 v1.36.2
 	github.com/aws/aws-sdk-go-v2/config v1.29.6
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.77.0
 	github.com/getsentry/sentry-go v0.31.1
@@ -17,7 +17,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.14.1
 	github.com/hashicorp/go-retryablehttp v0.7.7
 	github.com/hashicorp/golang-lru v1.0.2
-	github.com/prometheus/client_golang v1.20.5
+	github.com/prometheus/client_golang v1.21.0
 	github.com/prometheus/common v0.62.0
 	github.com/radovskyb/watcher v1.0.7
 	github.com/shirou/gopsutil/v4 v4.25.1
@@ -26,7 +26,7 @@ require (
 	github.com/wandb/simplejsonext v0.0.0-20241203202201-90635f1d8677
 	golang.org/x/sync v0.11.0
 	golang.org/x/time v0.10.0
-	google.golang.org/api v0.221.0
+	google.golang.org/api v0.222.0
 	google.golang.org/grpc v1.70.0
 	google.golang.org/protobuf v1.36.5
 	gopkg.in/yaml.v3 v3.0.1
@@ -131,7 +131,7 @@ require (
 	golang.org/x/tools v0.28.0 // indirect
 	google.golang.org/genproto v0.0.0-20241219192143-6b3ec007d9bb // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20241219192143-6b3ec007d9bb // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250207221924-e9438ea467c6 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250212204824-5a70512c5d8b // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

@@ -112,6 +112,14 @@ class Registries(Paginator):
     def convert_objects(self):
         if not self.last_response:
             return []
+        if (
+            not self.last_response["organization"]
+            or not self.last_response["organization"]["orgEntity"]
+        ):
+            raise ValueError(
+                f"Organization '{self.organization}' not found. Please verify the organization name is correct"
+            )
+
         return [
             Registry(
                 self.client,
@@ -342,6 +350,14 @@ class Collections(Paginator):
     def convert_objects(self):
         if not self.last_response:
             return []
+        if (
+            not self.last_response["organization"]
+            or not self.last_response["organization"]["orgEntity"]
+        ):
+            raise ValueError(
+                f"Organization '{self.organization}' not found. Please verify the organization name is correct"
+            )
+
         return [
             ArtifactCollection(
                 self.client,
@@ -477,6 +493,14 @@ class Versions(Paginator):
     def convert_objects(self):
         if not self.last_response:
             return []
+        if (
+            not self.last_response["organization"]
+            or not self.last_response["organization"]["orgEntity"]
+        ):
+            raise ValueError(
+                f"Organization '{self.organization}' not found. Please verify the organization name is correct"
+            )
+
         artifacts = (
             wandb.Artifact._from_attrs(
                 a["node"]["artifactCollection"]["project"]["entity"]["name"],

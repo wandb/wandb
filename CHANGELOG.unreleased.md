@@ -30,3 +30,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - Fixed incorrect logging of an "wandb.Video requires moviepy \[...\]" exception when using moviepy v2. (@Daraan in https://github.com/wandb/wandb/pull/9375)
 - `wandb.setup()` correctly starts up the internal service process; this semantic was unintentionally broken in 0.19.2 (@timoffex in https://github.com/wandb/wandb/pull/9436)
+- Fixed `TypeError: Object of type ... is not JSON serializable` when using numpy number types as values. (@jacobromero in https://github.com/wandb/wandb/pull/9487)
