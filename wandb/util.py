@@ -28,6 +28,7 @@ import threading
 import time
 import types
 import urllib
+import warnings
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timedelta
 from importlib import import_module
@@ -492,7 +493,34 @@ def matplotlib_to_plotly(obj: Any) -> Any:
             "`pip install plotly` or convert the plot to an image with `wandb.Image(plt)`"
         ),
     )
-    return tools.mpl_to_plotly(obj)
+
+    def showwarning_override(
+        message,
+        category,
+        filename,
+        lineno,
+        file=None,
+        line=None,
+    ):
+        warnings_log.append(message)
+
+    # Override python warning while we convert the figure.
+    # This avoids plotly warnings which are not helpful.
+    with warnings.catch_warnings():
+        warnings.showwarning = showwarning_override
+        warnings_log: List[str] = []
+
+        plotly_obj = tools.mpl_to_plotly(obj)
+
+        # When calling mpl_to_plotly, plotly will raise a UserWarning
+        # in some cases, when it is unable to convert some data in the figure.
+        if len(warnings_log) > 0:
+            wandb.termwarn(
+                "Plotly raised warning while converting matplotlib figure. "
+                "This may result in missing graph data."
+            )
+
+        return plotly_obj
 
 
 def matplotlib_contains_images(obj: Any) -> bool:
