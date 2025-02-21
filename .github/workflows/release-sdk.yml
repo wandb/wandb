@@ -69,7 +69,7 @@ jobs:
   build-macos-10-wheels:
     name: Build wheels for MacOS 10.x
     needs: prepare-release
-    runs-on: macos-14
+    runs-on: macos-13
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -136,7 +136,7 @@ jobs:
             CGO_ENABLED=0
             GOARCH=amd64
             GOOS=darwin
-            GOFLAGS="-ldflags=-w -s -buildmode=pie -X=darwin/ios.MinVersion=10.14"
+            GOFLAGS="-ldflags=-w -s -buildmode=pie -X=darwin/ios.MinVersion=10.14 -macosx-version-min=10.14"
 
       - uses: actions/upload-artifact@v4
         with:
