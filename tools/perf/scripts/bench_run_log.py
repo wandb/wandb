@@ -480,22 +480,24 @@ class Experiment:
         logger.info(f"Start logging {self.num_steps} steps ...")
         with Timer() as timer:
             for s in range(self.num_steps):
+                global_values = {}
+                global_values["global_step"] = s
                 if self.is_unique_payload or self.fraction < 1.0:
-                    run.log(payloads[s % len(payloads)])
+                    run.log({**global_values, **(payloads[s % len(payloads)])})
                 else:
-                    if self.sparse_stride_size > 0:
-                        if s % self.sparse_stride_size == 0:
-                            run.log(generator.sparse_metrics)
-                    run.log(payloads[0])
+                    if self.sparse_stride_size > 0 and s % self.sparse_stride_size == 0:
+                        # log the sparse + dense metrics
+                        run.log({**global_values, **(generator.sparse_metrics), **(payloads[0])})
+                    else:
+                        # log only the dense metric
+                        run.log({**global_values, **(payloads[0])})
 
-                # 12/20/2024 - Wai
-                # HACKAROUND: We ran into some 500s and 502s errors when SDK logs
-                # a million+ unique metrics in a tight loop. Adding a small sleep
-                # between each step works around the problem for now.
                 if self.time_delay_second > 0:
                     time.sleep(self.time_delay_second)
 
             result_data["log_time"] = timer.stop()
+            result_data["run_id"] = run.id
+
 
         # compute the log() throughput rps (request per sec)
         if result_data["log_time"] == 0:
