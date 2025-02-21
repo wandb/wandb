@@ -12,54 +12,14 @@ from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator
 from wandb.errors.term import termlog
+from wandb.sdk.artifacts._graphql_fragments import (
+    ARTIFACT_FILES_FRAGMENT,
+    ARTIFACTS_TYPES_FRAGMENT,
+)
 from wandb.sdk.lib import deprecate
 
 if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient, Run
-
-
-ARTIFACTS_TYPES_FRAGMENT = """
-fragment ArtifactTypesFragment on ArtifactTypeConnection {
-    edges {
-         node {
-             id
-             name
-             description
-             createdAt
-         }
-         cursor
-    }
-    pageInfo {
-        endCursor
-        hasNextPage
-    }
-}
-"""
-
-# TODO, factor out common file fragment
-ARTIFACT_FILES_FRAGMENT = """fragment ArtifactFilesFragment on Artifact {
-    files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
-        edges {
-            node {
-                id
-                name: displayName
-                url
-                sizeBytes
-                storagePath
-                mimetype
-                updatedAt
-                digest
-                md5
-                directUrl
-            }
-            cursor
-        }
-        pageInfo {
-            endCursor
-            hasNextPage
-        }
-    }
-}"""
 
 
 class ArtifactTypes(Paginator):
@@ -317,6 +277,7 @@ class ArtifactCollection:
         project: str,
         name: str,
         type: str,
+        organization: Optional[str] = None,
         attrs: Optional[Mapping[str, Any]] = None,
     ):
         self.client = client
@@ -327,11 +288,14 @@ class ArtifactCollection:
         self._type = type
         self._saved_type = type
         self._attrs = attrs
-        self.load()
+        if self._attrs is None:
+            self.load()
         self._aliases = [a["node"]["alias"] for a in self._attrs["aliases"]["edges"]]
         self._description = self._attrs["description"]
+        self._created_at = self._attrs["createdAt"]
         self._tags = [a["node"]["name"] for a in self._attrs["tags"]["edges"]]
         self._saved_tags = copy(self._tags)
+        self.organization = organization
 
     @property
     def id(self):
@@ -353,6 +317,10 @@ class ArtifactCollection:
     def aliases(self):
         """Artifact Collection Aliases."""
         return self._aliases
+
+    @property
+    def created_at(self):
+        return self._created_at
 
     def load(self):
         query = gql(

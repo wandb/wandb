@@ -19,7 +19,18 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
-from typing import IO, Any, Dict, Iterator, Literal, Sequence, Type, cast, final
+from typing import (
+    IO,
+    Any,
+    Dict,
+    Iterator,
+    Literal,
+    Optional,
+    Sequence,
+    Type,
+    cast,
+    final,
+)
 from urllib.parse import quote, urljoin, urlparse
 
 import requests
@@ -30,6 +41,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
+from wandb.sdk.artifacts._graphql_fragments import _gql_artifact_fragment
 from wandb.sdk.artifacts._validators import (
     ensure_logged,
     ensure_not_finalized,
@@ -286,6 +298,7 @@ class Artifact:
         name: str,
         attrs: dict[str, Any],
         client: RetryingClient,
+        aliases: Optional[list[str]] = None,
     ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
@@ -293,7 +306,7 @@ class Artifact:
         artifact._entity = entity
         artifact._project = project
         artifact._name = name
-        artifact._assign_attrs(attrs)
+        artifact._assign_attrs(attrs, aliases)
 
         artifact.finalize()
 
@@ -302,7 +315,9 @@ class Artifact:
         artifact_instance_cache[artifact.id] = artifact
         return artifact
 
-    def _assign_attrs(self, attrs: dict[str, Any]) -> None:
+    def _assign_attrs(
+        self, attrs: dict[str, Any], aliases: Optional[list[str]] = None
+    ) -> None:
         """Update this Artifact's attributes using the server response."""
         self._id = attrs["id"]
 
@@ -329,21 +344,30 @@ class Artifact:
         entity = self._entity
         project = self._project
         collection, *_ = self._name.split(":")
-        aliases = [
-            obj["alias"]
-            for obj in attrs["aliases"]
-            if obj["artifactCollection"]
-            and obj["artifactCollection"]["project"]
-            and obj["artifactCollection"]["project"]["entityName"] == entity
-            and obj["artifactCollection"]["project"]["name"] == project
-            and obj["artifactCollection"]["name"] == collection
-        ]
+
+        processed_aliases = []
+        # The future of aliases is to move all alias fetches to the membership level
+        # so we don't have to do the collection fetches below
+        if aliases:
+            processed_aliases = aliases
+        else:
+            processed_aliases = [
+                obj["alias"]
+                for obj in attrs["aliases"]
+                if obj["artifactCollection"]
+                and obj["artifactCollection"]["project"]
+                and obj["artifactCollection"]["project"]["entityName"] == entity
+                and obj["artifactCollection"]["project"]["name"] == project
+                and obj["artifactCollection"]["name"] == collection
+            ]
 
         version_aliases = [
-            alias for alias in aliases if util.alias_is_version_index(alias)
+            alias for alias in processed_aliases if util.alias_is_version_index(alias)
         ]
         other_aliases = [
-            alias for alias in aliases if not util.alias_is_version_index(alias)
+            alias
+            for alias in processed_aliases
+            if not util.alias_is_version_index(alias)
         ]
         if version_aliases:
             try:
@@ -2391,61 +2415,6 @@ def _ttl_duration_seconds_from_gql(gql_ttl_duration_seconds: int | None) -> int 
     if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
         return gql_ttl_duration_seconds
     return None
-
-
-def _gql_artifact_fragment() -> str:
-    """Return a GraphQL query fragment with all parseable Artifact attributes."""
-    allowed_fields = set(InternalApi().server_artifact_introspection())
-
-    supports_ttl = "ttlIsInherited" in allowed_fields
-    supports_tags = "tags" in allowed_fields
-
-    ttl_duration_seconds = "ttlDurationSeconds" if supports_ttl else ""
-    ttl_is_inherited = "ttlIsInherited" if supports_ttl else ""
-
-    tags = "tags {name}" if supports_tags else ""
-
-    return f"""
-        fragment ArtifactFragment on Artifact {{
-            id
-            artifactSequence {{
-                project {{
-                    entityName
-                    name
-                }}
-                name
-            }}
-            versionIndex
-            artifactType {{
-                name
-            }}
-            description
-            metadata
-            {ttl_duration_seconds}
-            {ttl_is_inherited}
-            aliases {{
-                artifactCollection {{
-                    project {{
-                        entityName
-                        name
-                    }}
-                    name
-                }}
-                alias
-            }}
-            {tags}
-            state
-            currentManifest {{
-                file {{
-                    directUrl
-                }}
-            }}
-            commitHash
-            fileCount
-            createdAt
-            updatedAt
-        }}
-    """
 
 
 class _ArtifactVersionType(WBType):
