@@ -191,20 +191,22 @@ class Table(Media):
     This class is the primary class used to generate the Table Visualizer
     in the UI: https://docs.wandb.ai/guides/data-vis/tables.
 
-    Args:
-        columns: (List[str]) Names of the columns in the table.
+    Attributes:
+        columns (List[str]): Names of the columns in the table.
             Defaults to ["Input", "Output", "Expected"].
         data: (List[List[any]]) 2D row-oriented array of values.
-        dataframe: (pandas.DataFrame) DataFrame object used to create the table.
+        dataframe (pandas.DataFrame): DataFrame object used to create the table.
             When set, `data` and `columns` arguments are ignored.
-        optional: (Union[bool,List[bool]]) Determines if `None` values are allowed. Default to True
+        optional (Union[bool,List[bool]]): Determines if `None` values are
+            allowed. Default to `True`.
             - If a singular bool value, then the optionality is enforced for all
-            columns specified at construction time
+            columns specified at construction time.
             - If a list of bool values, then the optionality is applied to each
-            column - should be the same length as `columns`
-            applies to all columns. A list of bool values applies to each respective column.
-        allow_mixed_types: (bool) Determines if columns are allowed to have mixed types
-            (disables type validation). Defaults to False
+            column - should be the same length as `columns`.
+            applies to all columns. A list of bool values applies to each
+            respective column.
+        allow_mixed_types (bool): Determines if columns are allowed to have
+            mixed types (disables type validation). Defaults to False.
     """
 
     MAX_ROWS = 10000
@@ -315,13 +317,15 @@ class Table(Media):
     def cast(self, col_name, dtype, optional=False):
         """Casts a column to a specific data type.
 
-        This can be one of the normal python classes, an internal W&B type, or an
-        example object, like an instance of wandb.Image or wandb.Classes.
+        This can be one of the normal python classes, an internal W&B type,
+        or an example object, like an instance of wandb.Image or
+        wandb.Classes.
 
         Args:
-            col_name: (str) - The name of the column to cast.
-            dtype: (class, wandb.wandb_sdk.interface._dtypes.Type, any) - The target dtype.
-            optional: (bool) - If the column should allow Nones.
+            col_name (str): The name of the column to cast.
+            dtype (class, wandb.wandb_sdk.interface._dtypes.Type, any): The
+                target dtype.
+            optional (bool): If the column should allow Nones.
         """
         assert col_name in self.columns
 
@@ -421,7 +425,10 @@ class Table(Media):
         self.add_data(*row)
 
     def add_data(self, *data):
-        """Adds a new row of data to the table. The maximum amount of rows in a table is determined by `wandb.Table.MAX_ARTIFACT_ROWS`.
+        """Adds a new row of data to the table.
+
+        The maximum amount ofrows in a table is determined by
+        `wandb.Table.MAX_ARTIFACT_ROWS`.
 
         The length of the data should match the length of the table column.
         """
@@ -494,6 +501,10 @@ class Table(Media):
         return {"columns": self.columns, "data": self.data[:max_rows]}
 
     def bind_to_run(self, *args, **kwargs):
+        """Bind this object to a run.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # We set `warn=False` since Tables will now always be logged to both
         # files and artifacts. The file limit will never practically matter and
         # this code path will be ultimately removed. The 10k limit warning confuses
@@ -508,10 +519,18 @@ class Table(Media):
 
     @classmethod
     def get_media_subdir(cls):
+        """Get media subdirectory.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return os.path.join("media", "table")
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
+        """Deserialize JSON object into it's class representation.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         data = []
         column_types = None
         np_deserialized_columns = {}
@@ -587,6 +606,10 @@ class Table(Media):
         return new_obj
 
     def to_json(self, run_or_artifact):
+        """Returns the JSON representation expected by the backend.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         json_dict = super().to_json(run_or_artifact)
 
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
@@ -681,6 +704,8 @@ class Table(Media):
             will automatically build a relationship between the tables
         row : List[any]
             The data of the row.
+
+        <!-- lazydoc-ignore: internal -->
         """
         for ndx in range(len(self.data)):
             index = _TableIndex(ndx)
@@ -688,11 +713,19 @@ class Table(Media):
             yield index, self.data[ndx]
 
     def set_pk(self, col_name):
+        """Set primary key type for Table object.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: Docs
         assert col_name in self.columns
         self.cast(col_name, _PrimaryKeyType())
 
     def set_fk(self, col_name, table, table_col):
+        """Set foreign key type for Table object.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: Docs
         assert col_name in self.columns
         assert col_name != self._pk_col
@@ -878,7 +911,10 @@ class Table(Media):
         return pd.DataFrame.from_records(self.data, columns=self.columns)
 
     def index_ref(self, index):
-        """Gets a reference of the index of a row in the table."""
+        """Gets a reference of the index of a row in the table.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         assert index < len(self.data)
         _index = _TableIndex(index)
         _index.set_table(self)
@@ -972,12 +1008,9 @@ class PartitionedTable(Media):
     def iterrows(self):
         """Iterate over rows as (ndx, row).
 
-        Yields:
-        ------
-        index : int
-            The index of the row.
-        row : List[any]
-            The data of the row.
+        Args:
+            index (int): The index of the row.
+            row (List[any]): The data of the row.
         """
         columns = None
         ndx = 0
