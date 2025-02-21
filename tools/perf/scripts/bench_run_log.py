@@ -8,10 +8,10 @@ import time
 from datetime import datetime
 from typing import List, Literal
 
-from .setup_helper import setup_package_logger
-
 import numpy as np
 import wandb
+
+from .setup_helper import setup_package_logger
 
 logger = logging.getLogger(__name__)
 
@@ -487,7 +487,13 @@ class Experiment:
                 else:
                     if self.sparse_stride_size > 0 and s % self.sparse_stride_size == 0:
                         # log the sparse + dense metrics
-                        run.log({**global_values, **(generator.sparse_metrics), **(payloads[0])})
+                        run.log(
+                            {
+                                **global_values,
+                                **(generator.sparse_metrics),
+                                **(payloads[0]),
+                            }
+                        )
                     else:
                         # log only the dense metric
                         run.log({**global_values, **(payloads[0])})
@@ -497,7 +503,6 @@ class Experiment:
 
             result_data["log_time"] = timer.stop()
             result_data["run_id"] = run.id
-
 
         # compute the log() throughput rps (request per sec)
         if result_data["log_time"] == 0:
