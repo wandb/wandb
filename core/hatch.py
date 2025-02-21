@@ -94,4 +94,7 @@ def _go_env(
         # -race requires cgo.
         env["CGO_ENABLED"] = "1"
 
+    if target_system == "darwin" and target_arch == "amd64":
+        env["CGO_ENABLED"] = "1"
+
     return env
