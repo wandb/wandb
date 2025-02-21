@@ -157,11 +157,11 @@ class RunStatusChecker:
     """
 
     _stop_status_lock: threading.Lock
-    _stop_status_handle: MailboxHandle | None
+    _stop_status_handle: MailboxHandle[Result] | None
     _network_status_lock: threading.Lock
-    _network_status_handle: MailboxHandle | None
+    _network_status_handle: MailboxHandle[Result] | None
     _internal_messages_lock: threading.Lock
-    _internal_messages_handle: MailboxHandle | None
+    _internal_messages_handle: MailboxHandle[Result] | None
 
     def __init__(
         self,
@@ -209,7 +209,7 @@ class RunStatusChecker:
     @staticmethod
     def _abandon_status_check(
         lock: threading.Lock,
-        handle: MailboxHandle | None,
+        handle: MailboxHandle[Result] | None,
     ):
         with lock:
             if handle:
@@ -224,7 +224,7 @@ class RunStatusChecker:
         request: Any,
         process: Any,
     ) -> None:
-        local_handle: MailboxHandle | None = None
+        local_handle: MailboxHandle[Result] | None = None
         join_requested = False
         while not join_requested:
             time_probe = time.monotonic()
@@ -542,7 +542,7 @@ class Run:
 
     _sampled_history: SampledHistoryResponse | None
     _final_summary: GetSummaryResponse | None
-    _poll_exit_handle: MailboxHandle | None
+    _poll_exit_handle: MailboxHandle[Result] | None
     _poll_exit_response: PollExitResponse | None
     _internal_messages_response: InternalMessagesResponse | None
 
