@@ -9,15 +9,16 @@ The Mailbox handles matching responses to requests. An internal thread
 continuously reads data from the service and passes it to the mailbox.
 """
 
-from .handles import HandleAbandonedError, MailboxHandle
 from .mailbox import Mailbox, MailboxClosedError
+from .mailbox_handle import HandleAbandonedError, MailboxHandle, MailboxHandleT
 from .wait_with_progress import wait_all_with_progress, wait_with_progress
 
 __all__ = [
-    "HandleAbandonedError",
-    "MailboxHandle",
     "Mailbox",
     "MailboxClosedError",
+    "HandleAbandonedError",
+    "MailboxHandle",
+    "MailboxHandleT",
     "wait_all_with_progress",
     "wait_with_progress",
 ]

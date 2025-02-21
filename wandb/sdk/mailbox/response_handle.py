@@ -2,22 +2,26 @@ from __future__ import annotations
 
 import asyncio
 import math
+import sys
 import threading
 from typing import TYPE_CHECKING
 
-from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto import wandb_server_pb2 as spb
+
+from .mailbox_handle import HandleAbandonedError, MailboxHandleT
 
 # Necessary to break an import loop.
 if TYPE_CHECKING:
     from wandb.sdk.interface import interface
 
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
-class HandleAbandonedError(Exception):
-    """The handle has no result and has been abandoned."""
 
-
-class MailboxHandle:
-    """A thread-safe handle that allows waiting for a response to a request."""
+class MailboxResponseHandle(MailboxHandleT[spb.ServerResponse]):
+    """A general handle for any ServerResponse."""
 
     def __init__(self, address: str) -> None:
         self._address = address
@@ -25,11 +29,11 @@ class MailboxHandle:
         self._event = threading.Event()
 
         self._abandoned = False
-        self._result: pb.Result | None = None
+        self._response: spb.ServerResponse | None = None
 
         self._asyncio_events: dict[asyncio.Event, _AsyncioEvent] = dict()
 
-    def deliver(self, result: pb.Result) -> None:
+    def deliver(self, response: spb.ServerResponse) -> None:
         """Deliver the response.
 
         This may only be called once. It is an error to respond to the same
@@ -39,34 +43,27 @@ class MailboxHandle:
             if self._abandoned:
                 return
 
-            if self._result:
+            if self._response:
                 raise ValueError(
                     f"A response has already been delivered to {self._address}."
                 )
 
-            self._result = result
+            self._response = response
             self._signal_done()
 
+    @override
     def cancel(self, iface: interface.InterfaceBase) -> None:
-        """Cancel the handle, requesting any associated work to not complete.
-
-        This automatically abandons the handle, as a response is no longer
-        guaranteed.
-
-        Args:
-            interface: The interface on which to publish the cancel request.
-        """
         iface.publish_cancel(self._address)
         self.abandon()
 
+    @override
     def abandon(self) -> None:
-        """Abandon the handle, indicating it will not receive a response."""
         with self._lock:
             self._abandoned = True
             self._signal_done()
 
     def _signal_done(self) -> None:
-        """Indicate that the handle either got a result or became abandoned.
+        """Indicate that the handle either got a response or became abandoned.
 
         The lock must be held.
         """
@@ -78,29 +75,13 @@ class MailboxHandle:
             asyncio_event.set_threadsafe()
         self._asyncio_events.clear()
 
-    def check(self) -> pb.Result | None:
-        """Returns the result if it's ready."""
+    @override
+    def check(self) -> spb.ServerResponse | None:
         with self._lock:
-            return self._result
+            return self._response
 
-    def wait_or(self, *, timeout: float | None) -> pb.Result:
-        """Wait for a response or a timeout.
-
-        This is called `wait_or` because it replaces a method called `wait`
-        with different semantics.
-
-        Args:
-            timeout: A finite number of seconds or None to never time out.
-                If less than or equal to zero, times out immediately unless
-                the result is available.
-
-        Returns:
-            The result if it arrives before the timeout or has already arrived.
-
-        Raises:
-            TimeoutError: If the timeout is reached.
-            HandleAbandonedError: If the handle becomes abandoned.
-        """
+    @override
+    def wait_or(self, *, timeout: float | None) -> spb.ServerResponse:
         if timeout is not None and not math.isfinite(timeout):
             raise ValueError("Timeout must be finite or None.")
 
@@ -110,27 +91,14 @@ class MailboxHandle:
             )
 
         with self._lock:
-            if self._result:
-                return self._result
+            if self._response:
+                return self._response
 
             assert self._abandoned
             raise HandleAbandonedError()
 
-    async def wait_async(self, *, timeout: float | None) -> pb.Result:
-        """Wait for a response or timeout.
-
-        This must run in an `asyncio` event loop.
-
-        Args:
-            timeout: A finite number of seconds or None to never time out.
-
-        Returns:
-            The result if it arrives before the timeout or has already arrived.
-
-        Raises:
-            TimeoutError: If the timeout is reached.
-            HandleAbandonedError: If the handle becomes abandoned.
-        """
+    @override
+    async def wait_async(self, *, timeout: float | None) -> spb.ServerResponse:
         if timeout is not None and not math.isfinite(timeout):
             raise ValueError("Timeout must be finite or None.")
 
@@ -142,8 +110,8 @@ class MailboxHandle:
 
         except (asyncio.TimeoutError, TimeoutError) as e:
             with self._lock:
-                if self._result:
-                    return self._result
+                if self._response:
+                    return self._response
                 elif self._abandoned:
                     raise HandleAbandonedError()
                 else:
@@ -153,8 +121,8 @@ class MailboxHandle:
 
         else:
             with self._lock:
-                if self._result:
-                    return self._result
+                if self._response:
+                    return self._response
 
                 assert self._abandoned
                 raise HandleAbandonedError()
@@ -167,20 +135,20 @@ class MailboxHandle:
         loop: asyncio.AbstractEventLoop,
         event: asyncio.Event,
     ) -> None:
-        """Add an event to signal when a result is received.
+        """Add an event to signal when a response is received.
 
-        If a result already exists, this notifies the event loop immediately.
+        If a response already exists, this notifies the event loop immediately.
         """
         asyncio_event = _AsyncioEvent(loop, event)
 
         with self._lock:
-            if self._result or self._abandoned:
+            if self._response or self._abandoned:
                 asyncio_event.set_threadsafe()
             else:
                 self._asyncio_events[event] = asyncio_event
 
     def _forget_asyncio_event(self, event: asyncio.Event) -> None:
-        """Cancel signalling an event when a result is received."""
+        """Cancel signalling an event when a response is received."""
         with self._lock:
             self._asyncio_events.pop(event, None)
 
