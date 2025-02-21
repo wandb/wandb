@@ -69,7 +69,13 @@ type SenderParams struct {
 	RunWork             runwork.RunWork
 }
 
+// senderSentinel is used when flushing buffered work while finalizing a run.
 type senderSentinel int64
+
+// String returns a string representation of senderSentinel for debugging.
+func (s senderSentinel) String() string {
+	return fmt.Sprintf("senderSentinel(%d)", s)
+}
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
 // or/and to the dispatcher/handler
