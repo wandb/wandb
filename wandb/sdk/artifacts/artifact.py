@@ -144,6 +144,8 @@ class Artifact:
                 "Artifact types 'job' and 'wandb-*' are reserved for internal use. "
                 "Please use a different type."
             )
+        if metadata and len(metadata) > 100:
+            raise ValueError("An artifact's metadata can have at most 100 keys.")
         if incremental:
             termwarn("Using experimental arg `incremental`")
 
@@ -686,6 +688,8 @@ class Artifact:
         Args:
             metadata: Structured data associated with the artifact.
         """
+        if metadata and len(metadata) > 100:
+            raise ValueError("An artifact's metadata can have at most 100 keys.")
         self._metadata = self._normalize_metadata(metadata)
 
     @property
