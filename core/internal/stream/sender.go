@@ -65,7 +65,7 @@ type SenderParams struct {
 	Peeker              *observability.Peeker
 	RunSummary          *runsummary.RunSummary
 	Mailbox             *mailbox.Mailbox
-	OutChan             chan *spb.Result
+	OutChan             chan<- *spb.Result
 	RunWork             runwork.RunWork
 }
 
@@ -107,7 +107,7 @@ type Sender struct {
 	settings *settings.Settings
 
 	// outChan is the channel for dispatcher messages
-	outChan chan *spb.Result
+	outChan chan<- *spb.Result
 
 	// graphqlClient is the graphql client
 	graphqlClient graphql.Client
@@ -318,7 +318,6 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 	close(hangDetectionInChan)
 	close(hangDetectionOutChan)
 
-	s.Close()
 	s.logger.Info("sender: closed", "stream_id", s.settings.GetRunID())
 }
 
@@ -358,11 +357,6 @@ outerLoop:
 		}
 	}
 
-}
-
-func (s *Sender) Close() {
-	// sender is done processing data, close our dispatch channel
-	close(s.outChan)
 }
 
 func (s *Sender) respond(record *spb.Record, response any) {

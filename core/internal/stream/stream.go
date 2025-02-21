@@ -213,6 +213,8 @@ func NewStream(
 	)
 
 	mailbox := mailbox.New()
+
+	s.dispatcher = NewDispatcher(s.logger)
 	if s.settings.IsSync() {
 		s.reader = NewReader(ReaderParams{
 			Logger:   s.logger,
@@ -236,7 +238,7 @@ func NewStream(
 			Logger:            s.logger,
 			Mailbox:           mailbox,
 			Operations:        operations,
-			OutChan:           make(chan *spb.Result, BufferSize),
+			OutChan:           s.dispatcher.Chan(),
 			Settings:          s.settings,
 			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings, s.runWork),
 			TBHandler:         tbHandler,
@@ -259,21 +261,19 @@ func NewStream(
 			Peeker:              peeker,
 			RunSummary:          runsummary.New(),
 			GraphqlClient:       graphqlClientOrNil,
-			OutChan:             make(chan *spb.Result, BufferSize),
+			OutChan:             s.dispatcher.Chan(),
 			Mailbox:             mailbox,
 			RunWork:             s.runWork,
 		},
 	)
-
-	s.dispatcher = NewDispatcher(s.logger)
 
 	s.logger.Info("created new stream", "id", s.settings.GetRunID())
 	return s
 }
 
 // AddResponders adds the given responders to the stream's dispatcher.
-func (s *Stream) AddResponders(entries ...ResponderEntry) {
-	s.dispatcher.AddResponders(entries...)
+func (s *Stream) RegisterResponder(entry ResponderEntry) {
+	s.dispatcher.RegisterResponder(entry)
 }
 
 // UpdateSettings updates the stream's settings with the given settings.
@@ -321,7 +321,6 @@ func (s *Stream) Start() {
 			s.sender.Do(s.writer.fwdChan)
 			s.wg.Done()
 		}()
-
 	} else {
 		s.wg.Add(1)
 		go func() {
@@ -329,6 +328,7 @@ func (s *Stream) Start() {
 			s.wg.Done()
 		}()
 
+		// send the data to the server
 		s.wg.Add(1)
 		go func() {
 			s.sender.Do(s.handler.fwdChan)
@@ -337,15 +337,7 @@ func (s *Stream) Start() {
 	}
 
 	// handle dispatching between components
-	for _, ch := range []chan *spb.Result{s.handler.outChan, s.sender.outChan} {
-		s.wg.Add(1)
-		go func(ch chan *spb.Result) {
-			for result := range ch {
-				s.dispatcher.handleRespond(result)
-			}
-			s.wg.Done()
-		}(ch)
-	}
+	go s.dispatcher.Do()
 
 	s.logger.Info("stream: started", "id", s.settings.GetRunID())
 }
@@ -361,6 +353,7 @@ func (s *Stream) Close() {
 	s.logger.Info("stream: closing", "id", s.settings.GetRunID())
 	s.runWork.Close()
 	s.wg.Wait()
+	s.dispatcher.Close()
 	s.logger.Info("stream: closed", "id", s.settings.GetRunID())
 }
 
