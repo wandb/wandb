@@ -11,6 +11,27 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.19.7] - 2025-02-21
+
+### Added
+
+- Registry search api (@estellazx in https://github.com/wandb/wandb/pull/9472)
+
+### Changed
+
+- changed moviepy constraint to >=1.0.0 (@jacobromero in https://github.com/wandb/wandb/pull/9419)
+- `wandb.init()` displays more detailed information, in particular when it is stuck retrying HTTP errors (@timoffex in https://github.com/wandb/wandb/pull/9431)
+
+### Removed
+
+- Removed the private `x_show_operation_stats` setting (@timoffex in https://github.com/wandb/wandb/pull/9427)
+
+### Fixed
+
+- Fixed incorrect logging of an "wandb.Video requires moviepy \[...\]" exception when using moviepy v2. (@Daraan in https://github.com/wandb/wandb/pull/9375)
+- `wandb.setup()` correctly starts up the internal service process; this semantic was unintentionally broken in 0.19.2 (@timoffex in https://github.com/wandb/wandb/pull/9436)
+- Fixed `TypeError: Object of type ... is not JSON serializable` when using numpy number types as values. (@jacobromero in https://github.com/wandb/wandb/pull/9487)
+
 ## [0.19.6] - 2025-02-05
 
 ### Added
