@@ -84,7 +84,12 @@ from .lib import (
     telemetry,
 )
 from .lib.exit_hooks import ExitHooks
-from .mailbox import HandleAbandonedError, MailboxHandle, wait_with_progress
+from .mailbox import (
+    HandleAbandonedError,
+    MailboxClosedError,
+    MailboxHandle,
+    wait_with_progress,
+)
 from .wandb_alerts import AlertLevel
 from .wandb_metadata import Metadata
 from .wandb_settings import Settings
@@ -224,7 +229,11 @@ class RunStatusChecker:
         while not join_requested:
             time_probe = time.monotonic()
             if not local_handle:
-                local_handle = request()
+                try:
+                    local_handle = request()
+                except MailboxClosedError:
+                    # This can happen if the service process dies.
+                    break
             assert local_handle
 
             with lock:

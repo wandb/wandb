@@ -94,4 +94,13 @@ def _go_env(
         # -race requires cgo.
         env["CGO_ENABLED"] = "1"
 
+    if target_system == "darwin" and target_arch == "amd64":
+        # When CGO is disabled, the Go compiler's internal linker does not respect
+        # the MACOSX_DEPLOYMENT_TARGET value to lower the minimum OS version, which we rely on
+        # for building wheels for MacOS 10.x in CI. Instead, it embeds a minimum target
+        # based on the SDK in the CI runner, which as of 2025-02-20 is 11.0.
+        # To work around this, we enable CGO and force the Go compiler to use
+        # the system linker, which respects MACOSX_DEPLOYMENT_TARGET.
+        env["CGO_ENABLED"] = "1"
+
     return env

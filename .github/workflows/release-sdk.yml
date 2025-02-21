@@ -86,12 +86,10 @@ jobs:
       ##################################################
       - name: Downgrade Go version
         run: |
-          sed -i '' 's/1.23.4/1.22.10/' core/go.mod
+          sed -i '' 's/1.23.4/1.22.12/' core/go.mod
 
       ##################################################
-      # Non-Linux: install Go
-      #
-      # See comment above CIBW_BEFORE_ALL_LINUX.
+      # Install Go.
       ##################################################
       - name: Set up Go
         uses: actions/setup-go@v5

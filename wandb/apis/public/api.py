@@ -25,8 +25,15 @@ import wandb
 from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
+from wandb.apis.public._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.utils import PathType, parse_org_from_registry_path
+from wandb.apis.public.registries import Registries
+from wandb.apis.public.utils import (
+    PathType,
+    fetch_org_from_settings_or_entity,
+    parse_org_from_registry_path,
+)
+from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
@@ -282,6 +289,7 @@ class Api:
             )
         )
         self._client = RetryingClient(self._base_client)
+        self._server_features_cache = None
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
@@ -1449,3 +1457,117 @@ class Api:
             return True
         except wandb.errors.CommError:
             return False
+
+    def registries(
+        self,
+        organization: Optional[str] = None,
+        filter: Optional[Dict[str, Any]] = None,
+    ) -> Registries:
+        """Returns a Registry iterator.
+
+        Use the iterator to search and filter registries, collections,
+        or artifact versions across your organization's registry.
+
+        Examples:
+            Find all registries with the names that contain "model"
+            ```python
+            import wandb
+
+            api = wandb.Api()  # specify an org if your entity belongs to multiple orgs
+            api.registries(filter={"name": {"$regex": "model"}})
+            ```
+
+            Find all collections in the registries with the name "my_collection" and the tag "my_tag"
+            ```python
+            api.registries().collections(filter={"name": "my_collection", "tag": "my_tag"})
+            ```
+
+            Find all artifact versions in the registries with a collection name that contains "my_collection" and a version that has the alias "best"
+            ```python
+            api.registries().collections(
+                filter={"name": {"$regex": "my_collection"}}
+            ).versions(filter={"alias": "best"})
+            ```
+
+            Find all artifact versions in the registries that contain "model" and have the tag "prod" or alias "best"
+            ```python
+            api.registries(filter={"name": {"$regex": "model"}}).versions(
+                filter={"$or": [{"tag": "prod"}, {"alias": "best"}]}
+            )
+            ```
+
+        Args:
+            organization: (str, optional) The organization of the registry to fetch.
+                If not specified, use the organization specified in the user's settings.
+            filter: (dict, optional) MongoDB-style filter to apply to each object in the registry iterator.
+                Fields available to filter for collections are
+                    `name`, `description`, `created_at`, `updated_at`.
+                Fields available to filter for collections are
+                    `name`, `tag`, `description`, `created_at`, `updated_at`
+                Fields available to filter for versions are
+                    `tag`, `alias`, `created_at`, `updated_at`, `metadata`
+
+        Returns:
+            A registry iterator.
+        """
+        if not self._check_server_feature_with_fallback(
+            ServerFeature.ARTIFACT_REGISTRY_SEARCH
+        ):
+            raise RuntimeError(
+                "Registry search API is not enabled on this wandb server version. "
+                "Please upgrade your server version or contact support at support@wandb.com."
+            )
+
+        organization = organization or fetch_org_from_settings_or_entity(
+            self.settings, self.default_entity
+        )
+        return Registries(self.client, organization, filter)
+
+    def _check_server_feature(self, feature: ServerFeature) -> bool:
+        """Check if a server feature is enabled.
+
+        Args:
+            feature (ServerFeature): The feature to check.
+
+        Returns:
+            bool: True if the feature is enabled, False otherwise.
+
+        Raises:
+            Exception: If server doesn't support feature queries or other errors occur
+        """
+        if self._server_features_cache is None:
+            response = self.client.execute(gql(SERVER_FEATURES_QUERY_GQL))
+            self._server_features_cache = ServerFeaturesQuery.model_validate(response)
+
+        feature_name = ServerFeature.Name(feature)
+        if (
+            self._server_features_cache
+            and self._server_features_cache.server_info
+            and self._server_features_cache.server_info.features
+        ):
+            for feature_info in self._server_features_cache.server_info.features:
+                if feature_info and feature_info.name == feature_name:
+                    return feature_info.is_enabled
+
+        return False
+
+    def _check_server_feature_with_fallback(self, feature: ServerFeature) -> bool:
+        """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
+
+        Good to use for features that have a fallback mechanism for older servers.
+
+        Args:
+            feature (ServerFeature): The feature to check.
+
+        Returns:
+            bool: True if the feature is enabled, False otherwise.
+
+        Exceptions:
+            Exception: If an error other than the server not supporting feature queries occurs.
+        """
+        try:
+            return self._check_server_feature(feature)
+        except Exception as e:
+            if 'Cannot query field "features" on type "ServerInfo".' in str(e):
+                return False
+            raise e
