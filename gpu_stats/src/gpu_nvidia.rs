@@ -1,5 +1,5 @@
-use crate::metrics::MetricValue;
 use crate::wandb_internal::{GpuNvidiaInfo, MetadataRequest};
+use crate::{metrics::MetricValue, pid::process_tree};
 
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::error::NvmlError;
@@ -171,7 +171,7 @@ impl NvidiaGpu {
     #[cfg(target_os = "linux")]
     fn gpu_in_use_by_process(&self, device: &Device, pid: i32) -> bool {
         let mut our_pids = Vec::new();
-        if let Ok(descendant_pids) = self.get_descendant_pids(pid) {
+        if let Ok(descendant_pids) = process_tree(pid) {
             our_pids.extend(descendant_pids);
         }
 
@@ -185,41 +185,6 @@ impl NvidiaGpu {
             .collect();
 
         our_pids.iter().any(|&p| device_pids.contains(&p))
-    }
-
-    /// Get descendant process IDs for a given parent PID.
-    #[cfg(target_os = "linux")]
-    fn get_descendant_pids(&self, parent_pid: i32) -> Result<Vec<i32>, std::io::Error> {
-        use std::collections::HashSet;
-        use std::fs::read_to_string;
-
-        let mut descendant_pids = Vec::new();
-        let mut visited_pids = HashSet::new();
-        let mut stack = vec![parent_pid];
-
-        while let Some(pid) = stack.pop() {
-            // Skip if we've already visited this PID
-            if !visited_pids.insert(pid) {
-                continue;
-            }
-
-            let children_path = format!("/proc/{}/task/{}/children", pid, pid);
-            match read_to_string(&children_path) {
-                Ok(contents) => {
-                    let child_pids: Vec<i32> = contents
-                        .split_whitespace()
-                        .filter_map(|s| s.parse::<i32>().ok())
-                        .collect();
-                    stack.extend(&child_pids);
-                    descendant_pids.extend(&child_pids);
-                }
-                Err(_) => {
-                    continue; // Skip to the next PID
-                }
-            }
-        }
-
-        Ok(descendant_pids)
     }
 
     #[cfg(not(target_os = "linux"))]
