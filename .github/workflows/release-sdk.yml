@@ -133,10 +133,6 @@ jobs:
               -v {wheel}
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=10.14
-            CGO_ENABLED=0
-            GOARCH=amd64
-            GOOS=darwin
-            GOFLAGS="-ldflags=-w -s -buildmode=pie -X=darwin/ios.MinVersion=10.14 -macosx-version-min=10.14"
 
       - uses: actions/upload-artifact@v4
         with:
