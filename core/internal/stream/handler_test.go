@@ -21,14 +21,16 @@ func makeHandler(
 	commit string,
 	featureProvider *featurechecker.ServerFeaturesCache,
 ) *stream.Handler {
+	s := settings.New()
+	s.UpdateServerSideDerivedSummary(true)
+
 	h := stream.NewHandler(
 		stream.HandlerParams{
 			Logger:          observability.NewNoOpLogger(),
-			Settings:        settings.From(&spb.Settings{}),
+			Settings:        s,
 			FwdChan:         fwdChan,
 			OutChan:         outChan,
 			TerminalPrinter: observability.NewPrinter(),
-			SkipSummary:     true,
 			Commit:          commit,
 			FeatureProvider: featureProvider,
 		},
