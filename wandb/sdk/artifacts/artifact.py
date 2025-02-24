@@ -120,10 +120,7 @@ class Artifact:
             dictionary of key-value pairs. You can specify no more than 100 total keys.
         incremental: Use `Artifact.new_draft()` method instead to modify an
             existing artifact.
-        use_as: Optional string that provides additional context for the
-            artifact. This is useful for tracking the context of why the
-            artifact was created. For example, you might set this to
-            "training" or "evaluation".
+        use_as: W&B Launch specific parameter. Not recommended for general use.
 
     Returns:
         An `Artifact` object.
