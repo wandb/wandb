@@ -6,10 +6,12 @@ import (
 	goParser "go/parser"
 	goToken "go/token"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/parser"
 	"github.com/vektah/gqlparser/v2/validator"
@@ -87,7 +89,10 @@ func getAndValidateQueries(basedir string, filenames StringList, schema *ast.Sch
 func expandFilenames(globs []string) ([]string, error) {
 	uniqFilenames := make(map[string]bool, len(globs))
 	for _, glob := range globs {
-		matches, err := filepath.Glob(glob)
+		// SplitPattern in case the path is absolute or something; a valid path
+		// isn't necessarily a valid glob-pattern.
+		base, pattern := doublestar.SplitPattern(glob)
+		matches, err := doublestar.Glob(os.DirFS(base), pattern, doublestar.WithFilesOnly())
 		if err != nil {
 			return nil, errorf(nil, "can't expand file-glob %v: %v", glob, err)
 		}
@@ -95,7 +100,7 @@ func expandFilenames(globs []string) ([]string, error) {
 			return nil, errorf(nil, "%v did not match any files", glob)
 		}
 		for _, match := range matches {
-			uniqFilenames[match] = true
+			uniqFilenames[path.Join(base, match)] = true
 		}
 	}
 	filenames := make([]string, 0, len(uniqFilenames))

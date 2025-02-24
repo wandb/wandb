@@ -35,7 +35,7 @@ func selectionsMatch(
 			actual, ok := actualSelectionSet[i].(*ast.Field)
 			switch {
 			case !ok:
-				return errorf(actual.Position,
+				return errorf(pos,
 					"expected selection #%d to be field, got %T",
 					i, actualSelectionSet[i])
 			case actual.Name != expected.Name:
@@ -55,7 +55,7 @@ func selectionsMatch(
 			actual, ok := actualSelectionSet[i].(*ast.InlineFragment)
 			switch {
 			case !ok:
-				return errorf(actual.Position,
+				return errorf(pos,
 					"expected selection %d to be inline fragment, got %T",
 					i, actualSelectionSet[i])
 			case actual.TypeCondition != expected.TypeCondition:
@@ -71,7 +71,7 @@ func selectionsMatch(
 			actual, ok := actualSelectionSet[i].(*ast.FragmentSpread)
 			switch {
 			case !ok:
-				return errorf(actual.Position,
+				return errorf(pos,
 					"expected selection %d to be fragment spread, got %T",
 					i, actualSelectionSet[i])
 			case actual.Name != expected.Name:
