@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest import mock
 
+import numpy as np
 import pytest
 import requests
 import wandb
@@ -462,6 +463,16 @@ def test_log_table_offline_no_network(user, monkeypatch):
     run.finish()
     assert num_network_calls_made == 0
     assert run.offline is True
+
+
+def test_log_with_glob_chars(user, wandb_backend_spy):
+    run = wandb.init()
+    run.log({"[glob chars]": wandb.Image(np.random.randint(0, 255, (100, 100, 3)))})
+    run.finish()
+
+    with wandb_backend_spy.freeze() as snapshot:
+        uploaded_files = snapshot.uploaded_files(run_id=run.id)
+        assert any("[glob chars]" in f for f in uploaded_files)
 
 
 # ----------------------------------
