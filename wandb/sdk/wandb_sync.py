@@ -7,7 +7,6 @@ from wandb.errors.term import termerror, termlog
 from . import wandb_setup
 from .backend.backend import Backend
 from .lib.runid import generate_id
-from .mailbox import Mailbox
 
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2
@@ -49,12 +48,7 @@ def _sync(
     service = wl.ensure_service()
     service.inform_init(settings=settings, run_id=stream_id)
 
-    mailbox = Mailbox()
-    backend = Backend(
-        settings=wl.settings,
-        service=service,
-        mailbox=mailbox,
-    )
+    backend = Backend(settings=wl.settings, service=service)
     backend.ensure_launched()
 
     assert backend.interface
