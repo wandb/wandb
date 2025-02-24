@@ -397,7 +397,7 @@ class InterfaceShared(InterfaceBase):
         handle = mailbox.require_response(record)
         self._publish(record)
 
-        return handle
+        return handle.map(lambda resp: resp.result_communicate)
 
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
         record = self._make_record(run=run)
