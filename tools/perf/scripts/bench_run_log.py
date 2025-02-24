@@ -11,6 +11,8 @@ from typing import List, Literal
 import numpy as np
 import wandb
 
+from .setup_helper import setup_package_logger
+
 logger = logging.getLogger(__name__)
 
 
@@ -45,6 +47,7 @@ class PayloadGenerator:
         fraction: The fraction (%) of the base payload to log per step.
         is_unique_payload: If true, every step logs a unique payload
         dense_metric_count: Number of dense metrics (logged every step)
+        sparse_stride_size: Number of steps to skip before logging the sparse metrics
     """
 
     def __init__(
@@ -58,6 +61,7 @@ class PayloadGenerator:
         fraction: float,
         is_unique_payload: bool,
         dense_metric_count: int,
+        sparse_stride_size: int,
     ):
         self.data_type = data_type
         self.sparse_metric_count = sparse_metric_count
@@ -66,6 +70,8 @@ class PayloadGenerator:
         self.fraction = fraction
         self.is_unique_payload = is_unique_payload
         self.dense_metric_count = dense_metric_count
+        self.sparse_stride_size = sparse_stride_size
+        self.sparse_metrics = None
 
         self.metrics_count_per_step = int(self.sparse_metric_count * self.fraction)
         if self.is_unique_payload:
@@ -157,31 +163,39 @@ class PayloadGenerator:
             List: A list of dictionaries with the scalar data.
         """
         # Generate dense metrics if applicable
-        dense_metrics = (
-            {
-                self.random_string(self.metric_key_size): random.randint(1, 10**2)
-                for _ in range(self.dense_metric_count)
-            }
-            if self.dense_metric_count > 0
-            else {}
-        )
+        dense_metrics = {
+            self.random_string(self.metric_key_size): random.randint(1, 10**2)
+            for _ in range(self.dense_metric_count)
+        }
 
         # Log example dense metric if available
         if dense_metrics:
             example_key = next(iter(dense_metrics))
             logger.info(f"Example dense metric: {example_key}")
 
-        # Generate base payloads with optional dense metrics prepended
-        payloads = [
-            {
-                **dense_metrics,
-                **{
-                    self.random_string(self.metric_key_size): random.randint(1, 10**2)
-                    for _ in range(self.metrics_count_per_step)
-                },
+        if self.sparse_stride_size > 0:
+            # Generate a single payload for sparse logging every X steps
+            self.sparse_metrics = {
+                f"sparse/acc{i}": random.randint(1, 10**2)
+                for i in range(self.sparse_metric_count)
             }
-            for _ in range(self.num_of_unique_payload)
-        ]
+
+            payloads = [{**dense_metrics}]
+
+        else:
+            # Generate payloads with sparse metrics + optional dense metrics prepended
+            payloads = [
+                {
+                    **dense_metrics,
+                    **{
+                        self.random_string(self.metric_key_size): random.randint(
+                            1, 10**2
+                        )
+                        for _ in range(self.metrics_count_per_step)
+                    },
+                }
+                for _ in range(self.num_of_unique_payload)
+            ]
 
         return payloads
 
@@ -194,35 +208,41 @@ class PayloadGenerator:
             List: A list of dictionaries with the scalar data.
         """
         # Generate dense metrics if applicable
-        dense_metrics = (
-            {
-                f"dense/accuracy{i}": random.randint(1, 10**2)
-                for i in range(self.dense_metric_count)
-            }
-            if self.dense_metric_count > 0
-            else {}
-        )
+        dense_metrics = {
+            f"dense/accuracy{i}": random.randint(1, 10**2)
+            for i in range(self.dense_metric_count)
+        }
 
         # Log example dense metric if available
         if dense_metrics:
             example_key = next(iter(dense_metrics))
             logger.info(f"Example dense metric: {example_key}")
 
-        # Generate base payloads with optional dense metrics prepended
-        payloads = [
-            {
-                **dense_metrics,
-                **{
-                    f"eval{x}/loss{i}": random.randint(1, 10**2)
-                    for i in range(self.metrics_count_per_step // 2)
-                },
-                **{
-                    f"rank{x}/accuracy{i}": random.randint(1, 10**2)
-                    for i in range(self.metrics_count_per_step // 2)
-                },
+        if self.sparse_stride_size > 0:
+            # Generate a single payload for sparse logging every X steps
+            self.sparse_metrics = {
+                f"sparse/acc{i}": random.randint(1, 10**2)
+                for i in range(self.sparse_metric_count)
             }
-            for x in range(self.num_of_unique_payload)
-        ]
+
+            payloads = [{**dense_metrics}]
+
+        else:
+            # Generate payloads with sparse metrics + optional dense metrics prepended
+            payloads = [
+                {
+                    **dense_metrics,
+                    **{
+                        f"eval{x}/loss{i}": random.randint(1, 10**2)
+                        for i in range(self.metrics_count_per_step // 2)
+                    },
+                    **{
+                        f"rank{x}/accuracy{i}": random.randint(1, 10**2)
+                        for i in range(self.metrics_count_per_step // 2)
+                    },
+                }
+                for x in range(self.num_of_unique_payload)
+            ]
 
         return payloads
 
@@ -331,6 +351,7 @@ class Experiment:
                             The dense metrics is a separate set of metrics from the sparse metrics.
         fork_from: The fork from string (formatted) e.g. f"{original_run.id}?_step=200"
         project: The W&B project name to log to
+        sparse_stride_size: The number of steps to skip before logging the sparse metrics
 
     When to set "is_unique_payload" to True?
 
@@ -359,6 +380,7 @@ class Experiment:
         dense_metric_count: int = 0,
         fork_from: str = "",
         project: str = "perf-test",
+        sparse_stride_size: int = 0,
     ):
         self.num_steps = num_steps
         self.num_metrics = num_metrics
@@ -373,6 +395,7 @@ class Experiment:
         self.dense_metric_count = dense_metric_count
         self.fork_from = fork_from
         self.project = project
+        self.sparse_stride_size = sparse_stride_size
 
     def run(self, repeat: int = 1):
         for _ in range(repeat):
@@ -442,7 +465,7 @@ class Experiment:
 
         # pre-generate all the payloads
         logger.info("Generating test payloads ...")
-        payloads = PayloadGenerator(
+        generator = PayloadGenerator(
             self.data_type,
             self.num_metrics,
             self.metric_key_size,
@@ -450,24 +473,36 @@ class Experiment:
             self.fraction,
             self.is_unique_payload,
             self.dense_metric_count,
-        ).generate()
+            self.sparse_stride_size,
+        )
+        payloads = generator.generate()
 
         logger.info(f"Start logging {self.num_steps} steps ...")
         with Timer() as timer:
             for s in range(self.num_steps):
+                global_values = {}
+                global_values["global_step"] = s
                 if self.is_unique_payload or self.fraction < 1.0:
-                    run.log(payloads[s % len(payloads)])
+                    run.log({**global_values, **(payloads[s % len(payloads)])})
                 else:
-                    run.log(payloads[0])
+                    if self.sparse_stride_size > 0 and s % self.sparse_stride_size == 0:
+                        # log the sparse + dense metrics
+                        run.log(
+                            {
+                                **global_values,
+                                **(generator.sparse_metrics),
+                                **(payloads[0]),
+                            }
+                        )
+                    else:
+                        # log only the dense metric
+                        run.log({**global_values, **(payloads[0])})
 
-                # 12/20/2024 - Wai
-                # HACKAROUND: We ran into some 500s and 502s errors when SDK logs
-                # a million+ unique metrics in a tight loop. Adding a small sleep
-                # between each step works around the problem for now.
                 if self.time_delay_second > 0:
                     time.sleep(self.time_delay_second)
 
             result_data["log_time"] = timer.stop()
+            result_data["run_id"] = run.id
 
         # compute the log() throughput rps (request per sec)
         if result_data["log_time"] == 0:
@@ -504,6 +539,7 @@ class Experiment:
 
 
 if __name__ == "__main__":
+    setup_package_logger()
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-r",
@@ -631,6 +667,14 @@ if __name__ == "__main__":
         help="The number of wandb instances to launch",
     )
 
+    parser.add_argument(
+        "-w",
+        "--sparse-stride-size",
+        type=int,
+        default=0,
+        help="The number of steps to skip for logging the sparse payload",
+    )
+
     args = parser.parse_args()
 
     fork_from_str = ""
@@ -652,6 +696,7 @@ if __name__ == "__main__":
         dense_metric_count=args.dense_metric_count,
         fork_from=fork_from_str,
         project=args.project,
+        sparse_stride_size=args.sparse_stride_size,
     )
 
     experiment.parallel_runs(args.parallel)

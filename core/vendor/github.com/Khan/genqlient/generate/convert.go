@@ -80,9 +80,6 @@ func (g *generator) baseTypeForOperation(operation ast.Operation) (*ast.Definiti
 	case ast.Mutation:
 		return g.schema.Mutation, nil
 	case ast.Subscription:
-		if !g.Config.AllowBrokenFeatures {
-			return nil, errorf(nil, "genqlient does not yet support subscriptions")
-		}
 		return g.schema.Subscription, nil
 	default:
 		return nil, errorf(nil, "unexpected operation: %v", operation)
@@ -248,6 +245,9 @@ func (g *generator) convertType(
 	def := g.schema.Types[typ.Name()]
 	goTyp, err := g.convertDefinition(
 		namePrefix, def, typ.Position, selectionSet, options, queryOptions)
+	if err != nil {
+		return nil, err
+	}
 
 	if g.getStructReference(def) {
 		if options.Pointer == nil || *options.Pointer {
@@ -274,7 +274,8 @@ func (g *generator) convertType(
 			Elem:         goTyp,
 		}
 	}
-	return goTyp, err
+
+	return goTyp, nil
 }
 
 // getStructReference decides if a field should be of pointer type and have the omitempty flag set.
@@ -448,6 +449,24 @@ func (g *generator) convertDefinition(
 				namePrefix, field.Type, nil, fieldOptions, queryOptions)
 			if err != nil {
 				return nil, err
+			}
+
+			if !g.Config.StructReferences {
+				// Only do these validation when StructReferences are not used, as that can generate types that would not
+				// pass these validations. See https://github.com/Khan/genqlient/issues/342
+
+				// Try to protect against generating field type that has possibility to send `null` to non-nullable graphQL
+				// type. This does not protect against lists/slices, as Go zero-slices are already serialized as `null`
+				// (which can therefore currently send invalid graphQL value - e.g. `null` for [String!]!).
+				// And does not protect against custom MarshalJSON.
+				_, isPointer := fieldGoType.(*goPointerType)
+				if field.Type.NonNull && isPointer && !fieldOptions.GetOmitempty() {
+					return nil, errorf(pos, "pointer on non-null input field can only be used together with omitempty: %s.%s", name, field.Name)
+				}
+
+				if fieldOptions.GetOmitempty() && field.Type.NonNull && field.DefaultValue == nil {
+					return nil, errorf(pos, "omitempty may only be used on optional arguments: %s.%s", name, field.Name)
+				}
 			}
 
 			goType.Fields[i] = &goStructField{

@@ -12,6 +12,7 @@ import (
 	"go/types"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -19,29 +20,30 @@ import (
 )
 
 // The name of a symbol contains information about the symbol:
-// <name> T for types
-// <name> C for consts
-// <name> V for vars
+// <name> T for types, TD if the type is deprecated
+// <name> C for consts, CD if the const is deprecated
+// <name> V for vars, VD if the var is deprecated
 // and for funcs: <name> F <num of return values> (<arg-name> <arg-type>)*
 // any spaces in <arg-type> are replaced by $s so that the fields
-// of the name are space separated
+// of the name are space separated. F is replaced by FD if the func
+// is deprecated.
 type symbol struct {
 	pkg  string // name of the symbols's package
 	name string // declared name
-	kind string // T, C, V, or F
+	kind string // T, C, V, or F, follwed by D if deprecated
 	sig  string // signature information, for F
 }
 
 // find the symbols for the best directories
 func getSymbols(cd Abspath, dirs map[string][]*directory) {
 	var g errgroup.Group
-	g.SetLimit(-1) // maybe throttle this some day
+	g.SetLimit(max(2, runtime.GOMAXPROCS(0)/2))
 	for _, vv := range dirs {
 		// throttling some day?
 		d := vv[0]
 		g.Go(func() error {
 			thedir := filepath.Join(string(cd), string(d.path))
-			mode := parser.SkipObjectResolution
+			mode := parser.SkipObjectResolution | parser.ParseComments
 
 			fi, err := os.ReadDir(thedir)
 			if err != nil {
@@ -84,6 +86,9 @@ func getFileExports(f *ast.File) []symbol {
 			// generic functions just like non-generic ones.
 			sig := dtype.Params
 			kind := "F"
+			if isDeprecated(decl.Doc) {
+				kind += "D"
+			}
 			result := []string{fmt.Sprintf("%d", dtype.Results.NumFields())}
 			for _, x := range sig.List {
 				// This code creates a string representing the type.
@@ -107,7 +112,7 @@ func getFileExports(f *ast.File) []symbol {
 				// print struct tags. So for this to happen the type of a formal parameter
 				// has to be a explict struct, e.g. foo(x struct{a int "$"}) and ExprString
 				// would have to show the struct tag. Even testing for this case seems
-				// a waste of effort, but let's not ignore such pathologies
+				// a waste of effort, but let's remember the possibility
 				if strings.Contains(tp, "$") {
 					continue
 				}
@@ -127,11 +132,15 @@ func getFileExports(f *ast.File) []symbol {
 				ans = append(ans, *s)
 			}
 		case *ast.GenDecl:
+			depr := isDeprecated(decl.Doc)
 			switch decl.Tok {
 			case token.CONST, token.VAR:
 				tp := "V"
 				if decl.Tok == token.CONST {
 					tp = "C"
+				}
+				if depr {
+					tp += "D"
 				}
 				for _, sp := range decl.Specs {
 					for _, x := range sp.(*ast.ValueSpec).Names {
@@ -141,8 +150,12 @@ func getFileExports(f *ast.File) []symbol {
 					}
 				}
 			case token.TYPE:
+				tp := "T"
+				if depr {
+					tp += "D"
+				}
 				for _, sp := range decl.Specs {
-					if s := newsym(pkg, sp.(*ast.TypeSpec).Name.Name, "T", ""); s != nil {
+					if s := newsym(pkg, sp.(*ast.TypeSpec).Name.Name, tp, ""); s != nil {
 						ans = append(ans, *s)
 					}
 				}
@@ -158,6 +171,22 @@ func newsym(pkg, name, kind, sig string) *symbol {
 	}
 	sym := symbol{pkg: pkg, name: name, kind: kind, sig: sig}
 	return &sym
+}
+
+func isDeprecated(doc *ast.CommentGroup) bool {
+	if doc == nil {
+		return false
+	}
+	// go.dev/wiki/Deprecated Paragraph starting 'Deprecated:'
+	// This code fails for /* Deprecated: */, but it's the code from
+	// gopls/internal/analysis/deprecated
+	lines := strings.Split(doc.Text(), "\n\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "Deprecated:") {
+			return true
+		}
+	}
+	return false
 }
 
 // return the package name and the value for the symbols.
