@@ -5,13 +5,13 @@ from typing import Any, Callable, Coroutine, List, TypeVar, cast
 
 from wandb.sdk.lib import asyncio_compat
 
-from .mailbox_handle import MailboxHandleT
+from .mailbox_handle import MailboxHandle
 
 _T = TypeVar("_T")
 
 
 def wait_with_progress(
-    handle: MailboxHandleT[_T],
+    handle: MailboxHandle[_T],
     *,
     timeout: float | None,
     progress_after: float,
@@ -30,7 +30,7 @@ def wait_with_progress(
 
 
 def wait_all_with_progress(
-    handle_list: list[MailboxHandleT[_T]],
+    handle_list: list[MailboxHandle[_T]],
     *,
     timeout: float | None,
     progress_after: float,
@@ -88,7 +88,7 @@ def wait_all_with_progress(
 
 
 def _wait_handles(
-    handle_list: list[MailboxHandleT[_T]],
+    handle_list: list[MailboxHandle[_T]],
     *,
     timeout: float,
 ) -> list[_T]:
@@ -113,7 +113,7 @@ def _wait_handles(
 
 
 async def _wait_handles_async(
-    handle_list: list[MailboxHandleT[_T]],
+    handle_list: list[MailboxHandle[_T]],
     *,
     timeout: float | None,
 ) -> list[_T]:

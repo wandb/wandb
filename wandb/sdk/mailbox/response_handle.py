@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from wandb.proto import wandb_server_pb2 as spb
 
-from .mailbox_handle import HandleAbandonedError, MailboxHandleT
+from .mailbox_handle import HandleAbandonedError, MailboxHandle
 
 # Necessary to break an import loop.
 if TYPE_CHECKING:
@@ -20,7 +20,7 @@ else:
     from typing_extensions import override
 
 
-class MailboxResponseHandle(MailboxHandleT[spb.ServerResponse]):
+class MailboxResponseHandle(MailboxHandle[spb.ServerResponse]):
     """A general handle for any ServerResponse."""
 
     def __init__(self, address: str) -> None:
