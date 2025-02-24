@@ -1060,8 +1060,7 @@ func TestHandleDerivedSummary(t *testing.T) {
 			for range tc.expectedSummaryRecords + tc.expectedHistoryRecords + tc.expectedExitRecords {
 				work := <-fwdChan
 				record := work.(runwork.WorkRecord).Record
-				switch record.GetRecordType().(type) {
-				case *spb.Record_Summary:
+				if _, ok := record.GetRecordType().(*spb.Record_Summary); ok {
 					seenSummaryRecords++
 				}
 			}
