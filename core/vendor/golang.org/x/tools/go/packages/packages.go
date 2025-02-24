@@ -59,10 +59,10 @@ import (
 //
 // Unfortunately there are a number of open bugs related to
 // interactions among the LoadMode bits:
-//   - https://github.com/golang/go/issues/56633
-//   - https://github.com/golang/go/issues/56677
-//   - https://github.com/golang/go/issues/58726
-//   - https://github.com/golang/go/issues/63517
+//   - https://go.dev/issue/56633
+//   - https://go.dev/issue/56677
+//   - https://go.dev/issue/58726
+//   - https://go.dev/issue/63517
 type LoadMode int
 
 const (
@@ -117,6 +117,9 @@ const (
 
 	// NeedEmbedPatterns adds EmbedPatterns.
 	NeedEmbedPatterns
+
+	// NeedTarget adds Target.
+	NeedTarget
 
 	// Be sure to update loadmode_string.go when adding new items!
 )
@@ -478,6 +481,10 @@ type Package struct {
 	// ExportFile is the absolute path to a file containing type
 	// information for the package as provided by the build system.
 	ExportFile string
+
+	// Target is the absolute install path of the .a file, for libraries,
+	// and of the executable file, for binaries.
+	Target string
 
 	// Imports maps import paths appearing in the package's Go source files
 	// to corresponding loaded Packages.
