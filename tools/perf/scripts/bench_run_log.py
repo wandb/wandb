@@ -352,6 +352,8 @@ class Experiment:
         fork_from: The fork from string (formatted) e.g. f"{original_run.id}?_step=200"
         project: The W&B project name to log to
         sparse_stride_size: The number of steps to skip before logging the sparse metrics
+        starting_global_step: The starting global step for this run
+        shared_mode: Shared mode, requires run id to be passed in.
 
     When to set "is_unique_payload" to True?
 
@@ -375,12 +377,14 @@ class Experiment:
         is_unique_payload: bool = False,
         time_delay_second: float = 0.0,
         run_id: str = "",
-        resume_mode: str = "must",
+        resume_mode: str = None,
         fraction: float = 1.0,
         dense_metric_count: int = 0,
         fork_from: str = "",
         project: str = "perf-test",
         sparse_stride_size: int = 0,
+        starting_global_step: int = 0,
+        shared_mode: bool = False,
     ):
         self.num_steps = num_steps
         self.num_metrics = num_metrics
@@ -396,6 +400,8 @@ class Experiment:
         self.fork_from = fork_from
         self.project = project
         self.sparse_stride_size = sparse_stride_size
+        self.starting_global_step = starting_global_step
+        self.shared_mode = shared_mode
 
     def run(self, repeat: int = 1):
         for _ in range(repeat):
@@ -454,12 +460,20 @@ class Experiment:
                 logger.info(f"New run {run.id} initialized")
 
             else:
-                logger.info(f"Resuming run {self.run_id} with {self.resume_mode}.")
-                run = wandb.init(
-                    project=self.project,
-                    id=self.run_id,
-                    resume=self.resume_mode,
-                )
+                if self.resume_mode:
+                    logger.info(f"Resuming run {self.run_id} with {self.resume_mode}.")
+                    run = wandb.init(
+                        project=self.project,
+                        id=self.run_id,
+                        resume=self.resume_mode,
+                    )
+                elif self.shared_mode:
+                    logger.info(f"Shared mode enabled, logging to run {self.run_id}.")
+                    run = wandb.init(
+                        project=self.project,
+                        id=self.run_id,
+                        settings=wandb.Settings(mode="shared"),
+                    )
 
             result_data["init_time"] = timer.stop()
 
@@ -481,7 +495,8 @@ class Experiment:
         with Timer() as timer:
             for s in range(self.num_steps):
                 global_values = {}
-                global_values["global_step"] = s
+                global_values["global_step"] = self.starting_global_step + s
+                
                 if self.is_unique_payload or self.fraction < 1.0:
                     run.log({**global_values, **(payloads[s % len(payloads)])})
                 else:
@@ -615,8 +630,16 @@ if __name__ == "__main__":
         "--resume-mode",
         type=str,
         choices=["must", "allow", "never"],
-        default="must",
+        default=None,
         help="Use with --run-id. The resume mode.",
+    )
+
+    parser.add_argument(
+        "-g",
+        "--global-step",
+        type=int,
+        default=0,
+        help="Set the global_step",
     )
 
     parser.add_argument(
@@ -675,6 +698,14 @@ if __name__ == "__main__":
         help="The number of steps to skip for logging the sparse payload",
     )
 
+    parser.add_argument(
+        "-a",
+        "--shared-mode",
+        type=bool,
+        default=False,
+        help="Shared mode. Requires a run id (-i) to be passed in",
+    )
+
     args = parser.parse_args()
 
     fork_from_str = ""
@@ -697,6 +728,8 @@ if __name__ == "__main__":
         fork_from=fork_from_str,
         project=args.project,
         sparse_stride_size=args.sparse_stride_size,
+        starting_global_step=args.global_step
+        shared_mode=args.shared_mode
     )
 
     experiment.parallel_runs(args.parallel)
