@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
+import pathlib
 import platform
 import shutil
+import sys
 import time
 import unittest.mock
 from itertools import takewhile
@@ -279,9 +281,22 @@ def emulated_terminal(monkeypatch, capsys) -> EmulatedTerminal:
 
 
 @pytest.fixture(scope="function", autouse=True)
-def filesystem_isolate(tmp_path):
-    kwargs = dict(temp_dir=tmp_path)
-    with CliRunner().isolated_filesystem(**kwargs):
+def filesystem_isolate(tmp_path, monkeypatch):
+    # isolated_filesystem() changes the current working directory, which is
+    # where coverage.py stores coverage by default. This causes Python
+    # subprocesses to place their coverage into a temporary directory that is
+    # discarded after each test.
+    #
+    # Setting COVERAGE_FILE to an absolute path fixes this.
+    if covfile := os.getenv("COVERAGE_FILE"):
+        new_covfile = str(pathlib.Path(covfile).absolute())
+    else:
+        new_covfile = str(pathlib.Path(os.getcwd()) / ".coverage")
+
+    print(f"Setting COVERAGE_FILE to {new_covfile}", file=sys.stderr)  # noqa: T201
+    monkeypatch.setenv("COVERAGE_FILE", new_covfile)
+
+    with CliRunner().isolated_filesystem(temp_dir=tmp_path):
         yield
 
 

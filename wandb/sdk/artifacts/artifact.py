@@ -41,6 +41,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._graphql_fragments import _gql_artifact_fragment
 from wandb.sdk.artifacts._validators import (
     ensure_logged,
@@ -73,7 +74,7 @@ from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_id
-from wandb.sdk.mailbox import Mailbox, MailboxHandle
+from wandb.sdk.mailbox import MailboxHandle
 
 reset_path = util.vendor_setup()
 
@@ -158,7 +159,7 @@ class Artifact:
         self._tmp_dir: tempfile.TemporaryDirectory | None = None
         self._added_objs: dict[int, tuple[WBValue, ArtifactManifestEntry]] = {}
         self._added_local_paths: dict[str, ArtifactManifestEntry] = {}
-        self._save_handle: MailboxHandle | None = None
+        self._save_handle: MailboxHandle[pb.Result] | None = None
         self._download_roots: set[str] = set()
         # Set by new_draft(), otherwise the latest artifact will be used as the base.
         self._base_id: str | None = None
@@ -956,7 +957,7 @@ class Artifact:
 
     def _set_save_handle(
         self,
-        save_handle: MailboxHandle,
+        save_handle: MailboxHandle[pb.Result],
         client: RetryingClient,
     ) -> None:
         self._save_handle = save_handle
@@ -1828,12 +1829,7 @@ class Artifact:
             service = wl.ensure_service()
             service.inform_init(settings=settings, run_id=stream_id)
 
-            mailbox = Mailbox()
-            backend = Backend(
-                settings=wl.settings,
-                service=service,
-                mailbox=mailbox,
-            )
+            backend = Backend(settings=wl.settings, service=service)
             backend.ensure_launched()
 
             assert backend.interface

@@ -148,17 +148,16 @@ norecursedirs = [
     "dist",
 ]
 
+
 [tool.coverage.paths]
-source = ["wandb/", "**/site-packages/wandb/"]
+wandb = ["wandb/", "**/site-packages/wandb/"]
 
 [tool.coverage.run]
-# branch = true
 concurrency = ["multiprocessing", "thread"]
-source = ["wandb"]
 omit = ["**/wandb/vendor/**", "**/wandb/proto/**"]
 
 [tool.coverage.report]
-exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "@abstractmethod"]
+exclude_also = ["if TYPE_CHECKING:", "@abstractmethod"]
 omit = ["**/wandb/vendor/**", "**/wandb/proto/**"]
 ignore_errors = true
 

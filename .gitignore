@@ -27,7 +27,7 @@ test-results/
 .pytest_cache/
 .hypothesis/
 
-.coverage
+.coverage*
 coverage.xml
 coverage.txt
 cover-results/
