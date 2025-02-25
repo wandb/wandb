@@ -5,8 +5,6 @@
 // Indexed package import.
 // See iexport.go for the export data format.
 
-// This file is a copy of $GOROOT/src/go/internal/gcimporter/iimport.go.
-
 package gcimporter
 
 import (
@@ -673,7 +671,9 @@ func (r *importReader) obj(name string) {
 	case varTag:
 		typ := r.typ()
 
-		r.declare(types.NewVar(pos, r.currPkg, name, typ))
+		v := types.NewVar(pos, r.currPkg, name, typ)
+		typesinternal.SetVarKind(v, typesinternal.PackageVar)
+		r.declare(v)
 
 	default:
 		errorf("unexpected tag: %v", tag)
@@ -1111,3 +1111,9 @@ func (r *importReader) byte() byte {
 	}
 	return x
 }
+
+type byPath []*types.Package
+
+func (a byPath) Len() int           { return len(a) }
+func (a byPath) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byPath) Less(i, j int) bool { return a[i].Path() < a[j].Path() }
