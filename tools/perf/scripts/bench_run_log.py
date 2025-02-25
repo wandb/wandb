@@ -325,7 +325,7 @@ class PayloadGenerator:
 
             payloads.append(
                 {
-                    f"{video_prefixes[s%4]}/{i}_{s}": video_obj
+                    f"{video_prefixes[s % 4]}/{i}_{s}": video_obj
                     for s in range(self.sparse_metric_count)
                 }
             )
@@ -353,7 +353,7 @@ class Experiment:
         project: The W&B project name to log to
         sparse_stride_size: The number of steps to skip before logging the sparse metrics
         starting_global_step: The starting global step for this run
-        shared_mode: Shared mode, requires run id to be passed in.
+        mode: The mode to run the experiment. Defaults to "online".
 
     When to set "is_unique_payload" to True?
 
@@ -376,15 +376,15 @@ class Experiment:
         ] = "scalar",
         is_unique_payload: bool = False,
         time_delay_second: float = 0.0,
-        run_id: str = "",
-        resume_mode: str = None,
+        run_id: str | None = None,
+        resume_mode: str | None = None,
         fraction: float = 1.0,
         dense_metric_count: int = 0,
-        fork_from: str = "",
+        fork_from: str | None = None,
         project: str = "perf-test",
         sparse_stride_size: int = 0,
         starting_global_step: int = 0,
-        shared_mode: bool = False,
+        mode: Literal["shared", "online"] = "online",
     ):
         self.num_steps = num_steps
         self.num_metrics = num_metrics
@@ -401,7 +401,7 @@ class Experiment:
         self.project = project
         self.sparse_stride_size = sparse_stride_size
         self.starting_global_step = starting_global_step
-        self.shared_mode = shared_mode
+        self.mode = mode
 
     def run(self, repeat: int = 1):
         for _ in range(repeat):
@@ -442,38 +442,30 @@ class Experiment:
 
         # Initialize W&B
         with Timer() as timer:
-            if self.run_id == "":
-                if self.fork_from == "":
-                    run = wandb.init(
-                        project=self.project,
-                        name=f"perf_run={start_time_str}_steps={self.num_steps}_metrics={self.num_metrics}",
-                        config=result_data,
-                    )
-                else:
-                    run = wandb.init(
-                        project=self.project,
-                        name=f"perf_run={start_time_str}_steps={self.num_steps}_metrics={self.num_metrics}",
-                        config=result_data,
-                        fork_from=self.fork_from,
-                        settings=wandb.Settings(init_timeout=600),
-                    )
-                logger.info(f"New run {run.id} initialized")
+            name = (
+                f"perf_run={start_time_str}_steps={self.num_steps}_metrics={self.num_metrics}"
+                if self.run_id is None
+                else None
+            )
+            init_timeout = 600 if self.fork_from else 90
 
-            else:
-                if self.resume_mode:
-                    logger.info(f"Resuming run {self.run_id} with {self.resume_mode}.")
-                    run = wandb.init(
-                        project=self.project,
-                        id=self.run_id,
-                        resume=self.resume_mode,
-                    )
-                elif self.shared_mode:
-                    logger.info(f"Shared mode enabled, logging to run {self.run_id}.")
-                    run = wandb.init(
-                        project=self.project,
-                        id=self.run_id,
-                        settings=wandb.Settings(mode="shared"),
-                    )
+            run = wandb.init(
+                project=self.project,
+                name=name,
+                id=self.run_id,
+                mode=self.mode,
+                resume=self.resume_mode,
+                fork_from=self.fork_from,
+                config=result_data if self.run_id is None else None,
+                settings=wandb.Settings(init_timeout=init_timeout),
+            )
+
+            if self.run_id == "":
+                logger.info(f"New run {run.id} initialized.")
+            elif self.resume_mode:
+                logger.info(f"Resuming run {self.run_id} with {self.resume_mode}.")
+            elif self.mode == "shared":
+                logger.info(f"Shared mode enabled, logging to run {self.run_id}.")
 
             result_data["init_time"] = timer.stop()
 
@@ -496,7 +488,7 @@ class Experiment:
             for s in range(self.num_steps):
                 global_values = {}
                 global_values["global_step"] = self.starting_global_step + s
-                
+
                 if self.is_unique_payload or self.fraction < 1.0:
                     run.log({**global_values, **(payloads[s % len(payloads)])})
                 else:
@@ -621,7 +613,6 @@ if __name__ == "__main__":
         "-i",
         "--run-id",
         type=str,
-        default="",
         help="The run id. e.g. -i 123abc to resume this run id.",
     )
 
@@ -700,18 +691,19 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-a",
-        "--shared-mode",
-        type=bool,
-        default=False,
-        help="Shared mode. Requires a run id (-i) to be passed in",
+        "--mode",
+        type=str,
+        choices=["shared", "online"],
+        default="online",
+        help="The mode to run the experiment.",
     )
 
     args = parser.parse_args()
 
-    fork_from_str = ""
+    fork_from: str | None = None
     if args.fork_run_id:
-        fork_from_str = f"{args.fork_run_id}?_step={args.fork_step}"
-        logger.info(f"Setting fork_from = {fork_from_str}")
+        fork_from = f"{args.fork_run_id}?_step={args.fork_step}"
+        logger.info(f"Setting fork_from = {fork_from}")
 
     experiment = Experiment(
         num_steps=args.steps,
@@ -725,11 +717,11 @@ if __name__ == "__main__":
         resume_mode=args.resume_mode,
         fraction=args.fraction,
         dense_metric_count=args.dense_metric_count,
-        fork_from=fork_from_str,
+        fork_from=fork_from,
         project=args.project,
         sparse_stride_size=args.sparse_stride_size,
-        starting_global_step=args.global_step
-        shared_mode=args.shared_mode
+        starting_global_step=args.global_step,
+        mode=args.mode,
     )
 
     experiment.parallel_runs(args.parallel)
