@@ -53,15 +53,9 @@ type HandlerParams struct {
 	Operations        *wboperation.WandbOperations
 	OutChan           chan *spb.Result
 	Settings          *settings.Settings
-
-	// SkipSummary controls whether to skip summary updates.
-	//
-	// This is only useful in a test.
-	SkipSummary bool
-
-	SystemMonitor   *monitor.SystemMonitor
-	TBHandler       *tensorboard.TBHandler
-	TerminalPrinter *observability.Printer
+	SystemMonitor     *monitor.SystemMonitor
+	TBHandler         *tensorboard.TBHandler
+	TerminalPrinter   *observability.Printer
 }
 
 // Handler handles the incoming messages, processes them, and passes them to the writer.
@@ -135,10 +129,6 @@ type Handler struct {
 	// settings is the settings for the handler
 	settings *settings.Settings
 
-	// skipSummary is set in tests where certain summary records should be
-	// ignored.
-	skipSummary bool
-
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
@@ -169,7 +159,6 @@ func NewHandler(
 		runSummary:           runsummary.New(),
 		runTimer:             timer.New(),
 		settings:             params.Settings,
-		skipSummary:          params.SkipSummary,
 		systemMonitor:        params.SystemMonitor,
 		tbHandler:            params.TBHandler,
 		terminalPrinter:      params.TerminalPrinter,
@@ -413,6 +402,8 @@ func (h *Handler) handleMetric(record *spb.Record) {
 	}
 
 	if len(metric.Name) > 0 {
+		// TODO: Add !h.settings.IsEnableServerSideDerivedSummary() to the condition
+		// once we support server-side derived summary aggregation (min, max, mean, etc.)
 		h.metricHandler.UpdateSummary(metric.Name, h.runSummary)
 	}
 }
@@ -785,7 +776,7 @@ func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
 	h.runTimer.Pause()
 	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
 
-	if !h.settings.IsSync() {
+	if !h.settings.IsSync() && !h.settings.IsEnableServerSideDerivedSummary() {
 		h.updateRunTiming()
 	}
 
@@ -1085,7 +1076,8 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 
 	h.runHistorySampler.SampleNext(h.partialHistory)
 
-	if !h.skipSummary {
+	// Update the summary if server-side derived summaries are disabled.
+	if !h.settings.IsEnableServerSideDerivedSummary() {
 		h.updateRunTiming()
 		h.updateSummary()
 	}

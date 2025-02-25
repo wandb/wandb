@@ -472,6 +472,9 @@ pub struct Feature {
     /// shared mode was added in wandb.Settings
     #[prost(bool, tag = "67")]
     pub shared_mode: bool,
+    /// server-side derived summary computation was enabled
+    #[prost(bool, tag = "68")]
+    pub server_side_derived_summary: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Env {
