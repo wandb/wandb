@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import json
 import logging
@@ -52,6 +54,7 @@ class PayloadGenerator:
 
     def __init__(
         self,
+        *,
         data_type: Literal[
             "scalar", "audio", "video", "image", "table", "prefixed_scalar"
         ],
@@ -156,7 +159,7 @@ class PayloadGenerator:
 
         return payloads
 
-    def generate_scalar(self) -> List[dict[str, int]]:
+    def generate_scalar(self) -> list[dict[str, int]]:
         """Generates the payloads for logging scalar data.
 
         Returns:
@@ -199,7 +202,7 @@ class PayloadGenerator:
 
         return payloads
 
-    def generate_prefixed_scalar(self) -> List[dict[str, int]]:
+    def generate_prefixed_scalar(self) -> list[dict[str, int]]:
         """Generates the payloads for logging scalar data with prefixes.
 
            This makes all the runs in the same project to have the repeating metric names.
@@ -246,7 +249,7 @@ class PayloadGenerator:
 
         return payloads
 
-    def generate_table(self) -> List[dict[str, wandb.Table]]:
+    def generate_table(self) -> list[dict[str, wandb.Table]]:
         """Generates a payload for logging 1 table.
 
         For the table, it uses
@@ -274,7 +277,7 @@ class PayloadGenerator:
 
         return payloads
 
-    def generate_image(self) -> List[dict[str, wandb.Image]]:
+    def generate_image(self) -> list[dict[str, wandb.Image]]:
         """Generates a payload for logging images.
 
         Returns:
@@ -296,7 +299,7 @@ class PayloadGenerator:
 
         return payloads
 
-    def generate_video(self) -> List[dict[str, wandb.Video]]:
+    def generate_video(self) -> list[dict[str, wandb.Video]]:
         """Generates a payload for logging videos.
 
         This function creates HD videos that are 1280 x 720 with 16 frames per second as payload
@@ -367,6 +370,7 @@ class Experiment:
 
     def __init__(
         self,
+        *,
         num_steps: int = 10,
         num_metrics: int = 100,
         metric_key_size: int = 10,
@@ -460,11 +464,11 @@ class Experiment:
                 settings=wandb.Settings(init_timeout=init_timeout),
             )
 
-            if self.run_id == "":
+            if self.run_id is None:
                 logger.info(f"New run {run.id} initialized.")
             elif self.resume_mode:
                 logger.info(f"Resuming run {self.run_id} with {self.resume_mode}.")
-            elif self.mode == "shared":
+            if self.mode == "shared":
                 logger.info(f"Shared mode enabled, logging to run {self.run_id}.")
 
             result_data["init_time"] = timer.stop()
@@ -472,14 +476,14 @@ class Experiment:
         # pre-generate all the payloads
         logger.info("Generating test payloads ...")
         generator = PayloadGenerator(
-            self.data_type,
-            self.num_metrics,
-            self.metric_key_size,
-            self.num_steps,
-            self.fraction,
-            self.is_unique_payload,
-            self.dense_metric_count,
-            self.sparse_stride_size,
+            data_type=self.data_type,
+            num_metrics=self.num_metrics,
+            metric_key_size=self.metric_key_size,
+            num_steps=self.num_steps,
+            fraction=self.fraction,
+            is_unique_payload=self.is_unique_payload,
+            dense_metric_count=self.dense_metric_count,
+            sparse_stride_size=self.sparse_stride_size,
         )
         payloads = generator.generate()
 
