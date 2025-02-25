@@ -42,7 +42,7 @@ from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import SummaryDisabled, filesystem, module, paths, printer, telemetry
 from .lib.deprecate import Deprecated, deprecate
-from .mailbox import Mailbox, wait_with_progress
+from .mailbox import wait_with_progress
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings
@@ -793,12 +793,7 @@ class _WandbInit:
         else:
             service = None
 
-        mailbox = Mailbox()
-        backend = Backend(
-            settings=settings,
-            service=service,
-            mailbox=mailbox,
-        )
+        backend = Backend(settings=settings, service=service)
         backend.ensure_launched()
         self._logger.info("backend started and connected")
 
@@ -1085,8 +1080,7 @@ def _attach(
     )
 
     # TODO: consolidate this codepath with wandb.init()
-    mailbox = Mailbox()
-    backend = Backend(settings=settings, service=service, mailbox=mailbox)
+    backend = Backend(settings=settings, service=service)
     backend.ensure_launched()
     logger.info("attach backend started and connected")
 

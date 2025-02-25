@@ -4,20 +4,22 @@ Router to manage responses.
 
 """
 
+from __future__ import annotations
+
 import logging
 import threading
 import uuid
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING
 
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk import mailbox
 
 from .message_future import MessageFuture
 
 if TYPE_CHECKING:
     from queue import Queue
-
-    from wandb.proto import wandb_internal_pb2 as pb
 
 
 logger = logging.getLogger("wandb")
@@ -31,7 +33,10 @@ class MessageFutureObject(MessageFuture):
     def __init__(self) -> None:
         super().__init__()
 
-    def get(self, timeout: Optional[int] = None) -> Optional["pb.Result"]:
+    def get(
+        self,
+        timeout: int | None = None,
+    ) -> pb.Result | spb.ServerResponse | None:
         is_set = self._object_ready.wait(timeout)
         if is_set and self._object:
             return self._object
@@ -39,12 +44,12 @@ class MessageFutureObject(MessageFuture):
 
 
 class MessageRouter:
-    _pending_reqs: Dict[str, MessageFutureObject]
-    _request_queue: "Queue[pb.Record]"
-    _response_queue: "Queue[pb.Result]"
-    _mailbox: Optional[mailbox.Mailbox]
+    _pending_reqs: dict[str, MessageFutureObject]
+    _request_queue: Queue[pb.Record]
+    _response_queue: Queue[pb.Result]
+    _mailbox: mailbox.Mailbox | None
 
-    def __init__(self, mailbox: Optional[mailbox.Mailbox] = None) -> None:
+    def __init__(self, mailbox: mailbox.Mailbox | None = None) -> None:
         self._mailbox = mailbox
         self._pending_reqs = {}
         self._lock = threading.Lock()
@@ -56,11 +61,11 @@ class MessageRouter:
         self._thread.start()
 
     @abstractmethod
-    def _read_message(self) -> Optional["pb.Result"]:
+    def _read_message(self) -> pb.Result | spb.ServerResponse | None:
         raise NotImplementedError
 
     @abstractmethod
-    def _send_message(self, record: "pb.Record") -> None:
+    def _send_message(self, record: pb.Record) -> None:
         raise NotImplementedError
 
     def message_loop(self) -> None:
@@ -85,7 +90,9 @@ class MessageRouter:
                 self._mailbox.close()
 
     def send_and_receive(
-        self, rec: "pb.Record", local: Optional[bool] = None
+        self,
+        rec: pb.Record,
+        local: bool | None = None,
     ) -> MessageFuture:
         rec.control.req_resp = True
         if local:
@@ -103,11 +110,23 @@ class MessageRouter:
         self._join_event.set()
         self._thread.join()
 
-    def _handle_msg_rcv(self, msg: "pb.Result") -> None:
-        # deliver mailbox addressed messages to mailbox
-        if self._mailbox and msg.control.mailbox_slot:
-            self._mailbox.deliver(msg)
-            return
+    def _handle_msg_rcv(self, msg: pb.Result | spb.ServerResponse) -> None:
+        if self._mailbox:
+            if isinstance(msg, pb.Result) and msg.control.mailbox_slot:
+                self._mailbox.deliver(
+                    spb.ServerResponse(
+                        request_id=msg.control.mailbox_slot,
+                        result_communicate=msg,
+                    )
+                )
+                return
+            elif isinstance(msg, spb.ServerResponse) and msg.request_id:
+                self._mailbox.deliver(msg)
+                return
+
+        if isinstance(msg, spb.ServerResponse):
+            msg = msg.result_communicate
+
         with self._lock:
             future = self._pending_reqs.pop(msg.uuid, None)
         if future is None:

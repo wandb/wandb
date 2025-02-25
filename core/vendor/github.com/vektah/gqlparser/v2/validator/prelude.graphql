@@ -30,6 +30,9 @@ directive @specifiedBy(url: String!) on SCALAR
 "The @defer directive may be specified on a fragment spread to imply de-prioritization, that causes the fragment to be omitted in the initial response, and delivered as a subsequent response afterward. A query with @defer directive will cause the request to potentially return multiple responses, where non-deferred data is delivered in the initial response and data deferred delivered in a subsequent response. @include and @skip take precedence over @defer."
 directive @defer(if: Boolean = true, label: String) on FRAGMENT_SPREAD | INLINE_FRAGMENT
 
+"The `@oneOf` _built-in directive_ is used within the type system definition language to indicate an Input Object is a OneOf Input Object."
+directive @oneOf on INPUT_OBJECT
+
 type __Schema {
   description: String
   types: [__Type!]!
@@ -52,34 +55,12 @@ type __Type {
   # must be non-null for ENUM, otherwise null.
   enumValues(includeDeprecated: Boolean = false): [__EnumValue!]
   # must be non-null for INPUT_OBJECT, otherwise null.
-  inputFields: [__InputValue!]
+  inputFields(includeDeprecated: Boolean = false): [__InputValue!]
   # must be non-null for NON_NULL and LIST, otherwise null.
   ofType: __Type
   # may be non-null for custom SCALAR, otherwise null.
   specifiedByURL: String
-}
-
-type __Field {
-  name: String!
-  description: String
-  args: [__InputValue!]!
-  type: __Type!
-  isDeprecated: Boolean!
-  deprecationReason: String
-}
-
-type __InputValue {
-  name: String!
-  description: String
-  type: __Type!
-  defaultValue: String
-}
-
-type __EnumValue {
-  name: String!
-  description: String
-  isDeprecated: Boolean!
-  deprecationReason: String
+  isOneOf: Boolean
 }
 
 enum __TypeKind {
@@ -93,11 +74,36 @@ enum __TypeKind {
   NON_NULL
 }
 
+type __Field {
+  name: String!
+  description: String
+  args(includeDeprecated: Boolean = false): [__InputValue!]!
+  type: __Type!
+  isDeprecated: Boolean!
+  deprecationReason: String
+}
+
+type __InputValue {
+  name: String!
+  description: String
+  type: __Type!
+  defaultValue: String
+  isDeprecated: Boolean!
+  deprecationReason: String
+}
+
+type __EnumValue {
+  name: String!
+  description: String
+  isDeprecated: Boolean!
+  deprecationReason: String
+}
+
 type __Directive {
   name: String!
   description: String
   locations: [__DirectiveLocation!]!
-  args: [__InputValue!]!
+  args(includeDeprecated: Boolean = false): [__InputValue!]!
   isRepeatable: Boolean!
 }
 

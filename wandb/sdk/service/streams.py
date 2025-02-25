@@ -21,15 +21,13 @@ import psutil
 import wandb
 import wandb.util
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.interface.interface_relay import InterfaceRelay
+from wandb.sdk.interface.router_relay import MessageRelayRouter
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib import asyncio_compat, progress
 from wandb.sdk.lib import printer as printerlib
 from wandb.sdk.mailbox import Mailbox, MailboxHandle, wait_all_with_progress
 from wandb.sdk.wandb_run import Run
-
-from ..interface.interface_relay import InterfaceRelay
-
-# from wandb.sdk.wandb_settings import Settings
 
 
 class StreamThread(threading.Thread):
@@ -62,6 +60,12 @@ class StreamRecord:
         self._record_q = queue.Queue()
         self._result_q = queue.Queue()
         self._relay_q = queue.Queue()
+        self._router = MessageRelayRouter(
+            request_queue=self._record_q,
+            response_queue=self._result_q,
+            relay_queue=self._relay_q,
+            mailbox=self._mailbox,
+        )
         self._iface = InterfaceRelay(
             record_q=self._record_q,
             result_q=self._result_q,
@@ -80,6 +84,7 @@ class StreamRecord:
 
     def join(self) -> None:
         self._iface.join()
+        self._router.join()
         if self._thread:
             self._thread.join()
 
@@ -290,7 +295,7 @@ class StreamMux:
 
         # fixme: for now we have a single printer for all streams,
         # and jupyter is disabled if at least single stream's setting set `_jupyter` to false
-        exit_handles: list[MailboxHandle] = []
+        exit_handles: list[MailboxHandle[pb.Result]] = []
 
         # only finish started streams, non started streams failed early
         started_streams: dict[str, StreamRecord] = {}

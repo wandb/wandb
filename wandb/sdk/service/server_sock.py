@@ -44,7 +44,10 @@ class SockServerInterfaceReaderThread(threading.Thread):
     _stopped: "Event"
 
     def __init__(
-        self, clients: ClientDict, iface: "InterfaceRelay", stopped: "Event"
+        self,
+        clients: ClientDict,
+        iface: "InterfaceRelay",
+        stopped: "Event",
     ) -> None:
         self._iface = iface
         self._clients = clients
@@ -53,7 +56,6 @@ class SockServerInterfaceReaderThread(threading.Thread):
         self._stopped = stopped
 
     def run(self) -> None:
-        assert self._iface.relay_q
         while not self._stopped.is_set():
             try:
                 result = self._iface.relay_q.get(timeout=1)
