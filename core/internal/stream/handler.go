@@ -774,7 +774,7 @@ func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
 	h.runTimer.Pause()
 	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
 
-	if !h.settings.IsSync() {
+	if !h.settings.IsSync() && !h.settings.IsEnableServerSideDerivedSummary() {
 		h.updateRunTiming()
 	}
 

@@ -983,9 +983,7 @@ func TestHandleDerivedSummary(t *testing.T) {
 				makeExitRecord(),
 			},
 			expectedHistoryRecords: 1,
-			// We expect a single summary record with the run timing information
-			// from the exit record.
-			expectedSummaryRecords: 1,
+			expectedSummaryRecords: 0,
 			expectedExitRecords:    1,
 		},
 		{
@@ -1022,7 +1020,7 @@ func TestHandleDerivedSummary(t *testing.T) {
 			expectedHistoryRecords: 0,
 			// We expect a summary record with the run timing information
 			// from the exit record and the summary record from the input.
-			expectedSummaryRecords: 2,
+			expectedSummaryRecords: 1,
 			expectedExitRecords:    1,
 		},
 		{
