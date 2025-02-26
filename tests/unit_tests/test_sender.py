@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import yaml
+from wandb import Settings
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
@@ -36,11 +37,10 @@ def test_config_save_preserve_order(tmp_path, test_settings):
         "file_with_[.txt",
     ],
 )
-def test_send_file_with_glob_characters_is_escaped(tmp_path, test_settings, file_path):
+def test_send_file_with_glob_characters_is_escaped(tmp_path, file_path):
     dir_watcher = MagicMock()
-    settings = test_settings({"x_files_dir": str(tmp_path)})
     sender = SendManager(
-        settings=SettingsStatic(settings.to_proto()),
+        settings=SettingsStatic(Settings(x_files_dir=str(tmp_path)).to_proto()),
         record_q=MagicMock(),
         result_q=MagicMock(),
         interface=MagicMock(),
@@ -49,10 +49,9 @@ def test_send_file_with_glob_characters_is_escaped(tmp_path, test_settings, file
     sender._dir_watcher = dir_watcher
 
     files_record = pb.FilesRecord()
-    file = files_record.files.add()
-    file.path = file_path
-    file.policy = pb.FilesItem.PolicyType.NOW
-
+    files_record.files.append(
+        pb.FilesItem(path=file_path, policy=pb.FilesItem.PolicyType.NOW)
+    )
     record = pb.Record()
     record.files.CopyFrom(files_record)
 
