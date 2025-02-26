@@ -18,6 +18,9 @@ unpatching:
         from ... import console_capture
         # Here, everything works fine.
     # Here, callbacks are never called again.
+
+In particular, it does not work with some combinations of pytest's
+`capfd` / `capsys` fixtures and pytest's `--capture` option.
 """
 
 from __future__ import annotations
