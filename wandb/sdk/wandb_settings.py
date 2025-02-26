@@ -689,6 +689,13 @@ class Settings(BaseModel, validate_assignment=True):
     This does not disable user-provided summary updates.
     """
 
+    x_server_side_expand_glob_metrics: bool = False
+    """Flag to delegate glob matching of metrics in define_metric to the server.
+
+    Allow of sending compact metrics to the server, instead of sending expanded
+    metrics.
+    """
+
     x_service_transport: Optional[str] = None
     """Transport method for communication with the wandb service."""
 
