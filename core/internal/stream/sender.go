@@ -253,10 +253,12 @@ func NewSender(
 	}
 
 	s := &Sender{
-		runWork:             params.RunWork,
-		runConfig:           runconfig.New(),
-		telemetry:           &spb.TelemetryRecord{CoreVersion: version.Version},
-		runConfigMetrics:    runmetric.NewRunConfigMetrics(),
+		runWork:   params.RunWork,
+		runConfig: runconfig.New(),
+		telemetry: &spb.TelemetryRecord{CoreVersion: version.Version},
+		runConfigMetrics: runmetric.NewRunConfigMetrics(
+			params.Settings.IsEnableServerSideExpandGlobMetrics(),
+		),
 		logger:              params.Logger,
 		operations:          params.Operations,
 		settings:            params.Settings,
