@@ -29,6 +29,7 @@ def test_config_save_preserve_order(tmp_path, test_settings):
     assert saved_config == original_config
 
 
+@pytest.mark.skip_wandb_core
 @pytest.mark.parametrize(
     "file_path",
     [
