@@ -9,7 +9,7 @@ import (
 )
 
 func TestMetricSelfStep(t *testing.T) {
-	rcm := runmetric.NewRunConfigMetrics()
+	rcm := runmetric.NewRunConfigMetrics(false)
 
 	_ = rcm.ProcessRecord(&spb.MetricRecord{
 		Name:       "x",

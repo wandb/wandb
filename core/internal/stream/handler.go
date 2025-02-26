@@ -1054,8 +1054,11 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		rec := &spb.Record{
 			RecordType: &spb.Record_Metric{Metric: newMetric},
 		}
+
 		h.handleMetric(rec)
-		h.fwdRecord(rec)
+		if !h.settings.IsEnableServerSideExpandGlobMetrics() {
+			h.fwdRecord(rec)
+		}
 	}
 	h.metricHandler.InsertStepMetrics(h.partialHistory)
 
