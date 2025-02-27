@@ -13,4 +13,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
-- fixed some charaters([?\*) would cause file uploads to fail with wandb-core (@jacobromero in https://github.com/wandb/wandb/pull/9475)
+- fixed media file paths with glob characters ([?\*) would cause file uploads to fail with wandb-core (@jacobromero in https://github.com/wandb/wandb/pull/9475)
