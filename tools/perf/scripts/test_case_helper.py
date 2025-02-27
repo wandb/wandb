@@ -3,7 +3,7 @@ import time
 from pathlib import Path
 from typing import Literal
 
-from .bench_run_log import run_parallel_experiment
+from .bench_run_log import Experiment
 from .process_sar_helper import capture_sar_metrics, process_sar_files
 
 logger = logging.getLogger(__name__)
@@ -54,14 +54,14 @@ def run_perf_tests(
 
                 capture_sar_metrics(str(log_folder))
 
-                run_parallel_experiment(
-                    num_processes=num_processes,
+                experiment = Experiment(
                     num_steps=num_steps,
                     num_metrics=num_metrics,
                     metric_key_size=metric_key_size,
                     data_type=data_type,
-                    log_folder=log_folder,
                 )
+
+                experiment.parallel_runs(num_processes)
 
                 logger.info("All experiements have finished.")
 
