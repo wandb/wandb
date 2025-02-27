@@ -7,16 +7,17 @@ All the performance tests and setup files for the SDK are inside this experiment
 ## Setting up a perf container
 1. Go to your wandb repo
 2. Go to tools/perf
-3. Build the docker image
-4. Start a container
-   docker run -d perfimage
-5. Log into the container
+3. Build the docker image  
+   docker build -t image_name .
+5. Start a container  
+   docker run -d image_name
+6. Log into the container
    docker exec -it container_id /bin/bash
 
 ## Starting a load test
 Once you are logged into your container
-1. Set the env variables
-   export WANDB_API_KEY=<your key>
+1. Set the env variables  
+   export WANDB_API_KEY=<your key>  
    export WANDB_BASE_URL=<your W&B server URL>
 2. cd /opt/ns
 3. export PYTHONPATH=$(pwd)
