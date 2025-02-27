@@ -463,7 +463,8 @@ class Experiment:
                 config=result_data if self.run_id is None else None,
                 settings=wandb.Settings(
                     init_timeout=init_timeout,
-                    x_server_side_derived_summary=True,),
+                    x_server_side_derived_summary=True,
+                ),
             )
 
             if self.run_id is None:
