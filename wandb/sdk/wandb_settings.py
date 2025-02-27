@@ -561,6 +561,12 @@ class Settings(BaseModel, validate_assignment=True):
     x_save_requirements: bool = True
     """Flag to save the requirements file."""
 
+    x_server_side_derived_summary: bool = False
+    """Flag to delegate automatic computation of summary from history to the server.
+
+    This does not disable user-provided summary updates.
+    """
+
     x_service_transport: str | None = None
     """Transport method for communication with the wandb service."""
 

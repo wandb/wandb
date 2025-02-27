@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import json
 import logging
@@ -52,6 +54,7 @@ class PayloadGenerator:
 
     def __init__(
         self,
+        *,
         data_type: Literal[
             "scalar", "audio", "video", "image", "table", "prefixed_scalar"
         ],
@@ -156,7 +159,7 @@ class PayloadGenerator:
 
         return payloads
 
-    def generate_scalar(self) -> List[dict[str, int]]:
+    def generate_scalar(self) -> list[dict[str, int]]:
         """Generates the payloads for logging scalar data.
 
         Returns:
@@ -199,7 +202,7 @@ class PayloadGenerator:
 
         return payloads
 
-    def generate_prefixed_scalar(self) -> List[dict[str, int]]:
+    def generate_prefixed_scalar(self) -> list[dict[str, int]]:
         """Generates the payloads for logging scalar data with prefixes.
 
            This makes all the runs in the same project to have the repeating metric names.
@@ -246,7 +249,7 @@ class PayloadGenerator:
 
         return payloads
 
-    def generate_table(self) -> List[dict[str, wandb.Table]]:
+    def generate_table(self) -> list[dict[str, wandb.Table]]:
         """Generates a payload for logging 1 table.
 
         For the table, it uses
@@ -274,7 +277,7 @@ class PayloadGenerator:
 
         return payloads
 
-    def generate_image(self) -> List[dict[str, wandb.Image]]:
+    def generate_image(self) -> list[dict[str, wandb.Image]]:
         """Generates a payload for logging images.
 
         Returns:
@@ -296,7 +299,7 @@ class PayloadGenerator:
 
         return payloads
 
-    def generate_video(self) -> List[dict[str, wandb.Video]]:
+    def generate_video(self) -> list[dict[str, wandb.Video]]:
         """Generates a payload for logging videos.
 
         This function creates HD videos that are 1280 x 720 with 16 frames per second as payload
@@ -325,7 +328,7 @@ class PayloadGenerator:
 
             payloads.append(
                 {
-                    f"{video_prefixes[s%4]}/{i}_{s}": video_obj
+                    f"{video_prefixes[s % 4]}/{i}_{s}": video_obj
                     for s in range(self.sparse_metric_count)
                 }
             )
@@ -352,6 +355,8 @@ class Experiment:
         fork_from: The fork from string (formatted) e.g. f"{original_run.id}?_step=200"
         project: The W&B project name to log to
         sparse_stride_size: The number of steps to skip before logging the sparse metrics
+        starting_global_step: The starting global step for this run
+        mode: The mode to run the experiment. Defaults to "online".
 
     When to set "is_unique_payload" to True?
 
@@ -365,6 +370,7 @@ class Experiment:
 
     def __init__(
         self,
+        *,
         num_steps: int = 10,
         num_metrics: int = 100,
         metric_key_size: int = 10,
@@ -374,13 +380,15 @@ class Experiment:
         ] = "scalar",
         is_unique_payload: bool = False,
         time_delay_second: float = 0.0,
-        run_id: str = "",
-        resume_mode: str = "must",
+        run_id: str | None = None,
+        resume_mode: str | None = None,
         fraction: float = 1.0,
         dense_metric_count: int = 0,
-        fork_from: str = "",
+        fork_from: str | None = None,
         project: str = "perf-test",
         sparse_stride_size: int = 0,
+        starting_global_step: int = 0,
+        mode: Literal["shared", "online"] = "online",
     ):
         self.num_steps = num_steps
         self.num_metrics = num_metrics
@@ -396,6 +404,8 @@ class Experiment:
         self.fork_from = fork_from
         self.project = project
         self.sparse_stride_size = sparse_stride_size
+        self.starting_global_step = starting_global_step
+        self.mode = mode
 
     def run(self, repeat: int = 1):
         for _ in range(repeat):
@@ -436,44 +446,44 @@ class Experiment:
 
         # Initialize W&B
         with Timer() as timer:
-            if self.run_id == "":
-                if self.fork_from == "":
-                    run = wandb.init(
-                        project=self.project,
-                        name=f"perf_run={start_time_str}_steps={self.num_steps}_metrics={self.num_metrics}",
-                        config=result_data,
-                    )
-                else:
-                    run = wandb.init(
-                        project=self.project,
-                        name=f"perf_run={start_time_str}_steps={self.num_steps}_metrics={self.num_metrics}",
-                        config=result_data,
-                        fork_from=self.fork_from,
-                        settings=wandb.Settings(init_timeout=600),
-                    )
-                logger.info(f"New run {run.id} initialized")
+            name = (
+                f"perf_run={start_time_str}_steps={self.num_steps}_metrics={self.num_metrics}"
+                if self.run_id is None
+                else None
+            )
+            init_timeout = 600 if self.fork_from else 90
 
-            else:
+            run = wandb.init(
+                project=self.project,
+                name=name,
+                id=self.run_id,
+                mode=self.mode,
+                resume=self.resume_mode,
+                fork_from=self.fork_from,
+                config=result_data if self.run_id is None else None,
+                settings=wandb.Settings(init_timeout=init_timeout),
+            )
+
+            if self.run_id is None:
+                logger.info(f"New run {run.id} initialized.")
+            elif self.resume_mode:
                 logger.info(f"Resuming run {self.run_id} with {self.resume_mode}.")
-                run = wandb.init(
-                    project=self.project,
-                    id=self.run_id,
-                    resume=self.resume_mode,
-                )
+            if self.mode == "shared":
+                logger.info(f"Shared mode enabled, logging to run {self.run_id}.")
 
             result_data["init_time"] = timer.stop()
 
         # pre-generate all the payloads
         logger.info("Generating test payloads ...")
         generator = PayloadGenerator(
-            self.data_type,
-            self.num_metrics,
-            self.metric_key_size,
-            self.num_steps,
-            self.fraction,
-            self.is_unique_payload,
-            self.dense_metric_count,
-            self.sparse_stride_size,
+            data_type=self.data_type,
+            num_metrics=self.num_metrics,
+            metric_key_size=self.metric_key_size,
+            num_steps=self.num_steps,
+            fraction=self.fraction,
+            is_unique_payload=self.is_unique_payload,
+            dense_metric_count=self.dense_metric_count,
+            sparse_stride_size=self.sparse_stride_size,
         )
         payloads = generator.generate()
 
@@ -481,7 +491,8 @@ class Experiment:
         with Timer() as timer:
             for s in range(self.num_steps):
                 global_values = {}
-                global_values["global_step"] = s
+                global_values["global_step"] = self.starting_global_step + s
+
                 if self.is_unique_payload or self.fraction < 1.0:
                     run.log({**global_values, **(payloads[s % len(payloads)])})
                 else:
@@ -606,7 +617,6 @@ if __name__ == "__main__":
         "-i",
         "--run-id",
         type=str,
-        default="",
         help="The run id. e.g. -i 123abc to resume this run id.",
     )
 
@@ -615,8 +625,16 @@ if __name__ == "__main__":
         "--resume-mode",
         type=str,
         choices=["must", "allow", "never"],
-        default="must",
+        default=None,
         help="Use with --run-id. The resume mode.",
+    )
+
+    parser.add_argument(
+        "-g",
+        "--global-step",
+        type=int,
+        default=0,
+        help="Set the global_step",
     )
 
     parser.add_argument(
@@ -675,12 +693,21 @@ if __name__ == "__main__":
         help="The number of steps to skip for logging the sparse payload",
     )
 
+    parser.add_argument(
+        "-a",
+        "--mode",
+        type=str,
+        choices=["shared", "online"],
+        default="online",
+        help="The mode to run the experiment.",
+    )
+
     args = parser.parse_args()
 
-    fork_from_str = ""
+    fork_from: str | None = None
     if args.fork_run_id:
-        fork_from_str = f"{args.fork_run_id}?_step={args.fork_step}"
-        logger.info(f"Setting fork_from = {fork_from_str}")
+        fork_from = f"{args.fork_run_id}?_step={args.fork_step}"
+        logger.info(f"Setting fork_from = {fork_from}")
 
     experiment = Experiment(
         num_steps=args.steps,
@@ -694,9 +721,11 @@ if __name__ == "__main__":
         resume_mode=args.resume_mode,
         fraction=args.fraction,
         dense_metric_count=args.dense_metric_count,
-        fork_from=fork_from_str,
+        fork_from=fork_from,
         project=args.project,
         sparse_stride_size=args.sparse_stride_size,
+        starting_global_step=args.global_step,
+        mode=args.mode,
     )
 
     experiment.parallel_runs(args.parallel)
