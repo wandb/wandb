@@ -12,3 +12,7 @@ Add here any changes made in a PR that are relevant to end users. Allowed sectio
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+
+- fixed wandb would throw an error when logging a `jpg`/`jpeg` image with transparency data (@jacobromero in https://github.com/wandb/wandb/pull/9527)
