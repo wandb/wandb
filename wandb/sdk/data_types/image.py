@@ -333,6 +333,17 @@ class Image(BatchableMedia):
         ), f"file_type must be one of {accepted_formats}"
         tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + "." + self.format)
         assert self._image is not None
+
+        # JPEG format does not support transparency.
+        # So we remove the alpha (transparency) channel.
+        if self.format in ["jpg", "jpeg"]:
+            wandb.termwarn(
+                "JPEG format does not support transparency. "
+                "Removing alpha channel from image.",
+                repeat=False,
+            )
+            self._image = self._image.convert("RGB")
+
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
 
