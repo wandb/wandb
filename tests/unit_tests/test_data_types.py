@@ -1463,3 +1463,14 @@ def test_log_uint8_image():
         path_im, torch_vision = np.array(path_im.image), np.array(torch_vision.image)
 
         assert np.array_equal(path_im, torch_vision)
+
+
+@pytest.mark.parametrize("file_type", ["jpeg", "jpg"])
+def test_init_image_jpeg_removes_transparency(file_type, mock_wandb_log):
+    img = np.random.rand(100, 100, 4) * 255
+    wandb.Image(img, file_type=file_type)
+
+    assert mock_wandb_log.warned(
+        "JPEG format does not support transparency. "
+        "Removing alpha channel from image.",
+    )
