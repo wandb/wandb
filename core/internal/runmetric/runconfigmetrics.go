@@ -91,6 +91,8 @@ func (rcm *RunConfigMetrics) encodeToRunConfigData(
 			rcm.handler.definedMetrics[metric.Step],
 			encodedMetrics,
 			indexByName,
+			// operating under the assumption that the step metric is
+			// never a glob metric.
 			false,
 		)
 
