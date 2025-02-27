@@ -699,11 +699,9 @@ class Table(Media):
 
         Yields:
         ------
-        index : int
-            The index of the row. Using this value in other W&B tables
+        index: The index of the row. Using this value in other W&B tables
             will automatically build a relationship between the tables
-        row : List[any]
-            The data of the row.
+        row: The data of the row.
 
         <!-- lazydoc-ignore: internal -->
         """
