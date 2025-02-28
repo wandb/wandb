@@ -32,6 +32,11 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     ARTIFACT_TAGS: _ServerFeature.ValueType  # 1
     CLIENT_IDS: _ServerFeature.ValueType  # 2
     ARTIFACT_REGISTRY_SEARCH: _ServerFeature.ValueType  # 3
+    AUTOMATION_EVENT_RUN_METRIC: _ServerFeature.ValueType  # 4
+    AUTOMATION_EVENT_RUN_METRIC_CHANGE: _ServerFeature.ValueType  # 5
+    AUTOMATION_ACTION_NO_OP: _ServerFeature.ValueType  # 6
+    ARTIFACT_COLLECTION_MEMBERSHIP_FILES: _ServerFeature.ValueType  # 7
+    ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER: _ServerFeature.ValueType  # 8
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper): ...
 
@@ -39,6 +44,11 @@ LARGE_FILENAMES: ServerFeature.ValueType  # 0
 ARTIFACT_TAGS: ServerFeature.ValueType  # 1
 CLIENT_IDS: ServerFeature.ValueType  # 2
 ARTIFACT_REGISTRY_SEARCH: ServerFeature.ValueType  # 3
+AUTOMATION_EVENT_RUN_METRIC: ServerFeature.ValueType  # 4
+AUTOMATION_EVENT_RUN_METRIC_CHANGE: ServerFeature.ValueType  # 5
+AUTOMATION_ACTION_NO_OP: ServerFeature.ValueType  # 6
+ARTIFACT_COLLECTION_MEMBERSHIP_FILES: ServerFeature.ValueType  # 7
+ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER: ServerFeature.ValueType  # 8
 global___ServerFeature = ServerFeature
 
 class Record(google.protobuf.message.Message):

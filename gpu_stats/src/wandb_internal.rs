@@ -2832,6 +2832,11 @@ pub enum ServerFeature {
     ArtifactTags = 1,
     ClientIds = 2,
     ArtifactRegistrySearch = 3,
+    AutomationEventRunMetric = 4,
+    AutomationEventRunMetricChange = 5,
+    AutomationActionNoOp = 6,
+    ArtifactCollectionMembershipFiles = 7,
+    ArtifactCollectionMembershipFileDownloadHandler = 8,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2844,6 +2849,15 @@ impl ServerFeature {
             Self::ArtifactTags => "ARTIFACT_TAGS",
             Self::ClientIds => "CLIENT_IDS",
             Self::ArtifactRegistrySearch => "ARTIFACT_REGISTRY_SEARCH",
+            Self::AutomationEventRunMetric => "AUTOMATION_EVENT_RUN_METRIC",
+            Self::AutomationEventRunMetricChange => "AUTOMATION_EVENT_RUN_METRIC_CHANGE",
+            Self::AutomationActionNoOp => "AUTOMATION_ACTION_NO_OP",
+            Self::ArtifactCollectionMembershipFiles => {
+                "ARTIFACT_COLLECTION_MEMBERSHIP_FILES"
+            }
+            Self::ArtifactCollectionMembershipFileDownloadHandler => {
+                "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2853,6 +2867,17 @@ impl ServerFeature {
             "ARTIFACT_TAGS" => Some(Self::ArtifactTags),
             "CLIENT_IDS" => Some(Self::ClientIds),
             "ARTIFACT_REGISTRY_SEARCH" => Some(Self::ArtifactRegistrySearch),
+            "AUTOMATION_EVENT_RUN_METRIC" => Some(Self::AutomationEventRunMetric),
+            "AUTOMATION_EVENT_RUN_METRIC_CHANGE" => {
+                Some(Self::AutomationEventRunMetricChange)
+            }
+            "AUTOMATION_ACTION_NO_OP" => Some(Self::AutomationActionNoOp),
+            "ARTIFACT_COLLECTION_MEMBERSHIP_FILES" => {
+                Some(Self::ArtifactCollectionMembershipFiles)
+            }
+            "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER" => {
+                Some(Self::ArtifactCollectionMembershipFileDownloadHandler)
+            }
             _ => None,
         }
     }
