@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import pathlib
 import platform
@@ -10,7 +11,7 @@ import unittest.mock
 from itertools import takewhile
 from pathlib import Path
 from queue import Queue
-from typing import Any, Callable, Generator, Iterable
+from typing import Any, Callable, Generator, Iterable, Iterator
 
 import pyte
 import pyte.modes
@@ -140,6 +141,25 @@ def copy_asset(
 # --------------------------------
 # Misc Fixtures
 # --------------------------------
+
+
+@pytest.fixture()
+def wandb_caplog(
+    caplog: pytest.LogCaptureFixture,
+) -> Iterator[pytest.LogCaptureFixture]:
+    """Modified caplog fixture that detect wandb log messages.
+
+    The wandb logger is configured to not propagate messages to the root logger,
+    so caplog does not work out of the box.
+    """
+
+    logger = logging.getLogger("wandb")
+
+    logger.addHandler(caplog.handler)
+    try:
+        yield caplog
+    finally:
+        logger.removeHandler(caplog.handler)
 
 
 @pytest.fixture(autouse=True)
