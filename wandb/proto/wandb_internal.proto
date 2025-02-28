@@ -1378,10 +1378,21 @@ message JobInputRequest {
   string input_schema = 4;
 }
 
+/**
+ * Server features are features that the server supports.
+ * This name should match the name of the feature defined in the backend server.
+ */
 enum ServerFeature {
+  // Indicates that the server supports recieving an array of filenames as metadata.
   LARGE_FILENAMES = 0;
+
+  // Indicates that the server supports adding tags to artifacts.
   ARTIFACT_TAGS = 1;
+
+  // Indicates that the server supports client IDs for artifact reference urls.
   CLIENT_IDS = 2;
+
+  // Indicates that the server supports searching for artifacts in a registry.
   ARTIFACT_REGISTRY_SEARCH = 3;
 }
 
