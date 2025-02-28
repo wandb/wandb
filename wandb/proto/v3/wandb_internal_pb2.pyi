@@ -30,8 +30,10 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
     LARGE_FILENAMES: _ServerFeature.ValueType  # 0
     ARTIFACT_TAGS: _ServerFeature.ValueType  # 1
+    """Exposes the Tags endpoint on the Artifact type"""
     CLIENT_IDS: _ServerFeature.ValueType  # 2
     ARTIFACT_REGISTRY_SEARCH: _ServerFeature.ValueType  # 3
+    """Adds support to search for artifact collections and artifacts in a registry"""
     AUTOMATION_EVENT_RUN_METRIC: _ServerFeature.ValueType  # 4
     """Supports triggering actions based on run metric thresholds"""
     AUTOMATION_EVENT_RUN_METRIC_CHANGE: _ServerFeature.ValueType  # 5
@@ -47,8 +49,10 @@ class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper): ..
 
 LARGE_FILENAMES: ServerFeature.ValueType  # 0
 ARTIFACT_TAGS: ServerFeature.ValueType  # 1
+"""Exposes the Tags endpoint on the Artifact type"""
 CLIENT_IDS: ServerFeature.ValueType  # 2
 ARTIFACT_REGISTRY_SEARCH: ServerFeature.ValueType  # 3
+"""Adds support to search for artifact collections and artifacts in a registry"""
 AUTOMATION_EVENT_RUN_METRIC: ServerFeature.ValueType  # 4
 """Supports triggering actions based on run metric thresholds"""
 AUTOMATION_EVENT_RUN_METRIC_CHANGE: ServerFeature.ValueType  # 5

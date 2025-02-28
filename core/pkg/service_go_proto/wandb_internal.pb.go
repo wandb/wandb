@@ -25,9 +25,11 @@ const (
 type ServerFeature int32
 
 const (
-	ServerFeature_LARGE_FILENAMES          ServerFeature = 0
-	ServerFeature_ARTIFACT_TAGS            ServerFeature = 1
-	ServerFeature_CLIENT_IDS               ServerFeature = 2
+	ServerFeature_LARGE_FILENAMES ServerFeature = 0
+	// Exposes the Tags endpoint on the Artifact type
+	ServerFeature_ARTIFACT_TAGS ServerFeature = 1
+	ServerFeature_CLIENT_IDS    ServerFeature = 2
+	// Adds support to search for artifact collections and artifacts in a registry
 	ServerFeature_ARTIFACT_REGISTRY_SEARCH ServerFeature = 3
 	// Supports triggering actions based on run metric thresholds
 	ServerFeature_AUTOMATION_EVENT_RUN_METRIC ServerFeature = 4

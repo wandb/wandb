@@ -2829,8 +2829,10 @@ pub struct ServerFeatureItem {
 #[repr(i32)]
 pub enum ServerFeature {
     LargeFilenames = 0,
+    /// Exposes the Tags endpoint on the Artifact type
     ArtifactTags = 1,
     ClientIds = 2,
+    /// Adds support to search for artifact collections and artifacts in a registry
     ArtifactRegistrySearch = 3,
     /// Supports triggering actions based on run metric thresholds
     AutomationEventRunMetric = 4,

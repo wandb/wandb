@@ -1380,8 +1380,10 @@ message JobInputRequest {
 
 enum ServerFeature {
   LARGE_FILENAMES = 0;
+  // Exposes the Tags endpoint on the Artifact type
   ARTIFACT_TAGS = 1;
   CLIENT_IDS = 2;
+  // Adds support to search for artifact collections and artifacts in a registry
   ARTIFACT_REGISTRY_SEARCH = 3;
   // Supports triggering actions based on run metric thresholds
   AUTOMATION_EVENT_RUN_METRIC = 4;
