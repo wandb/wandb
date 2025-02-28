@@ -297,6 +297,17 @@ class Image(BatchableMedia):
             "PIL.Image",
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
         )
+
+        accepted_formats = ["png", "jpg", "jpeg", "bmp"]
+        if file_type is None:
+            self.format = "png"
+        else:
+            self.format = file_type
+        assert (
+            self.format in accepted_formats
+        ), f"file_type must be one of {accepted_formats}"
+        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + "." + self.format)
+
         if util.is_matplotlib_typename(util.get_full_typename(data)):
             buf = BytesIO()
             util.ensure_matplotlib_figure(data).savefig(buf, format="png")
@@ -320,30 +331,19 @@ class Image(BatchableMedia):
                 data = data.numpy()
             if data.ndim > 2:
                 data = data.squeeze()  # get rid of trivial dimensions as a convenience
-            self._image = pil_image.fromarray(
-                self.to_uint8(data), mode=mode or self.guess_mode(data)
-            )
-        accepted_formats = ["png", "jpg", "jpeg", "bmp"]
-        if file_type is None:
-            self.format = "png"
-        else:
-            self.format = file_type
-        assert (
-            self.format in accepted_formats
-        ), f"file_type must be one of {accepted_formats}"
-        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + "." + self.format)
+
+            mode = mode or self.guess_mode(data)
+            if self.format in ["jpg", "jpeg"] and mode == "RGBA":
+                wandb.termwarn(
+                    "JPEG format does not support transparency. "
+                    "Ignoring alpha channel.",
+                    repeat=False,
+                )
+                mode = "RGB"
+
+            self._image = pil_image.fromarray(self.to_uint8(data), mode=mode)
+
         assert self._image is not None
-
-        # JPEG format does not support transparency.
-        # So we remove the alpha (transparency) channel.
-        if self.format in ["jpg", "jpeg"]:
-            wandb.termwarn(
-                "JPEG format does not support transparency. "
-                "Removing alpha channel from image.",
-                repeat=False,
-            )
-            self._image = self._image.convert("RGB")
-
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
 
