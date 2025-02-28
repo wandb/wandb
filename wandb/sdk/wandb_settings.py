@@ -1256,11 +1256,7 @@ class Settings(BaseModel, validate_assignment=True):
             try:
                 os.makedirs(root_dir, exist_ok=True)
             except Exception:
-                termwarn(
-                    "Failed to create root_dir, using system temp directory",
-                    repeat=False,
-                )
-                self.root_dir = tempfile.gettempdir()
+                pass
 
         # We use the hidden version if it already exists, otherwise non-hidden.
         if os.path.exists(os.path.join(root_dir, ".wandb")):
@@ -1277,6 +1273,7 @@ class Settings(BaseModel, validate_assignment=True):
             path = os.path.join(
                 tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep)
             )
+            self.root_dir = path
 
         return os.path.expanduser(path)
 
