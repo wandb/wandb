@@ -1248,6 +1248,13 @@ class Settings(BaseModel, validate_assignment=True):
         """
         root_dir = self.root_dir or ""
 
+        if root_dir and not os.path.exists(root_dir):
+            termwarn(
+                "root_dir doesn't exist, attempting to create it",
+                repeat=False,
+            )
+            os.makedirs(root_dir, exist_ok=True)
+
         # We use the hidden version if it already exists, otherwise non-hidden.
         if os.path.exists(os.path.join(root_dir, ".wandb")):
             __stage_dir__ = ".wandb" + os.sep
