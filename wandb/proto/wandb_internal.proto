@@ -1383,8 +1383,11 @@ enum ServerFeature {
   ARTIFACT_TAGS = 1;
   CLIENT_IDS = 2;
   ARTIFACT_REGISTRY_SEARCH = 3;
+  // Supports triggering actions based on run metric thresholds
   AUTOMATION_EVENT_RUN_METRIC = 4;
+  // Supports triggering actions based on run metric changes over time
   AUTOMATION_EVENT_RUN_METRIC_CHANGE = 5;
+  // Supports running no-op automation actions
   AUTOMATION_ACTION_NO_OP = 6;
   // Exposes the files and filesByManifestEntries endpoints on the ArtifactCollectionMembership type
   ARTIFACT_COLLECTION_MEMBERSHIP_FILES = 7;

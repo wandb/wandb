@@ -25,13 +25,16 @@ const (
 type ServerFeature int32
 
 const (
-	ServerFeature_LARGE_FILENAMES                    ServerFeature = 0
-	ServerFeature_ARTIFACT_TAGS                      ServerFeature = 1
-	ServerFeature_CLIENT_IDS                         ServerFeature = 2
-	ServerFeature_ARTIFACT_REGISTRY_SEARCH           ServerFeature = 3
-	ServerFeature_AUTOMATION_EVENT_RUN_METRIC        ServerFeature = 4
+	ServerFeature_LARGE_FILENAMES          ServerFeature = 0
+	ServerFeature_ARTIFACT_TAGS            ServerFeature = 1
+	ServerFeature_CLIENT_IDS               ServerFeature = 2
+	ServerFeature_ARTIFACT_REGISTRY_SEARCH ServerFeature = 3
+	// Supports triggering actions based on run metric thresholds
+	ServerFeature_AUTOMATION_EVENT_RUN_METRIC ServerFeature = 4
+	// Supports triggering actions based on run metric changes over time
 	ServerFeature_AUTOMATION_EVENT_RUN_METRIC_CHANGE ServerFeature = 5
-	ServerFeature_AUTOMATION_ACTION_NO_OP            ServerFeature = 6
+	// Supports running no-op automation actions
+	ServerFeature_AUTOMATION_ACTION_NO_OP ServerFeature = 6
 	// Exposes the files and filesByManifestEntries endpoints on the ArtifactCollectionMembership type
 	ServerFeature_ARTIFACT_COLLECTION_MEMBERSHIP_FILES ServerFeature = 7
 	// Adds support for the artifacts file download handler to accept collection information

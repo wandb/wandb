@@ -2832,8 +2832,11 @@ pub enum ServerFeature {
     ArtifactTags = 1,
     ClientIds = 2,
     ArtifactRegistrySearch = 3,
+    /// Supports triggering actions based on run metric thresholds
     AutomationEventRunMetric = 4,
+    /// Supports triggering actions based on run metric changes over time
     AutomationEventRunMetricChange = 5,
+    /// Supports running no-op automation actions
     AutomationActionNoOp = 6,
     /// Exposes the files and filesByManifestEntries endpoints on the ArtifactCollectionMembership type
     ArtifactCollectionMembershipFiles = 7,
