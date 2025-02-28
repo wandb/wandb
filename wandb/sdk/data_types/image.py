@@ -310,8 +310,8 @@ class Image(BatchableMedia):
 
         if util.is_matplotlib_typename(util.get_full_typename(data)):
             buf = BytesIO()
-            util.ensure_matplotlib_figure(data).savefig(buf, format="png")
-            self._image = pil_image.open(buf, formats=["PNG"])
+            util.ensure_matplotlib_figure(data).savefig(buf, format=self.format)
+            self._image = pil_image.open(buf)
         elif isinstance(data, pil_image.Image):
             self._image = data
         elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
@@ -323,8 +323,10 @@ class Image(BatchableMedia):
             if hasattr(data, "dtype") and str(data.dtype) == "torch.uint8":
                 data = data.to(float)
             data = vis_util.make_grid(data, normalize=True)
+            mode = mode or self.guess_mode(data.numpy(), file_type)
             self._image = pil_image.fromarray(
-                data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
+                data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy(),
+                mode=mode,
             )
         else:
             if hasattr(data, "numpy"):  # TF data eager tensors
@@ -332,16 +334,11 @@ class Image(BatchableMedia):
             if data.ndim > 2:
                 data = data.squeeze()  # get rid of trivial dimensions as a convenience
 
-            mode = mode or self.guess_mode(data)
-            if self.format in ["jpg", "jpeg"] and mode == "RGBA":
-                wandb.termwarn(
-                    "JPEG format does not support transparency. "
-                    "Ignoring alpha channel.",
-                    repeat=False,
-                )
-                mode = "RGB"
-
-            self._image = pil_image.fromarray(self.to_uint8(data), mode=mode)
+            mode = mode or self.guess_mode(data, file_type)
+            self._image = pil_image.fromarray(
+                self.to_uint8(data),
+                mode=mode,
+            )
 
         assert self._image is not None
         self._image.save(tmp_path, transparency=None)
@@ -482,7 +479,7 @@ class Image(BatchableMedia):
             }
         return json_dict
 
-    def guess_mode(self, data: "np.ndarray") -> str:
+    def guess_mode(self, data: "np.ndarray", file_type: Optional[str] = None) -> str:
         """Guess what type of image the np.array is representing."""
         # TODO: do we want to support dimensions being at the beginning of the array?
         if data.ndim == 2:
@@ -490,7 +487,15 @@ class Image(BatchableMedia):
         elif data.shape[-1] == 3:
             return "RGB"
         elif data.shape[-1] == 4:
-            return "RGBA"
+            if file_type in ["jpg", "jpeg"]:
+                wandb.termwarn(
+                    "JPEG format does not support transparency. "
+                    "Ignoring alpha channel.",
+                    repeat=False,
+                )
+                return "RGB"
+            else:
+                return "RGBA"
         else:
             raise ValueError(
                 "Un-supported shape for image conversion {}".format(list(data.shape))
