@@ -2655,7 +2655,7 @@ Run `git clone {}` and restore from there or pass the --no-git flag.""".format(r
     return commit, json_config, patch_content, repo, metadata
 
 
-@cli.command("online", help="Enables W&B online mode, where data is logged to W&B in real-time. This mode is ideal for environments with stable internet connectivity, providing immediate data tracking and access to experiment results. When online mode. This is the default mode for tracking and syncing data.")
+@cli.command("online", help="Enables W&B online mode, where data is logged to W&B in real-time. This mode is ideal for environments with stable internet connectivity, providing immediate data tracking and access to experiment results. This is the default mode for tracking and syncing data.")
 @display_error
 def online():
     api = InternalApi()
