@@ -21,6 +21,7 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 - changed moviepy constraint to >=1.0.0 (@jacobromero in https://github.com/wandb/wandb/pull/9419)
 - `wandb.init()` displays more detailed information, in particular when it is stuck retrying HTTP errors (@timoffex in https://github.com/wandb/wandb/pull/9431)
+- Added new server features for automation event run metric, automation event run metric change, automation action no op, artifact collection membership files, and artifact collection membership file download handler. (@ibindlish in https://github.com/wandb/wandb/pull/9539)
 
 ### Removed
 
