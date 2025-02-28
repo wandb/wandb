@@ -39,7 +39,7 @@ func (sm *StreamMux) GetStream(streamId string) (*Stream, error) {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	if stream, ok := sm.mux[streamId]; !ok {
-		return nil, fmt.Errorf("stream not found")
+		return nil, fmt.Errorf("stream %s not found", streamId)
 	} else {
 		return stream, nil
 	}
