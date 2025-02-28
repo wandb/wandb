@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, Union
 
 import wandb
 import wandb.integration.sagemaker as sagemaker
-from wandb.sdk.lib import import_hooks
+from wandb.sdk.lib import import_hooks, wb_logging
 
 from . import wandb_settings
 from .lib import config_util, server
@@ -294,6 +294,7 @@ def singleton() -> _WandbSetup | None:
         return None
 
 
+@wb_logging.log_to_all_runs()
 def _setup(
     settings: Settings | None = None,
     start_service: bool = True,
@@ -382,6 +383,7 @@ def setup(settings: Settings | None = None) -> _WandbSetup:
     return _setup(settings=settings)
 
 
+@wb_logging.log_to_all_runs()
 def teardown(exit_code: int | None = None) -> None:
     """Waits for wandb to finish and frees resources.
 
