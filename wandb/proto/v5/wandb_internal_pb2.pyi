@@ -37,7 +37,9 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     AUTOMATION_EVENT_RUN_METRIC_CHANGE: _ServerFeature.ValueType  # 5
     AUTOMATION_ACTION_NO_OP: _ServerFeature.ValueType  # 6
     ARTIFACT_COLLECTION_MEMBERSHIP_FILES: _ServerFeature.ValueType  # 7
+    """Exposes the files and filesByManifestEntries endpoints on the ArtifactCollectionMembership type"""
     ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER: _ServerFeature.ValueType  # 8
+    """Adds support for the artifacts file download handler to accept collection information"""
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper): ...
 
@@ -49,7 +51,9 @@ AUTOMATION_EVENT_RUN_METRIC: ServerFeature.ValueType  # 4
 AUTOMATION_EVENT_RUN_METRIC_CHANGE: ServerFeature.ValueType  # 5
 AUTOMATION_ACTION_NO_OP: ServerFeature.ValueType  # 6
 ARTIFACT_COLLECTION_MEMBERSHIP_FILES: ServerFeature.ValueType  # 7
+"""Exposes the files and filesByManifestEntries endpoints on the ArtifactCollectionMembership type"""
 ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER: ServerFeature.ValueType  # 8
+"""Adds support for the artifacts file download handler to accept collection information"""
 global___ServerFeature = ServerFeature
 
 @typing.final

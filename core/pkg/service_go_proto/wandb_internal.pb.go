@@ -25,14 +25,16 @@ const (
 type ServerFeature int32
 
 const (
-	ServerFeature_LARGE_FILENAMES                                      ServerFeature = 0
-	ServerFeature_ARTIFACT_TAGS                                        ServerFeature = 1
-	ServerFeature_CLIENT_IDS                                           ServerFeature = 2
-	ServerFeature_ARTIFACT_REGISTRY_SEARCH                             ServerFeature = 3
-	ServerFeature_AUTOMATION_EVENT_RUN_METRIC                          ServerFeature = 4
-	ServerFeature_AUTOMATION_EVENT_RUN_METRIC_CHANGE                   ServerFeature = 5
-	ServerFeature_AUTOMATION_ACTION_NO_OP                              ServerFeature = 6
-	ServerFeature_ARTIFACT_COLLECTION_MEMBERSHIP_FILES                 ServerFeature = 7
+	ServerFeature_LARGE_FILENAMES                    ServerFeature = 0
+	ServerFeature_ARTIFACT_TAGS                      ServerFeature = 1
+	ServerFeature_CLIENT_IDS                         ServerFeature = 2
+	ServerFeature_ARTIFACT_REGISTRY_SEARCH           ServerFeature = 3
+	ServerFeature_AUTOMATION_EVENT_RUN_METRIC        ServerFeature = 4
+	ServerFeature_AUTOMATION_EVENT_RUN_METRIC_CHANGE ServerFeature = 5
+	ServerFeature_AUTOMATION_ACTION_NO_OP            ServerFeature = 6
+	// Exposes the files and filesByManifestEntries endpoints on the ArtifactCollectionMembership type
+	ServerFeature_ARTIFACT_COLLECTION_MEMBERSHIP_FILES ServerFeature = 7
+	// Adds support for the artifacts file download handler to accept collection information
 	ServerFeature_ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER ServerFeature = 8
 )
 

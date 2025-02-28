@@ -2835,7 +2835,9 @@ pub enum ServerFeature {
     AutomationEventRunMetric = 4,
     AutomationEventRunMetricChange = 5,
     AutomationActionNoOp = 6,
+    /// Exposes the files and filesByManifestEntries endpoints on the ArtifactCollectionMembership type
     ArtifactCollectionMembershipFiles = 7,
+    /// Adds support for the artifacts file download handler to accept collection information
     ArtifactCollectionMembershipFileDownloadHandler = 8,
 }
 impl ServerFeature {

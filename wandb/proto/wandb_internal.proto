@@ -1386,7 +1386,9 @@ enum ServerFeature {
   AUTOMATION_EVENT_RUN_METRIC = 4;
   AUTOMATION_EVENT_RUN_METRIC_CHANGE = 5;
   AUTOMATION_ACTION_NO_OP = 6;
+  // Exposes the files and filesByManifestEntries endpoints on the ArtifactCollectionMembership type
   ARTIFACT_COLLECTION_MEMBERSHIP_FILES = 7;
+  // Adds support for the artifacts file download handler to accept collection information
   ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER = 8;
 }
 
