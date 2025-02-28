@@ -657,7 +657,6 @@ class StreamRawWrapper(RedirectBase):
         for cb in self.cbs:
             try:
                 cb(written_data)
-                logger.info("StreamRawWrapper callback %s", written_data)
             except Exception:
                 logger.exception("error in %s callback", self.src)
 
