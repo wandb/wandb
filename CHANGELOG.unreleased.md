@@ -16,3 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Media file paths containing special characters (?, *, ], [ or \\) no longer cause file uploads to fail in `wandb-core` (@jacobromero in https://github.com/wandb/wandb/pull/9475)
+
+### Changed
+
+- `wandb.init(dir=...)` now creates any nonexistent directories in `dir` if it has a parent directory that is writeable (@ringohoffman in <https://github.com/wandb/wandb/pull/9545>)
