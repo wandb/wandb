@@ -1443,7 +1443,7 @@ class Settings(BaseModel, validate_assignment=True):
             self.root_dir = tempfile.gettempdir()
             path = os.path.join(self.root_dir, __stage_dir__)
             termwarn(
-                f"Path {root_dir} wasn't writable, using system temp directory {path}.",
+                f"Path {unwritable_dir} wasn't writable, using system temp directory {path}.",
                 repeat=False,
             )
 
