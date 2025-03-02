@@ -1259,23 +1259,30 @@ class Settings(BaseModel, validate_assignment=True):
         The setting exposed to users as `dir=` or `WANDB_DIR` is the `root_dir`.
         We add the `__stage_dir__` to it to get the full `wandb_dir`
         """
-        root_dir = self.root_dir or ""
+        root_dir = os.path.abspath(self.root_dir)
 
-        # We use the hidden version if it already exists, otherwise non-hidden.
-        if os.path.exists(os.path.join(root_dir, ".wandb")):
-            __stage_dir__ = ".wandb" + os.sep
-        else:
-            __stage_dir__ = "wandb" + os.sep
+        __stage_dir__ = (
+            ".wandb" + os.sep
+            if os.path.exists(os.path.join(root_dir, ".wandb"))
+            else "wandb" + os.sep
+        )
 
-        path = os.path.join(root_dir, __stage_dir__)
-        if not os.access(root_dir or ".", os.W_OK):
+        # find the first existing parent in self.root_dir
+        while (
+            not os.path.exists(root_dir)
+            and root_dir != (root_dir := os.path.dirname(root_dir))  # base case
+        ):
+            pass
+
+        if not os.access(root_dir, os.W_OK):
+            path = os.path.join(tempfile.gettempdir(), __stage_dir__)
             termwarn(
-                f"Path {path} wasn't writable, using system temp directory.",
+                f"Path {root_dir} wasn't writable, using system temp directory {path}.",
                 repeat=False,
             )
-            path = os.path.join(
-                tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep)
-            )
+        else:
+            os.makedirs(self.root_dir, exist_ok=True)
+            path = os.path.join(self.root_dir, __stage_dir__)
 
         return os.path.expanduser(path)
 
