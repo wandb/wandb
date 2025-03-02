@@ -1275,9 +1275,15 @@ class Settings(BaseModel, validate_assignment=True):
             pass
 
         if not os.access(root_dir, os.W_OK):
+            resolved_root_dir = os.path.realpath(root_dir)
+            unwritable_dir = (
+                (f"{root_dir} -> {resolved_root_dir}")
+                if root_dir != resolved_root_dir
+                else root_dir
+            )
             path = os.path.join(tempfile.gettempdir(), __stage_dir__)
             termwarn(
-                f"Path {root_dir} wasn't writable, using system temp directory {path}.",
+                f"Path {unwritable_dir} wasn't writable, using system temp directory {path}.",
                 repeat=False,
             )
         else:
