@@ -299,13 +299,11 @@ class Image(BatchableMedia):
         )
 
         accepted_formats = ["png", "jpg", "jpeg", "bmp"]
-        if file_type is None:
-            self.format = "png"
-        else:
-            self.format = file_type
-        assert (
-            self.format in accepted_formats
-        ), f"file_type must be one of {accepted_formats}"
+        self.format = file_type or "png"
+
+        if self.format not in accepted_formats:
+            raise ValueError(f"file_type must be one of {accepted_formats}")
+
         tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + "." + self.format)
 
         if util.is_matplotlib_typename(util.get_full_typename(data)):
@@ -480,7 +478,9 @@ class Image(BatchableMedia):
         return json_dict
 
     def guess_mode(
-        self, data: Union["np.ndarray", "torch.Tensor"], file_type: Optional[str] = None
+        self,
+        data: Union["np.ndarray", "torch.Tensor"],
+        file_type: Optional[str] = None,
     ) -> str:
         """Guess what type of image the np.array is representing."""
         # TODO: do we want to support dimensions being at the beginning of the array?
