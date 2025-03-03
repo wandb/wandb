@@ -1267,14 +1267,10 @@ class Settings(BaseModel, validate_assignment=True):
             else "wandb" + os.sep
         )
 
-        # find the first existing parent in self.root_dir
-        while (
-            not os.path.exists(root_dir)
-            and root_dir != (root_dir := os.path.dirname(root_dir))  # base case
-        ):
-            pass
-
-        if not os.access(root_dir, os.W_OK):
+        try:
+            os.makedirs(root_dir, exist_ok=True)
+            path = os.path.join(root_dir, __stage_dir__)
+        except PermissionError:
             resolved_root_dir = os.path.realpath(root_dir)
             unwritable_dir = (
                 (f"{root_dir} -> {resolved_root_dir}")
@@ -1286,9 +1282,6 @@ class Settings(BaseModel, validate_assignment=True):
                 f"Path {unwritable_dir} wasn't writable, using system temp directory {path}.",
                 repeat=False,
             )
-        else:
-            os.makedirs(self.root_dir, exist_ok=True)
-            path = os.path.join(self.root_dir, __stage_dir__)
 
         return os.path.expanduser(path)
 
