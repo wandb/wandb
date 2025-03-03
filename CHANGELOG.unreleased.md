@@ -16,4 +16,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Media file paths containing special characters (?, \*, ], [ or \\) no longer cause file uploads to fail in `wandb-core` (@jacobromero in https://github.com/wandb/wandb/pull/9475)
-- fixed wandb would throw an error when logging a `jpg`/`jpeg` image with transparency data (@jacobromero in https://github.com/wandb/wandb/pull/9527)
+- Fixed an error being thrown when logging `jpg`/`jpeg` images containing transparency data (@jacobromero in https://github.com/wandb/wandb/pull/9527)

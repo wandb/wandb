@@ -479,23 +479,6 @@ class Image(BatchableMedia):
             }
         return json_dict
 
-    def guess_mode_torch(
-        self, data: "torch.Tensor", file_type: Optional[str] = None
-    ) -> str:
-        if data.ndim == 2:
-            return "L"
-        elif data.shape[0] == 3:
-            return "RGB"
-        elif data.shape[0] == 4:
-            if file_type in ["jpg", "jpeg"]:
-                return "RGB"
-            else:
-                return "RGBA"
-        else:
-            raise ValueError(
-                "Un-supported shape for image conversion {}".format(list(data.shape))
-            )
-
     def guess_mode(
         self, data: Union["np.ndarray", "torch.Tensor"], file_type: Optional[str] = None
     ) -> str:
