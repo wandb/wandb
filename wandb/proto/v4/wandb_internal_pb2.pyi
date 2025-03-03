@@ -32,6 +32,12 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     ARTIFACT_TAGS: _ServerFeature.ValueType  # 1
     CLIENT_IDS: _ServerFeature.ValueType  # 2
     ARTIFACT_REGISTRY_SEARCH: _ServerFeature.ValueType  # 3
+    CONSOLE_LOG_LABELS: _ServerFeature.ValueType  # 4
+    """Indicatest that the server supports console log labels.
+
+    This is helpful in a distributed training context where logs from
+    different processes can be distinguished by their labels.
+    """
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper): ...
 
@@ -39,6 +45,12 @@ LARGE_FILENAMES: ServerFeature.ValueType  # 0
 ARTIFACT_TAGS: ServerFeature.ValueType  # 1
 CLIENT_IDS: ServerFeature.ValueType  # 2
 ARTIFACT_REGISTRY_SEARCH: ServerFeature.ValueType  # 3
+CONSOLE_LOG_LABELS: ServerFeature.ValueType  # 4
+"""Indicatest that the server supports console log labels.
+
+This is helpful in a distributed training context where logs from
+different processes can be distinguished by their labels.
+"""
 global___ServerFeature = ServerFeature
 
 @typing_extensions.final

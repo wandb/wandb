@@ -1383,6 +1383,12 @@ enum ServerFeature {
   ARTIFACT_TAGS = 1;
   CLIENT_IDS = 2;
   ARTIFACT_REGISTRY_SEARCH = 3;
+
+  // Indicatest that the server supports console log labels.
+  //
+  // This is helpful in a distributed training context where logs from
+  // different processes can be distinguished by their labels.
+  CONSOLE_LOG_LABELS = 4;
 }
 
 /**
