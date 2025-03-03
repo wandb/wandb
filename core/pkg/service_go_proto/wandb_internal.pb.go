@@ -22,12 +22,19 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// *
+// Server features are features that the server supports.
+// This name should match the name of the feature defined in the backend server.
 type ServerFeature int32
 
 const (
-	ServerFeature_LARGE_FILENAMES          ServerFeature = 0
-	ServerFeature_ARTIFACT_TAGS            ServerFeature = 1
-	ServerFeature_CLIENT_IDS               ServerFeature = 2
+	// Indicates that the server supports recieving an array of filenames as metadata.
+	ServerFeature_LARGE_FILENAMES ServerFeature = 0
+	// Indicates that the server supports adding tags to artifacts.
+	ServerFeature_ARTIFACT_TAGS ServerFeature = 1
+	// Indicates that the server supports client IDs for artifact reference urls.
+	ServerFeature_CLIENT_IDS ServerFeature = 2
+	// Indicates that the server supports searching for artifacts in a registry.
 	ServerFeature_ARTIFACT_REGISTRY_SEARCH ServerFeature = 3
 )
 
