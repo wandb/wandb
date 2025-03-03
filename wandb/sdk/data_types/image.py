@@ -323,7 +323,7 @@ class Image(BatchableMedia):
             if hasattr(data, "dtype") and str(data.dtype) == "torch.uint8":
                 data = data.to(float)
             data = vis_util.make_grid(data, normalize=True)
-            mode = mode or self.guess_mode(data.numpy(), file_type)
+            mode = mode or self.guess_mode(data, file_type)
             self._image = pil_image.fromarray(
                 data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy(),
                 mode=mode,
@@ -479,14 +479,40 @@ class Image(BatchableMedia):
             }
         return json_dict
 
-    def guess_mode(self, data: "np.ndarray", file_type: Optional[str] = None) -> str:
-        """Guess what type of image the np.array is representing."""
-        # TODO: do we want to support dimensions being at the beginning of the array?
+    def guess_mode_torch(
+        self, data: "torch.Tensor", file_type: Optional[str] = None
+    ) -> str:
         if data.ndim == 2:
             return "L"
-        elif data.shape[-1] == 3:
+        elif data.shape[0] == 3:
             return "RGB"
-        elif data.shape[-1] == 4:
+        elif data.shape[0] == 4:
+            if file_type in ["jpg", "jpeg"]:
+                return "RGB"
+            else:
+                return "RGBA"
+        else:
+            raise ValueError(
+                "Un-supported shape for image conversion {}".format(list(data.shape))
+            )
+
+    def guess_mode(
+        self, data: Union["np.ndarray", "torch.Tensor"], file_type: Optional[str] = None
+    ) -> str:
+        """Guess what type of image the np.array is representing."""
+        # TODO: do we want to support dimensions being at the beginning of the array?
+        ndims = data.ndim
+        if util.is_pytorch_tensor_typename(util.get_full_typename(data)):
+            # Torch tenors typically have the channels dimension first
+            num_channels = data.shape[0]
+        else:
+            num_channels = data.shape[-1]
+
+        if ndims == 2:
+            return "L"
+        elif num_channels == 3:
+            return "RGB"
+        elif num_channels == 4:
             if file_type in ["jpg", "jpeg"]:
                 wandb.termwarn(
                     "JPEG format does not support transparency. "

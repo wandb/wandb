@@ -1462,7 +1462,6 @@ def test_log_uint8_image():
         path_im = wandb.Image(temp.name)
 
         path_im, torch_vision = np.array(path_im.image), np.array(torch_vision.image)
-
         assert np.array_equal(path_im, torch_vision)
 
 
@@ -1475,7 +1474,7 @@ def test_log_uint8_image():
             id="numpy_array",
         ),
         pytest.param(
-            torch.rand(3, 3, 4) * 255,
+            torch.rand(4, 3, 3) * 255,
             id="pytorch_tensor",
         ),
     ],
