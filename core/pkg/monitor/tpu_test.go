@@ -84,7 +84,6 @@ func TestTPUSingleDeviceComplete(t *testing.T) {
 	}
 
 	tpu := &monitor.TPU{}
-	tpu.SetName("tpu")
 	tpu.SetClient(mockClient)
 	tpu.SetChip(monitor.TPUChip{Name: "v4", HbmGiB: 16, DevicesPerChip: 1}, 1)
 
@@ -131,7 +130,6 @@ func TestTPUV2MultiDevice(t *testing.T) {
 	}
 
 	tpu := &monitor.TPU{}
-	tpu.SetName("tpu")
 	tpu.SetClient(mockClient)
 	tpu.SetChip(monitor.TPUChip{Name: "v2", HbmGiB: 8, DevicesPerChip: 2}, 1)
 
@@ -182,7 +180,6 @@ func TestTPUPartialMetrics(t *testing.T) {
 	}
 
 	tpu := &monitor.TPU{}
-	tpu.SetName("tpu")
 	tpu.SetClient(mockClient)
 	tpu.SetChip(monitor.TPUChip{Name: "v4", HbmGiB: 16, DevicesPerChip: 1}, 2)
 
@@ -239,7 +236,6 @@ func TestTPUNonSequentialDeviceIDs(t *testing.T) {
 	}
 
 	tpu := &monitor.TPU{}
-	tpu.SetName("tpu")
 	tpu.SetClient(mockClient)
 	tpu.SetChip(monitor.TPUChip{Name: "v4", HbmGiB: 16, DevicesPerChip: 1}, 2)
 
