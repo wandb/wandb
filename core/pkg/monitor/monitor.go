@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	defaultSamplingInterval = 10.0 * time.Second
+	defaultSamplingInterval = 15.0 * time.Second
 )
 
 // State definitions for the SystemMonitor.

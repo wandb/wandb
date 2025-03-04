@@ -16,3 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Media file paths containing special characters (?, *, ], [ or \\) no longer cause file uploads to fail in `wandb-core` (@jacobromero in https://github.com/wandb/wandb/pull/9475)
+
+### Changed
+
+- The system monitor now samples metrics every 15 seconds by default, up from 10 seconds (@kptkin in https://github.com/wandb/wandb/pull/9554)
