@@ -682,11 +682,11 @@ class _WandbInit:
         drun._Run__metadata = wandb.sdk.wandb_metadata.Metadata()
 
         # methods
-        drun.log = lambda data, *_, **__: drun.summary.update(data)  # type: ignore
-        drun.finish = lambda *_, **__: module.unset_globals()  # type: ignore
-        drun.join = drun.finish  # type: ignore
-        drun.define_metric = lambda *_, **__: wandb.sdk.wandb_metric.Metric("dummy")  # type: ignore
-        drun.save = lambda *_, **__: False  # type: ignore
+        drun.log = lambda data, *_, **__: drun.summary.update(data)  # type: ignore[method-assign]
+        drun.finish = lambda *_, **__: module.unset_globals()  # type: ignore[method-assign]
+        drun.join = drun.finish  # type: ignore[method-assign]
+        drun.define_metric = lambda *_, **__: wandb.sdk.wandb_metric.Metric("dummy")  # type: ignore[method-assign]
+        drun.save = lambda *_, **__: False  # type: ignore[method-assign]
         for symbol in (
             "alert",
             "finish_artifact",
@@ -733,7 +733,7 @@ class _WandbInit:
             def __call__(self, *args: Any, **kwargs: Any) -> _ChainableNoOp:
                 return _ChainableNoOp()
 
-        drun.log_artifact = _ChainableNoOpField()
+        drun.log_artifact = _ChainableNoOpField()  # type: ignore[method-assign]
         # attributes
         drun._start_time = time.time()
         drun._starting_step = 0
@@ -1461,6 +1461,9 @@ def init(  # noqa: C901
         if run_settings.sync_tensorboard:
             _monkeypatch_tensorboard()
             init_telemetry.feature.tensorboard_sync = True
+
+        if run_settings.x_server_side_derived_summary:
+            init_telemetry.feature.server_side_derived_summary = True
 
         return wi.init(run_settings, run_config)
 

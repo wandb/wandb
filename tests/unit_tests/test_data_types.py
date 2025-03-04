@@ -1,4 +1,3 @@
-import glob
 import io
 import os
 import platform
@@ -1435,66 +1434,6 @@ def test_partitioned_table():
 ################################################################################
 # Test various data types
 ################################################################################
-
-
-def test_media_keys_escaped_as_glob_for_publish(mock_run):
-    media_to_test = [
-        wandb.Image(
-            np.zeros((28, 28)),
-            masks={
-                "overlay": {
-                    "mask_data": np.array(
-                        [
-                            [1, 2, 2, 2],
-                            [2, 3, 3, 4],
-                            [4, 4, 4, 4],
-                            [4, 4, 4, 2],
-                        ]
-                    ),
-                    "class_labels": {
-                        1: "car",
-                        2: "pedestrian",
-                        3: "tractor",
-                        4: "cthululu",
-                    },
-                },
-            },
-        ),
-        wandb.data_types.ImageMask(
-            {
-                "mask_data": np.random.randint(0, 10, (300, 300)),
-            },
-            key="test",
-        ),
-        wandb.Table(
-            data=[
-                [1, 2, 3],
-                [4, 5, 6],
-            ]
-        ),
-        wandb.Graph(),
-        wandb.Audio(
-            np.random.uniform(-1, 1, 44100),
-            sample_rate=44100,
-        ),
-    ]
-
-    for media in media_to_test:
-        run = mock_run(use_magic_mock=True)
-        weird_key = "[weirdkey]"
-        media.bind_to_run(run, weird_key, 0)
-        published_globs = [
-            g
-            for (
-                [files_dict],
-                [],
-            ) in run._backend.interface.publish_files.call_args_list
-            for g, _ in files_dict["files"]
-        ]
-        assert not any(weird_key in g for g in published_globs), published_globs
-        assert any(
-            glob.escape(weird_key) in g for g in published_globs
-        ), published_globs
 
 
 def test_numpy_arrays_to_list():

@@ -472,6 +472,9 @@ pub struct Feature {
     /// shared mode was added in wandb.Settings
     #[prost(bool, tag = "67")]
     pub shared_mode: bool,
+    /// server-side derived summary computation was enabled
+    #[prost(bool, tag = "68")]
+    pub server_side_derived_summary: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Env {
@@ -2822,12 +2825,19 @@ pub struct ServerFeatureItem {
     #[prost(bool, tag = "2")]
     pub enabled: bool,
 }
+/// *
+/// Server features are features that the server supports.
+/// This name should match the name of the feature defined in the backend server.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum ServerFeature {
+    /// Indicates that the server supports recieving an array of filenames as metadata.
     LargeFilenames = 0,
+    /// Indicates that the server supports adding tags to artifacts.
     ArtifactTags = 1,
+    /// Indicates that the server supports client IDs for artifact reference urls.
     ClientIds = 2,
+    /// Indicates that the server supports searching for artifacts in a registry.
     ArtifactRegistrySearch = 3,
 }
 impl ServerFeature {
