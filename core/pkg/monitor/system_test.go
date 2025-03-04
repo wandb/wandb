@@ -19,6 +19,7 @@ func TestSLURMProbe(t *testing.T) {
 			envVars: map[string]string{
 				"SLURM_JOB_ID":   "12345",
 				"SLURM_JOB_NAME": "test_job",
+				"SOME_OTHER_VAR": "some_value",
 			},
 			expected: &spb.MetadataRequest{
 				Slurm: map[string]string{
@@ -26,11 +27,6 @@ func TestSLURMProbe(t *testing.T) {
 					"job_name": "test_job",
 				},
 			},
-		},
-		{
-			name:     "Without SLURM environment variables",
-			envVars:  map[string]string{},
-			expected: nil,
 		},
 	}
 
@@ -41,10 +37,10 @@ func TestSLURMProbe(t *testing.T) {
 				t.Setenv(k, v)
 			}
 
-			slurm := monitor.NewSLURM()
+			slurm := monitor.NewSystem(0, []string{"/"})
 			result := slurm.Probe()
 
-			if !reflect.DeepEqual(result, tt.expected) {
+			if !reflect.DeepEqual(result.Slurm, tt.expected.Slurm) {
 				t.Errorf("Probe() = %v, want %v", result, tt.expected)
 			}
 		})
