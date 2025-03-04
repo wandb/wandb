@@ -31,9 +31,7 @@ const (
 
 // Asset defines the interface for system assets to be monitored.
 type Asset interface {
-	Name() string
 	Sample() (*spb.StatsRecord, error)
-	IsAvailable() bool
 	Probe() *spb.MetadataRequest
 }
 
@@ -120,26 +118,14 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 	gpuDeviceIds := settings.GetStatsGpuDeviceIds()
 
 	// assets to be monitored.
-	if cpu := NewCPU(pid); cpu != nil {
-		sm.assets = append(sm.assets, cpu)
-	}
-	if disk := NewDisk(diskPaths); disk != nil {
-		sm.assets = append(sm.assets, disk)
-	}
-	if memory := NewMemory(pid); memory != nil {
-		sm.assets = append(sm.assets, memory)
-	}
-	if network := NewNetwork(); network != nil {
-		sm.assets = append(sm.assets, network)
+	if system := NewSystem(pid, diskPaths); system != nil {
+		sm.assets = append(sm.assets, system)
 	}
 	if gpu := NewGPU(pid, gpuDeviceIds); gpu != nil {
 		sm.assets = append(sm.assets, gpu)
 	}
 	if tpu := NewTPU(); tpu != nil {
 		sm.assets = append(sm.assets, tpu)
-	}
-	if slurm := NewSLURM(); slurm != nil {
-		sm.assets = append(sm.assets, slurm)
 	}
 	if trainium := NewTrainium(sm.logger, pid, samplingInterval, neuronMonitorConfigPath); trainium != nil {
 		sm.assets = append(sm.assets, trainium)
@@ -283,7 +269,7 @@ func (sm *SystemMonitor) Resume() {
 // It handles sampling, aggregation, and reporting of metrics
 // and is meant to run in its own goroutine.
 func (sm *SystemMonitor) monitorAsset(asset Asset) {
-	if asset == nil || !asset.IsAvailable() {
+	if asset == nil {
 		sm.wg.Done()
 		return
 	}
@@ -293,9 +279,7 @@ func (sm *SystemMonitor) monitorAsset(asset Asset) {
 		sm.wg.Done()
 		if err := recover(); err != nil {
 			if asset != nil {
-				sm.logger.CaptureError(
-					fmt.Errorf("monitor: panic: %v", err),
-					"asset_name", asset.Name())
+				sm.logger.CaptureError(fmt.Errorf("monitor: panic: %v", err))
 			}
 		}
 	}()
@@ -315,9 +299,7 @@ func (sm *SystemMonitor) monitorAsset(asset Asset) {
 
 			metrics, err := asset.Sample()
 			if err != nil {
-				sm.logger.CaptureError(
-					fmt.Errorf("monitor: %v: error sampling metrics: %v", asset.Name(), err),
-				)
+				sm.logger.CaptureError(fmt.Errorf("monitor: error sampling metrics: %v", err))
 				continue
 			}
 
