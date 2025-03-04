@@ -19,4 +19,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Changed
 
+- The system monitor now samples metrics every 15 seconds by default, up from 10 seconds (@kptkin in https://github.com/wandb/wandb/pull/9554)
 - `wandb.init(dir=...)` now creates any nonexistent directories in `dir` if it has a parent directory that is writeable (@ringohoffman in <https://github.com/wandb/wandb/pull/9545>)

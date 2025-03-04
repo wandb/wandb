@@ -580,7 +580,7 @@ class Settings(BaseModel, validate_assignment=True):
     x_stats_pid: int = os.getpid()
     """PID of the process that started the wandb-core process to collect system stats for."""
 
-    x_stats_sampling_interval: float = Field(default=10.0)
+    x_stats_sampling_interval: float = Field(default=15.0)
     """Sampling interval for the system monitor in seconds."""
 
     x_stats_neuron_monitor_config_path: str | None = None
