@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import configparser
-import functools
 import json
 import logging
 import multiprocessing
@@ -1240,27 +1239,27 @@ class Settings(BaseModel, validate_assignment=True):
         return self._start_datetime
 
     @computed_field  # type: ignore[prop-decorator]
-    @functools.cached_property
+    @property
     def wandb_dir(self) -> str:
         """Full path to the wandb directory.
 
         The setting exposed to users as `dir=` or `WANDB_DIR` is the `root_dir`.
         We add the `__stage_dir__` to it to get the full `wandb_dir`
         """
-        root_dir = os.path.abspath(self.root_dir)
-
         __stage_dir__ = (
             ".wandb" + os.sep
-            if os.path.exists(os.path.join(root_dir, ".wandb"))
+            if os.path.exists(os.path.join(self.root_dir, ".wandb"))
             else "wandb" + os.sep
         )
 
         try:
-            if not os.path.exists(root_dir):
-                os.makedirs(root_dir, exist_ok=True)
-            path = os.path.join(root_dir, __stage_dir__)
+            if not os.path.exists(self.root_dir):
+                os.makedirs(self.root_dir, exist_ok=True)
+            path = os.path.join(self.root_dir, __stage_dir__)
         except PermissionError:
-            path = os.path.join(tempfile.gettempdir(), __stage_dir__)
+            root_dir = self.root_dir
+            self.root_dir = tempfile.gettempdir()
+            path = os.path.join(self.root_dir, __stage_dir__)
             termwarn(
                 f"Path {root_dir} wasn't writable, using system temp directory {path}.",
                 repeat=False,
