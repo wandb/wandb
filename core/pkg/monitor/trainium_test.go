@@ -28,18 +28,18 @@ func TestTrainiumSample(t *testing.T) {
 							},
 						},
 					},
-					"memory_used": map[string]any{ // Change interface{} to any for consistency
+					"memory_used": map[string]any{
 						"neuron_runtime_used_bytes": map[string]any{
 							"host":          float64(610705408),
 							"neuron_device": float64(102298328),
-							"usage_breakdown": map[string]any{ // Change interface{} to any for consistency
-								"host": map[string]any{ // Change interface{} to any for consistency
+							"usage_breakdown": map[string]any{
+								"host": map[string]any{
 									"application_memory": float64(609656832),
 									"constants":          float64(0),
 									"dma_buffers":        float64(1048576),
 									"tensors":            float64(0),
 								},
-								"neuroncore_memory_usage": map[string]any{ // Change interface{} to any for consistency
+								"neuroncore_memory_usage": map[string]any{
 									"0": map[string]any{
 										"constants":               float64(196608),
 										"model_code":              float64(101125344),
