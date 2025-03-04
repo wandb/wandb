@@ -1019,7 +1019,7 @@ class ArtifactFiles(Paginator):
             variables = {
                 "entityName": artifact.collection.entity,
                 "projectName": artifact.collection.project,
-                "artifactName": artifact.collection.name,
+                "artifactName": artifact.name.split(":")[0],
                 "artifactVersionIndex": artifact.version,
                 "fileNames": names,
             }

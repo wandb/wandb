@@ -1962,10 +1962,10 @@ class Artifact:
         if public.Api()._check_server_feature_with_fallback(
             ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
         ):
-            wandb.termlog("logging => fetching file urls via collection membership")
             query = gql(
                 """
-                query ArtifactCollectionMembershipFileURLs($entityName: String!, $projectName: String!, $artifactName: String!, $artifactVersionIndex: String!, $cursor: String, $perPage: Int) {
+                query ArtifactCollectionMembershipFileURLs($entityName: String!, $projectName: String!, \
+                        $artifactName: String!, $artifactVersionIndex: String!, $cursor: String, $perPage: Int) {
                     project(name: $projectName, entityName: $entityName) {
                         artifactCollection(name: $artifactName) {
                             artifactMembership(aliasName: $artifactVersionIndex) {
@@ -1993,7 +1993,7 @@ class Artifact:
                 variable_values={
                     "entityName": self.collection.entity,
                     "projectName": self.collection.project,
-                    "artifactName": self.collection.name,
+                    "artifactName": self.name.split(":")[0],
                     "artifactVersionIndex": self.version,
                     "cursor": cursor,
                     "perPage": per_page,
