@@ -1255,7 +1255,8 @@ class Settings(BaseModel, validate_assignment=True):
         )
 
         try:
-            os.makedirs(root_dir, exist_ok=True)
+            if not os.path.exists(root_dir):
+                os.makedirs(root_dir, exist_ok=True)
             path = os.path.join(root_dir, __stage_dir__)
         except PermissionError:
             resolved_root_dir = os.path.realpath(root_dir)
