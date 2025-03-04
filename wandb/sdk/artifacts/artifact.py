@@ -37,11 +37,13 @@ import requests
 
 import wandb
 from wandb import data_types, env, util
+from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto.v3.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._graphql_fragments import _gql_artifact_fragment
 from wandb.sdk.artifacts._validators import (
     ensure_logged,
@@ -1957,33 +1959,78 @@ class Artifact:
         retryable_exceptions=(requests.RequestException),
     )
     def _fetch_file_urls(self, cursor: str | None, per_page: int | None = 5000) -> Any:
-        query = gql(
-            """
-            query ArtifactFileURLs($id: ID!, $cursor: String, $perPage: Int) {
-                artifact(id: $id) {
-                    files(after: $cursor, first: $perPage) {
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
-                        edges {
-                            node {
-                                name
-                                directUrl
+        if public.Api()._check_server_feature_with_fallback(
+            ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
+        ):
+            wandb.termlog("logging => fetching file urls via collection membership")
+            query = gql(
+                """
+                query ArtifactCollectionMembershipFileURLs($entityName: String!, $projectName: String!, $artifactName: String!, $artifactVersionIndex: String!, $cursor: String, $perPage: Int) {
+                    project(name: $projectName, entityName: $entityName) {
+                        artifactCollection(name: $artifactName) {
+                            artifactMembership(aliasName: $artifactVersionIndex) {
+                                files(after: $cursor, first: $perPage) {
+                                    pageInfo {
+                                        hasNextPage
+                                        endCursor
+                                    }
+                                    edges {
+                                        node {
+                                            name
+                                            directUrl
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
-            """
-        )
-        assert self._client is not None
-        response = self._client.execute(
-            query,
-            variable_values={"id": self.id, "cursor": cursor, "perPage": per_page},
-            timeout=60,
-        )
-        return response["artifact"]["files"]
+                """
+            )
+            assert self._client is not None
+            response = self._client.execute(
+                query,
+                variable_values={
+                    "entityName": self.collection.entity,
+                    "projectName": self.collection.project,
+                    "artifactName": self.collection.name,
+                    "artifactVersionIndex": self.version,
+                    "cursor": cursor,
+                    "perPage": per_page,
+                },
+                timeout=60,
+            )
+            return response["project"]["artifactCollection"]["artifactMembership"][
+                "files"
+            ]
+        else:
+            query = gql(
+                """
+                query ArtifactFileURLs($id: ID!, $cursor: String, $perPage: Int) {
+                    artifact(id: $id) {
+                        files(after: $cursor, first: $perPage) {
+                            pageInfo {
+                                hasNextPage
+                                endCursor
+                            }
+                            edges {
+                                node {
+                                    name
+                                    directUrl
+                                }
+                            }
+                        }
+                    }
+                }
+                """
+            )
+            assert self._client is not None
+            response = self._client.execute(
+                query,
+                variable_values={"id": self.id, "cursor": cursor, "perPage": per_page},
+                timeout=60,
+            )
+            return response["artifact"]["files"]
 
     @ensure_logged
     def checkout(self, root: str | None = None) -> str:
