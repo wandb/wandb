@@ -1272,15 +1272,9 @@ class Settings(BaseModel, validate_assignment=True):
                 os.makedirs(root_dir, exist_ok=True)
             path = os.path.join(root_dir, __stage_dir__)
         except PermissionError:
-            resolved_root_dir = os.path.realpath(root_dir)
-            unwritable_dir = (
-                (f"{root_dir} -> {resolved_root_dir}")
-                if root_dir != resolved_root_dir
-                else root_dir
-            )
             path = os.path.join(tempfile.gettempdir(), __stage_dir__)
             termwarn(
-                f"Path {unwritable_dir} wasn't writable, using system temp directory {path}.",
+                f"Path {root_dir} wasn't writable, using system temp directory {path}.",
                 repeat=False,
             )
 
