@@ -1332,7 +1332,7 @@ class Run:
     def _datatypes_callback(self, fname: str) -> None:
         if not self._backend or not self._backend.interface:
             return
-        files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
+        files: FilesDict = dict(files=[(GlobStr(fname), "now")])
         self._backend.interface.publish_files(files)
 
     def _pop_all_charts(
@@ -2308,8 +2308,6 @@ class Run:
             raise ValueError("unhandled console")
         try:
             # save stdout and stderr before installing new write functions
-            out_redir.save()
-            err_redir.save()
             out_redir.install()
             err_redir.install()
             self._out_redir = out_redir

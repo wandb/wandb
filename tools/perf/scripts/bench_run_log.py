@@ -461,7 +461,9 @@ class Experiment:
                 resume=self.resume_mode,
                 fork_from=self.fork_from,
                 config=result_data if self.run_id is None else None,
-                settings=wandb.Settings(init_timeout=init_timeout),
+                settings=wandb.Settings(
+                    init_timeout=init_timeout,
+                ),
             )
 
             if self.run_id is None:
@@ -477,7 +479,7 @@ class Experiment:
         logger.info("Generating test payloads ...")
         generator = PayloadGenerator(
             data_type=self.data_type,
-            num_metrics=self.num_metrics,
+            sparse_metric_count=self.num_metrics,
             metric_key_size=self.metric_key_size,
             num_steps=self.num_steps,
             fraction=self.fraction,
