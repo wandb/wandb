@@ -55,6 +55,7 @@ __all__ = (
     "unwatch",
     "plot",
     "plot_table",
+    "restore",
 )
 
 import os
@@ -68,6 +69,7 @@ from typing import (
     Literal,
     Optional,
     Sequence,
+    TextIO,
     Union,
 )
 
@@ -300,4 +302,13 @@ def unwatch(
     models: torch.nn.Module | Sequence[torch.nn.Module] | None = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::unwatch>"""
+    ...
+
+def restore(
+    name: str,
+    run_path: str | None = None,
+    replace: bool = False,
+    root: str | None = None,
+) -> None | TextIO:
+    """<sdk/wandb_run.py::restore>"""
     ...
