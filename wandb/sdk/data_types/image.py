@@ -297,10 +297,19 @@ class Image(BatchableMedia):
             "PIL.Image",
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
         )
+
+        accepted_formats = ["png", "jpg", "jpeg", "bmp"]
+        self.format = file_type or "png"
+
+        if self.format not in accepted_formats:
+            raise ValueError(f"file_type must be one of {accepted_formats}")
+
+        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + "." + self.format)
+
         if util.is_matplotlib_typename(util.get_full_typename(data)):
             buf = BytesIO()
-            util.ensure_matplotlib_figure(data).savefig(buf, format="png")
-            self._image = pil_image.open(buf, formats=["PNG"])
+            util.ensure_matplotlib_figure(data).savefig(buf, format=self.format)
+            self._image = pil_image.open(buf)
         elif isinstance(data, pil_image.Image):
             self._image = data
         elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
@@ -312,26 +321,23 @@ class Image(BatchableMedia):
             if hasattr(data, "dtype") and str(data.dtype) == "torch.uint8":
                 data = data.to(float)
             data = vis_util.make_grid(data, normalize=True)
+            mode = mode or self.guess_mode(data, file_type)
             self._image = pil_image.fromarray(
-                data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
+                data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy(),
+                mode=mode,
             )
         else:
             if hasattr(data, "numpy"):  # TF data eager tensors
                 data = data.numpy()
             if data.ndim > 2:
                 data = data.squeeze()  # get rid of trivial dimensions as a convenience
+
+            mode = mode or self.guess_mode(data, file_type)
             self._image = pil_image.fromarray(
-                self.to_uint8(data), mode=mode or self.guess_mode(data)
+                self.to_uint8(data),
+                mode=mode,
             )
-        accepted_formats = ["png", "jpg", "jpeg", "bmp"]
-        if file_type is None:
-            self.format = "png"
-        else:
-            self.format = file_type
-        assert (
-            self.format in accepted_formats
-        ), f"file_type must be one of {accepted_formats}"
-        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + "." + self.format)
+
         assert self._image is not None
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
@@ -471,15 +477,34 @@ class Image(BatchableMedia):
             }
         return json_dict
 
-    def guess_mode(self, data: "np.ndarray") -> str:
+    def guess_mode(
+        self,
+        data: Union["np.ndarray", "torch.Tensor"],
+        file_type: Optional[str] = None,
+    ) -> str:
         """Guess what type of image the np.array is representing."""
         # TODO: do we want to support dimensions being at the beginning of the array?
-        if data.ndim == 2:
+        ndims = data.ndim
+        if util.is_pytorch_tensor_typename(util.get_full_typename(data)):
+            # Torch tenors typically have the channels dimension first
+            num_channels = data.shape[0]
+        else:
+            num_channels = data.shape[-1]
+
+        if ndims == 2:
             return "L"
-        elif data.shape[-1] == 3:
+        elif num_channels == 3:
             return "RGB"
-        elif data.shape[-1] == 4:
-            return "RGBA"
+        elif num_channels == 4:
+            if file_type in ["jpg", "jpeg"]:
+                wandb.termwarn(
+                    "JPEG format does not support transparency. "
+                    "Ignoring alpha channel.",
+                    repeat=False,
+                )
+                return "RGB"
+            else:
+                return "RGBA"
         else:
             raise ValueError(
                 "Un-supported shape for image conversion {}".format(list(data.shape))
