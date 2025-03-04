@@ -1,3 +1,4 @@
+// Package monitor provides system resource monitoring capabilities.
 package monitor
 
 import (
