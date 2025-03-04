@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+import functools
 import json
 import logging
 import multiprocessing
@@ -1252,7 +1253,7 @@ class Settings(BaseModel, validate_assignment=True):
         return self._start_datetime
 
     @computed_field  # type: ignore[prop-decorator]
-    @property
+    @functools.cached_property
     def wandb_dir(self) -> str:
         """Full path to the wandb directory.
 
