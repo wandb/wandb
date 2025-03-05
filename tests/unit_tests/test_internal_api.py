@@ -10,11 +10,11 @@ import pytest
 import requests
 import responses
 import wandb.errors
-from wandb.proto.wandb_internal_pb2 import ServerFeature
 import wandb.sdk.internal.internal_api
 import wandb.sdk.internal.progress
 from wandb.apis import internal
 from wandb.errors import CommError
+from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.internal.internal_api import (
     _match_org_with_fetched_org_entities,
     _OrgNames,
@@ -733,7 +733,8 @@ class TestUploadFileRetry:
             )
 
         assert handler.call_count == num_retries + 1
-    
+
+
 ENABLED_FEATURE_RESPONSE = {
     "serverInfo": {
         "features": [
@@ -835,4 +836,3 @@ def test_server_feature_checks(
     else:
         result = api._check_server_feature_with_fallback(feature)
         assert result == expected_result
-

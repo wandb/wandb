@@ -4,7 +4,6 @@ from unittest import mock
 import pytest
 import wandb
 from wandb import Api
-from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 

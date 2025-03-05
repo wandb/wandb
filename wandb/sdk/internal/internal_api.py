@@ -43,12 +43,12 @@ from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messa
 from wandb.errors import AuthenticationError, CommError, UnsupportedError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
+from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
-from wandb.proto.wandb_internal_pb2 import ServerFeature
-from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 
 from ..lib import credentials, retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
@@ -871,7 +871,7 @@ class Api:
     def update_run_queue_item_warning_introspection(self) -> bool:
         _, _, mutations = self.server_info_introspection()
         return "updateRunQueueItemWarning" in mutations
-    
+
     def _check_server_feature(self, feature: ServerFeature) -> bool:
         """Check if a server feature is enabled.
 
@@ -922,7 +922,6 @@ class Api:
             if 'Cannot query field "features" on type "ServerInfo".' in str(e):
                 return False
             raise e
-
 
     @normalize_exceptions
     def update_run_queue_item_warning(
