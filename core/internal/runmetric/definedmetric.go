@@ -85,9 +85,9 @@ func (m definedMetric) With(
 }
 
 // ToRecord returns a MetricRecord representing this metric.
-func (m definedMetric) ToRecord(name string) *spb.MetricRecord {
+func (m definedMetric) ToRecord(name string, isGlob bool) *spb.MetricRecord {
+
 	rec := &spb.MetricRecord{
-		Name:       name,
 		StepMetric: m.Step,
 		Options: &spb.MetricOptions{
 			StepSync: m.SyncStep,
@@ -98,6 +98,12 @@ func (m definedMetric) ToRecord(name string) *spb.MetricRecord {
 		// definedMetric is always a complete definition rather than
 		// a partial update.
 		XControl: &spb.MetricControl{Overwrite: true},
+	}
+
+	if isGlob {
+		rec.GlobName = name
+	} else {
+		rec.Name = name
 	}
 
 	rec.Summary = &spb.MetricSummary{
