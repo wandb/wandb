@@ -12,7 +12,9 @@ from urllib.parse import quote
 import requests
 import urllib3
 
+from wandb.apis.public import Api as PublicApi
 from wandb.errors.term import termwarn
+from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts.artifact_file_cache import (
     ArtifactFileCache,
     get_artifact_file_cache,
@@ -146,7 +148,13 @@ class WandbStoragePolicy(StoragePolicy):
                 auth = ("api", self._api.api_key or "")
 
             response = self._session.get(
-                self._file_url(self._api, artifact.entity, manifest_entry),
+                self._file_url(
+                    self._api,
+                    artifact.entity,
+                    artifact.project,
+                    artifact.name.split(":")[0],
+                    manifest_entry,
+                ),
                 auth=auth,
                 cookies=_thread_local_api_settings.cookies,
                 headers=http_headers,
@@ -200,7 +208,22 @@ class WandbStoragePolicy(StoragePolicy):
                 api.settings("base_url"), entity_name, md5_hex
             )
         elif storage_layout == StorageLayout.V2:
-            # Check for server feature flag here before using new url scheme
+            if PublicApi._check_server_feature_with_fallback(
+                ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER
+            ):
+                return "{}/artifactsV2/{}/{}/{}/{}/{}/{}".format(
+                    api.settings("base_url"),
+                    storage_region,
+                    entity_name,
+                    project_name,
+                    artifact_name,
+                    quote(
+                        manifest_entry.birth_artifact_id
+                        if manifest_entry.birth_artifact_id is not None
+                        else ""
+                    ),
+                    md5_hex,
+                )
             return "{}/artifactsV2/{}/{}/{}/{}".format(
                 api.settings("base_url"),
                 storage_region,

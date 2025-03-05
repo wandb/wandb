@@ -38,7 +38,8 @@ const (
 	ServerFeature_ARTIFACT_REGISTRY_SEARCH ServerFeature = 3
 	// Indicates that the server supports querying for files on artifact collection memberships.
 	ServerFeature_ARTIFACT_COLLECTION_MEMBERSHIP_FILES ServerFeature = 7
-	// Indicates that the server supports downloading files with additional artifact collection memberships context in the url.
+	// Indicates that the server supports downloading files with additional artifact collection memberships context in the
+	// url.
 	ServerFeature_ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER ServerFeature = 8
 )
 
