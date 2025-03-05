@@ -1397,6 +1397,9 @@ enum ServerFeature {
 
   // Indicates that the server supports querying for files on artifact collection memberships.
   ARTIFACT_COLLECTION_MEMBERSHIP_FILES = 7;
+
+  // Indicates that the server supports downloading files with additional artifact collection memberships context in the url.
+  ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER = 8;
 }
 
 /**
