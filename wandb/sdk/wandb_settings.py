@@ -21,17 +21,50 @@ if sys.version_info >= (3, 11):
 else:
     from typing_extensions import Self
 
+import pydantic
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
-from pydantic import (
-    AliasChoices,
-    BaseModel,
-    ConfigDict,
-    Field,
-    computed_field,
-    field_validator,
-    model_validator,
-)
-from pydantic_core import SchemaValidator, core_schema
+
+if int(pydantic.__version__[0]) >= 2:
+    from pydantic import (
+        AliasChoices,
+        BaseModel,
+        ConfigDict,
+        Field,
+        computed_field,
+        field_validator,
+        model_validator,
+    )
+    from pydantic_core import SchemaValidator, core_schema
+
+    def validate_url(url: str) -> None:
+        """Validate a URL string."""
+        url_validator = SchemaValidator(
+            core_schema.url_schema(
+                allowed_schemes=["http", "https"],
+                strict=True,
+            )
+        )
+        url_validator.validate_python(url)
+else:
+    from pydantic import BaseModel, ConfigDict, Field, root_validator, validator
+
+    def field_validator(*args, **kwargs):
+        mode = kwargs.pop("mode", None)
+        pre = True if mode == "before" else False
+        return validator(pre=pre, **kwargs)
+
+    def model_validator(*args, **kwargs):
+        mode = kwargs.pop("mode", None)
+        pre = True if mode == "before" else False
+        return root_validator(pre=pre, **kwargs)
+
+    class AliasChoices:
+        def __init__(self, *args):
+            pass
+
+    def computed_field(*args, **kwargs):
+        return None
+
 
 import wandb
 from wandb import env, termwarn, util
@@ -1479,17 +1512,6 @@ class Settings(BaseModel, validate_assignment=True):
                 raise TypeError(f"Unsupported type {type(v)} for setting {k}")
 
         return settings_proto
-
-    @staticmethod
-    def validate_url(url: str) -> None:
-        """Validate a URL string."""
-        url_validator = SchemaValidator(
-            core_schema.url_schema(
-                allowed_schemes=["http", "https"],
-                strict=True,
-            )
-        )
-        url_validator.validate_python(url)
 
     def _get_program(self) -> str | None:
         """Get the program that started the current process."""
