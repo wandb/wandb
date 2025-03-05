@@ -1017,8 +1017,8 @@ class ArtifactFiles(Paginator):
         if self.query_via_membership:
             self.QUERY = self.ARTIFACT_COLLECTION_MEMBERSHIP_FILES_QUERY
             variables = {
-                "entityName": artifact.collection.entity,
-                "projectName": artifact.collection.project,
+                "entityName": artifact.entity,
+                "projectName": artifact.project,
                 "artifactName": artifact.name.split(":")[0],
                 "artifactVersionIndex": artifact.version,
                 "fileNames": names,
