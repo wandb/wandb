@@ -2,10 +2,11 @@
 //!
 //! This service collects system metrics from various sources and exposes them via gRPC.
 //!
-//! Metrics are collected from the following sources:
-//! - Nvidia GPUs (Linux and Windows only)
-//! - Apple ARM Mac GPUs and CPUs (ARM Mac only)
-//! - AMD GPUs (Linux only)
+//! Metrics include:
+//! - System CPU, memory, network and disk usage.
+//! - Nvidia GPU stats (Linux and Windows only).
+//! - Apple ARM Mac GPU and CPU stats (ARM Mac only).
+//! - AMD GPU stats (Linux only).
 mod analytics;
 #[cfg(target_os = "linux")]
 mod gpu_amd;
@@ -16,6 +17,8 @@ mod gpu_apple_sources;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod gpu_nvidia;
 mod metrics;
+mod pid;
+mod system;
 mod wandb_internal;
 
 use clap::Parser;
@@ -39,6 +42,7 @@ use gpu_apple::ThreadSafeSampler;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use gpu_nvidia::NvidiaGpu;
 use prost_types::Timestamp;
+use system::System;
 use wandb_internal::{
     record::RecordType,
     request::RequestType,
@@ -94,6 +98,8 @@ pub struct SystemMonitorServiceImpl {
     ///
     /// If the parent process is no longer alive, the service will shutdown.
     parent_monitor_handle: Option<JoinHandle<()>>,
+    /// System-level metrics.
+    system: tokio::sync::Mutex<System>,
     /// Apple GPU sampler (ARM Mac only).
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     apple_sampler: Option<ThreadSafeSampler>,
@@ -110,6 +116,13 @@ impl SystemMonitorServiceImpl {
         ppid: i32,
         shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     ) -> Self {
+        let mut system = System::new(ppid);
+        for _ in 0..5 {
+            let _ = system.get_metrics();
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        }
+        let system = tokio::sync::Mutex::new(system);
+
         // Initialize the Apple GPU sampler (ARM Mac only)
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         let apple_sampler = match ThreadSafeSampler::new() {
@@ -152,6 +165,7 @@ impl SystemMonitorServiceImpl {
         let mut system_monitor = SystemMonitorServiceImpl {
             shutdown_sender: shutdown_sender.clone(),
             parent_monitor_handle: None,
+            system,
             #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
             apple_sampler,
             #[cfg(any(target_os = "linux", target_os = "windows"))]
@@ -186,8 +200,8 @@ impl SystemMonitorServiceImpl {
     /// Collect system metrics.
     async fn sample(
         &self,
-        pid: i32,
-        gpu_device_ids: Option<Vec<i32>>,
+        #[allow(unused_variables)] pid: i32,
+        #[allow(unused_variables)] gpu_device_ids: Option<Vec<i32>>,
     ) -> Vec<(String, metrics::MetricValue)> {
         let mut all_metrics = Vec::new();
 
@@ -200,6 +214,16 @@ impl SystemMonitorServiceImpl {
             "_timestamp".to_string(),
             metrics::MetricValue::Float(timestamp),
         ));
+
+        // System-level metrics
+        match self.system.lock().await.get_metrics() {
+            Ok(system_metrics) => {
+                all_metrics.extend(system_metrics);
+            }
+            Err(e) => {
+                warn!("Failed to get system metrics: {}", e);
+            }
+        }
 
         // Apple metrics (ARM Mac only)
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
