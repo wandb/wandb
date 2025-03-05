@@ -187,6 +187,8 @@ class WandbStoragePolicy(StoragePolicy):
         self,
         api: InternalApi,
         entity_name: str,
+        project_name: str,
+        artifact_name: str,
         manifest_entry: ArtifactManifestEntry,
     ) -> str:
         storage_layout = self._config.get("storageLayout", StorageLayout.V1)
@@ -198,6 +200,7 @@ class WandbStoragePolicy(StoragePolicy):
                 api.settings("base_url"), entity_name, md5_hex
             )
         elif storage_layout == StorageLayout.V2:
+            # Check for server feature flag here before using new url scheme
             return "{}/artifactsV2/{}/{}/{}/{}".format(
                 api.settings("base_url"),
                 storage_region,
