@@ -1551,7 +1551,7 @@ class Api:
 
         return False
 
-    def _check_server_feature_with_fallback(self, feature: ServerFeature) -> bool:
+    def _check_server_feature_with_fallback(self, feature_value: int) -> bool:
         """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
 
         Good to use for features that have a fallback mechanism for older servers.
@@ -1566,7 +1566,7 @@ class Api:
             Exception: If an error other than the server not supporting feature queries occurs.
         """
         try:
-            return self._check_server_feature(feature)
+            return self._check_server_feature(feature_value)
         except Exception as e:
             if 'Cannot query field "features" on type "ServerInfo".' in str(e):
                 return False
