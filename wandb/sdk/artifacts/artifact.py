@@ -120,6 +120,9 @@ class Artifact:
             description as markdown in the W&B App.
         metadata: Additional information about an artifact. Specify metadata as a
             dictionary of key-value pairs. You can specify no more than 100 total keys.
+        incremental: Use `Artifact.new_draft()` method instead to modify an
+            existing artifact.
+        use_as: W&B Launch specific parameter. Not recommended for general use.
 
     Returns:
         An `Artifact` object.
@@ -424,7 +427,9 @@ class Artifact:
     def new_draft(self) -> Artifact:
         """Create a new draft artifact with the same content as this committed artifact.
 
-        The artifact returned can be extended or modified and logged as a new version.
+        Modifying an existing artifact creates a new artifact version known
+        as an "incremental artifact". The artifact returned can be extended or
+        modified and logged as a new version.
 
         Returns:
             An `Artifact` object.

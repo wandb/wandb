@@ -11,6 +11,16 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.19.8] - 2025-03-04
+
+### Fixed
+
+- Media file paths containing special characters (?, *, ], [ or \\) no longer cause file uploads to fail in `wandb-core` (@jacobromero in https://github.com/wandb/wandb/pull/9475)
+
+### Changed
+
+- The system monitor now samples metrics every 15 seconds by default, up from 10 seconds (@kptkin in https://github.com/wandb/wandb/pull/9554)
+
 ## [0.19.7] - 2025-02-21
 
 ### Added

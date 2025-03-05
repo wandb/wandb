@@ -16,31 +16,31 @@ func TestTrainiumSample(t *testing.T) {
 	trainium := monitor.Trainium{}
 
 	// mock data
-	rawStats := map[string]interface{}{
-		"neuron_runtime_data": []interface{}{
-			map[string]interface{}{
+	rawStats := map[string]any{
+		"neuron_runtime_data": []any{
+			map[string]any{
 				"pid": float64(1337),
-				"report": map[string]interface{}{
-					"neuroncore_counters": map[string]interface{}{
-						"neuroncores_in_use": map[string]interface{}{
-							"0": map[string]interface{}{
+				"report": map[string]any{
+					"neuroncore_counters": map[string]any{
+						"neuroncores_in_use": map[string]any{
+							"0": map[string]any{
 								"neuroncore_utilization": 1.3631567613356375,
 							},
 						},
 					},
-					"memory_used": map[string]interface{}{
-						"neuron_runtime_used_bytes": map[string]interface{}{
+					"memory_used": map[string]any{
+						"neuron_runtime_used_bytes": map[string]any{
 							"host":          float64(610705408),
 							"neuron_device": float64(102298328),
-							"usage_breakdown": map[string]interface{}{
-								"host": map[string]interface{}{
+							"usage_breakdown": map[string]any{
+								"host": map[string]any{
 									"application_memory": float64(609656832),
 									"constants":          float64(0),
 									"dma_buffers":        float64(1048576),
 									"tensors":            float64(0),
 								},
-								"neuroncore_memory_usage": map[string]interface{}{
-									"0": map[string]interface{}{
+								"neuroncore_memory_usage": map[string]any{
+									"0": map[string]any{
 										"constants":               float64(196608),
 										"model_code":              float64(101125344),
 										"model_shared_scratchpad": float64(0),
