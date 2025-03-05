@@ -367,7 +367,7 @@ class Api:
         self.server_create_run_queue_supports_priority: Optional[bool] = None
         self.server_supports_template_variables: Optional[bool] = None
         self.server_push_to_run_queue_supports_priority: Optional[bool] = None
-        self._server_features_cache = None
+        self._server_features_cache: Optional[ServerFeaturesQuery] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
@@ -872,11 +872,11 @@ class Api:
         _, _, mutations = self.server_info_introspection()
         return "updateRunQueueItemWarning" in mutations
 
-    def _check_server_feature(self, feature: ServerFeature) -> bool:
+    def _check_server_feature(self, feature_value: ServerFeature.ValueType) -> bool:
         """Check if a server feature is enabled.
 
         Args:
-            feature (ServerFeature): The feature to check.
+            feature_value (ServerFeature.ValueType): The enum value of the feature to check.
 
         Returns:
             bool: True if the feature is enabled, False otherwise.
@@ -887,10 +887,9 @@ class Api:
         if self._server_features_cache is None:
             query = gql(SERVER_FEATURES_QUERY_GQL)
             response = self.gql(query)
-            # print(response)
             self._server_features_cache = ServerFeaturesQuery.model_validate(response)
 
-        feature_name = ServerFeature.Name(feature)
+        feature_name = ServerFeature.Name(feature_value)
         if (
             self._server_features_cache
             and self._server_features_cache.server_info
@@ -902,13 +901,15 @@ class Api:
 
         return False
 
-    def _check_server_feature_with_fallback(self, feature: ServerFeature) -> bool:
+    def _check_server_feature_with_fallback(
+        self, feature_value: ServerFeature.ValueType
+    ) -> bool:
         """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
 
         Good to use for features that have a fallback mechanism for older servers.
 
         Args:
-            feature (ServerFeature): The feature to check.
+            feature_value (ServerFeature.ValueType): The enum value of the feature to check.
 
         Returns:
             bool: True if the feature is enabled, False otherwise.
@@ -917,7 +918,7 @@ class Api:
             Exception: If an error other than the server not supporting feature queries occurs.
         """
         try:
-            return self._check_server_feature(feature)
+            return self._check_server_feature(feature_value)
         except Exception as e:
             if 'Cannot query field "features" on type "ServerInfo".' in str(e):
                 return False
