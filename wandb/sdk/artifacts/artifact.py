@@ -2002,8 +2002,8 @@ class Artifact:
             response = self._client.execute(
                 query,
                 variable_values={
-                    "entityName": self.collection.entity,
-                    "projectName": self.collection.project,
+                    "entityName": self.entity,
+                    "projectName": self.project,
                     "artifactName": self.name.split(":")[0],
                     "artifactVersionIndex": self.version,
                     "cursor": cursor,
