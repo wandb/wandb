@@ -1523,11 +1523,11 @@ class Api:
         )
         return Registries(self.client, organization, filter)
 
-    def _check_server_feature(self, feature: ServerFeature) -> bool:
+    def _check_server_feature(self, feature_value: int) -> bool:
         """Check if a server feature is enabled.
 
         Args:
-            feature (ServerFeature): The feature to check.
+            feature_value (int): The enum value of the feature to check.
 
         Returns:
             bool: True if the feature is enabled, False otherwise.
@@ -1539,7 +1539,7 @@ class Api:
             response = self.client.execute(gql(SERVER_FEATURES_QUERY_GQL))
             self._server_features_cache = ServerFeaturesQuery.model_validate(response)
 
-        feature_name = ServerFeature.Name(feature)
+        feature_name = ServerFeature.Name(feature_value)
         if (
             self._server_features_cache
             and self._server_features_cache.server_info
@@ -1551,13 +1551,13 @@ class Api:
 
         return False
 
-    def _check_server_feature_with_fallback(self, feature: ServerFeature) -> bool:
+    def _check_server_feature_with_fallback(self, feature_value: int) -> bool:
         """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
 
         Good to use for features that have a fallback mechanism for older servers.
 
         Args:
-            feature (ServerFeature): The feature to check.
+            feature_value (int): The enum value of the feature to check.
 
         Returns:
             bool: True if the feature is enabled, False otherwise.
@@ -1566,7 +1566,7 @@ class Api:
             Exception: If an error other than the server not supporting feature queries occurs.
         """
         try:
-            return self._check_server_feature(feature)
+            return self._check_server_feature(feature_value)
         except Exception as e:
             if 'Cannot query field "features" on type "ServerInfo".' in str(e):
                 return False

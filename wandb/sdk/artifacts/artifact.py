@@ -37,13 +37,19 @@ import requests
 
 import wandb
 from wandb import data_types, env, util
-from wandb.apis import public
+
+# from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
+from wandb.apis.public import (
+    Api,
+    ArtifactCollection,
+    ArtifactFiles,
+    RetryingClient,
+    Run,
+)
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._graphql_fragments import _gql_artifact_fragment
 from wandb.sdk.artifacts._validators import (
     ensure_logged,
@@ -1964,8 +1970,8 @@ class Artifact:
         retryable_exceptions=(requests.RequestException),
     )
     def _fetch_file_urls(self, cursor: str | None, per_page: int | None = 5000) -> Any:
-        if public.Api()._check_server_feature_with_fallback(
-            ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
+        if Api()._check_server_feature_with_fallback(
+            pb.ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
         ):
             query = gql(
                 """
