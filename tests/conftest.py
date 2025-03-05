@@ -31,7 +31,7 @@ import wandb.util  # noqa: E402
 from click.testing import CliRunner  # noqa: E402
 from wandb import Api  # noqa: E402
 from wandb.sdk.interface.interface_queue import InterfaceQueue  # noqa: E402
-from wandb.sdk.lib import filesystem, runid  # noqa: E402
+from wandb.sdk.lib import filesystem, module, runid  # noqa: E402
 from wandb.sdk.lib.gitlib import GitRepo  # noqa: E402
 from wandb.sdk.lib.paths import StrPath  # noqa: E402
 
@@ -483,8 +483,6 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
     own unit-tested module instead.
     """
 
-    from wandb.sdk.lib.module import unset_globals
-
     def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> wandb.sdk.wandb_run.Run:
         kwargs_settings = kwargs.pop("settings", dict())
         kwargs_settings = {
@@ -497,11 +495,26 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
         run._set_backend(
             unittest.mock.MagicMock() if use_magic_mock else mocked_backend
         )
-        run._set_globals()
+        run._set_library(unittest.mock.MagicMock())
+
+        module.set_global(
+            run=run,
+            config=run.config,
+            log=run.log,
+            summary=run.summary,
+            save=run.save,
+            use_artifact=run.use_artifact,
+            log_artifact=run.log_artifact,
+            define_metric=run.define_metric,
+            alert=run.alert,
+            watch=run.watch,
+            unwatch=run.unwatch,
+        )
+
         return run
 
     yield mock_run_fn
-    unset_globals()
+    module.unset_globals()
 
 
 @pytest.fixture

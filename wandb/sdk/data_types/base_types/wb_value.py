@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Type, Union
 
-import wandb
 from wandb import util
+from wandb.sdk import wandb_setup
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.sdk.artifacts.artifact import Artifact
@@ -9,6 +9,31 @@ if TYPE_CHECKING:  # pragma: no cover
     from ...wandb_run import Run as LocalRun
 
     TypeMappingType = Dict[str, Type["WBValue"]]
+
+
+def _is_maybe_offline() -> bool:
+    """Guess whether wandb is configured to be offline.
+
+    This is an anti-pattern because there is no library-level "offline" mode:
+    only runs can be offline. Online and offline runs can exist in the same
+    process. This function is a heuristic that works only if there is at most
+    one run in the process, and could otherwise produce unexpected results.
+
+    Returns:
+        Whether the user likely configured wandb to be offline.
+    """
+    singleton = wandb_setup._setup(start_service=False)
+
+    # First check: if there's a run, check if it is offline.
+    #
+    # This covers uses like `wandb.init(mode="offline")` which don't modify
+    # the singleton's settings.
+    if run := singleton.most_recent_active_run:
+        return run.offline
+
+    # Second check: default to global defaults derived from environment
+    # variables or passed explicitly to `wandb.setup()`.
+    return singleton.settings._offline
 
 
 def _server_accepts_client_ids() -> bool:
@@ -25,15 +50,13 @@ def _server_accepts_client_ids() -> bool:
     # AS OF NOW, 2024/11/06, we assume that all customer's server deployments accept
     # client IDs.
 
-    if util._is_offline():
-        # If there are any users with issues on an older backend, customers can disable the
-        # setting `allow_offline_artifacts` to revert the SDK's behavior back to not
-        # using client IDs in offline mode.
-        if wandb.run and not wandb.run.settings.allow_offline_artifacts:
-            return False
-        # Assume client IDs are accepted
+    if _is_maybe_offline():
+        singleton = wandb_setup._setup(start_service=False)
+
+        if run := singleton.most_recent_active_run:
+            return run._settings.allow_offline_artifacts
         else:
-            return True
+            return singleton.settings.allow_offline_artifacts
 
     # If the script is online, request the max_cli_version and ensure the server
     # is of a high enough version.
@@ -240,7 +263,7 @@ class WBValue:
             self._artifact_target
             and self._artifact_target.name
             and self._artifact_target.artifact._is_draft_save_started()
-            and not util._is_offline()
+            and not _is_maybe_offline()
             and not _server_accepts_client_ids()
         ):
             self._artifact_target.artifact.wait()
@@ -271,7 +294,7 @@ class WBValue:
             self._artifact_target
             and self._artifact_target.name
             and self._artifact_target.artifact._is_draft_save_started()
-            and not util._is_offline()
+            and not _is_maybe_offline()
             and not _server_accepts_client_ids()
         ):
             self._artifact_target.artifact.wait()

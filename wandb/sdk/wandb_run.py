@@ -41,7 +41,6 @@ import wandb
 import wandb.env
 import wandb.util
 from wandb import trigger
-from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError, UnsupportedError, UsageError
@@ -691,8 +690,6 @@ class Run:
         #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
         #  does the total time get calculated right (not as 2 days and 15 minutes)?
         self._start_time = time.time()
-
-        _datatypes_set_callback(self._datatypes_callback)
 
         self._printer = printer.new_printer(settings)
 
@@ -1508,7 +1505,16 @@ class Run:
             self._backend.interface._publish_metric(metric_record)
 
     @_log_to_run
-    def _datatypes_callback(self, fname: str) -> None:
+    def _publish_file(self, fname: str) -> None:
+        """Mark a run file to be uploaded with the run.
+
+        This is a W&B-internal function: it can be used by other internal
+        wandb code.
+
+        Args:
+            fname: The path to the file in the run's files directory, relative
+                to the run's files directory.
+        """
         if not self._backend or not self._backend.interface:
             return
         files: FilesDict = dict(files=[(GlobStr(fname), "now")])
@@ -2300,6 +2306,11 @@ class Run:
         self,
         exit_code: int | None = None,
     ) -> None:
+        if self._is_finished:
+            return
+
+        assert self._wl
+
         logger.info(f"finishing run {self._get_path()}")
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
@@ -2313,6 +2324,7 @@ class Run:
         # Early-stage hooks may use methods that require _is_finished
         # to be False, so we set this after running those hooks.
         self._is_finished = True
+        self._wl.remove_active_run(self)
 
         try:
             self._atexit_cleanup(exit_code=exit_code)
@@ -2328,12 +2340,12 @@ class Run:
             #
             # TODO: Why not do this in _atexit_cleanup()?
             if self._settings.run_id:
-                assert self._wl
                 service = self._wl.assert_service()
                 service.inform_finish(run_id=self._settings.run_id)
 
         finally:
-            module.unset_globals()
+            if wandb.run is self:
+                module.unset_globals()
             wandb._sentry.end_session()
 
     @_log_to_run
@@ -2384,25 +2396,6 @@ class Run:
             "panel_config": panel_config,
         }
         self._config_callback(val=config, key=("_wandb", "visualize", visualize_key))
-
-    def _set_globals(self) -> None:
-        module.set_global(
-            run=self,
-            config=self.config,
-            log=self.log,
-            summary=self.summary,
-            save=self.save,
-            use_artifact=self.use_artifact,
-            log_artifact=self.log_artifact,
-            define_metric=self.define_metric,
-            alert=self.alert,
-            watch=self.watch,
-            unwatch=self.unwatch,
-            mark_preempting=self.mark_preempting,
-            log_model=self.log_model,
-            use_model=self.use_model,
-            link_model=self.link_model,
-        )
 
     def _redirect(
         self,
@@ -2587,10 +2580,6 @@ class Run:
             self._output_writer = None
 
     def _on_start(self) -> None:
-        # would like to move _set_global to _on_ready to unify _on_start and _on_attach
-        # (we want to do the set globals after attach)
-        # TODO(console) However _console_start calls Redirect that uses `wandb.run` hence breaks
-        self._set_globals()
         self._header()
 
         if self._settings.save_code and self._settings.code_dir is not None:
@@ -2621,7 +2610,6 @@ class Run:
         with telemetry.context(run=self) as tel:
             tel.feature.attach = True
 
-        self._set_globals()
         self._is_attached = True
         self._on_ready()
 
@@ -2653,6 +2641,9 @@ class Run:
 
     def _on_ready(self) -> None:
         """Event triggered when run is ready for the user."""
+        assert self._wl
+        self._wl.add_active_run(self)
+
         self._register_telemetry_import_hooks()
 
         # start reporting any telemetry changes
