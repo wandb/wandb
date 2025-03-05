@@ -363,6 +363,18 @@ def test_wandb_dir_creates_nonexistent_root_dir(test_settings):
         assert os.path.exists(root_dir)
 
 
+def test_wandb_dir_defaults_to_system_tempdir_no_write_permissions(test_settings):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        read_only_permission = 0o444
+        os.chmod(tmpdir, read_only_permission)
+        settings = test_settings()
+        settings.root_dir = os.path.join(tmpdir, "saved")
+
+        expected_wandb_dir = os.path.join(tempfile.gettempdir(), "wandb")
+        wandb_dir = settings.wandb_dir
+        assert os.path.normpath(wandb_dir) == os.path.normpath(expected_wandb_dir)
+
+
 def test_resume_fname(test_settings):
     test_settings = test_settings()
     assert test_settings.resume_fname == os.path.abspath(
