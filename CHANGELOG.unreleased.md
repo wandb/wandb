@@ -15,6 +15,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
+- The new `reinit="allow"` setting causes `wandb.init()` to create a new run even if other runs are active, without finishing the other runs (in contrast to `reinit="finish_previous"`). This will eventually become the default (@timoffex in https://github.com/wandb/wandb/pull/9562)
 - The `reinit` setting can be set to `"default"` (@timoffex in https://github.com/wandb/wandb/pull/9569)
 
 ### Changed
