@@ -47,6 +47,8 @@ from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
+from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 
 from ..lib import credentials, retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
@@ -365,6 +367,7 @@ class Api:
         self.server_create_run_queue_supports_priority: Optional[bool] = None
         self.server_supports_template_variables: Optional[bool] = None
         self.server_push_to_run_queue_supports_priority: Optional[bool] = None
+        self._server_features_cache = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
@@ -868,6 +871,58 @@ class Api:
     def update_run_queue_item_warning_introspection(self) -> bool:
         _, _, mutations = self.server_info_introspection()
         return "updateRunQueueItemWarning" in mutations
+    
+    def _check_server_feature(self, feature: ServerFeature) -> bool:
+        """Check if a server feature is enabled.
+
+        Args:
+            feature (ServerFeature): The feature to check.
+
+        Returns:
+            bool: True if the feature is enabled, False otherwise.
+
+        Raises:
+            Exception: If server doesn't support feature queries or other errors occur
+        """
+        if self._server_features_cache is None:
+            query = gql(SERVER_FEATURES_QUERY_GQL)
+            response = self.gql(query)
+            # print(response)
+            self._server_features_cache = ServerFeaturesQuery.model_validate(response)
+
+        feature_name = ServerFeature.Name(feature)
+        if (
+            self._server_features_cache
+            and self._server_features_cache.server_info
+            and self._server_features_cache.server_info.features
+        ):
+            for feature_info in self._server_features_cache.server_info.features:
+                if feature_info and feature_info.name == feature_name:
+                    return feature_info.is_enabled
+
+        return False
+
+    def _check_server_feature_with_fallback(self, feature: ServerFeature) -> bool:
+        """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
+
+        Good to use for features that have a fallback mechanism for older servers.
+
+        Args:
+            feature (ServerFeature): The feature to check.
+
+        Returns:
+            bool: True if the feature is enabled, False otherwise.
+
+        Exceptions:
+            Exception: If an error other than the server not supporting feature queries occurs.
+        """
+        try:
+            return self._check_server_feature(feature)
+        except Exception as e:
+            if 'Cannot query field "features" on type "ServerInfo".' in str(e):
+                return False
+            raise e
+
 
     @normalize_exceptions
     def update_run_queue_item_warning(
