@@ -814,6 +814,7 @@ class Deprecated(google.protobuf.message.Message):
     KERAS_CALLBACK_FIELD_NUMBER: builtins.int
     RUN__DEFINE_METRIC_BEST_GOAL_FIELD_NUMBER: builtins.int
     RUN__FINISH_QUIET_FIELD_NUMBER: builtins.int
+    RUN__REINIT_BOOL_FIELD_NUMBER: builtins.int
     keras_callback__data_type: builtins.bool
     """wandb.integration.keras.WandbCallback(data_type=...) called"""
     run__mode: builtins.bool
@@ -852,6 +853,8 @@ class Deprecated(google.protobuf.message.Message):
     """wandb.run.define_metric() called with summary="best" and goal="maximize/minimize" """
     run__finish_quiet: builtins.bool
     """wandb.run.finish(quiet=...) called"""
+    run__reinit_bool: builtins.bool
+    """reinit setting set to a boolean value"""
     def __init__(
         self,
         *,
@@ -874,8 +877,9 @@ class Deprecated(google.protobuf.message.Message):
         keras_callback: builtins.bool = ...,
         run__define_metric_best_goal: builtins.bool = ...,
         run__finish_quiet: builtins.bool = ...,
+        run__reinit_bool: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["api__artifact_versions", b"api__artifact_versions", "artifact__get_path", b"artifact__get_path", "artifact_collection__change_type", b"artifact_collection__change_type", "artifactmanifestentry__name", b"artifactmanifestentry__name", "init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback", b"keras_callback", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "langchain_tracer", b"langchain_tracer", "plots", b"plots", "run__define_metric_best_goal", b"run__define_metric_best_goal", "run__define_metric_copy", b"run__define_metric_copy", "run__finish_quiet", b"run__finish_quiet", "run__join", b"run__join", "run__log_sync", b"run__log_sync", "run__mode", b"run__mode", "run__save_no_args", b"run__save_no_args", "run_disabled", b"run_disabled"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["api__artifact_versions", b"api__artifact_versions", "artifact__get_path", b"artifact__get_path", "artifact_collection__change_type", b"artifact_collection__change_type", "artifactmanifestentry__name", b"artifactmanifestentry__name", "init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback", b"keras_callback", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "langchain_tracer", b"langchain_tracer", "plots", b"plots", "run__define_metric_best_goal", b"run__define_metric_best_goal", "run__define_metric_copy", b"run__define_metric_copy", "run__finish_quiet", b"run__finish_quiet", "run__join", b"run__join", "run__log_sync", b"run__log_sync", "run__mode", b"run__mode", "run__reinit_bool", b"run__reinit_bool", "run__save_no_args", b"run__save_no_args", "run_disabled", b"run_disabled"]) -> None: ...
 
 global___Deprecated = Deprecated
 

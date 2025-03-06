@@ -120,17 +120,19 @@ def test_resume_auto_failure(user, tmp_path):
         assert os.path.exists(resume_fname)
 
 
-def test_reinit_existing_run_with_reinit_true():
+@pytest.mark.parametrize("reinit", (True, "finish_previous"))
+def test_reinit_existing_run_with_reinit_true(reinit):
     """Test that reinit with an existing run returns a new run."""
     original_run = wandb.init(mode="offline")
-    new_run = wandb.init(mode="offline", reinit=True)
+    new_run = wandb.init(mode="offline", reinit=reinit)
     assert new_run != original_run
 
 
-def test_reinit_existing_run_with_reinit_false():
+@pytest.mark.parametrize("reinit", (False, "return_previous"))
+def test_reinit_existing_run_with_reinit_false(reinit):
     """Test that reinit with a run active returns the same run."""
     original_run = wandb.init(mode="offline")
-    new_run = wandb.init(mode="offline", reinit=False)
+    new_run = wandb.init(mode="offline", reinit=reinit)
     assert new_run == original_run
 
 
@@ -164,8 +166,9 @@ def test_init_param_not_set_telemetry(wandb_backend_spy):
 
 
 @pytest.mark.wandb_core_only
-def test_shared_mode_x_label(wandb_backend_spy):
-    """Test that reinit with a run active returns the same run."""
+def test_shared_mode_x_label(user):
+    _ = user  # Create a fake user on the backend server.
+
     with wandb.init() as run:
         assert run.settings.x_label is None
 

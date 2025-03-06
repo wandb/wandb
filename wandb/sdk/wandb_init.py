@@ -401,14 +401,17 @@ class _WandbInit:
         Returns:
             Initial values for the run's config.
         """
-        # TODO: remove this once officially deprecated
         if config_exclude_keys:
-            self.deprecated_features_used["config_exclude_keys"] = (
-                "Use `config=wandb.helper.parse_config(config_object, exclude=('key',))` instead."
+            self.deprecated_features_used["init__config_exclude_keys"] = (
+                "config_exclude_keys is deprecated. Use"
+                " `config=wandb.helper.parse_config(config_object,"
+                " exclude=('key',))` instead."
             )
         if config_include_keys:
-            self.deprecated_features_used["config_include_keys"] = (
-                "Use `config=wandb.helper.parse_config(config_object, include=('key',))` instead."
+            self.deprecated_features_used["init__config_include_keys"] = (
+                "config_include_keys is deprecated. Use"
+                " `config=wandb.helper.parse_config(config_object,"
+                " include=('key',))` instead."
             )
         config = parse_config(
             config or dict(),
@@ -769,8 +772,8 @@ class _WandbInit:
         )
 
         if wandb.run is not None and os.getpid() == wandb.run._init_pid:
-            if settings.reinit:
-                self._logger.info(f"finishing previous run: {wandb.run.id}")
+            if settings.reinit in (True, "finish_previous"):
+                self._logger.info("finishing previous run: %s", wandb.run.id)
                 wandb.run.finish()
             else:
                 self._logger.info("wandb.init() called while a run is active")
@@ -881,10 +884,9 @@ class _WandbInit:
                 run._label_probe_main()
 
         for deprecated_feature, msg in self.deprecated_features_used.items():
-            warning_message = f"`{deprecated_feature}` is deprecated. {msg}"
             deprecate(
-                field_name=getattr(Deprecated, "init__" + deprecated_feature),
-                warning_message=warning_message,
+                field_name=getattr(Deprecated, deprecated_feature),
+                warning_message=msg,
                 run=run,
             )
 
@@ -1145,7 +1147,7 @@ def init(  # noqa: C901
     mode: Literal["online", "offline", "disabled"] | None = None,
     force: bool | None = None,
     anonymous: Literal["never", "allow", "must"] | None = None,
-    reinit: bool | None = None,
+    reinit: bool | Literal["return_previous", "finish_previous"] | None = None,
     resume: bool | Literal["allow", "never", "must", "auto"] | None = None,
     resume_from: str | None = None,
     fork_from: str | None = None,
@@ -1293,12 +1295,8 @@ def init(  # noqa: C901
                 to view the charts and data in the UI.
             - `"must"`: Forces the run to be logged to an anonymous account, even
                 if the user is logged in.
-        reinit: Determines if multiple `wandb.init()` calls can start new runs
-            within the same process. By default (`False`), if an active run
-            exists, calling `wandb.init()` returns the existing run instead of
-            creating a new one. When `reinit=True`, the active run is finished
-            before a new run is initialized. In notebook environments, runs are
-            reinitialized by default unless `reinit` is explicitly set to `False`.
+        reinit: Shorthand for the "reinit" setting. Determines the behavior of
+            `wandb.init()` when a run is active.
         resume: Controls the behavior when resuming a run with the specified `id`.
             Available options are:
             - `"allow"`: If a run with the specified `id` exists, it will resume
@@ -1426,6 +1424,12 @@ def init(  # noqa: C901
 
         wi.maybe_login(init_settings)
         run_settings = wi.make_run_settings(init_settings)
+
+        if isinstance(run_settings.reinit, bool):
+            wi.deprecated_features_used["run__reinit_bool"] = (
+                "Using a boolean value for 'reinit' is deprecated."
+                " Use 'return_previous' or 'finish_previous' instead."
+            )
 
         if run_settings.run_id is not None:
             init_telemetry.feature.set_init_id = True
