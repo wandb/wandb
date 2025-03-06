@@ -16,3 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - Moved helper methods to check for server feature flags from the public API to the internal API (@ibindlish in https://github.com/wandb/wandb/pull/9561)
+
+### Added
+
+- Added support for fetching artifact files via the artifact membership, i.e. with additional artifact collection membership context (@ibindlish in https://github.com/wandb/wandb/pull/9551)
