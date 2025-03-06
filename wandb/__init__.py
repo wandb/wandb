@@ -18,6 +18,10 @@ from wandb.errors import Error
 # This needs to be early as other modules call it.
 from wandb.errors.term import termsetup, termlog, termerror, termwarn
 
+# Configure the logger as early as possible for consistent behavior.
+from wandb.sdk.lib import wb_logging as _wb_logging
+_wb_logging.configure_wandb_logger()
+
 from wandb import sdk as wandb_sdk
 
 import wandb
