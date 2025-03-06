@@ -262,11 +262,15 @@ class Settings(BaseModel, validate_assignment=True):
     quiet: bool = False
     """Flag to suppress non-essential output."""
 
-    reinit: bool = False
-    """Flag to allow reinitialization of a run.
+    reinit: Literal["return_previous", "finish_previous"] | bool = "return_previous"
+    """What to do when `wandb.init()` is called while a run is active.
 
-    If not set, when an active run exists, calling `wandb.init()` returns the existing run
-    instead of creating a new one.
+    Options:
+    - "return_previous" (default): Return the active run.
+    - "finish_previous": Finish the active run, then return a new one.
+
+    Can also be a boolean, but this is deprecated. False is the same as
+    "return_previous", and True is the same as "finish_previous".
     """
 
     relogin: bool = False
@@ -1425,7 +1429,11 @@ class Settings(BaseModel, validate_assignment=True):
         """Generate a protobuf representation of the settings."""
         settings_proto = wandb_settings_pb2.Settings()
         for k, v in self.model_dump(exclude_none=True).items():
-            # special case for x_stats_open_metrics_filters
+            # Client-only settings that don't exist on the protobuf.
+            if k in ("reinit",):
+                continue
+
+            # Special case for x_stats_open_metrics_filters.
             if k == "x_stats_open_metrics_filters":
                 if isinstance(v, (list, set, tuple)):
                     setting = getattr(settings_proto, k)
@@ -1439,7 +1447,7 @@ class Settings(BaseModel, validate_assignment=True):
                     raise TypeError(f"Unsupported type {type(v)} for setting {k}")
                 continue
 
-            # special case for RunMoment fields
+            # Special case for RunMoment fields.
             if k in ("fork_from", "resume_from"):
                 run_moment = RunMoment(
                     run=v.get("run"),
