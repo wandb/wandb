@@ -38,7 +38,7 @@ import requests
 import wandb
 from wandb import data_types, env, util
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public import (ArtifactCollection, ArtifactFiles, RetryingClient, Run)
+from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb

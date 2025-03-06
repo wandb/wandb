@@ -31,7 +31,6 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 - changed moviepy constraint to >=1.0.0 (@jacobromero in https://github.com/wandb/wandb/pull/9419)
 - `wandb.init()` displays more detailed information, in particular when it is stuck retrying HTTP errors (@timoffex in https://github.com/wandb/wandb/pull/9431)
-- Updated queries to fetch artifact files via collection membership (@ibindlish in https://github.com/wandb/wandb/pull/9551)
 
 ### Removed
 
