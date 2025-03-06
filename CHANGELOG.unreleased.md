@@ -20,3 +20,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - Added support for fetching artifact files via the artifact membership, i.e. with additional artifact collection membership context (@ibindlish in https://github.com/wandb/wandb/pull/9551)
+
+- Added support for building artifact file download urls using the new url scheme, with artifact collection membership context (@ibindlish in https://github.com/wandb/wandb/pull/9560)
