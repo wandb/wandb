@@ -12,7 +12,6 @@ from urllib.parse import quote
 import requests
 import urllib3
 
-import wandb
 from wandb.errors.term import termwarn
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts.artifact_file_cache import (
