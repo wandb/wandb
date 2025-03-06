@@ -209,12 +209,13 @@ class WandbStoragePolicy(StoragePolicy):
             if self._api._check_server_feature_with_fallback(
                 ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER  # type: ignore
             ):
+                # todo: need to make the names url-friendly! 
                 return "{}/artifactsV2/{}/{}/{}/{}/{}/{}".format(
                     api.settings("base_url"),
                     storage_region,
-                    entity_name,
-                    project_name,
-                    artifact_name,
+                    quote(entity_name),
+                    quote(project_name),
+                    quote(artifact_name),
                     quote(
                         manifest_entry.birth_artifact_id
                         if manifest_entry.birth_artifact_id is not None
