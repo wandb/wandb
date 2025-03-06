@@ -9,7 +9,6 @@ from wandb_gql import Client, gql
 
 import wandb
 from wandb.apis import public
-from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator
 from wandb.errors.term import termlog
@@ -18,6 +17,7 @@ from wandb.sdk.artifacts._graphql_fragments import (
     ARTIFACT_FILES_FRAGMENT,
     ARTIFACTS_TYPES_FRAGMENT,
 )
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib import deprecate
 
 if TYPE_CHECKING:
