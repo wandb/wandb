@@ -1963,7 +1963,7 @@ class Artifact:
     )
     def _fetch_file_urls(self, cursor: str | None, per_page: int | None = 5000) -> Any:
         if InternalApi()._check_server_feature_with_fallback(
-            pb.ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
+            pb.ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES  # type: ignore
         ):
             query = gql(
                 """
