@@ -74,6 +74,9 @@ class Histogram(WBValue):
                 "numpy", required="Auto creation of histograms requires numpy"
             )
 
+            max_precision = np.finfo(float).precision
+            sequence = [round(x, max_precision) for x in sequence]
+
             histogram, bins = np.histogram(sequence, bins=num_bins)
             self.histogram = histogram.tolist()
             self.bins = bins.tolist()
