@@ -12,7 +12,7 @@ from urllib.parse import quote
 import requests
 import urllib3
 
-from wandb.apis.public import Api as PublicApi
+import wandb
 from wandb.errors.term import termwarn
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts.artifact_file_cache import (
@@ -146,7 +146,6 @@ class WandbStoragePolicy(StoragePolicy):
                 http_headers["Authorization"] = f"Bearer {self._api.access_token}"
             elif _thread_local_api_settings.cookies is None:
                 auth = ("api", self._api.api_key or "")
-
             response = self._session.get(
                 self._file_url(
                     self._api,
@@ -208,8 +207,8 @@ class WandbStoragePolicy(StoragePolicy):
                 api.settings("base_url"), entity_name, md5_hex
             )
         elif storage_layout == StorageLayout.V2:
-            if PublicApi._check_server_feature_with_fallback(
-                ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER
+            if self._api._check_server_feature_with_fallback(
+                ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER  # type: ignore
             ):
                 return "{}/artifactsV2/{}/{}/{}/{}/{}/{}".format(
                     api.settings("base_url"),
