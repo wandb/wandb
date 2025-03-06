@@ -1394,6 +1394,9 @@ enum ServerFeature {
 
   // Indicates that the server supports searching for artifacts in a registry.
   ARTIFACT_REGISTRY_SEARCH = 3;
+
+  // Indicates that the server supports querying for files on artifact collection memberships.
+  ARTIFACT_COLLECTION_MEMBERSHIP_FILES = 7;
 }
 
 /**
