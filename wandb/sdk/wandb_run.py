@@ -2109,6 +2109,11 @@ class Run:
         self,
         exit_code: int | None = None,
     ) -> None:
+        if self._is_finished:
+            return
+
+        assert self._wl
+
         logger.info(f"finishing run {self._get_path()}")
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
@@ -2122,6 +2127,7 @@ class Run:
         # Early-stage hooks may use methods that require _is_finished
         # to be False, so we set this after running those hooks.
         self._is_finished = True
+        self._wl.remove_active_run(self)
 
         try:
             self._atexit_cleanup(exit_code=exit_code)
@@ -2137,12 +2143,12 @@ class Run:
             #
             # TODO: Why not do this in _atexit_cleanup()?
             if self._settings.run_id:
-                assert self._wl
                 service = self._wl.assert_service()
                 service.inform_finish(run_id=self._settings.run_id)
 
         finally:
-            module.unset_globals()
+            if wandb.run is self:
+                module.unset_globals()
             wandb._sentry.end_session()
 
     @_run_decorator._noop
@@ -2192,6 +2198,15 @@ class Run:
         self._config_callback(val=config, key=("_wandb", "visualize", visualize_key))
 
     def _set_globals(self) -> None:
+        assert self._wl
+        self._wl.add_active_run(self)
+
+        # The PID check is a guard against forking, which is the default mode
+        # for Python's `multiprocessing` module on Linux. This check should
+        # be built into the `wandb.run` getter, but is not right now.
+        if wandb.run is not None and wandb.run._init_pid == os.getpid():
+            return
+
         module.set_global(
             run=self,
             config=self.config,

@@ -222,7 +222,15 @@ def init(
     mode: Literal["online", "offline", "disabled"] | None = None,
     force: bool | None = None,
     anonymous: Literal["never", "allow", "must"] | None = None,
-    reinit: bool | Literal["return_previous", "finish_previous"] | None = None,
+    reinit: (
+        bool
+        | Literal[
+            "return_previous",
+            "finish_previous",
+            "allow",
+            None,
+        ]
+    ) = None,
     resume: bool | Literal["allow", "never", "must", "auto"] | None = None,
     resume_from: str | None = None,
     fork_from: str | None = None,

@@ -262,12 +262,26 @@ class Settings(BaseModel, validate_assignment=True):
     quiet: bool = False
     """Flag to suppress non-essential output."""
 
-    reinit: Literal["return_previous", "finish_previous"] | bool = "return_previous"
+    reinit: (
+        Literal[
+            "return_previous",
+            "finish_previous",
+            "allow",
+        ]
+        | bool
+    ) = "return_previous"
     """What to do when `wandb.init()` is called while a run is active.
 
     Options:
-    - "return_previous" (default): Return the active run.
-    - "finish_previous": Finish the active run, then return a new one.
+    - "return_previous" (default): Return the most recently created run
+        that is not yet finished. This does not update `wandb.run`; see
+        the "allow" option.
+    - "finish_previous": Finish all active runs, then return a new run.
+    - "allow": Create a new run without modifying other active runs.
+        Note that if another run already exists, `wandb.run` will continue to
+        refer to it and will not be updated to the new run. When that run
+        finishes, `wandb.run` will become `None`. This may affect some
+        integrations.
 
     Can also be a boolean, but this is deprecated. False is the same as
     "return_previous", and True is the same as "finish_previous".

@@ -477,6 +477,7 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
         run._set_backend(
             unittest.mock.MagicMock() if use_magic_mock else mocked_backend
         )
+        run._set_library(unittest.mock.MagicMock())
         run._set_globals()
         return run
 

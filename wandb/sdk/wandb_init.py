@@ -771,18 +771,31 @@ class _WandbInit:
             f"\nconfig: {config.base_no_artifacts}"
         )
 
-        if wandb.run is not None and os.getpid() == wandb.run._init_pid:
+        if previous_run := self._wl.most_recent_active_run:
             if settings.reinit in (True, "finish_previous"):
-                self._logger.info("finishing previous run: %s", wandb.run.id)
-                wandb.run.finish()
-            else:
-                self._logger.info("wandb.init() called while a run is active")
+                self.printer.display(
+                    "Finishing previous runs because reinit is set"
+                    f" to {settings.reinit!r}."
+                )
+                self._wl.finish_all_active_runs()
 
-                # NOTE: Updates telemetry on the pre-existing run.
-                with telemetry.context() as tel:
+            elif settings.reinit == "allow":
+                self._logger.info(
+                    "wandb.init() called while a run is active,"
+                    " and reinit is set to 'allow', so continuing"
+                )
+
+            else:
+                self.printer.display(
+                    "wandb.init() called while a run is active and reinit is"
+                    f" set to {settings.reinit!r}, so returning the previous"
+                    " run."
+                )
+
+                with telemetry.context(run=previous_run) as tel:
                     tel.feature.init_return_run = True
 
-                return wandb.run
+                return previous_run
 
         self._logger.info("starting backend")
 
@@ -1147,7 +1160,15 @@ def init(  # noqa: C901
     mode: Literal["online", "offline", "disabled"] | None = None,
     force: bool | None = None,
     anonymous: Literal["never", "allow", "must"] | None = None,
-    reinit: bool | Literal["return_previous", "finish_previous"] | None = None,
+    reinit: (
+        bool
+        | Literal[
+            "return_previous",
+            "finish_previous",
+            "allow",
+            None,
+        ]
+    ) = None,
     resume: bool | Literal["allow", "never", "must", "auto"] | None = None,
     resume_from: str | None = None,
     fork_from: str | None = None,
