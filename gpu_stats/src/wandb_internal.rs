@@ -595,6 +595,9 @@ pub struct Deprecated {
     /// wandb.run.finish(quiet=...) called
     #[prost(bool, tag = "19")]
     pub run_finish_quiet: bool,
+    /// reinit setting set to a boolean value
+    #[prost(bool, tag = "20")]
+    pub run_reinit_bool: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {
