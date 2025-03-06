@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import sys
 from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
 
@@ -49,8 +51,8 @@ class Histogram(WBValue):
 
     def __init__(
         self,
-        sequence: Optional[Sequence] = None,
-        np_histogram: Optional["NumpyHistogram"] = None,
+        sequence: Sequence[int | float] | None = None,
+        np_histogram: NumpyHistogram | None = None,
         num_bins: int = 64,
     ) -> None:
         if np_histogram:
@@ -74,8 +76,9 @@ class Histogram(WBValue):
                 "numpy", required="Auto creation of histograms requires numpy"
             )
 
-            max_precision = np.finfo(float).precision
-            sequence = [round(x, max_precision) for x in sequence]
+            if sequence is not None:
+                max_precision = np.finfo(float).precision
+                sequence = [round(x, max_precision) for x in sequence]
 
             histogram, bins = np.histogram(sequence, bins=num_bins)
             self.histogram = histogram.tolist()
