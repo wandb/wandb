@@ -2841,7 +2841,8 @@ pub enum ServerFeature {
     ArtifactRegistrySearch = 3,
     /// Indicates that the server supports querying for files on artifact collection memberships.
     ArtifactCollectionMembershipFiles = 7,
-    /// Indicates that the server supports downloading files with additional artifact collection memberships context in the url.
+    /// Indicates that the server supports downloading files with additional artifact collection memberships context in the
+    /// url.
     ArtifactCollectionMembershipFileDownloadHandler = 8,
 }
 impl ServerFeature {

@@ -1970,7 +1970,7 @@ class Artifact:
         retryable_exceptions=(requests.RequestException),
     )
     def _fetch_file_urls(self, cursor: str | None, per_page: int | None = 5000) -> Any:
-        if Api()._check_server_feature_with_fallback(
+        if InternalApi()._check_server_feature_with_fallback(
             pb.ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
         ):
             query = gql(
@@ -2002,8 +2002,8 @@ class Artifact:
             response = self._client.execute(
                 query,
                 variable_values={
-                    "entityName": self.collection.entity,
-                    "projectName": self.collection.project,
+                    "entityName": self.entity,
+                    "projectName": self.project,
                     "artifactName": self.name.split(":")[0],
                     "artifactVersionIndex": self.version,
                     "cursor": cursor,
