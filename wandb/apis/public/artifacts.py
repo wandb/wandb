@@ -67,26 +67,16 @@ class ArtifactTypes(Paginator):
     @property
     def more(self):
         if self.last_response:
-            if self.query_via_membership:
-                return self.last_response["project"]["artifactCollection"][
-                    "artifactMembership"
-                ]["files"]["pageInfo"]["hasNextPage"]
-            return self.last_response["project"]["artifactType"]["artifact"]["files"][
-                "pageInfo"
-            ]["hasNextPage"]
+            return self.last_response["project"]["artifactTypes"]["pageInfo"][
+                "hasNextPage"
+            ]
         else:
             return True
 
     @property
     def cursor(self):
         if self.last_response:
-            if self.query_via_membership:
-                return self.last_response["project"]["artifactCollection"][
-                    "artifactMembership"
-                ]["files"]["edges"][-1]["cursor"]
-            return self.last_response["project"]["artifactType"]["artifact"]["files"][
-                "edges"
-            ][-1]["cursor"]
+            return self.last_response["project"]["artifactTypes"]["edges"][-1]["cursor"]
         else:
             return None
 
@@ -94,18 +84,13 @@ class ArtifactTypes(Paginator):
         self.variables.update({"cursor": self.cursor})
 
     def convert_objects(self):
-        if self.query_via_membership:
-            return [
-                public.File(self.client, r["node"])
-                for r in self.last_response["project"]["artifactCollection"][
-                    "artifactMembership"
-                ]["files"]["edges"]
-            ]
+        if self.last_response["project"] is None:
+            return []
         return [
-            public.File(self.client, r["node"])
-            for r in self.last_response["project"]["artifactType"]["artifact"]["files"][
-                "edges"
-            ]
+            ArtifactType(
+                self.client, self.entity, self.project, r["node"]["name"], r["node"]
+            )
+            for r in self.last_response["project"]["artifactTypes"]["edges"]
         ]
 
 
@@ -1058,6 +1043,10 @@ class ArtifactFiles(Paginator):
     @property
     def more(self):
         if self.last_response:
+            if self.query_via_membership:
+                return self.last_response["project"]["artifactCollection"][
+                    "artifactMembership"
+                ]["files"]["pageInfo"]["hasNextPage"]
             return self.last_response["project"]["artifactType"]["artifact"]["files"][
                 "pageInfo"
             ]["hasNextPage"]
@@ -1067,6 +1056,10 @@ class ArtifactFiles(Paginator):
     @property
     def cursor(self):
         if self.last_response:
+            if self.query_via_membership:
+                return self.last_response["project"]["artifactCollection"][
+                    "artifactMembership"
+                ]["files"]["edges"][-1]["cursor"]
             return self.last_response["project"]["artifactType"]["artifact"]["files"][
                 "edges"
             ][-1]["cursor"]
@@ -1077,6 +1070,13 @@ class ArtifactFiles(Paginator):
         self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
 
     def convert_objects(self):
+        if self.query_via_membership:
+            return [
+                public.File(self.client, r["node"])
+                for r in self.last_response["project"]["artifactCollection"][
+                    "artifactMembership"
+                ]["files"]["edges"]
+            ]
         return [
             public.File(self.client, r["node"])
             for r in self.last_response["project"]["artifactType"]["artifact"]["files"][
