@@ -2843,10 +2843,10 @@ pub enum ServerFeature {
     /// Indicates that the server supports searching for artifacts in a registry.
     ArtifactRegistrySearch = 3,
     /// Indicates that the server supports querying for files on artifact collection memberships.
-    ArtifactCollectionMembershipFiles = 7,
+    ArtifactCollectionMembershipFiles = 4,
     /// Indicates that the server supports downloading files with additional artifact collection memberships context in the
     /// url.
-    ArtifactCollectionMembershipFileDownloadHandler = 8,
+    ArtifactCollectionMembershipFileDownloadHandler = 5,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
