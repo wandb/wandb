@@ -108,7 +108,6 @@ def test_artifact_files(user, api, sample_data, wandb_backend_spy):
     assert "storagePath" not in files[0]._attrs.keys()
     assert files.more is True
     assert files.cursor is not None
-    
 
 
 def test_artifact_download(user, api, sample_data):
