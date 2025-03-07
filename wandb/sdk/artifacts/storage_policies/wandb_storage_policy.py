@@ -215,11 +215,7 @@ class WandbStoragePolicy(StoragePolicy):
                     quote(entity_name),
                     quote(project_name),
                     quote(artifact_name),
-                    quote(
-                        manifest_entry.birth_artifact_id
-                        if manifest_entry.birth_artifact_id is not None
-                        else ""
-                    ),
+                    quote(manifest_entry.birth_artifact_id or ""),
                     md5_hex,
                     manifest_entry.path.name,
                 )
