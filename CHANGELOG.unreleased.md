@@ -16,4 +16,3 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - Boolean values for the `reinit` setting are deprecated; use "return_previous" and "finish_previous" instead (@timoffex in https://github.com/wandb/wandb/pull/9557)
-
