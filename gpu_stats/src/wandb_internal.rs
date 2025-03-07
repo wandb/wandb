@@ -595,6 +595,9 @@ pub struct Deprecated {
     /// wandb.run.finish(quiet=...) called
     #[prost(bool, tag = "19")]
     pub run_finish_quiet: bool,
+    /// reinit setting set to a boolean value
+    #[prost(bool, tag = "20")]
+    pub run_reinit_bool: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {
@@ -2825,12 +2828,19 @@ pub struct ServerFeatureItem {
     #[prost(bool, tag = "2")]
     pub enabled: bool,
 }
+/// *
+/// Server features are features that the server supports.
+/// This name should match the name of the feature defined in the backend server.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum ServerFeature {
+    /// Indicates that the server supports recieving an array of filenames as metadata.
     LargeFilenames = 0,
+    /// Indicates that the server supports adding tags to artifacts.
     ArtifactTags = 1,
+    /// Indicates that the server supports client IDs for artifact reference urls.
     ClientIds = 2,
+    /// Indicates that the server supports searching for artifacts in a registry.
     ArtifactRegistrySearch = 3,
     /// Indicatest that the server supports console log labels.
     ///

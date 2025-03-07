@@ -30,9 +30,13 @@ class _ServerFeature:
 class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[_ServerFeature.ValueType], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
     LARGE_FILENAMES: _ServerFeature.ValueType  # 0
+    """Indicates that the server supports recieving an array of filenames as metadata."""
     ARTIFACT_TAGS: _ServerFeature.ValueType  # 1
+    """Indicates that the server supports adding tags to artifacts."""
     CLIENT_IDS: _ServerFeature.ValueType  # 2
+    """Indicates that the server supports client IDs for artifact reference urls."""
     ARTIFACT_REGISTRY_SEARCH: _ServerFeature.ValueType  # 3
+    """Indicates that the server supports searching for artifacts in a registry."""
     CONSOLE_LOG_LABELS: _ServerFeature.ValueType  # 4
     """Indicatest that the server supports console log labels.
 
@@ -40,12 +44,20 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     different processes can be distinguished by their labels.
     """
 
-class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper): ...
+class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
+    """*
+    Server features are features that the server supports.
+    This name should match the name of the feature defined in the backend server.
+    """
 
 LARGE_FILENAMES: ServerFeature.ValueType  # 0
+"""Indicates that the server supports recieving an array of filenames as metadata."""
 ARTIFACT_TAGS: ServerFeature.ValueType  # 1
+"""Indicates that the server supports adding tags to artifacts."""
 CLIENT_IDS: ServerFeature.ValueType  # 2
+"""Indicates that the server supports client IDs for artifact reference urls."""
 ARTIFACT_REGISTRY_SEARCH: ServerFeature.ValueType  # 3
+"""Indicates that the server supports searching for artifacts in a registry."""
 CONSOLE_LOG_LABELS: ServerFeature.ValueType  # 4
 """Indicatest that the server supports console log labels.
 

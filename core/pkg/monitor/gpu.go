@@ -116,14 +116,6 @@ func getGPUStatsCmdPath() (string, error) {
 	return exPath, nil
 }
 
-func (g *GPU) Name() string {
-	return "gpu"
-}
-
-func (g *GPU) IsAvailable() bool {
-	return true
-}
-
 // Sample returns GPU metrics such as power usage, temperature, and utilization.
 //
 // The metrics are collected from the gpu_stats binary via gRPC.
