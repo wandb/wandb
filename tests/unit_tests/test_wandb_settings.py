@@ -364,15 +364,21 @@ def test_wandb_dir_creates_nonexistent_root_dir(test_settings):
 
 
 def test_wandb_dir_defaults_to_system_tempdir_no_write_permissions(test_settings):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        read_only_permission = 0o444
-        os.chmod(tmpdir, read_only_permission)
-        settings = test_settings()
-        settings.root_dir = os.path.join(tmpdir, "saved")
+    # deny write and execute permissions using umask
+    # setting read-only permissions using chmod may be prevented by umask on linux
+    write_and_execute_permissions = 0o333
+    previous_umask = os.umask(write_and_execute_permissions)
 
-        expected_wandb_dir = os.path.join(tempfile.gettempdir(), "wandb")
-        wandb_dir = settings.wandb_dir
-        assert os.path.normpath(wandb_dir) == os.path.normpath(expected_wandb_dir)
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings = test_settings()
+            settings.root_dir = os.path.join(tmpdir, "saved")
+
+            expected_wandb_dir = os.path.join(tempfile.gettempdir(), "wandb")
+            wandb_dir = settings.wandb_dir
+            assert os.path.normpath(wandb_dir) == os.path.normpath(expected_wandb_dir)
+    finally:
+        _ = os.umask(previous_umask)
 
 
 def test_resume_fname(test_settings):
