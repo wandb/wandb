@@ -262,11 +262,20 @@ class Settings(BaseModel, validate_assignment=True):
     quiet: bool = False
     """Flag to suppress non-essential output."""
 
-    reinit: Literal["return_previous", "finish_previous"] | bool = "return_previous"
+    reinit: (
+        Literal[
+            "default",
+            "return_previous",
+            "finish_previous",
+        ]
+        | bool
+    ) = "default"
     """What to do when `wandb.init()` is called while a run is active.
 
     Options:
-    - "return_previous" (default): Return the active run.
+    - "default": Use "finish_previous" in notebooks and "return_previous"
+        otherwise.
+    - "return_previous": Return the active run.
     - "finish_previous": Finish the active run, then return a new one.
 
     Can also be a boolean, but this is deprecated. False is the same as

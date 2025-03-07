@@ -34,6 +34,7 @@ from wandb.errors import CommError, Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
+from wandb.sdk.lib import ipython as wb_ipython
 from wandb.sdk.lib import progress, runid
 from wandb.sdk.lib.paths import StrPath
 from wandb.util import _is_artifact_representation
@@ -772,7 +773,12 @@ class _WandbInit:
         )
 
         if wandb.run is not None and os.getpid() == wandb.run._init_pid:
-            if settings.reinit in (True, "finish_previous"):
+            if (
+                settings.reinit in (True, "finish_previous")
+                # calling wandb.init() in notebooks finishes previous runs
+                # by default for user convenience.
+                or (settings.reinit == "default" and wb_ipython.in_notebook())
+            ):
                 self._logger.info("finishing previous run: %s", wandb.run.id)
                 wandb.run.finish()
             else:
@@ -1147,7 +1153,15 @@ def init(  # noqa: C901
     mode: Literal["online", "offline", "disabled"] | None = None,
     force: bool | None = None,
     anonymous: Literal["never", "allow", "must"] | None = None,
-    reinit: bool | Literal["return_previous", "finish_previous"] | None = None,
+    reinit: (
+        bool
+        | Literal[
+            None,
+            "default",
+            "return_previous",
+            "finish_previous",
+        ]
+    ) = None,
     resume: bool | Literal["allow", "never", "must", "auto"] | None = None,
     resume_from: str | None = None,
     fork_from: str | None = None,

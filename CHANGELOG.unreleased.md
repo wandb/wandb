@@ -13,7 +13,16 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Added
+
+- The `reinit` setting can be set to `"default"` (@timoffex in <https://github.com/wandb/wandb/pull/9569>)
+
 ### Changed
 
 - Boolean values for the `reinit` setting are deprecated; use "return_previous" and "finish_previous" instead (@timoffex in <https://github.com/wandb/wandb/pull/9557>)
 - `wandb.init(dir=...)` now creates any nonexistent directories in `dir` if it has a parent directory that is writeable (@ringohoffman in <https://github.com/wandb/wandb/pull/9545>)
+
+### Fixed
+
+- Calling `wandb.init()` in a notebook finishes previous runs as previously documented (@timoffex in <https://github.com/wandb/wandb/pull/9569>)
+  - Bug introduced in 0.19.0
