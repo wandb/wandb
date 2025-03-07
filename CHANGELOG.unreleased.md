@@ -13,10 +13,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
-### Added
-
-- Added support for fetching artifact files via the artifact membership, i.e. with additional artifact collection membership context (@ibindlish in https://github.com/wandb/wandb/pull/9551)
-
 ### Changed
 
 - Boolean values for the `reinit` setting are deprecated; use "return_previous" and "finish_previous" instead (@timoffex in https://github.com/wandb/wandb/pull/9557)
+
+- The server now supports fetching artifact files by providing additional collection information; updated the artifacts api to use the new endpoints instead (@ibindlish in https://github.com/wandb/wandb/pull/9551)
