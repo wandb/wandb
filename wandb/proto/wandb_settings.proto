@@ -54,7 +54,7 @@ message RunMoment {
 //
 // Next ID: 190
 message Settings {
-  reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137, 176;
+  reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 100, 136, 137, 176;
 
   // The W&B API key.
   //
@@ -436,7 +436,6 @@ message Settings {
   google.protobuf.StringValue notebook_name = 93;
   google.protobuf.StringValue project_url = 98;
   google.protobuf.BoolValue quiet = 99;
-  google.protobuf.BoolValue reinit = 100;
   google.protobuf.BoolValue relogin = 101;
   google.protobuf.StringValue resume_fname = 103;
   google.protobuf.BoolValue resumed = 104;
