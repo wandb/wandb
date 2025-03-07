@@ -2842,11 +2842,8 @@ pub enum ServerFeature {
     ClientIds = 2,
     /// Indicates that the server supports searching for artifacts in a registry.
     ArtifactRegistrySearch = 3,
-    /// Indicatest that the server supports console log labels.
-    ///
-    /// This is helpful in a distributed training context where logs from
-    /// different processes can be distinguished by their labels.
-    ConsoleLogLabels = 4,
+    /// Indicates that the server supports structured console logs.
+    StructuredConsoleLogs = 4,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2859,7 +2856,7 @@ impl ServerFeature {
             Self::ArtifactTags => "ARTIFACT_TAGS",
             Self::ClientIds => "CLIENT_IDS",
             Self::ArtifactRegistrySearch => "ARTIFACT_REGISTRY_SEARCH",
-            Self::ConsoleLogLabels => "CONSOLE_LOG_LABELS",
+            Self::StructuredConsoleLogs => "STRUCTURED_CONSOLE_LOGS",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2869,7 +2866,7 @@ impl ServerFeature {
             "ARTIFACT_TAGS" => Some(Self::ArtifactTags),
             "CLIENT_IDS" => Some(Self::ClientIds),
             "ARTIFACT_REGISTRY_SEARCH" => Some(Self::ArtifactRegistrySearch),
-            "CONSOLE_LOG_LABELS" => Some(Self::ConsoleLogLabels),
+            "STRUCTURED_CONSOLE_LOGS" => Some(Self::StructuredConsoleLogs),
             _ => None,
         }
     }

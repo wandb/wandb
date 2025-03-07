@@ -68,6 +68,8 @@ type Params struct {
 	// It is used for testing.
 	GetNow func() time.Time
 
+	Structured bool
+
 	// Label is a prefix for the console output lines.
 	Label string
 }
@@ -83,7 +85,10 @@ func New(params Params) *Sender {
 
 	var fsWriter *filestreamWriter
 	if params.FileStreamOrNil != nil {
-		fsWriter = &filestreamWriter{FileStream: params.FileStreamOrNil}
+		fsWriter = &filestreamWriter{
+			FileStream: params.FileStreamOrNil,
+			Structured: params.Structured,
+		}
 	}
 
 	var fileWriter *outputFileWriter

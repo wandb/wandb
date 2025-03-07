@@ -16,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/debounce"
+	"github.com/wandb/wandb/core/internal/featurechecker"
 	fs "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/fileutil"
@@ -55,6 +56,7 @@ type SenderParams struct {
 	Operations          *wboperation.WandbOperations
 	Settings            *settings.Settings
 	Backend             *api.Backend
+	FeatureProvider     *featurechecker.ServerFeaturesCache
 	FileStream          fs.FileStream
 	FileTransferManager filetransfer.FileTransferManager
 	FileTransferStats   filetransfer.FileTransferStats
@@ -185,6 +187,9 @@ type Sender struct {
 
 	// consoleLogsSender uploads captured console output.
 	consoleLogsSender *runconsolelogs.Sender
+
+	// featureProvider provides server features and capabilities
+	featureProvider *featurechecker.ServerFeaturesCache
 }
 
 // NewSender creates a new Sender with the given settings
@@ -233,6 +238,9 @@ func NewSender(
 		outputFileName = *path
 	}
 
+	structuredConsoleLogs := params.FeatureProvider.GetFeature(
+		spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
+	).Enabled
 	consoleLogsSenderParams := runconsolelogs.Params{
 		ConsoleOutputFile:     outputFileName,
 		FilesDir:              params.Settings.GetFilesDir(),
@@ -241,6 +249,7 @@ func NewSender(
 		FileStreamOrNil:       params.FileStream,
 		Label:                 params.Settings.GetLabel(),
 		RunfilesUploaderOrNil: params.RunfilesUploader,
+		Structured:            structuredConsoleLogs,
 	}
 
 	s := &Sender{
