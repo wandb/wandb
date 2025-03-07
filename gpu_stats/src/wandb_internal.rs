@@ -2844,6 +2844,9 @@ pub enum ServerFeature {
     ArtifactRegistrySearch = 3,
     /// Indicates that the server supports querying for files on artifact collection memberships.
     ArtifactCollectionMembershipFiles = 4,
+    /// Indicates that the server supports downloading files with additional artifact collection memberships context in the
+    /// url.
+    ArtifactCollectionMembershipFileDownloadHandler = 5,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2859,6 +2862,9 @@ impl ServerFeature {
             Self::ArtifactCollectionMembershipFiles => {
                 "ARTIFACT_COLLECTION_MEMBERSHIP_FILES"
             }
+            Self::ArtifactCollectionMembershipFileDownloadHandler => {
+                "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2870,6 +2876,9 @@ impl ServerFeature {
             "ARTIFACT_REGISTRY_SEARCH" => Some(Self::ArtifactRegistrySearch),
             "ARTIFACT_COLLECTION_MEMBERSHIP_FILES" => {
                 Some(Self::ArtifactCollectionMembershipFiles)
+            }
+            "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER" => {
+                Some(Self::ArtifactCollectionMembershipFileDownloadHandler)
             }
             _ => None,
         }

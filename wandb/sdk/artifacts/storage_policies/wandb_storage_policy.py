@@ -13,6 +13,7 @@ import requests
 import urllib3
 
 from wandb.errors.term import termwarn
+from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts.artifact_file_cache import (
     ArtifactFileCache,
     get_artifact_file_cache,
@@ -144,9 +145,14 @@ class WandbStoragePolicy(StoragePolicy):
                 http_headers["Authorization"] = f"Bearer {self._api.access_token}"
             elif _thread_local_api_settings.cookies is None:
                 auth = ("api", self._api.api_key or "")
-
             response = self._session.get(
-                self._file_url(self._api, artifact.entity, manifest_entry),
+                self._file_url(
+                    self._api,
+                    artifact.entity,
+                    artifact.project,
+                    artifact.name.split(":")[0],
+                    manifest_entry,
+                ),
                 auth=auth,
                 cookies=_thread_local_api_settings.cookies,
                 headers=http_headers,
@@ -187,6 +193,8 @@ class WandbStoragePolicy(StoragePolicy):
         self,
         api: InternalApi,
         entity_name: str,
+        project_name: str,
+        artifact_name: str,
         manifest_entry: ArtifactManifestEntry,
     ) -> str:
         storage_layout = self._config.get("storageLayout", StorageLayout.V1)
@@ -198,6 +206,19 @@ class WandbStoragePolicy(StoragePolicy):
                 api.settings("base_url"), entity_name, md5_hex
             )
         elif storage_layout == StorageLayout.V2:
+            if api._check_server_feature_with_fallback(
+                ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER  # type: ignore
+            ):
+                return "{}/artifactsV2/{}/{}/{}/{}/{}/{}/{}".format(
+                    api.settings("base_url"),
+                    storage_region,
+                    quote(entity_name),
+                    quote(project_name),
+                    quote(artifact_name),
+                    quote(manifest_entry.birth_artifact_id or ""),
+                    md5_hex,
+                    manifest_entry.path.name,
+                )
             return "{}/artifactsV2/{}/{}/{}/{}".format(
                 api.settings("base_url"),
                 storage_region,
