@@ -221,7 +221,7 @@ class WandbStoragePolicy(StoragePolicy):
                         else ""
                     ),
                     md5_hex,
-                    manifest_entry.path.split("/")[-1],
+                    manifest_entry.path.name,
                 )
             return "{}/artifactsV2/{}/{}/{}/{}".format(
                 api.settings("base_url"),
