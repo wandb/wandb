@@ -42,8 +42,3 @@ gpu_stats/target/
 tools/local_wandb_server.state.lock
 tools/local_wandb_server.state
 
-# run outputs
-wandb/latest-run
-wandb/run-*
-wandb/debug*
-Artifacts/*
