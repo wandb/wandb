@@ -22,7 +22,7 @@ modules_to_drop = [
 ]
 
 
-target_package_path = "wandb/apis/public"
+target_package_path = "wandb/sdk/internal"
 target_package_name = "_generated"
 
 include_all_inputs = false # Only generate input types needed for queries
