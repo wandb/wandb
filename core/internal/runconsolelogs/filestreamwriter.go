@@ -1,8 +1,6 @@
 package runconsolelogs
 
 import (
-	"encoding/json"
-
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/sparselist"
 )
@@ -11,7 +9,20 @@ import (
 type filestreamWriter struct {
 	FileStream filestream.FileStream
 
-	// StructuredLogs indicates whether to send structured logs.
+	// Structured controls the format of uploaded lines.
+	//
+	// If false, then the legacy plain text format is used:
+	//
+	// ERROR 2023-04-05T10:15:30.000000 [node-1-rank-0] Critical error occurred
+	//
+	// If true, then the JSON format is used:
+	//
+	//  {
+	//    "level":"error",
+	//    "ts":"2023-04-05T10:15:30.000000",
+	//    "label":"node-1-rank-0",
+	//    "content":"Division by zero",
+	//  }
 	Structured bool
 }
 
@@ -20,11 +31,11 @@ func (w *filestreamWriter) SendChanged(
 ) {
 	lines := sparselist.Map(changes, func(line *RunLogsLine) string {
 		if w.Structured {
-			jsonLine, err := json.Marshal(line)
+			s, err := line.StructuredFormat()
 			if err != nil {
-				return err.Error()
+				return line.LegacyFormat()
 			}
-			return string(jsonLine)
+			return s
 		}
 
 		return line.LegacyFormat()

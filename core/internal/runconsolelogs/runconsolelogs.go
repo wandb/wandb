@@ -68,6 +68,7 @@ type Params struct {
 	// It is used for testing.
 	GetNow func() time.Time
 
+	// Structured indicates whether to send the console output in structured format.
 	Structured bool
 
 	// Label is a prefix for the console output lines.

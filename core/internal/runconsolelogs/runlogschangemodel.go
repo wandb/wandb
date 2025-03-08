@@ -89,7 +89,16 @@ func (l *RunLogsLine) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jsonLine)
 }
 
-// legacyFormat returns the line in the legacy format.
+// StructuredFormat returns the line in the structured JSON format.
+func (l *RunLogsLine) StructuredFormat() (string, error) {
+	jsonLine, err := json.Marshal(l)
+	if err != nil {
+		return "", err
+	}
+	return string(jsonLine), nil
+}
+
+// LegacyFormat returns the line in the legacy plaintext format.
 func (l *RunLogsLine) LegacyFormat() string {
 	timestamp := strings.TrimSuffix(l.Timestamp.UTC().Format(rfc3339Micro), "Z")
 	if l.StreamLabel != "" {
