@@ -350,6 +350,10 @@ class _WandbInit:
 
         After this, `settings.run_id` is guaranteed to be set.
 
+        Also handles the case where a `resume_from` is provided, and the
+        `run_id` is not set, in that case the `run_id` is set to the `run_id`
+        of the `resume_from` run.
+
         Args:
             settings: The run's settings derived from the environment
                 and explicit values passed to `wandb.init()`.
@@ -372,6 +376,12 @@ class _WandbInit:
                     f"Ignoring ID {previous_id} loaded due to resume='auto'"
                     f" because the run ID is set to {settings.run_id}.",
                 )
+
+        # If a resume_from is provided, use it to set the run_id if it is not
+        # already set. Otherwise it will fail the check if run_id is different
+        # from the resume_from run_id.
+        if settings.resume_from and settings.run_id is None:
+            settings.run_id = settings.resume_from.run
 
         # If no run ID was inferred, explicitly set, or loaded from an
         # auto-resume file, then we generate a new ID.
