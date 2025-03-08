@@ -222,7 +222,15 @@ def init(
     mode: Literal["online", "offline", "disabled"] | None = None,
     force: bool | None = None,
     anonymous: Literal["never", "allow", "must"] | None = None,
-    reinit: bool | None = None,
+    reinit: (
+        bool
+        | Literal[
+            None,
+            "default",
+            "return_previous",
+            "finish_previous",
+        ]
+    ) = None,
     resume: bool | Literal["allow", "never", "must", "auto"] | None = None,
     resume_from: str | None = None,
     fork_from: str | None = None,
@@ -370,12 +378,8 @@ def init(
                 to view the charts and data in the UI.
             - `"must"`: Forces the run to be logged to an anonymous account, even
                 if the user is logged in.
-        reinit: Determines if multiple `wandb.init()` calls can start new runs
-            within the same process. By default (`False`), if an active run
-            exists, calling `wandb.init()` returns the existing run instead of
-            creating a new one. When `reinit=True`, the active run is finished
-            before a new run is initialized. In notebook environments, runs are
-            reinitialized by default unless `reinit` is explicitly set to `False`.
+        reinit: Shorthand for the "reinit" setting. Determines the behavior of
+            `wandb.init()` when a run is active.
         resume: Controls the behavior when resuming a run with the specified `id`.
             Available options are:
             - `"allow"`: If a run with the specified `id` exists, it will resume
