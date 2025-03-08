@@ -187,9 +187,6 @@ type Sender struct {
 
 	// consoleLogsSender uploads captured console output.
 	consoleLogsSender *runconsolelogs.Sender
-
-	// featureProvider provides server features and capabilities
-	featureProvider *featurechecker.ServerFeaturesCache
 }
 
 // NewSender creates a new Sender with the given settings
@@ -238,9 +235,12 @@ func NewSender(
 		outputFileName = *path
 	}
 
-	structuredConsoleLogs := params.FeatureProvider.GetFeature(
-		spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
-	).Enabled
+	structuredConsoleLogs := false
+	if params.FeatureProvider != nil {
+		structuredConsoleLogs = params.FeatureProvider.GetFeature(
+			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
+		).Enabled
+	}
 	consoleLogsSenderParams := runconsolelogs.Params{
 		ConsoleOutputFile:     outputFileName,
 		FilesDir:              params.Settings.GetFilesDir(),
