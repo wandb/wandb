@@ -63,6 +63,42 @@ def test_log_code_custom_root(user):
         assert sorted(art.manifest.entries.keys()) == ["custom/test.py", "test.py"]
 
 
+def test_root_dir_does_not_exist_created(user, tmp_path):
+    img = np.random.randint(0, 255, (100, 100, 3))
+    wandb_image1 = wandb.Image(img, file_type="png")
+    wandb_image2 = wandb.Image(img, file_type="png")
+
+    with wandb.init(
+        settings=wandb.Settings(root_dir=tmp_path / "somedir/someotherdir"),
+    ) as run:
+        run.log({"test": wandb_image1})
+        run.log({"test2": wandb_image2})
+
+    assert os.path.exists(tmp_path / "somedir/someotherdir")
+    assert os.path.exists(wandb_image1._path)
+    assert os.path.exists(wandb_image2._path)
+
+
+def test_root_dir_cannot_create_dir_uses_tmp(user, tmp_path):
+    run_dir = tmp_path / "somedir/someotherdir"
+
+    os.makedirs(run_dir.parent, exist_ok=True)
+    os.chmod(run_dir.parent, 0o444)
+
+    img = np.random.randint(0, 255, (100, 100, 3))
+    wandb_image1 = wandb.Image(img, file_type="png")
+    wandb_image2 = wandb.Image(img, file_type="png")
+
+    run_settings = wandb.Settings(root_dir=run_dir)
+    with wandb.init(
+        settings=run_settings,
+    ) as run:
+        run.log({"test": wandb_image1})
+        run.log({"test2": wandb_image2})
+
+    assert run_settings.root_dir != run.settings.root_dir
+
+
 @pytest.mark.parametrize("project_name", ["test:?", "test" * 33])
 def test_invalid_project_name(user, project_name):
     with pytest.raises(UsageError) as e:
