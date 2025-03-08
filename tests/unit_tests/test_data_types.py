@@ -77,6 +77,26 @@ def test_np_histogram():
     assert len(wbhist.histogram) == 10
 
 
+def test_np_histogram_rounds_data():
+    precision = np.finfo(float).precision
+
+    # This number is just above the precision of the float for the machine
+    histogram_number = 0.123 + (10 ** -(precision + 1))
+
+    data = np.array([histogram_number])
+    wbhist = wandb.Histogram(data, num_bins=4)
+
+    # Check that out data will only map to one bin
+    are_close = np.isclose(
+        wbhist.bins, histogram_number, rtol=np.finfo(float).resolution
+    )
+    assert np.count_nonzero(are_close) == 1
+    bin_idx = np.where(are_close)[0][0]
+
+    assert wbhist.bins[bin_idx] == np.round(histogram_number, precision)
+    assert wbhist.histogram[bin_idx] == 1
+
+
 def test_manual_histogram():
     wbhist = wandb.Histogram(
         np_histogram=(
