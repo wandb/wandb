@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 import rdkit.Chem
 import responses
+import torch
 import wandb
 from bokeh.plotting import figure
 from PIL import Image
@@ -1461,5 +1462,34 @@ def test_log_uint8_image():
         path_im = wandb.Image(temp.name)
 
         path_im, torch_vision = np.array(path_im.image), np.array(torch_vision.image)
-
         assert np.array_equal(path_im, torch_vision)
+
+
+@pytest.mark.parametrize("file_type", ["jpeg", "jpg"])
+@pytest.mark.parametrize(
+    "data",
+    [
+        pytest.param(
+            np.random.rand(2, 2, 4) * 255,
+            id="numpy_array",
+        ),
+        pytest.param(
+            torch.rand(4, 3, 3) * 255,
+            id="pytorch_tensor",
+        ),
+    ],
+)
+def test_init_image_jpeg_removes_transparency(data, file_type, mock_wandb_log):
+    wandb_img = wandb.Image(data, file_type=file_type)
+
+    assert mock_wandb_log.warned(
+        "JPEG format does not support transparency. Ignoring alpha channel.",
+    )
+    assert wandb_img.format == file_type
+
+
+@pytest.mark.parametrize("file_type", ["jpeg", "jpg", "png"])
+def test_wandb_image_with_matplotlib_figure(file_type):
+    fig = plt.figure()
+    wandb_img = wandb.Image(fig, file_type=file_type)
+    assert wandb_img.format == file_type
