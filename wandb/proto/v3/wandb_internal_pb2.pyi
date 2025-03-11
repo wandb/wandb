@@ -36,6 +36,8 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """Indicates that the server supports client IDs for artifact reference urls."""
     ARTIFACT_REGISTRY_SEARCH: _ServerFeature.ValueType  # 3
     """Indicates that the server supports searching for artifacts in a registry."""
+    STRUCTURED_CONSOLE_LOGS: _ServerFeature.ValueType  # 4
+    """Indicates that the server supports structured console logs."""
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
     """*
@@ -51,6 +53,8 @@ CLIENT_IDS: ServerFeature.ValueType  # 2
 """Indicates that the server supports client IDs for artifact reference urls."""
 ARTIFACT_REGISTRY_SEARCH: ServerFeature.ValueType  # 3
 """Indicates that the server supports searching for artifacts in a registry."""
+STRUCTURED_CONSOLE_LOGS: ServerFeature.ValueType  # 4
+"""Indicates that the server supports structured console logs."""
 global___ServerFeature = ServerFeature
 
 class Record(google.protobuf.message.Message):

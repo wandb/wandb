@@ -23,6 +23,10 @@ class SettingsStatic(Settings):
 
         forks_specified: list[str] = []
         for key in Settings.model_fields:  # type: ignore [attr-defined]
+            # Skip Python-only keys that do not exist on the proto.
+            if key in ("reinit",):
+                continue
+
             value: Any = None
 
             field_info = Settings.model_fields[key]

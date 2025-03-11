@@ -74,7 +74,6 @@ type TrainiumStats struct {
 //
 // Uses the neuron-monitor command to get stats.
 type Trainium struct {
-	name                    string
 	pid                     int32
 	samplingInterval        float64
 	neuronMonitorConfigPath string
@@ -108,7 +107,6 @@ func NewTrainium(
 	neuronMonitorConfigPath string,
 ) *Trainium {
 	t := &Trainium{
-		name:                    "trainium",
 		pid:                     pid,
 		samplingInterval:        samplingInterval,
 		neuronMonitorConfigPath: neuronMonitorConfigPath,
@@ -433,15 +431,6 @@ func (t *Trainium) flattenStats(sample TrainiumStats) map[string]any {
 	return result
 }
 
-func (t *Trainium) Name() string {
-	return t.name
-}
-
-func (t *Trainium) IsAvailable() bool {
-	_, err := getNeuronMonitorCmdPath()
-	return err == nil
-}
-
 // Close stops the neuron-monitor command and sets isRunning to false.
 func (t *Trainium) Close() {
 	if !t.isRunning {
@@ -459,13 +448,9 @@ func (t *Trainium) Close() {
 }
 
 func (t *Trainium) Probe() *spb.MetadataRequest {
-	if !t.IsAvailable() {
-		return nil
-	}
-
 	info := &spb.MetadataRequest{
 		Trainium: &spb.TrainiumInfo{
-			Name:   t.name,
+			Name:   "Trainium",
 			Vendor: "AWS",
 		},
 	}
