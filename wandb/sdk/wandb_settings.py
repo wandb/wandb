@@ -1352,10 +1352,11 @@ class Settings(BaseModel, validate_assignment=True):
 
         if os.getenv(env.DISABLE_GIT) is not None:
             self.disable_git = env.disable_git()
-
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
-            meta = wandb.jupyter.notebook_metadata(self.silent)  # type: ignore
+            meta = wandb.jupyter.notebook_metadata(
+                self.silent, verify=self.insecure_disable_ssl
+            )  # type: ignore
             self.x_jupyter_path = meta.get("path")
             self.x_jupyter_name = meta.get("name")
             self.x_jupyter_root = meta.get("root")
