@@ -1,6 +1,7 @@
 module github.com/wandb/wandb/experimental/go-sdk
 
 go 1.23.6
+toolchain go1.24.1
 
 require (
 	github.com/wandb/wandb/core v0.0.0-20250224195059-e58dcf07736a
@@ -119,7 +120,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.34.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.34.0 // indirect
 	golang.org/x/crypto v0.35.0 // indirect
-	golang.org/x/net v0.35.0 // indirect
+	golang.org/x/net v0.36.0 // indirect
 	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
