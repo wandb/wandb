@@ -1,6 +1,7 @@
 module github.com/wandb/wandb/core
 
 go 1.23.6
+toolchain go1.24.1
 
 require (
 	cloud.google.com/go/storage v1.50.0
@@ -124,7 +125,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
 	golang.org/x/crypto v0.35.0 // indirect
 	golang.org/x/mod v0.23.0 // indirect
-	golang.org/x/net v0.35.0 // indirect
+	golang.org/x/net v0.36.0 // indirect
 	golang.org/x/oauth2 v0.27.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
