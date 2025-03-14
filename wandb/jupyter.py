@@ -5,7 +5,7 @@ import re
 import shutil
 import sys
 from base64 import b64encode
-from typing import Dict
+from typing import Any, Dict, Optional
 
 import requests
 from requests.compat import urljoin
@@ -157,13 +157,17 @@ class WandBMagics(Magics):
             IPython.get_ipython().run_cell(cell)
 
 
-def notebook_metadata_from_jupyter_servers_and_kernel_id():
+def notebook_metadata_from_jupyter_servers_and_kernel_id(
+    verify: Optional[bool] = None,
+) -> Any:
     servers, kernel_id = jupyter_servers_and_kernel_id()
     for s in servers:
         if s.get("password"):
             raise ValueError("Can't query password protected kernel")
         res = requests.get(
-            urljoin(s["url"], "api/sessions"), params={"token": s.get("token", "")}
+            urljoin(s["url"], "api/sessions"),
+            params={"token": s.get("token", "")},
+            verify=verify,
         ).json()
         for nn in res:
             if isinstance(nn, dict) and nn.get("kernel") and "notebook" in nn:
@@ -193,7 +197,7 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
         return None
 
 
-def notebook_metadata(silent: bool) -> Dict[str, str]:
+def notebook_metadata(silent: bool, verify: Optional[bool] = None) -> Dict[str, str]:
     """Attempt to query jupyter for the path and name of the notebook file.
 
     This can handle different jupyter environments, specifically:
@@ -209,7 +213,9 @@ def notebook_metadata(silent: bool) -> Dict[str, str]:
         "the WANDB_NOTEBOOK_NAME environment variable to enable code saving."
     )
     try:
-        jupyter_metadata = notebook_metadata_from_jupyter_servers_and_kernel_id()
+        jupyter_metadata = notebook_metadata_from_jupyter_servers_and_kernel_id(
+            verify=verify
+        )
 
         # Colab:
         # request the most recent contents
