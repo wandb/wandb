@@ -25,3 +25,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - Calling `wandb.init()` in a notebook finishes previous runs as previously documented (@timoffex in https://github.com/wandb/wandb/pull/9569)
     - Bug introduced in 0.19.0
+- Fixed an error being thrown when logging `jpg`/`jpeg` images containing transparency data (@jacobromero in https://github.com/wandb/wandb/pull/9527)
