@@ -103,6 +103,10 @@ pub struct SystemMonitorServiceImpl {
     /// AMD GPU monitor (Linux only).
     #[cfg(target_os = "linux")]
     amd_gpu: Option<GpuAmd>,
+
+    /// TPU monitor (Linux only).
+    #[cfg(target_os = "linux")]
+    tpu: Option<Tpu>,
 }
 
 impl SystemMonitorServiceImpl {
