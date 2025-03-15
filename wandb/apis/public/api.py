@@ -25,7 +25,6 @@ import wandb
 from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries import Registries
 from wandb.apis.public.utils import (
@@ -289,7 +288,6 @@ class Api:
             )
         )
         self._client = RetryingClient(self._base_client)
-        self._server_features_cache = None
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
@@ -1510,7 +1508,7 @@ class Api:
         Returns:
             A registry iterator.
         """
-        if not self._check_server_feature_with_fallback(
+        if not InternalApi()._check_server_feature_with_fallback(
             ServerFeature.ARTIFACT_REGISTRY_SEARCH
         ):
             raise RuntimeError(
@@ -1522,52 +1520,3 @@ class Api:
             self.settings, self.default_entity
         )
         return Registries(self.client, organization, filter)
-
-    def _check_server_feature(self, feature: ServerFeature) -> bool:
-        """Check if a server feature is enabled.
-
-        Args:
-            feature (ServerFeature): The feature to check.
-
-        Returns:
-            bool: True if the feature is enabled, False otherwise.
-
-        Raises:
-            Exception: If server doesn't support feature queries or other errors occur
-        """
-        if self._server_features_cache is None:
-            response = self.client.execute(gql(SERVER_FEATURES_QUERY_GQL))
-            self._server_features_cache = ServerFeaturesQuery.model_validate(response)
-
-        feature_name = ServerFeature.Name(feature)
-        if (
-            self._server_features_cache
-            and self._server_features_cache.server_info
-            and self._server_features_cache.server_info.features
-        ):
-            for feature_info in self._server_features_cache.server_info.features:
-                if feature_info and feature_info.name == feature_name:
-                    return feature_info.is_enabled
-
-        return False
-
-    def _check_server_feature_with_fallback(self, feature: ServerFeature) -> bool:
-        """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
-
-        Good to use for features that have a fallback mechanism for older servers.
-
-        Args:
-            feature (ServerFeature): The feature to check.
-
-        Returns:
-            bool: True if the feature is enabled, False otherwise.
-
-        Exceptions:
-            Exception: If an error other than the server not supporting feature queries occurs.
-        """
-        try:
-            return self._check_server_feature(feature)
-        except Exception as e:
-            if 'Cannot query field "features" on type "ServerInfo".' in str(e):
-                return False
-            raise e
