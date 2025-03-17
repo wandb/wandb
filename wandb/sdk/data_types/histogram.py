@@ -77,6 +77,9 @@ class Histogram(WBValue):
             )
 
             if sequence is not None:
+                # Round values to max system precision to avoid numpy histogram binning errors.
+                # This fixes an issue where numpy creates incorrect histogram bins when values
+                # have more decimal places than supported by system floating point precision.
                 max_precision = np.finfo(float).precision
                 sequence = [round(x, max_precision) for x in sequence]
 
