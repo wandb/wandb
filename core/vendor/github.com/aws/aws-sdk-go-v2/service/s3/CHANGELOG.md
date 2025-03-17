@@ -1,3 +1,7 @@
+# v1.78.2 (2025-03-11)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.78.1 (2025-03-04.2)
 
 * **Bug Fix**: Add assurance test for operation order.

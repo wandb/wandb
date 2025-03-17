@@ -21,6 +21,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - Boolean values for the `reinit` setting are deprecated; use "return_previous" and "finish_previous" instead (@timoffex in https://github.com/wandb/wandb/pull/9557)
 - The "wandb" logger is configured with `propagate=False` at import time, whereas it previously happened when starting a run. This may change the messages observed by the root logger in some workflows (@timoffex in https://github.com/wandb/wandb/pull/9540)
+- Upgrade go version for `wandb-core` from 1.23.x to 1.24.x (@kptkin in https://github.com/wandb/wandb/pull/9590)
 
 ### Fixed
 

@@ -68,7 +68,7 @@ type DeviceCodeResponse struct {
 
 	UserCode        string `json:"user_code"`
 	DeviceCode      string `json:"device_code"`
-	VerificationURL string `json:"verification_url"`
+	VerificationURL string `json:"verification_uri"`
 	ExpiresIn       int    `json:"expires_in"`
 	Interval        int    `json:"interval"`
 	Message         string `json:"message"`
