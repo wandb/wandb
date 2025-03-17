@@ -145,6 +145,8 @@ This version drops Python 3.7 and removes the `wandb.Run.plot_table` method.
 ### Changed
 
 - Set default behavior to not create a W&B Job (@KyleGoyette in https://github.com/wandb/wandb/pull/8907)
+- Add pydantic>=2.6,<3 as a dependency (@dmitryduev in https://github.com/wandb/wandb/pull/8649 & estellazx
+ in https://github.com/wandb/wandb/pull/8905)
 
 ### Removed
 
