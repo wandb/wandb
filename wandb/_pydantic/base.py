@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, Json, ValidationError, WrapValidator
-from pydantic.alias_generators import to_camel
-from pydantic.main import IncEx
-from pydantic_core import to_json
-from pydantic_core.core_schema import ValidatorFunctionWrapHandler
+from pydantic import BaseModel, ConfigDict, Field, Json
 from typing_extensions import Annotated, TypedDict, Unpack, override
+
+from .v1_compat import PydanticCompatMixin
+
+if TYPE_CHECKING:
+    from pydantic.main import IncEx
 
 
 class ModelDumpKwargs(TypedDict, total=False):
@@ -37,13 +38,12 @@ MODEL_DUMP_DEFAULTS = ModelDumpKwargs(
 
 # Base class for all generated classes/types.
 # Omitted from docstring to avoid inclusion in generated docs.
-class Base(BaseModel):
+class Base(PydanticCompatMixin, BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         validate_default=True,
         extra="forbid",
-        alias_generator=to_camel,
         use_attribute_docstrings=True,
         from_attributes=True,
         revalidate_instances="always",
@@ -94,17 +94,20 @@ Typename = Annotated[
 ]
 
 
-def validate_maybe_json(v: Any, handler: ValidatorFunctionWrapHandler) -> Any:
-    """Wraps default Json[...] field validator to allow instantiation with an already-decoded value."""
-    try:
-        return handler(v)
-    except ValidationError:
-        # Try revalidating after properly jsonifying the value
-        return handler(to_json(v, by_alias=True, round_trip=True))
+# FIXME: Restore, modify, or replace this later after ensuring pydantic v1 compatibility.
+# def validate_maybe_json(v: Any, handler: ValidatorFunctionWrapHandler) -> Any:
+#     """Wraps default Json[...] field validator to allow instantiation with an already-decoded value."""
+#     try:
+#         return handler(v)
+#     except ValidationError:
+#         # Try revalidating after properly jsonifying the value
+#         return handler(to_json(v, by_alias=True, round_trip=True))
+#
+#
+# SerializedToJson = Annotated[
+#     Json[T],
+#     # Allow lenient instantiation/validation: incoming data may already be deserialized.
+#     WrapValidator(validate_maybe_json),
+# ]
 
-
-SerializedToJson = Annotated[
-    Json[T],
-    # Allow lenient instantiation/validation: incoming data may already be deserialized.
-    WrapValidator(validate_maybe_json),
-]
+SerializedToJson = Json[T]

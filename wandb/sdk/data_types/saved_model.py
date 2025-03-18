@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import sys
+from types import ModuleType
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, cast
 
 import wandb
@@ -15,9 +16,6 @@ from ._private import MEDIA_TMP
 from .base_types.wb_value import WBValue
 
 if TYPE_CHECKING:
-    from types import ModuleType
-
-    import cloudpickle  # type: ignore
     import sklearn  # type: ignore
     import tensorflow  # type: ignore
     import torch  # type: ignore
@@ -264,9 +262,9 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         self._serialize(self._model_obj, target_path)
 
 
-def _get_cloudpickle() -> "cloudpickle":
+def _get_cloudpickle() -> ModuleType:
     return cast(
-        "cloudpickle",
+        ModuleType,
         util.get_module("cloudpickle", "ModelAdapter requires `cloudpickle`"),
     )
 
@@ -338,9 +336,9 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
         return json_obj
 
 
-def _get_torch() -> "torch":
+def _get_torch() -> ModuleType:
     return cast(
-        "torch",
+        ModuleType,
         util.get_module("torch", "ModelAdapter requires `torch`"),
     )
 
@@ -366,9 +364,9 @@ class _PytorchSavedModel(_PicklingSavedModel["torch.nn.Module"]):
         )
 
 
-def _get_sklearn() -> "sklearn":
+def _get_sklearn() -> ModuleType:
     return cast(
-        "sklearn",
+        ModuleType,
         util.get_module("sklearn", "ModelAdapter requires `sklearn`"),
     )
 
