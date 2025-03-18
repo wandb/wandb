@@ -3109,6 +3109,9 @@ class Run:
                 artifact.id,
                 entity_name=self._settings.entity,
                 project_name=self._settings.project,
+                artifact_name=artifact.name,
+                artifact_entity_name=artifact.entity,
+                artifact_project_name=artifact.project,
                 use_as=use_as or artifact_or_name,
             )
         else:
@@ -3141,7 +3144,11 @@ class Run:
                     )
                 artifact._use_as = use_as or artifact.name
                 api.use_artifact(
-                    artifact.id, use_as=use_as or artifact._use_as or artifact.name
+                    artifact.id,
+                    use_as=use_as or artifact._use_as or artifact.name,
+                    artifact_entity_name=artifact.entity,
+                    artifact_project_name=artifact.project,
+                    artifact_name=artifact.name,
                 )
             else:
                 raise ValueError(

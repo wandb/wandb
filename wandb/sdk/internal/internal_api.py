@@ -3762,6 +3762,9 @@ class Api:
         entity_name: Optional[str] = None,
         project_name: Optional[str] = None,
         run_name: Optional[str] = None,
+        artifact_entity_name: Optional[str] = None,
+        artifact_project_name: Optional[str] = None,
+        artifact_name: Optional[str] = None,
         use_as: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         query_template = """
