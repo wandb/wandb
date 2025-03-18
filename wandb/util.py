@@ -189,6 +189,14 @@ class LazyModuleState:
             self.module.__spec__.loader.exec_module(self.module)
             self.module.__class__ = types.ModuleType
 
+            # Set the submodule as an attribute on the parent module
+            # This enables access to the submodule via normal attribute access.
+            parent = self.module.__name__.rpartition(".")[0]
+            if parent:
+                parent_module = sys.modules[parent]
+                child = self.module.__name__.rpartition(".")[-1]
+                setattr(parent_module, child, self.module)
+
 
 class LazyModule(types.ModuleType):
     def __getattribute__(self, name: str) -> Any:

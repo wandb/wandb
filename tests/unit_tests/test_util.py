@@ -818,3 +818,16 @@ def test_json_dump_uncompressed_with_numpy_datatypes():
 )
 def test_are_windows_paths_on_same_drive(path1, path2, expected):
     assert util.are_paths_on_same_drive(path1, path2) == expected
+
+
+def test_lazy_import_adds_attribute_to_parent_module():
+    """Tests lazy import of a submodule does not break the parent module"""
+    with mock.patch.dict("sys.modules"):
+        sys.modules.pop("PIL.Image", None)
+        sys.modules.pop("PIL", None)
+
+        util.get_module("PIL.Image", lazy=True)
+
+        import PIL.Image
+
+        assert hasattr(PIL.Image, "Image")
