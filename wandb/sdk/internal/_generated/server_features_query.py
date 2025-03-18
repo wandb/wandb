@@ -7,15 +7,15 @@ from typing import List, Optional
 
 from pydantic import Field
 
-from .base import GQLBase
+from wandb._pydantic import GQLBase
 
 
 class ServerFeaturesQuery(GQLBase):
-    server_info: Optional["ServerFeaturesQueryServerInfo"] = Field(alias="serverInfo")
+    server_info: Optional[ServerFeaturesQueryServerInfo] = Field(alias="serverInfo")
 
 
 class ServerFeaturesQueryServerInfo(GQLBase):
-    features: List[Optional["ServerFeaturesQueryServerInfoFeatures"]]
+    features: List[Optional[ServerFeaturesQueryServerInfoFeatures]]
 
 
 class ServerFeaturesQueryServerInfoFeatures(GQLBase):
