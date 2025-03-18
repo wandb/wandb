@@ -3767,20 +3767,42 @@ class Api:
         artifact_name: Optional[str] = None,
         use_as: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        query_vars = ["$entityName: String!", "$projectName: String!", "$runName: String!", "$artifactID: ID!"]
-        query_args = ["entityName: $entityName", "projectName: $projectName", "runName: $runName", "artifactID: $artifactID"]
-        
+        query_vars = [
+            "$entityName: String!",
+            "$projectName: String!",
+            "$runName: String!",
+            "$artifactID: ID!",
+        ]
+        query_args = [
+            "entityName: $entityName",
+            "projectName: $projectName",
+            "runName: $runName",
+            "artifactID: $artifactID",
+        ]
+
         artifact_types = self.server_use_artifact_input_introspection()
         if "usedAs" in artifact_types and use_as:
             query_vars.append("$usedAs: String")
             query_args.append("usedAs: $usedAs")
-        
+
         server_allows_artifact_name = self._check_server_feature_with_fallback(
             ServerFeature.USE_ARTIFACT_WITH_COLLECTION_INFORMATION  # type: ignore
         )
         if server_allows_artifact_name:
-            query_vars.extend(["$artifactEntityName: String", "$artifactProjectName: String", "$artifactName: String"])
-            query_args.extend(["artifactEntityName: $artifactEntityName", "artifactProjectName: $artifactProjectName",  "artifactName: $artifactName"])
+            query_vars.extend(
+                [
+                    "$artifactEntityName: String",
+                    "$artifactProjectName: String",
+                    "$artifactName: String",
+                ]
+            )
+            query_args.extend(
+                [
+                    "artifactEntityName: $artifactEntityName",
+                    "artifactProjectName: $artifactProjectName",
+                    "artifactName: $artifactName",
+                ]
+            )
 
         vars_str = ", ".join(query_vars)
         args_str = ", ".join(query_args)
@@ -3801,7 +3823,6 @@ class Api:
             }}
             """
         )
-        print(f"query: {query}")
 
         entity_name = entity_name or self.settings("entity")
         project_name = project_name or self.settings("project")

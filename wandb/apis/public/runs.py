@@ -847,7 +847,13 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
 
         if isinstance(artifact, wandb.Artifact) and not artifact.is_draft():
-            api.use_artifact(artifact.id, use_as=use_as or artifact.name, artifact_entity_name=artifact.entity, artifact_project_name=artifact.project, artifact_name=artifact.name)
+            api.use_artifact(
+                artifact.id,
+                use_as=use_as or artifact.name,
+                artifact_entity_name=artifact.entity,
+                artifact_project_name=artifact.project,
+                artifact_name=artifact.name,
+            )
             return artifact
         elif isinstance(artifact, wandb.Artifact) and artifact.is_draft():
             raise ValueError(
