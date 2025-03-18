@@ -1405,6 +1405,8 @@ enum ServerFeature {
   // url.
   ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER = 6;
 
+  // Indicates that the server supports passing the artifact name to the useArtifact mutation.
+  USE_ARTIFACT_WITH_COLLECTION_INFORMATION = 7;
 }
 
 /**

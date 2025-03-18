@@ -2849,6 +2849,8 @@ pub enum ServerFeature {
     /// Indicates that the server supports downloading files with additional artifact collection memberships context in the
     /// url.
     ArtifactCollectionMembershipFileDownloadHandler = 6,
+    /// Indicates that the server supports passing the artifact name to the useArtifact mutation.
+    UseArtifactWithCollectionInformation = 7,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2868,6 +2870,9 @@ impl ServerFeature {
             Self::ArtifactCollectionMembershipFileDownloadHandler => {
                 "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER"
             }
+            Self::UseArtifactWithCollectionInformation => {
+                "USE_ARTIFACT_WITH_COLLECTION_INFORMATION"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2883,6 +2888,9 @@ impl ServerFeature {
             }
             "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER" => {
                 Some(Self::ArtifactCollectionMembershipFileDownloadHandler)
+            }
+            "USE_ARTIFACT_WITH_COLLECTION_INFORMATION" => {
+                Some(Self::UseArtifactWithCollectionInformation)
             }
             _ => None,
         }
