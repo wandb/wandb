@@ -11,7 +11,6 @@ import re
 import shutil
 import socket
 import sys
-import tempfile
 from datetime import datetime
 from typing import Any, Literal, Sequence
 from urllib.parse import quote, unquote, urlencode
@@ -1264,20 +1263,7 @@ class Settings(BaseModel, validate_assignment=True):
             if os.path.exists(os.path.join(self.root_dir, ".wandb"))
             else "wandb" + os.sep
         )
-
-        try:
-            if not os.path.exists(self.root_dir):
-                os.makedirs(self.root_dir, exist_ok=True)
-            path = os.path.join(self.root_dir, __stage_dir__)
-        except PermissionError:
-            root_dir = self.root_dir
-            self.root_dir = tempfile.gettempdir()
-            path = os.path.join(self.root_dir, __stage_dir__)
-            termwarn(
-                f"Path {root_dir} wasn't writable, using system temp directory {path}.",
-                repeat=False,
-            )
-
+        path = os.path.join(self.root_dir, __stage_dir__)
         return os.path.expanduser(path)
 
     # Methods to collect and update settings from different sources.
