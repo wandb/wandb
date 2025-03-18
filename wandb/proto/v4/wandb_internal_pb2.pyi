@@ -36,7 +36,9 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """Indicates that the server supports client IDs for artifact reference urls."""
     ARTIFACT_REGISTRY_SEARCH: _ServerFeature.ValueType  # 3
     """Indicates that the server supports searching for artifacts in a registry."""
-    ARTIFACT_COLLECTION_MEMBERSHIP_FILES: _ServerFeature.ValueType  # 4
+    STRUCTURED_CONSOLE_LOGS: _ServerFeature.ValueType  # 4
+    """Indicates that the server supports structured console logs."""
+    ARTIFACT_COLLECTION_MEMBERSHIP_FILES: _ServerFeature.ValueType  # 5
     """Indicates that the server supports querying for files on artifact collection memberships."""
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
@@ -53,7 +55,9 @@ CLIENT_IDS: ServerFeature.ValueType  # 2
 """Indicates that the server supports client IDs for artifact reference urls."""
 ARTIFACT_REGISTRY_SEARCH: ServerFeature.ValueType  # 3
 """Indicates that the server supports searching for artifacts in a registry."""
-ARTIFACT_COLLECTION_MEMBERSHIP_FILES: ServerFeature.ValueType  # 4
+STRUCTURED_CONSOLE_LOGS: ServerFeature.ValueType  # 4
+"""Indicates that the server supports structured console logs."""
+ARTIFACT_COLLECTION_MEMBERSHIP_FILES: ServerFeature.ValueType  # 5
 """Indicates that the server supports querying for files on artifact collection memberships."""
 global___ServerFeature = ServerFeature
 

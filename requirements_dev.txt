@@ -28,7 +28,7 @@ tenacity
 ipython
 ipython<8.13; python_version < '3.9'
 ipykernel
-nbclient
+nbclient~=0.10.1
 
 
 tensorflow~=2.18.0; python_version >= '3.9'

@@ -38,6 +38,13 @@ def test_one_cell(notebook, run_id):
         assert run_id in output
 
 
+def test_init_finishes_previous_by_default(notebook):
+    with notebook("init_finishes_previous.ipynb") as nb:
+        nb.execute_all()
+        output = nb.cell_output_text(1)
+        assert output == "run1 finished? True\nrun1 is run2? False\n"
+
+
 def test_magic(notebook):
     with notebook("magic.ipynb") as nb:
         nb.execute_all()
