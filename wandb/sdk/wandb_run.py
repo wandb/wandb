@@ -62,6 +62,7 @@ from wandb.util import (
 
 from . import wandb_config, wandb_metric, wandb_summary
 from .artifacts._validators import (
+    MAX_ARTIFACT_METADATA_KEYS,
     is_artifact_registry_project,
     validate_aliases,
     validate_tags,
@@ -3244,6 +3245,12 @@ class Run:
         artifact, aliases = self._prepare_artifact(
             artifact_or_path, name, type, aliases
         )
+
+        if len(artifact.metadata) > MAX_ARTIFACT_METADATA_KEYS:
+            raise ValueError(
+                f"Artifact must not have more than {MAX_ARTIFACT_METADATA_KEYS} metadata keys."
+            )
+
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
         if self._backend and self._backend.interface:
