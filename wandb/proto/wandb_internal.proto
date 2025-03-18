@@ -1394,6 +1394,9 @@ enum ServerFeature {
 
   // Indicates that the server supports searching for artifacts in a registry.
   ARTIFACT_REGISTRY_SEARCH = 3;
+
+  // Indicates that the server supports structured console logs.
+  STRUCTURED_CONSOLE_LOGS = 4;
 }
 
 /**
