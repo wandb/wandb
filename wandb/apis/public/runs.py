@@ -36,6 +36,7 @@ WANDB_INTERNAL_KEYS = {"_wandb", "wandb_version"}
 
 RUN_FRAGMENT = """fragment RunFragment on Run {
     id
+    projectId
     tags
     name
     displayName
@@ -444,7 +445,11 @@ class Run(Attrs):
                 raise ValueError("Could not find run {}".format(self))
             self._attrs = response["project"]["run"]
             self._state = self._attrs["state"]
-            self._project_internal_id = response["project"].get("internalId", None)
+
+            self._project_internal_id = (
+                int(self._attrs["projectId"]) if "projectId" in self._attrs else None
+            )
+
             if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
