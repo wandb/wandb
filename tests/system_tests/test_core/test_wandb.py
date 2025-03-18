@@ -6,6 +6,7 @@ See wandb_integration_test.py for tests that launch a real backend server.
 import glob
 import io
 import os
+import platform
 import tempfile
 import unittest.mock
 from contextlib import contextmanager
@@ -296,6 +297,28 @@ def test_run_path(user):
         run = wandb.init(mode="offline")
         run.finish()
         assert run.path == "ent1/proj1/run1"
+
+
+def test_run_create_root_dir(user):
+    root_dir = os.path.join(tempfile.gettempdir(), "create_dir_test")
+    with wandb.init(settings=wandb.Settings(root_dir=root_dir)) as run:
+        run.log({"test": 1})
+    assert os.path.exists(root_dir)
+
+
+@pytest.mark.skipif(
+    platform.system() == "Linux", reason="Test only runs on Windows and Mac"
+)
+def test_run_create_root_dir_without_permissions_defaults_to_temp_dir(user):
+    temp_dir = tempfile.gettempdir()
+    root_dir = os.path.join(temp_dir, "no_permissions_test")
+    os.makedirs(root_dir, mode=0o444, exist_ok=True)
+    with wandb.init(
+        settings=wandb.Settings(root_dir=os.path.join(root_dir, "missing"))
+    ) as run:
+        run.log({"test": 1})
+    assert not os.path.exists(os.path.join(root_dir, "missing"))
+    assert run.settings.root_dir == temp_dir
 
 
 def test_run_projecturl(user):
