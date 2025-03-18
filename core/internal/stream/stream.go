@@ -262,6 +262,7 @@ func NewStream(
 			OutChan:             make(chan *spb.Result, BufferSize),
 			Mailbox:             mailbox,
 			RunWork:             s.runWork,
+			FeatureProvider:     featureProvider,
 		},
 	)
 
