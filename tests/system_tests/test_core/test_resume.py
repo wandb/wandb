@@ -103,12 +103,12 @@ def test_resume_output_log(wandb_backend_spy):
 
 
 def test_resume_config_preserves_image_mask(user, wandb_backend_spy):
-    img_array = np.zeros((100, 100, 3), dtype=np.uint8)
-    mask_array = np.zeros((100, 100), dtype=np.uint8)
-    mask_array[30:70, 30:70] = 1
+    img_array = np.zeros((2, 2, 3), dtype=np.uint8)
+    mask_array = np.zeros((1, 1), dtype=np.uint8)
+    mask_array[0, 0] = 1
     class_labels = {1: "square"}
 
-    with wandb.init(project="config_preservation") as run:
+    with wandb.init() as run:
         run.log(
             {
                 "test_image": wandb.Image(
@@ -123,12 +123,9 @@ def test_resume_config_preserves_image_mask(user, wandb_backend_spy):
             }
         )
 
-        run_id = run.id
-        run.finish()
-
     # Verify the config from the initial run
     with wandb_backend_spy.freeze() as snapshot:
-        config = snapshot.config(run_id=run_id)
+        config = snapshot.config(run_id=run.id)
         assert "_wandb" in config
         wandb_config = config["_wandb"]["value"]
 
@@ -138,9 +135,8 @@ def test_resume_config_preserves_image_mask(user, wandb_backend_spy):
 
     # Resume the run
     with wandb.init(
-        id=run_id,
+        id=run.id,
         resume="must",
-        project="config_preservation",
     ) as run:
         run.log(
             {
@@ -158,7 +154,7 @@ def test_resume_config_preserves_image_mask(user, wandb_backend_spy):
 
     # Validate config after resuming and adding another item
     with wandb_backend_spy.freeze() as snapshot:
-        resumed_config = snapshot.config(run_id=run_id)
+        resumed_config = snapshot.config(run_id=run.id)
         assert "_wandb" in resumed_config
         resumed_wandb_config = resumed_config["_wandb"]["value"]
 

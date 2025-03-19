@@ -130,8 +130,9 @@ func (rc *RunConfig) MergeResumedConfig(oldConfig map[string]any) {
 	// Add any top-level keys that aren't already set.
 	rc.addUnsetKeysFromSubtree(oldConfig, nil)
 
-	// When resuming a run, we want to ensure the some of the old keys from the config are maintained.
-	// So we have this logic here to add back in any keys that were in the old config but not in the new config
+	// When resuming a run, we want to ensure the some of the old configs keys
+	// are maintained. So we have this logic here to add back
+	// any keys that were in the old config but not in the new config
 	for _, key := range []string{"viz", "visualize", "mask/class_labels"} {
 		rc.addUnsetKeysFromSubtree(oldConfig, []string{"_wandb", key})
 	}
