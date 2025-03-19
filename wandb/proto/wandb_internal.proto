@@ -1404,7 +1404,6 @@ enum ServerFeature {
   // Indicates that the server supports downloading files with additional artifact collection memberships context in the
   // url.
   ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER = 6;
-
 }
 
 /**
