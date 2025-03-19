@@ -36,7 +36,6 @@ WANDB_INTERNAL_KEYS = {"_wandb", "wandb_version"}
 
 RUN_FRAGMENT = """fragment RunFragment on Run {
     id
-    projectId
     tags
     name
     displayName
@@ -423,12 +422,14 @@ class Run(Attrs):
         query Run($project: String!, $entity: String!, $name: String!) {{
             project(name: $project, entityName: $entity) {{
                 run(name: $name) {{
+                    {}
                     ...RunFragment
                 }}
             }}
         }}
         {}
         """.format(
+                "projectId" if self._server_provides_internal_id_for_project() else "",
                 RUN_FRAGMENT,
             )
         )
@@ -913,8 +914,8 @@ class Run(Attrs):
         This check is done by utilizing GraphQL introspection in the available fields on the Project type.
         """
         query_string = """
-           query ProbeProjectInput {
-                ProjectType: __type(name:"Project") {
+           query ProbeRunInput {
+                RunType: __type(name:"Run") {
                     fields {
                         name
                     }
@@ -926,8 +927,8 @@ class Run(Attrs):
         if self.server_provides_internal_id_field is None:
             query = gql(query_string)
             res = self.client.execute(query)
-            self.server_provides_internal_id_field = "internalId" in [
-                x["name"] for x in (res.get("ProjectType", {}).get("fields", [{}]))
+            self.server_provides_internal_id_field = "projectId" in [
+                x["name"] for x in (res.get("RunType", {}).get("fields", [{}]))
             ]
 
         return self.server_provides_internal_id_field
