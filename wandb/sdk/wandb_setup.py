@@ -16,7 +16,6 @@ from __future__ import annotations
 import logging
 import os
 import sys
-import tempfile
 import threading
 from typing import TYPE_CHECKING, Any, Union
 
@@ -323,21 +322,6 @@ def _setup(
         _singleton.ensure_service()
 
     return _singleton
-
-
-def create_root_dir(settings: Settings):
-    if settings.root_dir:
-        try:
-            if not os.path.exists(settings.root_dir):
-                os.makedirs(settings.root_dir, exist_ok=True)
-            return settings.root_dir
-        except OSError:
-            temp_dir = tempfile.gettempdir()
-            wandb.termwarn(
-                f"Path {settings.root_dir} wasn't writable, using system temp directory {temp_dir}.",
-                repeat=False,
-            )
-            settings.root_dir = temp_dir
 
 
 def setup(settings: Settings | None = None) -> _WandbSetup:

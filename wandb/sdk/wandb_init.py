@@ -1509,6 +1509,7 @@ def init(  # noqa: C901
             if run_settings._noop:
                 return wi.make_disabled_run(run_config)
 
+            try_create_root_dir(run_settings)
             exit_stack.enter_context(wi.setup_run_log_directory(run_settings))
 
             if run_settings._jupyter:
