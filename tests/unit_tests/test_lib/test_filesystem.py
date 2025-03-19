@@ -555,11 +555,11 @@ def test_system_preferred_path():
         assert system_preferred_path(path) == path
 
 
-def test_system_preferred_path_warning(caplog):
+def test_system_preferred_path_warning(wandb_caplog):
     path = Path("path:with/colon.txt")
     with mock.patch("platform.system", return_value="Windows"):
         system_preferred_path(path, warn=True)
-        assert f"Replacing ':' in {path} with '-'" in caplog.text
+        assert f"Replacing ':' in {path} with '-'" in wandb_caplog.text
 
 
 def test_mkdir_allow_fallback_success(tmp_path):
@@ -587,8 +587,8 @@ def test_mkdir_allow_fallback_with_uncreatable_directory(tmp_path):
             mkdir_allow_fallback(dir_name)
 
 
-def test_mkdir_allow_fallback_with_warning(caplog, tmp_path):
+def test_mkdir_allow_fallback_with_warning(wandb_caplog, tmp_path):
     dir_name = tmp_path / "direct\0ry"
     new_name = tmp_path / "direct-ry"
     assert mkdir_allow_fallback(dir_name) == new_name
-    assert f"Creating '{new_name}' instead of '{dir_name}'" in caplog.text
+    assert f"Creating '{new_name}' instead of '{dir_name}'" in wandb_caplog.text
