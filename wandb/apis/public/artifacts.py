@@ -948,7 +948,7 @@ class RunArtifacts(Paginator):
 
 class ArtifactFiles(Paginator):
     ARTIFACT_VERSION_FILES_QUERY = gql(
-        """
+        f"""
         query ArtifactFiles(
             $entityName: String!,
             $projectName: String!,
@@ -968,12 +968,12 @@ class ArtifactFiles(Paginator):
                 }}
             }}
         }}
-        {}
-    """.format(ARTIFACT_FILES_FRAGMENT)
+        {ARTIFACT_FILES_FRAGMENT}
+    """
     )
 
     ARTIFACT_COLLECTION_MEMBERSHIP_FILES_QUERY = gql(
-        """
+        f"""
         query ArtifactCollectionMembershipFiles(
             $entityName: String!,
             $projectName: String!,
@@ -993,8 +993,8 @@ class ArtifactFiles(Paginator):
                 }}
             }}
         }}
-        {}
-        """.format(ARTIFACT_FILES_FRAGMENT)
+        {ARTIFACT_FILES_FRAGMENT}
+        """
     )
 
     def __init__(
