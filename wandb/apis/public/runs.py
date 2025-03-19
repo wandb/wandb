@@ -422,7 +422,6 @@ class Run(Attrs):
             """
         query Run($project: String!, $entity: String!, $name: String!) {{
             project(name: $project, entityName: $entity) {{
-                {}
                 run(name: $name) {{
                     ...RunFragment
                 }}
@@ -430,8 +429,6 @@ class Run(Attrs):
         }}
         {}
         """.format(
-                # Only query internalId if the server supports it
-                "internalId" if self._server_provides_internal_id_for_project() else "",
                 RUN_FRAGMENT,
             )
         )
