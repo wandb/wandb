@@ -21,50 +21,7 @@ if sys.version_info >= (3, 11):
 else:
     from typing_extensions import Self
 
-import pydantic
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
-
-if int(pydantic.__version__[0]) >= 2:
-    from pydantic import (
-        AliasChoices,
-        BaseModel,
-        ConfigDict,
-        Field,
-        computed_field,
-        field_validator,
-        model_validator,
-    )
-    from pydantic_core import SchemaValidator, core_schema
-
-    def validate_url(url: str) -> None:
-        """Validate a URL string."""
-        url_validator = SchemaValidator(
-            core_schema.url_schema(
-                allowed_schemes=["http", "https"],
-                strict=True,
-            )
-        )
-        url_validator.validate_python(url)
-else:
-    from pydantic import BaseModel, ConfigDict, Field, root_validator, validator
-
-    def field_validator(*args, **kwargs):
-        mode = kwargs.pop("mode", None)
-        pre = True if mode == "before" else False
-        return validator(pre=pre, **kwargs)
-
-    def model_validator(*args, **kwargs):
-        mode = kwargs.pop("mode", None)
-        pre = True if mode == "before" else False
-        return root_validator(pre=pre, **kwargs)
-
-    class AliasChoices:
-        def __init__(self, *args):
-            pass
-
-    def computed_field(*args, **kwargs):
-        return None
-
 
 import wandb
 from wandb import env, termwarn, util
@@ -73,6 +30,17 @@ from wandb.proto import wandb_settings_pb2
 
 from .lib import apikey, credentials, ipython
 from .lib.gitlib import GitRepo
+from .lib.pydantic_compat import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+    v2_compat_model,
+    validate_url,
+)
 from .lib.run_moment import RunMoment
 
 
@@ -81,6 +49,7 @@ def _path_convert(*args: str) -> str:
     return os.path.expanduser(os.path.join(*args))
 
 
+@v2_compat_model
 class Settings(BaseModel, validate_assignment=True):
     """Settings for the W&B SDK.
 
@@ -753,7 +722,7 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("base_url", mode="after")
     @classmethod
     def validate_base_url(cls, value):
-        cls.validate_url(value)
+        validate_url(value)
         # wandb.ai-specific checks
         if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
             # user might guess app.wandb.ai or wandb.ai is the default cloud server
@@ -832,7 +801,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_http_proxy(cls, value):
         if value is None:
             return None
-        cls.validate_url(value)
+        validate_url(value)
         return value.rstrip("/")
 
     @field_validator("https_proxy", mode="after")
@@ -840,7 +809,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_https_proxy(cls, value):
         if value is None:
             return None
-        cls.validate_url(value)
+        validate_url(value)
         return value.rstrip("/")
 
     @field_validator("ignore_globs", mode="after")

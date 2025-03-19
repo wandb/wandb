@@ -6,9 +6,16 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from google.protobuf.timestamp_pb2 import Timestamp
-from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from wandb.proto import wandb_internal_pb2
+
+from .lib.pydantic_compat import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    model_validator,
+    v2_compat_model,
+)
 
 if sys.version_info >= (3, 11):
     from typing import Self
@@ -16,6 +23,7 @@ else:
     from typing_extensions import Self
 
 
+@v2_compat_model
 class DiskInfo(BaseModel, validate_assignment=True):
     total: int | None = None
     used: int | None = None
@@ -31,6 +39,7 @@ class DiskInfo(BaseModel, validate_assignment=True):
         return cls(total=proto.total, used=proto.used)
 
 
+@v2_compat_model
 class MemoryInfo(BaseModel, validate_assignment=True):
     total: int | None = None
 
@@ -42,6 +51,7 @@ class MemoryInfo(BaseModel, validate_assignment=True):
         return cls(total=proto.total)
 
 
+@v2_compat_model
 class CpuInfo(BaseModel, validate_assignment=True):
     count: int | None = None
     count_logical: int | None = None
@@ -57,6 +67,7 @@ class CpuInfo(BaseModel, validate_assignment=True):
         return cls(count=proto.count, count_logical=proto.count_logical)
 
 
+@v2_compat_model
 class AppleInfo(BaseModel, validate_assignment=True):
     name: str | None = None
     ecpu_cores: int | None = None
@@ -90,6 +101,7 @@ class AppleInfo(BaseModel, validate_assignment=True):
         )
 
 
+@v2_compat_model
 class GpuNvidiaInfo(BaseModel, validate_assignment=True):
     name: str | None = None
     memory_total: int | None = None
@@ -117,6 +129,7 @@ class GpuNvidiaInfo(BaseModel, validate_assignment=True):
         )
 
 
+@v2_compat_model
 class GpuAmdInfo(BaseModel, validate_assignment=True):
     id: str | None = None
     unique_id: str | None = None
@@ -168,6 +181,7 @@ class GpuAmdInfo(BaseModel, validate_assignment=True):
         )
 
 
+@v2_compat_model
 class TrainiumInfo(BaseModel, validate_assignment=True):
     name: str | None = None
     vendor: str | None = None
@@ -192,6 +206,7 @@ class TrainiumInfo(BaseModel, validate_assignment=True):
         )
 
 
+@v2_compat_model
 class TPUInfo(BaseModel, validate_assignment=True):
     name: str | None = None
     hbm_gib: int | None = None
@@ -216,6 +231,7 @@ class TPUInfo(BaseModel, validate_assignment=True):
         )
 
 
+@v2_compat_model
 class GitRepoRecord(BaseModel, validate_assignment=True):
     remote_url: str | None = Field(None, alias="remote")
     commit: str | None = None
@@ -231,37 +247,9 @@ class GitRepoRecord(BaseModel, validate_assignment=True):
         return cls(remote=proto.remote_url, commit=proto.commit)
 
 
+@v2_compat_model
 class Metadata(BaseModel, validate_assignment=True):
-    """Metadata about the run environment.
-
-    NOTE: Definitions must be kept in sync with wandb_internal.proto::MetadataRequest.
-
-    Examples:
-        Update Run metadata:
-
-        ```python
-        with wandb.init(settings=settings) as run:
-            run._metadata.gpu_nvidia = [
-                {
-                    "name": "Tesla T4",
-                    "memory_total": "16106127360",
-                    "cuda_cores": 2560,
-                    "architecture": "Turing",
-                },
-                ...,
-            ]
-
-            run._metadata.gpu_type = "Tesla T4"
-            run._metadata.gpu_count = 42
-
-            run._metadata.tpu = {
-                "name": "v6e",
-                "hbm_gib": 32,
-                "devices_per_chip": 1,
-                "count": 1337,
-            }
-        ```
-    """
+    """Metadata about the run environment."""
 
     model_config = ConfigDict(
         extra="ignore",  # ignore extra fields
@@ -386,6 +374,8 @@ class Metadata(BaseModel, validate_assignment=True):
         finally:
             self._post_update_callback = original_callback
 
+    # Here's the important part - this model validator uses (self) -> Self signature
+    # which our compatibility layer will handle correctly
     @model_validator(mode="after")
     def _callback(self) -> Self:
         if getattr(self, "_post_update_callback", None) is not None:
