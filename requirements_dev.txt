@@ -51,7 +51,7 @@ lightning
 ray[air,tune]
 
 # Latest version of plum-dispatch tested is 2.5.7
-plum-dispatch>=2.0.0,<=2.5.7
+plum-dispatch>=2.0.0,<3.0.0
 pyarrow
 metaflow
 xgboost
