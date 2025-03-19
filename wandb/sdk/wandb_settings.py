@@ -1427,12 +1427,12 @@ class Settings(BaseModel, validate_assignment=True):
         The setting exposed to users as `dir=` or `WANDB_DIR` is the `root_dir`.
         We add the `__stage_dir__` to it to get the full `wandb_dir`
         """
-        __stage_dir__ = (
+        stage_dir = (
             ".wandb" + os.sep
             if os.path.exists(os.path.join(self.root_dir, ".wandb"))
             else "wandb" + os.sep
         )
-        path = os.path.join(self.root_dir, __stage_dir__)
+        path = os.path.join(self.root_dir, stage_dir)
         return os.path.expanduser(path)
 
     # Methods to collect and update settings from different sources.
