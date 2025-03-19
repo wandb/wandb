@@ -27,6 +27,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - The server now supports fetching artifact files by providing additional collection information; updated the artifacts api to use the new endpoints instead (@ibindlish in https://github.com/wandb/wandb/pull/9551)
 
+- Updated the `use_artifact` internal api to fetch artifacts by providing additional collection information (@ibindlish in https://github.com/wandb/wandb/pull/9596)
+
 ### Fixed
 
 - Calling `wandb.init()` in a notebook finishes previous runs as previously documented (@timoffex in https://github.com/wandb/wandb/pull/9569)
