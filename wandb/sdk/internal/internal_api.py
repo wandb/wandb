@@ -3771,13 +3771,11 @@ class Api:
             "$entityName: String!",
             "$projectName: String!",
             "$runName: String!",
-            "$artifactID: ID!",
         ]
         query_args = [
             "entityName: $entityName",
             "projectName: $projectName",
             "runName: $runName",
-            "artifactID: $artifactID",
         ]
 
         artifact_types = self.server_use_artifact_input_introspection()
@@ -3803,6 +3801,10 @@ class Api:
                     "artifactName: $artifactName",
                 ]
             )
+        else:
+            # Default to using the artifact ID
+            query_vars.append("$artifactID: ID!")
+            query_args.append("artifactID: $artifactID")
 
         vars_str = ", ".join(query_vars)
         args_str = ", ".join(query_args)
@@ -3832,13 +3834,14 @@ class Api:
             "entityName": entity_name,
             "projectName": project_name,
             "runName": run_name,
-            "artifactID": artifact_id,
             "usedAs": use_as,
         }
         if server_allows_artifact_name:
             query_variable_values["artifactEntityName"] = artifact_entity_name
             query_variable_values["artifactProjectName"] = artifact_project_name
             query_variable_values["artifactName"] = artifact_name
+        else:
+            query_variable_values["artifactID"] = artifact_id
 
         response = self.gql(
             query,
