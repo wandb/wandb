@@ -20,7 +20,7 @@ class RunMoment:
     value: Union[int, float]
     """Value of the metric."""
 
-    metric: Literal["_step"] = "_step"
+    metric: str = "_step"
     """Metric to use to determine the moment in the run.
 
     Currently, only the metric '_step' is supported.

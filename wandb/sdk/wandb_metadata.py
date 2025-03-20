@@ -359,12 +359,12 @@ class Metadata(BaseModel):
     apple: Optional[AppleInfo] = None
     """Apple silicon information."""
 
-    gpu_nvidia: Optional[list[GpuNvidiaInfo]] = Field(
+    gpu_nvidia: list[GpuNvidiaInfo] = Field(
         default_factory=list, alias="gpuNvidia"
     )
     """NVIDIA GPU information."""
 
-    gpu_amd: Optional[list[GpuAmdInfo]] = Field(default_factory=list, alias="gpuAmd")
+    gpu_amd: list[GpuAmdInfo] = Field(default_factory=list, alias="gpuAmd")
     """AMD GPU information."""
 
     slurm: dict[str, str] = Field(default_factory=dict)
@@ -409,7 +409,7 @@ class Metadata(BaseModel):
             return self
     else:
 
-        @root_validator(pre=False)
+        @root_validator(pre=False)  # type: ignore [call-overload]
         @classmethod
         def _callback(cls, values):
             if getattr(cls, "_post_update_callback", None) is not None:

@@ -55,23 +55,23 @@ if is_pydantic_v2:
 else:
     from pydantic import root_validator, validator
 
-    class AliasChoices:
+    class AliasChoices:  # type: ignore [no-redef]
         """Compatibility class for Pydantic v2's AliasChoices."""
 
         def __init__(self, *aliases):
             self.aliases = aliases
 
-    def field_validator(field_name: str, mode="before"):
+    def field_validator(field_name: str, mode="before"):  # type: ignore [no-redef]
         """Compatibility wrapper for Pydantic v2's field_validator in v1."""
         return validator(
             field_name, pre=mode == "before", allow_reuse=True, always=True
         )
 
-    def model_validator(mode="before"):
+    def model_validator(mode="before"):  # type: ignore [no-redef]
         """Compatibility wrapper for Pydantic v2's model_validator in v1."""
         return root_validator(pre=(mode == "before"))
 
-    def computed_field(func=None, **kwargs):
+    def computed_field(func=None, **kwargs):  # type: ignore [no-redef]
         """Compatibility wrapper for Pydantic v2's computed_field in v1."""
 
         def decorator(f):
@@ -759,7 +759,7 @@ class Settings(BaseModel):
             return self
     else:
 
-        @root_validator(pre=False)
+        @root_validator(pre=False)  # type: ignore [call-overload]
         @classmethod
         def validate_mutual_exclusion_of_branching_args(cls, values):
             if (
