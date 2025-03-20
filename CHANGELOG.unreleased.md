@@ -16,3 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - Upgrade go version for `wandb-core` from 1.23.x to 1.24.x (@kptkin in https://github.com/wandb/wandb/pull/9590)
+
+### Fixed
+
+- Fixed `util.get_module(..., lazy=True)` causing AttributeError when accessing a submodule from its parent (@jacobromero in https://github.com/wandb/wandb/pull/9598)
