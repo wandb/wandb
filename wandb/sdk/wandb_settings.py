@@ -1808,7 +1808,6 @@ class Settings(BaseModel, validate_assignment=True):
                         pass
                 elif isinstance(attr, RunMoment):
                     value = getattr(self, name)
-                    print(f"RunMoment {name}: {value}")
                     result[name] = value
 
             # Special Pydantic attributes that should always be excluded
