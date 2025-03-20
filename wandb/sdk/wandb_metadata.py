@@ -24,7 +24,7 @@ if is_pydantic_v2:
     from pydantic import model_validator
 
 else:
-    from pydantic import root_validator
+    pass
 
 
 class DiskInfo(BaseModel, validate_assignment=True):
