@@ -25,6 +25,7 @@ else:
     from typing_extensions import Self
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.version import VERSION as PYDANTIC_VERSION
 
 import wandb
@@ -39,15 +40,7 @@ from .lib.run_moment import RunMoment
 is_pydantic_v2 = int(PYDANTIC_VERSION[0]) == 2
 
 if is_pydantic_v2:
-    from pydantic import (
-        AliasChoices,
-        BaseModel,
-        ConfigDict,
-        Field,
-        computed_field,
-        field_validator,
-        model_validator,
-    )
+    from pydantic import AliasChoices, computed_field, field_validator, model_validator
     from pydantic_core import SchemaValidator, core_schema
 
     def validate_url(url: str) -> None:
@@ -60,7 +53,7 @@ if is_pydantic_v2:
         )
         url_validator.validate_python(url)
 else:
-    from pydantic import BaseModel, ConfigDict, Field, root_validator, validator
+    from pydantic import root_validator, validator
 
     class AliasChoices:
         """Compatibility class for Pydantic v2's AliasChoices."""
@@ -69,11 +62,13 @@ else:
             self.aliases = aliases
 
     def field_validator(field_name: str, mode="before"):
+        """Compatibility wrapper for Pydantic v2's field_validator in v1."""
         return validator(
             field_name, pre=mode == "before", allow_reuse=True, always=True
         )
 
     def model_validator(mode="before"):
+        """Compatibility wrapper for Pydantic v2's model_validator in v1."""
         return root_validator(pre=(mode == "before"))
 
     def computed_field(func=None, **kwargs):

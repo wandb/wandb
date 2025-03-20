@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
 from google.protobuf.timestamp_pb2 import Timestamp
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.version import VERSION as PYDANTIC_VERSION
 
 from wandb.proto import wandb_internal_pb2
@@ -19,13 +20,10 @@ else:
 is_pydantic_v2 = int(PYDANTIC_VERSION[0]) == 2
 
 if is_pydantic_v2:
-    from pydantic import BaseModel, ConfigDict, Field, model_validator
+    from pydantic import model_validator
 
 else:
-    from pydantic import BaseModel, ConfigDict, Field, root_validator
-
-    def model_validator(mode="before"):
-        return root_validator(pre=mode == "before")
+    from pydantic import root_validator
 
 
 class DiskInfo(BaseModel, validate_assignment=True):
