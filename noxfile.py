@@ -188,6 +188,11 @@ def unit_tests(session: nox.Session) -> None:
 def unit_tests_pydantic_v1(session: nox.Session) -> None:
     """Runs a subset of Python unit tests with pydantic v1."""
     install_wandb(session)
+    install_timed(
+        session,
+        "-r",
+        "requirements_test.txt",
+    )
     session.install("pydantic<2")
 
     run_pytest(
