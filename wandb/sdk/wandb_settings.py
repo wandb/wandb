@@ -1422,11 +1422,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def wandb_dir(self) -> str:
-        """Full path to the wandb directory.
-
-        The setting exposed to users as `dir=` or `WANDB_DIR` is the `root_dir`.
-        We add the `__stage_dir__` to it to get the full `wandb_dir`
-        """
+        """Full path to the wandb directory."""
         stage_dir = (
             ".wandb" + os.sep
             if os.path.exists(os.path.join(self.root_dir, ".wandb"))
