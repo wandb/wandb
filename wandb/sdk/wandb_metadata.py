@@ -9,6 +9,7 @@ from google.protobuf.timestamp_pb2 import Timestamp
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.version import VERSION as PYDANTIC_VERSION
 
+from wandb import termwarn
 from wandb.proto import wandb_internal_pb2
 
 if sys.version_info >= (3, 11):
@@ -241,7 +242,7 @@ class GitRepoRecord(BaseModel, validate_assignment=True):
         return cls(remote=proto.remote_url, commit=proto.commit)
 
 
-class Metadata(BaseModel):
+class Metadata(BaseModel, validate_assignment=True):
     """Metadata about the run environment.
 
     NOTE: Definitions must be kept in sync with wandb_internal.proto::MetadataRequest.
@@ -275,7 +276,6 @@ class Metadata(BaseModel):
 
     model_config = ConfigDict(
         extra="ignore",  # ignore extra fields
-        validate_assignment=True,  # validate assignments to attributes of an instance
         validate_default=True,  # validate default values
         use_attribute_docstrings=True,  # for field descriptions
         revalidate_instances="always",
@@ -380,22 +380,34 @@ class Metadata(BaseModel):
     def __init__(self, **data):
         super().__init__(**data)
 
+        if not is_pydantic_v2:
+            termwarn(
+                "Metadata is read-only when using pydantic v1.",
+                repeat=False,
+            )
+            return
+
         # Callback for post-update. This is used in the Run object to trigger
         # a metadata update after the object is modified.
         self._post_update_callback: Optional[Callable] = None  # type: ignore
 
     def _set_callback(self, callback: Callable) -> None:
+        if not is_pydantic_v2:
+            return
         self._post_update_callback = callback
 
     @contextmanager
     def disable_callback(self):
         """Temporarily disable callback."""
-        original_callback = self._post_update_callback
-        self._post_update_callback = None
-        try:
+        if not is_pydantic_v2:
             yield
-        finally:
-            self._post_update_callback = original_callback
+        else:
+            original_callback = self._post_update_callback
+            self._post_update_callback = None
+            try:
+                yield
+            finally:
+                self._post_update_callback = original_callback
 
     if is_pydantic_v2:
 
@@ -405,13 +417,6 @@ class Metadata(BaseModel):
                 self._post_update_callback(self.to_proto())  # type: ignore
 
             return self
-    else:
-
-        @root_validator(pre=False)  # type: ignore [call-overload]
-        @classmethod
-        def _callback(cls, values):
-            if getattr(cls, "_post_update_callback", None) is not None:
-                cls._post_update_callback(cls.to_proto())
 
     @classmethod
     def _datetime_to_timestamp(cls, dt: datetime | None) -> Timestamp | None:

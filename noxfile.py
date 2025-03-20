@@ -193,7 +193,8 @@ def unit_tests_pydantic_v1(session: nox.Session) -> None:
         "-r",
         "requirements_test.txt",
     )
-    session.install("pydantic<2")
+    # force-downgrade pydantic to v1
+    install_timed(session, "pydantic<2")
 
     run_pytest(
         session,

@@ -87,22 +87,98 @@ else:
         return decorator
 
     def validate_url(url: str) -> None:
-        """Validate a URL string for Pydantic v1."""
-        # Simple URL validation for v1
-        if not url.startswith(("http://", "https://")):
-            raise ValueError(f"URL must start with http:// or https://: {url}")
+        """Validate the base url of the wandb server.
 
-        # Basic URL validation
-        url_pattern = re.compile(
-            r"^(http|https)://"  # scheme
-            r"([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}|"  # domain
-            r"localhost|"  # localhost
-            r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"  # IP
-            r"(:\d+)?"  # port
-            r"(/.*)?$"  # path
+        param value: URL to validate
+
+        Based on the Django URLValidator, but with a few additional checks.
+
+        Copyright (c) Django Software Foundation and individual contributors.
+        All rights reserved.
+
+        Redistribution and use in source and binary forms, with or without modification,
+        are permitted provided that the following conditions are met:
+
+            1. Redistributions of source code must retain the above copyright notice,
+               this list of conditions and the following disclaimer.
+
+            2. Redistributions in binary form must reproduce the above copyright
+               notice, this list of conditions and the following disclaimer in the
+               documentation and/or other materials provided with the distribution.
+
+            3. Neither the name of Django nor the names of its contributors may be used
+               to endorse or promote products derived from this software without
+               specific prior written permission.
+
+        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+        ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+        WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+        DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+        ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+        (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+        LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+        ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+        (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+        SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+        """
+        from urllib.parse import urlparse, urlsplit
+
+        if url is None:
+            return
+
+        ul = "\u00a1-\uffff"  # Unicode letters range (must not be a raw string).
+
+        # IP patterns
+        ipv4_re = (
+            r"(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)"
+            r"(?:\.(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}"
         )
-        if not url_pattern.match(url):
+        ipv6_re = r"\[[0-9a-f:.]+\]"  # (simple regex, validated later)
+
+        # Host patterns
+        hostname_re = (
+            r"[a-z" + ul + r"0-9](?:[a-z" + ul + r"0-9-]{0,61}[a-z" + ul + r"0-9])?"
+        )
+        # Max length for domain name labels is 63 characters per RFC 1034 sec. 3.1
+        domain_re = r"(?:\.(?!-)[a-z" + ul + r"0-9-]{1,63}(?<!-))*"
+        tld_re = (
+            r"\."  # dot
+            r"(?!-)"  # can't start with a dash
+            r"(?:[a-z" + ul + "-]{2,63}"  # domain label
+            r"|xn--[a-z0-9]{1,59})"  # or punycode label
+            r"(?<!-)"  # can't end with a dash
+            r"\.?"  # may have a trailing dot
+        )
+        # host_re = "(" + hostname_re + domain_re + tld_re + "|localhost)"
+        # todo?: allow hostname to be just a hostname (no tld)?
+        host_re = "(" + hostname_re + domain_re + f"({tld_re})?" + "|localhost)"
+
+        regex = re.compile(
+            r"^(?:[a-z0-9.+-]*)://"  # scheme is validated separately
+            r"(?:[^\s:@/]+(?::[^\s:@/]*)?@)?"  # user:pass authentication
+            r"(?:" + ipv4_re + "|" + ipv6_re + "|" + host_re + ")"
+            r"(?::[0-9]{1,5})?"  # port
+            r"(?:[/?#][^\s]*)?"  # resource path
+            r"\Z",
+            re.IGNORECASE,
+        )
+        schemes = {"http", "https"}
+        unsafe_chars = frozenset("\t\r\n")
+
+        scheme = url.split("://")[0].lower()
+        split_url = urlsplit(url)
+        parsed_url = urlparse(url)
+
+        if parsed_url.netloc == "":
             raise ValueError(f"Invalid URL: {url}")
+        elif unsafe_chars.intersection(url):
+            raise ValueError("URL cannot contain unsafe characters")
+        elif scheme not in schemes:
+            raise ValueError("URL must start with `http(s)://`")
+        elif not regex.search(url):
+            raise ValueError(f"{url} is not a valid server address")
+        elif split_url.hostname is None or len(split_url.hostname) > 253:
+            raise ValueError("hostname is invalid")
 
 
 def _path_convert(*args: str) -> str:
@@ -110,7 +186,7 @@ def _path_convert(*args: str) -> str:
     return os.path.expanduser(os.path.join(*args))
 
 
-class Settings(BaseModel):
+class Settings(BaseModel, validate_assignment=True):
     """Settings for the W&B SDK.
 
     This class manages configuration settings for the W&B SDK,
@@ -132,7 +208,6 @@ class Settings(BaseModel):
     # Pydantic Model configuration.
     model_config = ConfigDict(
         extra="forbid",  # throw an error if extra fields are provided
-        validate_assignment=True,  # validate assignments to attributes of an instance
         validate_default=True,  # validate default values
         use_attribute_docstrings=True,  # for field descriptions
         revalidate_instances="always",
@@ -868,10 +943,18 @@ class Settings(BaseModel):
     @classmethod
     def validate_fork_from(cls, value, values) -> Optional[RunMoment]:
         run_moment = cls._runmoment_preprocessor(value)
+
+        if hasattr(values, "data"):
+            # pydantic v2
+            values = values.data
+        else:
+            # pydantic v1
+            values = values
+
         if (
             run_moment
-            and values.data.get("run_id") is not None
-            and values.data.get("run_id") == run_moment.run
+            and values.get("run_id") is not None
+            and values.get("run_id") == run_moment.run
         ):
             raise ValueError(
                 "Provided `run_id` is the same as the run to `fork_from`. "
@@ -1552,10 +1635,14 @@ class Settings(BaseModel):
 
             # Special case for RunMoment fields.
             if k in ("fork_from", "resume_from"):
-                run_moment = RunMoment(
-                    run=v.get("run"),
-                    value=v.get("value"),
-                    metric=v.get("metric"),
+                run_moment = (
+                    v
+                    if isinstance(v, RunMoment)
+                    else RunMoment(
+                        run=v.get("run"),
+                        value=v.get("value"),
+                        metric=v.get("metric"),
+                    )
                 )
                 getattr(settings_proto, k).CopyFrom(
                     wandb_settings_pb2.RunMoment(
@@ -1719,6 +1806,10 @@ class Settings(BaseModel):
                     except (AttributeError, NotImplementedError, TypeError, ValueError):
                         # Skip properties that can't be accessed or raise errors
                         pass
+                elif isinstance(attr, RunMoment):
+                    value = getattr(self, name)
+                    print(f"RunMoment {name}: {value}")
+                    result[name] = value
 
             # Special Pydantic attributes that should always be excluded
             exclude_fields = {
@@ -1743,7 +1834,7 @@ class Settings(BaseModel):
             return result
 
         @property
-        def model_fields_set(self):
+        def model_fields_set(self) -> set:
             """Return a set of fields that have been explicitly set.
 
             This is a compatibility property for Pydantic v1 to mimic v2's model_fields_set.
