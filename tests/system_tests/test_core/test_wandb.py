@@ -301,13 +301,18 @@ def test_run_path(user):
 
 def test_run_create_root_dir(user):
     root_dir = os.path.join(tempfile.gettempdir(), "create_dir_test")
-    with wandb.init(settings=wandb.Settings(root_dir=root_dir)) as run:
+    with wandb.init(dir=root_dir) as run:
         run.log({"test": 1})
     assert os.path.exists(root_dir)
 
 
 @pytest.mark.skipif(
-    platform.system() == "Linux", reason="Test only runs on Windows and Mac"
+    platform.system() == "Linux",
+    reason=(
+        "For tests run in CI on linux, the runas user is root. "
+        "This means that the test can always write to the root dir, "
+        "even if permissions are set to read only."
+    ),
 )
 def test_run_create_root_dir_without_permissions_defaults_to_temp_dir(user):
     temp_dir = tempfile.gettempdir()

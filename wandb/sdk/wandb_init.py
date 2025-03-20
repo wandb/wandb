@@ -1152,28 +1152,30 @@ def _monkeypatch_tensorboard() -> None:
     tb_module.patch()
 
 
-def try_create_root_dir(settings: Settings):
+def try_create_root_dir(settings: Settings) -> None:
     """Try to create the root directory specified in settings.
 
-    This function attempts to create the root directory if it doesn't exist.
-    If creation fails due to permissions or other OS errors.
-    If creation of the root directory fails, the root_dir will be set to the
-    system temp directory.
+    If creation fails due to permissions or other errors,
+    falls back to using the system temp directory.
 
     Args:
-        settings: Settings object containing root_dir configuration
+        settings: The runs settings containing root_dir configuration.
+            This function may update the root_dir to a temporary directory
+            if the parent directory is not writable.
     """
-    if settings.root_dir:
-        try:
-            if not os.path.exists(settings.root_dir):
-                os.makedirs(settings.root_dir, exist_ok=True)
-        except OSError:
-            temp_dir = tempfile.gettempdir()
-            wandb.termwarn(
-                f"Path {settings.root_dir} wasn't writable, using system temp directory {temp_dir}.",
-                repeat=False,
-            )
-            settings.root_dir = temp_dir
+    if not settings.root_dir:
+        return
+
+    try:
+        if not os.path.exists(settings.root_dir):
+            os.makedirs(settings.root_dir, exist_ok=True)
+    except OSError:
+        temp_dir = tempfile.gettempdir()
+        wandb.termwarn(
+            f"Path {settings.root_dir} wasn't writable, using system temp directory {temp_dir}.",
+            repeat=False,
+        )
+        settings.root_dir = temp_dir
 
 
 def init(  # noqa: C901
