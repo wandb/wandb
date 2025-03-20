@@ -359,9 +359,7 @@ class Metadata(BaseModel):
     apple: Optional[AppleInfo] = None
     """Apple silicon information."""
 
-    gpu_nvidia: list[GpuNvidiaInfo] = Field(
-        default_factory=list, alias="gpuNvidia"
-    )
+    gpu_nvidia: list[GpuNvidiaInfo] = Field(default_factory=list, alias="gpuNvidia")
     """NVIDIA GPU information."""
 
     gpu_amd: list[GpuAmdInfo] = Field(default_factory=list, alias="gpuAmd")
