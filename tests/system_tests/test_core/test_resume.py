@@ -123,21 +123,7 @@ def test_resume_config_preserves_image_mask(user, wandb_backend_spy):
             }
         )
 
-    # Verify the config from the initial run
-    with wandb_backend_spy.freeze() as snapshot:
-        config = snapshot.config(run_id=run.id)
-        assert "_wandb" in config
-        wandb_config = config["_wandb"]["value"]
-
-        item_config = wandb_config.get("mask/class_labels", {})
-        initial_item_keys = set(item_config.keys())
-        assert len(initial_item_keys) > 0
-
-    # Resume the run
-    with wandb.init(
-        id=run.id,
-        resume="must",
-    ) as run:
+    with wandb.init(id=run.id, resume="must") as run:
         run.log(
             {
                 "test_image_after_resume": wandb.Image(
@@ -152,18 +138,13 @@ def test_resume_config_preserves_image_mask(user, wandb_backend_spy):
             }
         )
 
-    # Validate config after resuming and adding another item
     with wandb_backend_spy.freeze() as snapshot:
         resumed_config = snapshot.config(run_id=run.id)
         assert "_wandb" in resumed_config
         resumed_wandb_config = resumed_config["_wandb"]["value"]
-
         resumed_item_config = resumed_wandb_config.get("mask/class_labels", {})
-        resumed_item_keys = set(resumed_item_config.keys())
 
-        # Verify that all original keys are preserved
-        assert initial_item_keys.issubset(resumed_item_keys)
-
-        # Verify that we have new keys
-        new_keys = resumed_item_keys - initial_item_keys
-        assert len(new_keys) > 0
+        assert "test_image_wandb_delimeter_prediction" in resumed_item_config
+        assert (
+            "test_image_after_resume_wandb_delimeter_prediction" in resumed_item_config
+        )
