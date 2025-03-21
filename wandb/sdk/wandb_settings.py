@@ -16,7 +16,8 @@ from datetime import datetime
 
 # Optional and Union are used for type hinting instead of | because
 # the latter is not supported in pydantic<2.6 and Python<3.10.
-from typing import Any, Literal, Optional, Sequence, Union
+# Dict, List, and Tuple are used for backwards compatibility with pydantic v1.
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
 from urllib.parse import quote, unquote, urlencode
 
 if sys.version_info >= (3, 11):
@@ -186,7 +187,7 @@ def _path_convert(*args: str) -> str:
     return os.path.expanduser(os.path.join(*args))
 
 
-class Settings(BaseModel):
+class Settings(BaseModel, validate_assignment=True):
     """Settings for the W&B SDK.
 
     This class manages configuration settings for the W&B SDK,
@@ -205,16 +206,10 @@ class Settings(BaseModel):
        the environment.
     """
 
-    if not is_pydantic_v2:
-
-        class Config:
-            validate_assignment = True
-
     # Pydantic Model configuration.
     model_config = ConfigDict(
         extra="forbid",  # throw an error if extra fields are provided
         validate_default=True,  # validate default values
-        validate_assignment=True,  # validate when attributes are set
         use_attribute_docstrings=True,  # for field descriptions
         revalidate_instances="always",
     )
@@ -247,7 +242,7 @@ class Settings(BaseModel):
     api_key: Optional[str] = None
     """The W&B API key."""
 
-    azure_account_url_to_access_key: Optional[dict[str, str]] = None
+    azure_account_url_to_access_key: Optional[Dict[str, str]] = None
     """Mapping of Azure account URLs to their corresponding access keys for Azure integration."""
 
     base_url: str = "https://api.wandb.ai"
@@ -350,7 +345,7 @@ class Settings(BaseModel):
     identity_token_file: Optional[str] = None
     """Path to file containing an identity token (JWT) for authentication."""
 
-    ignore_globs: tuple[str, ...] = ()
+    ignore_globs: Tuple[str, ...] = ()
     """Unix glob patterns relative to `files_dir` specifying files to exclude from upload."""
 
     init_timeout: float = 90.0
@@ -484,7 +479,7 @@ class Settings(BaseModel):
     run_notes: Optional[str] = None
     """Additional notes or description for the run."""
 
-    run_tags: Optional[tuple[str, ...]] = None
+    run_tags: Optional[Tuple[str, ...]] = None
     """Tags to associate with the run for organization and filtering."""
 
     sagemaker_disable: bool = False
@@ -584,7 +579,7 @@ class Settings(BaseModel):
     x_executable: Optional[str] = None
     """Path to the Python executable."""
 
-    x_extra_http_headers: Optional[dict[str, str]] = None
+    x_extra_http_headers: Optional[Dict[str, str]] = None
     """Additional headers to add to all outgoing HTTP requests."""
 
     x_file_stream_max_bytes: Optional[int] = None
@@ -702,7 +697,7 @@ class Settings(BaseModel):
     as the primary process handles the main logging.
     """
 
-    x_proxies: Optional[dict[str, str]] = None
+    x_proxies: Optional[Dict[str, str]] = None
     """Custom proxy servers for requests to W&B.
 
     This is deprecated and will be removed in future versions.
@@ -759,11 +754,11 @@ class Settings(BaseModel):
     - TODO: `http://192.168.0.1:9400/metrics`.
     """
 
-    x_stats_open_metrics_endpoints: Optional[dict[str, str]] = None
+    x_stats_open_metrics_endpoints: Optional[Dict[str, str]] = None
     """OpenMetrics `/metrics` endpoints to monitor for system metrics."""
 
     x_stats_open_metrics_filters: Union[
-        dict[str, dict[str, str]], Sequence[str], None
+        Dict[str, Dict[str, str]], Sequence[str], None
     ] = None
     """Filter to apply to metrics collected from OpenMetrics `/metrics` endpoints.
 
@@ -772,7 +767,7 @@ class Settings(BaseModel):
     - ("metric regex pattern 1", "metric regex pattern 2", ...)
     """
 
-    x_stats_open_metrics_http_headers: Optional[dict[str, str]] = None
+    x_stats_open_metrics_http_headers: Optional[Dict[str, str]] = None
     """HTTP headers to add to OpenMetrics requests."""
 
     x_stats_disk_paths: Optional[Sequence[str]] = Field(
@@ -1180,7 +1175,7 @@ class Settings(BaseModel):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def _args(self) -> list[str]:
+    def _args(self) -> List[str]:
         if not self._jupyter:
             return sys.argv[1:]
         return []
@@ -1475,7 +1470,7 @@ class Settings(BaseModel):
             if value is not None:
                 setattr(self, key, value)
 
-    def update_from_env_vars(self, environ: dict[str, Any]):
+    def update_from_env_vars(self, environ: Dict[str, Any]):
         """Update settings from environment variables."""
         env_prefix: str = "WANDB_"
         private_env_prefix: str = env_prefix + "_"
@@ -1593,7 +1588,7 @@ class Settings(BaseModel):
 
         self.program = program
 
-    def update_from_dict(self, settings: dict[str, Any]) -> None:
+    def update_from_dict(self, settings: Dict[str, Any]) -> None:
         """Update settings from a dictionary."""
         for key, value in dict(settings).items():
             if value is not None:
@@ -1730,7 +1725,7 @@ class Settings(BaseModel):
         parser = configparser.ConfigParser()
         parser.add_section(section)
         parser.read(file_name)
-        config: dict[str, Any] = dict()
+        config: Dict[str, Any] = dict()
         for k in parser[section]:
             config[k] = parser[section][k]
             if k == "ignore_globs":
