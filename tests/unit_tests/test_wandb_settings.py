@@ -521,3 +521,8 @@ def test_rewind(setting):
     assert getattr(proto, setting).run == "train-2025-01-12_05-02-41-823103-39"
     assert getattr(proto, setting).metric == "_step"
     assert getattr(proto, setting).value == 10000
+
+
+def test_computed_settings_included_in_model_dump():
+    settings = Settings(mode="offline")
+    assert settings.model_dump()["_offline"] is True
