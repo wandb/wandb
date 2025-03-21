@@ -141,18 +141,21 @@ class ArtifactSaver:
         )
 
         assert self._server_artifact is not None  # mypy optionality unwrapper
-        assert latest is not None
+
         artifact_id = self._server_artifact["id"]
         if base_id is None and latest:
             base_id = latest["id"]
         if self._server_artifact["state"] != "COMMITTED":
             if use_after_commit:
-                self._api.use_artifact(
-                    artifact_id,
-                    artifact_entity_name=entity,
-                    artifact_project_name=project,
-                    artifact_name=f"{name}:v{latest['versionIndex']}",
-                )
+                if latest:
+                    self._api.use_artifact(
+                        artifact_id,
+                        artifact_entity_name=entity,
+                        artifact_project_name=project,
+                        artifact_name=f"{name}:v{latest['versionIndex']}",
+                    )
+                else:
+                    self._api.use_artifact(artifact_id)
             return self._server_artifact
         if (
             self._server_artifact["state"] != "PENDING"
@@ -256,7 +259,15 @@ class ArtifactSaver:
             step_prepare.shutdown()
 
         if finalize and use_after_commit:
-            self._api.use_artifact(artifact_id)
+            if latest:
+                self._api.use_artifact(
+                    artifact_id,
+                    artifact_entity_name=entity,
+                    artifact_project_name=project,
+                    artifact_name=f"{name}:v{latest['versionIndex']}",
+                )
+            else:
+                self._api.use_artifact(artifact_id)
 
         return self._server_artifact
 

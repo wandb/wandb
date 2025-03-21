@@ -775,15 +775,33 @@ func (as *ArtifactSaver) Save(useArtifactWithCollectionInformation bool) (artifa
 	}
 	if artifactAttrs.State == gql.ArtifactStateCommitted {
 		if as.artifact.UseAfterCommit {
-			// todo(ishita): Use the bool feature flag value here after updating the gql query
-			_, err := gql.UseArtifact(
-				as.ctx,
-				as.graphqlClient,
-				as.artifact.Entity,
-				as.artifact.Project,
-				as.artifact.RunId,
-				artifactID,
-			)
+			var err error
+			if useArtifactWithCollectionInformation && artifactAttrs.ArtifactSequence.LatestArtifact != nil {
+				artifactName := fmt.Sprintf("%s:latest", as.artifact.Name)
+				_, err = gql.UseArtifact(
+					as.ctx,
+					as.graphqlClient,
+					as.artifact.Entity,
+					as.artifact.Project,
+					as.artifact.RunId,
+					nil,
+					&as.artifact.Entity,
+					&as.artifact.Project,
+					&artifactName,
+				)
+			} else {
+				_, err = gql.UseArtifact(
+					as.ctx,
+					as.graphqlClient,
+					as.artifact.Entity,
+					as.artifact.Project,
+					as.artifact.RunId,
+					&artifactID,
+					nil,
+					nil,
+					nil,
+				)
+			}
 			if err != nil {
 				return "", fmt.Errorf("gql.UseArtifact: %w", err)
 			}
@@ -835,17 +853,36 @@ func (as *ArtifactSaver) Save(useArtifactWithCollectionInformation bool) (artifa
 		}
 
 		if as.artifact.UseAfterCommit {
-			_, err = gql.UseArtifact(
-				as.ctx,
-				as.graphqlClient,
-				as.artifact.Entity,
-				as.artifact.Project,
-				as.artifact.RunId,
-				artifactID,
-			)
+			if useArtifactWithCollectionInformation {
+				artifactName := fmt.Sprintf("%s:latest", as.artifact.Name)
+				_, err = gql.UseArtifact(
+					as.ctx,
+					as.graphqlClient,
+					as.artifact.Entity,
+					as.artifact.Project,
+					as.artifact.RunId,
+					nil,
+					&as.artifact.Entity,
+					&as.artifact.Project,
+					&artifactName,
+				)
+			} else {
+				_, err = gql.UseArtifact(
+					as.ctx,
+					as.graphqlClient,
+					as.artifact.Entity,
+					as.artifact.Project,
+					as.artifact.RunId,
+					&artifactID,
+					nil,
+					nil,
+					nil,
+				)
+			}
 			if err != nil {
 				return "", fmt.Errorf("gql.UseArtifact: %w", err)
 			}
+
 		}
 	}
 
