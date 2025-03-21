@@ -186,7 +186,7 @@ def _path_convert(*args: str) -> str:
     return os.path.expanduser(os.path.join(*args))
 
 
-class Settings(BaseModel, validate_assignment=True):
+class Settings(BaseModel):
     """Settings for the W&B SDK.
 
     This class manages configuration settings for the W&B SDK,
@@ -205,10 +205,16 @@ class Settings(BaseModel, validate_assignment=True):
        the environment.
     """
 
+    if not is_pydantic_v2:
+
+        class Config:
+            validate_assignment = True
+
     # Pydantic Model configuration.
     model_config = ConfigDict(
         extra="forbid",  # throw an error if extra fields are provided
         validate_default=True,  # validate default values
+        validate_assignment=True,  # validate when attributes are set
         use_attribute_docstrings=True,  # for field descriptions
         revalidate_instances="always",
     )
