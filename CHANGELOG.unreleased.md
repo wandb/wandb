@@ -29,4 +29,5 @@ Section headings should be at level 3 (e.g. `### Added`).
     - Bug introduced in 0.19.0
 - Fixed an error being thrown when logging `jpg`/`jpeg` images containing transparency data (@jacobromero in https://github.com/wandb/wandb/pull/9527)
 - `wandb.init(resume_from=...)` now works without explicitly specifying the run's `id` (@kptkin in https://github.com/wandb/wandb/pull/9572)
-- Fixed an error that would occur when trying to delete files with the Public API. (@jacobromero in https://github.com/wandb/wandb/pull/9604)
+- Deleting files with the Public API works again (@jacobromero in https://github.com/wandb/wandb/pull/9604)
+    - Bug introduced in 0.19.1
