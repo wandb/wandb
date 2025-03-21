@@ -1102,12 +1102,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def _tmp_code_dir(self) -> str:
-        return _path_convert(
-            self.wandb_dir,
-            f"{self.run_mode}-{self.timespec}-{self.run_id}",
-            "tmp",
-            "code",
-        )
+        return _path_convert(self.sync_dir, "tmp", "code")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -1134,11 +1129,7 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def files_dir(self) -> str:
         """Absolute path to the local directory where the run's files are stored."""
-        return self.x_files_dir or _path_convert(
-            self.wandb_dir,
-            f"{self.run_mode}-{self.timespec}-{self.run_id}",
-            "files",
-        )
+        return self.x_files_dir or _path_convert(self.sync_dir, "files")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -1149,9 +1140,7 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def log_dir(self) -> str:
         """The directory for storing log files."""
-        return _path_convert(
-            self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", "logs"
-        )
+        return _path_convert(self.sync_dir, "logs")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -1232,7 +1221,8 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def sync_dir(self) -> str:
         return _path_convert(
-            self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}"
+            self.wandb_dir,
+            f"{self.run_mode}-{self.timespec}-{self.run_id}",
         )
 
     @computed_field  # type: ignore[prop-decorator]
