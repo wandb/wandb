@@ -3,7 +3,9 @@ from __future__ import annotations
 import sys
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any, Callable, Optional
+
+# For backward compatibility with pydantic v1
+from typing import Any, Callable, Dict, List, Optional
 
 from google.protobuf.timestamp_pb2 import Timestamp
 from pydantic import BaseModel, ConfigDict, Field
@@ -299,7 +301,7 @@ class Metadata(BaseModel, validate_assignment=True):
     cuda: Optional[str] = None
     """CUDA version."""
 
-    args: list[str] = Field(default_factory=list)
+    args: List[str] = Field(default_factory=list)
     """Command-line arguments."""
 
     state: Optional[str] = None
@@ -347,7 +349,7 @@ class Metadata(BaseModel, validate_assignment=True):
     gpu_count: Optional[int] = Field(default=None, alias="gpuCount")
     """GPU count."""
 
-    disk: dict[str, DiskInfo] = Field(default_factory=dict)
+    disk: Dict[str, DiskInfo] = Field(default_factory=dict)
     """Disk information."""
 
     memory: Optional[MemoryInfo] = None
@@ -359,13 +361,13 @@ class Metadata(BaseModel, validate_assignment=True):
     apple: Optional[AppleInfo] = None
     """Apple silicon information."""
 
-    gpu_nvidia: list[GpuNvidiaInfo] = Field(default_factory=list, alias="gpuNvidia")
+    gpu_nvidia: List[GpuNvidiaInfo] = Field(default_factory=list, alias="gpuNvidia")
     """NVIDIA GPU information."""
 
-    gpu_amd: list[GpuAmdInfo] = Field(default_factory=list, alias="gpuAmd")
+    gpu_amd: List[GpuAmdInfo] = Field(default_factory=list, alias="gpuAmd")
     """AMD GPU information."""
 
-    slurm: dict[str, str] = Field(default_factory=dict)
+    slurm: Dict[str, str] = Field(default_factory=dict)
     """Slurm environment information."""
 
     cuda_version: Optional[str] = Field(default=None, alias="cudaVersion")
@@ -538,7 +540,7 @@ class Metadata(BaseModel, validate_assignment=True):
             proto (wandb_internal_pb2.MetadataRequest): The protobuf message.
             skip_existing (bool, optional): Skip updating fields that are already set.
         """
-        data: dict[str, Any] = {}
+        data: Dict[str, Any] = {}
 
         # Handle all scalar fields.
         if proto.os:
