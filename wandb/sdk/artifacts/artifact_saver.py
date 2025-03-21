@@ -59,6 +59,8 @@ class ArtifactSaver:
 
     def save(
         self,
+        entity: str,
+        project: str,
         type: str,
         name: str,
         client_id: str,
@@ -76,6 +78,8 @@ class ArtifactSaver:
         base_id: str | None = None,
     ) -> dict | None:
         return self._save_internal(
+            entity,
+            project,
             type,
             name,
             client_id,
@@ -95,6 +99,8 @@ class ArtifactSaver:
 
     def _save_internal(
         self,
+        entity: str,
+        project: str,
         type: str,
         name: str,
         client_id: str,
@@ -135,12 +141,18 @@ class ArtifactSaver:
         )
 
         assert self._server_artifact is not None  # mypy optionality unwrapper
+        assert latest is not None
         artifact_id = self._server_artifact["id"]
         if base_id is None and latest:
             base_id = latest["id"]
-        if self._server_artifact["state"] == "COMMITTED":
+        if self._server_artifact["state"] != "COMMITTED":
             if use_after_commit:
-                self._api.use_artifact(artifact_id)
+                self._api.use_artifact(
+                    artifact_id,
+                    artifact_entity_name=entity,
+                    artifact_project_name=project,
+                    artifact_name=f"{name}:v{latest['versionIndex']}",
+                )
             return self._server_artifact
         if (
             self._server_artifact["state"] != "PENDING"
