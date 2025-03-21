@@ -1397,6 +1397,9 @@ enum ServerFeature {
 
   // Indicates that the server supports structured console logs.
   STRUCTURED_CONSOLE_LOGS = 4;
+
+  // Indicates that the server supports querying for files on artifact collection memberships.
+  ARTIFACT_COLLECTION_MEMBERSHIP_FILES = 5;
 }
 
 /**
