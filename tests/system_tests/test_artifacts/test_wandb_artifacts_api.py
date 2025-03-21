@@ -438,6 +438,15 @@ def test_log_with_wrong_type_entity_project(user, logged_artifact):
             run.log_artifact(draft)
 
 
+def test_log_artifact_with_above_max_metadata_keys(user):
+    artifact = wandb.Artifact("my_artifact", type="test")
+    for i in range(101):
+        artifact.metadata[f"key_{i}"] = f"value_{i}"
+    with wandb.init(entity=user, project="test") as run:
+        with pytest.raises(ValueError):
+            run.log_artifact(artifact)
+
+
 def test_run_log_artifact(user):
     # Prepare data.
     with wandb.init() as run:
