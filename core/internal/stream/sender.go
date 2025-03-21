@@ -269,6 +269,7 @@ func NewSender(
 			params.Logger,
 			params.GraphqlClient,
 			params.FileTransferManager,
+			params.FeatureProvider,
 		),
 		tbHandler:     params.TBHandler,
 		networkPeeker: params.Peeker,

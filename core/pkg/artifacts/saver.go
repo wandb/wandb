@@ -17,6 +17,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/hashencode"
@@ -46,6 +47,7 @@ type ArtifactSaveManager struct {
 	graphqlClient       graphql.Client
 	fileTransferManager filetransfer.FileTransferManager
 	fileCache           Cache
+	FeatureProvider     *featurechecker.ServerFeaturesCache
 
 	// uploadsByName ensures that uploads for the same artifact name happen
 	// serially, so that version numbers are assigned deterministically.
@@ -56,6 +58,7 @@ func NewArtifactSaveManager(
 	logger *observability.CoreLogger,
 	graphqlClient graphql.Client,
 	fileTransferManager filetransfer.FileTransferManager,
+	FeatureProvider *featurechecker.ServerFeaturesCache,
 ) *ArtifactSaveManager {
 	workerPool := &errgroup.Group{}
 	workerPool.SetLimit(maxSimultaneousUploads)
@@ -65,11 +68,18 @@ func NewArtifactSaveManager(
 		graphqlClient:       graphqlClient,
 		fileTransferManager: fileTransferManager,
 		fileCache:           NewFileCache(UserCacheDir()),
+		FeatureProvider:     FeatureProvider,
 		uploadsByName: namedgoroutines.New(
 			uploadBufferPerArtifactName,
 			workerPool,
 			func(saver *ArtifactSaver) {
-				artifactID, err := saver.Save()
+				useArtifactWithCollectionInformation := false
+				if saver.FeatureProvider != nil {
+					useArtifactWithCollectionInformation = saver.FeatureProvider.GetFeature(
+						spb.ServerFeature_USE_ARTIFACT_WITH_COLLECTION_INFORMATION,
+					).Enabled
+				}
+				artifactID, err := saver.Save(useArtifactWithCollectionInformation)
 				saver.resultChan <- ArtifactSaveResult{
 					ArtifactID: artifactID,
 					Err:        err,
@@ -111,6 +121,7 @@ func (as *ArtifactSaveManager) Save(
 			stagingDir:          stagingDir,
 			maxActiveBatches:    5,
 			resultChan:          resultChan,
+			FeatureProvider:     as.FeatureProvider,
 		},
 	)
 
@@ -126,6 +137,7 @@ type ArtifactSaver struct {
 	fileTransferManager filetransfer.FileTransferManager
 	fileCache           Cache
 	resultChan          chan<- ArtifactSaveResult
+	FeatureProvider     *featurechecker.ServerFeaturesCache
 
 	// Input.
 	artifact         *spb.ArtifactRecord
@@ -741,7 +753,7 @@ func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
 }
 
 // Save performs the upload operation, blocking until it completes.
-func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
+func (as *ArtifactSaver) Save(useArtifactWithCollectionInformation bool) (artifactID string, rerr error) {
 	manifest, err := NewManifestFromProto(as.artifact.Manifest)
 	if err != nil {
 		return "", err
@@ -763,6 +775,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	}
 	if artifactAttrs.State == gql.ArtifactStateCommitted {
 		if as.artifact.UseAfterCommit {
+			// todo(ishita): Use the bool feature flag value here after updating the gql query
 			_, err := gql.UseArtifact(
 				as.ctx,
 				as.graphqlClient,
