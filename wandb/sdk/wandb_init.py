@@ -1163,9 +1163,6 @@ def try_create_root_dir(settings: Settings) -> None:
             This function may update the root_dir to a temporary directory
             if the parent directory is not writable.
     """
-    if not settings.root_dir:
-        return
-
     try:
         if not os.path.exists(settings.root_dir):
             os.makedirs(settings.root_dir, exist_ok=True)

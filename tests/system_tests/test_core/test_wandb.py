@@ -299,10 +299,12 @@ def test_run_path(user):
         assert run.path == "ent1/proj1/run1"
 
 
-def test_run_create_root_dir(user):
-    root_dir = os.path.join(tempfile.gettempdir(), "create_dir_test")
+def test_run_create_root_dir(user, tmp_path):
+    root_dir = tmp_path / "create_dir_test"
+
     with wandb.init(dir=root_dir) as run:
         run.log({"test": 1})
+
     assert os.path.exists(root_dir)
 
 
@@ -314,14 +316,19 @@ def test_run_create_root_dir(user):
         "even if permissions are set to read only."
     ),
 )
-def test_run_create_root_dir_without_permissions_defaults_to_temp_dir(user):
+def test_run_create_root_dir_without_permissions_defaults_to_temp_dir(
+    user,
+    tmp_path,
+):
     temp_dir = tempfile.gettempdir()
-    root_dir = os.path.join(temp_dir, "no_permissions_test")
-    os.makedirs(root_dir, mode=0o444, exist_ok=True)
+    root_dir = tmp_path / "no_permissions_test"
+    root_dir.mkdir(parents=True, mode=0o444, exist_ok=True)
+
     with wandb.init(
         settings=wandb.Settings(root_dir=os.path.join(root_dir, "missing"))
     ) as run:
         run.log({"test": 1})
+
     assert not os.path.exists(os.path.join(root_dir, "missing"))
     assert run.settings.root_dir == temp_dir
 
