@@ -37,7 +37,7 @@ class SettingsStatic(Settings):
             else Settings.__fields__
         )  # type: ignore [attr-defined]
 
-        fields = {k: v for k, v in fields.items() if k not in exclude_fields}
+        fields = {k: v for k, v in fields.items() if k not in exclude_fields}  # type: ignore [union-attr]
 
         forks_specified: list[str] = []
         for key in fields:
