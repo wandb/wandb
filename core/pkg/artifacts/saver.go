@@ -47,7 +47,7 @@ type ArtifactSaveManager struct {
 	graphqlClient       graphql.Client
 	fileTransferManager filetransfer.FileTransferManager
 	fileCache           Cache
-	FeatureProvider     *featurechecker.ServerFeaturesCache
+	featureProvider     *featurechecker.ServerFeaturesCache
 
 	// uploadsByName ensures that uploads for the same artifact name happen
 	// serially, so that version numbers are assigned deterministically.
@@ -58,7 +58,7 @@ func NewArtifactSaveManager(
 	logger *observability.CoreLogger,
 	graphqlClient graphql.Client,
 	fileTransferManager filetransfer.FileTransferManager,
-	FeatureProvider *featurechecker.ServerFeaturesCache,
+	featureProvider *featurechecker.ServerFeaturesCache,
 ) *ArtifactSaveManager {
 	workerPool := &errgroup.Group{}
 	workerPool.SetLimit(maxSimultaneousUploads)
@@ -68,14 +68,14 @@ func NewArtifactSaveManager(
 		graphqlClient:       graphqlClient,
 		fileTransferManager: fileTransferManager,
 		fileCache:           NewFileCache(UserCacheDir()),
-		FeatureProvider:     FeatureProvider,
+		featureProvider:     featureProvider,
 		uploadsByName: namedgoroutines.New(
 			uploadBufferPerArtifactName,
 			workerPool,
 			func(saver *ArtifactSaver) {
 				useArtifactWithCollectionInformation := false
-				if saver.FeatureProvider != nil {
-					useArtifactWithCollectionInformation = saver.FeatureProvider.GetFeature(
+				if saver.featureProvider != nil {
+					useArtifactWithCollectionInformation = saver.featureProvider.GetFeature(
 						spb.ServerFeature_USE_ARTIFACT_WITH_COLLECTION_INFORMATION,
 					).Enabled
 				}
@@ -121,7 +121,7 @@ func (as *ArtifactSaveManager) Save(
 			stagingDir:          stagingDir,
 			maxActiveBatches:    5,
 			resultChan:          resultChan,
-			FeatureProvider:     as.FeatureProvider,
+			featureProvider:     as.featureProvider,
 		},
 	)
 
@@ -137,7 +137,7 @@ type ArtifactSaver struct {
 	fileTransferManager filetransfer.FileTransferManager
 	fileCache           Cache
 	resultChan          chan<- ArtifactSaveResult
-	FeatureProvider     *featurechecker.ServerFeaturesCache
+	featureProvider     *featurechecker.ServerFeaturesCache
 
 	// Input.
 	artifact         *spb.ArtifactRecord

@@ -145,7 +145,7 @@ class ArtifactSaver:
         artifact_id = self._server_artifact["id"]
         if base_id is None and latest:
             base_id = latest["id"]
-        if self._server_artifact["state"] != "COMMITTED":
+        if self._server_artifact["state"] == "COMMITTED":
             if use_after_commit:
                 if latest:
                     self._api.use_artifact(
