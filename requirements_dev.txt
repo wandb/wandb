@@ -8,9 +8,6 @@ pydantic~=2.9
 # For Pydantic to work with modern type annotations in older Pythons:
 eval-type-backport~=0.2.0; python_version >= '3.8' and python_version < '3.10'
 
-hypothesis
-hypothesis-fspaths
-
 Pillow
 pandas
 polars

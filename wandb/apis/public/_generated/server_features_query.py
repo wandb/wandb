@@ -23,5 +23,5 @@ class ServerFeaturesQueryServerInfoFeatures(GQLBase):
     is_enabled: bool = Field(alias="isEnabled")
 
 
-ServerFeaturesQuery.model_rebuild()
-ServerFeaturesQueryServerInfo.model_rebuild()
+# ServerFeaturesQuery.model_rebuild()
+# ServerFeaturesQueryServerInfo.model_rebuild()

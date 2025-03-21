@@ -28,3 +28,6 @@ numpy~=1.24; python_version < '3.11'
 coverage[toml]~=7.6
 
 pyte~=0.8.1  # Terminal emulator for testing interactions with the terminal.
+
+hypothesis
+hypothesis-fspaths
