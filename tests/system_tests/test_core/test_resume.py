@@ -142,7 +142,5 @@ def test_resume_config_preserves_image_mask(user, wandb_backend_spy):
         resumed_config = snapshot.config(run_id=run.id)
         class_labels = resumed_config["_wandb"]["value"]["mask/class_labels"]
 
-        assert "test_image_wandb_delimeter_prediction" in resumed_item_config
-        assert (
-            "test_image_after_resume_wandb_delimeter_prediction" in resumed_item_config
-        )
+        assert "test_image_wandb_delimeter_prediction" in class_labels
+        assert "test_image_after_resume_wandb_delimeter_prediction" in class_labels
