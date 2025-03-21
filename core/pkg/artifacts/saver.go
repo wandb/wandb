@@ -17,6 +17,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/hashencode"
@@ -46,6 +47,7 @@ type ArtifactSaveManager struct {
 	graphqlClient       graphql.Client
 	fileTransferManager filetransfer.FileTransferManager
 	fileCache           Cache
+	featureProvider     *featurechecker.ServerFeaturesCache
 
 	// uploadsByName ensures that uploads for the same artifact name happen
 	// serially, so that version numbers are assigned deterministically.
@@ -56,6 +58,7 @@ func NewArtifactSaveManager(
 	logger *observability.CoreLogger,
 	graphqlClient graphql.Client,
 	fileTransferManager filetransfer.FileTransferManager,
+	featureProvider *featurechecker.ServerFeaturesCache,
 ) *ArtifactSaveManager {
 	workerPool := &errgroup.Group{}
 	workerPool.SetLimit(maxSimultaneousUploads)
@@ -65,11 +68,18 @@ func NewArtifactSaveManager(
 		graphqlClient:       graphqlClient,
 		fileTransferManager: fileTransferManager,
 		fileCache:           NewFileCache(UserCacheDir()),
+		featureProvider:     featureProvider,
 		uploadsByName: namedgoroutines.New(
 			uploadBufferPerArtifactName,
 			workerPool,
 			func(saver *ArtifactSaver) {
-				artifactID, err := saver.Save()
+				useArtifactWithCollectionInformation := false
+				if saver.featureProvider != nil {
+					useArtifactWithCollectionInformation = saver.featureProvider.GetFeature(
+						spb.ServerFeature_USE_ARTIFACT_WITH_COLLECTION_INFORMATION,
+					).Enabled
+				}
+				artifactID, err := saver.Save(useArtifactWithCollectionInformation)
 				saver.resultChan <- ArtifactSaveResult{
 					ArtifactID: artifactID,
 					Err:        err,
@@ -111,6 +121,7 @@ func (as *ArtifactSaveManager) Save(
 			stagingDir:          stagingDir,
 			maxActiveBatches:    5,
 			resultChan:          resultChan,
+			featureProvider:     as.featureProvider,
 		},
 	)
 
@@ -126,6 +137,7 @@ type ArtifactSaver struct {
 	fileTransferManager filetransfer.FileTransferManager
 	fileCache           Cache
 	resultChan          chan<- ArtifactSaveResult
+	featureProvider     *featurechecker.ServerFeaturesCache
 
 	// Input.
 	artifact         *spb.ArtifactRecord
@@ -741,7 +753,7 @@ func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
 }
 
 // Save performs the upload operation, blocking until it completes.
-func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
+func (as *ArtifactSaver) Save(useArtifactWithCollectionInformation bool) (artifactID string, rerr error) {
 	manifest, err := NewManifestFromProto(as.artifact.Manifest)
 	if err != nil {
 		return "", err
@@ -763,14 +775,33 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	}
 	if artifactAttrs.State == gql.ArtifactStateCommitted {
 		if as.artifact.UseAfterCommit {
-			_, err := gql.UseArtifact(
-				as.ctx,
-				as.graphqlClient,
-				as.artifact.Entity,
-				as.artifact.Project,
-				as.artifact.RunId,
-				artifactID,
-			)
+			var err error
+			if useArtifactWithCollectionInformation && artifactAttrs.ArtifactSequence.LatestArtifact != nil {
+				artifactName := fmt.Sprintf("%s:latest", as.artifact.Name)
+				_, err = gql.UseArtifact(
+					as.ctx,
+					as.graphqlClient,
+					as.artifact.Entity,
+					as.artifact.Project,
+					as.artifact.RunId,
+					nil,
+					&as.artifact.Entity,
+					&as.artifact.Project,
+					&artifactName,
+				)
+			} else {
+				_, err = gql.UseArtifact(
+					as.ctx,
+					as.graphqlClient,
+					as.artifact.Entity,
+					as.artifact.Project,
+					as.artifact.RunId,
+					&artifactID,
+					nil,
+					nil,
+					nil,
+				)
+			}
 			if err != nil {
 				return "", fmt.Errorf("gql.UseArtifact: %w", err)
 			}
@@ -822,17 +853,36 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 		}
 
 		if as.artifact.UseAfterCommit {
-			_, err = gql.UseArtifact(
-				as.ctx,
-				as.graphqlClient,
-				as.artifact.Entity,
-				as.artifact.Project,
-				as.artifact.RunId,
-				artifactID,
-			)
+			if useArtifactWithCollectionInformation {
+				artifactName := fmt.Sprintf("%s:latest", as.artifact.Name)
+				_, err = gql.UseArtifact(
+					as.ctx,
+					as.graphqlClient,
+					as.artifact.Entity,
+					as.artifact.Project,
+					as.artifact.RunId,
+					nil,
+					&as.artifact.Entity,
+					&as.artifact.Project,
+					&artifactName,
+				)
+			} else {
+				_, err = gql.UseArtifact(
+					as.ctx,
+					as.graphqlClient,
+					as.artifact.Entity,
+					as.artifact.Project,
+					as.artifact.RunId,
+					&artifactID,
+					nil,
+					nil,
+					nil,
+				)
+			}
 			if err != nil {
 				return "", fmt.Errorf("gql.UseArtifact: %w", err)
 			}
+
 		}
 	}
 

@@ -3762,60 +3762,90 @@ class Api:
         entity_name: Optional[str] = None,
         project_name: Optional[str] = None,
         run_name: Optional[str] = None,
+        artifact_entity_name: Optional[str] = None,
+        artifact_project_name: Optional[str] = None,
+        artifact_name: Optional[str] = None,
         use_as: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        query_template = """
-        mutation UseArtifact(
-            $entityName: String!,
-            $projectName: String!,
-            $runName: String!,
-            $artifactID: ID!,
-            _USED_AS_TYPE_
-        ) {
-            useArtifact(input: {
-                entityName: $entityName,
-                projectName: $projectName,
-                runName: $runName,
-                artifactID: $artifactID,
-                _USED_AS_VALUE_
-            }) {
-                artifact {
-                    id
-                    digest
-                    description
-                    state
-                    createdAt
-                    metadata
-                }
-            }
-        }
-        """
+        query_vars = [
+            "$entityName: String!",
+            "$projectName: String!",
+            "$runName: String!",
+        ]
+        query_args = [
+            "entityName: $entityName",
+            "projectName: $projectName",
+            "runName: $runName",
+        ]
 
         artifact_types = self.server_use_artifact_input_introspection()
-        if "usedAs" in artifact_types:
-            query_template = query_template.replace(
-                "_USED_AS_TYPE_", "$usedAs: String"
-            ).replace("_USED_AS_VALUE_", "usedAs: $usedAs")
-        else:
-            query_template = query_template.replace("_USED_AS_TYPE_", "").replace(
-                "_USED_AS_VALUE_", ""
-            )
+        if "usedAs" in artifact_types and use_as:
+            query_vars.append("$usedAs: String")
+            query_args.append("usedAs: $usedAs")
 
-        query = gql(query_template)
+        server_allows_artifact_name = self._check_server_feature_with_fallback(
+            ServerFeature.USE_ARTIFACT_WITH_COLLECTION_INFORMATION  # type: ignore
+        )
+        if server_allows_artifact_name:
+            query_vars.extend(
+                [
+                    "$artifactEntityName: String",
+                    "$artifactProjectName: String",
+                    "$artifactName: String",
+                ]
+            )
+            query_args.extend(
+                [
+                    "artifactEntityName: $artifactEntityName",
+                    "artifactProjectName: $artifactProjectName",
+                    "artifactName: $artifactName",
+                ]
+            )
+        else:
+            # Default to using the artifact ID
+            query_vars.append("$artifactID: ID!")
+            query_args.append("artifactID: $artifactID")
+
+        vars_str = ", ".join(query_vars)
+        args_str = ", ".join(query_args)
+
+        query = gql(
+            f"""
+            mutation UseArtifact({vars_str}) {{
+                useArtifact(input: {{{args_str}}}) {{
+                    artifact {{
+                        id
+                        digest
+                        description
+                        state
+                        createdAt
+                        metadata
+                    }}
+                }}
+            }}
+            """
+        )
 
         entity_name = entity_name or self.settings("entity")
         project_name = project_name or self.settings("project")
         run_name = run_name or self.current_run_id
 
+        query_variable_values: dict[str, Any] = {
+            "entityName": entity_name,
+            "projectName": project_name,
+            "runName": run_name,
+            "usedAs": use_as,
+        }
+        if server_allows_artifact_name:
+            query_variable_values["artifactEntityName"] = artifact_entity_name
+            query_variable_values["artifactProjectName"] = artifact_project_name
+            query_variable_values["artifactName"] = artifact_name
+        else:
+            query_variable_values["artifactID"] = artifact_id
+
         response = self.gql(
             query,
-            variable_values={
-                "entityName": entity_name,
-                "projectName": project_name,
-                "runName": run_name,
-                "artifactID": artifact_id,
-                "usedAs": use_as,
-            },
+            variable_values=query_variable_values,
         )
 
         if response["useArtifact"]["artifact"]:

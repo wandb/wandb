@@ -90,6 +90,8 @@ class TestReraisesErr:
         )
 
         saver.save(
+            entity="my-entity",
+            project="my-project",
             type="my-type",
             name="my-name",
             client_id="my-client-id",
