@@ -1152,6 +1152,29 @@ def _monkeypatch_tensorboard() -> None:
     tb_module.patch()
 
 
+def try_create_root_dir(settings: Settings) -> None:
+    """Try to create the root directory specified in settings.
+
+    If creation fails due to permissions or other errors,
+    falls back to using the system temp directory.
+
+    Args:
+        settings: The runs settings containing root_dir configuration.
+            This function may update the root_dir to a temporary directory
+            if the parent directory is not writable.
+    """
+    try:
+        if not os.path.exists(settings.root_dir):
+            os.makedirs(settings.root_dir, exist_ok=True)
+    except OSError:
+        temp_dir = tempfile.gettempdir()
+        wandb.termwarn(
+            f"Path {settings.root_dir} wasn't writable, using system temp directory {temp_dir}.",
+            repeat=False,
+        )
+        settings.root_dir = temp_dir
+
+
 def init(  # noqa: C901
     entity: str | None = None,
     project: str | None = None,
@@ -1485,6 +1508,7 @@ def init(  # noqa: C901
             if run_settings._noop:
                 return wi.make_disabled_run(run_config)
 
+            try_create_root_dir(run_settings)
             exit_stack.enter_context(wi.setup_run_log_directory(run_settings))
 
             if run_settings._jupyter:
