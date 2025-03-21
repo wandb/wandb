@@ -1784,9 +1784,6 @@ class Settings(BaseModel, validate_assignment=True):
 
             # Get all computed properties
             for name in dir(self.__class__):
-                if name.startswith("_") or name in result:
-                    continue
-
                 attr = getattr(self.__class__, name, None)
                 if isinstance(attr, property):
                     try:
@@ -1828,4 +1825,4 @@ class Settings(BaseModel, validate_assignment=True):
 
             This is a compatibility property for Pydantic v1 to mimic v2's model_fields_set.
             """
-            return getattr(self, "__model_fields_set", set())
+            return getattr(self, "__fields_set__", set())
