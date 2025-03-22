@@ -46,7 +46,6 @@ func NewGetWorkspaceCmd() *cobra.Command {
 			}
 
 			if workspaceId != "" {
-				// Get workspace by ID
 				wsId, err := uuid.Parse(workspaceId)
 				if err != nil {
 					return fmt.Errorf("invalid workspace ID: %w", err)
@@ -59,7 +58,6 @@ func NewGetWorkspaceCmd() *cobra.Command {
 				return cliutil.HandleOutput(cmd, resp)
 			}
 
-			// Get workspace by slug
 			resp, err := client.GetWorkspaceBySlug(cmd.Context(), workspaceSlug)
 			if err != nil {
 				return fmt.Errorf("failed to get workspace by slug: %w", err)
@@ -68,7 +66,6 @@ func NewGetWorkspaceCmd() *cobra.Command {
 		},
 	}
 
-	// Add flags
 	cmd.Flags().StringVar(&workspaceId, "id", "", "ID of the workspace")
 	cmd.Flags().StringVar(&workspaceSlug, "slug", "", "Slug of the workspace")
 
