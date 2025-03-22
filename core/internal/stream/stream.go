@@ -230,7 +230,6 @@ func NewStream(
 	s.handler = NewHandler(
 		HandlerParams{
 			Commit:            params.Commit,
-			FeatureProvider:   featureProvider,
 			FileTransferStats: fileTransferStats,
 			FwdChan:           make(chan runwork.Work, BufferSize),
 			Logger:            s.logger,

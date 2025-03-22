@@ -13,7 +13,6 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gitops"
@@ -45,7 +44,6 @@ const (
 type HandlerParams struct {
 	// Commit is the W&B Git commit hash
 	Commit            string
-	FeatureProvider   *featurechecker.ServerFeaturesCache
 	FileTransferStats filetransfer.FileTransferStats
 	FwdChan           chan runwork.Work
 	Logger            *observability.CoreLogger
@@ -69,9 +67,6 @@ type Handler struct {
 
 	// commit is the W&B Git commit hash
 	commit string
-
-	// featureProvider provides server features and capabilities
-	featureProvider *featurechecker.ServerFeaturesCache
 
 	// fileTransferStats reports file upload/download statistics
 	fileTransferStats filetransfer.FileTransferStats
@@ -146,7 +141,6 @@ func NewHandler(
 	return &Handler{
 		clientID:             randomid.GenerateUniqueID(32),
 		commit:               params.Commit,
-		featureProvider:      params.FeatureProvider,
 		fileTransferStats:    params.FileTransferStats,
 		fwdChan:              params.FwdChan,
 		logger:               params.Logger,
@@ -293,6 +287,7 @@ func (h *Handler) handleRequest(record *spb.Record) {
 	case *spb.Request_ServerInfo:
 	case *spb.Request_CheckVersion:
 	case *spb.Request_Defer:
+	case *spb.Request_ServerFeature:
 		// The above been removed from the client but are kept here for now.
 		// Should be removed in the future.
 
@@ -352,8 +347,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestJobInput(record)
 	case *spb.Request_RunFinishWithoutExit:
 		h.handleRequestRunFinishWithoutExit(record)
-	case *spb.Request_ServerFeature:
-		h.handleRequestServerFeature(record, x.ServerFeature)
 	case *spb.Request_Operations:
 		h.handleRequestOperations(record)
 	case nil:
@@ -1149,25 +1142,6 @@ func (h *Handler) handleRequestSampledHistory(record *spb.Record) {
 		ResponseType: &spb.Response_SampledHistoryResponse{
 			SampledHistoryResponse: &spb.SampledHistoryResponse{
 				Item: h.runHistorySampler.Get(),
-			},
-		},
-	})
-}
-
-// handleRequestServerFeature gets the server features requested by the client,
-// and responds with the details of the feature provided by the server.
-func (h *Handler) handleRequestServerFeature(
-	record *spb.Record,
-	request *spb.ServerFeatureRequest,
-) {
-	serverFeatureValue := h.featureProvider.GetFeature(request.GetFeature())
-	h.respond(record, &spb.Response{
-		ResponseType: &spb.Response_ServerFeatureResponse{
-			ServerFeatureResponse: &spb.ServerFeatureResponse{
-				Feature: &spb.ServerFeatureItem{
-					Enabled: serverFeatureValue.Enabled,
-					Name:    serverFeatureValue.Name,
-				},
 			},
 		},
 	})
