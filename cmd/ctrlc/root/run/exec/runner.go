@@ -93,11 +93,9 @@ func (r *ExecRunner) Start(job api.Job) (string, error) {
 		}
 	}
 
-	var cmd *exec.Cmd
+	cmd := exec.Command("bash", "-c", tmpFile.Name())
 	if runtime.GOOS == "windows" {
 		cmd = exec.Command("powershell", "-File", tmpFile.Name())
-	} else {
-		cmd = exec.Command("bash", "-c", tmpFile.Name())
 	}
 
 	cmd.Dir = config.WorkingDir
