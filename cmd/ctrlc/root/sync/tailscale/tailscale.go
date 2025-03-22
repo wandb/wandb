@@ -108,11 +108,11 @@ func NewSyncTailscaleCmd() *cobra.Command {
 				metadata["tailscale/user"] = device.User
 				metadata["tailscale/blocks-incoming-connections"] = strconv.FormatBool(device.BlocksIncomingConnections)
 
+				metadata["tailscale/status"] = "offline"
 				if time.Since(device.LastSeen.Time) < time.Minute {
 					metadata["tailscale/status"] = "connected"
-				} else {
-					metadata["tailscale/status"] = "offline"
 				}
+
 				for _, tag := range device.Tags {
 					v := strings.TrimPrefix(tag, "tag:")
 					metadata[fmt.Sprintf("tailscale/tag/%s", v)] = "true"
@@ -155,7 +155,7 @@ func NewSyncTailscaleCmd() *cobra.Command {
 				return fmt.Errorf("failed to upsert resources: %w", err)
 			}
 
-			return cliutil.HandleOutput(cmd, upsertResp)
+			return cliutil.HandleResponseOutput(cmd, upsertResp)
 		},
 	}
 

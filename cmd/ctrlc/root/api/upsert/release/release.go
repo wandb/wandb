@@ -105,7 +105,7 @@ func NewUpsertReleaseCmd() *cobra.Command {
 				response = resp
 			}
 
-			return cliutil.HandleOutput(cmd, response)
+			return cliutil.HandleResponseOutput(cmd, response)
 		},
 	}
 

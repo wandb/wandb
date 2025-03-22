@@ -53,7 +53,7 @@ func NewCreateReleaseChannelCmd() *cobra.Command {
 				return fmt.Errorf("failed to create release channel: %w", err)
 			}
 
-			return cliutil.HandleOutput(cmd, resp)
+			return cliutil.HandleResponseOutput(cmd, resp)
 		},
 	}
 

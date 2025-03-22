@@ -86,7 +86,7 @@ func NewCreateRelationshipCmd() *cobra.Command {
 				return fmt.Errorf("failed to create resource to resource relationship: %w", err)
 			}
 
-			return cliutil.HandleOutput(cmd, resp)
+			return cliutil.HandleResponseOutput(cmd, resp)
 		},
 	}
 

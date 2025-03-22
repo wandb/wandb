@@ -107,7 +107,7 @@ func NewSyncTerraformCmd() *cobra.Command {
 				return fmt.Errorf("failed to upsert resources: %w", err)
 			}
 
-			return cliutil.HandleOutput(cmd, upsertResp)
+			return cliutil.HandleResponseOutput(cmd, upsertResp)
 		},
 	}
 

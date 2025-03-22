@@ -42,7 +42,7 @@ func NewGetSystemCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("failed to get system by ID: %w", err)
 			}
-			return cliutil.HandleOutput(cmd, resp)
+			return cliutil.HandleResponseOutput(cmd, resp)
 		},
 	}
 

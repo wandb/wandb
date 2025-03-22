@@ -55,14 +55,14 @@ func NewGetWorkspaceCmd() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to get workspace by ID: %w", err)
 				}
-				return cliutil.HandleOutput(cmd, resp)
+				return cliutil.HandleResponseOutput(cmd, resp)
 			}
 
 			resp, err := client.GetWorkspaceBySlug(cmd.Context(), workspaceSlug)
 			if err != nil {
 				return fmt.Errorf("failed to get workspace by slug: %w", err)
 			}
-			return cliutil.HandleOutput(cmd, resp)
+			return cliutil.HandleResponseOutput(cmd, resp)
 		},
 	}
 

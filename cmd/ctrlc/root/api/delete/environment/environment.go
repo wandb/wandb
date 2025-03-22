@@ -51,14 +51,14 @@ func NewDeleteEnvironmentCmd() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to delete environment by ID: %w", err)
 				}
-				return cliutil.HandleOutput(cmd, resp)
+				return cliutil.HandleResponseOutput(cmd, resp)
 			}
 
 			resp, err := client.DeleteEnvironmentByName(cmd.Context(), systemId, name)
 			if err != nil {
 				return fmt.Errorf("failed to delete environment by system and name: %w", err)
 			}
-			return cliutil.HandleOutput(cmd, resp)
+			return cliutil.HandleResponseOutput(cmd, resp)
 		},
 	}
 

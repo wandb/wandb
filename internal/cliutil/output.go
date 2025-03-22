@@ -12,15 +12,11 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// HandleOutput processes the API response and outputs it according to the
-// template or format flag
-func HandleOutput(cmd *cobra.Command, resp *http.Response) error {
+// HandleResponseOutput processes the HTTP response and passes the decoded result to HandleResponseOutput
+func HandleResponseOutput(cmd *cobra.Command, resp *http.Response) error {
 	defer resp.Body.Close()
 
-	templateFlag, _ := cmd.Flags().GetString("template")
-	formatFlag, _ := cmd.Flags().GetString("format")
 	intervalFlag, _ := cmd.Flags().GetString("interval")
-
 	if intervalFlag != "" {
 		return nil
 	}
@@ -29,6 +25,14 @@ func HandleOutput(cmd *cobra.Command, resp *http.Response) error {
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return fmt.Errorf("failed to decode response: %w", err)
 	}
+
+	return HandleOutput(cmd, result)
+}
+
+// HandleResponseOutput processes the result map and outputs it according to the template or format flag
+func HandleOutput(cmd *cobra.Command, result map[string]interface{}) error {
+	templateFlag, _ := cmd.Flags().GetString("template")
+	formatFlag, _ := cmd.Flags().GetString("format")
 
 	if templateFlag != "" {
 		tmpl, err := template.New("output").Parse(templateFlag)

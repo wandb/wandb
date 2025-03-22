@@ -55,7 +55,7 @@ func NewCreateEnvironmentCmd() *cobra.Command {
 				return fmt.Errorf("failed to create environment: %w", err)
 			}
 
-			return cliutil.HandleOutput(cmd, resp)
+			return cliutil.HandleResponseOutput(cmd, resp)
 		},
 	}
 

@@ -50,14 +50,14 @@ func NewGetResourceCmd() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to get resource by ID: %w", err)
 				}
-				return cliutil.HandleOutput(cmd, resp)
+				return cliutil.HandleResponseOutput(cmd, resp)
 			}
 
 			resp, err := client.GetResourceByIdentifier(cmd.Context(), workspace, identifier)
 			if err != nil {
 				return fmt.Errorf("failed to get resource by workspace and identifier: %w", err)
 			}
-			return cliutil.HandleOutput(cmd, resp)
+			return cliutil.HandleResponseOutput(cmd, resp)
 		},
 	}
 

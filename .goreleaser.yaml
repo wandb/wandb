@@ -22,6 +22,11 @@ builds:
       - containers_image_openpgp
     main: ./cmd/ctrlc
     binary: ctrlc
+    ldflags:
+      - -s -w
+      - -X github.com/ctrlplanedev/cli/cmd/ctrlc/root/version.Version={{.Version}}
+      - -X github.com/ctrlplanedev/cli/cmd/ctrlc/root/version.GitCommit={{.Commit}}
+      - -X github.com/ctrlplanedev/cli/cmd/ctrlc/root/version.BuildDate={{.Date}}
 
 archives:
   - format: tar.gz
