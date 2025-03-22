@@ -385,7 +385,7 @@ func TestMustResumeValidSummary(t *testing.T) {
 
 	history := `["{\"_step\":1, \"_runtime\":40.2}"]`
 	config := "{}"
-	summary := `{"loss": 0.5, "_runtime": 40.2, "wandb": {"runtime": 20.3}, "_step": 1}`
+	summary := `{"loss": 0.5, "_runtime": 40.2, "_wandb": {"runtime": 20.3}, "_step": 1}`
 	historyLineCount := 1
 	eventsLineCount := 0
 	logLineCount := 0
@@ -427,7 +427,7 @@ func TestMustResumeValidSummary(t *testing.T) {
 	assert.Len(t, params.Summary, 4, "GetUpdates should return correct summary")
 	assert.Equal(t, 0.5, params.Summary["loss"], "GetUpdates should return correct summary")
 	assert.Equal(t, float64(40.2), params.Summary["_runtime"], "GetUpdates should return correct summary")
-	assert.Equal(t, float64(20.3), params.Summary["wandb"].(map[string]any)["runtime"], "GetUpdates should return correct summary")
+	assert.Equal(t, float64(20.3), params.Summary["_wandb"].(map[string]any)["runtime"], "GetUpdates should return correct summary")
 
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
@@ -1033,7 +1033,7 @@ func TestExtractRunState(t *testing.T) {
 	eventsLineCount := 10
 	logLineCount := 15
 	history := `["{\"_step\":4,\"_runtime\":100}"]`
-	summary := `{"loss": 0.5, "_runtime": 120, "wandb": {"runtime": 130}, "_step": 4}`
+	summary := `{"loss": 0.5, "_runtime": 120, "_wandb": {"runtime": 130}, "_step": 4}`
 	config := `{"lr": {"value": 0.001}, "batch_size": {"value": 32}}`
 	eventsTail := `["{\"_runtime\":110}", "{\"_runtime\":120}"]`
 	storageId := "test_storage_id"
@@ -1097,7 +1097,7 @@ func TestExtractRunState(t *testing.T) {
 	// Test Summary
 	assert.Equal(t, 0.5, params.Summary["loss"], "Incorrect loss in summary")
 	assert.Equal(t, int64(120), params.Summary["_runtime"], "Incorrect _runtime in summary")
-	wandbRuntime, ok := params.Summary["wandb"].(map[string]interface{})["runtime"]
+	wandbRuntime, ok := params.Summary["_wandb"].(map[string]interface{})["runtime"]
 	assert.True(t, ok, "wandb runtime not found in summary")
 	assert.Equal(t, int64(130), wandbRuntime, "Incorrect wandb runtime in summary")
 
@@ -1117,7 +1117,7 @@ func TestExtractRunStateNilCases(t *testing.T) {
 	eventsLineCount := 10
 	logLineCount := 15
 	history := `["{\"_step\":4,\"_runtime\":100}"]`
-	summary := `{"loss": 0.5, "_runtime": 120, "wandb": {"runtime": 130}}`
+	summary := `{"loss": 0.5, "_runtime": 120, "_wandb": {"runtime": 130}}`
 	config := `{"lr": {"value": 0.001}, "batch_size": {"value": 32}}`
 	testCases := []struct {
 		name          string
@@ -1285,7 +1285,7 @@ func TestExtractRunStateAdjustsStartTime(t *testing.T) {
 	eventsLineCount := 10
 	logLineCount := 15
 	history := `["{\"_step\":4,\"_runtime\":100}"]`
-	summary := `{"_runtime": 120, "wandb": {"runtime": 130}}`
+	summary := `{"_runtime": 120, "_wandb": {"runtime": 130}}`
 	config := `{}`
 	eventsTail := `["{\"_runtime\":110}", "{\"_runtime\":120}"]`
 
