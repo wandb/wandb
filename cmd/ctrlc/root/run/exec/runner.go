@@ -17,7 +17,7 @@ import (
 
 var _ jobagent.Runner = &ExecRunner{}
 
-type ExecRunner struct {}
+type ExecRunner struct{}
 
 type ExecConfig struct {
 	WorkingDir string `json:"workingDir,omitempty"`
@@ -27,22 +27,22 @@ type ExecConfig struct {
 func (r *ExecRunner) Status(job api.Job) (api.JobStatus, string) {
 	externalId, err := strconv.Atoi(*job.ExternalId)
 	if err != nil {
-		return api.ExternalRunNotFound, fmt.Sprintf("invalid process id: %v", err)
+		return api.JobStatusExternalRunNotFound, fmt.Sprintf("invalid process id: %v", err)
 	}
 
 	process, err := os.FindProcess(externalId)
 	if err != nil {
-		return api.Successful, fmt.Sprintf("failed to find process: %v", err)
+		return api.JobStatusExternalRunNotFound, fmt.Sprintf("failed to find process: %v", err)
 	}
 
 	// On Unix systems, FindProcess always succeeds, so we need to send signal 0
 	// to check if process exists
 	err = process.Signal(syscall.Signal(0))
 	if err != nil {
-		return api.Successful, fmt.Sprintf("process not running: %v", err) 
+		return api.JobStatusSuccessful, fmt.Sprintf("process not running: %v", err)
 	}
 
-	return api.InProgress, fmt.Sprintf("process running with pid %d", externalId)
+	return api.JobStatusInProgress, fmt.Sprintf("process running with pid %d", externalId)
 }
 
 func (r *ExecRunner) Start(job api.Job) (string, error) {
@@ -107,7 +107,6 @@ func (r *ExecRunner) Start(job api.Job) (string, error) {
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("failed to execute script: %w", err)
 	}
-
 
 	return strconv.Itoa(cmd.Process.Pid), nil
 }
