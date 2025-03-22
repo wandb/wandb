@@ -19,7 +19,7 @@ func NewVersionCmd() *cobra.Command {
 		Short: "Display version information",
 		Long:  `Display the version, git commit, and build date of the CLI.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return cliutil.HandleOutput(cmd, map[string]interface{}{
+			return cliutil.HandleOutput(cmd, map[string]any{
 				"version":   Version,
 				"gitCommit": GitCommit,
 				"buildDate": BuildDate,
