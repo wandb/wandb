@@ -34,7 +34,10 @@ func init() {
 }
 
 func main() {
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		log.Error("Command failed", "error", err)
+		os.Exit(1)
+	}
 }
 
 func initConfig() {
