@@ -54,6 +54,7 @@ func makeSender(client graphql.Client, resultChan chan *spb.Result) *stream.Send
 		observability.NewPrinter(),
 		settings,
 		nil, // peeker
+		"clientId",
 	)
 	fileTransferManager := stream.NewFileTransferManager(
 		filetransfer.NewFileTransferStats(),
