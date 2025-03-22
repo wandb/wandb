@@ -27,7 +27,6 @@ func NewJobAgent(
 	if agent.JSON200 == nil {
 		return nil, fmt.Errorf("failed to create job agent")
 	}
-	
 
 	ja := &JobAgent{
 		client: client,
@@ -69,9 +68,9 @@ func (a *JobAgent) RunQueuedJobs() error {
 		wg.Add(1)
 		go func(job api.Job) {
 			defer wg.Done()
-			externalId,err := a.runner.Start(job)
+			externalId, err := a.runner.Start(job)
 			if err != nil {
-				status := api.InProgress
+				status := api.JobStatusInProgress
 				message := fmt.Sprintf("Failed to start job: %s", err.Error())
 				log.Error("Failed to start job", "error", err, "jobId", job.Id.String())
 				a.client.UpdateJobWithResponse(
