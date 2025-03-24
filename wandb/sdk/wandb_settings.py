@@ -346,7 +346,7 @@ class Settings(BaseModel, validate_assignment=True):
     identity_token_file: Optional[str] = None
     """Path to file containing an identity token (JWT) for authentication."""
 
-    ignore_globs: Tuple[str, ...] = ()
+    ignore_globs: Sequence[str] = ()
     """Unix glob patterns relative to `files_dir` specifying files to exclude from upload."""
 
     init_timeout: float = 90.0
