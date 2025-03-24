@@ -1,6 +1,7 @@
 module github.com/wandb/wandb/core
 
 go 1.23.6
+
 toolchain go1.24.1
 
 require (
