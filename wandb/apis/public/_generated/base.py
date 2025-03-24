@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import Any, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError  # , WrapValidator
+from pydantic import BaseModel, ConfigDict, Field, Json, ValidationError, WrapValidator
+from pydantic.alias_generators import to_camel
+from pydantic.main import IncEx
+from pydantic_core import to_json
+from pydantic_core.core_schema import ValidatorFunctionWrapHandler
 
-# from pydantic.alias_generators import to_camel
-# from pydantic.main import IncEx
-# from pydantic_core import to_json
-# from pydantic_core.core_schema import ValidatorFunctionWrapHandler
 from .typing_compat import Annotated, override
 
 
@@ -21,7 +21,7 @@ class Base(BaseModel):
         validate_assignment=True,
         validate_default=True,
         extra="forbid",
-        # alias_generator=to_camel,
+        alias_generator=to_camel,
         use_attribute_docstrings=True,
         from_attributes=True,
         revalidate_instances="always",
@@ -32,8 +32,8 @@ class Base(BaseModel):
         self,
         *,
         mode: Literal["json", "python"] | str = "json",  # NOTE: changed default
-        # include: IncEx | None = None,
-        # exclude: IncEx | None = None,
+        include: IncEx | None = None,
+        exclude: IncEx | None = None,
         context: dict[str, Any] | None = None,
         by_alias: bool = True,  # NOTE: changed default
         exclude_unset: bool = False,
@@ -45,8 +45,8 @@ class Base(BaseModel):
     ) -> dict[str, Any]:
         return super().model_dump(
             mode=mode,
-            # include=include,
-            # exclude=exclude,
+            include=include,
+            exclude=exclude,
             context=context,
             by_alias=by_alias,
             exclude_unset=exclude_unset,
@@ -62,8 +62,8 @@ class Base(BaseModel):
         self,
         *,
         indent: int | None = None,
-        # include: IncEx | None = None,
-        # exclude: IncEx | None = None,
+        include: IncEx | None = None,
+        exclude: IncEx | None = None,
         context: dict[str, Any] | None = None,
         by_alias: bool = True,  # NOTE: changed default
         exclude_unset: bool = False,
@@ -75,8 +75,8 @@ class Base(BaseModel):
     ) -> str:
         return super().model_dump_json(
             indent=indent,
-            # include=include,
-            # exclude=exclude,
+            include=include,
+            exclude=exclude,
             context=context,
             by_alias=by_alias,
             exclude_unset=exclude_unset,
@@ -112,19 +112,17 @@ Typename = Annotated[
 ]
 
 
-def validate_maybe_json(v: Any, handler: Any) -> Any:
+def validate_maybe_json(v: Any, handler: ValidatorFunctionWrapHandler) -> Any:
     """Wraps default Json[...] field validator to allow instantiation with an already-decoded value."""
     try:
         return handler(v)
     except ValidationError:
         # Try revalidating after properly jsonifying the value
-        # return handler(to_json(v, by_alias=True, round_trip=True))
-        pass
+        return handler(to_json(v, by_alias=True, round_trip=True))
 
 
-# SerializedToJson = Annotated[
-#     Json[T],
-#     # Allow lenient instantiation/validation: incoming data may already be deserialized.
-#     WrapValidator(validate_maybe_json),
-# ]
-SerializedToJson = Any
+SerializedToJson = Annotated[
+    Json[T],
+    # Allow lenient instantiation/validation: incoming data may already be deserialized.
+    WrapValidator(validate_maybe_json),
+]
