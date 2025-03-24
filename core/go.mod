@@ -2,8 +2,6 @@ module github.com/wandb/wandb/core
 
 go 1.23.6
 
-toolchain go1.24.1
-
 require (
 	cloud.google.com/go/storage v1.50.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
