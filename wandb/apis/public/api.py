@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import urllib
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -25,7 +26,6 @@ import wandb
 from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries import Registries
 from wandb.apis.public.utils import (
@@ -43,6 +43,46 @@ from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.gql_request import GraphQLSession
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class Feature:
+    name: str
+    is_enabled: bool
+
+
+@dataclass
+class ServerFeatures:
+    features: Dict[str, Feature]
+
+    @classmethod
+    def _from_server_info(cls, server_info: dict) -> "ServerFeatures":
+        features = {}
+        info: Optional[dict] = server_info.get("serverInfo", {})
+        if info is None:
+            return cls(features)
+
+        for feature in info.get("features", []):
+            features[feature["name"]] = Feature(
+                name=feature["name"], is_enabled=feature["isEnabled"]
+            )
+        return cls(features)
+
+    def has_feature(self, name: str) -> bool:
+        """Check if a feature is enabled on the server."""
+        return self.features.get(name, Feature(name, False)).is_enabled
+
+
+SERVER_FEATURES_QUERY_GQL = """
+query ServerFeaturesQuery {
+  serverInfo {
+    features {
+      name
+      isEnabled
+    }
+  }
+}
+"""
 
 
 class RetryingClient:
@@ -289,7 +329,7 @@ class Api:
             )
         )
         self._client = RetryingClient(self._base_client)
-        self._server_features_cache = None
+        self._server_features_cache: Optional[ServerFeatures] = None
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
@@ -1479,7 +1519,9 @@ class Api:
 
             Find all collections in the registries with the name "my_collection" and the tag "my_tag"
             ```python
-            api.registries().collections(filter={"name": "my_collection", "tag": "my_tag"})
+            api.registries().collections(
+                filter={"name": "my_collection", "tag": "my_tag"}
+            )
             ```
 
             Find all artifact versions in the registries with a collection name that contains "my_collection" and a version that has the alias "best"
@@ -1537,19 +1579,9 @@ class Api:
         """
         if self._server_features_cache is None:
             response = self.client.execute(gql(SERVER_FEATURES_QUERY_GQL))
-            self._server_features_cache = ServerFeaturesQuery.model_validate(response)
+            self._server_features_cache = ServerFeatures._from_server_info(response)
 
-        feature_name = ServerFeature.Name(feature)
-        if (
-            self._server_features_cache
-            and self._server_features_cache.server_info
-            and self._server_features_cache.server_info.features
-        ):
-            for feature_info in self._server_features_cache.server_info.features:
-                if feature_info and feature_info.name == feature_name:
-                    return feature_info.is_enabled
-
-        return False
+        return self._server_features_cache.has_feature(ServerFeature.Name(feature))
 
     def _check_server_feature_with_fallback(self, feature: ServerFeature) -> bool:
         """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
