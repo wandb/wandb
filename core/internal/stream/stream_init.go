@@ -92,6 +92,11 @@ func NewGraphQLClient(
 	backend *api.Backend,
 	settings *settings.Settings,
 	peeker *observability.Peeker,
+	// clientID is an ID for this process.
+	//
+	// This identifies the process that uploaded a set of metrics when
+	// running in "shared" mode, where there may be multiple writers for
+	// the same run.
 	clientID string,
 ) graphql.Client {
 	// TODO: This is used for the service account feature to associate the run
@@ -160,6 +165,11 @@ func NewFileStream(
 	printer *observability.Printer,
 	settings *settings.Settings,
 	peeker api.Peeker,
+	// clientID is an ID for this process.
+	//
+	// This identifies the process that uploaded a set of metrics when
+	// running in "shared" mode, where there may be multiple writers for
+	// the same run.
 	clientID string,
 ) filestream.FileStream {
 	fileStreamHeaders := map[string]string{}
