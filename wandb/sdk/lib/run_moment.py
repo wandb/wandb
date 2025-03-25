@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, cast
+from typing import Union
 from urllib import parse
-
-_STEP = Literal["_step"]
 
 
 @dataclass
@@ -19,10 +17,10 @@ class RunMoment:
     run: str
     """run ID"""
 
-    value: int | float
+    value: Union[int, float]
     """Value of the metric."""
 
-    metric: _STEP = "_step"
+    metric: str = "_step"
     """Metric to use to determine the moment in the run.
 
     Currently, only the metric '_step' is supported.
@@ -81,4 +79,4 @@ class RunMoment:
         except ValueError as e:
             raise parse_err from e
 
-        return cls(run=run, metric=cast(_STEP, metric), value=num_value)
+        return cls(run=run, metric=metric, value=num_value)

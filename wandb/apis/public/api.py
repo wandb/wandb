@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import urllib
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -42,6 +43,46 @@ from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.gql_request import GraphQLSession
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class Feature:
+    name: str
+    is_enabled: bool
+
+
+@dataclass
+class ServerFeatures:
+    features: Dict[str, Feature]
+
+    @classmethod
+    def _from_server_info(cls, server_info: dict) -> "ServerFeatures":
+        features = {}
+        info: Optional[dict] = server_info.get("serverInfo", {})
+        if info is None:
+            return cls(features)
+
+        for feature in info.get("features", []):
+            features[feature["name"]] = Feature(
+                name=feature["name"], is_enabled=feature["isEnabled"]
+            )
+        return cls(features)
+
+    def has_feature(self, name: str) -> bool:
+        """Check if a feature is enabled on the server."""
+        return self.features.get(name, Feature(name, False)).is_enabled
+
+
+SERVER_FEATURES_QUERY_GQL = """
+query ServerFeaturesQuery {
+  serverInfo {
+    features {
+      name
+      isEnabled
+    }
+  }
+}
+"""
 
 
 class RetryingClient:
