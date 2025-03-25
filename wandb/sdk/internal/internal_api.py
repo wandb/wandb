@@ -1,6 +1,5 @@
 import ast
 import base64
-from dataclasses import dataclass
 import datetime
 import functools
 import http.client
@@ -12,6 +11,7 @@ import socket
 import sys
 import threading
 from copy import deepcopy
+from dataclasses import dataclass
 from pathlib import Path
 from typing import (
     IO,
@@ -407,7 +407,7 @@ class Api:
         self.server_create_run_queue_supports_priority: Optional[bool] = None
         self.server_supports_template_variables: Optional[bool] = None
         self.server_push_to_run_queue_supports_priority: Optional[bool] = None
-        self._server_features_cache: Optional[ServerFeaturesQuery] = None
+        self._server_features_cache: Optional[ServerFeatures] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
