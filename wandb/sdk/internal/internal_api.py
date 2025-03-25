@@ -183,7 +183,7 @@ class ServerFeatures:
 
     @classmethod
     def _from_server_info(cls, server_info: dict) -> "ServerFeatures":
-        features = {}
+        features: Dict[str, Feature] = {}
         info: Optional[dict] = server_info.get("serverInfo", {})
         if info is None:
             return cls(features)
