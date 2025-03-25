@@ -11,6 +11,7 @@ import socket
 import sys
 import threading
 from copy import deepcopy
+from dataclasses import dataclass
 from pathlib import Path
 from typing import (
     IO,
@@ -169,6 +170,65 @@ class _ThreadLocalData(threading.local):
 class _OrgNames(NamedTuple):
     entity_name: str
     display_name: str
+
+
+@dataclass
+class Feature:
+    name: str
+    is_enabled: bool
+
+
+@dataclass
+class ServerFeatures:
+    """A class for managing and querying W&B server feature flags.
+
+    Attributes:
+        features: A dictionary mapping feature names to Feature objects.
+    """
+
+    features: Dict[str, Feature]
+
+    @classmethod
+    def _from_server_info(cls, server_info: dict) -> "ServerFeatures":
+        """Creates a ServerFeatures instance from server information.
+
+        Args:
+            server_info: A dictionary containing server information, including
+                a 'serverInfo' key with feature data.
+
+        Returns:
+            ServerFeatures: A new instance populated with the server's feature flags.
+
+        Example:
+            >>> info = {"serverInfo": {"features": [{"name": "feat1", "isEnabled": True}]}}
+            >>> features = ServerFeatures._from_server_info(info)
+        """
+        features: Dict[str, Feature] = {}
+        info: Optional[dict] = server_info.get("serverInfo", {})
+        if info is None:
+            return cls(features)
+
+        for feature in info.get("features", []):
+            features[feature["name"]] = Feature(
+                name=feature["name"], is_enabled=feature["isEnabled"]
+            )
+        return cls(features)
+
+    def has_feature(self, name: str) -> bool:
+        """Checks if a specific feature is enabled on the server."""
+        return self.features.get(name, Feature(name, False)).is_enabled
+
+
+SERVER_FEATURES_QUERY_GQL = """
+query ServerFeaturesQuery {
+  serverInfo {
+    features {
+      name
+      isEnabled
+    }
+  }
+}
+"""
 
 
 def _match_org_with_fetched_org_entities(
@@ -367,7 +427,7 @@ class Api:
         self.server_create_run_queue_supports_priority: Optional[bool] = None
         self.server_supports_template_variables: Optional[bool] = None
         self.server_push_to_run_queue_supports_priority: Optional[bool] = None
-        self._server_features_cache: Optional[ServerFeaturesQuery] = None
+        self._server_features_cache: Optional[ServerFeatures] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
@@ -887,19 +947,11 @@ class Api:
         if self._server_features_cache is None:
             query = gql(SERVER_FEATURES_QUERY_GQL)
             response = self.gql(query)
-            self._server_features_cache = ServerFeaturesQuery.model_validate(response)
+            self._server_features_cache = ServerFeatures._from_server_info(response)
 
-        feature_name = ServerFeature.Name(feature_value)  # type: ignore
-        if (
-            self._server_features_cache
-            and self._server_features_cache.server_info
-            and self._server_features_cache.server_info.features
-        ):
-            for feature_info in self._server_features_cache.server_info.features:
-                if feature_info and feature_info.name == feature_name:
-                    return feature_info.is_enabled
-
-        return False
+        return self._server_features_cache.has_feature(
+            ServerFeature.Name(feature_value)
+        )
 
     def _check_server_feature_with_fallback(self, feature_value: ServerFeature) -> bool:
         """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
