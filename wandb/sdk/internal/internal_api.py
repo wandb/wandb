@@ -179,10 +179,29 @@ class Feature:
 
 @dataclass
 class ServerFeatures:
+    """A class for managing and querying W&B server feature flags.
+
+    Attributes:
+        features: A dictionary mapping feature names to Feature objects.
+    """
+
     features: Dict[str, Feature]
 
     @classmethod
     def _from_server_info(cls, server_info: dict) -> "ServerFeatures":
+        """Creates a ServerFeatures instance from server information.
+
+        Args:
+            server_info: A dictionary containing server information, including
+                a 'serverInfo' key with feature data.
+
+        Returns:
+            ServerFeatures: A new instance populated with the server's feature flags.
+
+        Example:
+            >>> info = {"serverInfo": {"features": [{"name": "feat1", "isEnabled": True}]}}
+            >>> features = ServerFeatures._from_server_info(info)
+        """
         features: Dict[str, Feature] = {}
         info: Optional[dict] = server_info.get("serverInfo", {})
         if info is None:
@@ -195,7 +214,7 @@ class ServerFeatures:
         return cls(features)
 
     def has_feature(self, name: str) -> bool:
-        """Check if a feature is enabled on the server."""
+        """Checks if a specific feature is enabled on the server."""
         return self.features.get(name, Feature(name, False)).is_enabled
 
 
