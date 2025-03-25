@@ -21,15 +21,33 @@ class SettingsStatic(Settings):
     def _proto_to_dict(self, proto: wandb_settings_pb2.Settings) -> dict:
         data = {}
 
+        exclude_fields = {
+            "model_config",
+            "model_fields",
+            "model_fields_set",
+            "__fields__",
+            "__model_fields_set",
+            "__pydantic_self__",
+            "__pydantic_initialised__",
+        }
+
+        fields = (
+            Settings.model_fields
+            if hasattr(Settings, "model_fields")
+            else Settings.__fields__
+        )  # type: ignore [attr-defined]
+
+        fields = {k: v for k, v in fields.items() if k not in exclude_fields}  # type: ignore [union-attr]
+
         forks_specified: list[str] = []
-        for key in Settings.model_fields:  # type: ignore [attr-defined]
+        for key in fields:
             # Skip Python-only keys that do not exist on the proto.
             if key in ("reinit",):
                 continue
 
             value: Any = None
 
-            field_info = Settings.model_fields[key]
+            field_info = fields[key]
             annotation = str(field_info.annotation)
 
             if key == "_stats_open_metrics_filters":
