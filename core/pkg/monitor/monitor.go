@@ -74,6 +74,7 @@ func NewSystemMonitor(
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
 	extraWork runwork.ExtraWork,
+	gpuResourceManager *GPUResourceManager,
 ) *SystemMonitor {
 	ctx, cancel := context.WithCancel(context.Background())
 	sm := &SystemMonitor{
@@ -105,13 +106,16 @@ func NewSystemMonitor(
 	}
 
 	// Initialize the assets to monitor
-	sm.InitializeAssets(settings)
+	sm.initializeAssets(settings, gpuResourceManager)
 
 	return sm
 }
 
 // initializeAssets sets up the assets to be monitored based on the provided settings.
-func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
+func (sm *SystemMonitor) initializeAssets(
+	settings *settings.Settings,
+	gpuResourceManager *GPUResourceManager,
+) {
 	pid := settings.GetStatsPid()
 	diskPaths := settings.GetStatsDiskPaths()
 	samplingInterval := settings.GetStatsSamplingInterval()
@@ -122,9 +126,14 @@ func (sm *SystemMonitor) InitializeAssets(settings *settings.Settings) {
 	if system := NewSystem(pid, diskPaths); system != nil {
 		sm.assets = append(sm.assets, system)
 	}
-	if gpu := NewGPU(pid, gpuDeviceIds); gpu != nil {
+
+	if gpu, err := NewGPU(gpuResourceManager, pid, gpuDeviceIds); gpu != nil {
 		sm.assets = append(sm.assets, gpu)
+	} else if err != nil {
+		sm.logger.CaptureError(
+			fmt.Errorf("monitor: failed to initialize GPU asset: %v", err))
 	}
+
 	if tpu := NewTPU(); tpu != nil {
 		sm.assets = append(sm.assets, tpu)
 	}
