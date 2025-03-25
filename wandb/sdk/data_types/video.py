@@ -1,3 +1,5 @@
+import asyncio
+import functools
 import logging
 import os
 from io import BytesIO
@@ -5,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union
 
 import wandb
 from wandb import util
-from wandb.sdk.lib import filesystem, runid
+from wandb.sdk.lib import asyncio_compat, filesystem, printer, runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -74,6 +76,8 @@ class Video(BatchableMedia):
         run = wandb.init()
         # axes are (time, channel, height, width)
         frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
+            low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8
+        )
         run.log({"video": wandb.Video(frames, fps=4)})
         ```
     """
@@ -134,7 +138,7 @@ class Video(BatchableMedia):
                     "wandb.Video accepts a file path or numpy like data as input"
                 )
             fps = fps or 4
-            self.encode(fps=fps)
+            asyncio_compat.run(functools.partial(self._encode_with_spinner, fps=fps))
 
     def encode(self, fps: int = 4) -> None:
         # import ImageSequenceClip from the appropriate MoviePy module
@@ -154,28 +158,35 @@ class Video(BatchableMedia):
         )
         if TYPE_CHECKING:
             kwargs: Dict[str, Optional[bool]] = {}
-        try:  # older versions of moviepy do not support logger argument
-            kwargs = {"logger": None}
-            if self._format == "gif":
-                write_gif_with_image_io(clip, filename)
-            else:
-                clip.write_videofile(filename, **kwargs)
-        except TypeError:
-            try:  # even older versions of moviepy do not support progress_bar argument
-                kwargs = {"verbose": False, "progress_bar": False}
-                if self._format == "gif":
-                    clip.write_gif(filename, **kwargs)
-                else:
-                    clip.write_videofile(filename, **kwargs)
-            except TypeError:
-                kwargs = {
-                    "verbose": False,
-                }
-                if self._format == "gif":
-                    clip.write_gif(filename, **kwargs)
-                else:
-                    clip.write_videofile(filename, **kwargs)
+
+        kwargs = {"logger": None}
+        if self._format == "gif":
+            write_gif_with_image_io(clip, filename)
+        else:
+            clip.write_videofile(filename, **kwargs)
+
         self._set_file(filename, is_tmp=True)
+
+    async def _encode_with_spinner(self, fps: int = 4) -> None:
+        term_printer = printer.new_printer()
+        encoding_done = asyncio.Event()
+
+        async def update_spinner(encoding_done: asyncio.Event):
+            tick = 0
+            with term_printer.dynamic_text() as text_area:
+                if text_area:
+                    while not encoding_done.is_set():
+                        spinner = self.printer.loading_symbol(tick)
+                        text_area.set_text(f"{spinner} Encoding video...")
+                        tick += 1
+                        await asyncio.sleep(0.1)
+                else:
+                    term_printer.display("Encoding video...")
+
+        async with asyncio_compat.open_task_group() as group:
+            group.start_soon(update_spinner(encoding_done))
+            await asyncio.get_event_loop().run_in_executor(None, self.encode, fps)
+            encoding_done.set()
 
     @classmethod
     def get_media_subdir(cls: Type["Video"]) -> str:
