@@ -2846,12 +2846,9 @@ pub enum ServerFeature {
     StructuredConsoleLogs = 4,
     /// Indicates that the server supports querying for files on artifact collection memberships.
     ArtifactCollectionMembershipFiles = 5,
-<<<<<<< HEAD
     /// Indicates that the server supports downloading files with additional artifact collection memberships context in the
     /// url.
     ArtifactCollectionMembershipFileDownloadHandler = 6,
-=======
->>>>>>> main
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2868,12 +2865,9 @@ impl ServerFeature {
             Self::ArtifactCollectionMembershipFiles => {
                 "ARTIFACT_COLLECTION_MEMBERSHIP_FILES"
             }
-<<<<<<< HEAD
             Self::ArtifactCollectionMembershipFileDownloadHandler => {
                 "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER"
             }
-=======
->>>>>>> main
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2887,12 +2881,9 @@ impl ServerFeature {
             "ARTIFACT_COLLECTION_MEMBERSHIP_FILES" => {
                 Some(Self::ArtifactCollectionMembershipFiles)
             }
-<<<<<<< HEAD
             "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER" => {
                 Some(Self::ArtifactCollectionMembershipFileDownloadHandler)
             }
-=======
->>>>>>> main
             _ => None,
         }
     }

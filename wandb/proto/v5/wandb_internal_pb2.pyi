@@ -41,13 +41,10 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """Indicates that the server supports structured console logs."""
     ARTIFACT_COLLECTION_MEMBERSHIP_FILES: _ServerFeature.ValueType  # 5
     """Indicates that the server supports querying for files on artifact collection memberships."""
-<<<<<<< HEAD
     ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER: _ServerFeature.ValueType  # 6
     """Indicates that the server supports downloading files with additional artifact collection memberships context in the
     url.
     """
-=======
->>>>>>> main
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
     """*
@@ -67,13 +64,10 @@ STRUCTURED_CONSOLE_LOGS: ServerFeature.ValueType  # 4
 """Indicates that the server supports structured console logs."""
 ARTIFACT_COLLECTION_MEMBERSHIP_FILES: ServerFeature.ValueType  # 5
 """Indicates that the server supports querying for files on artifact collection memberships."""
-<<<<<<< HEAD
 ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER: ServerFeature.ValueType  # 6
 """Indicates that the server supports downloading files with additional artifact collection memberships context in the
 url.
 """
-=======
->>>>>>> main
 global___ServerFeature = ServerFeature
 
 @typing.final
