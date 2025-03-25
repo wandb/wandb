@@ -1,5 +1,6 @@
 import ast
 import base64
+from dataclasses import dataclass
 import datetime
 import functools
 import http.client
@@ -45,7 +46,6 @@ from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
-from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
@@ -169,6 +169,46 @@ class _ThreadLocalData(threading.local):
 class _OrgNames(NamedTuple):
     entity_name: str
     display_name: str
+
+
+@dataclass
+class Feature:
+    name: str
+    is_enabled: bool
+
+
+@dataclass
+class ServerFeatures:
+    features: Dict[str, Feature]
+
+    @classmethod
+    def _from_server_info(cls, server_info: dict) -> "ServerFeatures":
+        features = {}
+        info: Optional[dict] = server_info.get("serverInfo", {})
+        if info is None:
+            return cls(features)
+
+        for feature in info.get("features", []):
+            features[feature["name"]] = Feature(
+                name=feature["name"], is_enabled=feature["isEnabled"]
+            )
+        return cls(features)
+
+    def has_feature(self, name: str) -> bool:
+        """Check if a feature is enabled on the server."""
+        return self.features.get(name, Feature(name, False)).is_enabled
+
+
+SERVER_FEATURES_QUERY_GQL = """
+query ServerFeaturesQuery {
+  serverInfo {
+    features {
+      name
+      isEnabled
+    }
+  }
+}
+"""
 
 
 def _match_org_with_fetched_org_entities(
@@ -887,19 +927,11 @@ class Api:
         if self._server_features_cache is None:
             query = gql(SERVER_FEATURES_QUERY_GQL)
             response = self.gql(query)
-            self._server_features_cache = ServerFeaturesQuery.model_validate(response)
+            self._server_features_cache = ServerFeatures._from_server_info(response)
 
-        feature_name = ServerFeature.Name(feature_value)  # type: ignore
-        if (
-            self._server_features_cache
-            and self._server_features_cache.server_info
-            and self._server_features_cache.server_info.features
-        ):
-            for feature_info in self._server_features_cache.server_info.features:
-                if feature_info and feature_info.name == feature_name:
-                    return feature_info.is_enabled
-
-        return False
+        return self._server_features_cache.has_feature(
+            ServerFeature.Name(feature_value)
+        )
 
     def _check_server_feature_with_fallback(self, feature_value: ServerFeature) -> bool:
         """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
