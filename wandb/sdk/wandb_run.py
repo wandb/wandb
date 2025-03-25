@@ -62,6 +62,7 @@ from wandb.util import (
 
 from . import wandb_config, wandb_metric, wandb_summary
 from .artifacts._validators import (
+    MAX_ARTIFACT_METADATA_KEYS,
     is_artifact_registry_project,
     validate_aliases,
     validate_tags,
@@ -1550,9 +1551,6 @@ class Run:
         # Grab the config from resuming
         if run_obj.config:
             c_dict = config_util.dict_no_value_from_proto_list(run_obj.config.update)
-            # TODO: Windows throws a wild error when this is set...
-            if "_wandb" in c_dict:
-                del c_dict["_wandb"]
             # We update the config object here without triggering the callback
             self._config._update(c_dict, allow_val_change=True, ignore_locked=True)
         # Update the summary, this will trigger an un-needed graphql request :(
@@ -3335,6 +3333,12 @@ class Run:
         artifact, aliases = self._prepare_artifact(
             artifact_or_path, name, type, aliases
         )
+
+        if len(artifact.metadata) > MAX_ARTIFACT_METADATA_KEYS:
+            raise ValueError(
+                f"Artifact must not have more than {MAX_ARTIFACT_METADATA_KEYS} metadata keys."
+            )
+
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
         if self._backend and self._backend.interface:
