@@ -15,7 +15,6 @@ import json
 import logging
 import os
 import urllib
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import requests
