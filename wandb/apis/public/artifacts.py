@@ -5,7 +5,6 @@ import re
 from copy import copy
 from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence, Union
 
-from wandb.sdk.artifacts.artifact import NO_ARTIFACT_FILES_DOWNLOADED_ERROR_STRING
 from wandb_gql import Client, gql
 
 import wandb
@@ -18,6 +17,7 @@ from wandb.sdk.artifacts._graphql_fragments import (
     ARTIFACT_FILES_FRAGMENT,
     ARTIFACTS_TYPES_FRAGMENT,
 )
+from wandb.sdk.artifacts.artifact import NO_ARTIFACT_FILES_DOWNLOADED_ERROR_STRING
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib import deprecate
 
@@ -1077,10 +1077,6 @@ class ArtifactFiles(Paginator):
         self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
 
     def convert_objects(self):
-        no_files_warning_string = (
-            "No files fetched for artifact. "
-            "It is possible that user doesn't have access to download files"
-        )
         if self.query_via_membership:
             if not self.last_response["project"]["artifactCollection"][
                 "artifactMembership"
