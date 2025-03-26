@@ -71,7 +71,7 @@ class Files(Paginator):
     # Initialize the API client
     api = Api()
 
-    # Example run object (you would typically get this from the API)
+    # Example run object
     run = api.run("entity/project/run-id")
 
     # Create a Files object to iterate over files in the run

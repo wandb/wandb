@@ -64,7 +64,45 @@ RUN_FRAGMENT = """fragment RunFragment on Run {
 class Runs(Paginator):
     """An iterable collection of runs associated with a project and optional filter.
 
-    This is generally used indirectly via the `Api`.runs method.
+    This is generally used indirectly using the `Api.runs` namespace.
+
+    Examples:
+    ```python
+    from wandb.apis.public import Runs
+    from wandb.apis.public import Api
+
+    # Initialize the API client
+    api = Api()
+
+    # Get all runs from a project that satisfy the filters
+    filters = {"state": "finished", "config.optimizer": "adam"}
+
+    runs = Runs(
+        client=api.client,
+        entity="entity",
+        project="project_name",
+        filters=filters,
+    )
+
+    # Iterate over runs and print details
+    for run in runs:
+        print(f"Run name: {run.name}")
+        print(f"Run ID: {run.id}")
+        print(f"Run URL: {run.url}")
+        print(f"Run state: {run.state}")
+        print(f"Run config: {run.config}")
+        print(f"Run summary: {run.summary}")
+        print(f"Run history (samples=5): {run.history(samples=5)}")
+        print("----------")
+
+    # Get histories for all runs with specific metrics
+    histories_df = runs.histories(
+        samples=100,  # Number of samples per run
+        keys=["loss", "accuracy"],  # Metrics to fetch
+        x_axis="_step",  # X-axis metric
+        format="pandas",  # Return as pandas DataFrame
+    )
+    ```
     """
 
     QUERY = gql(
@@ -119,6 +157,7 @@ class Runs(Paginator):
 
     @property
     def length(self):
+        """Returns the total number of runs."""
         if self.last_response:
             return self.last_response["project"]["runCount"]
         else:
@@ -126,6 +165,9 @@ class Runs(Paginator):
 
     @property
     def more(self):
+        """Returns `True` if there are more runs to fetch. Returns
+        `False` if there are no more runs to fetch.
+        """
         if self.last_response:
             return self.last_response["project"]["runs"]["pageInfo"]["hasNextPage"]
         else:
@@ -133,12 +175,14 @@ class Runs(Paginator):
 
     @property
     def cursor(self):
+        """Returns the cursor position for pagination of runs results."""
         if self.last_response:
             return self.last_response["project"]["runs"]["edges"][-1]["cursor"]
         else:
             return None
 
     def convert_objects(self):
+        """Converts GraphQL edges to Runs objects."""
         objs = []
         if self.last_response is None or self.last_response.get("project") is None:
             raise ValueError("Could not find project {}".format(self.project))
@@ -184,15 +228,19 @@ class Runs(Paginator):
         """Return sampled history metrics for all runs that fit the filters conditions.
 
         Args:
-            samples : (int, optional) The number of samples to return per run
-            keys : (list[str], optional) Only return metrics for specific keys
-            x_axis : (str, optional) Use this metric as the xAxis defaults to _step
-            format : (Literal, optional) Format to return data in, options are "default", "pandas", "polars"
-            stream : (Literal, optional) "default" for metrics, "system" for machine metrics
+            samples: The number of samples to return per run
+            keys: Only return metrics for specific keys
+            x_axis: Use this metric as the xAxis defaults to _step
+            format: Format to return data in, options are "default", "pandas",
+                "polars"
+            stream: "default" for metrics, "system" for machine metrics
         Returns:
-            pandas.DataFrame: If format="pandas", returns a `pandas.DataFrame` of history metrics.
-            polars.DataFrame: If format="polars", returns a `polars.DataFrame` of history metrics.
-            list of dicts: If format="default", returns a list of dicts containing history metrics with a run_id key.
+            pandas.DataFrame: If `format="pandas"`, returns a `pandas.DataFrame`
+                of history metrics.
+            polars.DataFrame: If `format="polars"`, returns a `polars.DataFrame`
+                of history metrics.
+            list of dicts: If `format="default"`, returns a list of dicts
+                containing history metrics with a `run_id` key.
         """
         if format not in ("default", "pandas", "polars"):
             raise ValueError(
