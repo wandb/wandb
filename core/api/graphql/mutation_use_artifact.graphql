@@ -3,12 +3,16 @@ mutation UseArtifact(
     $projectName: String!,
     $runName: String!,
     $artifactID: ID!,
+    $artifactEntityName: String,
+    $artifactProjectName: String,
 ) {
     useArtifact(input: {
         entityName: $entityName,
         projectName: $projectName,
         runName: $runName,
         artifactID: $artifactID,
+        artifactEntityName: $artifactEntityName,
+        artifactProjectName: $artifactProjectName,
     }) {
         artifact {
             id
