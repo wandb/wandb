@@ -47,7 +47,6 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION: _ServerFeature.ValueType  # 7
     """Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation."""
 
-
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
     """*
     Server features are features that the server supports.
