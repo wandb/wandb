@@ -352,6 +352,18 @@ def test_wandb_dir():
     assert os.path.abspath(test_settings.wandb_dir) == os.path.abspath("wandb")
 
 
+def test_wandb_dir_creates_nonexistent_root_dir(test_settings):
+    test_settings = test_settings()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root_dir = os.path.join(tmpdir, "saved")
+        test_settings.root_dir = root_dir
+        assert not os.path.exists(root_dir)
+        assert os.path.abspath(test_settings.wandb_dir) == os.path.join(
+            root_dir, "wandb"
+        )
+        assert os.path.exists(root_dir)
+
+
 def test_resume_fname():
     test_settings = Settings()
     assert test_settings.resume_fname == os.path.abspath(

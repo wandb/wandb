@@ -12,6 +12,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/stream"
+	"github.com/wandb/wandb/core/pkg/monitor"
 )
 
 const (
@@ -139,6 +140,7 @@ func (s *Server) serve() {
 	slog.Info("server is running", "addr", s.listener.Addr())
 
 	streamMux := stream.NewStreamMux()
+	gpuResourceManager := monitor.NewGPUResourceManager()
 
 	// Run a separate goroutine to handle incoming connections
 	for {
@@ -158,12 +160,13 @@ func (s *Server) serve() {
 					s.serverLifetimeCtx,
 					s.stopServer,
 					ConnectionParams{
-						Conn:         conn,
-						StreamMux:    streamMux,
-						SentryClient: s.sentryClient,
-						Commit:       s.commit,
-						LoggerPath:   s.loggerPath,
-						LogLevel:     s.logLevel,
+						Conn:               conn,
+						StreamMux:          streamMux,
+						GPUResourceManager: gpuResourceManager,
+						SentryClient:       s.sentryClient,
+						Commit:             s.commit,
+						LoggerPath:         s.loggerPath,
+						LogLevel:           s.logLevel,
 					},
 				).ManageConnectionData()
 

@@ -1962,33 +1962,78 @@ class Artifact:
         retryable_exceptions=(requests.RequestException),
     )
     def _fetch_file_urls(self, cursor: str | None, per_page: int | None = 5000) -> Any:
-        query = gql(
-            """
-            query ArtifactFileURLs($id: ID!, $cursor: String, $perPage: Int) {
-                artifact(id: $id) {
-                    files(after: $cursor, first: $perPage) {
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
-                        edges {
-                            node {
-                                name
-                                directUrl
+        if InternalApi()._check_server_feature_with_fallback(
+            pb.ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES  # type: ignore
+        ):
+            query = gql(
+                """
+                query ArtifactCollectionMembershipFileURLs($entityName: String!, $projectName: String!, \
+                        $artifactName: String!, $artifactVersionIndex: String!, $cursor: String, $perPage: Int) {
+                    project(name: $projectName, entityName: $entityName) {
+                        artifactCollection(name: $artifactName) {
+                            artifactMembership(aliasName: $artifactVersionIndex) {
+                                files(after: $cursor, first: $perPage) {
+                                    pageInfo {
+                                        hasNextPage
+                                        endCursor
+                                    }
+                                    edges {
+                                        node {
+                                            name
+                                            directUrl
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
-            """
-        )
-        assert self._client is not None
-        response = self._client.execute(
-            query,
-            variable_values={"id": self.id, "cursor": cursor, "perPage": per_page},
-            timeout=60,
-        )
-        return response["artifact"]["files"]
+                """
+            )
+            assert self._client is not None
+            response = self._client.execute(
+                query,
+                variable_values={
+                    "entityName": self.entity,
+                    "projectName": self.project,
+                    "artifactName": self.name.split(":")[0],
+                    "artifactVersionIndex": self.version,
+                    "cursor": cursor,
+                    "perPage": per_page,
+                },
+                timeout=60,
+            )
+            return response["project"]["artifactCollection"]["artifactMembership"][
+                "files"
+            ]
+        else:
+            query = gql(
+                """
+                query ArtifactFileURLs($id: ID!, $cursor: String, $perPage: Int) {
+                    artifact(id: $id) {
+                        files(after: $cursor, first: $perPage) {
+                            pageInfo {
+                                hasNextPage
+                                endCursor
+                            }
+                            edges {
+                                node {
+                                    name
+                                    directUrl
+                                }
+                            }
+                        }
+                    }
+                }
+                """
+            )
+            assert self._client is not None
+            response = self._client.execute(
+                query,
+                variable_values={"id": self.id, "cursor": cursor, "perPage": per_page},
+                timeout=60,
+            )
+            return response["artifact"]["files"]
 
     @ensure_logged
     def checkout(self, root: str | None = None) -> str:

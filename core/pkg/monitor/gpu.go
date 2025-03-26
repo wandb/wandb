@@ -2,22 +2,17 @@ package monitor
 
 import (
 	"context"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"runtime"
-	"strconv"
-	"time"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // GPU is used to monitor Nvidia and Apple ARM GPUs.
 //
 // It collects GPU metrics from the gpu_stats binary via gRPC.
 type GPU struct {
+	resourceManager *GPUResourceManager
+	resourceRef     GPUResourceManagerRef
+
 	// pid of the process to collect process-specific metrics for.
 	pid int32
 
@@ -26,94 +21,29 @@ type GPU struct {
 	// If empty, all GPUs are monitored.
 	gpuDeviceIds []int32
 
-	// gpu_stats process.
-	cmd *exec.Cmd
-	// gRPC client connection and client for GPU metrics.
-	conn   *grpc.ClientConn
+	// client is the gRPC client for the SystemMonitorService.
 	client spb.SystemMonitorServiceClient
 }
 
 func NewGPU(
+	resourceManager *GPUResourceManager,
 	pid int32,
 	gpuDeviceIds []int32,
-) *GPU {
-	g := &GPU{pid: pid, gpuDeviceIds: gpuDeviceIds}
-
-	// A portfile is used to communicate the port number of the gRPC service
-	// started by the gpu_stats binary.
-	pf := NewPortfile()
-	if pf == nil {
-		return nil
+) (*GPU, error) {
+	g := &GPU{
+		resourceManager: resourceManager,
+		gpuDeviceIds:    gpuDeviceIds,
 	}
 
-	// pid of the current wandb-core process.
-	// the gpu_binary would shut down if this process dies.
-	ppid := os.Getpid()
-
-	// Start the gpu_stats binary, which will in turn start a gRPC service and
-	// write the port number to the portfile.
-	cmdPath, err := getGPUStatsCmdPath()
+	client, ref, err := resourceManager.Acquire()
 	if err != nil {
-		return nil
-	}
-	g.cmd = exec.Command(
-		cmdPath,
-		"--portfile",
-		pf.path,
-		"--ppid",
-		strconv.Itoa(ppid),
-	)
-	if err := g.cmd.Start(); err != nil {
-		return nil
+		return nil, err
 	}
 
-	// Read the port number of the gRPC service from the portfile.
-	// TODO: make the timeout configurable
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	port, err := pf.Read(ctx)
-	if err != nil {
-		return nil
-	}
-	err = pf.Delete()
-	if err != nil {
-		return nil
-	}
-
-	// Establish connection to gpu_stats via gRPC.
-	grpcAddr := "127.0.0.1:" + strconv.Itoa(port)
-	// NewCLient creates a new gRPC "channel" for the target URI provided. No I/O is performed.
-	// Use of the ClientConn for RPCs will automatically cause it to connect.
-	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return nil
-	}
-	g.conn = conn
-
-	client := spb.NewSystemMonitorServiceClient(g.conn)
+	g.resourceRef = ref
 	g.client = client
 
-	return g
-}
-
-// getGPUStatsCmdPath returns the path to the gpu_stats program.
-func getGPUStatsCmdPath() (string, error) {
-	ex, err := os.Executable()
-	if err != nil {
-		return "", err
-	}
-	exDirPath := filepath.Dir(ex)
-	exPath := filepath.Join(exDirPath, "gpu_stats")
-
-	// append .exe if running on Windows
-	if runtime.GOOS == "windows" {
-		exPath += ".exe"
-	}
-
-	if _, err := os.Stat(exPath); os.IsNotExist(err) {
-		return "", err
-	}
-	return exPath, nil
+	return g, nil
 }
 
 // Sample returns GPU metrics such as power usage, temperature, and utilization.
@@ -147,12 +77,5 @@ func (g *GPU) Probe() *spb.MetadataRequest {
 
 // Close shuts down the gpu_stats binary and releases resources.
 func (g *GPU) Close() {
-	if _, err := g.client.TearDown(context.Background(), &spb.TearDownRequest{}); err == nil { // ignore error
-		g.conn.Close()
-		// Wait for the process to exit to prevent zombie processes.
-		// This is a best-effort attempt to clean up the process.
-		go func() {
-			_ = g.cmd.Wait()
-		}()
-	}
+	g.resourceManager.Release(g.resourceRef)
 }

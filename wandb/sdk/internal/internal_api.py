@@ -11,6 +11,7 @@ import socket
 import sys
 import threading
 from copy import deepcopy
+from dataclasses import dataclass
 from pathlib import Path
 from typing import (
     IO,
@@ -43,6 +44,7 @@ from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messa
 from wandb.errors import AuthenticationError, CommError, UnsupportedError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
@@ -167,6 +169,65 @@ class _ThreadLocalData(threading.local):
 class _OrgNames(NamedTuple):
     entity_name: str
     display_name: str
+
+
+@dataclass
+class Feature:
+    name: str
+    is_enabled: bool
+
+
+@dataclass
+class ServerFeatures:
+    """A class for managing and querying W&B server feature flags.
+
+    Attributes:
+        features: A dictionary mapping feature names to Feature objects.
+    """
+
+    features: Dict[str, Feature]
+
+    @classmethod
+    def _from_server_info(cls, server_info: dict) -> "ServerFeatures":
+        """Creates a ServerFeatures instance from server information.
+
+        Args:
+            server_info: A dictionary containing server information, including
+                a 'serverInfo' key with feature data.
+
+        Returns:
+            ServerFeatures: A new instance populated with the server's feature flags.
+
+        Example:
+            >>> info = {"serverInfo": {"features": [{"name": "feat1", "isEnabled": True}]}}
+            >>> features = ServerFeatures._from_server_info(info)
+        """
+        features: Dict[str, Feature] = {}
+        info: Optional[dict] = server_info.get("serverInfo", {})
+        if info is None:
+            return cls(features)
+
+        for feature in info.get("features", []):
+            features[feature["name"]] = Feature(
+                name=feature["name"], is_enabled=feature["isEnabled"]
+            )
+        return cls(features)
+
+    def has_feature(self, name: str) -> bool:
+        """Checks if a specific feature is enabled on the server."""
+        return self.features.get(name, Feature(name, False)).is_enabled
+
+
+SERVER_FEATURES_QUERY_GQL = """
+query ServerFeaturesQuery {
+  serverInfo {
+    features {
+      name
+      isEnabled
+    }
+  }
+}
+"""
 
 
 def _match_org_with_fetched_org_entities(
@@ -365,6 +426,7 @@ class Api:
         self.server_create_run_queue_supports_priority: Optional[bool] = None
         self.server_supports_template_variables: Optional[bool] = None
         self.server_push_to_run_queue_supports_priority: Optional[bool] = None
+        self._server_features_cache: Optional[ServerFeatures] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
@@ -868,6 +930,48 @@ class Api:
     def update_run_queue_item_warning_introspection(self) -> bool:
         _, _, mutations = self.server_info_introspection()
         return "updateRunQueueItemWarning" in mutations
+
+    def _check_server_feature(self, feature_value: ServerFeature) -> bool:
+        """Check if a server feature is enabled.
+
+        Args:
+            feature_value (ServerFeature): The enum value of the feature to check.
+
+        Returns:
+            bool: True if the feature is enabled, False otherwise.
+
+        Raises:
+            Exception: If server doesn't support feature queries or other errors occur
+        """
+        if self._server_features_cache is None:
+            query = gql(SERVER_FEATURES_QUERY_GQL)
+            response = self.gql(query)
+            self._server_features_cache = ServerFeatures._from_server_info(response)
+
+        return self._server_features_cache.has_feature(
+            ServerFeature.Name(feature_value)
+        )
+
+    def _check_server_feature_with_fallback(self, feature_value: ServerFeature) -> bool:
+        """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
+
+        Good to use for features that have a fallback mechanism for older servers.
+
+        Args:
+            feature_value (ServerFeature): The enum value of the feature to check.
+
+        Returns:
+            bool: True if the feature is enabled, False otherwise.
+
+        Exceptions:
+            Exception: If an error other than the server not supporting feature queries occurs.
+        """
+        try:
+            return self._check_server_feature(feature_value)
+        except Exception as e:
+            if 'Cannot query field "features" on type "ServerInfo".' in str(e):
+                return False
+            raise e
 
     @normalize_exceptions
     def update_run_queue_item_warning(
