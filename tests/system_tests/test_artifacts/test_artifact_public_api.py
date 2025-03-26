@@ -104,8 +104,11 @@ def test_artifact_files(user, api, sample_data, wandb_backend_spy):
 
     api = wandb.Api()
     art = api.artifact("mnist:v0", type="dataset")
-    file = art.files()[0]
-    assert "storagePath" not in file._attrs.keys()
+    files = art.files(per_page=1)
+    assert "storagePath" not in files[0]._attrs.keys()
+    assert files.last_response is not None
+    assert files.more is True
+    assert files.cursor is not None
 
 
 def test_artifact_download(user, api, sample_data):
