@@ -2844,6 +2844,8 @@ pub enum ServerFeature {
     ArtifactRegistrySearch = 3,
     /// Indicates that the server supports structured console logs.
     StructuredConsoleLogs = 4,
+    /// Indicates that the server supports querying for files on artifact collection memberships.
+    ArtifactCollectionMembershipFiles = 5,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2857,6 +2859,9 @@ impl ServerFeature {
             Self::ClientIds => "CLIENT_IDS",
             Self::ArtifactRegistrySearch => "ARTIFACT_REGISTRY_SEARCH",
             Self::StructuredConsoleLogs => "STRUCTURED_CONSOLE_LOGS",
+            Self::ArtifactCollectionMembershipFiles => {
+                "ARTIFACT_COLLECTION_MEMBERSHIP_FILES"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2867,6 +2872,9 @@ impl ServerFeature {
             "CLIENT_IDS" => Some(Self::ClientIds),
             "ARTIFACT_REGISTRY_SEARCH" => Some(Self::ArtifactRegistrySearch),
             "STRUCTURED_CONSOLE_LOGS" => Some(Self::StructuredConsoleLogs),
+            "ARTIFACT_COLLECTION_MEMBERSHIP_FILES" => {
+                Some(Self::ArtifactCollectionMembershipFiles)
+            }
             _ => None,
         }
     }
