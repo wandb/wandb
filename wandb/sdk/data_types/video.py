@@ -3,7 +3,7 @@ import functools
 import logging
 import os
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Type, Union
 
 import wandb
 from wandb import util
@@ -156,14 +156,11 @@ class Video(BatchableMedia):
         filename = os.path.join(
             MEDIA_TMP.name, runid.generate_id() + "." + self._format
         )
-        if TYPE_CHECKING:
-            kwargs: Dict[str, Optional[bool]] = {}
 
-        kwargs = {"logger": None}
         if self._format == "gif":
             write_gif_with_image_io(clip, filename)
         else:
-            clip.write_videofile(filename, **kwargs)
+            clip.write_videofile(filename, logger=None)
 
         self._set_file(filename, is_tmp=True)
 
@@ -171,7 +168,7 @@ class Video(BatchableMedia):
         term_printer = printer.new_printer()
         encoding_done = asyncio.Event()
 
-        async def update_spinner(encoding_done: asyncio.Event):
+        async def update_spinner() -> None:
             tick = 0
             with term_printer.dynamic_text() as text_area:
                 if text_area:
@@ -184,8 +181,8 @@ class Video(BatchableMedia):
                     term_printer.display("Encoding video...")
 
         async with asyncio_compat.open_task_group() as group:
-            group.start_soon(update_spinner(encoding_done))
-            await asyncio.get_event_loop().run_in_executor(None, self.encode, fps)
+            group.start_soon(update_spinner())
+            await asyncio.get_running_loop().run_in_executor(None, self.encode, fps)
             encoding_done.set()
 
     @classmethod
