@@ -746,6 +746,25 @@ func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
 	}
 }
 
+func (as *ArtifactSaver) fetchUseArtifactInputEntityAndProject() (*string, *string) {
+	useArtifactWithProjectInformation := false
+	if as.featureProvider != nil {
+		useArtifactWithProjectInformation = as.featureProvider.GetFeature(
+			spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
+		).Enabled
+	}
+
+	entity := &as.artifact.Entity
+	project := &as.artifact.Project
+
+	if !useArtifactWithProjectInformation {
+		entity = nil
+		project = nil
+	}
+
+	return entity, project
+}
+
 // Save performs the upload operation, blocking until it completes.
 func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	manifest, err := NewManifestFromProto(as.artifact.Manifest)
@@ -768,19 +787,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 		baseArtifactId = &artifactAttrs.ArtifactSequence.LatestArtifact.Id
 	}
 
-	useArtifactWithProjectInformation := false
-	if as.featureProvider != nil {
-		useArtifactWithProjectInformation = as.featureProvider.GetFeature(
-			spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
-		).Enabled
-	}
-	entity := &as.artifact.Entity
-	project := &as.artifact.Project
-
-	if !useArtifactWithProjectInformation {
-		entity = nil
-		project = nil
-	}
+	entity, project := as.fetchUseArtifactInputEntityAndProject()
 
 	if artifactAttrs.State == gql.ArtifactStateCommitted {
 		if as.artifact.UseAfterCommit {
