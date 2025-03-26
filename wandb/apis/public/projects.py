@@ -18,7 +18,30 @@ PROJECT_FRAGMENT = """fragment ProjectFragment on Project {
 
 
 class Projects(Paginator):
-    """An iterable collection of `Project` objects."""
+    """An iterable collection of `Project` objects.
+
+    An iterable interface to access projects created and saved by the entity.
+
+    Example:
+    ```python
+    from wandb.apis.public.projects import Projects
+    from wandb.apis.public.api import Api
+
+    # Initialize the API client
+    api = Api()
+
+    # Create Projects object to iterate over projects that belong to this entity
+    projects = Projects(api.client, "entity_name")
+
+    # Iterate over files
+    for project in projects:
+        print(f"Project: {project.name}")
+        print(f"- URL: {project.url}")
+        print(f"- Created at: {project.created_at}")
+        print(f"- Is benchmark: {project.is_benchmark}")
+    ```
+
+    """
 
     QUERY = gql(
         """
@@ -50,10 +73,17 @@ class Projects(Paginator):
 
     @property
     def length(self):
+        """Returns the total number of projects.
+
+        Note: This property is not available for projects.
+        """
         return None
 
     @property
     def more(self):
+        """Returns `True` if there are more projects to fetch. Returns
+        `False` if there are no more projects to fetch.
+        """
         if self.last_response:
             return self.last_response["models"]["pageInfo"]["hasNextPage"]
         else:
@@ -61,12 +91,14 @@ class Projects(Paginator):
 
     @property
     def cursor(self):
+        """Returns the cursor position for pagination of project results."""
         if self.last_response:
             return self.last_response["models"]["edges"][-1]["cursor"]
         else:
             return None
 
     def convert_objects(self):
+        """Converts GraphQL edges to File objects."""
         return [
             Project(self.client, self.entity, p["node"]["name"], p["node"])
             for p in self.last_response["models"]["edges"]
@@ -87,10 +119,13 @@ class Project(Attrs):
 
     @property
     def path(self):
+        """Returns the path of the project. The path is a list containing the
+        entity and project name."""
         return [self.entity, self.name]
 
     @property
     def url(self):
+        """Returns the URL of the project."""
         return self.client.app_url + "/".join(self.path + ["workspace"])
 
     def to_html(self, height=420, hidden=False):
@@ -111,10 +146,12 @@ class Project(Attrs):
 
     @normalize_exceptions
     def artifacts_types(self, per_page=50):
+        """Returns all artifact types associated with this project."""
         return public.ArtifactTypes(self.client, self.entity, self.name)
 
     @normalize_exceptions
     def sweeps(self):
+        """Fetches all sweeps associated with the project."""
         query = gql(
             """
             query GetSweeps($project: String!, $entity: String!) {{

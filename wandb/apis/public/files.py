@@ -125,8 +125,8 @@ class Files(Paginator):
 
     @property
     def more(self):
-        """Returns `True` if there are more files to fetch. Otherwise,
-        returns `False`.
+        """Returns `True` if there are more files to fetch. Returns
+        `False` if there are no more files to fetch.
         """
         if self.last_response:
             return self.last_response["project"]["run"]["files"]["pageInfo"][
