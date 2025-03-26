@@ -17,12 +17,16 @@ from wandb.sdk.artifacts._graphql_fragments import (
     ARTIFACT_FILES_FRAGMENT,
     ARTIFACTS_TYPES_FRAGMENT,
 )
-from wandb.sdk.artifacts.artifact import NO_ARTIFACT_FILES_DOWNLOADED_ERROR_STRING
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib import deprecate
 
 if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient, Run
+
+NO_ARTIFACT_FILES_DOWNLOADED_ERROR_STRING = (
+    "No files fetched for artifact. "
+    "It is possible that user doesn't have access to download files"
+)
 
 
 class ArtifactTypes(Paginator):
