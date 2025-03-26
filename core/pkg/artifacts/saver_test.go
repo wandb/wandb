@@ -7,7 +7,6 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfertest"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -84,11 +83,7 @@ func TestSaveGraphQLRequest(t *testing.T) {
 		observability.NewNoOpLogger(),
 		mockGQL,
 		ftm,
-		featurechecker.NewServerFeaturesCachePreloaded(
-			map[spb.ServerFeature]featurechecker.Feature{
-				spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION: {Enabled: true},
-			},
-		),
+		true,
 	)
 
 	result := <-saver.Save(

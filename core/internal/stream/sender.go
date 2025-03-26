@@ -236,9 +236,13 @@ func NewSender(
 	}
 
 	structuredConsoleLogs := false
+	useArtifactProjectEntityInfo := false
 	if params.FeatureProvider != nil {
 		structuredConsoleLogs = params.FeatureProvider.GetFeature(
 			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
+		).Enabled
+		useArtifactProjectEntityInfo = params.FeatureProvider.GetFeature(
+			spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
 		).Enabled
 	}
 	consoleLogsSenderParams := runconsolelogs.Params{
@@ -269,7 +273,7 @@ func NewSender(
 			params.Logger,
 			params.GraphqlClient,
 			params.FileTransferManager,
-			params.FeatureProvider,
+			useArtifactProjectEntityInfo,
 		),
 		tbHandler:     params.TBHandler,
 		networkPeeker: params.Peeker,

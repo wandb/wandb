@@ -1,3 +1,5 @@
+# @genqlient(for: "UseArtifactInput.artifactEntityName", omitempty: true)
+# @genqlient(for: "UseArtifactInput.artifactProjectName", omitempty: true)
 mutation UseArtifact(
     $entityName: String!,
     $projectName: String!,

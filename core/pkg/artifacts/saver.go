@@ -17,7 +17,6 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/hashencode"
@@ -43,11 +42,11 @@ const (
 
 // ArtifactSaveManager manages artifact uploads.
 type ArtifactSaveManager struct {
-	logger              *observability.CoreLogger
-	graphqlClient       graphql.Client
-	fileTransferManager filetransfer.FileTransferManager
-	fileCache           Cache
-	featureProvider     *featurechecker.ServerFeaturesCache
+	logger                       *observability.CoreLogger
+	graphqlClient                graphql.Client
+	fileTransferManager          filetransfer.FileTransferManager
+	fileCache                    Cache
+	useArtifactProjectEntityInfo bool
 
 	// uploadsByName ensures that uploads for the same artifact name happen
 	// serially, so that version numbers are assigned deterministically.
@@ -58,17 +57,17 @@ func NewArtifactSaveManager(
 	logger *observability.CoreLogger,
 	graphqlClient graphql.Client,
 	fileTransferManager filetransfer.FileTransferManager,
-	featureProvider *featurechecker.ServerFeaturesCache,
+	useArtifactProjectEntityInfo bool,
 ) *ArtifactSaveManager {
 	workerPool := &errgroup.Group{}
 	workerPool.SetLimit(maxSimultaneousUploads)
 
 	return &ArtifactSaveManager{
-		logger:              logger,
-		graphqlClient:       graphqlClient,
-		fileTransferManager: fileTransferManager,
-		fileCache:           NewFileCache(UserCacheDir()),
-		featureProvider:     featureProvider,
+		logger:                       logger,
+		graphqlClient:                graphqlClient,
+		fileTransferManager:          fileTransferManager,
+		fileCache:                    NewFileCache(UserCacheDir()),
+		useArtifactProjectEntityInfo: useArtifactProjectEntityInfo,
 		uploadsByName: namedgoroutines.New(
 			uploadBufferPerArtifactName,
 			workerPool,
@@ -105,17 +104,17 @@ func (as *ArtifactSaveManager) Save(
 	as.uploadsByName.Go(
 		artifact.Name,
 		&ArtifactSaver{
-			ctx:                 ctx,
-			logger:              as.logger,
-			graphqlClient:       as.graphqlClient,
-			fileTransferManager: as.fileTransferManager,
-			fileCache:           as.fileCache,
-			artifact:            artifact,
-			historyStep:         historyStep,
-			stagingDir:          stagingDir,
-			maxActiveBatches:    5,
-			resultChan:          resultChan,
-			featureProvider:     as.featureProvider,
+			ctx:                          ctx,
+			logger:                       as.logger,
+			graphqlClient:                as.graphqlClient,
+			fileTransferManager:          as.fileTransferManager,
+			fileCache:                    as.fileCache,
+			artifact:                     artifact,
+			historyStep:                  historyStep,
+			stagingDir:                   stagingDir,
+			maxActiveBatches:             5,
+			resultChan:                   resultChan,
+			useArtifactProjectEntityInfo: as.useArtifactProjectEntityInfo,
 		},
 	)
 
@@ -131,16 +130,16 @@ type ArtifactSaver struct {
 	fileTransferManager filetransfer.FileTransferManager
 	fileCache           Cache
 	resultChan          chan<- ArtifactSaveResult
-	featureProvider     *featurechecker.ServerFeaturesCache
 
 	// Input.
-	artifact         *spb.ArtifactRecord
-	historyStep      int64
-	stagingDir       string
-	maxActiveBatches int
-	numTotal         int
-	numDone          int
-	startTime        time.Time
+	artifact                     *spb.ArtifactRecord
+	historyStep                  int64
+	stagingDir                   string
+	maxActiveBatches             int
+	numTotal                     int
+	numDone                      int
+	startTime                    time.Time
+	useArtifactProjectEntityInfo bool
 }
 
 type multipartUploadInfo = []gql.CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart
@@ -746,25 +745,6 @@ func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
 	}
 }
 
-func (as *ArtifactSaver) fetchUseArtifactInputEntityAndProject() (*string, *string) {
-	useArtifactWithProjectInformation := false
-	if as.featureProvider != nil {
-		useArtifactWithProjectInformation = as.featureProvider.GetFeature(
-			spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
-		).Enabled
-	}
-
-	entity := &as.artifact.Entity
-	project := &as.artifact.Project
-
-	if !useArtifactWithProjectInformation {
-		entity = nil
-		project = nil
-	}
-
-	return entity, project
-}
-
 // Save performs the upload operation, blocking until it completes.
 func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	manifest, err := NewManifestFromProto(as.artifact.Manifest)
@@ -787,7 +767,13 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 		baseArtifactId = &artifactAttrs.ArtifactSequence.LatestArtifact.Id
 	}
 
-	entity, project := as.fetchUseArtifactInputEntityAndProject()
+	entity := &as.artifact.Entity
+	project := &as.artifact.Project
+
+	if !as.useArtifactProjectEntityInfo {
+		entity = nil
+		project = nil
+	}
 
 	if artifactAttrs.State == gql.ArtifactStateCommitted {
 		if as.artifact.UseAfterCommit {
