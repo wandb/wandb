@@ -93,6 +93,12 @@ class _DeferredArtifactManifest:
     url: str
 
 
+NO_ARTIFACT_FILES_DOWNLOADED_ERROR_STRING = (
+    "No files fetched for artifact. "
+    "It is possible that user doesn't have access to download files"
+)
+
+
 class Artifact:
     """Flexible and lightweight building block for dataset and model versioning.
 
@@ -1922,6 +1928,8 @@ class Artifact:
             while has_next_page:
                 fetch_url_batch_size = env.get_artifact_fetch_file_url_batch_size()
                 attrs = self._fetch_file_urls(cursor, fetch_url_batch_size)
+                if attrs is None:
+                    raise PermissionError(NO_ARTIFACT_FILES_DOWNLOADED_ERROR_STRING)
                 has_next_page = attrs["pageInfo"]["hasNextPage"]
                 cursor = attrs["pageInfo"]["endCursor"]
                 for edge in attrs["edges"]:
