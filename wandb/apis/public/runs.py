@@ -324,6 +324,14 @@ class Runs(Paginator):
 class Run(Attrs):
     """A single run associated with an entity and project.
 
+    Args:
+        client: The W&B API client.
+        entity: The entity associated with the run.
+        project: The project associated with the run.
+        run_id: The unique identifier for the run.
+        attrs: The attributes of the run.
+        include_sweeps: Whether to include sweeps in the run.
+
     Attributes:
         tags ([str]): a list of tags associated with the run
         url (str): the url of this run
@@ -385,19 +393,23 @@ class Run(Attrs):
 
     @property
     def state(self):
+        """The state of the run. Can be one of: Finished, Failed, Crashed, or Running."""
         return self._state
 
     @property
     def entity(self):
+        """The entity associated with the run."""
         return self._entity
 
     @property
     def username(self):
+        """This API is deprecated. Use `entity` instead."""
         wandb.termwarn("Run.username is deprecated. Please use Run.entity instead.")
         return self._entity
 
     @property
     def storage_id(self):
+        """The unique storage identifier for the run."""
         # For compatibility with wandb.Run, which has storage IDs
         # in self.storage_id and names in self.id.
 
@@ -405,20 +417,24 @@ class Run(Attrs):
 
     @property
     def id(self):
+        """The unique identifier for the run."""
         return self._attrs.get("name")
 
     @id.setter
     def id(self, new_id):
+        """Set the unique identifier for the run."""
         attrs = self._attrs
         attrs["name"] = new_id
         return new_id
 
     @property
     def name(self):
+        """The name of the run."""
         return self._attrs.get("displayName")
 
     @name.setter
     def name(self, new_name):
+        """Set the name of the run."""
         self._attrs["displayName"] = new_name
         return new_name
 
@@ -465,6 +481,13 @@ class Run(Attrs):
         )
 
     def load(self, force=False):
+        """Fetch and update run data from GraphQL database.
+
+        Ensures run data is up to date.
+
+        Args:
+            force (bool): Whether to force a refresh of the run data.
+        """
         query = gql(
             """
         query Run($project: String!, $entity: String!, $name: String!) {{
@@ -540,6 +563,7 @@ class Run(Attrs):
 
     @normalize_exceptions
     def wait_until_finished(self):
+        """Check the state of the run until it is finished."""
         query = gql(
             """
             query RunState($project: String!, $entity: String!, $name: String!) {
@@ -590,7 +614,12 @@ class Run(Attrs):
 
     @normalize_exceptions
     def delete(self, delete_artifacts=False):
-        """Delete the given run from the wandb backend."""
+        """Delete the given run from the wandb backend.
+
+        Args:
+            delete_artifacts (bool, optional): Whether to delete the artifacts
+                associated with the run.
+        """
         mutation = gql(
             """
             mutation DeleteRun(
@@ -619,6 +648,7 @@ class Run(Attrs):
         )
 
     def save(self):
+        """Persist changes to the run object to the W&B backend."""
         self.update()
 
     @property
@@ -694,16 +724,17 @@ class Run(Attrs):
 
     @normalize_exceptions
     def upload_file(self, path, root="."):
-        """Upload a file.
+        """Uploads a local file to W&B, associating it with this run.
 
         Args:
-            path (str): name of file to upload.
-            root (str): the root path to save the file relative to.  i.e.
-                If you want to have the file saved in the run as "my_dir/file.txt"
+            path (str): Path to the file to upload. Can be absolute or relative.
+            root (str): The root path to save the file relative to. For example,
+                if you want to have the file saved in the run as "my_dir/file.txt"
                 and you're currently in "my_dir" you would set root to "../".
+                Defaults to current directory (".").
 
         Returns:
-            A `File` matching the name argument.
+            A `File` object representing the uploaded file.
         """
         api = InternalApi(
             default_settings={"entity": self.entity, "project": self.project},
@@ -762,15 +793,6 @@ class Run(Attrs):
     def scan_history(self, keys=None, page_size=1000, min_step=None, max_step=None):
         """Returns an iterable collection of all history records for a run.
 
-        Example:
-            Export all the loss values for an example run
-
-            ```python
-            run = api.run("l2k2/examples-numpy-boston/i0wt6xua")
-            history = run.scan_history(keys=["Loss"])
-            losses = [row["Loss"] for row in history]
-            ```
-
         Args:
             keys ([str], optional): only fetch these keys, and only fetch rows that have all of keys defined.
             page_size (int, optional): size of pages to fetch from the api.
@@ -779,6 +801,15 @@ class Run(Attrs):
 
         Returns:
             An iterable collection over history records (dict).
+
+        Example:
+        Export all the loss values for an example run
+
+        ```python
+        run = api.run("entity/project-name/run-id")
+        history = run.scan_history(keys=["Loss"])
+        losses = [row["Loss"] for row in history]
+        ```
         """
         if keys is not None and not isinstance(keys, list):
             wandb.termerror("keys must be specified in a list")
@@ -828,23 +859,27 @@ class Run(Attrs):
             An iterable collection of all Artifact objects logged as outputs during this run.
 
         Example:
-            >>> import wandb
-            >>> import tempfile
-            >>> with tempfile.NamedTemporaryFile(
-            ...     mode="w", delete=False, suffix=".txt"
-            ... ) as tmp:
-            ...     tmp.write("This is a test artifact")
-            ...     tmp_path = tmp.name
-            >>> run = wandb.init(project="artifact-example")
-            >>> artifact = wandb.Artifact("test_artifact", type="dataset")
-            >>> artifact.add_file(tmp_path)
-            >>> run.log_artifact(artifact)
-            >>> run.finish()
-            >>> api = wandb.Api()
-            >>> finished_run = api.run(f"{run.entity}/{run.project}/{run.id}")
-            >>> for logged_artifact in finished_run.logged_artifacts():
-            ...     print(logged_artifact.name)
-            test_artifact
+        ```python
+        import wandb
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as tmp:
+            tmp.write("This is a test artifact")
+            tmp_path = tmp.name
+        run = wandb.init(project="artifact-example")
+        artifact = wandb.Artifact("test_artifact", type="dataset")
+        artifact.add_file(tmp_path)
+        run.log_artifact(artifact)
+        run.finish()
+
+        api = wandb.Api()
+
+        finished_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+
+        for logged_artifact in finished_run.logged_artifacts():
+            print(logged_artifact.name)
+        ```
+
         """
         return public.RunArtifacts(self.client, self, mode="logged", per_page=per_page)
 
@@ -863,15 +898,19 @@ class Run(Attrs):
             An iterable collection of Artifact objects explicitly used as inputs in this run.
 
         Example:
-            >>> import wandb
-            >>> run = wandb.init(project="artifact-example")
-            >>> run.use_artifact("test_artifact:latest")
-            >>> run.finish()
-            >>> api = wandb.Api()
-            >>> finished_run = api.run(f"{run.entity}/{run.project}/{run.id}")
-            >>> for used_artifact in finished_run.used_artifacts():
-            ...     print(used_artifact.name)
-            test_artifact
+        ```python
+        import wandb
+
+        run = wandb.init(project="artifact-example")
+        run.use_artifact("test_artifact:latest")
+        run.finish()
+
+        api = wandb.Api()
+        finished_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+        for used_artifact in finished_run.used_artifacts():
+            print(used_artifact.name)
+        test_artifact
+        ```
         """
         return public.RunArtifacts(self.client, self, mode="used", per_page=per_page)
 
@@ -983,6 +1022,7 @@ class Run(Attrs):
 
     @property
     def summary(self):
+        """A mutable dict-like property that holds summary values associated with the run."""
         if self._summary is None:
             from wandb.old.summary import HTTPSummary
 
@@ -992,6 +1032,7 @@ class Run(Attrs):
 
     @property
     def path(self):
+        """The path of the run. The path is a list containing the entity, project, and run_id."""
         return [
             urllib.parse.quote_plus(str(self.entity)),
             urllib.parse.quote_plus(str(self.project)),
@@ -1000,12 +1041,22 @@ class Run(Attrs):
 
     @property
     def url(self):
+        """The URL of the run.
+
+        The run URL is generated from the entity, project, and run_id. For
+        SaaS users, it takes the form of `https://wandb.ai/entity/project/run_id`.
+        """
         path = self.path
         path.insert(2, "runs")
         return self.client.app_url + "/".join(path)
 
     @property
     def metadata(self):
+        """Metadata about the run from wandb-metadata.json.
+
+        Metadata includes the run's description, tags, start time, memory
+        usage and more.
+        """
         if self._metadata is None:
             try:
                 f = self.file("wandb-metadata.json")
@@ -1021,6 +1072,7 @@ class Run(Attrs):
 
     @property
     def lastHistoryStep(self):  # noqa: N802
+        """Returns the last step logged in the run's history."""
         query = gql(
             """
         query RunHistoryKeys($project: String!, $entity: String!, $name: String!) {
