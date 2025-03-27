@@ -200,7 +200,9 @@ class ServerFeatures:
             ServerFeatures: A new instance populated with the server's feature flags.
 
         Example:
-            >>> info = {"serverInfo": {"features": [{"name": "feat1", "isEnabled": True}]}}
+            >>> info = {
+            ...     "serverInfo": {"features": [{"name": "feat1", "isEnabled": True}]}
+            ... }
             >>> features = ServerFeatures._from_server_info(info)
         """
         features: Dict[str, Feature] = {}
@@ -3817,7 +3819,7 @@ class Api:
         use_as: Optional[str] = None,
         artifact_entity_name: Optional[str] = None,
         artifact_project_name: Optional[str] = None,
-    ) -> Tuple[Document, dict[str, Any]]:
+    ) -> Tuple[Document, Dict[str, Any]]:
         query_vars = [
             "$entityName: String!",
             "$projectName: String!",
@@ -3840,7 +3842,7 @@ class Api:
         project_name = project_name or self.settings("project")
         run_name = run_name or self.current_run_id
 
-        variable_values: dict[str, Any] = {
+        variable_values: Dict[str, Any] = {
             "entityName": entity_name,
             "projectName": project_name,
             "runName": run_name,
