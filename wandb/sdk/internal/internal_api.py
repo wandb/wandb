@@ -200,9 +200,7 @@ class ServerFeatures:
             ServerFeatures: A new instance populated with the server's feature flags.
 
         Example:
-            >>> info = {
-            ...     "serverInfo": {"features": [{"name": "feat1", "isEnabled": True}]}
-            ... }
+            >>> info = {"serverInfo": {"features": [{"name": "feat1", "isEnabled": True}]}}
             >>> features = ServerFeatures._from_server_info(info)
         """
         features: Dict[str, Feature] = {}
