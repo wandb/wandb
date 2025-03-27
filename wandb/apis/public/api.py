@@ -15,7 +15,6 @@ import json
 import logging
 import os
 import urllib
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -43,46 +42,6 @@ from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.gql_request import GraphQLSession
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class Feature:
-    name: str
-    is_enabled: bool
-
-
-@dataclass
-class ServerFeatures:
-    features: Dict[str, Feature]
-
-    @classmethod
-    def _from_server_info(cls, server_info: dict) -> "ServerFeatures":
-        features = {}
-        info: Optional[dict] = server_info.get("serverInfo", {})
-        if info is None:
-            return cls(features)
-
-        for feature in info.get("features", []):
-            features[feature["name"]] = Feature(
-                name=feature["name"], is_enabled=feature["isEnabled"]
-            )
-        return cls(features)
-
-    def has_feature(self, name: str) -> bool:
-        """Check if a feature is enabled on the server."""
-        return self.features.get(name, Feature(name, False)).is_enabled
-
-
-SERVER_FEATURES_QUERY_GQL = """
-query ServerFeaturesQuery {
-  serverInfo {
-    features {
-      name
-      isEnabled
-    }
-  }
-}
-"""
 
 
 class RetryingClient:
@@ -329,7 +288,6 @@ class Api:
             )
         )
         self._client = RetryingClient(self._base_client)
-        self._server_features_cache: Optional[ServerFeatures] = None
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
@@ -1550,7 +1508,7 @@ class Api:
         Returns:
             A registry iterator.
         """
-        if not self._check_server_feature_with_fallback(
+        if not InternalApi()._check_server_feature_with_fallback(
             ServerFeature.ARTIFACT_REGISTRY_SEARCH
         ):
             raise RuntimeError(
@@ -1562,42 +1520,3 @@ class Api:
             self.settings, self.default_entity
         )
         return Registries(self.client, organization, filter)
-
-    def _check_server_feature(self, feature: ServerFeature) -> bool:
-        """Check if a server feature is enabled.
-
-        Args:
-            feature (ServerFeature): The feature to check.
-
-        Returns:
-            bool: True if the feature is enabled, False otherwise.
-
-        Raises:
-            Exception: If server doesn't support feature queries or other errors occur
-        """
-        if self._server_features_cache is None:
-            response = self.client.execute(gql(SERVER_FEATURES_QUERY_GQL))
-            self._server_features_cache = ServerFeatures._from_server_info(response)
-
-        return self._server_features_cache.has_feature(ServerFeature.Name(feature))
-
-    def _check_server_feature_with_fallback(self, feature: ServerFeature) -> bool:
-        """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
-
-        Good to use for features that have a fallback mechanism for older servers.
-
-        Args:
-            feature (ServerFeature): The feature to check.
-
-        Returns:
-            bool: True if the feature is enabled, False otherwise.
-
-        Exceptions:
-            Exception: If an error other than the server not supporting feature queries occurs.
-        """
-        try:
-            return self._check_server_feature(feature)
-        except Exception as e:
-            if 'Cannot query field "features" on type "ServerInfo".' in str(e):
-                return False
-            raise e
