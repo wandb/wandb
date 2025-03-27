@@ -37,6 +37,7 @@ import requests
 import yaml
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
+from wandb_graphql.language.ast import Document
 
 import wandb
 from wandb import env, util
@@ -199,7 +200,9 @@ class ServerFeatures:
             ServerFeatures: A new instance populated with the server's feature flags.
 
         Example:
-            >>> info = {"serverInfo": {"features": [{"name": "feat1", "isEnabled": True}]}}
+            >>> info = {
+            ...     "serverInfo": {"features": [{"name": "feat1", "isEnabled": True}]}
+            ... }
             >>> features = ServerFeatures._from_server_info(info)
         """
         features: Dict[str, Feature] = {}
@@ -3807,16 +3810,16 @@ class Api:
         else:
             raise ValueError(f"Unable to find an organization under entity {entity!r}.")
 
-    def use_artifact(
+    def _construct_use_artifact_query(
         self,
         artifact_id: str,
         entity_name: Optional[str] = None,
         project_name: Optional[str] = None,
         run_name: Optional[str] = None,
+        use_as: Optional[str] = None,
         artifact_entity_name: Optional[str] = None,
         artifact_project_name: Optional[str] = None,
-        use_as: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Tuple[Document, dict[str, Any]]:
         query_vars = [
             "$entityName: String!",
             "$projectName: String!",
@@ -3834,6 +3837,18 @@ class Api:
         if "usedAs" in artifact_types and use_as:
             query_vars.append("$usedAs: String")
             query_args.append("usedAs: $usedAs")
+
+        entity_name = entity_name or self.settings("entity")
+        project_name = project_name or self.settings("project")
+        run_name = run_name or self.current_run_id
+
+        variable_values: dict[str, Any] = {
+            "entityName": entity_name,
+            "projectName": project_name,
+            "runName": run_name,
+            "artifactID": artifact_id,
+            "usedAs": use_as,
+        }
 
         server_allows_entity_project_information = (
             self._check_server_feature_with_fallback(
@@ -3853,6 +3868,8 @@ class Api:
                     "artifactProjectName: $artifactProjectName",
                 ]
             )
+            variable_values["artifactEntityName"] = artifact_entity_name
+            variable_values["artifactProjectName"] = artifact_project_name
 
         vars_str = ", ".join(query_vars)
         args_str = ", ".join(query_args)
@@ -3873,27 +3890,28 @@ class Api:
             }}
             """
         )
+        return query, variable_values
 
-        entity_name = entity_name or self.settings("entity")
-        project_name = project_name or self.settings("project")
-        run_name = run_name or self.current_run_id
-
-        variable_values: dict[str, Any] = {
-            "entityName": entity_name,
-            "projectName": project_name,
-            "runName": run_name,
-            "artifactID": artifact_id,
-            "usedAs": use_as,
-        }
-
-        if server_allows_entity_project_information:
-            variable_values["artifactEntityName"] = artifact_entity_name
-            variable_values["artifactProjectName"] = artifact_project_name
-
-        response = self.gql(
-            query,
-            variable_values,
+    def use_artifact(
+        self,
+        artifact_id: str,
+        entity_name: Optional[str] = None,
+        project_name: Optional[str] = None,
+        run_name: Optional[str] = None,
+        artifact_entity_name: Optional[str] = None,
+        artifact_project_name: Optional[str] = None,
+        use_as: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        query, variable_values = self._construct_use_artifact_query(
+            artifact_id,
+            entity_name,
+            project_name,
+            run_name,
+            use_as,
+            artifact_entity_name,
+            artifact_project_name,
         )
+        response = self.gql(query, variable_values)
 
         if response["useArtifact"]["artifact"]:
             artifact: Dict[str, Any] = response["useArtifact"]["artifact"]

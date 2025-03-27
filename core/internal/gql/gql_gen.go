@@ -1963,12 +1963,12 @@ func (v *__UpsertBucketInput) GetSummaryMetrics() *string { return v.SummaryMetr
 
 // __UseArtifactInput is used internally by genqlient
 type __UseArtifactInput struct {
-	EntityName          string  `json:"entityName"`
-	ProjectName         string  `json:"projectName"`
-	RunName             string  `json:"runName"`
-	ArtifactID          string  `json:"artifactID"`
-	ArtifactEntityName  *string `json:"artifactEntityName"`
-	ArtifactProjectName *string `json:"artifactProjectName"`
+	EntityName          string  `json:"entityName,omitempty"`
+	ProjectName         string  `json:"projectName,omitempty"`
+	RunName             string  `json:"runName,omitempty"`
+	ArtifactID          string  `json:"artifactID,omitempty"`
+	ArtifactEntityName  *string `json:"artifactEntityName,omitempty"`
+	ArtifactProjectName *string `json:"artifactProjectName,omitempty"`
 }
 
 // GetEntityName returns __UseArtifactInput.EntityName, and is useful for accessing the field via an interface.
