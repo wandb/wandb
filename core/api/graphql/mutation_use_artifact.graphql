@@ -1,20 +1,10 @@
-# @genqlient(omitempty: true)
+# artifactEntityName and artifactProjectName are in a later server version
+# @genqlient(for: "UseArtifactInput.artifactEntityName", omitempty: true)
+# @genqlient(for: "UseArtifactInput.artifactProjectName", omitempty: true)
 mutation UseArtifact(
-    $entityName: String!,
-    $projectName: String!,
-    $runName: String!,
-    $artifactID: ID!,
-    $artifactEntityName: String,
-    $artifactProjectName: String,
+    $input: UseArtifactInput!
 ) {
-    useArtifact(input: {
-        entityName: $entityName,
-        projectName: $projectName,
-        runName: $runName,
-        artifactID: $artifactID,
-        artifactEntityName: $artifactEntityName,
-        artifactProjectName: $artifactProjectName,
-    }) {
+    useArtifact(input: $input) {
         artifact {
             id
         }

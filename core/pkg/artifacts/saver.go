@@ -767,12 +767,16 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 		baseArtifactId = &artifactAttrs.ArtifactSequence.LatestArtifact.Id
 	}
 
-	entity := &as.artifact.Entity
-	project := &as.artifact.Project
+	useArtifactInput := gql.UseArtifactInput{
+		ArtifactID:  artifactID,
+		EntityName:  as.artifact.Entity,
+		ProjectName: as.artifact.Project,
+		RunName:     as.artifact.RunId,
+	}
 
-	if !as.useArtifactProjectEntityInfo {
-		entity = nil
-		project = nil
+	if as.useArtifactProjectEntityInfo {
+		useArtifactInput.ArtifactEntityName = &as.artifact.Entity
+		useArtifactInput.ArtifactProjectName = &as.artifact.Project
 	}
 
 	if artifactAttrs.State == gql.ArtifactStateCommitted {
@@ -781,12 +785,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 			_, err = gql.UseArtifact(
 				as.ctx,
 				as.graphqlClient,
-				as.artifact.Entity,
-				as.artifact.Project,
-				as.artifact.RunId,
-				artifactID,
-				entity,
-				project,
+				useArtifactInput,
 			)
 
 			if err != nil {
@@ -843,12 +842,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 			_, err = gql.UseArtifact(
 				as.ctx,
 				as.graphqlClient,
-				as.artifact.Entity,
-				as.artifact.Project,
-				as.artifact.RunId,
-				artifactID,
-				entity,
-				project,
+				useArtifactInput,
 			)
 
 			if err != nil {

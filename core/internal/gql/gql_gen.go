@@ -1445,6 +1445,41 @@ func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProjectEntity) GetN
 	return v.Name
 }
 
+type UseArtifactInput struct {
+	EntityName          string  `json:"entityName"`
+	ProjectName         string  `json:"projectName"`
+	RunName             string  `json:"runName"`
+	ArtifactID          string  `json:"artifactID"`
+	ArtifactEntityName  *string `json:"artifactEntityName,omitempty"`
+	ArtifactProjectName *string `json:"artifactProjectName,omitempty"`
+	UsedAs              *string `json:"usedAs"`
+	ClientMutationId    *string `json:"clientMutationId"`
+}
+
+// GetEntityName returns UseArtifactInput.EntityName, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetEntityName() string { return v.EntityName }
+
+// GetProjectName returns UseArtifactInput.ProjectName, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetProjectName() string { return v.ProjectName }
+
+// GetRunName returns UseArtifactInput.RunName, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetRunName() string { return v.RunName }
+
+// GetArtifactID returns UseArtifactInput.ArtifactID, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetArtifactID() string { return v.ArtifactID }
+
+// GetArtifactEntityName returns UseArtifactInput.ArtifactEntityName, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetArtifactEntityName() *string { return v.ArtifactEntityName }
+
+// GetArtifactProjectName returns UseArtifactInput.ArtifactProjectName, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetArtifactProjectName() *string { return v.ArtifactProjectName }
+
+// GetUsedAs returns UseArtifactInput.UsedAs, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetUsedAs() *string { return v.UsedAs }
+
+// GetClientMutationId returns UseArtifactInput.ClientMutationId, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetClientMutationId() *string { return v.ClientMutationId }
+
 // UseArtifactResponse is returned by UseArtifact on success.
 type UseArtifactResponse struct {
 	UseArtifact *UseArtifactUseArtifactUseArtifactPayload `json:"useArtifact"`
@@ -1963,31 +1998,11 @@ func (v *__UpsertBucketInput) GetSummaryMetrics() *string { return v.SummaryMetr
 
 // __UseArtifactInput is used internally by genqlient
 type __UseArtifactInput struct {
-	EntityName          string  `json:"entityName,omitempty"`
-	ProjectName         string  `json:"projectName,omitempty"`
-	RunName             string  `json:"runName,omitempty"`
-	ArtifactID          string  `json:"artifactID,omitempty"`
-	ArtifactEntityName  *string `json:"artifactEntityName,omitempty"`
-	ArtifactProjectName *string `json:"artifactProjectName,omitempty"`
+	Input UseArtifactInput `json:"input"`
 }
 
-// GetEntityName returns __UseArtifactInput.EntityName, and is useful for accessing the field via an interface.
-func (v *__UseArtifactInput) GetEntityName() string { return v.EntityName }
-
-// GetProjectName returns __UseArtifactInput.ProjectName, and is useful for accessing the field via an interface.
-func (v *__UseArtifactInput) GetProjectName() string { return v.ProjectName }
-
-// GetRunName returns __UseArtifactInput.RunName, and is useful for accessing the field via an interface.
-func (v *__UseArtifactInput) GetRunName() string { return v.RunName }
-
-// GetArtifactID returns __UseArtifactInput.ArtifactID, and is useful for accessing the field via an interface.
-func (v *__UseArtifactInput) GetArtifactID() string { return v.ArtifactID }
-
-// GetArtifactEntityName returns __UseArtifactInput.ArtifactEntityName, and is useful for accessing the field via an interface.
-func (v *__UseArtifactInput) GetArtifactEntityName() *string { return v.ArtifactEntityName }
-
-// GetArtifactProjectName returns __UseArtifactInput.ArtifactProjectName, and is useful for accessing the field via an interface.
-func (v *__UseArtifactInput) GetArtifactProjectName() *string { return v.ArtifactProjectName }
+// GetInput returns __UseArtifactInput.Input, and is useful for accessing the field via an interface.
+func (v *__UseArtifactInput) GetInput() UseArtifactInput { return v.Input }
 
 // The query executed by ArtifactFileURLs.
 const ArtifactFileURLs_Operation = `
@@ -3047,8 +3062,8 @@ func UpsertBucket(
 
 // The mutation executed by UseArtifact.
 const UseArtifact_Operation = `
-mutation UseArtifact ($entityName: String!, $projectName: String!, $runName: String!, $artifactID: ID!, $artifactEntityName: String, $artifactProjectName: String) {
-	useArtifact(input: {entityName:$entityName,projectName:$projectName,runName:$runName,artifactID:$artifactID,artifactEntityName:$artifactEntityName,artifactProjectName:$artifactProjectName}) {
+mutation UseArtifact ($input: UseArtifactInput!) {
+	useArtifact(input: $input) {
 		artifact {
 			id
 		}
@@ -3056,26 +3071,17 @@ mutation UseArtifact ($entityName: String!, $projectName: String!, $runName: Str
 }
 `
 
+// artifactEntityName and artifactProjectName are in a later server version
 func UseArtifact(
 	ctx_ context.Context,
 	client_ graphql.Client,
-	entityName string,
-	projectName string,
-	runName string,
-	artifactID string,
-	artifactEntityName *string,
-	artifactProjectName *string,
+	input UseArtifactInput,
 ) (data_ *UseArtifactResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "UseArtifact",
 		Query:  UseArtifact_Operation,
 		Variables: &__UseArtifactInput{
-			EntityName:          entityName,
-			ProjectName:         projectName,
-			RunName:             runName,
-			ArtifactID:          artifactID,
-			ArtifactEntityName:  artifactEntityName,
-			ArtifactProjectName: artifactProjectName,
+			Input: input,
 		},
 	}
 
