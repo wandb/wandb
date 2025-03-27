@@ -1,3 +1,5 @@
+"""Base classes and other customizations for generated pydantic types."""
+
 from __future__ import annotations
 
 from typing import Any, Literal, TypeVar
@@ -7,11 +9,10 @@ from pydantic.alias_generators import to_camel
 from pydantic.main import IncEx
 from pydantic_core import to_json
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler
+from typing_extensions import Annotated, override
 
-from .typing_compat import Annotated, override
 
-
-# Base class for all automation classes/types.
+# Base class for all generated classes/types.
 # Omitted from docstring to avoid inclusion in generated docs.
 class Base(BaseModel):
     model_config = ConfigDict(

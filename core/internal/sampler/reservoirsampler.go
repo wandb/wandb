@@ -20,7 +20,7 @@ type ReservoirSampler[T comparable] struct {
 	// w is the 'w' parameter of Algorithm L.
 	//
 	// If we were to generate a random number in the range [0, 1] for each
-	// item processed by the sampler, 'w' is the largest among them so far.
+	// item processed by the sampler, 'w' is the kth smallest so far.
 	w float64
 
 	// nextAccepted is the index of the next value that will land in the sample.
@@ -107,8 +107,8 @@ func (rs *ReservoirSampler[T]) Sample() []T {
 // The second return value is the next 'w' parameter, which should be passed
 // to the next call of this function. On the first call, it should be set to 1.
 // The 'w' returned by the Nth call to this is a random number distributed
-// as the maximum of (k + N - 1) independent random numbers selected uniformly
-// from the range (0, 1).
+// as the kth smallest of (k + N - 1) independent random numbers selected
+// uniformly from the range (0, 1).
 //
 // 'k' is the size of the sample we are generating.
 func getSkipAndW(rand *rand.Rand, w float64, k int) (int, float64) {
