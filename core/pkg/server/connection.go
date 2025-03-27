@@ -17,6 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 
+	"github.com/wandb/wandb/core/pkg/monitor"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -28,7 +29,9 @@ const (
 )
 
 type ConnectionParams struct {
-	StreamMux    *stream.StreamMux
+	StreamMux          *stream.StreamMux
+	GPUResourceManager *monitor.GPUResourceManager
+
 	Conn         net.Conn
 	SentryClient *sentry_ext.Client
 	Commit       string
@@ -57,6 +60,9 @@ type Connection struct {
 	// A map that associates stream IDs with active streams (or runs). This helps
 	// track the streams associated with this connection.
 	streamMux *stream.StreamMux
+
+	// gpuResourceManager is used by streams for system GPU metrics.
+	gpuResourceManager *monitor.GPUResourceManager
 
 	// id is the unique id for the connection
 	id string
@@ -90,18 +96,19 @@ func NewConnection(
 	params ConnectionParams,
 ) *Connection {
 	return &Connection{
-		connLifetimeCtx: serverLifetimeCtx,
-		stopServer:      stopServer,
-		streamMux:       params.StreamMux,
-		conn:            params.Conn,
-		commit:          params.Commit,
-		id:              params.Conn.RemoteAddr().String(), // TODO: check if this is properly unique
-		inChan:          make(chan *spb.ServerRequest, BufferSize),
-		outChan:         make(chan *spb.ServerResponse, BufferSize),
-		closed:          &atomic.Bool{},
-		sentryClient:    params.SentryClient,
-		loggerPath:      params.LoggerPath,
-		logLevel:        params.LogLevel,
+		connLifetimeCtx:    serverLifetimeCtx,
+		stopServer:         stopServer,
+		streamMux:          params.StreamMux,
+		gpuResourceManager: params.GPUResourceManager,
+		conn:               params.Conn,
+		commit:             params.Commit,
+		id:                 params.Conn.RemoteAddr().String(), // TODO: check if this is properly unique
+		inChan:             make(chan *spb.ServerRequest, BufferSize),
+		outChan:            make(chan *spb.ServerResponse, BufferSize),
+		closed:             &atomic.Bool{},
+		sentryClient:       params.SentryClient,
+		loggerPath:         params.LoggerPath,
+		logLevel:           params.LogLevel,
 	}
 }
 
@@ -344,11 +351,12 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 
 	strm := stream.NewStream(
 		stream.StreamParams{
-			Settings:   settings,
-			Commit:     nc.commit,
-			LogLevel:   nc.logLevel,
-			Sentry:     sentryClient,
-			LoggerPath: nc.loggerPath,
+			Settings:           settings,
+			Commit:             nc.commit,
+			LogLevel:           nc.logLevel,
+			Sentry:             sentryClient,
+			LoggerPath:         nc.loggerPath,
+			GPUResourceManager: nc.gpuResourceManager,
 		},
 	)
 	strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
@@ -441,7 +449,7 @@ func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 		BaseUrl: &wrapperspb.StringValue{Value: msg.BaseUrl},
 	})
 	backend := stream.NewBackend(observability.NewNoOpLogger(), s) // TODO: use a real logger
-	graphqlClient := stream.NewGraphQLClient(backend, s, &observability.Peeker{})
+	graphqlClient := stream.NewGraphQLClient(backend, s, &observability.Peeker{}, "" /*clientId*/)
 
 	data, err := gql.Viewer(context.Background(), graphqlClient)
 	if err != nil || data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {

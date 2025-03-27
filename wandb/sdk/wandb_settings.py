@@ -11,7 +11,6 @@ import re
 import shutil
 import socket
 import sys
-import tempfile
 from datetime import datetime
 
 # Optional and Union are used for type hinting instead of | because
@@ -1423,29 +1422,13 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def wandb_dir(self) -> str:
-        """Full path to the wandb directory.
-
-        The setting exposed to users as `dir=` or `WANDB_DIR` is the `root_dir`.
-        We add the `__stage_dir__` to it to get the full `wandb_dir`
-        """
-        root_dir = self.root_dir or ""
-
-        # We use the hidden version if it already exists, otherwise non-hidden.
-        if os.path.exists(os.path.join(root_dir, ".wandb")):
-            __stage_dir__ = ".wandb" + os.sep
-        else:
-            __stage_dir__ = "wandb" + os.sep
-
-        path = os.path.join(root_dir, __stage_dir__)
-        if not os.access(root_dir or ".", os.W_OK):
-            termwarn(
-                f"Path {path} wasn't writable, using system temp directory.",
-                repeat=False,
-            )
-            path = os.path.join(
-                tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep)
-            )
-
+        """Full path to the wandb directory."""
+        stage_dir = (
+            ".wandb" + os.sep
+            if os.path.exists(os.path.join(self.root_dir, ".wandb"))
+            else "wandb" + os.sep
+        )
+        path = os.path.join(self.root_dir, stage_dir)
         return os.path.expanduser(path)
 
     # Methods to collect and update settings from different sources.
