@@ -11,9 +11,13 @@ import re
 import shutil
 import socket
 import sys
-import tempfile
 from datetime import datetime
-from typing import Any, Literal, Sequence
+
+# Optional and Union are used for type hinting instead of | because
+# the latter is not supported in pydantic<2.6 and Python<3.10.
+# Dict, List, and Tuple are used for backwards compatibility
+# with pydantic v1 and Python<3.9.
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
 from urllib.parse import quote, unquote, urlencode
 
 if sys.version_info >= (3, 11):
@@ -22,25 +26,160 @@ else:
     from typing_extensions import Self
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    computed_field,
-    field_validator,
-    model_validator,
-)
-from pydantic_core import SchemaValidator, core_schema
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.version import VERSION as PYDANTIC_VERSION
 
 import wandb
 from wandb import env, termwarn, util
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 
-from .lib import apikey, credentials, filesystem, ipython
+from .lib import apikey, credentials, ipython
 from .lib.gitlib import GitRepo
 from .lib.run_moment import RunMoment
-from .lib.runid import generate_id
+
+is_pydantic_v2 = int(PYDANTIC_VERSION[0]) == 2
+
+if is_pydantic_v2:
+    from pydantic import AliasChoices, computed_field, field_validator, model_validator
+    from pydantic_core import SchemaValidator, core_schema
+
+    def validate_url(url: str) -> None:
+        """Validate a URL string."""
+        url_validator = SchemaValidator(
+            core_schema.url_schema(
+                allowed_schemes=["http", "https"],
+                strict=True,
+            )
+        )
+        url_validator.validate_python(url)
+else:
+    from pydantic import root_validator, validator
+
+    class AliasChoices:  # type: ignore [no-redef]
+        """Compatibility class for Pydantic v2's AliasChoices."""
+
+        def __init__(self, *aliases):
+            self.aliases = aliases
+
+    def field_validator(field_name: str, mode="before"):  # type: ignore [no-redef]
+        """Compatibility wrapper for Pydantic v2's field_validator in v1."""
+        return validator(
+            field_name, pre=mode == "before", allow_reuse=True, always=True
+        )
+
+    def model_validator(mode="before"):  # type: ignore [no-redef]
+        """Compatibility wrapper for Pydantic v2's model_validator in v1."""
+        return root_validator(pre=(mode == "before"))
+
+    def computed_field(func=None, **kwargs):  # type: ignore [no-redef]
+        """Compatibility wrapper for Pydantic v2's computed_field in v1."""
+
+        def decorator(f):
+            # If already a property, return it
+            if isinstance(f, property):
+                return f
+            # Otherwise convert it to a property
+            return property(f)
+
+        # Handle both decorator styles
+        if func is not None:
+            return decorator(func)
+        return decorator
+
+    def validate_url(url: str) -> None:
+        """Validate the base url of the wandb server.
+
+        param value: URL to validate
+
+        Based on the Django URLValidator, but with a few additional checks.
+
+        Copyright (c) Django Software Foundation and individual contributors.
+        All rights reserved.
+
+        Redistribution and use in source and binary forms, with or without modification,
+        are permitted provided that the following conditions are met:
+
+            1. Redistributions of source code must retain the above copyright notice,
+               this list of conditions and the following disclaimer.
+
+            2. Redistributions in binary form must reproduce the above copyright
+               notice, this list of conditions and the following disclaimer in the
+               documentation and/or other materials provided with the distribution.
+
+            3. Neither the name of Django nor the names of its contributors may be used
+               to endorse or promote products derived from this software without
+               specific prior written permission.
+
+        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+        ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+        WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+        DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+        ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+        (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+        LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+        ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+        (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+        SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+        """
+        from urllib.parse import urlparse, urlsplit
+
+        if url is None:
+            return
+
+        ul = "\u00a1-\uffff"  # Unicode letters range (must not be a raw string).
+
+        # IP patterns
+        ipv4_re = (
+            r"(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)"
+            r"(?:\.(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}"
+        )
+        ipv6_re = r"\[[0-9a-f:.]+\]"  # (simple regex, validated later)
+
+        # Host patterns
+        hostname_re = (
+            r"[a-z" + ul + r"0-9](?:[a-z" + ul + r"0-9-]{0,61}[a-z" + ul + r"0-9])?"
+        )
+        # Max length for domain name labels is 63 characters per RFC 1034 sec. 3.1
+        domain_re = r"(?:\.(?!-)[a-z" + ul + r"0-9-]{1,63}(?<!-))*"
+        tld_re = (
+            r"\."  # dot
+            r"(?!-)"  # can't start with a dash
+            r"(?:[a-z" + ul + "-]{2,63}"  # domain label
+            r"|xn--[a-z0-9]{1,59})"  # or punycode label
+            r"(?<!-)"  # can't end with a dash
+            r"\.?"  # may have a trailing dot
+        )
+        # host_re = "(" + hostname_re + domain_re + tld_re + "|localhost)"
+        # todo?: allow hostname to be just a hostname (no tld)?
+        host_re = "(" + hostname_re + domain_re + f"({tld_re})?" + "|localhost)"
+
+        regex = re.compile(
+            r"^(?:[a-z0-9.+-]*)://"  # scheme is validated separately
+            r"(?:[^\s:@/]+(?::[^\s:@/]*)?@)?"  # user:pass authentication
+            r"(?:" + ipv4_re + "|" + ipv6_re + "|" + host_re + ")"
+            r"(?::[0-9]{1,5})?"  # port
+            r"(?:[/?#][^\s]*)?"  # resource path
+            r"\Z",
+            re.IGNORECASE,
+        )
+        schemes = {"http", "https"}
+        unsafe_chars = frozenset("\t\r\n")
+
+        scheme = url.split("://")[0].lower()
+        split_url = urlsplit(url)
+        parsed_url = urlparse(url)
+
+        if parsed_url.netloc == "":
+            raise ValueError(f"Invalid URL: {url}")
+        elif unsafe_chars.intersection(url):
+            raise ValueError("URL cannot contain unsafe characters")
+        elif scheme not in schemes:
+            raise ValueError("URL must start with `http(s)://`")
+        elif not regex.search(url):
+            raise ValueError(f"{url} is not a valid server address")
+        elif split_url.hostname is None or len(split_url.hostname) > 253:
+            raise ValueError("hostname is invalid")
 
 
 def _path_convert(*args: str) -> str:
@@ -49,300 +188,616 @@ def _path_convert(*args: str) -> str:
 
 
 class Settings(BaseModel, validate_assignment=True):
-    """Settings for the W&B SDK."""
+    """Settings for the W&B SDK.
 
-    # Pydantic configuration.
+    This class manages configuration settings for the W&B SDK,
+    ensuring type safety and validation of all settings. Settings are accessible
+    as attributes and can be initialized programmatically, through environment
+    variables (WANDB_ prefix), and via configuration files.
+
+    The settings are organized into three categories:
+    1. Public settings: Core configuration options that users can safely modify to customize
+       W&B's behavior for their specific needs.
+    2. Internal settings: Settings prefixed with 'x_' that handle low-level SDK behavior.
+       These settings are primarily for internal use and debugging. While they can be modified,
+       they are not considered part of the public API and may change without notice in future
+       versions.
+    3. Computed settings: Read-only settings that are automatically derived from other settings or
+       the environment.
+    """
+
+    # Pydantic Model configuration.
     model_config = ConfigDict(
         extra="forbid",  # throw an error if extra fields are provided
-        # validate_default=True,  # validate default values
+        validate_default=True,  # validate default values
+        use_attribute_docstrings=True,  # for field descriptions
+        revalidate_instances="always",
     )
 
     # Public settings.
 
-    # Flag to allow table artifacts to be synced in offline mode.
-    #
-    # To revert to the old behavior, set this to False.
     allow_offline_artifacts: bool = True
+    """Flag to allow table artifacts to be synced in offline mode.
+
+    To revert to the old behavior, set this to False.
+    """
+
     allow_val_change: bool = False
-    # Controls anonymous data logging. Possible values are:
-    # - "never": requires you to link your W&B account before
-    #    tracking the run, so you don't accidentally create an anonymous
-    #    run.
-    # - "allow": lets a logged-in user track runs with their account, but
-    #    lets someone who is running the script without a W&B account see
-    #    the charts in the UI.
-    # - "must": sends the run to an anonymous account instead of to a
-    #    signed-up user account.
-    anonymous: Literal["allow", "must", "never"] | None = None
-    # The W&B API key.
-    api_key: str | None = None
-    azure_account_url_to_access_key: dict[str, str] | None = None
-    # The URL of the W&B backend, used for GraphQL and filestream operations.
+    """Flag to allow modification of `Config` values after they've been set."""
+
+    anonymous: Optional[Literal["allow", "must", "never"]] = None
+    """Controls anonymous data logging.
+
+    Possible values are:
+    - "never": requires you to link your W&B account before
+       tracking the run, so you don't accidentally create an anonymous
+       run.
+    - "allow": lets a logged-in user track runs with their account, but
+       lets someone who is running the script without a W&B account see
+       the charts in the UI.
+    - "must": sends the run to an anonymous account instead of to a
+       signed-up user account.
+    """
+
+    api_key: Optional[str] = None
+    """The W&B API key."""
+
+    azure_account_url_to_access_key: Optional[Dict[str, str]] = None
+    """Mapping of Azure account URLs to their corresponding access keys for Azure integration."""
+
     base_url: str = "https://api.wandb.ai"
-    code_dir: str | None = None
-    config_paths: Sequence[str] | None = None
-    # The type of console capture to be applied. Possible values are:
-    #  "auto" - Automatically selects the console capture method based on the
-    #   system environment and settings.
-    #
-    #   "off" - Disables console capture.
-    #
-    #   "redirect" - Redirects low-level file descriptors for capturing output.
-    #
-    #   "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
-    #   mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
-    #
-    #   "wrap_raw" - Same as "wrap" but captures raw output directly instead of
-    #   through an emulator.
-    #
-    #   "wrap_emu" - Same as "wrap" but captures output through an emulator.
+    """The URL of the W&B backend for data synchronization."""
+
+    code_dir: Optional[str] = None
+    """Directory containing the code to be tracked by W&B."""
+
+    config_paths: Optional[Sequence[str]] = None
+    """Paths to files to load configuration from into the `Config` object."""
+
     console: Literal["auto", "off", "wrap", "redirect", "wrap_raw", "wrap_emu"] = Field(
         default="auto",
         validate_default=True,
     )
-    # Whether to produce multipart console log files.
+    """The type of console capture to be applied.
+
+    Possible values are:
+     "auto" - Automatically selects the console capture method based on the
+      system environment and settings.
+
+      "off" - Disables console capture.
+
+      "redirect" - Redirects low-level file descriptors for capturing output.
+
+      "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
+      mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
+
+      "wrap_raw" - Same as "wrap" but captures raw output directly instead of
+      through an emulator. Derived from the `wrap` setting and should not be set manually.
+
+      "wrap_emu" - Same as "wrap" but captures output through an emulator.
+      Derived from the `wrap` setting and should not be set manually.
+      """
+
     console_multipart: bool = False
-    # Path to file for writing temporary access tokens.
+    """Whether to produce multipart console log files."""
+
     credentials_file: str = Field(
         default_factory=lambda: str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE)
     )
-    # Whether to disable code saving.
+    """Path to file for writing temporary access tokens."""
+
     disable_code: bool = False
-    # Whether to disable capturing the git state.
+    """Whether to disable capturing the code."""
+
     disable_git: bool = False
-    # Whether to disable the creation of a job artifact for W&B Launch.
+    """Whether to disable capturing the git state."""
+
     disable_job_creation: bool = True
-    # The Docker image used to execute the script.
-    docker: str | None = None
-    # The email address of the user.
-    email: str | None = None
-    # The W&B entity, like a user or a team.
-    entity: str | None = None
+    """Whether to disable the creation of a job artifact for W&B Launch."""
+
+    docker: Optional[str] = None
+    """The Docker image used to execute the script."""
+
+    email: Optional[str] = None
+    """The email address of the user."""
+
+    entity: Optional[str] = None
+    """The W&B entity, such as a user or a team."""
+
+    organization: Optional[str] = None
+    """The W&B organization."""
+
     force: bool = False
-    fork_from: RunMoment | None = None
-    git_commit: str | None = None
+    """Whether to pass the `force` flag to `wandb.login()`."""
+
+    fork_from: Optional[RunMoment] = None
+    """Specifies a point in a previous execution of a run to fork from.
+
+    The point is defined by the run ID, a metric, and its value.
+    Currently, only the metric '_step' is supported.
+    """
+
+    git_commit: Optional[str] = None
+    """The git commit hash to associate with the run."""
+
     git_remote: str = "origin"
-    git_remote_url: str | None = None
-    git_root: str | None = None
+    """The git remote to associate with the run."""
+
+    git_remote_url: Optional[str] = None
+    """The URL of the git remote repository."""
+
+    git_root: Optional[str] = None
+    """Root directory of the git repository."""
+
     heartbeat_seconds: int = 30
-    host: str | None = None
-    # The custom proxy servers for http requests to W&B.
-    http_proxy: str | None = None
-    # The custom proxy servers for https requests to W&B.
-    https_proxy: str | None = None
+    """Interval in seconds between heartbeat signals sent to the W&B servers."""
+
+    host: Optional[str] = None
+    """Hostname of the machine running the script."""
+
+    http_proxy: Optional[str] = None
+    """Custom proxy servers for http requests to W&B."""
+
+    https_proxy: Optional[str] = None
+    """Custom proxy servers for https requests to W&B."""
+
     # Path to file containing an identity token (JWT) for authentication.
-    identity_token_file: str | None = None
-    # Unix glob patterns relative to `files_dir` to not upload.
-    ignore_globs: tuple[str, ...] = ()
-    # Time in seconds to wait for the wandb.init call to complete before timing out.
+    identity_token_file: Optional[str] = None
+    """Path to file containing an identity token (JWT) for authentication."""
+
+    ignore_globs: Sequence[str] = ()
+    """Unix glob patterns relative to `files_dir` specifying files to exclude from upload."""
+
     init_timeout: float = 90.0
-    # Whether to insecurely disable SSL verification.
+    """Time in seconds to wait for the `wandb.init` call to complete before timing out."""
+
     insecure_disable_ssl: bool = False
-    job_name: str | None = None
-    job_source: Literal["repo", "artifact", "image"] | None = None
+    """Whether to insecurely disable SSL verification."""
+
+    job_name: Optional[str] = None
+    """Name of the Launch job running the script."""
+
+    job_source: Optional[Literal["repo", "artifact", "image"]] = None
+    """Source type for Launch."""
+
     label_disable: bool = False
+    """Whether to disable automatic labeling features."""
+
     launch: bool = False
-    launch_config_path: str | None = None
-    login_timeout: float | None = None
+    """Flag to indicate if the run is being launched through W&B Launch."""
+
+    launch_config_path: Optional[str] = None
+    """Path to the launch configuration file."""
+
+    login_timeout: Optional[float] = None
+    """Time in seconds to wait for login operations before timing out."""
+
     mode: Literal["online", "offline", "dryrun", "disabled", "run", "shared"] = Field(
         default="online",
         validate_default=True,
     )
-    notebook_name: str | None = None
-    # Path to the script that created the run, if available.
-    program: str | None = None
-    # The absolute path from the root repository directory to the script that
-    # created the run.
-    #
-    # Root repository directory is defined as the directory containing the
-    # .git directory, if it exists. Otherwise, it's the current working directory.
-    program_abspath: str | None = None
-    program_relpath: str | None = None
-    # The W&B project ID.
-    project: str | None = None
+    """The operating mode for W&B logging and synchronization."""
+
+    notebook_name: Optional[str] = None
+    """Name of the notebook if running in a Jupyter-like environment."""
+
+    program: Optional[str] = None
+    """Path to the script that created the run, if available."""
+
+    program_abspath: Optional[str] = None
+    """The absolute path from the root repository directory to the script that
+    created the run.
+
+    Root repository directory is defined as the directory containing the
+    .git directory, if it exists. Otherwise, it's the current working directory.
+    """
+
+    program_relpath: Optional[str] = None
+    """The relative path to the script that created the run."""
+
+    project: Optional[str] = None
+    """The W&B project ID."""
+
     quiet: bool = False
-    reinit: bool = False
+    """Flag to suppress non-essential output."""
+
+    reinit: Union[
+        Literal[
+            "default",
+            "return_previous",
+            "finish_previous",
+        ],
+        bool,
+    ] = "default"
+    """What to do when `wandb.init()` is called while a run is active.
+
+    Options:
+    - "default": Use "finish_previous" in notebooks and "return_previous"
+        otherwise.
+    - "return_previous": Return the active run.
+    - "finish_previous": Finish the active run, then return a new one.
+
+    Can also be a boolean, but this is deprecated. False is the same as
+    "return_previous", and True is the same as "finish_previous".
+    """
+
     relogin: bool = False
-    # Specifies the resume behavior for the run. The available options are:
-    #
-    #   "must": Resumes from an existing run with the same ID. If no such run exists,
-    #   it will result in failure.
-    #
-    #   "allow": Attempts to resume from an existing run with the same ID. If none is
-    #   found, a new run will be created.
-    #
-    #   "never": Always starts a new run. If a run with the same ID already exists,
-    #   it will result in failure.
-    #
-    #   "auto": Automatically resumes from the most recent failed run on the same
-    #   machine.
-    resume: Literal["allow", "must", "never", "auto"] | None = None
-    resume_from: RunMoment | None = None
-    # Indication from the server about the state of the run.
-    #
-    # This is different from resume, a user provided flag.
+    """Flag to force a new login attempt."""
+
+    resume: Optional[Literal["allow", "must", "never", "auto"]] = None
+    """Specifies the resume behavior for the run.
+
+    The available options are:
+
+      "must": Resumes from an existing run with the same ID. If no such run exists,
+      it will result in failure.
+
+      "allow": Attempts to resume from an existing run with the same ID. If none is
+      found, a new run will be created.
+
+      "never": Always starts a new run. If a run with the same ID already exists,
+      it will result in failure.
+
+      "auto": Automatically resumes from the most recent failed run on the same
+      machine.
+    """
+
+    resume_from: Optional[RunMoment] = None
+    """Specifies a point in a previous execution of a run to resume from.
+
+    The point is defined by the run ID, a metric, and its value.
+    Currently, only the metric '_step' is supported.
+    """
+
     resumed: bool = False
-    # The root directory that will be used to derive other paths,
-    # such as the wandb directory, and the run directory.
+    """Indication from the server about the state of the run.
+
+    This is different from resume, a user provided flag.
+    """
+
     root_dir: str = Field(default_factory=lambda: os.path.abspath(os.getcwd()))
-    run_group: str | None = None
-    # The ID of the run.
-    run_id: str | None = None
-    run_job_type: str | None = None
-    run_name: str | None = None
-    run_notes: str | None = None
-    run_tags: tuple[str, ...] | None = None
+    """The root directory to use as the base for all run-related paths.
+
+    In particular, this is used to derive the wandb directory and the run directory.
+    """
+
+    run_group: Optional[str] = None
+    """Group identifier for related runs.
+
+    Used for grouping runs in the UI.
+    """
+
+    run_id: Optional[str] = None
+    """The ID of the run."""
+
+    run_job_type: Optional[str] = None
+    """Type of job being run (e.g., training, evaluation)."""
+
+    run_name: Optional[str] = None
+    """Human-readable name for the run."""
+
+    run_notes: Optional[str] = None
+    """Additional notes or description for the run."""
+
+    run_tags: Optional[Tuple[str, ...]] = None
+    """Tags to associate with the run for organization and filtering."""
+
     sagemaker_disable: bool = False
-    save_code: bool | None = None
+    """Flag to disable SageMaker-specific functionality."""
+
+    save_code: Optional[bool] = None
+    """Whether to save the code associated with the run."""
+
     settings_system: str = Field(
         default_factory=lambda: _path_convert(
             os.path.join("~", ".config", "wandb", "settings")
         )
     )
-    show_colors: bool | None = None
-    show_emoji: bool | None = None
+    """Path to the system-wide settings file."""
+
+    show_colors: Optional[bool] = None
+    """Whether to use colored output in the console."""
+
+    show_emoji: Optional[bool] = None
+    """Whether to show emoji in the console output."""
+
     show_errors: bool = True
+    """Whether to display error messages."""
+
     show_info: bool = True
+    """Whether to display informational messages."""
+
     show_warnings: bool = True
+    """Whether to display warning messages."""
+
     silent: bool = False
-    start_method: str | None = None
-    strict: bool | None = None
+    """Flag to suppress all output."""
+
+    start_method: Optional[str] = None
+    """Method to use for starting subprocesses."""
+
+    strict: Optional[bool] = None
+    """Whether to enable strict mode for validation and error checking."""
+
     summary_timeout: int = 60
+    """Time in seconds to wait for summary operations before timing out."""
+
     summary_warnings: int = 5  # TODO: kill this with fire
-    sweep_id: str | None = None
-    sweep_param_path: str | None = None
+    """Maximum number of summary warnings to display."""
+
+    sweep_id: Optional[str] = None
+    """Identifier of the sweep this run belongs to."""
+
+    sweep_param_path: Optional[str] = None
+    """Path to the sweep parameters configuration."""
+
     symlink: bool = Field(
         default_factory=lambda: False if platform.system() == "Windows" else True
     )
-    sync_tensorboard: bool | None = None
+    """Whether to use symlinks (True by default except on Windows)."""
+
+    sync_tensorboard: Optional[bool] = None
+    """Whether to synchronize TensorBoard logs with W&B."""
+
     table_raise_on_max_row_limit_exceeded: bool = False
-    username: str | None = None
+    """Whether to raise an exception when table row limits are exceeded."""
+
+    username: Optional[str] = None
+    """Username."""
 
     # Internal settings.
     #
     # These are typically not meant to be set by the user and should not be considered
     # a part of the public API as they may change or be removed in future versions.
 
-    # CLI mode.
     x_cli_only_mode: bool = False
-    # Disable the collection of system metadata.
+    """Flag to indicate that the SDK is running in CLI-only mode."""
+
     x_disable_meta: bool = False
-    # Pre-wandb-core, this setting was used to disable the (now legacy) wandb service.
-    #
-    # TODO: this is deprecated and will be removed in future versions.
+    """Flag to disable the collection of system metadata."""
+
     x_disable_service: bool = False
-    # Do not use setproctitle for internal process in legacy service.
+    """Flag to disable the W&B service.
+
+    This is deprecated and will be removed in future versions."""
+
     x_disable_setproctitle: bool = False
-    # Disable system metrics collection.
+    """Flag to disable using setproctitle for the internal process in the legacy service.
+
+    This is deprecated and will be removed in future versions.
+    """
+
     x_disable_stats: bool = False
-    # Disable check for latest version of wandb, from PyPI.
-    x_disable_update_check: bool = False
-    # Prevent early viewer query.
+    """Flag to disable the collection of system metrics."""
+
     x_disable_viewer: bool = False
-    # Disable automatic machine info collection.
+    """Flag to disable the early viewer query."""
+
     x_disable_machine_info: bool = False
-    # Python executable
-    x_executable: str | None = None
-    # Additional headers to add to all outgoing HTTP requests.
-    x_extra_http_headers: dict[str, str] | None = None
-    # An approximate maximum request size for the filestream API.
-    #
-    # This applies when wandb-core is enabled. Its purpose is to prevent
-    # HTTP requests from failing due to containing too much data.
-    #
-    # This number is approximate: requests will be slightly larger.
-    x_file_stream_max_bytes: int | None = None
-    # Max line length for filestream jsonl files.
-    x_file_stream_max_line_bytes: int | None = None
-    # Interval in seconds between filestream transmissions.
-    x_file_stream_transmit_interval: float | None = None
+    """Flag to disable automatic machine info collection."""
+
+    x_executable: Optional[str] = None
+    """Path to the Python executable."""
+
+    x_extra_http_headers: Optional[Dict[str, str]] = None
+    """Additional headers to add to all outgoing HTTP requests."""
+
+    x_file_stream_max_bytes: Optional[int] = None
+    """An approximate maximum request size for the filestream API.
+
+    Its purpose is to prevent HTTP requests from failing due to
+    containing too much data. This number is approximate:
+    requests will be slightly larger.
+    """
+
+    x_file_stream_max_line_bytes: Optional[int] = None
+    """Maximum line length for filestream JSONL files."""
+
+    x_file_stream_transmit_interval: Optional[float] = None
+    """Interval in seconds between filestream transmissions."""
+
     # Filestream retry client configuration.
-    # max number of retries
-    x_file_stream_retry_max: int | None = None
-    # min wait time between retries
-    x_file_stream_retry_wait_min_seconds: float | None = None
-    # max wait time between retries
-    x_file_stream_retry_wait_max_seconds: float | None = None
-    # timeout for individual HTTP requests
-    x_file_stream_timeout_seconds: float | None = None
+
+    x_file_stream_retry_max: Optional[int] = None
+    """Max number of retries for filestream operations."""
+
+    x_file_stream_retry_wait_min_seconds: Optional[float] = None
+    """Minimum wait time between retries for filestream operations."""
+
+    x_file_stream_retry_wait_max_seconds: Optional[float] = None
+    """Maximum wait time between retries for filestream operations."""
+
+    x_file_stream_timeout_seconds: Optional[float] = None
+    """Timeout in seconds for individual filestream HTTP requests."""
+
     # file transfer retry client configuration
-    x_file_transfer_retry_max: int | None = None
-    x_file_transfer_retry_wait_min_seconds: float | None = None
-    x_file_transfer_retry_wait_max_seconds: float | None = None
-    x_file_transfer_timeout_seconds: float | None = None
-    # override setting for the computed files_dir
-    x_files_dir: str | None = None
-    # flow control configuration for file stream
-    x_flow_control_custom: bool | None = None
-    x_flow_control_disabled: bool | None = None
+
+    x_file_transfer_retry_max: Optional[int] = None
+    """Max number of retries for file transfer operations."""
+
+    x_file_transfer_retry_wait_min_seconds: Optional[float] = None
+    """Minimum wait time between retries for file transfer operations."""
+
+    x_file_transfer_retry_wait_max_seconds: Optional[float] = None
+    """Maximum wait time between retries for file transfer operations."""
+
+    x_file_transfer_timeout_seconds: Optional[float] = None
+    """Timeout in seconds for individual file transfer HTTP requests."""
+
+    x_files_dir: Optional[str] = None
+    """Override setting for the computed files_dir.."""
+
+    x_flow_control_custom: Optional[bool] = None
+    """Flag indicating custom flow control for filestream.
+
+    TODO: Not implemented in wandb-core.
+    """
+
+    x_flow_control_disabled: Optional[bool] = None
+    """Flag indicating flow control is disabled for filestream.
+
+    TODO: Not implemented in wandb-core.
+    """
+
     # graphql retry client configuration
-    x_graphql_retry_max: int | None = None
-    x_graphql_retry_wait_min_seconds: float | None = None
-    x_graphql_retry_wait_max_seconds: float | None = None
-    x_graphql_timeout_seconds: float | None = None
+
+    x_graphql_retry_max: Optional[int] = None
+    """Max number of retries for GraphQL operations."""
+
+    x_graphql_retry_wait_min_seconds: Optional[float] = None
+    """Minimum wait time between retries for GraphQL operations."""
+
+    x_graphql_retry_wait_max_seconds: Optional[float] = None
+    """Maximum wait time between retries for GraphQL operations."""
+
+    x_graphql_timeout_seconds: Optional[float] = None
+    """Timeout in seconds for individual GraphQL requests."""
+
     x_internal_check_process: float = 8.0
-    x_jupyter_name: str | None = None
-    x_jupyter_path: str | None = None
-    x_jupyter_root: str | None = None
-    # Label to assign to system metrics and console logs collected for the run
-    # to group by on the frontend. Can be used to distinguish data from different
-    # nodes in a distributed training job.
-    x_label: str | None = None
-    x_live_policy_rate_limit: int | None = None
-    x_live_policy_wait_time: int | None = None
+    """Interval for internal process health checks in seconds."""
+
+    x_jupyter_name: Optional[str] = None
+    """Name of the Jupyter notebook."""
+
+    x_jupyter_path: Optional[str] = None
+    """Path to the Jupyter notebook."""
+
+    x_jupyter_root: Optional[str] = None
+    """Root directory of the Jupyter notebook."""
+
+    x_label: Optional[str] = None
+    """Label to assign to system metrics and console logs collected for the run.
+
+    This is used to group data by on the frontend and can be used to distinguish data
+    from different processes in a distributed training job.
+    """
+
+    x_live_policy_rate_limit: Optional[int] = None
+    """Rate limit for live policy updates in seconds."""
+
+    x_live_policy_wait_time: Optional[int] = None
+    """Wait time between live policy updates in seconds."""
+
     x_log_level: int = logging.INFO
-    x_network_buffer: int | None = None
-    # Determines whether to save internal wandb files and metadata.
-    # In a distributed setting, this is useful for avoiding file overwrites on secondary nodes
-    # when only system metrics and logs are needed, as the primary node handles the main logging.
-    x_primary_node: bool = True
-    # [deprecated, use http(s)_proxy] custom proxy servers for the requests to W&B
-    # [scheme -> url].
-    x_proxies: dict[str, str] | None = None
-    x_runqueue_item_id: str | None = None
-    x_require_legacy_service: bool = False
-    x_save_requirements: bool = True
-    x_service_transport: str | None = None
-    x_service_wait: float = 30.0
-    x_show_operation_stats: bool = True
-    # The start time of the run in seconds since the Unix epoch.
-    x_start_time: float | None = None
-    # PID of the process that started the wandb-core process to collect system stats for.
-    x_stats_pid: int = os.getpid()
-    # Sampling interval for the system monitor in seconds.
-    x_stats_sampling_interval: float = Field(default=10.0)
-    # Path to store the default config file for the neuron-monitor tool
-    # used to monitor AWS Trainium devices.
-    x_stats_neuron_monitor_config_path: str | None = None
-    # Open metrics endpoint names and urls.
-    x_stats_open_metrics_endpoints: dict[str, str] | None = None
-    # Filter to apply to metrics collected from OpenMetrics endpoints.
-    # Supports two formats:
-    # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
-    # - ("metric regex pattern 1", "metric regex pattern 2", ...)
-    x_stats_open_metrics_filters: dict[str, dict[str, str]] | Sequence[str] | None = (
-        None
+    """Logging level for internal operations."""
+
+    x_network_buffer: Optional[int] = None
+    """Size of the network buffer used in flow control.
+
+    TODO: Not implemented in wandb-core.
+    """
+
+    x_primary: bool = Field(
+        default=True, validation_alias=AliasChoices("x_primary", "x_primary_node")
     )
-    # HTTP headers to add to OpenMetrics requests.
-    x_stats_open_metrics_http_headers: dict[str, str] | None = None
-    # System paths to monitor for disk usage.
-    x_stats_disk_paths: Sequence[str] | None = Field(
+    """Determines whether to save internal wandb files and metadata.
+
+    In a distributed setting, this is useful for avoiding file overwrites
+    from secondary processes when only system metrics and logs are needed,
+    as the primary process handles the main logging.
+    """
+
+    x_proxies: Optional[Dict[str, str]] = None
+    """Custom proxy servers for requests to W&B.
+
+    This is deprecated and will be removed in future versions.
+    Please use `http_proxy` and `https_proxy` instead.
+    """
+
+    x_runqueue_item_id: Optional[str] = None
+    """ID of the Launch run queue item being processed."""
+
+    x_require_legacy_service: bool = False
+    """Force the use of legacy wandb service."""
+
+    x_save_requirements: bool = True
+    """Flag to save the requirements file."""
+
+    x_server_side_derived_summary: bool = False
+    """Flag to delegate automatic computation of summary from history to the server.
+
+    This does not disable user-provided summary updates.
+    """
+
+    x_service_transport: Optional[str] = None
+    """Transport method for communication with the wandb service."""
+
+    x_service_wait: float = 30.0
+    """Time in seconds to wait for the wandb-core internal service to start."""
+
+    x_start_time: Optional[float] = None
+    """The start time of the run in seconds since the Unix epoch."""
+
+    x_stats_pid: int = os.getpid()
+    """PID of the process that started the wandb-core process to collect system stats for."""
+
+    x_stats_sampling_interval: float = Field(default=15.0)
+    """Sampling interval for the system monitor in seconds."""
+
+    x_stats_neuron_monitor_config_path: Optional[str] = None
+    """Path to the default config file for the neuron-monitor tool.
+
+    This is used to monitor AWS Trainium devices.
+    """
+
+    x_stats_dcgm_exporter: Optional[str] = None
+    """Endpoint to extract Nvidia DCGM metrics from.
+
+    Two options are supported:
+    - Extract DCGM-related metrics from a query to the Prometheus `/api/v1/query` endpoint.
+      It is a common practice to aggregate metrics reported by the instances of the DCGM Exporter
+      running on different nodes in a cluster using Prometheus.
+    - TODO: Parse metrics directly from the `/metrics` endpoint of the DCGM Exporter.
+
+    Examples:
+    - `http://localhost:9400/api/v1/query?query=DCGM_FI_DEV_GPU_TEMP{node="l1337", cluster="globular"}`.
+    - TODO: `http://192.168.0.1:9400/metrics`.
+    """
+
+    x_stats_open_metrics_endpoints: Optional[Dict[str, str]] = None
+    """OpenMetrics `/metrics` endpoints to monitor for system metrics."""
+
+    x_stats_open_metrics_filters: Union[
+        Dict[str, Dict[str, str]], Sequence[str], None
+    ] = None
+    """Filter to apply to metrics collected from OpenMetrics `/metrics` endpoints.
+
+    Supports two formats:
+    - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
+    - ("metric regex pattern 1", "metric regex pattern 2", ...)
+    """
+
+    x_stats_open_metrics_http_headers: Optional[Dict[str, str]] = None
+    """HTTP headers to add to OpenMetrics requests."""
+
+    x_stats_disk_paths: Optional[Sequence[str]] = Field(
         default_factory=lambda: ("/", "/System/Volumes/Data")
         if platform.system() == "Darwin"
         else ("/",)
     )
-    # GPU device indices to monitor (e.g. [0, 1, 2]).
-    # If not set, captures metrics for all GPUs.
-    # Assumes 0-based indexing matching CUDA/ROCm device enumeration.
-    x_stats_gpu_device_ids: Sequence[int] | None = None
-    # Number of system metric samples to buffer in memory in the wandb-core process.
-    # Can be accessed via run._system_metrics.
+    """System paths to monitor for disk usage."""
+
+    x_stats_gpu_device_ids: Optional[Sequence[int]] = None
+    """GPU device indices to monitor.
+
+    If not set, captures metrics for all GPUs.
+    Assumes 0-based indexing matching CUDA/ROCm device enumeration.
+    """
+
     x_stats_buffer_size: int = 0
-    # Flag to indicate whether we are syncing a run from the transaction log.
+    """Number of system metric samples to buffer in memory in the wandb-core process.
+
+    Can be accessed via run._system_metrics.
+    """
+
     x_sync: bool = False
-    # Controls whether this process can update the run's final state (finished/failed) on the server.
-    # Set to False in distributed training when only the main process should determine the final state.
+    """Flag to indicate whether we are syncing a run from the transaction log."""
+
     x_update_finish_state: bool = True
+    """Flag to indicate whether this process can update the run's final state on the server.
+
+    Set to False in distributed training when only the main process should determine the final state.
+    """
 
     # Model validator to catch legacy settings.
     @model_validator(mode="before")
@@ -362,24 +817,39 @@ class Settings(BaseModel, validate_assignment=True):
                 new_values[key] = values[key]
         return new_values
 
-    @model_validator(mode="after")
-    def validate_mutual_exclusion_of_branching_args(self) -> Self:
-        if (
-            sum(
-                o is not None
-                for o in [
-                    self.fork_from,
-                    self.resume,
-                    self.resume_from,
-                ]
-            )
-            > 1
-        ):
-            raise ValueError(
-                "`fork_from`, `resume`, or `resume_from` are mutually exclusive. "
-                "Please specify only one of them."
-            )
-        return self
+    if is_pydantic_v2:
+
+        @model_validator(mode="after")
+        def validate_mutual_exclusion_of_branching_args(self) -> Self:
+            if (
+                sum(
+                    o is not None
+                    for o in [self.fork_from, self.resume, self.resume_from]
+                )
+                > 1
+            ):
+                raise ValueError(
+                    "`fork_from`, `resume`, or `resume_from` are mutually exclusive. "
+                    "Please specify only one of them."
+                )
+            return self
+    else:
+
+        @root_validator(pre=False)  # type: ignore [call-overload]
+        @classmethod
+        def validate_mutual_exclusion_of_branching_args(cls, values):
+            if (
+                sum(
+                    values.get(o) is not None
+                    for o in ["fork_from", "resume", "resume_from"]
+                )
+                > 1
+            ):
+                raise ValueError(
+                    "`fork_from`, `resume`, or `resume_from` are mutually exclusive. "
+                    "Please specify only one of them."
+                )
+            return values
 
     # Field validators.
 
@@ -404,7 +874,7 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("base_url", mode="after")
     @classmethod
     def validate_base_url(cls, value):
-        cls.validate_url(value)
+        validate_url(value)
         # wandb.ai-specific checks
         if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
             # user might guess app.wandb.ai or wandb.ai is the default cloud server
@@ -425,13 +895,21 @@ class Settings(BaseModel, validate_assignment=True):
 
     @field_validator("console", mode="after")
     @classmethod
-    def validate_console(cls, value, info):
+    def validate_console(cls, value, values):
         if value != "auto":
             return value
+
+        if hasattr(values, "data"):
+            # pydantic v2
+            values = values.data
+        else:
+            # pydantic v1
+            values = values
+
         if (
             ipython.in_jupyter()
-            or (info.data.get("start_method") == "thread")
-            or not info.data.get("disable_service")
+            or (values.get("start_method") == "thread")
+            or not values.get("x_disable_service")
             or platform.system() == "Windows"
         ):
             value = "wrap"
@@ -464,9 +942,21 @@ class Settings(BaseModel, validate_assignment=True):
 
     @field_validator("fork_from", mode="before")
     @classmethod
-    def validate_fork_from(cls, value, info) -> RunMoment | None:
+    def validate_fork_from(cls, value, values) -> Optional[RunMoment]:
         run_moment = cls._runmoment_preprocessor(value)
-        if run_moment and info.data.get("run_id") == run_moment.run:
+
+        if hasattr(values, "data"):
+            # pydantic v2
+            values = values.data
+        else:
+            # pydantic v1
+            values = values
+
+        if (
+            run_moment
+            and values.get("run_id") is not None
+            and values.get("run_id") == run_moment.run
+        ):
             raise ValueError(
                 "Provided `run_id` is the same as the run to `fork_from`. "
                 "Please provide a different `run_id` or remove the `run_id` argument. "
@@ -479,7 +969,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_http_proxy(cls, value):
         if value is None:
             return None
-        cls.validate_url(value)
+        validate_url(value)
         return value.rstrip("/")
 
     @field_validator("https_proxy", mode="after")
@@ -487,7 +977,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_https_proxy(cls, value):
         if value is None:
             return None
-        cls.validate_url(value)
+        validate_url(value)
         return value.rstrip("/")
 
     @field_validator("ignore_globs", mode="after")
@@ -521,7 +1011,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @field_validator("project", mode="after")
     @classmethod
-    def validate_project(cls, value, info):
+    def validate_project(cls, value, values):
         if value is None:
             return None
         invalid_chars_list = list("/\\#?%:")
@@ -547,9 +1037,21 @@ class Settings(BaseModel, validate_assignment=True):
 
     @field_validator("resume_from", mode="before")
     @classmethod
-    def validate_resume_from(cls, value, info) -> RunMoment | None:
+    def validate_resume_from(cls, value, values) -> Optional[RunMoment]:
         run_moment = cls._runmoment_preprocessor(value)
-        if run_moment and info.data.get("run_id") != run_moment.run:
+
+        if hasattr(values, "data"):
+            # pydantic v2
+            values = values.data
+        else:
+            # pydantic v1
+            values = values
+
+        if (
+            run_moment
+            and values.get("run_id") is not None
+            and values.get("run_id") != run_moment.run
+        ):
             raise ValueError(
                 "Both `run_id` and `resume_from` have been specified with different ids."
             )
@@ -565,7 +1067,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @field_validator("run_id", mode="after")
     @classmethod
-    def validate_run_id(cls, value, info):
+    def validate_run_id(cls, value, values):
         if value is None:
             return None
 
@@ -673,7 +1175,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def _args(self) -> list[str]:
+    def _args(self) -> List[str]:
         if not self._jupyter:
             return sys.argv[1:]
         return []
@@ -695,7 +1197,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def _code_path_local(self) -> str | None:
+    def _code_path_local(self) -> Optional[str]:
         """The relative path from the current working directory to the code path.
 
         For example, if the code path is /home/user/project/example.py, and the
@@ -778,12 +1280,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def _tmp_code_dir(self) -> str:
-        return _path_convert(
-            self.wandb_dir,
-            f"{self.run_mode}-{self.timespec}-{self.run_id}",
-            "tmp",
-            "code",
-        )
+        return _path_convert(self.sync_dir, "tmp", "code")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -792,7 +1289,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def colab_url(self) -> str | None:
+    def colab_url(self) -> Optional[str]:
         """The URL to the Colab notebook, if running in Colab."""
         if not self._colab:
             return None
@@ -810,11 +1307,7 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def files_dir(self) -> str:
         """Absolute path to the local directory where the run's files are stored."""
-        return self.x_files_dir or _path_convert(
-            self.wandb_dir,
-            f"{self.run_mode}-{self.timespec}-{self.run_id}",
-            "files",
-        )
+        return self.x_files_dir or _path_convert(self.sync_dir, "files")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -825,9 +1318,7 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def log_dir(self) -> str:
         """The directory for storing log files."""
-        return _path_convert(
-            self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", "logs"
-        )
+        return _path_convert(self.sync_dir, "logs")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -908,7 +1399,8 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def sync_dir(self) -> str:
         return _path_convert(
-            self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}"
+            self.wandb_dir,
+            f"{self.run_mode}-{self.timespec}-{self.run_id}",
         )
 
     @computed_field  # type: ignore[prop-decorator]
@@ -930,29 +1422,13 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def wandb_dir(self) -> str:
-        """Full path to the wandb directory.
-
-        The setting exposed to users as `dir=` or `WANDB_DIR` is the `root_dir`.
-        We add the `__stage_dir__` to it to get the full `wandb_dir`
-        """
-        root_dir = self.root_dir or ""
-
-        # We use the hidden version if it already exists, otherwise non-hidden.
-        if os.path.exists(os.path.join(root_dir, ".wandb")):
-            __stage_dir__ = ".wandb" + os.sep
-        else:
-            __stage_dir__ = "wandb" + os.sep
-
-        path = os.path.join(root_dir, __stage_dir__)
-        if not os.access(root_dir or ".", os.W_OK):
-            termwarn(
-                f"Path {path} wasn't writable, using system temp directory.",
-                repeat=False,
-            )
-            path = os.path.join(
-                tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep)
-            )
-
+        """Full path to the wandb directory."""
+        stage_dir = (
+            ".wandb" + os.sep
+            if os.path.exists(os.path.join(self.root_dir, ".wandb"))
+            else "wandb" + os.sep
+        )
+        path = os.path.join(self.root_dir, stage_dir)
         return os.path.expanduser(path)
 
     # Methods to collect and update settings from different sources.
@@ -978,7 +1454,7 @@ class Settings(BaseModel, validate_assignment=True):
             if value is not None:
                 setattr(self, key, value)
 
-    def update_from_env_vars(self, environ: dict[str, Any]):
+    def update_from_env_vars(self, environ: Dict[str, Any]):
         """Update settings from environment variables."""
         env_prefix: str = "WANDB_"
         private_env_prefix: str = env_prefix + "_"
@@ -1026,7 +1502,8 @@ class Settings(BaseModel, validate_assignment=True):
         ):
             self.save_code = env.should_save_code()
 
-        self.disable_git = env.disable_git()
+        if os.getenv(env.DISABLE_GIT) is not None:
+            self.disable_git = env.disable_git()
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
@@ -1048,8 +1525,8 @@ class Settings(BaseModel, validate_assignment=True):
                 f"couldn't find {self.notebook_name}.",
             )
 
-        # host and username are populated by apply_env_vars if corresponding env
-        # vars exist -- but if they don't, we'll fill them in here
+        # host is populated by update_from_env_vars if the corresponding env
+        # vars exist -- but if they don't, we'll fill them in here.
         if self.host is None:
             self.host = socket.gethostname()  # type: ignore
 
@@ -1072,8 +1549,15 @@ class Settings(BaseModel, validate_assignment=True):
         program = self.program or self._get_program()
 
         if program is not None:
-            repo = GitRepo()
-            root = repo.root or os.getcwd()
+            try:
+                root = (
+                    GitRepo().root or os.getcwd()
+                    if not self.disable_git
+                    else os.getcwd()
+                )
+            except Exception:
+                # if the git command fails, fall back to the current working directory
+                root = os.getcwd()
 
             self.program_relpath = self.program_relpath or self._get_program_relpath(
                 program, root
@@ -1088,7 +1572,7 @@ class Settings(BaseModel, validate_assignment=True):
 
         self.program = program
 
-    def update_from_dict(self, settings: dict[str, Any]) -> None:
+    def update_from_dict(self, settings: Dict[str, Any]) -> None:
         """Update settings from a dictionary."""
         for key, value in dict(settings).items():
             if value is not None:
@@ -1106,7 +1590,11 @@ class Settings(BaseModel, validate_assignment=True):
         """Generate a protobuf representation of the settings."""
         settings_proto = wandb_settings_pb2.Settings()
         for k, v in self.model_dump(exclude_none=True).items():
-            # special case for x_stats_open_metrics_filters
+            # Client-only settings that don't exist on the protobuf.
+            if k in ("reinit",):
+                continue
+
+            # Special case for x_stats_open_metrics_filters.
             if k == "x_stats_open_metrics_filters":
                 if isinstance(v, (list, set, tuple)):
                     setting = getattr(settings_proto, k)
@@ -1118,6 +1606,26 @@ class Settings(BaseModel, validate_assignment=True):
                             setting.mapping.value[key].value[kk] = vv
                 else:
                     raise TypeError(f"Unsupported type {type(v)} for setting {k}")
+                continue
+
+            # Special case for RunMoment fields.
+            if k in ("fork_from", "resume_from"):
+                run_moment = (
+                    v
+                    if isinstance(v, RunMoment)
+                    else RunMoment(
+                        run=v.get("run"),
+                        value=v.get("value"),
+                        metric=v.get("metric"),
+                    )
+                )
+                getattr(settings_proto, k).CopyFrom(
+                    wandb_settings_pb2.RunMoment(
+                        run=run_moment.run,
+                        value=run_moment.value,
+                        metric=run_moment.metric,
+                    )
+                )
                 continue
 
             if isinstance(v, bool):
@@ -1137,14 +1645,6 @@ class Settings(BaseModel, validate_assignment=True):
                 for key, value in v.items():
                     # we only support dicts with string values for now
                     mapping.value[key] = value
-            elif isinstance(v, RunMoment):
-                getattr(settings_proto, k).CopyFrom(
-                    wandb_settings_pb2.RunMoment(
-                        run=v.run,
-                        value=v.value,
-                        metric=v.metric,
-                    )
-                )
             elif v is None:
                 # None means that the setting value was not set.
                 pass
@@ -1153,41 +1653,7 @@ class Settings(BaseModel, validate_assignment=True):
 
         return settings_proto
 
-    def handle_resume_logic(self):
-        """Handle logic for resuming runs."""
-        # handle auto resume logic
-        if self.resume == "auto":
-            if os.path.exists(self.resume_fname):
-                with open(self.resume_fname) as f:
-                    resume_run_id = json.load(f)["run_id"]
-                if self.run_id is None:
-                    self.run_id = resume_run_id
-                elif self.run_id != resume_run_id:
-                    wandb.termwarn(
-                        "Tried to auto resume run with "
-                        f"id {resume_run_id} but id {self.run_id} is set.",
-                    )
-        if self.run_id is None:
-            self.run_id = generate_id()
-
-        # persist run_id in case of failure
-        if self.resume == "auto" and self.resume_fname is not None:
-            filesystem.mkdir_exists_ok(self.wandb_dir)
-            with open(self.resume_fname, "w") as f:
-                f.write(json.dumps({"run_id": self.run_id}))
-
-    @staticmethod
-    def validate_url(url: str) -> None:
-        """Validate a URL string."""
-        url_validator = SchemaValidator(
-            core_schema.url_schema(
-                allowed_schemes=["http", "https"],
-                strict=True,
-            )
-        )
-        url_validator.validate_python(url)
-
-    def _get_program(self) -> str | None:
+    def _get_program(self) -> Optional[str]:
         """Get the program that started the current process."""
         if not self._jupyter:
             # If not in a notebook, try to get the program from the environment
@@ -1217,7 +1683,7 @@ class Settings(BaseModel, validate_assignment=True):
                 return self.x_jupyter_path
 
     @staticmethod
-    def _get_program_relpath(program: str, root: str | None = None) -> str | None:
+    def _get_program_relpath(program: str, root: Optional[str] = None) -> Optional[str]:
         """Get the relative path to the program from the root directory."""
         if not program:
             return None
@@ -1243,7 +1709,7 @@ class Settings(BaseModel, validate_assignment=True):
         parser = configparser.ConfigParser()
         parser.add_section(section)
         parser.read(file_name)
-        config: dict[str, Any] = dict()
+        config: Dict[str, Any] = dict()
         for k in parser[section]:
             config[k] = parser[section][k]
             if k == "ignore_globs":
@@ -1269,9 +1735,79 @@ class Settings(BaseModel, validate_assignment=True):
         return f"?{urlencode({'apiKey': api_key})}"
 
     @staticmethod
-    def _runmoment_preprocessor(val: RunMoment | str | None) -> RunMoment | None:
+    def _runmoment_preprocessor(
+        val: Union[RunMoment, str, None],
+    ) -> Optional[RunMoment]:
         """Preprocess the setting for forking or resuming a run."""
         if isinstance(val, RunMoment) or val is None:
             return val
         elif isinstance(val, str):
             return RunMoment.from_uri(val)
+
+    if not is_pydantic_v2:
+
+        def model_copy(self, *args, **kwargs):
+            return self.copy(*args, **kwargs)
+
+        def model_dump(self, **kwargs):
+            """Compatibility method for Pydantic v1 to mimic v2's model_dump.
+
+            In v1, this is equivalent to dict() but also includes computed properties.
+
+            Args:
+                **kwargs: Options passed to the dict method
+                    - exclude_none: Whether to exclude fields with None values
+
+            Returns:
+                A dictionary of the model's fields and computed properties
+            """
+            # Handle exclude_none separately since it's named differently in v1
+            exclude_none = kwargs.pop("exclude_none", False)
+
+            # Start with regular fields from dict()
+            result = self.dict(**kwargs)
+
+            # Get all computed properties
+            for name in dir(self.__class__):
+                attr = getattr(self.__class__, name, None)
+                if isinstance(attr, property):
+                    try:
+                        # Only include properties that don't raise errors
+                        value = getattr(self, name)
+                        result[name] = value
+                    except (AttributeError, NotImplementedError, TypeError, ValueError):
+                        # Skip properties that can't be accessed or raise errors
+                        pass
+                elif isinstance(attr, RunMoment):
+                    value = getattr(self, name)
+                    result[name] = value
+
+            # Special Pydantic attributes that should always be excluded
+            exclude_fields = {
+                "model_config",
+                "model_fields",
+                "model_fields_set",
+                "__fields__",
+                "__model_fields_set",
+                "__pydantic_self__",
+                "__pydantic_initialised__",
+            }
+
+            # Remove special Pydantic attributes
+            for field in exclude_fields:
+                if field in result:
+                    del result[field]
+
+            if exclude_none:
+                # Remove None values from the result
+                return {k: v for k, v in result.items() if v is not None}
+
+            return result
+
+        @property
+        def model_fields_set(self) -> set:
+            """Return a set of fields that have been explicitly set.
+
+            This is a compatibility property for Pydantic v1 to mimic v2's model_fields_set.
+            """
+            return getattr(self, "__fields_set__", set())

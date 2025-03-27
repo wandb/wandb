@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import logging
 import os
+import pathlib
 import platform
 import shutil
+import sys
 import time
 import unittest.mock
+from itertools import takewhile
 from pathlib import Path
 from queue import Queue
-from typing import Any, Callable, Generator, Iterable
+from typing import Any, Callable, Generator, Iterable, Iterator
 
 import pyte
 import pyte.modes
@@ -139,6 +143,25 @@ def copy_asset(
 # --------------------------------
 
 
+@pytest.fixture()
+def wandb_caplog(
+    caplog: pytest.LogCaptureFixture,
+) -> Iterator[pytest.LogCaptureFixture]:
+    """Modified caplog fixture that detect wandb log messages.
+
+    The wandb logger is configured to not propagate messages to the root logger,
+    so caplog does not work out of the box.
+    """
+
+    logger = logging.getLogger("wandb")
+
+    logger.addHandler(caplog.handler)
+    try:
+        yield caplog
+    finally:
+        logger.removeHandler(caplog.handler)
+
+
 @pytest.fixture(autouse=True)
 def reset_logger():
     """Resets the `wandb.errors.term` module before each test."""
@@ -223,6 +246,10 @@ class EmulatedTerminal:
         self._screen.set_mode(pyte.modes.LNM)  # \n implies \r
         self._stream = pyte.Stream(self._screen)
 
+    def reset_capsys(self) -> None:
+        """Resets pytest's captured stderr and stdout buffers."""
+        self._capsys.readouterr()
+
     def read_stderr(self) -> list[str]:
         """Returns the text in the emulated terminal.
 
@@ -238,20 +265,9 @@ class EmulatedTerminal:
 
         lines = [line.rstrip() for line in self._screen.display]
 
-        n_empty_at_start = 0
-        for i in range(len(lines)):
-            if not lines[i]:
-                n_empty_at_start += 1
-            else:
-                break
-
-        n_empty_at_end = 0
-        for i in range(len(lines)):
-            if not lines[-1 - i]:
-                n_empty_at_end += 1
-            else:
-                break
-
+        # Trim empty lines from the start and end of the screen.
+        n_empty_at_start = sum(1 for _ in takewhile(lambda line: not line, lines))
+        n_empty_at_end = sum(1 for _ in takewhile(lambda line: not line, lines[::-1]))
         return lines[n_empty_at_start:-n_empty_at_end]
 
 
@@ -261,6 +277,9 @@ def emulated_terminal(monkeypatch, capsys) -> EmulatedTerminal:
 
     This makes functions in the `wandb.errors.term` module act as if
     stderr is a terminal.
+
+    NOTE: This resets pytest's stderr and stdout buffers. You should not
+    use this with anything else that uses capsys.
     """
 
     monkeypatch.setenv("TERM", "xterm")
@@ -271,13 +290,33 @@ def emulated_terminal(monkeypatch, capsys) -> EmulatedTerminal:
     # This is fragile and could break when click is updated.
     monkeypatch.setattr("click._compat.isatty", lambda *args, **kwargs: True)
 
-    return EmulatedTerminal(capsys)
+    # Reset the captured stderr and stdout buffers, since in the test
+    # environment, memray may prepend lines to stderr that look like:
+    #   '⚠ Memray support for Greenlet is experimental ⚠',
+    #   'Please report any issues at https://github.com/bloomberg/memray/issues',
+    #   ...
+    terminal = EmulatedTerminal(capsys)
+    terminal.reset_capsys()
+    return terminal
 
 
 @pytest.fixture(scope="function", autouse=True)
-def filesystem_isolate(tmp_path):
-    kwargs = dict(temp_dir=tmp_path)
-    with CliRunner().isolated_filesystem(**kwargs):
+def filesystem_isolate(tmp_path, monkeypatch):
+    # isolated_filesystem() changes the current working directory, which is
+    # where coverage.py stores coverage by default. This causes Python
+    # subprocesses to place their coverage into a temporary directory that is
+    # discarded after each test.
+    #
+    # Setting COVERAGE_FILE to an absolute path fixes this.
+    if covfile := os.getenv("COVERAGE_FILE"):
+        new_covfile = str(pathlib.Path(covfile).absolute())
+    else:
+        new_covfile = str(pathlib.Path(os.getcwd()) / ".coverage")
+
+    print(f"Setting COVERAGE_FILE to {new_covfile}", file=sys.stderr)  # noqa: T201
+    monkeypatch.setenv("COVERAGE_FILE", new_covfile)
+
+    with CliRunner().isolated_filesystem(temp_dir=tmp_path):
         yield
 
 
@@ -434,6 +473,16 @@ def test_settings():
 
 @pytest.fixture(scope="function")
 def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
+    """Create a Run object with a stubbed out 'backend'.
+
+    This is similar to using `wandb.init(mode="offline")`, but much faster
+    as it does not start up a service process.
+
+    This is intended for tests that need to exercise surface-level Python logic
+    in the Run class. Note that it's better to factor out such logic into its
+    own unit-tested module instead.
+    """
+
     from wandb.sdk.lib.module import unset_globals
 
     def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> wandb.sdk.wandb_run.Run:

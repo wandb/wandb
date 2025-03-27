@@ -109,6 +109,17 @@ func NewGraphQLClient(
 		"X-WANDB-USER-EMAIL": settings.GetEmail(),
 	}
 	maps.Copy(graphqlHeaders, settings.GetExtraHTTPHeaders())
+	// This header is used to indicate to the backend that the run is in shared
+	// mode to prevent a race condition when two UpsertRun requests are made
+	// simultaneously for the same run ID in shared mode.
+	if settings.IsSharedMode() {
+		graphqlHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
+	}
+	// When enabled, this header instructs the backend to compute the derived summary
+	// using history updates, instead of relying on the SDK to calculate and send it.
+	if settings.IsEnableServerSideDerivedSummary() {
+		graphqlHeaders["X-WANDB-SERVER-SIDE-DERIVED-SUMMARY"] = "true"
+	}
 
 	opts := api.ClientOptions{
 		RetryPolicy:        clients.CheckRetry,
@@ -152,6 +163,9 @@ func NewFileStream(
 	maps.Copy(fileStreamHeaders, settings.GetExtraHTTPHeaders())
 	if settings.IsSharedMode() {
 		fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
+	}
+	if settings.IsEnableServerSideDerivedSummary() {
+		fileStreamHeaders["X-WANDB-SERVER-SIDE-DERIVED-SUMMARY"] = "true"
 	}
 
 	opts := api.ClientOptions{

@@ -1,5 +1,8 @@
 """apikey util."""
 
+from __future__ import annotations
+
+import dataclasses
 import os
 import platform
 import stat
@@ -32,7 +35,20 @@ LOGIN_CHOICES = [
     LOGIN_CHOICE_DRYRUN,
 ]
 
+
+@dataclasses.dataclass(frozen=True)
+class _NetrcPermissions:
+    exists: bool
+    read_access: bool
+    write_access: bool
+
+
+class WriteNetrcError(Exception):
+    """Raised when we cannot write to the netrc file."""
+
+
 Mode = Literal["allow", "must", "never", "false", "true"]
+
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
@@ -104,7 +120,6 @@ def prompt_api_key(  # noqa: C901
         log_string = term.LOG_STRING_NOCOLOR
         key = wandb.jupyter.attempt_colab_login(app_url)  # type: ignore
         if key is not None:
-            write_key(settings, key, api=api)
             return key  # type: ignore
 
     if anon_mode == "must":
@@ -123,24 +138,20 @@ def prompt_api_key(  # noqa: C901
             choices, input_timeout=settings.login_timeout, jupyter=jupyter
         )
 
+    key = None
     api_ask = (
-        f"{log_string}: Paste an API key from your profile and hit enter, "
-        "or press ctrl+c to quit"
+        f"{log_string}: Paste an API key from your profile and hit enter"
+        if jupyter
+        else f"{log_string}: Paste an API key from your profile and hit enter, or press ctrl+c to quit"
     )
     if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
-
-        write_key(settings, key, api=api, anonymous=True)
-        return key  # type: ignore
     elif result == LOGIN_CHOICE_NEW:
         key = browser_callback(signup=True) if browser_callback else None
 
         if not key:
             wandb.termlog(f"Create an account here: {app_url}/authorize?signup=true")
             key = input_callback(api_ask).strip()
-
-        write_key(settings, key, api=api)
-        return key  # type: ignore
     elif result == LOGIN_CHOICE_EXISTS:
         key = browser_callback() if browser_callback else None
 
@@ -158,8 +169,6 @@ def prompt_api_key(  # noqa: C901
                 f"You can find your API key in your browser here: {app_url}/authorize"
             )
             key = input_callback(api_ask).strip()
-        write_key(settings, key, api=api)
-        return key  # type: ignore
     elif result == LOGIN_CHOICE_NOTTY:
         # TODO: Needs refactor as this needs to be handled by caller
         return False
@@ -172,33 +181,69 @@ def prompt_api_key(  # noqa: C901
             browser_callback() if jupyter and browser_callback else (None, False)
         )
 
-        write_key(settings, key, api=api)
-        return key  # type: ignore
+    if not key:
+        raise ValueError("No API key specified.")
+    return key
 
 
-def write_netrc(host: str, entity: str, key: str) -> Optional[bool]:
+def check_netrc_access(
+    netrc_path: str,
+) -> _NetrcPermissions:
+    """Check if we can read and write to the netrc file."""
+    file_exists = False
+    write_access = False
+    read_access = False
+    try:
+        st = os.stat(netrc_path)
+        file_exists = True
+        write_access = bool(st.st_mode & stat.S_IWUSR)
+        read_access = bool(st.st_mode & stat.S_IRUSR)
+    except FileNotFoundError:
+        # If the netrc file doesn't exist, we will create it.
+        write_access = True
+        read_access = True
+    except OSError as e:
+        wandb.termerror(f"Unable to read permissions for {netrc_path}, {e}")
+
+    return _NetrcPermissions(
+        exists=file_exists,
+        write_access=write_access,
+        read_access=read_access,
+    )
+
+
+def write_netrc(host: str, entity: str, key: str):
     """Add our host and key to .netrc."""
     _, key_suffix = key.split("-", 1) if "-" in key else ("", key)
     if len(key_suffix) != 40:
-        wandb.termerror(
+        raise ValueError(
             "API-key must be exactly 40 characters long: {} ({} chars)".format(
                 key_suffix, len(key_suffix)
             )
         )
-        return None
-    try:
-        normalized_host = urlparse(host).netloc.split(":")[0]
-        netrc_path = get_netrc_file_path()
-        wandb.termlog(
-            f"Appending key for {normalized_host} to your netrc file: {netrc_path}"
+
+    normalized_host = urlparse(host).netloc
+    netrc_path = get_netrc_file_path()
+    netrc_access = check_netrc_access(netrc_path)
+
+    if not netrc_access.write_access or not netrc_access.read_access:
+        raise WriteNetrcError(
+            f"Cannot access {netrc_path}. In order to persist your API key, "
+            "grant read and write permissions for your user to the file "
+            'or specify a different file with the environment variable "NETRC=<new_netrc_path>".'
         )
-        machine_line = f"machine {normalized_host}"
-        orig_lines = None
-        try:
-            with open(netrc_path) as f:
-                orig_lines = f.read().strip().split("\n")
-        except OSError:
-            pass
+
+    machine_line = f"machine {normalized_host}"
+    orig_lines = None
+    try:
+        with open(netrc_path) as f:
+            orig_lines = f.read().strip().split("\n")
+    except FileNotFoundError:
+        wandb.termlog("No netrc file found, creating one.")
+    except OSError as e:
+        raise WriteNetrcError(f"Unable to read {netrc_path}") from e
+
+    try:
         with open(netrc_path, "w") as f:
             if orig_lines:
                 # delete this machine from the file if it's already there.
@@ -212,27 +257,28 @@ def write_netrc(host: str, entity: str, key: str) -> Optional[bool]:
                         skip -= 1
                     else:
                         f.write("{}\n".format(line))
+
+            wandb.termlog(
+                f"Appending key for {normalized_host} to your netrc file: {netrc_path}"
+            )
             f.write(
                 textwrap.dedent(
                     """\
-            machine {host}
-              login {entity}
-              password {key}
-            """
+                    machine {host}
+                      login {entity}
+                      password {key}
+                    """
                 ).format(host=normalized_host, entity=entity, key=key)
             )
         os.chmod(netrc_path, stat.S_IRUSR | stat.S_IWUSR)
-        return True
-    except OSError:
-        wandb.termerror(f"Unable to read {netrc_path}")
-        return None
+    except OSError as e:
+        raise WriteNetrcError(f"Unable to write {netrc_path}") from e
 
 
 def write_key(
     settings: "Settings",
     key: Optional[str],
     api: Optional["InternalApi"] = None,
-    anonymous: bool = False,
 ) -> None:
     if not key:
         raise ValueError("No API key specified.")
@@ -249,11 +295,6 @@ def write_key(
             "API key must be 40 characters long, yours was {}".format(len(key))
         )
 
-    if anonymous:
-        api.set_setting("anonymous", "must", globally=True, persist=True)
-    else:
-        api.clear_setting("anonymous", globally=True, persist=True)
-
     write_netrc(settings.base_url, "user", key)
 
 
@@ -262,7 +303,15 @@ def api_key(settings: Optional["Settings"] = None) -> Optional[str]:
         settings = wandb.setup().settings
     if settings.api_key:
         return settings.api_key
-    auth = get_netrc_auth(settings.base_url)
-    if auth:
-        return auth[-1]
+
+    netrc_access = check_netrc_access(get_netrc_file_path())
+    if netrc_access.exists and not netrc_access.read_access:
+        wandb.termwarn(f"Cannot access {get_netrc_file_path()}.")
+        return None
+
+    if netrc_access.exists:
+        auth = get_netrc_auth(settings.base_url)
+        if auth:
+            return auth[-1]
+
     return None

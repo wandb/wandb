@@ -116,6 +116,7 @@ func streamLogger(
 			Sentry: sentryClient,
 		},
 	)
+
 	logger.Info("stream: starting",
 		"core version", version.Version,
 		"symlink path", targetPath,
@@ -141,6 +142,8 @@ type StreamParams struct {
 	Sentry     *sentry_ext.Client
 	LoggerPath string
 	LogLevel   slog.Level
+
+	GPUResourceManager *monitor.GPUResourceManager
 }
 
 // NewStream creates a new stream with the given settings and responders.
@@ -229,7 +232,6 @@ func NewStream(
 	s.handler = NewHandler(
 		HandlerParams{
 			Commit:            params.Commit,
-			FeatureProvider:   featureProvider,
 			FileTransferStats: fileTransferStats,
 			FwdChan:           make(chan runwork.Work, BufferSize),
 			Logger:            s.logger,
@@ -237,9 +239,14 @@ func NewStream(
 			Operations:        operations,
 			OutChan:           make(chan *spb.Result, BufferSize),
 			Settings:          s.settings,
-			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings, s.runWork),
-			TBHandler:         tbHandler,
-			TerminalPrinter:   terminalPrinter,
+			SystemMonitor: monitor.NewSystemMonitor(
+				s.logger,
+				s.settings,
+				s.runWork,
+				params.GPUResourceManager,
+			),
+			TBHandler:       tbHandler,
+			TerminalPrinter: terminalPrinter,
 		},
 	)
 
@@ -261,6 +268,7 @@ func NewStream(
 			OutChan:             make(chan *spb.Result, BufferSize),
 			Mailbox:             mailbox,
 			RunWork:             s.runWork,
+			FeatureProvider:     featureProvider,
 		},
 	)
 

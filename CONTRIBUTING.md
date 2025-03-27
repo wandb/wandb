@@ -31,7 +31,7 @@ Please make sure to update the ToC when you update this page!
     + [Adding URLs (internal use only)](#adding-urls--internal-use-only-)
     + [Deprecating features](#deprecating-features)
       - [Marking a feature as deprecated](#marking-a-feature-as-deprecated)
-  * [Modifying GraphQL Schema in `wandb-core`](#modifying-graphql-schema-in-wandb-core)
+  * [Modifying GraphQL Schema](#modifying-graphql-schema)
 - [Testing](#testing)
   * [Using pytest](#using-pytest)
 
@@ -213,7 +213,7 @@ pip install -U nox uv
 
 ### Setting up Go
 
-Install Go version `1.23.4` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+Install Go version `1.23.6` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
 ```shell
 brew install go@1.23
 ```
@@ -326,10 +326,13 @@ deprecate.deprecate(
 )
 ```
 
-### Modifying GraphQL Schema in `wandb-core`
+### Modifying GraphQL Schema
 
 If there is a schema change on the Server side that affects your GraphQL API,
-follow the instructions [here](core/api/graphql/schemas/README.md).
+follow the instructions:
+- For `wandb-core` (Go): [here](core/api/graphql/schemas/README.md)
+- For `wandb` (Python): [here](tools/graphql_codegen/README.md)
+
 
 ## Testing
 

@@ -1,12 +1,12 @@
+import logging
 import time
 from pathlib import Path
 from typing import Literal
 
-from .bench_run_log import run_parallel_experiment
+from .bench_run_log import Experiment
 from .process_sar_helper import capture_sar_metrics, process_sar_files
-from .setup_helper import get_logger
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def run_perf_tests(
@@ -52,20 +52,20 @@ def run_perf_tests(
 
                 log_folder.mkdir(parents=True, exist_ok=True)
 
-                capture_sar_metrics(log_folder)
+                capture_sar_metrics(str(log_folder))
 
-                run_parallel_experiment(
-                    num_processes=num_processes,
+                experiment = Experiment(
                     num_steps=num_steps,
                     num_metrics=num_metrics,
                     metric_key_size=metric_key_size,
                     data_type=data_type,
-                    log_folder=log_folder,
                 )
+
+                experiment.parallel_runs(num_processes)
 
                 logger.info("All experiements have finished.")
 
-                process_sar_files(log_folder)
+                process_sar_files(str(log_folder))
 
                 sort_key += 1
                 time.sleep(10)  # sleep some time between run to let it finish flushing

@@ -22,7 +22,7 @@ def test_login_timeout(notebook, monkeypatch):
         "prompt_choices",
         lambda x, input_timeout=None, jupyter=True: x[0],
     )
-    with notebook("login_timeout.ipynb") as nb:
+    with notebook("login_timeout.ipynb", skip_api_key_env=True) as nb:
         nb.execute_all()
         output = nb.cell_output_text(1)
         assert "W&B disabled due to login timeout" in output
@@ -36,6 +36,13 @@ def test_one_cell(notebook, run_id):
         nb.execute_all()
         output = nb.cell_output_html(2)
         assert run_id in output
+
+
+def test_init_finishes_previous_by_default(notebook):
+    with notebook("init_finishes_previous.ipynb") as nb:
+        nb.execute_all()
+        output = nb.cell_output_text(1)
+        assert output == "run1 finished? True\nrun1 is run2? False\n"
 
 
 def test_magic(notebook):

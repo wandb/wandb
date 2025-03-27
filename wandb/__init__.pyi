@@ -55,6 +55,7 @@ __all__ = (
     "unwatch",
     "plot",
     "plot_table",
+    "restore",
 )
 
 import os
@@ -63,10 +64,12 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterable,
     List,
     Literal,
     Optional,
     Sequence,
+    TextIO,
     Union,
 )
 
@@ -103,7 +106,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.19.3.dev1"
+__version__: str = "0.19.9.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -113,6 +116,25 @@ summary: wandb_summary.Summary
 _sentry: Sentry
 api: InternalApi
 patched: Dict[str, List[Callable]]
+
+def require(
+    requirement: str | Iterable[str] | None = None,
+    experiment: str | Iterable[str] | None = None,
+) -> None:
+    """Indicate which experimental features are used by the script.
+
+    This should be called before any other `wandb` functions, ideally right
+    after importing `wandb`.
+
+    Args:
+        requirement: The name of a feature to require or an iterable of
+            feature names.
+        experiment: An alias for `requirement`.
+
+    Raises:
+        wandb.errors.UnsupportedError: If a feature name is unknown.
+    """
+    ...
 
 def setup(settings: Settings | None = None) -> _WandbSetup:
     """Prepares W&B for use in the current process and its children.
@@ -200,7 +222,15 @@ def init(
     mode: Literal["online", "offline", "disabled"] | None = None,
     force: bool | None = None,
     anonymous: Literal["never", "allow", "must"] | None = None,
-    reinit: bool | None = None,
+    reinit: (
+        bool
+        | Literal[
+            None,
+            "default",
+            "return_previous",
+            "finish_previous",
+        ]
+    ) = None,
     resume: bool | Literal["allow", "never", "must", "auto"] | None = None,
     resume_from: str | None = None,
     fork_from: str | None = None,
@@ -271,10 +301,10 @@ def init(
             on the system, such as checking the git root or the current program
             file. If we can't infer the project name, the project will default to
             `"uncategorized"`.
-        dir: An absolute path to the directory where metadata and downloaded
-            files will be stored. When calling `download()` on an artifact, files
-            will be saved to this directory. If not specified, this defaults to
-            the `./wandb` directory.
+        dir: The absolute path to the directory where experiment logs and
+            metadata files are stored. If not specified, this defaults
+            to the `./wandb` directory. Note that this does not affect the
+            location where artifacts are stored when calling `download()`.
         id: A unique identifier for this run, used for resuming. It must be unique
             within the project and cannot be reused once a run is deleted. The
             identifier must not contain any of the following special characters:
@@ -348,12 +378,8 @@ def init(
                 to view the charts and data in the UI.
             - `"must"`: Forces the run to be logged to an anonymous account, even
                 if the user is logged in.
-        reinit: Determines if multiple `wandb.init()` calls can start new runs
-            within the same process. By default (`False`), if an active run
-            exists, calling `wandb.init()` returns the existing run instead of
-            creating a new one. When `reinit=True`, the active run is finished
-            before a new run is initialized. In notebook environments, runs are
-            reinitialized by default unless `reinit` is explicitly set to `False`.
+        reinit: Shorthand for the "reinit" setting. Determines the behavior of
+            `wandb.init()` when a run is active.
         resume: Controls the behavior when resuming a run with the specified `id`.
             Available options are:
             - `"allow"`: If a run with the specified `id` exists, it will resume
@@ -510,7 +536,7 @@ def log(
     [guides to logging](https://docs.wandb.ai/guides/track/log) for examples,
     from 3D molecular structures and segmentation masks to PR curves and histograms.
     You can use `wandb.Table` to log structured data. See our
-    [guide to logging tables](https://docs.wandb.ai/guides/tables/tables-walkthrough)
+    [guide to logging tables](https://docs.wandb.ai/guides/models/tables/tables-walkthrough)
     for details.
 
     The W&B UI organizes metrics with a forward slash (`/`) in their name
@@ -595,7 +621,6 @@ def log(
         [our guides to logging](https://docs.wandb.com/guides/track/log).
 
         ### Basic usage
-        <!--yeadoc-test:init-and-log-basic-->
         ```python
         import wandb
 
@@ -604,7 +629,6 @@ def log(
         ```
 
         ### Incremental logging
-        <!--yeadoc-test:init-and-log-incremental-->
         ```python
         import wandb
 
@@ -615,7 +639,6 @@ def log(
         ```
 
         ### Histogram
-        <!--yeadoc-test:init-and-log-histogram-->
         ```python
         import numpy as np
         import wandb
@@ -627,7 +650,6 @@ def log(
         ```
 
         ### Image from numpy
-        <!--yeadoc-test:init-and-log-image-numpy-->
         ```python
         import numpy as np
         import wandb
@@ -642,7 +664,6 @@ def log(
         ```
 
         ### Image from PIL
-        <!--yeadoc-test:init-and-log-image-pillow-->
         ```python
         import numpy as np
         from PIL import Image as PILImage
@@ -651,7 +672,12 @@ def log(
         run = wandb.init()
         examples = []
         for i in range(3):
-            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+            pixels = np.random.randint(
+                low=0,
+                high=256,
+                size=(100, 100, 3),
+                dtype=np.uint8,
+            )
             pil_image = PILImage.fromarray(pixels, mode="RGB")
             image = wandb.Image(pil_image, caption=f"random field {i}")
             examples.append(image)
@@ -659,19 +685,22 @@ def log(
         ```
 
         ### Video from numpy
-        <!--yeadoc-test:init-and-log-video-numpy-->
         ```python
         import numpy as np
         import wandb
 
         run = wandb.init()
         # axes are (time, channel, height, width)
-        frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
+        frames = np.random.randint(
+            low=0,
+            high=256,
+            size=(10, 3, 100, 100),
+            dtype=np.uint8,
+        )
         run.log({"video": wandb.Video(frames, fps=4)})
         ```
 
         ### Matplotlib Plot
-        <!--yeadoc-test:init-and-log-matplotlib-->
         ```python
         from matplotlib import pyplot as plt
         import numpy as np
@@ -1191,5 +1220,33 @@ def unwatch(
     Args:
         models (torch.nn.Module | Sequence[torch.nn.Module]):
             Optional list of pytorch models that have had watch called on them
+    """
+    ...
+
+def restore(
+    name: str,
+    run_path: str | None = None,
+    replace: bool = False,
+    root: str | None = None,
+) -> None | TextIO:
+    """Download the specified file from cloud storage.
+
+    File is placed into the current directory or run directory.
+    By default, will only download the file if it doesn't already exist.
+
+    Args:
+        name: the name of the file
+        run_path: optional path to a run to pull files from, i.e. `username/project_name/run_id`
+            if wandb.init has not been called, this is required.
+        replace: whether to download the file even if it already exists locally
+        root: the directory to download the file to.  Defaults to the current
+            directory or the run directory if wandb.init was called.
+
+    Returns:
+        None if it can't find the file, otherwise a file object open for reading
+
+    Raises:
+        wandb.CommError: if we can't connect to the wandb backend
+        ValueError: if the file is not found or can't find run_path
     """
     ...
