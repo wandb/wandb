@@ -222,7 +222,7 @@ class Media(WBValue):
         from wandb.data_types import Audio
         from wandb.sdk.wandb_run import Run
 
-        json_obj = {}
+        json_obj: Dict[str, Any] = {}
 
         if self._caption is not None:
             json_obj["caption"] = self._caption
@@ -343,9 +343,9 @@ class BatchableMedia(Media):
 
     def __init__(
         self,
-        **kwargs: Optional[Dict[str, Any]],
+        caption: Optional[str] = None,
     ) -> None:
-        super().__init__(**kwargs)
+        super().__init__(caption=caption)
 
     @classmethod
     def seq_to_json(
