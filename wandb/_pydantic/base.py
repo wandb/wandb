@@ -2,14 +2,37 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, TypeVar
+from typing import Any, Callable, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, Json, ValidationError, WrapValidator
 from pydantic.alias_generators import to_camel
 from pydantic.main import IncEx
 from pydantic_core import to_json
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler
-from typing_extensions import Annotated, override
+from typing_extensions import Annotated, TypedDict, Unpack, override
+
+
+class ModelDumpKwargs(TypedDict, total=False):
+    """Shared keyword arguments for `BaseModel.model_{dump,dump_json}`."""
+
+    include: IncEx | None
+    exclude: IncEx | None
+    context: dict[str, Any] | None
+    by_alias: bool | None
+    exclude_unset: bool
+    exclude_defaults: bool
+    exclude_none: bool
+    round_trip: bool
+    warnings: bool | Literal["none", "warn", "error"]
+    fallback: Callable[[Any], Any] | None
+    serialize_as_any: bool
+
+
+#: Custom overrides of default kwargs for `BaseModel.model_{dump,dump_json}`.
+MODEL_DUMP_DEFAULTS = ModelDumpKwargs(
+    by_alias=True,  # Always serialize with aliases (e.g. camelCase names)
+    round_trip=True,  # Ensure serialized values remain valid inputs for deserialization
+)
 
 
 # Base class for all generated classes/types.
@@ -31,60 +54,20 @@ class Base(BaseModel):
         self,
         *,
         mode: Literal["json", "python"] | str = "json",  # NOTE: changed default
-        include: IncEx | None = None,
-        exclude: IncEx | None = None,
-        context: dict[str, Any] | None = None,
-        by_alias: bool = True,  # NOTE: changed default
-        exclude_unset: bool = False,
-        exclude_defaults: bool = False,
-        exclude_none: bool = False,
-        round_trip: bool = True,  # NOTE: changed default
-        warnings: bool | Literal["none", "warn", "error"] = True,
-        serialize_as_any: bool = False,
+        **kwargs: Unpack[ModelDumpKwargs],
     ) -> dict[str, Any]:
-        return super().model_dump(
-            mode=mode,
-            include=include,
-            exclude=exclude,
-            context=context,
-            by_alias=by_alias,
-            exclude_unset=exclude_unset,
-            exclude_defaults=exclude_defaults,
-            exclude_none=exclude_none,
-            round_trip=round_trip,
-            warnings=warnings,
-            serialize_as_any=serialize_as_any,
-        )
+        kwargs = {**MODEL_DUMP_DEFAULTS, **kwargs}
+        return super().model_dump(mode=mode, **kwargs)
 
     @override
     def model_dump_json(
         self,
         *,
         indent: int | None = None,
-        include: IncEx | None = None,
-        exclude: IncEx | None = None,
-        context: dict[str, Any] | None = None,
-        by_alias: bool = True,  # NOTE: changed default
-        exclude_unset: bool = False,
-        exclude_defaults: bool = False,
-        exclude_none: bool = False,
-        round_trip: bool = True,  # NOTE: changed default
-        warnings: bool | Literal["none", "warn", "error"] = True,
-        serialize_as_any: bool = False,
+        **kwargs: Unpack[ModelDumpKwargs],
     ) -> str:
-        return super().model_dump_json(
-            indent=indent,
-            include=include,
-            exclude=exclude,
-            context=context,
-            by_alias=by_alias,
-            exclude_unset=exclude_unset,
-            exclude_defaults=exclude_defaults,
-            exclude_none=exclude_none,
-            round_trip=round_trip,
-            warnings=warnings,
-            serialize_as_any=serialize_as_any,
-        )
+        kwargs = {**MODEL_DUMP_DEFAULTS, **kwargs}
+        return super().model_dump_json(indent=indent, **kwargs)
 
 
 # Base class with extra customization for GQL generated types.
