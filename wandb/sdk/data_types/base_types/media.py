@@ -3,7 +3,7 @@ import os
 import platform
 import re
 import shutil
-from typing import TYPE_CHECKING, Optional, Sequence, Type, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union, cast
 
 import wandb
 from wandb import util
@@ -224,6 +224,9 @@ class Media(WBValue):
 
         json_obj = {}
 
+        if self._caption is not None:
+            json_obj["caption"] = self._caption
+
         if isinstance(run, Run):
             json_obj.update(
                 {
@@ -232,6 +235,7 @@ class Media(WBValue):
                     "size": self._size,
                 }
             )
+
             artifact_entry_url = self._get_artifact_entry_ref_url()
             if artifact_entry_url is not None:
                 json_obj["artifact_path"] = artifact_entry_url
@@ -337,8 +341,11 @@ class BatchableMedia(Media):
     organize files by name in the media directory.
     """
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(
+        self,
+        **kwargs: Optional[Dict[str, Any]],
+    ) -> None:
+        super().__init__(**kwargs)
 
     @classmethod
     def seq_to_json(
