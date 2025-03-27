@@ -23,6 +23,11 @@ from wandb.sdk.lib import deprecate
 if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient, Run
 
+NO_ARTIFACT_FILES_DOWNLOADED_ERROR_STRING = (
+    "No files fetched for artifact. "
+    "It is possible that user doesn't have access to download files"
+)
+
 
 class ArtifactTypes(Paginator):
     QUERY = gql(
@@ -523,7 +528,8 @@ class ArtifactCollection:
         self._type = type
 
     def _update_collection(self):
-        mutation = gql("""
+        mutation = gql(
+            """
             mutation UpdateArtifactCollection(
                 $artifactSequenceID: ID!
                 $name: String
@@ -543,7 +549,8 @@ class ArtifactCollection:
                 }
                 }
             }
-        """)
+        """
+        )
 
         variable_values = {
             "artifactSequenceID": self.id,
@@ -554,7 +561,8 @@ class ArtifactCollection:
         self._saved_name = self._name
 
     def _update_collection_type(self):
-        type_mutation = gql("""
+        type_mutation = gql(
+            """
             mutation MoveArtifactCollection(
                 $artifactSequenceID: ID!
                 $destinationArtifactTypeName: String!
@@ -573,7 +581,8 @@ class ArtifactCollection:
                 }
                 }
             }
-            """)
+            """
+        )
 
         variable_values = {
             "artifactSequenceID": self.id,
@@ -583,7 +592,8 @@ class ArtifactCollection:
         self._saved_type = self._type
 
     def _update_portfolio(self):
-        mutation = gql("""
+        mutation = gql(
+            """
             mutation UpdateArtifactPortfolio(
                 $artifactPortfolioID: ID!
                 $name: String
@@ -603,7 +613,8 @@ class ArtifactCollection:
                 }
                 }
             }
-        """)
+        """
+        )
         variable_values = {
             "artifactPortfolioID": self.id,
             "name": self._name,
@@ -1071,12 +1082,18 @@ class ArtifactFiles(Paginator):
 
     def convert_objects(self):
         if self.query_via_membership:
+            if not self.last_response["project"]["artifactCollection"][
+                "artifactMembership"
+            ]["files"]:
+                raise PermissionError(NO_ARTIFACT_FILES_DOWNLOADED_ERROR_STRING)
             return [
                 public.File(self.client, r["node"])
                 for r in self.last_response["project"]["artifactCollection"][
                     "artifactMembership"
                 ]["files"]["edges"]
             ]
+        if not self.last_response["project"]["artifactType"]["artifact"]["files"]:
+            raise PermissionError(NO_ARTIFACT_FILES_DOWNLOADED_ERROR_STRING)
         return [
             public.File(self.client, r["node"])
             for r in self.last_response["project"]["artifactType"]["artifact"]["files"][

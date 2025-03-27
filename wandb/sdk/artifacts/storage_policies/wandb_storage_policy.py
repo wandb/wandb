@@ -158,6 +158,8 @@ class WandbStoragePolicy(StoragePolicy):
                 headers=http_headers,
                 stream=True,
             )
+            if response.status_code == 403:
+                termwarn("No access to download this artifact file.")
             response.raise_for_status()
 
         with cache_open(mode="wb") as file:
