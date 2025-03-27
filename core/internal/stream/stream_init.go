@@ -120,7 +120,7 @@ func NewGraphQLClient(
 	// simultaneously for the same run ID in shared mode.
 	if settings.IsSharedMode() {
 		graphqlHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
-		graphqlHeaders["X-WANDB-ASYNC-CLIENT-ID"] = clientID
+		graphqlHeaders["X-WANDB-CLIENT-ID"] = clientID
 	}
 	// When enabled, this header instructs the backend to compute the derived summary
 	// using history updates, instead of relying on the SDK to calculate and send it.
