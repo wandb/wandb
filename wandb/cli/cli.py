@@ -1726,9 +1726,16 @@ def launch_agent(
 @click.option(
     "--count", default=None, type=int, help="The max number of runs for this agent."
 )
+@click.option(
+    "--forward-signals",
+    "-f",
+    is_flag=True,
+    default=False,
+    help="Create child processes in a new process group to automatically receive signals sent to the agent.",
+)
 @click.argument("sweep_id")
 @display_error
-def agent(ctx, project, entity, count, sweep_id):
+def agent(ctx, project, entity, count, forward_signals, sweep_id):
     api = _get_cling_api()
     if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep agent feature")
@@ -1736,7 +1743,7 @@ def agent(ctx, project, entity, count, sweep_id):
         api = _get_cling_api(reset=True)
 
     wandb.termlog("Starting wandb agent 🕵️")
-    wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)
+    wandb_agent.agent(sweep_id, entity=entity, project=project, count=count, forward_signals=forward_signals)
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',

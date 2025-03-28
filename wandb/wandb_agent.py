@@ -28,7 +28,13 @@ class AgentProcess:
     """Launch and manage a process."""
 
     def __init__(
-        self, env=None, command=None, function=None, run_id=None, in_jupyter=None
+        self,
+        env=None,
+        command=None,
+        function=None,
+        run_id=None,
+        in_jupyter=None,
+        forward_signals=False,
     ):
         self._popen = None
         self._proc = None
@@ -39,7 +45,7 @@ class AgentProcess:
         self._original_handlers = {}
 
         def _forward_signal(signum, frame):
-            # Forward signal to child process
+            # Forward signal to child process only
             if self._popen:
                 if platform.system() == "Windows" and signum in (
                     signal.SIGINT,
@@ -55,29 +61,24 @@ class AgentProcess:
                 else:
                     self._proc.send_signal(signum)
 
-            # Call original handler if it exists
-            if signum in self._original_handlers:
-                original_handler = self._original_handlers[signum]
-                if callable(original_handler) and original_handler not in (
-                    signal.SIG_IGN,
-                    signal.SIG_DFL,
-                ):
-                    original_handler(signum, frame)
-                elif original_handler == signal.SIG_DFL:
-                    signal.default_int_handler(signum, frame)
+            # Call original handler to ensure parent process handles signal
+            original_handler = self._original_handlers.get(signum)
+            if original_handler and callable(original_handler):
+                original_handler(signum, frame)
 
         # Set up handlers for all possible signals
-        for signum in signal.valid_signals():
-            try:
-                # Skip signals that can't be caught
-                if signum in (signal.SIGKILL, signal.SIGSTOP):
+        if forward_signals:
+            for signum in signal.valid_signals():
+                try:
+                    # Skip signals that can't be caught
+                    if signum in (signal.SIGKILL, signal.SIGSTOP):
+                        continue
+                    # Store original handler before replacing it
+                    self._original_handlers[signum] = signal.getsignal(signum)
+                    signal.signal(signum, _forward_signal)
+                except (OSError, ValueError):
+                    # Some signals might not be supported on all platforms
                     continue
-                # Store original handler before replacing it
-                self._original_handlers[signum] = signal.getsignal(signum)
-                signal.signal(signum, _forward_signal)
-            except (OSError, ValueError):
-                # Some signals might not be supported on all platforms
-                continue
 
         if command:
             if platform.system() == "Windows":
@@ -208,7 +209,14 @@ class Agent:
     SWEEP_COMMAND_ENV_VAR_REGEX = re.compile(r"\$\{envvar\:([A-Z0-9_]*)\}")
 
     def __init__(
-        self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None
+        self,
+        api,
+        queue,
+        sweep_id=None,
+        function=None,
+        in_jupyter=None,
+        count=None,
+        forward_signals=False,
     ):
         self._api = api
         self._queue = queue
@@ -231,6 +239,7 @@ class Agent:
         self._max_initial_failures = wandb.env.get_agent_max_initial_failures(
             self.MAX_INITIAL_FAILURES
         )
+        self._forward_signals = forward_signals
         if self._report_interval is None:
             raise AgentError("Invalid agent report interval")
         if self._kill_delay is None:
@@ -468,6 +477,7 @@ class Agent:
                 env=env,
                 run_id=run_id,
                 in_jupyter=self._in_jupyter,
+                forward_signals=self._forward_signals,
             )
         else:
             sweep_vars["interpreter"] = ["python"]
@@ -488,7 +498,9 @@ class Agent:
                     " ".join(f'"{c}"' if " " in c else c for c in command_list)
                 )
             )
-            proc = AgentProcess(command=command_list, env=env)
+            proc = AgentProcess(
+                command=command_list, env=env, forward_signals=self._forward_signals
+            )
         self._run_processes[run_id] = proc
 
         # we keep track of when we sent the sigterm to give processes a chance
@@ -552,7 +564,13 @@ class AgentApi:
 
 
 def run_agent(
-    sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None
+    sweep_id,
+    function=None,
+    in_jupyter=None,
+    entity=None,
+    project=None,
+    count=None,
+    forward_signals=False,
 ):
     from wandb.apis import InternalApi
     from wandb.sdk.launch.sweeps import utils as sweep_utils
@@ -595,6 +613,7 @@ def run_agent(
             function=function,
             in_jupyter=in_jupyter,
             count=count,
+            forward_signals=forward_signals,
         )
         agent.run()
     finally:
@@ -608,6 +627,7 @@ def agent(
     entity: Optional[str] = None,
     project: Optional[str] = None,
     count: Optional[int] = None,
+    forward_signals: bool = False,
 ) -> None:
     """Start one or more sweep agents.
 
@@ -629,6 +649,8 @@ def agent(
             the sweep are sent to. If the project is not specified, the
             run is sent to a project labeled "Uncategorized".
         count: The number of sweep config trials to try.
+        forward_signals: Whether to forward signals the agent receives to the child processes. Only supported by
+            CLI agent.
     """
     from wandb.agents.pyagent import pyagent
 
@@ -646,6 +668,7 @@ def agent(
             entity=entity,
             project=project,
             count=count,
+            forward_signals=forward_signals,
         )
     finally:
         _INSTANCES -= 1
