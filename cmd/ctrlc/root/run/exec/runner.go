@@ -39,7 +39,7 @@ func (r *ExecRunner) Status(job api.Job) (api.JobStatus, string) {
 	// to check if process exists
 	err = process.Signal(syscall.Signal(0))
 	if err != nil {
-		return api.JobStatusSuccessful, fmt.Sprintf("process not running: %v", err)
+		return api.JobStatusFailure, fmt.Sprintf("process not running: %v", err)
 	}
 
 	return api.JobStatusInProgress, fmt.Sprintf("process running with pid %d", externalId)
