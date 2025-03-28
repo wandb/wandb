@@ -35,6 +35,50 @@ class AgentProcess:
         self._finished_q = multiprocessing.Queue()
         self._proc_killed = False
 
+        # Store original handlers
+        self._original_handlers = {}
+
+        def _forward_signal(signum, frame):
+            # Forward signal to child process
+            if self._popen:
+                if platform.system() == "Windows" and signum in (
+                    signal.SIGINT,
+                    signal.SIGTERM,
+                ):
+                    # On Windows, we can only send CTRL_BREAK_EVENT or CTRL_C_EVENT
+                    self._popen.send_signal(signal.CTRL_BREAK_EVENT)
+                else:
+                    self._popen.send_signal(signum)
+            if self._proc:
+                if hasattr(signal, "SIGKILL") and signum == signal.SIGKILL:
+                    self._proc.kill()
+                else:
+                    self._proc.send_signal(signum)
+
+            # Call original handler if it exists
+            if signum in self._original_handlers:
+                original_handler = self._original_handlers[signum]
+                if callable(original_handler) and original_handler not in (
+                    signal.SIG_IGN,
+                    signal.SIG_DFL,
+                ):
+                    original_handler(signum, frame)
+                elif original_handler == signal.SIG_DFL:
+                    signal.default_int_handler(signum, frame)
+
+        # Set up handlers for all possible signals
+        for signum in signal.valid_signals():
+            try:
+                # Skip signals that can't be caught
+                if signum in (signal.SIGKILL, signal.SIGSTOP):
+                    continue
+                # Store original handler before replacing it
+                self._original_handlers[signum] = signal.getsignal(signum)
+                signal.signal(signum, _forward_signal)
+            except (OSError, ValueError):
+                # Some signals might not be supported on all platforms
+                continue
+
         if command:
             if platform.system() == "Windows":
                 kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
