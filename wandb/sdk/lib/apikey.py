@@ -8,6 +8,8 @@ import platform
 import stat
 import sys
 import textwrap
+from contextlib import contextmanager
+from contextvars import ContextVar
 from functools import partial
 
 # import Literal
@@ -34,7 +36,6 @@ LOGIN_CHOICES = [
     LOGIN_CHOICE_EXISTS,
     LOGIN_CHOICE_DRYRUN,
 ]
-
 
 @dataclasses.dataclass(frozen=True)
 class _NetrcPermissions:
@@ -82,6 +83,25 @@ def get_netrc_file_path() -> str:
     netrc_file = ".netrc" if platform.system() != "Windows" else "_netrc"
 
     return os.path.join(os.path.expanduser("~"), netrc_file)
+
+
+# Context variable to store referrer
+_api_key_prompt_referrer: ContextVar[Optional[str]] = ContextVar("api_key_prompt_referrer", default=None)
+
+@contextmanager
+def api_key_prompt_referrer(referrer: Optional[str]) -> None:
+    """Context manager for temporarily setting the referrer context.
+    
+    Example:
+        >>> with api_key_prompt_referrer("my_referrer"):
+        ...     prompt_api_key(settings)
+    """
+    token = _api_key_prompt_referrer.set(referrer)
+    try:
+        yield
+    finally:
+        _api_key_prompt_referrer.reset(token)
+
 
 
 def prompt_api_key(  # noqa: C901
@@ -165,8 +185,12 @@ def prompt_api_key(  # noqa: C901
                     f"Logging into {host}. (Learn how to deploy a W&B server "
                     f"locally: {url_registry.url('wandb-server')})"
                 )
+            ref = ""
+            referrer = _api_key_prompt_referrer.get()
+            if referrer:
+                ref = f"?ref={referrer}"
             wandb.termlog(
-                f"You can find your API key in your browser here: {app_url}/authorize"
+                f"You can find your API key in your browser here: {app_url}/authorize{ref}"
             )
             key = input_callback(api_ask).strip()
     elif result == LOGIN_CHOICE_NOTTY:
