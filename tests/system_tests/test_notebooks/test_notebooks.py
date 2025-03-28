@@ -46,6 +46,9 @@ def test_init_finishes_previous_by_default(notebook):
 
 
 def test_magic(notebook):
+    base_url = os.getenv("WANDB_BASE_URL")
+    assert base_url
+
     with notebook("magic.ipynb") as nb:
         nb.execute_all()
         iframes = 0
@@ -59,7 +62,7 @@ def test_magic(notebook):
                     assert "display:none" in out
                 text += out["data"]["text/html"]
             iframes += 1
-        assert notebook.base_url in text
+        assert base_url in text
         assert iframes == 6
 
 
@@ -73,11 +76,14 @@ def test_notebook_exits(user, assets_path):
 
 
 def test_notebook_metadata_jupyter(mocked_module, notebook):
+    base_url = os.getenv("WANDB_BASE_URL")
+    assert base_url
+
     with mock.patch("ipykernel.connect.get_connection_file") as ipyconnect:
         ipyconnect.return_value = "kernel-12345.json"
         serverapp = mocked_module("jupyter_server.serverapp")
         serverapp.list_running_servers.return_value = [
-            {"url": notebook.base_url, "notebook_dir": "/test"}
+            {"url": base_url, "notebook_dir": "/test"}
         ]
         with mock.patch.object(
             wandb.jupyter.requests,

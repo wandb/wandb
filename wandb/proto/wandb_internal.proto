@@ -1397,6 +1397,16 @@ enum ServerFeature {
 
   // Indicates that the server supports structured console logs.
   STRUCTURED_CONSOLE_LOGS = 4;
+
+  // Indicates that the server supports querying for files on artifact collection memberships.
+  ARTIFACT_COLLECTION_MEMBERSHIP_FILES = 5;
+
+  // Indicates that the server supports downloading files with additional artifact collection memberships context in the
+  // url.
+  ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER = 6;
+
+  // Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
+  USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION = 7;
 }
 
 /**

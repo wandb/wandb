@@ -2844,6 +2844,13 @@ pub enum ServerFeature {
     ArtifactRegistrySearch = 3,
     /// Indicates that the server supports structured console logs.
     StructuredConsoleLogs = 4,
+    /// Indicates that the server supports querying for files on artifact collection memberships.
+    ArtifactCollectionMembershipFiles = 5,
+    /// Indicates that the server supports downloading files with additional artifact collection memberships context in the
+    /// url.
+    ArtifactCollectionMembershipFileDownloadHandler = 6,
+    /// Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
+    UseArtifactWithEntityAndProjectInformation = 7,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2857,6 +2864,15 @@ impl ServerFeature {
             Self::ClientIds => "CLIENT_IDS",
             Self::ArtifactRegistrySearch => "ARTIFACT_REGISTRY_SEARCH",
             Self::StructuredConsoleLogs => "STRUCTURED_CONSOLE_LOGS",
+            Self::ArtifactCollectionMembershipFiles => {
+                "ARTIFACT_COLLECTION_MEMBERSHIP_FILES"
+            }
+            Self::ArtifactCollectionMembershipFileDownloadHandler => {
+                "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER"
+            }
+            Self::UseArtifactWithEntityAndProjectInformation => {
+                "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2867,6 +2883,15 @@ impl ServerFeature {
             "CLIENT_IDS" => Some(Self::ClientIds),
             "ARTIFACT_REGISTRY_SEARCH" => Some(Self::ArtifactRegistrySearch),
             "STRUCTURED_CONSOLE_LOGS" => Some(Self::StructuredConsoleLogs),
+            "ARTIFACT_COLLECTION_MEMBERSHIP_FILES" => {
+                Some(Self::ArtifactCollectionMembershipFiles)
+            }
+            "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER" => {
+                Some(Self::ArtifactCollectionMembershipFileDownloadHandler)
+            }
+            "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION" => {
+                Some(Self::UseArtifactWithEntityAndProjectInformation)
+            }
             _ => None,
         }
     }

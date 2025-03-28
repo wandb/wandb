@@ -62,7 +62,7 @@ PROJECT_FRAGMENT = """fragment ProjectFragment on Project {
 }"""
 
 
-class Projects(Paginator):
+class Projects(Paginator["Project"]):
     """An iterable collection of `Project` objects.
 
     An iterable interface to access projects created and saved by the entity.
@@ -84,7 +84,6 @@ class Projects(Paginator):
         print(f"- Created at: {project.created_at}")
         print(f"- Is benchmark: {project.is_benchmark}")
     ```
-
     """
 
     QUERY = gql(
@@ -116,11 +115,12 @@ class Projects(Paginator):
         super().__init__(client, variables, per_page)
 
     @property
-    def length(self):
+    def length(self) -> None:
         """Returns the total number of projects.
 
         Note: This property is not available for projects.
         """
+        # For backwards compatibility, even though this isn't a SizedPaginator
         return None
 
     @property

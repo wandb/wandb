@@ -39,6 +39,14 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """Indicates that the server supports searching for artifacts in a registry."""
     STRUCTURED_CONSOLE_LOGS: _ServerFeature.ValueType  # 4
     """Indicates that the server supports structured console logs."""
+    ARTIFACT_COLLECTION_MEMBERSHIP_FILES: _ServerFeature.ValueType  # 5
+    """Indicates that the server supports querying for files on artifact collection memberships."""
+    ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER: _ServerFeature.ValueType  # 6
+    """Indicates that the server supports downloading files with additional artifact collection memberships context in the
+    url.
+    """
+    USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION: _ServerFeature.ValueType  # 7
+    """Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation."""
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
     """*
@@ -56,6 +64,14 @@ ARTIFACT_REGISTRY_SEARCH: ServerFeature.ValueType  # 3
 """Indicates that the server supports searching for artifacts in a registry."""
 STRUCTURED_CONSOLE_LOGS: ServerFeature.ValueType  # 4
 """Indicates that the server supports structured console logs."""
+ARTIFACT_COLLECTION_MEMBERSHIP_FILES: ServerFeature.ValueType  # 5
+"""Indicates that the server supports querying for files on artifact collection memberships."""
+ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER: ServerFeature.ValueType  # 6
+"""Indicates that the server supports downloading files with additional artifact collection memberships context in the
+url.
+"""
+USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION: ServerFeature.ValueType  # 7
+"""Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation."""
 global___ServerFeature = ServerFeature
 
 @typing.final
