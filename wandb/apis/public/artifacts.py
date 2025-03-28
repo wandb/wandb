@@ -10,7 +10,7 @@ from wandb_gql import Client, gql
 import wandb
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.paginator import Paginator
+from wandb.apis.paginator import Paginator, SizedPaginator
 from wandb.errors.term import termlog
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._graphql_fragments import (
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient, Run
 
 
-class ArtifactTypes(Paginator):
+class ArtifactTypes(Paginator["ArtifactType"]):
     QUERY = gql(
         """
         query ProjectArtifacts(
@@ -47,7 +47,7 @@ class ArtifactTypes(Paginator):
         client: Client,
         entity: str,
         project: str,
-        per_page: Optional[int] = 50,
+        per_page: int = 50,
     ):
         self.entity = entity
         self.project = project
@@ -60,7 +60,7 @@ class ArtifactTypes(Paginator):
         super().__init__(client, variable_values, per_page)
 
     @property
-    def length(self):
+    def length(self) -> None:
         # TODO
         return None
 
@@ -169,14 +169,14 @@ class ArtifactType:
         return f"<ArtifactType {self.type}>"
 
 
-class ArtifactCollections(Paginator):
+class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
     def __init__(
         self,
         client: Client,
         entity: str,
         project: str,
         type_name: str,
-        per_page: Optional[int] = 50,
+        per_page: int = 50,
     ):
         self.entity = entity
         self.project = project
@@ -712,7 +712,7 @@ class ArtifactCollection:
         return f"<ArtifactCollection {self._name} ({self._type})>"
 
 
-class Artifacts(Paginator):
+class Artifacts(SizedPaginator["wandb.Artifact"]):
     """An iterable collection of artifact versions associated with a project and optional filter.
 
     This is generally used indirectly via the `Api`.artifact_versions method.
@@ -828,10 +828,8 @@ class Artifacts(Paginator):
         ]
 
 
-class RunArtifacts(Paginator):
-    def __init__(
-        self, client: Client, run: "Run", mode="logged", per_page: Optional[int] = 50
-    ):
+class RunArtifacts(SizedPaginator["wandb.Artifact"]):
+    def __init__(self, client: Client, run: "Run", mode="logged", per_page: int = 50):
         from wandb.sdk.artifacts.artifact import _gql_artifact_fragment
 
         output_query = gql(
@@ -946,7 +944,7 @@ class RunArtifacts(Paginator):
         ]
 
 
-class ArtifactFiles(Paginator):
+class ArtifactFiles(SizedPaginator["public.File"]):
     ARTIFACT_VERSION_FILES_QUERY = gql(
         f"""
         query ArtifactFiles(

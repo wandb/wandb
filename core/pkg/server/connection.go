@@ -449,7 +449,7 @@ func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 		BaseUrl: &wrapperspb.StringValue{Value: msg.BaseUrl},
 	})
 	backend := stream.NewBackend(observability.NewNoOpLogger(), s) // TODO: use a real logger
-	graphqlClient := stream.NewGraphQLClient(backend, s, &observability.Peeker{})
+	graphqlClient := stream.NewGraphQLClient(backend, s, &observability.Peeker{}, "" /*clientId*/)
 
 	data, err := gql.Viewer(context.Background(), graphqlClient)
 	if err != nil || data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
