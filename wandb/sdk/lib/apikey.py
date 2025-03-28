@@ -92,6 +92,7 @@ def prompt_api_key(  # noqa: C901
     no_offline: bool = False,
     no_create: bool = False,
     local: bool = False,
+    referrer: Optional[str] = None,
 ) -> Union[str, bool, None]:
     """Prompt for api key.
 
@@ -165,8 +166,11 @@ def prompt_api_key(  # noqa: C901
                     f"Logging into {host}. (Learn how to deploy a W&B server "
                     f"locally: {url_registry.url('wandb-server')})"
                 )
+            ref = ""
+            if referrer:
+                ref = f"?ref={referrer}"
             wandb.termlog(
-                f"You can find your API key in your browser here: {app_url}/authorize"
+                f"You can find your API key in your browser here: {app_url}/authorize{ref}"
             )
             key = input_callback(api_ask).strip()
     elif result == LOGIN_CHOICE_NOTTY:
