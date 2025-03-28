@@ -26,7 +26,13 @@ from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.utils import PathType, parse_org_from_registry_path
+from wandb.apis.public.registries import Registries
+from wandb.apis.public.utils import (
+    PathType,
+    fetch_org_from_settings_or_entity,
+    parse_org_from_registry_path,
+)
+from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
@@ -749,15 +755,14 @@ class Api:
         return parts
 
     def projects(
-        self, entity: Optional[str] = None, per_page: Optional[int] = 200
+        self, entity: Optional[str] = None, per_page: int = 200
     ) -> "public.Projects":
         """Get projects for a given entity.
 
         Args:
             entity: (str) Name of the entity requested.  If None, will fall back to the
                 default entity passed to `Api`.  If no default entity, will raise a `ValueError`.
-            per_page: (int) Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
 
         Returns:
             A `Projects` object which is an iterable collection of `Project` objects.
@@ -800,7 +805,7 @@ class Api:
         return public.Project(self.client, entity, name, {})
 
     def reports(
-        self, path: str = "", name: Optional[str] = None, per_page: Optional[int] = 50
+        self, path: str = "", name: Optional[str] = None, per_page: int = 50
     ) -> "public.Reports":
         """Get reports for a given project path.
 
@@ -809,8 +814,7 @@ class Api:
         Args:
             path: (str) path to project the report resides in, should be in the form: "entity/project"
             name: (str, optional) optional name of the report requested.
-            per_page: (int) Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
 
         Returns:
             A `Reports` object which is an iterable collection of `BetaReport` objects.
@@ -1145,15 +1149,14 @@ class Api:
 
     @normalize_exceptions
     def artifact_collections(
-        self, project_name: str, type_name: str, per_page: Optional[int] = 50
+        self, project_name: str, type_name: str, per_page: int = 50
     ) -> "public.ArtifactCollections":
         """Return a collection of matching artifact collections.
 
         Args:
             project_name: (str) The name of the project to filter on.
             type_name: (str) The name of the artifact type to filter on.
-            per_page: (int, optional) Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
 
         Returns:
             An iterable `ArtifactCollections` object.
@@ -1218,7 +1221,7 @@ class Api:
         self,
         type_name: str,
         name: str,
-        per_page: Optional[int] = 50,
+        per_page: int = 50,
         tags: Optional[List[str]] = None,
     ) -> "public.Artifacts":
         """Return an `Artifacts` collection from the given parameters.
@@ -1226,8 +1229,7 @@ class Api:
         Args:
             type_name: (str) The type of artifacts to fetch.
             name: (str) An artifact collection name. May be prefixed with entity/project.
-            per_page: (int, optional) Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
             tags: (list[str], optional) Only return artifacts with all of these tags.
 
         Returns:
@@ -1449,3 +1451,68 @@ class Api:
             return True
         except wandb.errors.CommError:
             return False
+
+    def registries(
+        self,
+        organization: Optional[str] = None,
+        filter: Optional[Dict[str, Any]] = None,
+    ) -> Registries:
+        """Returns a Registry iterator.
+
+        Use the iterator to search and filter registries, collections,
+        or artifact versions across your organization's registry.
+
+        Examples:
+            Find all registries with the names that contain "model"
+            ```python
+            import wandb
+
+            api = wandb.Api()  # specify an org if your entity belongs to multiple orgs
+            api.registries(filter={"name": {"$regex": "model"}})
+            ```
+
+            Find all collections in the registries with the name "my_collection" and the tag "my_tag"
+            ```python
+            api.registries().collections(filter={"name": "my_collection", "tag": "my_tag"})
+            ```
+
+            Find all artifact versions in the registries with a collection name that contains "my_collection" and a version that has the alias "best"
+            ```python
+            api.registries().collections(
+                filter={"name": {"$regex": "my_collection"}}
+            ).versions(filter={"alias": "best"})
+            ```
+
+            Find all artifact versions in the registries that contain "model" and have the tag "prod" or alias "best"
+            ```python
+            api.registries(filter={"name": {"$regex": "model"}}).versions(
+                filter={"$or": [{"tag": "prod"}, {"alias": "best"}]}
+            )
+            ```
+
+        Args:
+            organization: (str, optional) The organization of the registry to fetch.
+                If not specified, use the organization specified in the user's settings.
+            filter: (dict, optional) MongoDB-style filter to apply to each object in the registry iterator.
+                Fields available to filter for collections are
+                    `name`, `description`, `created_at`, `updated_at`.
+                Fields available to filter for collections are
+                    `name`, `tag`, `description`, `created_at`, `updated_at`
+                Fields available to filter for versions are
+                    `tag`, `alias`, `created_at`, `updated_at`, `metadata`
+
+        Returns:
+            A registry iterator.
+        """
+        if not InternalApi()._check_server_feature_with_fallback(
+            ServerFeature.ARTIFACT_REGISTRY_SEARCH
+        ):
+            raise RuntimeError(
+                "Registry search API is not enabled on this wandb server version. "
+                "Please upgrade your server version or contact support at support@wandb.com."
+            )
+
+        organization = organization or fetch_org_from_settings_or_entity(
+            self.settings, self.default_entity
+        )
+        return Registries(self.client, organization, filter)

@@ -29,14 +29,48 @@ class _ServerFeature:
 class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[_ServerFeature.ValueType], builtins.type):  # noqa: F821
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
     LARGE_FILENAMES: _ServerFeature.ValueType  # 0
+    """Indicates that the server supports recieving an array of filenames as metadata."""
     ARTIFACT_TAGS: _ServerFeature.ValueType  # 1
+    """Indicates that the server supports adding tags to artifacts."""
     CLIENT_IDS: _ServerFeature.ValueType  # 2
+    """Indicates that the server supports client IDs for artifact reference urls."""
+    ARTIFACT_REGISTRY_SEARCH: _ServerFeature.ValueType  # 3
+    """Indicates that the server supports searching for artifacts in a registry."""
+    STRUCTURED_CONSOLE_LOGS: _ServerFeature.ValueType  # 4
+    """Indicates that the server supports structured console logs."""
+    ARTIFACT_COLLECTION_MEMBERSHIP_FILES: _ServerFeature.ValueType  # 5
+    """Indicates that the server supports querying for files on artifact collection memberships."""
+    ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER: _ServerFeature.ValueType  # 6
+    """Indicates that the server supports downloading files with additional artifact collection memberships context in the
+    url.
+    """
+    USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION: _ServerFeature.ValueType  # 7
+    """Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation."""
 
-class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper): ...
+class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
+    """*
+    Server features are features that the server supports.
+    This name should match the name of the feature defined in the backend server.
+    """
 
 LARGE_FILENAMES: ServerFeature.ValueType  # 0
+"""Indicates that the server supports recieving an array of filenames as metadata."""
 ARTIFACT_TAGS: ServerFeature.ValueType  # 1
+"""Indicates that the server supports adding tags to artifacts."""
 CLIENT_IDS: ServerFeature.ValueType  # 2
+"""Indicates that the server supports client IDs for artifact reference urls."""
+ARTIFACT_REGISTRY_SEARCH: ServerFeature.ValueType  # 3
+"""Indicates that the server supports searching for artifacts in a registry."""
+STRUCTURED_CONSOLE_LOGS: ServerFeature.ValueType  # 4
+"""Indicates that the server supports structured console logs."""
+ARTIFACT_COLLECTION_MEMBERSHIP_FILES: ServerFeature.ValueType  # 5
+"""Indicates that the server supports querying for files on artifact collection memberships."""
+ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER: ServerFeature.ValueType  # 6
+"""Indicates that the server supports downloading files with additional artifact collection memberships context in the
+url.
+"""
+USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION: ServerFeature.ValueType  # 7
+"""Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation."""
 global___ServerFeature = ServerFeature
 
 class Record(google.protobuf.message.Message):

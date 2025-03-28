@@ -8,9 +8,10 @@ All the performance tests and setup files for the SDK are inside this experiment
 1. Go to your wandb repo
 2. Go to tools/perf
 3. Build the docker image
-4. Start a container
-   docker run -d perfimage
-5. Log into the container
+   docker build -t image_name .
+5. Start a container
+   docker run -d image_name
+6. Log into the container
    docker exec -it container_id /bin/bash
 
 ## Starting a load test

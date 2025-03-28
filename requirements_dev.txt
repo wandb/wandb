@@ -8,9 +8,6 @@ pydantic~=2.9
 # For Pydantic to work with modern type annotations in older Pythons:
 eval-type-backport~=0.2.0; python_version >= '3.8' and python_version < '3.10'
 
-hypothesis
-hypothesis-fspaths
-
 Pillow
 pandas
 polars
@@ -28,7 +25,7 @@ tenacity
 ipython
 ipython<8.13; python_version < '3.9'
 ipykernel
-nbclient
+nbclient~=0.10.1
 
 
 tensorflow~=2.18.0; python_version >= '3.9'
@@ -50,7 +47,8 @@ jax[cpu]
 lightning
 ray[air,tune]
 
-fastcore
+# Latest version of plum-dispatch tested is 2.5.7
+plum-dispatch>=2.0.0,<3.0.0
 pyarrow
 metaflow
 xgboost

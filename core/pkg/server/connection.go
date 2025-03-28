@@ -17,6 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 
+	"github.com/wandb/wandb/core/pkg/monitor"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -28,7 +29,9 @@ const (
 )
 
 type ConnectionParams struct {
-	StreamMux    *stream.StreamMux
+	StreamMux          *stream.StreamMux
+	GPUResourceManager *monitor.GPUResourceManager
+
 	Conn         net.Conn
 	SentryClient *sentry_ext.Client
 	Commit       string
@@ -58,6 +61,9 @@ type Connection struct {
 	// track the streams associated with this connection.
 	streamMux *stream.StreamMux
 
+	// gpuResourceManager is used by streams for system GPU metrics.
+	gpuResourceManager *monitor.GPUResourceManager
+
 	// id is the unique id for the connection
 	id string
 
@@ -70,11 +76,6 @@ type Connection struct {
 	// An atomic flag indicating whether the `outChan` has been closed, ensuring
 	// thread-safe checking and updating of the connection’s closure state.
 	closed *atomic.Bool
-
-	// The stream associated with this connection. While each connection has one
-	// stream, a stream can have multiple active connections, typically for a
-	// multi-client session.
-	stream *stream.Stream
 
 	// The current W&B Git commit hash, identifying the specific version of the binary.
 	commit string
@@ -95,18 +96,19 @@ func NewConnection(
 	params ConnectionParams,
 ) *Connection {
 	return &Connection{
-		connLifetimeCtx: serverLifetimeCtx,
-		stopServer:      stopServer,
-		streamMux:       params.StreamMux,
-		conn:            params.Conn,
-		commit:          params.Commit,
-		id:              params.Conn.RemoteAddr().String(), // TODO: check if this is properly unique
-		inChan:          make(chan *spb.ServerRequest, BufferSize),
-		outChan:         make(chan *spb.ServerResponse, BufferSize),
-		closed:          &atomic.Bool{},
-		sentryClient:    params.SentryClient,
-		loggerPath:      params.LoggerPath,
-		logLevel:        params.LogLevel,
+		connLifetimeCtx:    serverLifetimeCtx,
+		stopServer:         stopServer,
+		streamMux:          params.StreamMux,
+		gpuResourceManager: params.GPUResourceManager,
+		conn:               params.Conn,
+		commit:             params.Commit,
+		id:                 params.Conn.RemoteAddr().String(), // TODO: check if this is properly unique
+		inChan:             make(chan *spb.ServerRequest, BufferSize),
+		outChan:            make(chan *spb.ServerResponse, BufferSize),
+		closed:             &atomic.Bool{},
+		sentryClient:       params.SentryClient,
+		loggerPath:         params.LoggerPath,
+		logLevel:           params.LogLevel,
 	}
 }
 
@@ -302,7 +304,7 @@ func (nc *Connection) handleIncomingRequests() {
 		case *spb.ServerRequest_InformStart:
 			nc.handleInformStart(x.InformStart)
 		case *spb.ServerRequest_InformAttach:
-			nc.handleInformAttach(x.InformAttach)
+			nc.handleInformAttach(msg.RequestId, x.InformAttach)
 		case *spb.ServerRequest_RecordPublish:
 			nc.handleInformRecord(x.RecordPublish)
 		case *spb.ServerRequest_RecordCommunicate:
@@ -347,23 +349,24 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 		sentryClient = nc.sentryClient
 	}
 
-	nc.stream = stream.NewStream(
+	strm := stream.NewStream(
 		stream.StreamParams{
-			Settings:   settings,
-			Commit:     nc.commit,
-			LogLevel:   nc.logLevel,
-			Sentry:     sentryClient,
-			LoggerPath: nc.loggerPath,
+			Settings:           settings,
+			Commit:             nc.commit,
+			LogLevel:           nc.logLevel,
+			Sentry:             sentryClient,
+			LoggerPath:         nc.loggerPath,
+			GPUResourceManager: nc.gpuResourceManager,
 		},
 	)
-	nc.stream.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
-	nc.stream.Start()
+	strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
+	strm.Start()
 	slog.Info("handleInformInit: stream started", "streamId", streamId, "id", nc.id)
 
 	// TODO: remove this once we have a better observability setup
 	sentryClient.CaptureMessage("wandb-core", nil)
 
-	if err := nc.streamMux.AddStream(streamId, nc.stream); err != nil {
+	if err := nc.streamMux.AddStream(streamId, strm); err != nil {
 		slog.Error("handleInformInit: error adding stream", "err", err, "streamId", streamId, "id", nc.id)
 		// TODO: should we Close the stream?
 		return
@@ -380,8 +383,16 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 // to update stream settings
 func (nc *Connection) handleInformStart(msg *spb.ServerInformStartRequest) {
 	slog.Debug("handleInformStart: received", "id", nc.id)
-	nc.stream.UpdateSettings(settings.From(msg.GetSettings()))
-	nc.stream.UpdateRunURLTag()
+
+	strm, err := nc.streamMux.GetStream(msg.GetXInfo().GetStreamId())
+	if err != nil {
+		slog.Error(
+			"handleInformStart: error getting stream",
+			"err", err, "id", nc.id)
+	} else {
+		strm.UpdateSettings(settings.From(msg.GetSettings()))
+		strm.UpdateRunURLTag()
+	}
 }
 
 // handleInformAttach handles the new connection attaching to an existing stream.
@@ -390,22 +401,27 @@ func (nc *Connection) handleInformStart(msg *spb.ServerInformStartRequest) {
 // from the client. It attaches a new client connection to an existing stream
 // and sends an update to the client with the stream settings. The client can
 // then use these settings to update its local state.
-func (nc *Connection) handleInformAttach(msg *spb.ServerInformAttachRequest) {
+func (nc *Connection) handleInformAttach(
+	requestID string,
+	msg *spb.ServerInformAttachRequest,
+) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Debug("handle record received", "streamId", streamId, "id", nc.id)
-	var err error
-	nc.stream, err = nc.streamMux.GetStream(streamId)
+	strm, err := nc.streamMux.GetStream(streamId)
 	if err != nil {
-		slog.Error("handleInformAttach: stream not found", "streamId", streamId, "id", nc.id)
+		slog.Error(
+			"handleInformAttach: error getting stream",
+			"err", err, "id", nc.id)
 	} else {
-		nc.stream.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
+		strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
 		// TODO: we should redo this attach logic, so that the stream handles
 		//       the attach logic
 		resp := &spb.ServerResponse{
+			RequestId: requestID,
 			ServerResponseType: &spb.ServerResponse_InformAttachResponse{
 				InformAttachResponse: &spb.ServerInformAttachResponse{
 					XInfo:    msg.XInfo,
-					Settings: nc.stream.GetSettings().Proto,
+					Settings: strm.GetSettings().Proto,
 				},
 			},
 		}
@@ -433,7 +449,7 @@ func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 		BaseUrl: &wrapperspb.StringValue{Value: msg.BaseUrl},
 	})
 	backend := stream.NewBackend(observability.NewNoOpLogger(), s) // TODO: use a real logger
-	graphqlClient := stream.NewGraphQLClient(backend, s, &observability.Peeker{})
+	graphqlClient := stream.NewGraphQLClient(backend, s, &observability.Peeker{}, "" /*clientId*/)
 
 	data, err := gql.Viewer(context.Background(), graphqlClient)
 	if err != nil || data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
@@ -469,14 +485,15 @@ func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 // It also adds the connection ID to the control message so that the stream can send
 // a response back to the correct connection.
 func (nc *Connection) handleInformRecord(msg *spb.Record) {
-
 	streamId := msg.GetXInfo().GetStreamId()
 
 	slog.Debug("handleInformRecord: record received", "streamId", streamId, "id", nc.id)
 
-	// Check if the stream exists before proceeding
-	if nc.stream == nil {
-		slog.Error("handleInformRecord: stream not found", "streamId", streamId, "id", nc.id)
+	strm, err := nc.streamMux.GetStream(streamId)
+	if err != nil {
+		slog.Error(
+			"handleInformRecord: error getting stream",
+			"err", err, "id", nc.id)
 		return
 	}
 
@@ -489,7 +506,7 @@ func (nc *Connection) handleInformRecord(msg *spb.Record) {
 	}
 
 	// Delegate the handling of the record to the stream
-	nc.stream.HandleRecord(msg)
+	strm.HandleRecord(msg)
 }
 
 // handleInformFinish processes a finish message from the client.
@@ -502,14 +519,14 @@ func (nc *Connection) handleInformFinish(msg *spb.ServerInformFinishRequest) {
 	slog.Info("handleInformFinish: finish message received", "streamId", streamId, "id", nc.id)
 
 	// Attempt to remove the stream from the stream multiplexer
-	stream, err := nc.streamMux.RemoveStream(streamId)
+	strm, err := nc.streamMux.RemoveStream(streamId)
 	if err != nil {
 		slog.Error("handleInformFinish: error removing stream", "err", err, "streamId", streamId, "id", nc.id)
 		return
 	}
 
 	// Safely close the stream
-	stream.Close()
+	strm.Close()
 	slog.Info("handleInformFinish: stream closed", "streamId", streamId, "id", nc.id)
 }
 

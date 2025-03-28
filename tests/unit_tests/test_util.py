@@ -794,3 +794,18 @@ def test_sampling_weights():
     )
     # Expect more samples from the start of the list
     assert np.mean(sampled_xs) < np.mean(xs)
+
+
+def test_json_dump_uncompressed_with_numpy_datatypes():
+    import io
+
+    data = {
+        "a": [
+            np.int32(1),
+            np.float32(2.0),
+            np.int64(3),
+        ]
+    }
+    iostr = io.StringIO()
+    util.json_dump_uncompressed(data, iostr)
+    assert iostr.getvalue() == '{"a": [1, 2.0, 3]}'

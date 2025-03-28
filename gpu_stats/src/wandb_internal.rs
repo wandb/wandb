@@ -472,6 +472,9 @@ pub struct Feature {
     /// shared mode was added in wandb.Settings
     #[prost(bool, tag = "67")]
     pub shared_mode: bool,
+    /// server-side derived summary computation was enabled
+    #[prost(bool, tag = "68")]
+    pub server_side_derived_summary: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Env {
@@ -592,6 +595,9 @@ pub struct Deprecated {
     /// wandb.run.finish(quiet=...) called
     #[prost(bool, tag = "19")]
     pub run_finish_quiet: bool,
+    /// reinit setting set to a boolean value
+    #[prost(bool, tag = "20")]
+    pub run_reinit_bool: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {
@@ -2822,12 +2828,29 @@ pub struct ServerFeatureItem {
     #[prost(bool, tag = "2")]
     pub enabled: bool,
 }
+/// *
+/// Server features are features that the server supports.
+/// This name should match the name of the feature defined in the backend server.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum ServerFeature {
+    /// Indicates that the server supports recieving an array of filenames as metadata.
     LargeFilenames = 0,
+    /// Indicates that the server supports adding tags to artifacts.
     ArtifactTags = 1,
+    /// Indicates that the server supports client IDs for artifact reference urls.
     ClientIds = 2,
+    /// Indicates that the server supports searching for artifacts in a registry.
+    ArtifactRegistrySearch = 3,
+    /// Indicates that the server supports structured console logs.
+    StructuredConsoleLogs = 4,
+    /// Indicates that the server supports querying for files on artifact collection memberships.
+    ArtifactCollectionMembershipFiles = 5,
+    /// Indicates that the server supports downloading files with additional artifact collection memberships context in the
+    /// url.
+    ArtifactCollectionMembershipFileDownloadHandler = 6,
+    /// Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
+    UseArtifactWithEntityAndProjectInformation = 7,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2839,6 +2862,17 @@ impl ServerFeature {
             Self::LargeFilenames => "LARGE_FILENAMES",
             Self::ArtifactTags => "ARTIFACT_TAGS",
             Self::ClientIds => "CLIENT_IDS",
+            Self::ArtifactRegistrySearch => "ARTIFACT_REGISTRY_SEARCH",
+            Self::StructuredConsoleLogs => "STRUCTURED_CONSOLE_LOGS",
+            Self::ArtifactCollectionMembershipFiles => {
+                "ARTIFACT_COLLECTION_MEMBERSHIP_FILES"
+            }
+            Self::ArtifactCollectionMembershipFileDownloadHandler => {
+                "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER"
+            }
+            Self::UseArtifactWithEntityAndProjectInformation => {
+                "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2847,6 +2881,17 @@ impl ServerFeature {
             "LARGE_FILENAMES" => Some(Self::LargeFilenames),
             "ARTIFACT_TAGS" => Some(Self::ArtifactTags),
             "CLIENT_IDS" => Some(Self::ClientIds),
+            "ARTIFACT_REGISTRY_SEARCH" => Some(Self::ArtifactRegistrySearch),
+            "STRUCTURED_CONSOLE_LOGS" => Some(Self::StructuredConsoleLogs),
+            "ARTIFACT_COLLECTION_MEMBERSHIP_FILES" => {
+                Some(Self::ArtifactCollectionMembershipFiles)
+            }
+            "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER" => {
+                Some(Self::ArtifactCollectionMembershipFileDownloadHandler)
+            }
+            "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION" => {
+                Some(Self::UseArtifactWithEntityAndProjectInformation)
+            }
             _ => None,
         }
     }

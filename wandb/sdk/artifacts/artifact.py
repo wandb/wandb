@@ -19,7 +19,18 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
-from typing import IO, Any, Dict, Iterator, Literal, Sequence, Type, cast, final
+from typing import (
+    IO,
+    Any,
+    Dict,
+    Iterator,
+    Literal,
+    Optional,
+    Sequence,
+    Type,
+    cast,
+    final,
+)
 from urllib.parse import quote, urljoin, urlparse
 
 import requests
@@ -30,6 +41,8 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.artifacts._graphql_fragments import _gql_artifact_fragment
 from wandb.sdk.artifacts._validators import (
     ensure_logged,
     ensure_not_finalized,
@@ -61,7 +74,7 @@ from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_id
-from wandb.sdk.mailbox import Mailbox, MailboxHandle
+from wandb.sdk.mailbox import MailboxHandle
 
 reset_path = util.vendor_setup()
 
@@ -105,6 +118,9 @@ class Artifact:
             description as markdown in the W&B App.
         metadata: Additional information about an artifact. Specify metadata as a
             dictionary of key-value pairs. You can specify no more than 100 total keys.
+        incremental: Use `Artifact.new_draft()` method instead to modify an
+            existing artifact.
+        use_as: W&B Launch specific parameter. Not recommended for general use.
 
     Returns:
         An `Artifact` object.
@@ -146,7 +162,7 @@ class Artifact:
         self._tmp_dir: tempfile.TemporaryDirectory | None = None
         self._added_objs: dict[int, tuple[WBValue, ArtifactManifestEntry]] = {}
         self._added_local_paths: dict[str, ArtifactManifestEntry] = {}
-        self._save_handle: MailboxHandle | None = None
+        self._save_handle: MailboxHandle[pb.Result] | None = None
         self._download_roots: set[str] = set()
         # Set by new_draft(), otherwise the latest artifact will be used as the base.
         self._base_id: str | None = None
@@ -286,6 +302,7 @@ class Artifact:
         name: str,
         attrs: dict[str, Any],
         client: RetryingClient,
+        aliases: Optional[list[str]] = None,
     ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
@@ -293,7 +310,7 @@ class Artifact:
         artifact._entity = entity
         artifact._project = project
         artifact._name = name
-        artifact._assign_attrs(attrs)
+        artifact._assign_attrs(attrs, aliases)
 
         artifact.finalize()
 
@@ -302,7 +319,9 @@ class Artifact:
         artifact_instance_cache[artifact.id] = artifact
         return artifact
 
-    def _assign_attrs(self, attrs: dict[str, Any]) -> None:
+    def _assign_attrs(
+        self, attrs: dict[str, Any], aliases: Optional[list[str]] = None
+    ) -> None:
         """Update this Artifact's attributes using the server response."""
         self._id = attrs["id"]
 
@@ -329,21 +348,30 @@ class Artifact:
         entity = self._entity
         project = self._project
         collection, *_ = self._name.split(":")
-        aliases = [
-            obj["alias"]
-            for obj in attrs["aliases"]
-            if obj["artifactCollection"]
-            and obj["artifactCollection"]["project"]
-            and obj["artifactCollection"]["project"]["entityName"] == entity
-            and obj["artifactCollection"]["project"]["name"] == project
-            and obj["artifactCollection"]["name"] == collection
-        ]
+
+        processed_aliases = []
+        # The future of aliases is to move all alias fetches to the membership level
+        # so we don't have to do the collection fetches below
+        if aliases:
+            processed_aliases = aliases
+        else:
+            processed_aliases = [
+                obj["alias"]
+                for obj in attrs["aliases"]
+                if obj["artifactCollection"]
+                and obj["artifactCollection"]["project"]
+                and obj["artifactCollection"]["project"]["entityName"] == entity
+                and obj["artifactCollection"]["project"]["name"] == project
+                and obj["artifactCollection"]["name"] == collection
+            ]
 
         version_aliases = [
-            alias for alias in aliases if util.alias_is_version_index(alias)
+            alias for alias in processed_aliases if util.alias_is_version_index(alias)
         ]
         other_aliases = [
-            alias for alias in aliases if not util.alias_is_version_index(alias)
+            alias
+            for alias in processed_aliases
+            if not util.alias_is_version_index(alias)
         ]
         if version_aliases:
             try:
@@ -397,7 +425,9 @@ class Artifact:
     def new_draft(self) -> Artifact:
         """Create a new draft artifact with the same content as this committed artifact.
 
-        The artifact returned can be extended or modified and logged as a new version.
+        Modifying an existing artifact creates a new artifact version known
+        as an "incremental artifact". The artifact returned can be extended or
+        modified and logged as a new version.
 
         Returns:
             An `Artifact` object.
@@ -932,7 +962,7 @@ class Artifact:
 
     def _set_save_handle(
         self,
-        save_handle: MailboxHandle,
+        save_handle: MailboxHandle[pb.Result],
         client: RetryingClient,
     ) -> None:
         self._save_handle = save_handle
@@ -1804,12 +1834,7 @@ class Artifact:
             service = wl.ensure_service()
             service.inform_init(settings=settings, run_id=stream_id)
 
-            mailbox = Mailbox()
-            backend = Backend(
-                settings=wl.settings,
-                service=service,
-                mailbox=mailbox,
-            )
+            backend = Backend(settings=wl.settings, service=service)
             backend.ensure_launched()
 
             assert backend.interface
@@ -1937,33 +1962,78 @@ class Artifact:
         retryable_exceptions=(requests.RequestException),
     )
     def _fetch_file_urls(self, cursor: str | None, per_page: int | None = 5000) -> Any:
-        query = gql(
-            """
-            query ArtifactFileURLs($id: ID!, $cursor: String, $perPage: Int) {
-                artifact(id: $id) {
-                    files(after: $cursor, first: $perPage) {
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
-                        edges {
-                            node {
-                                name
-                                directUrl
+        if InternalApi()._check_server_feature_with_fallback(
+            pb.ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES  # type: ignore
+        ):
+            query = gql(
+                """
+                query ArtifactCollectionMembershipFileURLs($entityName: String!, $projectName: String!, \
+                        $artifactName: String!, $artifactVersionIndex: String!, $cursor: String, $perPage: Int) {
+                    project(name: $projectName, entityName: $entityName) {
+                        artifactCollection(name: $artifactName) {
+                            artifactMembership(aliasName: $artifactVersionIndex) {
+                                files(after: $cursor, first: $perPage) {
+                                    pageInfo {
+                                        hasNextPage
+                                        endCursor
+                                    }
+                                    edges {
+                                        node {
+                                            name
+                                            directUrl
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
-            """
-        )
-        assert self._client is not None
-        response = self._client.execute(
-            query,
-            variable_values={"id": self.id, "cursor": cursor, "perPage": per_page},
-            timeout=60,
-        )
-        return response["artifact"]["files"]
+                """
+            )
+            assert self._client is not None
+            response = self._client.execute(
+                query,
+                variable_values={
+                    "entityName": self.entity,
+                    "projectName": self.project,
+                    "artifactName": self.name.split(":")[0],
+                    "artifactVersionIndex": self.version,
+                    "cursor": cursor,
+                    "perPage": per_page,
+                },
+                timeout=60,
+            )
+            return response["project"]["artifactCollection"]["artifactMembership"][
+                "files"
+            ]
+        else:
+            query = gql(
+                """
+                query ArtifactFileURLs($id: ID!, $cursor: String, $perPage: Int) {
+                    artifact(id: $id) {
+                        files(after: $cursor, first: $perPage) {
+                            pageInfo {
+                                hasNextPage
+                                endCursor
+                            }
+                            edges {
+                                node {
+                                    name
+                                    directUrl
+                                }
+                            }
+                        }
+                    }
+                }
+                """
+            )
+            assert self._client is not None
+            response = self._client.execute(
+                query,
+                variable_values={"id": self.id, "cursor": cursor, "perPage": per_page},
+                timeout=60,
+            )
+            return response["artifact"]["files"]
 
     @ensure_logged
     def checkout(self, root: str | None = None) -> str:
@@ -2391,61 +2461,6 @@ def _ttl_duration_seconds_from_gql(gql_ttl_duration_seconds: int | None) -> int 
     if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
         return gql_ttl_duration_seconds
     return None
-
-
-def _gql_artifact_fragment() -> str:
-    """Return a GraphQL query fragment with all parseable Artifact attributes."""
-    allowed_fields = set(InternalApi().server_artifact_introspection())
-
-    supports_ttl = "ttlIsInherited" in allowed_fields
-    supports_tags = "tags" in allowed_fields
-
-    ttl_duration_seconds = "ttlDurationSeconds" if supports_ttl else ""
-    ttl_is_inherited = "ttlIsInherited" if supports_ttl else ""
-
-    tags = "tags {name}" if supports_tags else ""
-
-    return f"""
-        fragment ArtifactFragment on Artifact {{
-            id
-            artifactSequence {{
-                project {{
-                    entityName
-                    name
-                }}
-                name
-            }}
-            versionIndex
-            artifactType {{
-                name
-            }}
-            description
-            metadata
-            {ttl_duration_seconds}
-            {ttl_is_inherited}
-            aliases {{
-                artifactCollection {{
-                    project {{
-                        entityName
-                        name
-                    }}
-                    name
-                }}
-                alias
-            }}
-            {tags}
-            state
-            currentManifest {{
-                file {{
-                    directUrl
-                }}
-            }}
-            commitHash
-            fileCount
-            createdAt
-            updatedAt
-        }}
-    """
 
 
 class _ArtifactVersionType(WBType):
