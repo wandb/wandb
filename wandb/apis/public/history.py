@@ -1,4 +1,24 @@
-"""Public API: history."""
+"""W&B Public API for Run History.
+
+This module provides classes for efficiently scanning and sampling run
+history data. Classes include:
+
+
+HistoryScan: Iterator for scanning complete run history
+- Paginated access to all metrics
+- Configure step ranges and page sizes
+- Raw access to all logged data
+
+SampledHistoryScan: Iterator for sampling run history data
+- Efficient access to downsampled metrics
+- Filter by specific keys
+- Control sample size and step ranges
+
+Note:
+    This module is part of the W&B Public API and provides efficient methods
+    to access run history data. It handles pagination automatically and offers
+    both complete and sampled access to metrics logged during training runs.
+"""
 
 import json
 
@@ -12,6 +32,8 @@ from wandb.sdk.lib import retry
 
 
 class HistoryScan:
+    """Iterator for scanning complete run history."""
+
     QUERY = gql(
         """
         query HistoryPage($entity: String!, $project: String!, $run: String!, $minStep: Int64!, $maxStep: Int64!, $pageSize: Int!) {
@@ -41,6 +63,10 @@ class HistoryScan:
         return self
 
     def __next__(self):
+        """Return the next row of history data with automatic pagination.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         while True:
             if self.scan_offset < len(self.rows):
                 row = self.rows[self.scan_offset]
@@ -78,6 +104,8 @@ class HistoryScan:
 
 
 class SampledHistoryScan:
+    """Iterator for sampling run history data."""
+
     QUERY = gql(
         """
         query SampledHistoryPage($entity: String!, $project: String!, $run: String!, $spec: JSONString!) {
@@ -108,6 +136,10 @@ class SampledHistoryScan:
         return self
 
     def __next__(self):
+        """Return the next row of sampled history data with automatic pagination.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         while True:
             if self.scan_offset < len(self.rows):
                 row = self.rows[self.scan_offset]
