@@ -86,14 +86,14 @@ def get_netrc_file_path() -> str:
 
 
 # Context variable to store referrer
-_api_key_prompt_referrer: ContextVar[Optional[str]] = ContextVar("referrer_context", default=None)
+_api_key_prompt_referrer: ContextVar[Optional[str]] = ContextVar("api_key_prompt_referrer", default=None)
 
 @contextmanager
-def referrer_context(referrer: Optional[str]) -> None:
+def api_key_prompt_referrer(referrer: Optional[str]) -> None:
     """Context manager for temporarily setting the referrer context.
     
     Example:
-        >>> with referrer_context("my_referrer"):
+        >>> with api_key_prompt_referrer("my_referrer"):
         ...     prompt_api_key(settings)
     """
     token = _api_key_prompt_referrer.set(referrer)
