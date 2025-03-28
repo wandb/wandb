@@ -61,6 +61,7 @@ class Reports(Paginator):
 
     @property
     def length(self):
+        """The number of reports in the project."""
         # TODO: Add the count the backend
         if self.last_response:
             return len(self.objects)
@@ -69,6 +70,9 @@ class Reports(Paginator):
 
     @property
     def more(self):
+        """Returns `True` if there are more files to fetch. Returns
+        `False` if there are no more files to fetch.
+        """
         if self.last_response:
             return self.last_response["project"]["allViews"]["pageInfo"]["hasNextPage"]
         else:
@@ -76,17 +80,20 @@ class Reports(Paginator):
 
     @property
     def cursor(self):
+        """Returns the cursor position for pagination of file results."""
         if self.last_response:
             return self.last_response["project"]["allViews"]["edges"][-1]["cursor"]
         else:
             return None
 
     def update_variables(self):
+        """Updates the GraphQL query variables for pagination."""
         self.variables.update(
             {"reportCursor": self.cursor, "reportLimit": self.per_page}
         )
 
     def convert_objects(self):
+        """Converts GraphQL edges to File objects."""
         if self.last_response["project"] is None:
             raise ValueError(
                 f"Project {self.variables['project']} does not exist under entity {self.variables['entity']}"
@@ -112,9 +119,9 @@ class BetaReport(Attrs):
 
     Attributes:
         name (string): report name
-        description (string): report description;
+        description (string): report description
         user (User): the user that created the report
-        spec (dict): the spec off the report;
+        spec (dict): the spec off the report
         updated_at (string): timestamp of last update
     """
 
@@ -128,9 +135,11 @@ class BetaReport(Attrs):
 
     @property
     def sections(self):
+        """Get the panel sections (groups) from the report."""
         return self.spec["panelGroups"]
 
     def runs(self, section, per_page=50, only_selected=True):
+        """Get runs associated with a section of the report."""
         run_set_idx = section.get("openRunSet", 0)
         run_set = section["runSets"][run_set_idx]
         order = self.query_generator.key_to_server_path(run_set["sort"]["key"])
@@ -155,10 +164,15 @@ class BetaReport(Attrs):
 
     @property
     def updated_at(self):
+        """Timestamp of last update"""
         return self._attrs["updatedAt"]
 
     @property
     def url(self):
+        """URL of the report.
+
+        Contains the entity, project, display name, and id.
+        """
         return self.client.app_url + "/".join(
             [
                 self.entity,
@@ -188,6 +202,11 @@ class BetaReport(Attrs):
 
 
 class PythonMongoishQueryGenerator:
+    """Converts Python-style query expressions to MongoDB-style queries for W&B reports.
+
+    <!-- lazydoc-ignore: internal -->
+    """
+
     SPACER = "----------"
     DECIMAL_SPACER = ";;;"
     FRONTEND_NAME_MAPPING = {
@@ -298,6 +317,10 @@ class PythonMongoishQueryGenerator:
         return field_name.replace(self.SPACER, ".")  # Allow dotted fields
 
     def python_to_mongo(self, filterstr):
+        """Convert Python expresion to MongoDB filter.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         try:
             tree = ast.parse(self._convert(filterstr), mode="eval")
         except SyntaxError as e:
@@ -316,6 +339,10 @@ class PythonMongoishQueryGenerator:
         return {"$or": [{op: values}]}
 
     def front_to_back(self, name):
+        """Convert frontend metric names to backend field names.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         name, *rest = name.split(".")
         rest = "." + ".".join(rest) if rest else ""
 
@@ -329,6 +356,10 @@ class PythonMongoishQueryGenerator:
             return f"summary_metrics.{name}{rest}"
 
     def back_to_front(self, name):
+        """Convert backend field names to frontend metric names.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if name in self.FRONTEND_NAME_MAPPING_REVERSED:
             return self.FRONTEND_NAME_MAPPING_REVERSED[name]
         elif name in self.FRONTEND_NAME_MAPPING:
@@ -345,6 +376,10 @@ class PythonMongoishQueryGenerator:
 
     # These are only used for ParallelCoordinatesPlot because it has weird backend names...
     def pc_front_to_back(self, name):
+        """Convert ParallelCoordinatesPlot to backend field names.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         name, *rest = name.split(".")
         rest = "." + ".".join(rest) if rest else ""
         if name is None:
@@ -361,6 +396,10 @@ class PythonMongoishQueryGenerator:
             return f"summary:{name}{rest}"
 
     def pc_back_to_front(self, name):
+        """Convert backend backend field names to ParallelCoordinatesPlot names.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if name is None:
             return None
         elif "summary:" in name:
@@ -380,6 +419,11 @@ class PythonMongoishQueryGenerator:
 
 
 class PanelMetricsHelper:
+    """Converts Python-style query expressions to MongoDB-style queries for W&B reports.
+
+    <!-- lazydoc-ignore: internal -->
+    """
+
     FRONTEND_NAME_MAPPING = {
         "Step": "_step",
         "Relative Time (Wall)": "_absolute_runtime",
@@ -392,17 +436,29 @@ class PanelMetricsHelper:
     RUN_MAPPING_REVERSED = {v: k for k, v in RUN_MAPPING.items()}
 
     def front_to_back(self, name):
+        """Convert frontend metric names to backend field names.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if name in self.FRONTEND_NAME_MAPPING:
             return self.FRONTEND_NAME_MAPPING[name]
         return name
 
     def back_to_front(self, name):
+        """Convert backend field names to frontend metric names.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if name in self.FRONTEND_NAME_MAPPING_REVERSED:
             return self.FRONTEND_NAME_MAPPING_REVERSED[name]
         return name
 
     # ScatterPlot and ParallelCoords have weird conventions
     def special_front_to_back(self, name):
+        """Convert frontend metric names to backend field names.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if name is None:
             return name
 
@@ -429,6 +485,10 @@ class PanelMetricsHelper:
         return "summary:" + name
 
     def special_back_to_front(self, name):
+        """Convert backend field names to frontend metric names.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if name is not None:
             kind, rest = name.split(":", 1)
 
