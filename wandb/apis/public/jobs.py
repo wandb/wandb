@@ -1,4 +1,26 @@
-"""Public API: jobs."""
+"""W&B Public API for Job Management and Queuing.
+
+This module provides classes for managing W&B jobs, queued runs, and run
+queues. Classes include:
+
+Job: Manage W&B job definitions and execution
+- Load and configure jobs from artifacts
+- Set entrypoints and runtime configurations
+- Execute jobs with different resource types
+- Handle notebook and container-based jobs
+
+QueuedRun: Track and manage individual queued runs
+- Monitor run state and execution
+- Wait for run completion
+- Access run results and artifacts
+- Delete queued runs
+
+RunQueue: Manage job queues and execution resources
+- Create and configure run queues
+- Set resource types and configurations
+- Monitor queue items and status
+- Control queue access and priorities
+"""
 
 import json
 import os
@@ -78,6 +100,7 @@ class Job:
 
     @property
     def name(self):
+        """The name of the job."""
         return self._name
 
     def _set_configure_launch_project(self, func):
@@ -162,6 +185,7 @@ class Job:
             launch_project.set_job_entry_point(self._entrypoint)
 
     def set_entrypoint(self, entrypoint: List[str]):
+        """Set the entrypoint for the job."""
         self._entrypoint = entrypoint
 
     def call(
@@ -212,7 +236,20 @@ class Job:
 
 
 class QueuedRun:
-    """A single queued run associated with an entity and project. Call `run = queued_run.wait_until_running()` or `run = queued_run.wait_until_finished()` to access the run."""
+    """A single queued run associated with an entity and project.
+
+    Args:
+        client:
+        entity: The entity associated with the queued run.
+        project: The project where runs executed by the queue are logged to.
+        queue_name: The name of the queue.
+        run_queue_item_id: The id of the run queue item.
+        project_queue: The project that manages the queue.
+        priority: The priority of the queued run.
+
+    Call `run = queued_run.wait_until_running()` or
+    `run = queued_run.wait_until_finished()` to access the run.
+    """
 
     def __init__(
         self,
@@ -236,22 +273,27 @@ class QueuedRun:
 
     @property
     def queue_name(self):
+        """The name of the queue."""
         return self._queue_name
 
     @property
     def id(self):
+        """The id of the queued run."""
         return self._run_queue_item_id
 
     @property
     def project(self):
+        """The project associated with the queued run."""
         return self._project
 
     @property
     def entity(self):
+        """The entity associated with the queued run."""
         return self._entity
 
     @property
     def state(self):
+        """The state of the queued run."""
         item = self._get_item()
         if item:
             return item["state"].lower()
@@ -327,6 +369,7 @@ class QueuedRun:
 
     @normalize_exceptions
     def wait_until_finished(self):
+        """Wait for the queued run to complete and return the finished run."""
         if not self._run:
             self.wait_until_running()
 
@@ -388,6 +431,7 @@ class QueuedRun:
 
     @normalize_exceptions
     def wait_until_running(self):
+        """Wait until the queued run is running and return the run."""
         if self._run is not None:
             return self._run
 
@@ -425,6 +469,20 @@ RunQueuePrioritizationMode = Literal["DISABLED", "V0"]
 
 
 class RunQueue:
+    """Class that represents a run queue in W&B.
+
+    Args:
+        client (RetryingClient): W&B API client instance
+        name (str): Name of the run queue
+        entity (str): The entity (user or team) that owns this queue
+        prioritization_mode (RunQueuePrioritizationMode, optional): Queue priority mode
+            Can be "DISABLED" or "V0". Defaults to `None`.
+        _access (RunQueueAccessType, optional): Access level for the queue
+            Can be "project" or "user". Defaults to `None`.
+        _default_resource_config_id (int, optional): ID of default resource config
+        _default_resource_config (dict, optional): Default resource configuration
+    """
+
     def __init__(
         self,
         client: "RetryingClient",
@@ -449,32 +507,41 @@ class RunQueue:
 
     @property
     def name(self):
+        """The name of the queue."""
         return self._name
 
     @property
     def entity(self):
+        """The entity that owns the queue."""
         return self._entity
 
     @property
     def prioritization_mode(self) -> RunQueuePrioritizationMode:
+        """The prioritization mode of the queue.
+
+        Can be set to "DISABLED" or "V0".
+        """
         if self._prioritization_mode is None:
             self._get_metadata()
         return self._prioritization_mode
 
     @property
     def access(self) -> RunQueueAccessType:
+        """The access level of the queue."""
         if self._access is None:
             self._get_metadata()
         return self._access
 
     @property
     def external_links(self) -> Dict[str, str]:
+        """External resource links for the queue."""
         if self._external_links is None:
             self._get_metadata()
         return self._external_links
 
     @property
     def type(self) -> RunQueueResourceType:
+        """The resource type for execution."""
         if self._type is None:
             if self._default_resource_config_id is None:
                 self._get_metadata()
@@ -483,6 +550,7 @@ class RunQueue:
 
     @property
     def default_resource_config(self):
+        """The default configuration for resources."""
         if self._default_resource_config is None:
             if self._default_resource_config_id is None:
                 self._get_metadata()
@@ -491,6 +559,7 @@ class RunQueue:
 
     @property
     def template_variables(self):
+        """Variables for resource templates."""
         if self._template_variables is None:
             if self._default_resource_config_id is None:
                 self._get_metadata()
@@ -499,6 +568,7 @@ class RunQueue:
 
     @property
     def id(self) -> str:
+        """The id of the queue."""
         if self._id is None:
             self._get_metadata()
         return self._id
@@ -647,6 +717,7 @@ class RunQueue:
         config: Optional[dict] = None,
         template_variables: Optional[dict] = None,
     ) -> "RunQueue":
+        """Create a RunQueue."""
         public_api = Api()
         return public_api.create_run_queue(
             name, resource, entity, prioritization_mode, config, template_variables
