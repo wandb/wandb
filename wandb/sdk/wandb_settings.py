@@ -406,6 +406,7 @@ class Settings(BaseModel, validate_assignment=True):
             "default",
             "return_previous",
             "finish_previous",
+            "allow",
         ],
         bool,
     ] = "default"
@@ -414,8 +415,15 @@ class Settings(BaseModel, validate_assignment=True):
     Options:
     - "default": Use "finish_previous" in notebooks and "return_previous"
         otherwise.
-    - "return_previous": Return the active run.
-    - "finish_previous": Finish the active run, then return a new one.
+    - "return_previous": Return the most recently created run
+        that is not yet finished. This does not update `wandb.run`; see
+        the "allow" option.
+    - "finish_previous": Finish all active runs, then return a new run.
+    - "allow": Create a new run without modifying other active runs.
+        Note that if another run already exists, `wandb.run` will continue to
+        refer to it and will not be updated to the new run. When that run
+        finishes, `wandb.run` will become `None`. This may affect some
+        integrations.
 
     Can also be a boolean, but this is deprecated. False is the same as
     "return_previous", and True is the same as "finish_previous".
