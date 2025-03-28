@@ -8,6 +8,8 @@ import platform
 import stat
 import sys
 import textwrap
+from contextlib import contextmanager
+from contextvars import ContextVar
 from functools import partial
 
 # import Literal
@@ -34,7 +36,6 @@ LOGIN_CHOICES = [
     LOGIN_CHOICE_EXISTS,
     LOGIN_CHOICE_DRYRUN,
 ]
-
 
 @dataclasses.dataclass(frozen=True)
 class _NetrcPermissions:
@@ -84,6 +85,25 @@ def get_netrc_file_path() -> str:
     return os.path.join(os.path.expanduser("~"), netrc_file)
 
 
+# Context variable to store referrer
+_api_key_prompt_referrer: ContextVar[Optional[str]] = ContextVar("referrer_context", default=None)
+
+@contextmanager
+def referrer_context(referrer: Optional[str]) -> None:
+    """Context manager for temporarily setting the referrer context.
+    
+    Example:
+        >>> with referrer_context("my_referrer"):
+        ...     prompt_api_key(settings)
+    """
+    token = _api_key_prompt_referrer.set(referrer)
+    try:
+        yield
+    finally:
+        _api_key_prompt_referrer.reset(token)
+
+
+
 def prompt_api_key(  # noqa: C901
     settings: "Settings",
     api: Optional[InternalApi] = None,
@@ -92,7 +112,6 @@ def prompt_api_key(  # noqa: C901
     no_offline: bool = False,
     no_create: bool = False,
     local: bool = False,
-    referrer: Optional[str] = None,
 ) -> Union[str, bool, None]:
     """Prompt for api key.
 
@@ -167,6 +186,7 @@ def prompt_api_key(  # noqa: C901
                     f"locally: {url_registry.url('wandb-server')})"
                 )
             ref = ""
+            referrer = _api_key_prompt_referrer.get()
             if referrer:
                 ref = f"?ref={referrer}"
             wandb.termlog(
