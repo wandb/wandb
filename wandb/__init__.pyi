@@ -890,8 +890,8 @@ def agent(
             the sweep are sent to. If the project is not specified, the
             run is sent to a project labeled "Uncategorized".
         count: The number of sweep config trials to try.
-        forward_signals: Whether to forward signals the agent receives to the child processes. Only supported by
-            CLI agent.
+        forward_signals: Whether to forward signals the agent receives
+            to the child processes. Only supported by CLI agent.
     """
     ...
 
