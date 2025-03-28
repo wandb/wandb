@@ -1,4 +1,20 @@
-"""Public API: users."""
+"""W&B Public API for User Management.
+
+This module provides classes for managing W&B users and their API keys.
+Classes include:
+
+User: Manage W&B user accounts and authentication
+- Create new users
+- Generate and manage API keys
+- Access team memberships
+- Handle user properties and permissions
+
+Note:
+    This module is part of the W&B Public API and provides methods to manage
+    users and their authentication. Some operations require admin privileges.
+    API keys should be handled securely and rotated periodically.
+
+"""
 
 import requests
 from wandb_gql import gql
@@ -8,6 +24,23 @@ from wandb.apis.attrs import Attrs
 
 
 class User(Attrs):
+    """A class representing a W&B user with authentication and management capabilities.
+
+    This class provides methods to manage W&B users, including creating users,
+    managing API keys, and accessing team memberships. It inherits from Attrs
+    to handle user attributes.
+
+    Args:
+        client: (`wandb.apis.internal.Api`) The client instance to use
+        attrs: (dict) The user attributes
+
+    Note:
+    - Some operations require admin privileges
+    - API keys should be handled securely
+    - Team memberships and API keys are loaded lazily
+    - User data is fetched from the W&B GraphQL API
+    """
+
     CREATE_USER_MUTATION = gql(
         """
     mutation CreateUserFromAdmin($email: String!, $admin: Boolean) {
@@ -78,12 +111,24 @@ class User(Attrs):
 
     @property
     def api_keys(self):
+        """List of API key names associated with the user.
+
+        Returns:
+            list[str]: Names of API keys associated with the user. Empty list if user
+                has no API keys or if API key data hasn't been loaded.
+        """
         if self._attrs.get("apiKeys") is None:
             return []
         return [k["node"]["name"] for k in self._attrs["apiKeys"]["edges"]]
 
     @property
     def teams(self):
+        """List of team names that the user is a member of.
+
+        Returns:
+            list[str]: Names of teams the user belongs to. Empty list if user has no
+                team memberships or if teams data hasn't been loaded.
+        """
         if self._attrs.get("teams") is None:
             return []
         return [k["node"]["name"] for k in self._attrs["teams"]["edges"]]
