@@ -645,7 +645,6 @@ class Api:
             `wandb.Error` if path is invalid or the object doesn't exist.
 
         Examples:
-
         In the proceeding code snippets "project", "team", "run_id", "sweep_id",
         and "report_name" are placeholders for the project, team, run ID,
         sweep ID, and the name of a specific report, respectively.
@@ -1207,7 +1206,6 @@ class Api:
             An `ArtifactCollection` object.
 
         Examples:
-
         In the proceeding code snippet "type", "entity", "project", and
         "artifact_name" are placeholders for the collection type, your W&B
         entity, name of the project the artifact is in, and the name of
@@ -1281,7 +1279,6 @@ class Api:
             An iterable `Artifacts` object.
 
         Examples:
-
         In the proceeding code snippet, "type", "entity", "project", and
         "artifact_name" are placeholders for the artifact type, W&B entity,
         name of the project the artifact was logged to,
@@ -1371,7 +1368,6 @@ class Api:
                 match the type of the fetched artifact.
 
         Examples:
-
         In the proceeding code snippets "entity", "project", "artifact",
         "version", and "alias" are placeholders for your W&B entity, name
         of the project the artifact is in, the name of the artifact,
@@ -1512,7 +1508,6 @@ class Api:
             True if the artifact version exists, False otherwise.
 
         Examples:
-
         In the proceeding code snippets "entity", "project", "artifact",
         "version", and "alias" are placeholders for your W&B entity, name of
         the project the artifact is in, the name of the artifact, and
@@ -1549,7 +1544,6 @@ class Api:
             True if the artifact collection exists, False otherwise.
 
         Examples:
-
         In the proceeding code snippet "type", and "collection_name" refer to the type
         of the artifact collection and the name of the collection, respectively.
 
