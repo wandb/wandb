@@ -114,14 +114,14 @@ type Environment struct {
 	Description *string   `json:"description,omitempty"`
 
 	// Directory The directory path of the environment
-	Directory      string                  `json:"directory"`
-	Id             openapi_types.UUID      `json:"id"`
-	Metadata       *map[string]string      `json:"metadata,omitempty"`
-	Name           string                  `json:"name"`
-	Policy         *Policy                 `json:"policy,omitempty"`
-	PolicyId       *openapi_types.UUID     `json:"policyId"`
-	ResourceFilter *map[string]interface{} `json:"resourceFilter"`
-	SystemId       openapi_types.UUID      `json:"systemId"`
+	Directory        string                  `json:"directory"`
+	Id               openapi_types.UUID      `json:"id"`
+	Metadata         *map[string]string      `json:"metadata,omitempty"`
+	Name             string                  `json:"name"`
+	Policy           *Policy                 `json:"policy,omitempty"`
+	PolicyId         *openapi_types.UUID     `json:"policyId"`
+	ResourceSelector *map[string]interface{} `json:"resourceSelector"`
+	SystemId         openapi_types.UUID      `json:"systemId"`
 }
 
 // Job defines model for Job.
@@ -350,8 +350,8 @@ type CreateDeploymentJSONBody struct {
 	// Name The name of the deployment
 	Name string `json:"name"`
 
-	// ResourceFilter The resource filter for the deployment
-	ResourceFilter *map[string]interface{} `json:"resourceFilter,omitempty"`
+	// ResourceSelector The resource selector for the deployment
+	ResourceSelector *map[string]interface{} `json:"resourceSelector,omitempty"`
 
 	// RetryCount The number of times to retry the deployment
 	RetryCount *float32 `json:"retryCount,omitempty"`
@@ -371,13 +371,13 @@ type CreateEnvironmentJSONBody struct {
 	Description *string `json:"description,omitempty"`
 
 	// Directory The directory path of the environment
-	Directory       *string                 `json:"directory,omitempty"`
-	Metadata        *map[string]string      `json:"metadata,omitempty"`
-	Name            string                  `json:"name"`
-	PolicyId        *string                 `json:"policyId,omitempty"`
-	ReleaseChannels *[]string               `json:"releaseChannels,omitempty"`
-	ResourceFilter  *map[string]interface{} `json:"resourceFilter,omitempty"`
-	SystemId        string                  `json:"systemId"`
+	Directory        *string                 `json:"directory,omitempty"`
+	Metadata         *map[string]string      `json:"metadata,omitempty"`
+	Name             string                  `json:"name"`
+	PolicyId         *string                 `json:"policyId,omitempty"`
+	ReleaseChannels  *[]string               `json:"releaseChannels,omitempty"`
+	ResourceSelector *map[string]interface{} `json:"resourceSelector,omitempty"`
+	SystemId         string                  `json:"systemId"`
 }
 
 // UpsertJobAgentJSONBody defines parameters for UpsertJobAgent.
@@ -420,10 +420,10 @@ type CreateResourceToResourceRelationshipJSONBody struct {
 
 // CreateReleaseChannelJSONBody defines parameters for CreateReleaseChannel.
 type CreateReleaseChannelJSONBody struct {
-	DeploymentId  string                 `json:"deploymentId"`
-	Description   *string                `json:"description"`
-	Name          string                 `json:"name"`
-	ReleaseFilter map[string]interface{} `json:"releaseFilter"`
+	DeploymentId    string                 `json:"deploymentId"`
+	Description     *string                `json:"description"`
+	Name            string                 `json:"name"`
+	ReleaseSelector map[string]interface{} `json:"releaseSelector"`
 }
 
 // UpsertReleaseJSONBody defines parameters for UpsertRelease.
@@ -3995,12 +3995,12 @@ type CreateReleaseChannelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		CreatedAt     time.Time               `json:"createdAt"`
-		DeploymentId  string                  `json:"deploymentId"`
-		Description   *string                 `json:"description"`
-		Id            string                  `json:"id"`
-		Name          string                  `json:"name"`
-		ReleaseFilter *map[string]interface{} `json:"releaseFilter,omitempty"`
+		CreatedAt       time.Time               `json:"createdAt"`
+		DeploymentId    string                  `json:"deploymentId"`
+		Description     *string                 `json:"description"`
+		Id              string                  `json:"id"`
+		Name            string                  `json:"name"`
+		ReleaseSelector *map[string]interface{} `json:"releaseSelector,omitempty"`
 	}
 	JSON401 *struct {
 		Error string `json:"error"`
@@ -5873,12 +5873,12 @@ func ParseCreateReleaseChannelResponse(rsp *http.Response) (*CreateReleaseChanne
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			CreatedAt     time.Time               `json:"createdAt"`
-			DeploymentId  string                  `json:"deploymentId"`
-			Description   *string                 `json:"description"`
-			Id            string                  `json:"id"`
-			Name          string                  `json:"name"`
-			ReleaseFilter *map[string]interface{} `json:"releaseFilter,omitempty"`
+			CreatedAt       time.Time               `json:"createdAt"`
+			DeploymentId    string                  `json:"deploymentId"`
+			Description     *string                 `json:"description"`
+			Id              string                  `json:"id"`
+			Name            string                  `json:"name"`
+			ReleaseSelector *map[string]interface{} `json:"releaseSelector,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err

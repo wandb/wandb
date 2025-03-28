@@ -15,7 +15,7 @@ func NewCreateEnvironmentCmd() *cobra.Command {
 	var nameFlag string
 	var releaseChannels []string
 	var system string
-	var resourceFilter string
+	var resourceSelector string
 	var metadata map[string]string
 	cmd := &cobra.Command{
 		Use:   "environment [flags]",
@@ -42,12 +42,12 @@ func NewCreateEnvironmentCmd() *cobra.Command {
 			body.SystemId = system
 			body.Metadata = cliutil.StringMapPtr(metadata)
 
-			if resourceFilter != "" {
-				var parsedFilter map[string]interface{}
-				if err := json.Unmarshal([]byte(resourceFilter), &parsedFilter); err != nil {
-					return fmt.Errorf("failed to parse target filter: %w", err)
+			if resourceSelector != "" {
+				var parsedSelector map[string]interface{}
+				if err := json.Unmarshal([]byte(resourceSelector), &parsedSelector); err != nil {
+					return fmt.Errorf("failed to parse target selector: %w", err)
 				}
-				body.ResourceFilter = &parsedFilter
+				body.ResourceSelector = &parsedSelector
 			}
 
 			resp, err := client.CreateEnvironment(cmd.Context(), body)
@@ -62,7 +62,7 @@ func NewCreateEnvironmentCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&nameFlag, "name", "n", "", "Name of the environment (required)")
 	cmd.Flags().StringVarP(&system, "system", "s", "", "ID of the system (required)")
 	cmd.Flags().StringSliceVarP(&releaseChannels, "release-channel", "r", []string{}, "Release channel in format <channelid>")
-	cmd.Flags().StringVarP(&resourceFilter, "resource-filter", "f", "", "Resource filter as JSON string")
+	cmd.Flags().StringVarP(&resourceSelector, "resource-selector", "f", "", "Resource selector as JSON string")
 	cmd.Flags().StringToStringVarP(&metadata, "metadata", "m", make(map[string]string), "Metadata key-value pairs (e.g. --metadata key=value)")
 
 	cmd.MarkFlagRequired("name")
