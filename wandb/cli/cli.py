@@ -1743,7 +1743,13 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
         api = _get_cling_api(reset=True)
 
     wandb.termlog("Starting wandb agent 🕵️")
-    wandb_agent.agent(sweep_id, entity=entity, project=project, count=count, forward_signals=forward_signals)
+    wandb_agent.agent(
+        sweep_id,
+        entity=entity,
+        project=project,
+        count=count,
+        forward_signals=forward_signals,
+    )
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
