@@ -753,7 +753,7 @@ class _WandbInit:
             def __call__(self, *args: Any, **kwargs: Any) -> _ChainableNoOp:
                 return _ChainableNoOp()
 
-        drun.log_artifact = _ChainableNoOpField()  # type: ignore[method-assign]
+        drun.log_artifact = _ChainableNoOpField()  # type: ignore
         # attributes
         drun._start_time = time.time()
         drun._starting_step = 0
