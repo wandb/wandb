@@ -7,6 +7,8 @@ from wandb.apis.attrs import Attrs
 
 
 class Member(Attrs):
+    """A member of a team."""
+
     DELETE_MEMBER_MUTATION = gql(
         """
     mutation DeleteInvite($id: String, $entityName: String) {
@@ -40,6 +42,21 @@ class Member(Attrs):
 
 
 class Team(Attrs):
+    """A class that represents a W&B team.
+
+    This class provides methods to manage W&B teams, including creating teams,
+    inviting members, and managing service accounts. It inherits from Attrs
+    to handle team attributes.
+
+    Args:
+        client: (`wandb.apis.public.Api`) The api instance to use
+        name: (str) The name of the team
+        attrs: (dict) Optional dictionary of team attributes
+
+    Note:
+        Team management requires appropriate permissions.
+    """
+
     CREATE_TEAM_MUTATION = gql(
         """
     mutation CreateTeam($teamName: String!, $teamAdminUserName: String) {
@@ -185,6 +202,7 @@ class Team(Attrs):
             return None
 
     def load(self, force=False):
+        """Return members that belong to a team."""
         if force or not self._attrs:
             response = self._client.execute(self.TEAM_QUERY, {"name": self.name})
             self._attrs = response["entity"]
