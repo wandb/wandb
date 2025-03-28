@@ -8,7 +8,7 @@ import random
 import string
 import time
 from datetime import datetime
-from typing import List, Literal
+from typing import Literal
 
 import numpy as np
 import wandb
@@ -110,7 +110,7 @@ class PayloadGenerator:
             random.choices(string.ascii_letters + string.digits + "_", k=size)
         )
 
-    def generate(self) -> List[dict]:
+    def generate(self) -> list[dict]:
         """Generates a list of payload for logging.
 
         Returns:
@@ -135,7 +135,7 @@ class PayloadGenerator:
         else:
             raise ValueError(f"Invalid data type: {self.data_type}")
 
-    def generate_audio(self) -> List[dict[str, wandb.Audio]]:
+    def generate_audio(self) -> list[dict[str, wandb.Audio]]:
         """Generates a payload for logging audio data.
 
         Returns:

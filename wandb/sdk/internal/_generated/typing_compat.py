@@ -10,5 +10,5 @@ else:
     from typing_extensions import Annotated, override
 
 
-Annnotated = Annotated
+Annotated = Annotated
 override = override

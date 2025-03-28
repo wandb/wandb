@@ -11,7 +11,7 @@ import textwrap
 from functools import partial
 
 # import Literal
-from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
+from typing import TYPE_CHECKING, Callable, Literal
 from urllib.parse import urlparse
 
 import click
@@ -22,6 +22,9 @@ from wandb.apis import InternalApi
 from wandb.errors import term
 from wandb.errors.links import url_registry
 from wandb.util import _is_databricks, isatty, prompt_choices
+
+if TYPE_CHECKING:
+    from wandb.sdk.wandb_settings import Settings
 
 LOGIN_CHOICE_ANON = "Private W&B dashboard, no account required"
 LOGIN_CHOICE_NEW = "Create a W&B account"
@@ -50,18 +53,14 @@ class WriteNetrcError(Exception):
 Mode = Literal["allow", "must", "never", "false", "true"]
 
 
-if TYPE_CHECKING:
-    from wandb.sdk.wandb_settings import Settings
-
-
 getpass = partial(click.prompt, hide_input=True, err=True)
 
 
-def _fixup_anon_mode(default: Optional[Mode]) -> Optional[Mode]:
+def _fixup_anon_mode(default: Mode | None) -> Mode | None:
     # Convert weird anonymode values from legacy settings files
     # into one of our expected values.
     anon_mode = default or "never"
-    mapping: Dict[Mode, Mode] = {"true": "allow", "false": "never"}
+    mapping: dict[Mode, Mode] = {"true": "allow", "false": "never"}
     return mapping.get(anon_mode, anon_mode)
 
 
@@ -85,14 +84,14 @@ def get_netrc_file_path() -> str:
 
 
 def prompt_api_key(  # noqa: C901
-    settings: "Settings",
-    api: Optional[InternalApi] = None,
-    input_callback: Optional[Callable] = None,
-    browser_callback: Optional[Callable] = None,
+    settings: Settings,
+    api: InternalApi | None = None,
+    input_callback: Callable | None = None,
+    browser_callback: Callable | None = None,
     no_offline: bool = False,
     no_create: bool = False,
     local: bool = False,
-) -> Union[str, bool, None]:
+) -> str | bool | None:
     """Prompt for api key.
 
     Returns:
@@ -276,9 +275,9 @@ def write_netrc(host: str, entity: str, key: str):
 
 
 def write_key(
-    settings: "Settings",
-    key: Optional[str],
-    api: Optional["InternalApi"] = None,
+    settings: Settings,
+    key: str | None,
+    api: InternalApi | None = None,
 ) -> None:
     if not key:
         raise ValueError("No API key specified.")
@@ -298,7 +297,7 @@ def write_key(
     write_netrc(settings.base_url, "user", key)
 
 
-def api_key(settings: Optional["Settings"] = None) -> Optional[str]:
+def api_key(settings: Settings | None = None) -> str | None:
     if settings is None:
         settings = wandb.setup().settings
     if settings.api_key:
