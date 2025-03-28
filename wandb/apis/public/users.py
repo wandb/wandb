@@ -12,8 +12,6 @@ User: Manage W&B user accounts and authentication
 Note:
     This module is part of the W&B Public API and provides methods to manage
     users and their authentication. Some operations require admin privileges.
-    API keys should be handled securely and rotated periodically.
-
 """
 
 import requests
@@ -35,10 +33,7 @@ class User(Attrs):
         attrs: (dict) The user attributes
 
     Note:
-    - Some operations require admin privileges
-    - API keys should be handled securely
-    - Team memberships and API keys are loaded lazily
-    - User data is fetched from the W&B GraphQL API
+        Some operations require admin privileges
     """
 
     CREATE_USER_MUTATION = gql(
