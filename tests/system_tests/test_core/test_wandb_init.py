@@ -5,6 +5,7 @@ from unittest import mock
 import pytest
 import wandb
 from wandb.errors import CommError, UsageError
+from wandb.sdk.lib import runid
 
 
 def test_upsert_bucket_409(wandb_backend_spy):
@@ -119,15 +120,92 @@ def test_resume_auto_failure(user, tmp_path):
         assert os.path.exists(resume_fname)
 
 
-def test_reinit_existing_run_with_reinit_true():
+@pytest.mark.parametrize("reinit", (True, "finish_previous"))
+def test_reinit_existing_run_with_reinit_true(reinit):
     """Test that reinit with an existing run returns a new run."""
     original_run = wandb.init(mode="offline")
-    new_run = wandb.init(mode="offline", reinit=True)
+    new_run = wandb.init(mode="offline", reinit=reinit)
     assert new_run != original_run
 
 
-def test_reinit_existing_run_with_reinit_false():
+@pytest.mark.parametrize("reinit", (False, "return_previous"))
+def test_reinit_existing_run_with_reinit_false(reinit):
     """Test that reinit with a run active returns the same run."""
     original_run = wandb.init(mode="offline")
-    new_run = wandb.init(mode="offline", reinit=False)
+    new_run = wandb.init(mode="offline", reinit=reinit)
     assert new_run == original_run
+
+
+def test_init_param_telemetry(wandb_backend_spy):
+    with wandb.init(
+        name="my-test-run",
+        id=runid.generate_id(),
+        config={"a": 123},
+        tags=["one", "two"],
+    ) as run:
+        pass
+
+    with wandb_backend_spy.freeze() as snapshot:
+        features = snapshot.telemetry(run_id=run.id)["3"]
+        assert 13 in features  # set_init_name
+        assert 14 in features  # set_init_id
+        assert 15 in features  # set_init_tags
+        assert 16 in features  # set_init_config
+
+
+def test_init_param_not_set_telemetry(wandb_backend_spy):
+    with wandb.init() as run:
+        pass
+
+    with wandb_backend_spy.freeze() as snapshot:
+        features = snapshot.telemetry(run_id=run.id)["3"]
+        assert 13 not in features  # set_init_name
+        assert 14 not in features  # set_init_id
+        assert 15 not in features  # set_init_tags
+        assert 16 not in features  # set_init_config
+
+
+@pytest.mark.wandb_core_only
+def test_shared_mode_x_label(user):
+    _ = user  # Create a fake user on the backend server.
+
+    with wandb.init() as run:
+        assert run.settings.x_label is None
+
+    with wandb.init(
+        settings=wandb.Settings(
+            mode="shared",
+        )
+    ) as run:
+        assert run.settings.x_label is not None
+
+    with wandb.init(
+        settings=wandb.Settings(
+            mode="shared",
+            x_label="node-rank",
+        )
+    ) as run:
+        assert run.settings.x_label == "node-rank"
+
+
+@pytest.mark.wandb_core_only
+def test_resume_from_run_id_is_not_set(wandb_backend_spy):
+    run_id = runid.generate_id()
+
+    gql = wandb_backend_spy.gql
+    data = {
+        "data": {
+            "rewindRun": {
+                "rewoundRun": {"id": run_id},
+            },
+        }
+    }
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="RewindRun"),
+        gql.once(content=data, status=200),
+    )
+
+    with wandb.init(resume_from=f"{run_id}?_step=10") as rewound_run:
+        pass
+
+    assert rewound_run.id == run_id

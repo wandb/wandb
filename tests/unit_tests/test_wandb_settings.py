@@ -9,11 +9,16 @@ from unittest import mock
 
 import pytest
 import wandb
+from pydantic.version import VERSION as PYDANTIC_VERSION
 from wandb import Settings
 from wandb.errors import UsageError
 from wandb.sdk.lib.credentials import DEFAULT_WANDB_CREDENTIALS_FILE
+from wandb.sdk.lib.run_moment import RunMoment
+
+is_pydantic_v1 = int(PYDANTIC_VERSION[0]) == 1
 
 
+@pytest.mark.skipif(is_pydantic_v1, reason="Pydantic v1 allows extra fields")
 def test_unexpected_arguments():
     with pytest.raises(ValueError):
         Settings(lol=False)
@@ -30,16 +35,13 @@ def test_is_local():
     assert s.is_local is False
 
 
-def test_extra_fields():
-    with pytest.raises(ValueError):
-        Settings(lol=True)
-
-
+@pytest.mark.skipif(is_pydantic_v1, reason="Pydantic v1 does type coercion")
 def test_invalid_field_type():
     with pytest.raises(ValueError):
         Settings(api_key=271828)  # must be a string
 
 
+@pytest.mark.wandb_core_only
 def test_program_python_m():
     with tempfile.TemporaryDirectory() as tmpdir:
         path_module = os.path.join(tmpdir, "module")
@@ -81,8 +83,8 @@ def test_run_urls():
     assert s.run_url == f"{base_url}/{entity}/{project}/runs/{run_id}"
 
 
-def test_offline(test_settings):
-    test_settings = test_settings()
+def test_offline():
+    test_settings = Settings()
     assert test_settings._offline is False
     test_settings.mode = "offline"
     assert test_settings._offline is True
@@ -90,14 +92,14 @@ def test_offline(test_settings):
     assert test_settings._offline is True
 
 
-def test_silent(test_settings):
-    s = test_settings()
+def test_silent():
+    s = Settings()
     s.update_from_env_vars({"WANDB_SILENT": "true"})
     assert s.silent is True
 
 
-def test_noop(test_settings):
-    test_settings = test_settings()
+def test_noop():
+    test_settings = Settings()
     test_settings.mode = "disabled"
     assert test_settings._noop is True
 
@@ -345,20 +347,20 @@ def test_preprocess_dict_settings(setting: str, value: str):
         assert getattr(s, setting) == json.loads(value)
 
 
-def test_wandb_dir(test_settings):
-    test_settings = test_settings()
+def test_wandb_dir():
+    test_settings = Settings()
     assert os.path.abspath(test_settings.wandb_dir) == os.path.abspath("wandb")
 
 
-def test_resume_fname(test_settings):
-    test_settings = test_settings()
+def test_resume_fname():
+    test_settings = Settings()
     assert test_settings.resume_fname == os.path.abspath(
         os.path.join(".", "wandb", "wandb-resume.json")
     )
 
 
-def test_log_user(test_settings):
-    test_settings = test_settings({"run_id": "test"})
+def test_log_user():
+    test_settings = Settings(run_id="test")
     _, run_dir, log_dir, fname = os.path.abspath(
         os.path.realpath(test_settings.log_user)
     ).rsplit(os.path.sep, 3)
@@ -368,8 +370,8 @@ def test_log_user(test_settings):
     assert fname == "debug.log"
 
 
-def test_log_internal(test_settings):
-    test_settings = test_settings({"run_id": "test"})
+def test_log_internal():
+    test_settings = Settings(run_id="test")
     _, run_dir, log_dir, fname = os.path.abspath(
         os.path.realpath(test_settings.log_internal)
     ).rsplit(os.path.sep, 3)
@@ -397,16 +399,16 @@ def test_settings_static():
 # --------------------------
 
 
-def test_silent_run(mock_run, test_settings):
-    test_settings = test_settings()
+def test_silent_run(mock_run):
+    test_settings = Settings()
     test_settings.silent = True
     assert test_settings.silent is True
     run = mock_run(settings=test_settings)
     assert run._settings.silent is True
 
 
-def test_strict_run(mock_run, test_settings):
-    test_settings = test_settings()
+def test_strict_run(mock_run):
+    test_settings = Settings()
     test_settings.strict = True
     assert test_settings.strict is True
     run = mock_run(settings=test_settings)
@@ -418,15 +420,15 @@ def test_show_info_run(mock_run):
     assert run._settings.show_info is True
 
 
-def test_show_info_false_run(mock_run, test_settings):
-    test_settings = test_settings()
+def test_show_info_false_run(mock_run):
+    test_settings = Settings()
     test_settings.show_info = False
     run = mock_run(settings=test_settings)
     assert run._settings.show_info is False
 
 
-def test_show_warnings_run(mock_run, test_settings):
-    test_settings = test_settings()
+def test_show_warnings_run(mock_run):
+    test_settings = Settings()
     test_settings.show_warnings = True
     run = mock_run(settings=test_settings)
     assert run._settings.show_warnings is True
@@ -456,8 +458,8 @@ def test_console_run(mock_run):
     assert run._settings.console == "wrap"
 
 
-def test_console(test_settings):
-    test_settings = test_settings()
+def test_console():
+    test_settings = Settings(console="off")
     assert test_settings.console == "off"
     test_settings.console = "redirect"
     assert test_settings.console == "redirect"
@@ -465,8 +467,8 @@ def test_console(test_settings):
     assert test_settings.console == "wrap"
 
 
-def test_code_saving_save_code_env_false(mock_run, test_settings):
-    settings = test_settings()
+def test_code_saving_save_code_env_false(mock_run):
+    settings = Settings()
     settings.save_code = None
     with mock.patch.dict("os.environ", WANDB_SAVE_CODE="false"):
         settings.update_from_system_environment()
@@ -474,8 +476,8 @@ def test_code_saving_save_code_env_false(mock_run, test_settings):
         assert run._settings.save_code is False
 
 
-def test_code_saving_disable_code(mock_run, test_settings):
-    settings = test_settings()
+def test_code_saving_disable_code(mock_run):
+    settings = Settings()
     settings.save_code = None
     with mock.patch.dict("os.environ", WANDB_DISABLE_CODE="true"):
         settings.update_from_system_environment()
@@ -483,11 +485,10 @@ def test_code_saving_disable_code(mock_run, test_settings):
         assert run.settings.save_code is False
 
 
-def test_setup_offline(test_settings):
-    login_settings = test_settings().copy()
+def test_setup_offline():
+    login_settings = Settings()
     login_settings.mode = "offline"
     assert wandb.setup(settings=login_settings)._get_entity() is None
-    assert wandb.setup(settings=login_settings)._load_viewer() is None
 
 
 def test_mutual_exclusion_of_branching_args():
@@ -499,3 +500,30 @@ def test_mutual_exclusion_of_branching_args():
 def test_root_dir_pathlib_path():
     settings = Settings(root_dir=pathlib.Path("foo"))
     assert settings.root_dir == "foo"
+
+
+@pytest.mark.parametrize(
+    "setting",
+    (
+        "fork_from",
+        "resume_from",
+    ),
+)
+def test_rewind(setting):
+    settings = Settings()
+    setattr(settings, setting, "train-2025-01-12_05-02-41-823103-39?_step=10000")
+
+    assert getattr(settings, setting) == RunMoment(
+        run="train-2025-01-12_05-02-41-823103-39",
+        metric="_step",
+        value=10000,
+    )
+    proto = settings.to_proto()
+    assert getattr(proto, setting).run == "train-2025-01-12_05-02-41-823103-39"
+    assert getattr(proto, setting).metric == "_step"
+    assert getattr(proto, setting).value == 10000
+
+
+def test_computed_settings_included_in_model_dump():
+    settings = Settings(mode="offline")
+    assert settings.model_dump()["_offline"] is True

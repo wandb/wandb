@@ -213,10 +213,6 @@ func (dir *genqlientDirective) validate(node interface{}, schema *ast.Schema) er
 				return errorf(fieldDir.pos, "struct and flatten can't be used via for")
 			}
 
-			if fieldDir.Omitempty != nil && field.Type.NonNull {
-				return errorf(fieldDir.pos, "omitempty may only be used on optional arguments")
-			}
-
 			if fieldDir.TypeName != "" && fieldDir.Bind != "" && fieldDir.Bind != "-" {
 				return errorf(fieldDir.pos, "typename and bind may not be used together")
 			}

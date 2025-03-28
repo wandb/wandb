@@ -274,7 +274,7 @@ class WandbBackendSnapshot:
             history_parsed[offset] = json.loads(line)
         return history_parsed
 
-    def output(self, *, run_id: str) -> dict[int, Any]:
+    def output(self, *, run_id: str) -> dict[int, str]:
         """Returns the run's console logs uploaded via FileStream.
 
         The file is represented as a dict that maps integer offsets to
@@ -464,6 +464,11 @@ class WandbBackendSnapshot:
         """Returns whether the run was marked as completed."""
         spy = self._assert_valid()
         return spy._runs[run_id]._completed
+
+    def exit_code(self, *, run_id: str) -> int | None:
+        """Returns the exit code of the run."""
+        spy = self._assert_valid()
+        return spy._runs[run_id]._exit_code
 
     def _assert_valid(self) -> WandbBackendSpy:
         """Raise an error if we're not inside freeze()."""

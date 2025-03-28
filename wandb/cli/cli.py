@@ -217,12 +217,19 @@ def projects(entity, display=True):
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
 @click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
-@click.option("--host", default=None, help="Login to a specific instance of W&B")
+@click.option(
+    "--host", "--base-url", default=None, help="Login to a specific instance of W&B"
+)
 @click.option(
     "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
 )
 @click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
-@click.option("--verify", default=False, is_flag=True, help="Verify login credentials")
+@click.option(
+    "--verify/--no-verify",
+    default=False,
+    is_flag=True,
+    help="Verify login credentials",
+)
 @display_error
 def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     # TODO: move CLI to wandb-core backend
@@ -234,32 +241,21 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     wandb_sdk.wandb_login._handle_host_wandb_setting(host, cloud)
     # A change in click or the test harness means key can be none...
     key = key[0] if key is not None and len(key) > 0 else None
-    if key:
-        relogin = True
+    relogin = True if key or relogin else False
 
-    login_settings = dict(
-        x_cli_only_mode=True,
-        x_disable_viewer=relogin and not verify,
-        anonymous=anon_mode,
-        base_url=host,
+    wandb.setup(
+        settings=wandb.Settings(
+            x_cli_only_mode=True,
+            x_disable_viewer=relogin and not verify,
+        )
     )
 
-    try:
-        wandb.setup(
-            settings=wandb.Settings(
-                **{k: v for k, v in login_settings.items() if v is not None}
-            )
-        )
-    except TypeError as e:
-        wandb.termerror(str(e))
-        sys.exit(1)
-
     wandb.login(
-        relogin=relogin,
-        key=key,
         anonymous=anon_mode,
-        host=host,
         force=True,
+        host=host,
+        key=key,
+        relogin=relogin,
         verify=verify,
     )
 
@@ -2798,11 +2794,13 @@ def verify(host):
     wandb_verify.check_wandb_version(api)
     check_run_success = wandb_verify.check_run(api)
     check_artifacts_success = wandb_verify.check_artifacts()
+    check_sweeps_success = wandb_verify.check_sweeps(api)
     if not (
         check_artifacts_success
         and check_run_success
         and large_post_success
         and url_success
+        and check_sweeps_success
     ):
         sys.exit(1)
 

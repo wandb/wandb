@@ -1,7 +1,6 @@
 from typing import Iterator
 
 import pytest
-import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.lib import printer as p
 from wandb.sdk.lib import progress
@@ -17,7 +16,7 @@ def dynamic_progress_printer(
 
     with progress.progress_printer(
         p.new_printer(),
-        settings=wandb.Settings(x_show_operation_stats=True),
+        "DEFAULT TEXT",
     ) as progress_printer:
         yield progress_printer
 
@@ -27,7 +26,7 @@ def static_progress_printer() -> Iterator[progress.ProgressPrinter]:
     """A ProgressPrinter that writes to a file or dumb terminal."""
     with progress.progress_printer(
         p.new_printer(),
-        settings=wandb.Settings(x_show_operation_stats=True),
+        "DEFAULT TEXT",
     ) as progress_printer:
         yield progress_printer
 
@@ -173,4 +172,4 @@ def test_remaining_operations(emulated_terminal, dynamic_progress_printer):
 def test_no_operations_text(emulated_terminal, dynamic_progress_printer):
     dynamic_progress_printer.update([pb.PollExitResponse()])
 
-    assert emulated_terminal.read_stderr() == ["wandb: ⢿ Finishing up..."]
+    assert emulated_terminal.read_stderr() == ["wandb: ⢿ DEFAULT TEXT"]

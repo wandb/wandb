@@ -16,16 +16,15 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
 import wandb
 from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.interface.router_queue import MessageQueueRouter
 from wandb.sdk.internal.internal import wandb_internal
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.lib.mailbox import Mailbox
+from wandb.sdk.mailbox import Mailbox
 from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import Record, Result
     from wandb.sdk.lib import service_connection
-
-    from ..wandb_run import Run
 
     RecordQueue = Union["queue.Queue[Record]", multiprocessing.Queue[Record]]
     ResultQueue = Union["queue.Queue[Result]", multiprocessing.Queue[Result]]
@@ -51,18 +50,19 @@ class BackendThread(threading.Thread):
 class Backend:
     # multiprocessing context or module
     _multiprocessing: multiprocessing.context.BaseContext
+
     interface: Optional[InterfaceBase]
+    _router: Optional[MessageQueueRouter]
+
     _internal_pid: Optional[int]
     wandb_process: Optional[multiprocessing.process.BaseProcess]
-    _settings: Optional[Settings]
+    _settings: Settings
     record_q: Optional["RecordQueue"]
     result_q: Optional["ResultQueue"]
-    _mailbox: Mailbox
 
     def __init__(
         self,
-        mailbox: Mailbox,
-        settings: Optional[Settings] = None,
+        settings: Settings,
         log_level: Optional[int] = None,
         service: "Optional[service_connection.ServiceConnection]" = None,
     ) -> None:
@@ -70,12 +70,14 @@ class Backend:
         self.record_q = None
         self.result_q = None
         self.wandb_process = None
+
         self.interface = None
+        self._router = None
+
         self._internal_pid = None
         self._settings = settings
         self._log_level = log_level
         self._service = service
-        self._mailbox = mailbox
 
         self._multiprocessing = multiprocessing  # type: ignore
         self._multiprocessing_setup()
@@ -84,12 +86,7 @@ class Backend:
         self._save_mod_path: Optional[str] = None
         self._save_mod_spec = None
 
-    def _hack_set_run(self, run: "Run") -> None:
-        assert self.interface
-        self.interface._hack_set_run(run)
-
     def _multiprocessing_setup(self) -> None:
-        assert self._settings
         if self._settings.start_method == "thread":
             return
 
@@ -141,10 +138,12 @@ class Backend:
     def ensure_launched(self) -> None:
         """Launch backend worker if not running."""
         if self._service:
-            self.interface = self._service.make_interface(self._mailbox)
+            assert self._settings.run_id
+            self.interface = self._service.make_interface(
+                stream_id=self._settings.run_id,
+            )
             return
 
-        assert self._settings
         settings = self._settings.model_copy()
         settings.x_log_level = self._log_level or logging.DEBUG
 
@@ -194,11 +193,17 @@ class Backend:
 
         self._module_main_uninstall()
 
+        mailbox = Mailbox()
         self.interface = InterfaceQueue(
             process=self.wandb_process,
             record_q=self.record_q,  # type: ignore
             result_q=self.result_q,  # type: ignore
-            mailbox=self._mailbox,
+            mailbox=mailbox,
+        )
+        self._router = MessageQueueRouter(
+            request_queue=self.record_q,  # type: ignore
+            response_queue=self.result_q,  # type: ignore
+            mailbox=mailbox,
         )
 
     def server_status(self) -> None:
@@ -211,6 +216,8 @@ class Backend:
         self._done = True
         if self.interface:
             self.interface.join()
+        if self._router:
+            self._router.join()
         if self.wandb_process:
             self.wandb_process.join()
 

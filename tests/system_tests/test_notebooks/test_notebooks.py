@@ -22,7 +22,7 @@ def test_login_timeout(notebook, monkeypatch):
         "prompt_choices",
         lambda x, input_timeout=None, jupyter=True: x[0],
     )
-    with notebook("login_timeout.ipynb") as nb:
+    with notebook("login_timeout.ipynb", skip_api_key_env=True) as nb:
         nb.execute_all()
         output = nb.cell_output_text(1)
         assert "W&B disabled due to login timeout" in output
@@ -38,7 +38,17 @@ def test_one_cell(notebook, run_id):
         assert run_id in output
 
 
+def test_init_finishes_previous_by_default(notebook):
+    with notebook("init_finishes_previous.ipynb") as nb:
+        nb.execute_all()
+        output = nb.cell_output_text(1)
+        assert output == "run1 finished? True\nrun1 is run2? False\n"
+
+
 def test_magic(notebook):
+    base_url = os.getenv("WANDB_BASE_URL")
+    assert base_url
+
     with notebook("magic.ipynb") as nb:
         nb.execute_all()
         iframes = 0
@@ -52,7 +62,7 @@ def test_magic(notebook):
                     assert "display:none" in out
                 text += out["data"]["text/html"]
             iframes += 1
-        assert notebook.base_url in text
+        assert base_url in text
         assert iframes == 6
 
 
@@ -66,11 +76,14 @@ def test_notebook_exits(user, assets_path):
 
 
 def test_notebook_metadata_jupyter(mocked_module, notebook):
+    base_url = os.getenv("WANDB_BASE_URL")
+    assert base_url
+
     with mock.patch("ipykernel.connect.get_connection_file") as ipyconnect:
         ipyconnect.return_value = "kernel-12345.json"
         serverapp = mocked_module("jupyter_server.serverapp")
         serverapp.list_running_servers.return_value = [
-            {"url": notebook.base_url, "notebook_dir": "/test"}
+            {"url": base_url, "notebook_dir": "/test"}
         ]
         with mock.patch.object(
             wandb.jupyter.requests,

@@ -52,9 +52,6 @@ type RuntimeMetricServiceClient interface {
 // This code is based on Google's Cloud Accelerator Diagnostics project:
 // https://github.com/google/cloud-accelerator-diagnostics.
 type TPU struct {
-	// Name of the TPU asset used to identify the asset in the metadata.
-	name string
-
 	// gRPC client connection and client for runtime metrics.
 	//
 	// TPU runtime metrics are exposed via a gRPC server running on a Google Cloud TPU VM.
@@ -62,7 +59,7 @@ type TPU struct {
 	client RuntimeMetricServiceClient
 
 	// TPU chip specifications.
-	chip *TPUChip
+	chip TPUChip
 
 	// Total number of TPU devices detected.
 	count int
@@ -70,10 +67,10 @@ type TPU struct {
 
 // NewTPU creates a new TPU instance by detecting local TPU chips and initializing the gRPC connection.
 func NewTPU() *TPU {
-	t := &TPU{name: "tpu"}
+	t := &TPU{}
 
 	chip, count := getLocalTPUChips()
-	if chip == nil {
+	if count == 0 {
 		return nil
 	}
 	t.chip = chip
@@ -90,15 +87,7 @@ func NewTPU() *TPU {
 	return t
 }
 
-func (t *TPU) Name() string {
-	return t.name
-}
-
-func (t *TPU) SetName(name string) {
-	t.name = name
-}
-
-func (t *TPU) SetChip(chip *TPUChip, count int) {
+func (t *TPU) SetChip(chip TPUChip, count int) {
 	t.chip = chip
 	t.count = count
 }
@@ -109,8 +98,8 @@ func (t *TPU) SetClient(client RuntimeMetricServiceClient) {
 
 // Sample returns TPU metrics such as memory usage in % and in bytes, and duty cycle.
 func (t *TPU) Sample() (*spb.StatsRecord, error) {
-	if t.client == nil || t.chip == nil {
-		return nil, nil
+	if t.client == nil {
+		return nil, fmt.Errorf("TPU client is not initialized")
 	}
 
 	// Total memory per TPU core [bytes]
@@ -129,16 +118,16 @@ func (t *TPU) Sample() (*spb.StatsRecord, error) {
 		return nil, err
 	}
 
-	// See below for the expected number of metrics per chip
-	if len(totals) != len(usages) || len(usages) != len(dutyCycles)*t.chip.DevicesPerChip {
-		return nil, fmt.Errorf("tpu: metrics not found for all chips")
-	}
+	// Map to store all unique device IDs we encounter
+	deviceIDs := make(map[int64]bool)
 
+	// Collect all device IDs from memory usage metrics
 	memoryUsages := make(map[int64]int64)
 	for _, usage := range usages {
 		deviceID := usage.GetAttribute().GetValue().GetIntAttr()
 		memoryUsage := usage.GetGauge().GetAsInt()
 		memoryUsages[deviceID] = memoryUsage
+		deviceIDs[deviceID] = true
 	}
 
 	totalMemories := make(map[int64]int64)
@@ -146,56 +135,54 @@ func (t *TPU) Sample() (*spb.StatsRecord, error) {
 		deviceID := total.GetAttribute().GetValue().GetIntAttr()
 		totalMemory := total.GetGauge().GetAsInt()
 		totalMemories[deviceID] = totalMemory
+		deviceIDs[deviceID] = true
 	}
 
-	// Duty cycle is measured per chip; distribute it to each device (core) in the chip.
 	dutyCyclesPerCore := make(map[int64]float64)
 	for _, duty := range dutyCycles {
-		chipID := duty.GetAttribute().GetValue().GetIntAttr()
+		deviceID := duty.GetAttribute().GetValue().GetIntAttr()
 		dutyCycle := duty.GetGauge().GetAsDouble()
-		dutyCyclesPerCore[chipID*int64(t.chip.DevicesPerChip)] = dutyCycle
-		dutyCyclesPerCore[chipID*int64(t.chip.DevicesPerChip)+1] = dutyCycle
+		if t.chip.DevicesPerChip == 2 {
+			// For v2/v3 chips, distribute duty cycle to both devices
+			dutyCyclesPerCore[deviceID*2] = dutyCycle
+			dutyCyclesPerCore[deviceID*2+1] = dutyCycle
+		} else {
+			// For v4+ chips, 1:1 mapping between devices and duty cycles
+			dutyCyclesPerCore[deviceID] = dutyCycle
+		}
 	}
 
 	metrics := make(map[string]any)
 
-	for deviceID := int64(0); deviceID < int64(t.count); deviceID++ {
-		memoryUsage, ok := memoryUsages[deviceID]
-		if !ok {
-			continue
-		}
-
-		totalMemory, ok := totalMemories[deviceID]
-		if !ok {
-			continue
-		}
-
-		dutyCycle, ok := dutyCyclesPerCore[deviceID]
-		if !ok {
-			continue
-		}
-
+	for deviceID := range deviceIDs {
 		// Memory usage [%]
-		memoryUsageKey := fmt.Sprintf("%s.%d.memoryUsage", t.Name(), deviceID)
+		memoryUsageKey := fmt.Sprintf("tpu.%d.memoryUsage", deviceID)
 		// Memory usage [bytes]
-		memoryUsageBytesKey := fmt.Sprintf("%s.%d.memoryUsageBytes", t.Name(), deviceID)
+		memoryUsageBytesKey := fmt.Sprintf("tpu.%d.memoryUsageBytes", deviceID)
 		// Duty cycle [%]
-		dutyCycleKey := fmt.Sprintf("%s.%d.dutyCycle", t.Name(), deviceID)
+		dutyCycleKey := fmt.Sprintf("tpu.%d.dutyCycle", deviceID)
 
-		metrics[memoryUsageKey] = float64(memoryUsage) / float64(totalMemory) * 100
-		metrics[memoryUsageBytesKey] = memoryUsage
-		metrics[dutyCycleKey] = dutyCycle
+		if memoryUsage, ok := memoryUsages[deviceID]; ok {
+			metrics[memoryUsageBytesKey] = memoryUsage
+			if totalMemory, ok := totalMemories[deviceID]; ok {
+				metrics[memoryUsageKey] = float64(memoryUsage) / float64(totalMemory) * 100
+			}
+		}
+
+		if dutyCycle, ok := dutyCyclesPerCore[deviceID]; ok {
+			metrics[dutyCycleKey] = dutyCycle
+		}
 	}
 
 	if len(metrics) == 0 {
-		return nil, nil
+		return nil, fmt.Errorf("no metrics available")
 	}
 
 	return marshal(metrics, timestamppb.Now()), nil
 }
 
 func (t *TPU) IsAvailable() bool {
-	return t.chip != nil
+	return t.count > 0
 }
 
 // Close closes the gRPC connection and releases resources.
@@ -209,13 +196,13 @@ func (t *TPU) Close() {
 
 // getLocalTPUChips scans the PCI devices to detect local TPU chips and
 // returns the most common chip type and the total count.
-func getLocalTPUChips() (*TPUChip, int) {
+func getLocalTPUChips() (TPUChip, int) {
 	devices, err := filepath.Glob("/sys/bus/pci/devices/*")
 	if err != nil {
-		return nil, 0
+		return TPUChip{}, 0
 	}
 
-	counter := make(map[*TPUChip]int)
+	counter := make(map[TPUChip]int)
 
 	for _, pciPath := range devices {
 		vendorPath := filepath.Join(pciPath, "vendor")
@@ -251,10 +238,10 @@ func getLocalTPUChips() (*TPUChip, int) {
 	}
 
 	if len(counter) == 0 {
-		return nil, 0
+		return TPUChip{}, 0
 	}
 
-	var mostCommonChip *TPUChip
+	var mostCommonChip TPUChip
 	var maxCount int
 	for chip, count := range counter {
 		if count > maxCount {
@@ -265,26 +252,26 @@ func getLocalTPUChips() (*TPUChip, int) {
 	return mostCommonChip, maxCount
 }
 
-func tpuChipFromPCIDeviceID(deviceID, subsystemID string) (*TPUChip, error) {
+func tpuChipFromPCIDeviceID(deviceID, subsystemID string) (TPUChip, error) {
 	switch deviceID {
 	case "0x0027":
 		switch subsystemID {
 		case "0x004e":
-			return &TPUChip{Name: "v2", HbmGiB: 8, DevicesPerChip: 2}, nil
+			return TPUChip{Name: "v2", HbmGiB: 8, DevicesPerChip: 2}, nil
 		case "0x004f":
-			return &TPUChip{Name: "v3", HbmGiB: 16, DevicesPerChip: 2}, nil
+			return TPUChip{Name: "v3", HbmGiB: 16, DevicesPerChip: 2}, nil
 		}
 	case "0x005e":
-		return &TPUChip{Name: "v4", HbmGiB: 32, DevicesPerChip: 1}, nil
+		return TPUChip{Name: "v4", HbmGiB: 32, DevicesPerChip: 1}, nil
 	case "0x0063":
-		return &TPUChip{Name: "v5e", HbmGiB: 16, DevicesPerChip: 1}, nil
+		return TPUChip{Name: "v5e", HbmGiB: 16, DevicesPerChip: 1}, nil
 	case "0x0062":
-		return &TPUChip{Name: "v5p", HbmGiB: 95, DevicesPerChip: 1}, nil
+		return TPUChip{Name: "v5p", HbmGiB: 95, DevicesPerChip: 1}, nil
 	case "0x006f":
-		return &TPUChip{Name: "v6e", HbmGiB: 32, DevicesPerChip: 1}, nil
+		return TPUChip{Name: "v6e", HbmGiB: 32, DevicesPerChip: 1}, nil
 	}
 
-	return nil, fmt.Errorf("unknown TPU chip")
+	return TPUChip{}, fmt.Errorf("unknown TPU chip")
 }
 
 // getMetrics retrieves metrics from the TPU runtime gRPC service for the given metric name.
@@ -302,7 +289,7 @@ func (t *TPU) getMetrics(metricName TPUMetricName) ([]*tpuproto.Metric, error) {
 
 // Probe returns the TPU metadata.
 func (t *TPU) Probe() *spb.MetadataRequest {
-	if t.chip == nil {
+	if t.count == 0 {
 		return nil
 	}
 

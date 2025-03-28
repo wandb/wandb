@@ -44,7 +44,10 @@ class SockServerInterfaceReaderThread(threading.Thread):
     _stopped: "Event"
 
     def __init__(
-        self, clients: ClientDict, iface: "InterfaceRelay", stopped: "Event"
+        self,
+        clients: ClientDict,
+        iface: "InterfaceRelay",
+        stopped: "Event",
     ) -> None:
         self._iface = iface
         self._clients = clients
@@ -53,7 +56,6 @@ class SockServerInterfaceReaderThread(threading.Thread):
         self._stopped = stopped
 
     def run(self) -> None:
-        assert self._iface.relay_q
         while not self._stopped.is_set():
             try:
                 result = self._iface.relay_q.get(timeout=1)
@@ -70,6 +72,7 @@ class SockServerInterfaceReaderThread(threading.Thread):
             sock_client = self._clients.get_client(sockid)
             assert sock_client
             sresp = spb.ServerResponse()
+            sresp.request_id = result.control.mailbox_slot
             sresp.result_communicate.CopyFrom(result)
             sock_client.send_server_response(sresp)
 
@@ -148,7 +151,10 @@ class SockServerReadThread(threading.Thread):
         inform_attach_response.settings.CopyFrom(
             self._mux._streams[stream_id]._settings._proto,
         )
-        response = spb.ServerResponse(inform_attach_response=inform_attach_response)
+        response = spb.ServerResponse(
+            request_id=sreq.request_id,
+            inform_attach_response=inform_attach_response,
+        )
         self._sock_client.send_server_response(response)
         iface = self._mux.get_stream(stream_id).interface
 

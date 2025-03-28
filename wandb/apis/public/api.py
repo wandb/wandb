@@ -26,7 +26,13 @@ from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.utils import PathType, parse_org_from_registry_path
+from wandb.apis.public.registries import Registries
+from wandb.apis.public.utils import (
+    PathType,
+    fetch_org_from_settings_or_entity,
+    parse_org_from_registry_path,
+)
+from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
@@ -250,6 +256,9 @@ class Api:
             )
             self.settings["entity"] = _overrides["username"]
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
+
+        if "organization" in _overrides:
+            self.settings["organization"] = _overrides["organization"]
 
         self._viewer = None
         self._projects = {}
@@ -754,7 +763,7 @@ class Api:
         return parts
 
     def projects(
-        self, entity: Optional[str] = None, per_page: Optional[int] = 200
+        self, entity: Optional[str] = None, per_page: int = 200
     ) -> "public.Projects":
         """Get projects for a given entity.
 
@@ -807,7 +816,7 @@ class Api:
         return public.Project(self.client, entity, name, {})
 
     def reports(
-        self, path: str = "", name: Optional[str] = None, per_page: Optional[int] = 50
+        self, path: str = "", name: Optional[str] = None, per_page: int = 50
     ) -> "public.Reports":
         """Get reports for a given project path.
 
@@ -828,7 +837,6 @@ class Api:
                 `BetaReport` objects.
 
         Examples:
-
         ```python
         import wandb
 
@@ -929,28 +937,57 @@ class Api:
     ):
         """Return a set of runs from a project that match the filters provided.
 
-        You can filter by `config.*`, `summary_metrics.*`, `tags`, `state`,
-        `entity`, `createdAt`, and so forth. You can also compose operations
-        to make more complicated queries. For  more information,
-        see Query and Project Operators MongoDb Reference
-        at https://docs.mongodb.com/manual/reference/operator/query.
+        Fields you can filter by include:
+        - `createdAt`: The timestamp when the run was created. (in ISO 8601 format, e.g. "2023-01-01T12:00:00Z")
+        - `displayName`: The human-readable display name of the run. (e.g. "eager-fox-1")
+        - `duration`: The total runtime of the run in seconds.
+        - `group`: The group name used to organize related runs together.
+        - `host`: The hostname where the run was executed.
+        - `jobType`: The type of job or purpose of the run.
+        - `name`: The unique identifier of the run. (e.g. "a1b2cdef")
+        - `state`: The current state of the run.
+        - `tags`: The tags associated with the run.
+        - `username`: The username of the user who initiated the run
+
+        Additionally, you can filter by items in the run config or summary metrics.
+        Such as `config.experiment_name`, `summary_metrics.loss`, etc.
+
+        For more complex filtering, you can use MongoDB query operators.
+        For details, see: https://docs.mongodb.com/manual/reference/operator/query
+        The following operations are supported:
+        - `$and`
+        - `$or`
+        - `$nor`
+        - `$eq`
+        - `$ne`
+        - `$gt`
+        - `$gte`
+        - `$lt`
+        - `$lte`
+        - `$in`
+        - `$nin`
+        - `$exists`
+        - `$regex`
+
+
 
         Args:
-            path: Path to project, should be in the form: "entity/project"
-            filters: Queries for specific runs using the MongoDB query language.
-            order: Order can be `created_at`, `heartbeat_at`, `config.*.value`,
-                or `summary_metrics.*`. If you prepend order with a `+` order
-                is ascending. If you prepend order with a `-` order is
-                descending (default). The default order is `run.created_at`
-                from oldest to newest.
-            per_page: Sets the page size for query pagination.
-            include_sweeps: Whether to include the sweep runs in the results.
+            path: (str) path to project, should be in the form: "entity/project"
+            filters: (dict) queries for specific runs using the MongoDB query language.
+                You can filter by run properties such as config.key, summary_metrics.key, state, entity, createdAt, etc.
+                For example: `{"config.experiment_name": "foo"}` would find runs with a config entry
+                    of experiment name set to "foo"
+            order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
+                If you prepend order with a + order is ascending.
+                If you prepend order with a - order is descending (default).
+                The default order is run.created_at from oldest to newest.
+            per_page: (int) Sets the page size for query pagination.
+            include_sweeps: (bool) Whether to include the sweep runs in the results.
 
         Returns:
             A `Runs` object, which is an iterable collection of `Run` objects.
 
         Examples:
-
         ```python
         # Find runs in project where config.experiment_name has been set to "foo"
         api.runs(path="my_entity/project", filters={"config.experiment_name": "foo"})
@@ -1126,7 +1163,7 @@ class Api:
 
     @normalize_exceptions
     def artifact_collections(
-        self, project_name: str, type_name: str, per_page: Optional[int] = 50
+        self, project_name: str, type_name: str, per_page: int = 50
     ) -> "public.ArtifactCollections":
         """Returns a collection of matching artifact collections.
 
@@ -1198,6 +1235,12 @@ class Api:
             entity = InternalApi()._resolve_org_entity_name(
                 entity=settings_entity, organization=org
             )
+
+        if entity is None:
+            raise ValueError(
+                "Could not determine entity. Please include the entity as part of the collection name path."
+            )
+
         return public.ArtifactCollection(
             self.client, entity, project, collection_name, type_name
         )
@@ -1219,20 +1262,20 @@ class Api:
         self,
         type_name: str,
         name: str,
-        per_page: Optional[int] = 50,
+        per_page: int = 50,
         tags: Optional[List[str]] = None,
     ) -> "public.Artifacts":
         """Return an `Artifacts` collection.
 
         Args:
-            type_name: The type of artifacts to fetch.
-            name: The artifact's collection name. Optionally append the
-                entity that logged the artifact as a prefix followed by
-                a forward slash.
-            per_page: Sets the page size for query pagination. If set to
-                `None`, use the default size. Usually there is no reason
-                to change this.
-            tags: Only return artifacts with all of these tags.
+        type_name: The type of artifacts to fetch.
+        name: The artifact's collection name. Optionally append the
+            entity that logged the artifact as a prefix followed by
+            a forward slash.
+        per_page: Sets the page size for query pagination. If set to
+            `None`, use the default size. Usually there is no reason
+            to change this.
+        tags: Only return artifacts with all of these tags.
 
         Returns:
             An iterable `Artifacts` object.
@@ -1286,6 +1329,12 @@ class Api:
             entity = InternalApi()._resolve_org_entity_name(
                 entity=settings_entity, organization=organization
             )
+
+        if entity is None:
+            raise ValueError(
+                "Could not determine entity. Please include the entity as part of the artifact name path."
+            )
+
         artifact = wandb.Artifact._from_name(
             entity=entity,
             project=project,
@@ -1515,3 +1564,68 @@ class Api:
             return True
         except wandb.errors.CommError:
             return False
+
+    def registries(
+        self,
+        organization: Optional[str] = None,
+        filter: Optional[Dict[str, Any]] = None,
+    ) -> Registries:
+        """Returns a Registry iterator.
+
+        Use the iterator to search and filter registries, collections,
+        or artifact versions across your organization's registry.
+
+        Examples:
+            Find all registries with the names that contain "model"
+            ```python
+            import wandb
+
+            api = wandb.Api()  # specify an org if your entity belongs to multiple orgs
+            api.registries(filter={"name": {"$regex": "model"}})
+            ```
+
+            Find all collections in the registries with the name "my_collection" and the tag "my_tag"
+            ```python
+            api.registries().collections(filter={"name": "my_collection", "tag": "my_tag"})
+            ```
+
+            Find all artifact versions in the registries with a collection name that contains "my_collection" and a version that has the alias "best"
+            ```python
+            api.registries().collections(
+                filter={"name": {"$regex": "my_collection"}}
+            ).versions(filter={"alias": "best"})
+            ```
+
+            Find all artifact versions in the registries that contain "model" and have the tag "prod" or alias "best"
+            ```python
+            api.registries(filter={"name": {"$regex": "model"}}).versions(
+                filter={"$or": [{"tag": "prod"}, {"alias": "best"}]}
+            )
+            ```
+
+        Args:
+            organization: (str, optional) The organization of the registry to fetch.
+                If not specified, use the organization specified in the user's settings.
+            filter: (dict, optional) MongoDB-style filter to apply to each object in the registry iterator.
+                Fields available to filter for collections are
+                    `name`, `description`, `created_at`, `updated_at`.
+                Fields available to filter for collections are
+                    `name`, `tag`, `description`, `created_at`, `updated_at`
+                Fields available to filter for versions are
+                    `tag`, `alias`, `created_at`, `updated_at`, `metadata`
+
+        Returns:
+            A registry iterator.
+        """
+        if not InternalApi()._check_server_feature_with_fallback(
+            ServerFeature.ARTIFACT_REGISTRY_SEARCH
+        ):
+            raise RuntimeError(
+                "Registry search API is not enabled on this wandb server version. "
+                "Please upgrade your server version or contact support at support@wandb.com."
+            )
+
+        organization = organization or fetch_org_from_settings_or_entity(
+            self.settings, self.default_entity
+        )
+        return Registries(self.client, organization, filter)

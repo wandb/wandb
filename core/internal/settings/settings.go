@@ -22,6 +22,11 @@ type Settings struct {
 	Proto *spb.Settings
 }
 
+// Creates a new Settings object.
+func New() *Settings {
+	return &Settings{Proto: &spb.Settings{}}
+}
+
 // Parses the Settings proto into a Settings object.
 func From(proto *spb.Settings) *Settings {
 	return &Settings{Proto: proto}
@@ -430,8 +435,16 @@ func (s *Settings) IsDisableStats() bool {
 	return s.Proto.XDisableStats.GetValue()
 }
 
-func (s *Settings) IsPrimaryNode() bool {
-	return s.Proto.XPrimaryNode.GetValue()
+func (s *Settings) IsEnableServerSideDerivedSummary() bool {
+	return s.Proto.XServerSideDerivedSummary.GetValue()
+}
+
+// Determines whether to save internal wandb files and metadata.
+//
+// In a distributed setting, this is useful for avoiding file overwrites from secondary processes
+// when only system metrics and logs are needed, as the primary process handles the main logging.
+func (s *Settings) IsPrimary() bool {
+	return s.Proto.XPrimary.GetValue()
 }
 
 // The size of the buffer for system metrics.
@@ -462,6 +475,11 @@ func (s *Settings) GetStatsGpuDeviceIds() []int32 {
 // The path to the Neuron monitor config file.
 func (s *Settings) GetStatsNeuronMonitorConfigPath() string {
 	return s.Proto.XStatsNeuronMonitorConfigPath.GetValue()
+}
+
+// The OpenMetrics API query.
+func (s *Settings) GetStatsDcgmExporter() string {
+	return s.Proto.XStatsDcgmExporter.GetValue()
 }
 
 // The OpenMetrics endpoints to monitor.
@@ -513,4 +531,9 @@ func (s *Settings) UpdateDisplayName(displayName string) {
 // Updates the run ID.
 func (s *Settings) UpdateRunID(runID string) {
 	s.Proto.RunId = &wrapperspb.StringValue{Value: runID}
+}
+
+// Update server-side derived summary computation setting.
+func (s *Settings) UpdateServerSideDerivedSummary(enable bool) {
+	s.Proto.XServerSideDerivedSummary = &wrapperspb.BoolValue{Value: enable}
 }

@@ -233,6 +233,7 @@ class DirWatcher:
             self._savename_file_policies[save_name] = policy
         else:
             self._user_file_policies[policy].add(path)
+
         for src_path in glob.glob(os.path.join(self._dir, path)):
             save_name = LogicalPath(os.path.relpath(src_path, self._dir))
             feh = self._get_file_event_handler(src_path, save_name)
@@ -285,7 +286,7 @@ class DirWatcher:
     #     return LogicalPath(os.path.relpath(path, self._dir))
 
     def _on_file_modified(self, event: "wd_events.FileModifiedEvent") -> None:
-        logger.info(f"file/dir modified: { event.src_path}")
+        logger.info(f"file/dir modified: {event.src_path}")
         if os.path.isdir(event.src_path):
             return None
         save_name = LogicalPath(os.path.relpath(event.src_path, self._dir))

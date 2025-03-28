@@ -270,7 +270,7 @@ func TestCache(t *testing.T) {
 	metricName := "DCGM_FI_DEV_POWER_USAGE"
 	metricLabels := map[string]string{"pod": "wandb-1337"}
 
-	hash := om.GenerateLabelHash(metricLabels)
+	hash := monitor.GenerateLabelHash(metricLabels)
 	// check that metricName+hash is not in the cache
 	_, ok := om.Cache().Get(metricName + hash)
 	assert.False(t, ok)
