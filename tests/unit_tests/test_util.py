@@ -398,6 +398,20 @@ def test_matplotlib_to_plotly():
     plt.close()
 
 
+def test_matplotlib_to_plotly_warns_during_conversion(
+    mock_wandb_log,
+):
+    """Test transforming a pyplot object to a plotly object (not the wandb.* versions)."""
+    fig1, ax = plt.subplots()
+    ax.imshow(np.random.rand(10, 10), cmap="viridis")
+    util.matplotlib_to_plotly(fig1)
+    plt.close()
+    assert mock_wandb_log.warned(
+        "Plotly raised warning while converting matplotlib figure. "
+        "This may result in missing graph data."
+    )
+
+
 def test_convert_plots():
     fig = matplotlib_without_image()
     obj = util.convert_plots(fig)
