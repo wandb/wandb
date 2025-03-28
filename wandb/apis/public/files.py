@@ -1,12 +1,54 @@
-"""This module provides classes for interacting with files stored in W&B.
+"""W&B Public API for File Management.
 
-How to import this module into your code:
+This module provides classes for interacting with files stored in W&B. Classes
+include:
 
+Files: A paginated collection of files associated with a run
+- Iterate through files with automatic pagination
+- Filter files by name
+- Access file metadata and properties
+- Download multiple files
+
+File: A single file stored in W&B
+- Access file metadata (size, mimetype, URLs)
+- Download files to local storage
+- Delete files from W&B
+- Work with S3 URIs for direct access
+
+Example:
 ```python
-from wandb.apis.public.files import Files, File
+from wandb.apis.public import Api
+
+# Initialize API
+api = Api()
+
+# Get files from a specific run
+run = api.run("entity/project/run_id")
+files = run.files()
+
+# Work with files
+for file in files:
+    print(f"File: {file.name}")
+    print(f"Size: {file.size} bytes")
+    print(f"Type: {file.mimetype}")
+
+    # Download file
+    if file.size < 1000000:  # Less than 1MB
+        file.download(root="./downloads")
+
+    # Get S3 URI for large files
+    if file.size >= 1000000:
+        print(f"S3 URI: {file.path_uri}")
 ```
 
+Note:
+    This module is part of the W&B Public API and provides methods to access,
+    download, and manage files stored in W&B. Files are typically associated
+    with specific runs and can include model weights, datasets, visualizations,
+    and other artifacts.
 """
+
+# ...existing code...
 
 import io
 import os

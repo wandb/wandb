@@ -1,4 +1,49 @@
-"""Public API: projects."""
+"""W&B Public API for Projects.
+
+This module provides classes for interacting with W&B projects and their
+associated data. Classes include:
+
+Projects: A paginated collection of projects associated with an entity
+- Iterate through all projects
+- Access project metadata
+- Query project information
+
+Project: A single project that serves as a namespace for runs
+- Access project properties
+- Work with artifacts and their types
+- Manage sweeps
+- Generate HTML representations for Jupyter
+
+Example:
+```python
+from wandb.apis.public import Api
+
+# Initialize API
+api = Api()
+
+# Get all projects for an entity
+projects = api.projects("username")
+
+# Access project data
+for project in projects:
+    print(f"Project: {project.name}")
+    print(f"URL: {project.url}")
+
+    # Get artifact types
+    for artifact_type in project.artifacts_types():
+        print(f"Artifact Type: {artifact_type.name}")
+
+    # Get sweeps
+    for sweep in project.sweeps():
+        print(f"Sweep ID: {sweep.id}")
+        print(f"State: {sweep.state}")
+```
+
+Note:
+    This module is part of the W&B Public API and provides methods to access
+    and manage projects. For creating new projects, use wandb.init()
+    with a new project name.
+"""
 
 from wandb_gql import gql
 
