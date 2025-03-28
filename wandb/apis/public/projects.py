@@ -22,10 +22,10 @@ from wandb.apis.public import Api
 api = Api()
 
 # Get all projects for an entity
-projects = api.projects("username")
+projects_all = api.projects("entity")
 
 # Access project data
-for project in projects:
+for project in projects_all:
     print(f"Project: {project.name}")
     print(f"URL: {project.url}")
 
@@ -69,17 +69,16 @@ class Projects(Paginator):
 
     Example:
     ```python
-    from wandb.apis.public.projects import Projects
     from wandb.apis.public.api import Api
 
     # Initialize the API client
     api = Api()
 
-    # Create Projects object to iterate over projects that belong to this entity
-    projects = Projects(api.client, "entity_name")
+    # Find projects that belong to this entity
+    projects_all = api.projects(entity="entity")
 
     # Iterate over files
-    for project in projects:
+    for project in projects_all:
         print(f"Project: {project.name}")
         print(f"- URL: {project.url}")
         print(f"- Created at: {project.created_at}")
