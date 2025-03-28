@@ -135,6 +135,7 @@ class QueryGenerator:
         return {path: self._to_mongo_op_value(filter["op"], filter["value"])}
 
     def filter_to_mongo(self, filter):
+        """Returns dictionary with filter format converted to MongoDB filter."""
         if self._is_individual(filter):
             return self._to_mongo_individual(filter)
         elif self._is_group(filter):

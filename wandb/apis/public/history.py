@@ -15,7 +15,7 @@ SampledHistoryScan: Iterator for sampling run history data
 - Control sample size and step ranges
 
 Note:
-    This module is part of the W&B Public API and provides efficient methods
+    This module is part of the W&B Public API and provides methods
     to access run history data. It handles pagination automatically and offers
     both complete and sampled access to metrics logged during training runs.
 """

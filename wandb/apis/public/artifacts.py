@@ -1,7 +1,7 @@
 """W&B Public API for Artifact Management.
 
 This module provides classes for interacting with W&B artifacts and their
-collections. Claaes include:
+collections. Classes include:
 
 
 ArtifactTypes: A paginated collection of artifact types in a project
@@ -24,11 +24,6 @@ ArtifactFiles: A paginated collection of files within an artifact
 - List and query artifact files
 - Access file metadata
 - Download individual files
-
-Note:
-    This module is part of the W&B Public API and provides comprehensive access
-    to W&B's artifact system. Artifacts are versioned collections of files and
-    metadata used to track datasets, models, and other machine learning assets.
 """
 
 import json
