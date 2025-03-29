@@ -215,9 +215,10 @@ class Object3D(BatchableMedia):
     def __init__(
         self,
         data_or_path: Union["np.ndarray", str, "TextIO", dict],
+        caption: Optional[str] = None,
         **kwargs: Optional[Union[str, "FileFormat3D"]],
     ) -> None:
-        super().__init__()
+        super().__init__(caption=caption)
 
         if hasattr(data_or_path, "name"):
             # if the file has a path, we just detect the type and copy it from there

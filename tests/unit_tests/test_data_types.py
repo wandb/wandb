@@ -456,7 +456,6 @@ def test_audio_to_json(mock_run):
 
     audio_expected = {
         "_type": "audio-file",
-        "caption": None,
         "size": 88244,
     }
     assert subdict(meta["audio"][0], audio_expected) == audio_expected
@@ -471,7 +470,6 @@ def test_audio_refs():
 
     audio_expected = {
         "_type": "audio-file",
-        "caption": None,
     }
     assert subdict(audio_obj.to_json(art), audio_expected) == audio_expected
 
