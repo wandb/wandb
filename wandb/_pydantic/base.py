@@ -4,7 +4,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, Json
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    Json,
+    ValidationError,
+    ValidatorFunctionWrapHandler,
+    WrapValidator,
+)
+from pydantic_core import to_json
 from typing_extensions import Annotated, TypedDict, Unpack, override
 
 from .v1_compat import PydanticCompatMixin
@@ -95,19 +104,19 @@ Typename = Annotated[
 
 
 # FIXME: Restore, modify, or replace this later after ensuring pydantic v1 compatibility.
-# def validate_maybe_json(v: Any, handler: ValidatorFunctionWrapHandler) -> Any:
-#     """Wraps default Json[...] field validator to allow instantiation with an already-decoded value."""
-#     try:
-#         return handler(v)
-#     except ValidationError:
-#         # Try revalidating after properly jsonifying the value
-#         return handler(to_json(v, by_alias=True, round_trip=True))
-#
-#
-# SerializedToJson = Annotated[
-#     Json[T],
-#     # Allow lenient instantiation/validation: incoming data may already be deserialized.
-#     WrapValidator(validate_maybe_json),
-# ]
+def validate_maybe_json(v: Any, handler: ValidatorFunctionWrapHandler) -> Any:
+    """Wraps default Json[...] field validator to allow instantiation with an already-decoded value."""
+    try:
+        return handler(v)
+    except ValidationError:
+        # Try revalidating after properly jsonifying the value
+        return handler(to_json(v, by_alias=True, round_trip=True))
 
-SerializedToJson = Json[T]
+
+SerializedToJson = Annotated[
+    Json[T],
+    # Allow lenient instantiation/validation: incoming data may already be deserialized.
+    WrapValidator(validate_maybe_json),
+]
+
+# SerializedToJson = Json[T]

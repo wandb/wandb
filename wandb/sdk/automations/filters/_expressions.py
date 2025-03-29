@@ -3,7 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any, Dict, Hashable, Iterator, Mapping, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Hashable,
+    Iterator,
+    Mapping,
+    Union,
+    overload,
+)
 
 from pydantic import (
     BaseModel,
@@ -42,6 +51,9 @@ from ._operators import (
     ScalarTypes,
     op_key,
 )
+
+if TYPE_CHECKING:
+    from wandb.sdk.automations.events import MetricFilter, RunMetricFilter
 
 
 @dataclass_transform(eq_default=False, order_default=False, frozen_default=True)
@@ -153,7 +165,19 @@ class FilterExpr(BaseModel):
         # https://rich.readthedocs.io/en/stable/pretty.html
         yield self.field, self.op
 
-    def __and__(self, other: Any) -> And:
+    @overload
+    def __and__(self, other: MetricFilter) -> RunMetricFilter: ...
+    @overload
+    def __and__(self, other: Any) -> And: ...
+
+    def __and__(self, other: Any) -> And | RunMetricFilter:
+        from wandb.sdk.automations.events import MetricFilter
+
+        # Special handling for `run_filter & metric_filter`
+        if isinstance(other, MetricFilter):
+            return other.__and__(self)
+
+        # Default implementation
         return And(inner=[self, other])
 
     def __or__(self, other: Any) -> Or:

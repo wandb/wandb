@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Generic, Iterable, Tuple, TypeVar, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Generic,
+    Iterable,
+    Tuple,
+    TypeVar,
+    Union,
+    cast,
+    overload,
+)
 
 from pydantic import ConfigDict, Field
 
@@ -10,6 +20,8 @@ from wandb._pydantic.base import Base
 
 if TYPE_CHECKING:
     from typing_extensions import TypeAlias
+
+    from wandb.sdk.automations.events import MetricFilter, RunMetricFilter
 
 
 ScalarTypes = (str, int, float, bool)  # For isinstance() checks
@@ -57,7 +69,17 @@ class OpDict(Base, Generic[InnerT]):
     def __or__(self, other: Any) -> Or:
         return Or(inner=[self, other])
 
-    def __and__(self, other: Any) -> And:
+    @overload
+    def __and__(self, other: MetricFilter) -> RunMetricFilter: ...
+    @overload
+    def __and__(self, other: Any) -> And: ...
+
+    def __and__(self, other: Any) -> And | RunMetricFilter:
+        from wandb.sdk.automations.events import MetricFilter
+
+        # Special handling `run_filter & metric_filter`
+        if isinstance(other, MetricFilter):
+            return other.__and__(self)
         return And(inner=[self, other])
 
     def __invert__(self) -> Not:

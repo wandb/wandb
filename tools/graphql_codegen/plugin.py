@@ -42,6 +42,7 @@ GQLID_TYPE = "GQLId"  #: Custom GraphQL ID type for field annotations
 CUSTOM_BASE_IMPORT_NAMES = [
     CUSTOM_BASE_MODEL_NAME,
     CUSTOM_GQL_BASE_MODEL_NAME,
+    TYPENAME_TYPE,
 ]
 
 
