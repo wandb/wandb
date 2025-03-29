@@ -9,7 +9,7 @@ import (
 )
 
 func TestMetricSelfStep(t *testing.T) {
-	rcm := runmetric.NewRunConfigMetrics()
+	rcm := runmetric.NewRunConfigMetrics(false)
 
 	_ = rcm.ProcessRecord(&spb.MetricRecord{
 		Name:       "x",
@@ -29,4 +29,19 @@ func TestMetricSelfStep(t *testing.T) {
 	}
 	assert.Equal(t, config[xidx]["5"], 1+int64(yidx))
 	assert.Equal(t, config[yidx]["5"], 1+int64(xidx))
+}
+
+func TestMetricGlob(t *testing.T) {
+	rcm := runmetric.NewRunConfigMetrics(true)
+
+	_ = rcm.ProcessRecord(&spb.MetricRecord{
+		GlobName:   "x/*",
+		StepMetric: "y",
+	})
+	config := rcm.ToRunConfigData()
+
+	assert.Len(t, config, 2)
+
+	assert.Equal(t, config[0]["2"], "x/*")
+	assert.Equal(t, config[1]["1"], "y")
 }
