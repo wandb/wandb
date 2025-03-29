@@ -735,6 +735,8 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
         ["python", "train.py"],
         ["${env}", "python", "train.py", "${args}"],
         ["python", "train.py", "${args_no_hyphens}"],
+        ["python", "train.py", "${args_append_hydra}"],
+        ["python", "train.py", "${args_override_hydra}"],
         ["python", "train.py", "${args_no_equals}"],
         ["python", "train.py", "${args}", "--another", "param"],
         ["python", "train.py", "--float", 1.99999, "${args_json}"],
