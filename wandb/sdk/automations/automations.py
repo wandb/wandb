@@ -96,6 +96,24 @@ class Automation(TriggerFields):
     def _validate_scope(cls, v: Any) -> Any:
         return validate_scope(v)
 
+    def save(
+        self, api: Api | None = None, **updates: Unpack[AutomationParams]
+    ) -> Automation:
+        """Save this existing automation to the server, applying any local changes.
+
+        Args:
+            api: The API instance to use.  If not provided, the default API instance is used.
+            updates:
+                Any final updates to apply to the automation before
+                saving it.  These override previously-set values, if any.
+
+        Returns:
+            The updated automation.
+        """
+        from wandb import Api
+
+        return (api or Api()).update_automation(self, **updates)
+
     def delete(self, api: Api | None = None) -> DeleteTriggerResult:
         """Delete this automation from the server.
 
