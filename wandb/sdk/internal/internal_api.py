@@ -37,6 +37,7 @@ import requests
 import yaml
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
+from wandb_graphql.language.ast import Document
 
 import wandb
 from wandb import env, util
@@ -3807,67 +3808,108 @@ class Api:
         else:
             raise ValueError(f"Unable to find an organization under entity {entity!r}.")
 
-    def use_artifact(
+    def _construct_use_artifact_query(
         self,
         artifact_id: str,
         entity_name: Optional[str] = None,
         project_name: Optional[str] = None,
         run_name: Optional[str] = None,
         use_as: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
-        query_template = """
-        mutation UseArtifact(
-            $entityName: String!,
-            $projectName: String!,
-            $runName: String!,
-            $artifactID: ID!,
-            _USED_AS_TYPE_
-        ) {
-            useArtifact(input: {
-                entityName: $entityName,
-                projectName: $projectName,
-                runName: $runName,
-                artifactID: $artifactID,
-                _USED_AS_VALUE_
-            }) {
-                artifact {
-                    id
-                    digest
-                    description
-                    state
-                    createdAt
-                    metadata
-                }
-            }
-        }
-        """
+        artifact_entity_name: Optional[str] = None,
+        artifact_project_name: Optional[str] = None,
+    ) -> Tuple[Document, Dict[str, Any]]:
+        query_vars = [
+            "$entityName: String!",
+            "$projectName: String!",
+            "$runName: String!",
+            "$artifactID: ID!",
+        ]
+        query_args = [
+            "entityName: $entityName",
+            "projectName: $projectName",
+            "runName: $runName",
+            "artifactID: $artifactID",
+        ]
 
         artifact_types = self.server_use_artifact_input_introspection()
-        if "usedAs" in artifact_types:
-            query_template = query_template.replace(
-                "_USED_AS_TYPE_", "$usedAs: String"
-            ).replace("_USED_AS_VALUE_", "usedAs: $usedAs")
-        else:
-            query_template = query_template.replace("_USED_AS_TYPE_", "").replace(
-                "_USED_AS_VALUE_", ""
-            )
-
-        query = gql(query_template)
+        if "usedAs" in artifact_types and use_as:
+            query_vars.append("$usedAs: String")
+            query_args.append("usedAs: $usedAs")
 
         entity_name = entity_name or self.settings("entity")
         project_name = project_name or self.settings("project")
         run_name = run_name or self.current_run_id
 
-        response = self.gql(
-            query,
-            variable_values={
-                "entityName": entity_name,
-                "projectName": project_name,
-                "runName": run_name,
-                "artifactID": artifact_id,
-                "usedAs": use_as,
-            },
+        variable_values: Dict[str, Any] = {
+            "entityName": entity_name,
+            "projectName": project_name,
+            "runName": run_name,
+            "artifactID": artifact_id,
+            "usedAs": use_as,
+        }
+
+        server_allows_entity_project_information = (
+            self._check_server_feature_with_fallback(
+                ServerFeature.USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION  # type: ignore
+            )
         )
+        if server_allows_entity_project_information:
+            query_vars.extend(
+                [
+                    "$artifactEntityName: String",
+                    "$artifactProjectName: String",
+                ]
+            )
+            query_args.extend(
+                [
+                    "artifactEntityName: $artifactEntityName",
+                    "artifactProjectName: $artifactProjectName",
+                ]
+            )
+            variable_values["artifactEntityName"] = artifact_entity_name
+            variable_values["artifactProjectName"] = artifact_project_name
+
+        vars_str = ", ".join(query_vars)
+        args_str = ", ".join(query_args)
+
+        query = gql(
+            f"""
+            mutation UseArtifact({vars_str}) {{
+                useArtifact(input: {{{args_str}}}) {{
+                    artifact {{
+                        id
+                        digest
+                        description
+                        state
+                        createdAt
+                        metadata
+                    }}
+                }}
+            }}
+            """
+        )
+        return query, variable_values
+
+    def use_artifact(
+        self,
+        artifact_id: str,
+        entity_name: Optional[str] = None,
+        project_name: Optional[str] = None,
+        run_name: Optional[str] = None,
+        artifact_entity_name: Optional[str] = None,
+        artifact_project_name: Optional[str] = None,
+        use_as: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        query, variable_values = self._construct_use_artifact_query(
+            artifact_id,
+            entity_name,
+            project_name,
+            run_name,
+            use_as,
+            artifact_entity_name,
+            artifact_project_name,
+        )
+        response = self.gql(query, variable_values)
 
         if response["useArtifact"]["artifact"]:
             artifact: Dict[str, Any] = response["useArtifact"]["artifact"]

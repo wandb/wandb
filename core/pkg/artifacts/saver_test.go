@@ -83,6 +83,7 @@ func TestSaveGraphQLRequest(t *testing.T) {
 		observability.NewNoOpLogger(),
 		mockGQL,
 		ftm,
+		true,
 	)
 
 	result := <-saver.Save(
