@@ -37,6 +37,7 @@ LOGIN_CHOICES = [
     LOGIN_CHOICE_DRYRUN,
 ]
 
+
 @dataclasses.dataclass(frozen=True)
 class _NetrcPermissions:
     exists: bool
@@ -86,12 +87,15 @@ def get_netrc_file_path() -> str:
 
 
 # Context variable to store referrer
-_api_key_prompt_referrer: ContextVar[Optional[str]] = ContextVar("api_key_prompt_referrer", default=None)
+_api_key_prompt_referrer: ContextVar[Optional[str]] = ContextVar(
+    "api_key_prompt_referrer", default=None
+)
+
 
 @contextmanager
 def api_key_prompt_referrer(referrer: Optional[str]) -> None:
     """Context manager for temporarily setting the referrer context.
-    
+
     Example:
         >>> with api_key_prompt_referrer("my_referrer"):
         ...     prompt_api_key(settings)
@@ -101,7 +105,6 @@ def api_key_prompt_referrer(referrer: Optional[str]) -> None:
         yield
     finally:
         _api_key_prompt_referrer.reset(token)
-
 
 
 def prompt_api_key(  # noqa: C901
