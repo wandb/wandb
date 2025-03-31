@@ -13,7 +13,7 @@ from contextvars import ContextVar
 from functools import partial
 
 # import Literal
-from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
+from typing import TYPE_CHECKING, Callable, Dict, Generator, Literal, Optional, Union
 from urllib.parse import urlparse
 
 import click
@@ -93,7 +93,7 @@ _api_key_prompt_referrer: ContextVar[Optional[str]] = ContextVar(
 
 
 @contextmanager
-def api_key_prompt_referrer(referrer: Optional[str]) -> None:
+def api_key_prompt_referrer(referrer: Optional[str]) -> Generator[None, None, None]:
     """Context manager for temporarily setting the referrer context.
 
     Example:
