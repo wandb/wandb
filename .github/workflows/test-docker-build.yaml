@@ -1,0 +1,45 @@
+name: Test Docker Build
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    strategy:
+      matrix:
+        platform: [linux/amd64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # For testing, we'll only build and not push
+      - name: Build Only
+        uses: docker/build-push-action@v6
+        with:
+          push: false
+          file: docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          tags: ctrlplane/cli:test
+          context: .
