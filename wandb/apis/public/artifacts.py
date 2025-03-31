@@ -51,7 +51,14 @@ if TYPE_CHECKING:
 
 
 class ArtifactTypes(Paginator["ArtifactType"]):
-    """An iterable collection of artifact types associated with a project."""
+    """An iterable collection of artifact types associated with a project.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        entity: The entity (user or team) that owns the project.
+        project: The name of the project to query for artifact types.
+        per_page: The number of artifact types to fetch per page. Default is 50.
+    """
 
     QUERY = gql(
         """
@@ -130,6 +137,17 @@ class ArtifactTypes(Paginator["ArtifactType"]):
 
 
 class ArtifactType:
+    """An artifact object that satisfies query based on the specified type.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        entity: The entity (user or team) that owns the project.
+        project: The name of the project to query for artifact types.
+        type_name: The name of the artifact type.
+        attrs: Optional mapping of attributes to initialize the artifact type. If not provided,
+            the object will load its attributes from W&B upon initialization.
+    """
+
     def __init__(
         self,
         client: Client,
@@ -195,10 +213,11 @@ class ArtifactType:
 
     @normalize_exceptions
     def collections(self, per_page=50):
-        """Artifact collections."""
+        """Get all artifact collections associated with this artifact type."""
         return ArtifactCollections(self.client, self.entity, self.project, self.type)
 
     def collection(self, name):
+        """Get a specific artifact collection by name."""
         return ArtifactCollection(
             self.client, self.entity, self.project, name, self.type
         )
@@ -208,6 +227,16 @@ class ArtifactType:
 
 
 class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
+    """An iterable collection of artifact collections associated with a project and artifact type.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        entity: The entity (user or team) that owns the project.
+        project: The name of the project to query for artifact collections.
+        type_name: The name of the artifact type for which to fetch collections.
+        per_page: The number of artifact collections to fetch per page. Default is 50.
+    """
+
     def __init__(
         self,
         client: Client,
@@ -318,6 +347,20 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
 
 
 class ArtifactCollection:
+    """An artifact collection that represents a group of related artifacts.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        entity: The entity (user or team) that owns the project.
+        project: The name of the project to query for artifact collections.
+        name: The name of the artifact collection.
+        type: The type of the artifact collection (e.g., "dataset", "model").
+        organization: Optional organization name if applicable.
+        attrs: Optional mapping of attributes to initialize the artifact collection.
+            If not provided, the object will load its attributes from W&B upon
+            initialization.
+    """
+
     def __init__(
         self,
         client: Client,
@@ -352,7 +395,7 @@ class ArtifactCollection:
 
     @normalize_exceptions
     def artifacts(self, per_page=50):
-        """Artifact versions."""
+        """Get all artifact versions associated with this artifact collection."""
         return Artifacts(
             self.client,
             self.entity,
@@ -364,7 +407,7 @@ class ArtifactCollection:
 
     @property
     def aliases(self):
-        """Artifact collection aliases."""
+        """The aliases associated with the artifact collection."""
         return self._aliases
 
     @property
@@ -563,7 +606,7 @@ class ArtifactCollection:
 
     @property
     def type(self):
-        """The type of the artifact collection."""
+        """Returns the type of the artifact collection."""
         return self._type
 
     @type.setter
@@ -766,9 +809,21 @@ class ArtifactCollection:
 
 
 class Artifacts(SizedPaginator["wandb.Artifact"]):
-    """An iterable collection of artifact versions associated with a project and optional filter.
+    """An iterable collection of artifact versions associated with a project.
 
-    This is generally used indirectly via the `Api`.artifact_versions method.
+    Optionally pass in filters to narrow down the results based on specific criteria.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        entity: The entity (user or team) that owns the project.
+        project: The name of the project to query for artifacts.
+        collection_name: The name of the artifact collection to query.
+        type: The type of the artifacts to query. Common examples include
+            "dataset" or "model".
+        filters: Optional mapping of filters to apply to the query.
+        order: Optional string to specify the order of the results.
+        per_page: The number of artifact versions to fetch per page. Default is 50.
+        tags: Optional string or list of strings to filter artifacts by tags.
     """
 
     def __init__(
@@ -886,7 +941,15 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
 
 
 class RunArtifacts(SizedPaginator["wandb.Artifact"]):
-    """An iterable collection of artifacts associated with a run."""
+    """An iterable collection of artifacts associated with a run.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        run: The run object to query for artifacts.
+        mode: The mode of artifacts to fetch, either "logged"
+            (output artifacts) or "used" (input artifacts). Default is "logged".
+        per_page: The number of artifacts to fetch per page. Default is 50.
+    """
 
     def __init__(self, client: Client, run: "Run", mode="logged", per_page: int = 50):
         from wandb.sdk.artifacts.artifact import _gql_artifact_fragment
@@ -1008,6 +1071,16 @@ class RunArtifacts(SizedPaginator["wandb.Artifact"]):
 
 
 class ArtifactFiles(SizedPaginator["public.File"]):
+    """An iterable collection of files associated with an artifact version.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        artifact: The artifact object to query for files.
+        names: Optional sequence of file names to filter the results by. If
+            `None`, all files will be returned.
+        per_page: The number of files to fetch per page. Default is 50.
+    """
+
     ARTIFACT_VERSION_FILES_QUERY = gql(
         f"""
         query ArtifactFiles(
