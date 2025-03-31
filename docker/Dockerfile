@@ -1,16 +1,10 @@
-FROM alpine:3.19 AS builder
+FROM golang:1.24-alpine AS builder
 
-ARG CLI_VERSION
+WORKDIR /app
 
-RUN apk add --no-cache curl tar && \
-  ARCH=$(case $(uname -m) in \
-  "x86_64") echo "x86_64" ;; \
-  "aarch64") echo "arm64" ;; \
-  *) echo "x86_64" ;; \
-  esac) && \
-  curl -L --fail "https://github.com/ctrlplanedev/cli/releases/download/${CLI_VERSION}/ctrlc_Linux_${ARCH}.tar.gz" -o ctrlc.tar.gz && \
-  tar xzf ctrlc.tar.gz && \
-  mv ctrlc /usr/local/bin/ && \
+COPY . .
+
+RUN go build -o /usr/local/bin/ctrlc ./cmd/ctrlc && \
   chmod +x /usr/local/bin/ctrlc
 
 FROM alpine:3.19 AS final
