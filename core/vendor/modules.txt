@@ -30,8 +30,8 @@ cloud.google.com/go/auth/oauth2adapt
 # cloud.google.com/go/compute/metadata v0.6.0
 ## explicit; go 1.21
 cloud.google.com/go/compute/metadata
-# cloud.google.com/go/iam v1.4.0
-## explicit; go 1.22.7
+# cloud.google.com/go/iam v1.4.1
+## explicit; go 1.23.0
 cloud.google.com/go/iam
 cloud.google.com/go/iam/apiv1/iampb
 # cloud.google.com/go/monitoring v1.24.0
@@ -39,8 +39,8 @@ cloud.google.com/go/iam/apiv1/iampb
 cloud.google.com/go/monitoring/apiv3/v2
 cloud.google.com/go/monitoring/apiv3/v2/monitoringpb
 cloud.google.com/go/monitoring/internal
-# cloud.google.com/go/storage v1.50.0
-## explicit; go 1.22
+# cloud.google.com/go/storage v1.51.0
+## explicit; go 1.23.0
 cloud.google.com/go/storage
 cloud.google.com/go/storage/experimental
 cloud.google.com/go/storage/internal
@@ -125,10 +125,10 @@ github.com/AzureAD/microsoft-authentication-library-for-go/apps/public
 # github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.26.0
 ## explicit; go 1.22
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp
-# github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.50.0
+# github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.51.0
 ## explicit; go 1.22
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric
-# github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.50.0
+# github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.51.0
 ## explicit; go 1.22
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping
 # github.com/Khan/genqlient v0.8.0
@@ -515,8 +515,8 @@ github.com/google/s2a-go/stream
 # github.com/google/uuid v1.6.0
 ## explicit
 github.com/google/uuid
-# github.com/googleapis/enterprise-certificate-proxy v0.3.4
-## explicit; go 1.19
+# github.com/googleapis/enterprise-certificate-proxy v0.3.5
+## explicit; go 1.23.0
 github.com/googleapis/enterprise-certificate-proxy/client
 github.com/googleapis/enterprise-certificate-proxy/client/util
 # github.com/googleapis/gax-go/v2 v2.14.1
@@ -760,7 +760,7 @@ golang.org/x/net/internal/socks
 golang.org/x/net/internal/timeseries
 golang.org/x/net/proxy
 golang.org/x/net/trace
-# golang.org/x/oauth2 v0.27.0
+# golang.org/x/oauth2 v0.28.0
 ## explicit; go 1.23.0
 golang.org/x/oauth2
 golang.org/x/oauth2/authhandler
@@ -824,7 +824,7 @@ golang.org/x/tools/internal/stdlib
 golang.org/x/tools/internal/typeparams
 golang.org/x/tools/internal/typesinternal
 golang.org/x/tools/internal/versions
-# google.golang.org/api v0.223.0
+# google.golang.org/api v0.224.0
 ## explicit; go 1.23.0
 google.golang.org/api/googleapi
 google.golang.org/api/googleapi/transport
@@ -841,13 +841,13 @@ google.golang.org/api/storage/v1
 google.golang.org/api/transport
 google.golang.org/api/transport/grpc
 google.golang.org/api/transport/http
-# google.golang.org/genproto v0.0.0-20250224174004-546df14abb99
+# google.golang.org/genproto v0.0.0-20250303144028-a0af3efb3deb
 ## explicit; go 1.23.0
 google.golang.org/genproto/googleapis/type/calendarperiod
 google.golang.org/genproto/googleapis/type/date
 google.golang.org/genproto/googleapis/type/expr
 google.golang.org/genproto/googleapis/type/timeofday
-# google.golang.org/genproto/googleapis/api v0.0.0-20250224174004-546df14abb99
+# google.golang.org/genproto/googleapis/api v0.0.0-20250303144028-a0af3efb3deb
 ## explicit; go 1.23.0
 google.golang.org/genproto/googleapis/api
 google.golang.org/genproto/googleapis/api/annotations
@@ -856,7 +856,7 @@ google.golang.org/genproto/googleapis/api/expr/v1alpha1
 google.golang.org/genproto/googleapis/api/label
 google.golang.org/genproto/googleapis/api/metric
 google.golang.org/genproto/googleapis/api/monitoredres
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20250224174004-546df14abb99
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20250303144028-a0af3efb3deb
 ## explicit; go 1.23.0
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails
