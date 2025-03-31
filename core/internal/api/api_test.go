@@ -180,7 +180,9 @@ func TestNewClientWithProxy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to do test request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	// Check that Proxy-Authorization header is set
 	proxyReqHeader := resp.Request.Header.Get("Proxy-Authorization")
