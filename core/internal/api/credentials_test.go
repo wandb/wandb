@@ -61,7 +61,9 @@ func TestNewOAuth2CredentialProvider(t *testing.T) {
 	// create identity token file
 	tokenFile, err := os.CreateTemp(t.TempDir(), "jwt.txt")
 	require.NoError(t, err)
-	defer os.Remove(tokenFile.Name())
+	defer func() {
+		_ = os.Remove(tokenFile.Name())
+	}()
 
 	// write id token to file
 	_, err = tokenFile.Write([]byte("id-token"))
@@ -69,7 +71,9 @@ func TestNewOAuth2CredentialProvider(t *testing.T) {
 	require.NoError(t, tokenFile.Close())
 
 	credentialsFile := "credentials.json"
-	defer os.Remove(credentialsFile)
+	defer func() {
+		_ = os.Remove(credentialsFile)
+	}()
 
 	token := "fake-token"
 	expiresIn := time.Hour
@@ -116,7 +120,9 @@ func TestNewOAuth2CredentialProvider_RefreshesToken(t *testing.T) {
 	// create identity token file
 	tokenFile, err := os.CreateTemp(t.TempDir(), "jwt.txt")
 	require.NoError(t, err)
-	defer os.Remove(tokenFile.Name())
+	defer func() {
+		_ = os.Remove(tokenFile.Name())
+	}()
 
 	// write id token to file
 	_, err = tokenFile.Write([]byte("id-token"))
@@ -126,7 +132,9 @@ func TestNewOAuth2CredentialProvider_RefreshesToken(t *testing.T) {
 	// create credentials file
 	credsFile, err := os.CreateTemp(t.TempDir(), "credentials.json")
 	require.NoError(t, err)
-	defer os.Remove(credsFile.Name())
+	defer func() {
+		_ = os.Remove(credsFile.Name())
+	}()
 
 	// if the token is going to expire in 3 minutes, it should be refreshed
 	expiration := time.Now().UTC().Add(time.Minute * 3).Format("2006-01-02 15:04:05")
@@ -180,7 +188,9 @@ func TestNewOAuth2CredentialProvider_RefreshesTokenOnce(t *testing.T) {
 	// create identity token file
 	tokenFile, err := os.CreateTemp(t.TempDir(), "jwt.txt")
 	require.NoError(t, err)
-	defer os.Remove(tokenFile.Name())
+	defer func() {
+		_ = os.Remove(tokenFile.Name())
+	}()
 
 	// write id token to file
 	_, err = tokenFile.Write([]byte("id-token"))
@@ -190,7 +200,9 @@ func TestNewOAuth2CredentialProvider_RefreshesTokenOnce(t *testing.T) {
 	// create credentials file
 	credsFile, err := os.CreateTemp(t.TempDir(), "credentials.json")
 	require.NoError(t, err)
-	defer os.Remove(credsFile.Name())
+	defer func() {
+		_ = os.Remove(credsFile.Name())
+	}()
 
 	expiration := time.Now().UTC().Add(time.Minute * -3).Format("2006-01-02 15:04:05")
 	// write expired access token to file
@@ -241,7 +253,9 @@ func TestNewOAuth2CredentialProvider_CreatesNewTokenForNewBaseURL(t *testing.T) 
 	// create identity token file
 	tokenFile, err := os.CreateTemp(t.TempDir(), "jwt.txt")
 	require.NoError(t, err)
-	defer os.Remove(tokenFile.Name())
+	defer func() {
+		_ = os.Remove(tokenFile.Name())
+	}()
 
 	// write id token to file
 	_, err = tokenFile.Write([]byte("id-token"))
@@ -251,7 +265,9 @@ func TestNewOAuth2CredentialProvider_CreatesNewTokenForNewBaseURL(t *testing.T) 
 	// create credentials file
 	credsFile, err := os.CreateTemp(t.TempDir(), "credentials.json")
 	require.NoError(t, err)
-	defer os.Remove(credsFile.Name())
+	defer func() {
+		_ = os.Remove(credsFile.Name())
+	}()
 
 	// write credentials for other base url to credentials file
 	_, err = credsFile.Write([]byte(`{
