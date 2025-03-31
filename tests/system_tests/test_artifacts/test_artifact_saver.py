@@ -67,6 +67,8 @@ def test_calls_commit_on_success():
     )
 
     saver.save(
+        entity="my-entity",
+        project="my-project",
         type="my-type",
         name="my-name",
         client_id="my-client-id",
@@ -90,6 +92,8 @@ class TestReraisesErr:
         )
 
         saver.save(
+            entity="my-entity",
+            project="my-project",
             type="my-type",
             name="my-name",
             client_id="my-client-id",

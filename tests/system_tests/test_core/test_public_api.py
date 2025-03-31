@@ -81,6 +81,7 @@ def stub_run_gql_once(user, wandb_backend_spy):
                     "internalId": "testinternalid",
                     "run": {
                         "id": id,
+                        "projectId": "123",
                         "tags": [],
                         "name": "test",
                         "displayName": "test",

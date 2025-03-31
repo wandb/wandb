@@ -25,7 +25,6 @@ import wandb
 from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries import Registries
 from wandb.apis.public.utils import (
@@ -289,7 +288,6 @@ class Api:
             )
         )
         self._client = RetryingClient(self._base_client)
-        self._server_features_cache = None
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
@@ -757,15 +755,14 @@ class Api:
         return parts
 
     def projects(
-        self, entity: Optional[str] = None, per_page: Optional[int] = 200
+        self, entity: Optional[str] = None, per_page: int = 200
     ) -> "public.Projects":
         """Get projects for a given entity.
 
         Args:
             entity: (str) Name of the entity requested.  If None, will fall back to the
                 default entity passed to `Api`.  If no default entity, will raise a `ValueError`.
-            per_page: (int) Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
 
         Returns:
             A `Projects` object which is an iterable collection of `Project` objects.
@@ -808,7 +805,7 @@ class Api:
         return public.Project(self.client, entity, name, {})
 
     def reports(
-        self, path: str = "", name: Optional[str] = None, per_page: Optional[int] = 50
+        self, path: str = "", name: Optional[str] = None, per_page: int = 50
     ) -> "public.Reports":
         """Get reports for a given project path.
 
@@ -817,8 +814,7 @@ class Api:
         Args:
             path: (str) path to project the report resides in, should be in the form: "entity/project"
             name: (str, optional) optional name of the report requested.
-            per_page: (int) Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
 
         Returns:
             A `Reports` object which is an iterable collection of `BetaReport` objects.
@@ -1153,15 +1149,14 @@ class Api:
 
     @normalize_exceptions
     def artifact_collections(
-        self, project_name: str, type_name: str, per_page: Optional[int] = 50
+        self, project_name: str, type_name: str, per_page: int = 50
     ) -> "public.ArtifactCollections":
         """Return a collection of matching artifact collections.
 
         Args:
             project_name: (str) The name of the project to filter on.
             type_name: (str) The name of the artifact type to filter on.
-            per_page: (int, optional) Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
 
         Returns:
             An iterable `ArtifactCollections` object.
@@ -1226,7 +1221,7 @@ class Api:
         self,
         type_name: str,
         name: str,
-        per_page: Optional[int] = 50,
+        per_page: int = 50,
         tags: Optional[List[str]] = None,
     ) -> "public.Artifacts":
         """Return an `Artifacts` collection from the given parameters.
@@ -1234,8 +1229,7 @@ class Api:
         Args:
             type_name: (str) The type of artifacts to fetch.
             name: (str) An artifact collection name. May be prefixed with entity/project.
-            per_page: (int, optional) Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
             tags: (list[str], optional) Only return artifacts with all of these tags.
 
         Returns:
@@ -1510,7 +1504,7 @@ class Api:
         Returns:
             A registry iterator.
         """
-        if not self._check_server_feature_with_fallback(
+        if not InternalApi()._check_server_feature_with_fallback(
             ServerFeature.ARTIFACT_REGISTRY_SEARCH
         ):
             raise RuntimeError(
@@ -1522,52 +1516,3 @@ class Api:
             self.settings, self.default_entity
         )
         return Registries(self.client, organization, filter)
-
-    def _check_server_feature(self, feature: ServerFeature) -> bool:
-        """Check if a server feature is enabled.
-
-        Args:
-            feature (ServerFeature): The feature to check.
-
-        Returns:
-            bool: True if the feature is enabled, False otherwise.
-
-        Raises:
-            Exception: If server doesn't support feature queries or other errors occur
-        """
-        if self._server_features_cache is None:
-            response = self.client.execute(gql(SERVER_FEATURES_QUERY_GQL))
-            self._server_features_cache = ServerFeaturesQuery.model_validate(response)
-
-        feature_name = ServerFeature.Name(feature)
-        if (
-            self._server_features_cache
-            and self._server_features_cache.server_info
-            and self._server_features_cache.server_info.features
-        ):
-            for feature_info in self._server_features_cache.server_info.features:
-                if feature_info and feature_info.name == feature_name:
-                    return feature_info.is_enabled
-
-        return False
-
-    def _check_server_feature_with_fallback(self, feature: ServerFeature) -> bool:
-        """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
-
-        Good to use for features that have a fallback mechanism for older servers.
-
-        Args:
-            feature (ServerFeature): The feature to check.
-
-        Returns:
-            bool: True if the feature is enabled, False otherwise.
-
-        Exceptions:
-            Exception: If an error other than the server not supporting feature queries occurs.
-        """
-        try:
-            return self._check_server_feature(feature)
-        except Exception as e:
-            if 'Cannot query field "features" on type "ServerInfo".' in str(e):
-                return False
-            raise e
