@@ -3,6 +3,7 @@ import stat
 from unittest import mock
 
 import pytest
+
 from wandb import wandb, wandb_lib
 from wandb.sdk.lib.apikey import api_key_prompt_referrer
 
@@ -155,6 +156,8 @@ def test_apikey_prompt_referrer(mock_wandb_log, tmp_path, monkeypatch):
         wandb_lib.apikey.prompt_api_key(
             settings, input_callback=lambda _: "x" * 40, no_offline=True, no_create=True
         )
+        print("mock_wandb_log._logs(mock_wandb_log._termlog)")
+        print(mock_wandb_log._logs(mock_wandb_log._termlog))
         assert mock_wandb_log.logged(
             "You can find your API key in your browser here: http://localhost/authorize?ref=weave"
         )
