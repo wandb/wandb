@@ -141,7 +141,9 @@ func TestDefaultFileTransfer_UploadOffsetChunk(t *testing.T) {
 	_, err = tempFile.Write(entireContent)
 	assert.NoError(t, err)
 	tempFile.Close()
-	defer os.Remove(tempFile.Name())
+	defer func() {
+		_ = os.Remove(tempFile.Name())
+	}()
 
 	task := &filetransfer.DefaultUploadTask{
 		Path:   tempFile.Name(),
@@ -172,7 +174,9 @@ func TestDefaultFileTransfer_UploadOffsetChunkOverlong(t *testing.T) {
 	_, err = tempFile.Write(entireContent)
 	assert.NoError(t, err)
 	tempFile.Close()
-	defer os.Remove(tempFile.Name())
+	defer func() {
+		_ = os.Remove(tempFile.Name())
+	}()
 
 	task := &filetransfer.DefaultUploadTask{
 		Path:   tempFile.Name(),
@@ -282,7 +286,9 @@ func uploadToServerWithHandler(
 
 	tempFile, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
-	defer os.Remove(tempFile.Name())
+	defer func() {
+		_ = os.Remove(tempFile.Name())
+	}()
 
 	task := &filetransfer.DefaultUploadTask{
 		Path: tempFile.Name(),
