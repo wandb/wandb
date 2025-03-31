@@ -70,7 +70,9 @@ func (b *ArtifactBuilder) AddFile(path string, name string) error {
 		size = stat.Size()
 	}
 
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	data, err := io.ReadAll(file)
 	if err != nil {

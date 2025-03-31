@@ -140,7 +140,7 @@ func TestDefaultFileTransfer_UploadOffsetChunk(t *testing.T) {
 	assert.NoError(t, err)
 	_, err = tempFile.Write(entireContent)
 	assert.NoError(t, err)
-	tempFile.Close()
+	_ = tempFile.Close()
 	defer func() {
 		_ = os.Remove(tempFile.Name())
 	}()
@@ -173,7 +173,7 @@ func TestDefaultFileTransfer_UploadOffsetChunkOverlong(t *testing.T) {
 	assert.NoError(t, err)
 	_, err = tempFile.Write(entireContent)
 	assert.NoError(t, err)
-	tempFile.Close()
+	_ = tempFile.Close()
 	defer func() {
 		_ = os.Remove(tempFile.Name())
 	}()
@@ -207,7 +207,7 @@ func TestDefaultFileTransfer_UploadConnectionClosed(t *testing.T) {
 		assert.True(t, ok, "webserver doesn't support hijacking")
 		conn, _, err := hj.Hijack()
 		assert.NoError(t, err, "hijacking error")
-		conn.Close()
+		_ = conn.Close()
 	}
 	err := uploadToServerWithHandler(t, closeHandler)
 	assert.Error(t, err)

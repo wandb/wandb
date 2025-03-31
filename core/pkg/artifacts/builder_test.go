@@ -65,7 +65,7 @@ func TestArtifactBuilder(t *testing.T) {
 	assert.Nil(t, err)
 	err = file.Sync()
 	assert.Nil(t, err)
-	file.Close()
+	_ = file.Close()
 	err = builder.AddFile(file.Name(), "test-name.txt")
 	assert.Nil(t, err)
 

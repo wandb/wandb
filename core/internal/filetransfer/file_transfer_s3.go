@@ -285,7 +285,9 @@ func (ft *S3FileTransfer) downloadFile(
 	if err != nil {
 		return err
 	}
-	defer object.Body.Close()
+	defer func() {
+		_ = object.Body.Close()
+	}()
 
 	return fileutil.CopyReaderToFile(object.Body, localPath)
 }
