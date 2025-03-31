@@ -92,9 +92,8 @@ FILE_FRAGMENT = """fragment RunFilesFragment on Run {
 class Files(SizedPaginator["File"]):
     """An iterable collection of `File` objects.
 
-    An iterable interface to access and manage files uploaded to
-    W&B during a run. It handles pagination automatically when iterating through
-    large collections of files.
+    Access and manage files uploaded to W&B during a run. Handles pagination
+    automatically when iterating through large collections of files.
 
     Args:
         client: The run object that contains the files

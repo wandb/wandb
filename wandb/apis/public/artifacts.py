@@ -213,11 +213,20 @@ class ArtifactType:
 
     @normalize_exceptions
     def collections(self, per_page=50):
-        """Get all artifact collections associated with this artifact type."""
+        """Get all artifact collections associated with this artifact type.
+
+        Args:
+            per_page (int): The number of artifact collections to fetch per page.
+                Default is 50.
+        """
         return ArtifactCollections(self.client, self.entity, self.project, self.type)
 
     def collection(self, name):
-        """Get a specific artifact collection by name."""
+        """Get a specific artifact collection by name.
+
+        Args:
+            name (str): The name of the artifact collection to retrieve.
+        """
         return ArtifactCollection(
             self.client, self.entity, self.project, name, self.type
         )

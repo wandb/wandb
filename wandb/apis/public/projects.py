@@ -67,6 +67,11 @@ class Projects(Paginator["Project"]):
 
     An iterable interface to access projects created and saved by the entity.
 
+    Args:
+        client (`wandb.apis.internal.Api`): The API client instance to use.
+        entity (str): The entity name (username or team) to fetch projects for.
+        per_page (int): Number of projects to fetch per request (default is 50).
+
     Example:
     ```python
     from wandb.apis.public.api import Api
@@ -153,7 +158,13 @@ class Projects(Paginator["Project"]):
 
 
 class Project(Attrs):
-    """A project is a namespace for runs."""
+    """A project is a namespace for runs.
+
+    Args:
+        client: W&B API client instance.
+        name (str): The name of the project.
+        entity (str): The entity name that owns the project.
+    """
 
     def __init__(self, client, entity, project, attrs):
         super().__init__(dict(attrs))

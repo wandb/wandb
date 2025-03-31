@@ -113,6 +113,19 @@ class Runs(SizedPaginator["Run"]):
 
     This is generally used indirectly using the `Api.runs` namespace.
 
+    Args:
+        client: (`wandb.apis.public.RetryingClient`) The API client to use
+            for requests.
+        entity: (str) The entity (username or team) that owns the project.
+        project: (str) The name of the project to fetch runs from.
+        filters: (Optional[Dict[str, Any]]) A dictionary of filters to apply
+            to the runs query.
+        order: (Optional[str]) The order of the runs, can be "asc" or "desc"
+            Defaults to "desc".
+        per_page: (int) The number of runs to fetch per request (default is 50).
+        include_sweeps: (bool) Whether to include sweep information in the
+            runs. Defaults to True.
+
     Examples:
     ```python
     from wandb.apis.public.runs import Runs

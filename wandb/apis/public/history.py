@@ -32,7 +32,15 @@ from wandb.sdk.lib import retry
 
 
 class HistoryScan:
-    """Iterator for scanning complete run history."""
+    """Iterator for scanning complete run history.
+
+    Args:
+        client: (`wandb.apis.internal.Api`) The client instance to use
+        run: (`wandb.sdk.internal.Run`) The run object to scan history for
+        min_step: (int) The minimum step to start scanning from
+        max_step: (int) The maximum step to scan up to
+        page_size: (int) Number of samples per page (default is 1000)
+    """
 
     QUERY = gql(
         """
@@ -104,7 +112,16 @@ class HistoryScan:
 
 
 class SampledHistoryScan:
-    """Iterator for sampling run history data."""
+    """Iterator for sampling run history data.
+
+    Args:
+        client: (`wandb.apis.internal.Api`) The client instance to use
+        run: (`wandb.sdk.internal.Run`) The run object to sample history from
+        keys: (list) List of keys to sample from the history
+        min_step: (int) The minimum step to start sampling from
+        max_step: (int) The maximum step to sample up to
+        page_size: (int) Number of samples per page (default is 1000)
+    """
 
     QUERY = gql(
         """

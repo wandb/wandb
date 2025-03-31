@@ -200,6 +200,29 @@ class Job:
         project_queue=None,
         priority=None,
     ):
+        """Call the job with the given configuration.
+
+        Args:
+            config (dict): The configuration to pass to the job.
+                This should be a dictionary containing key-value pairs that
+                match the input types defined in the job.
+            project (str, optional): The project to log the run to. Defaults
+                to the job's project.
+            entity (str, optional): The entity to log the run under. Defaults
+                to the job's entity.
+            queue (str, optional): The name of the queue to enqueue the job to.
+                Defaults to None.
+            resource (str, optional): The resource type to use for execution.
+                Defaults to "local-container".
+            resource_args (dict, optional): Additional arguments for the
+                resource type. Defaults to None.
+            template_variables (dict, optional): Template variables to use for
+                the job. Defaults to None.
+            project_queue (str, optional): The project that manages the queue.
+                Defaults to None.
+            priority (int, optional): The priority of the queued run.
+                Defaults to None.
+        """
         from wandb.sdk.launch import _launch_add
 
         run_config = {}
@@ -239,13 +262,12 @@ class QueuedRun:
     """A single queued run associated with an entity and project.
 
     Args:
-        client:
         entity: The entity associated with the queued run.
-        project: The project where runs executed by the queue are logged to.
-        queue_name: The name of the queue.
-        run_queue_item_id: The id of the run queue item.
-        project_queue: The project that manages the queue.
-        priority: The priority of the queued run.
+        project (str): The project where runs executed by the queue are logged to.
+        queue_name (str): The name of the queue.
+        run_queue_item_id (int): The id of the run queue item.
+        project_queue (str): The project that manages the queue.
+        priority (str): The priority of the queued run.
 
     Call `run = queued_run.wait_until_running()` or
     `run = queued_run.wait_until_finished()` to access the run.
@@ -472,15 +494,15 @@ class RunQueue:
     """Class that represents a run queue in W&B.
 
     Args:
-        client (RetryingClient): W&B API client instance
-        name (str): Name of the run queue
-        entity (str): The entity (user or team) that owns this queue
-        prioritization_mode (RunQueuePrioritizationMode, optional): Queue priority mode
+        client: W&B API client instance.
+        name: Name of the run queue
+        entity: The entity (user or team) that owns this queue
+        prioritization_mode: Queue priority mode
             Can be "DISABLED" or "V0". Defaults to `None`.
-        _access (RunQueueAccessType, optional): Access level for the queue
+        _access: Access level for the queue
             Can be "project" or "user". Defaults to `None`.
-        _default_resource_config_id (int, optional): ID of default resource config
-        _default_resource_config (dict, optional): Default resource configuration
+        _default_resource_config_id: ID of default resource config
+        _default_resource_config: Default resource configuration
     """
 
     def __init__(
@@ -717,7 +739,20 @@ class RunQueue:
         config: Optional[dict] = None,
         template_variables: Optional[dict] = None,
     ) -> "RunQueue":
-        """Create a RunQueue."""
+        """Create a RunQueue.
+
+        Args:
+            name: The name of the run queue to create.
+            resource: The resource type for execution.
+            entity: The entity (user or team) that will own the queue.
+                Defaults to the default entity of the API client.
+            prioritization_mode: The prioritization mode for the queue.
+                Can be "DISABLED" or "V0". Defaults to None.
+            config: Optional dictionary for the default resource
+                configuration. Defaults to None.
+            template_variables: Optional dictionary for template variables
+                used in the resource configuration.
+        """
         public_api = Api()
         return public_api.create_run_queue(
             name, resource, entity, prioritization_mode, config, template_variables

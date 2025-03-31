@@ -91,9 +91,9 @@ class User(Attrs):
         """Create a new user.
 
         Args:
-            api: (`Api`) The api instance to use
-            email: (str) The name of the team
-            admin: (bool) Whether this user should be a global instance admin
+            api (`Api`): The api instance to use
+            email (str): The name of the team
+            admin (bool): Whether this user should be a global instance admin
 
         Returns:
             A `User` object
@@ -121,7 +121,7 @@ class User(Attrs):
         """List of team names that the user is a member of.
 
         Returns:
-            list[str]: Names of teams the user belongs to. Empty list if user has no
+            list (list): Names of teams the user belongs to. Empty list if user has no
                 team memberships or if teams data hasn't been loaded.
         """
         if self._attrs.get("teams") is None:
@@ -130,6 +130,10 @@ class User(Attrs):
 
     def delete_api_key(self, api_key):
         """Delete a user's api key.
+
+        Args:
+            api_key (str): The name of the API key to delete. This should be
+                one of the names returned by the `api_keys` property.
 
         Returns:
             Boolean indicating success
@@ -149,6 +153,10 @@ class User(Attrs):
 
     def generate_api_key(self, description=None):
         """Generate a new api key.
+
+        Args:
+            description (str, optional): A description for the new API key. This can be
+                used to identify the purpose of the API key.
 
         Returns:
             The new api key, or None on failure

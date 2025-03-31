@@ -27,7 +27,13 @@ from wandb.apis.attrs import Attrs
 
 
 class Member(Attrs):
-    """A member of a team."""
+    """A member of a team.
+
+    Args:
+        client (`wandb.apis.internal.Api`): The client instance to use
+        team (str): The name of the team this member belongs to
+        attrs (dict): The member attributes
+    """
 
     DELETE_MEMBER_MUTATION = gql(
         """
@@ -69,9 +75,9 @@ class Team(Attrs):
     to handle team attributes.
 
     Args:
-        client: (`wandb.apis.public.Api`) The api instance to use
-        name: (str) The name of the team
-        attrs: (dict) Optional dictionary of team attributes
+        client (`wandb.apis.public.Api`): The api instance to use
+        name (str): The name of the team
+        attrs (dict): Optional dictionary of team attributes
 
     Note:
         Team management requires appropriate permissions.

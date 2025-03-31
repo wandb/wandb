@@ -14,7 +14,17 @@ from wandb.sdk.lib import ipython
 
 
 class Reports(SizedPaginator["BetaReport"]):
-    """Reports is an iterable collection of `BetaReport` objects."""
+    """Reports is an iterable collection of `BetaReport` objects.
+
+    Args:
+        client (`wandb.apis.internal.Api`): The API client instance to use.
+        project (`wandb.sdk.internal.Project`): The project to fetch reports from.
+        name (str, optional): The name of the report to filter by. If `None`,
+            fetches all reports.
+        entity (str, optional): The entity name for the project. Defaults to
+            the project entity.
+        per_page (int): Number of reports to fetch per page (default is 50).
+    """
 
     QUERY = gql(
         """
