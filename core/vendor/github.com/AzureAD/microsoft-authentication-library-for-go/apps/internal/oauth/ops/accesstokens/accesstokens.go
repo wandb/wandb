@@ -68,7 +68,7 @@ type DeviceCodeResponse struct {
 
 	UserCode        string `json:"user_code"`
 	DeviceCode      string `json:"device_code"`
-	VerificationURL string `json:"verification_uri"`
+	VerificationURL string `json:"verification_url"`
 	ExpiresIn       int    `json:"expires_in"`
 	Interval        int    `json:"interval"`
 	Message         string `json:"message"`
@@ -262,7 +262,11 @@ func (c Client) FromClientSecret(ctx context.Context, authParameters authority.A
 	qv.Set(clientID, authParameters.ClientID)
 	addScopeQueryParam(qv, authParameters)
 
-	return c.doTokenResp(ctx, authParameters, qv)
+	token, err := c.doTokenResp(ctx, authParameters, qv)
+	if err != nil {
+		return token, fmt.Errorf("FromClientSecret(): %w", err)
+	}
+	return token, nil
 }
 
 func (c Client) FromAssertion(ctx context.Context, authParameters authority.AuthParams, assertion string) (TokenResponse, error) {
@@ -277,7 +281,11 @@ func (c Client) FromAssertion(ctx context.Context, authParameters authority.Auth
 	qv.Set(clientInfo, clientInfoVal)
 	addScopeQueryParam(qv, authParameters)
 
-	return c.doTokenResp(ctx, authParameters, qv)
+	token, err := c.doTokenResp(ctx, authParameters, qv)
+	if err != nil {
+		return token, fmt.Errorf("FromAssertion(): %w", err)
+	}
+	return token, nil
 }
 
 func (c Client) FromUserAssertionClientSecret(ctx context.Context, authParameters authority.AuthParams, userAssertion string, clientSecret string) (TokenResponse, error) {

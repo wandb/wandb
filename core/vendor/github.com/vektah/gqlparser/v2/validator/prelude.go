@@ -6,7 +6,7 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 )
 
-//go:embed imported/prelude.graphql
+//go:embed prelude.graphql
 var preludeGraphql string
 
 var Prelude = &ast.Source{

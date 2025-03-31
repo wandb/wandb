@@ -64,17 +64,8 @@ type CallErr struct {
 	Err  error
 }
 
-type InvalidJsonErr struct {
-	Err error
-}
-
 // Errors implements error.Error().
 func (e CallErr) Error() string {
-	return e.Err.Error()
-}
-
-// Errors implements error.Error().
-func (e InvalidJsonErr) Error() string {
 	return e.Err.Error()
 }
 

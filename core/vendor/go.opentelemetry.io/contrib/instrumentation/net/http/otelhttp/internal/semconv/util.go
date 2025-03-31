@@ -78,16 +78,7 @@ func serverClientIP(xForwardedFor string) string {
 
 func netProtocol(proto string) (name string, version string) {
 	name, version, _ = strings.Cut(proto, "/")
-	switch name {
-	case "HTTP":
-		name = "http"
-	case "QUIC":
-		name = "quic"
-	case "SPDY":
-		name = "spdy"
-	default:
-		name = strings.ToLower(name)
-	}
+	name = strings.ToLower(name)
 	return name, version
 }
 

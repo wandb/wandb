@@ -1,7 +1,6 @@
 .DS_Store
 Thumbs.db
 
-.cache/
 .tools/
 venv/
 .idea/

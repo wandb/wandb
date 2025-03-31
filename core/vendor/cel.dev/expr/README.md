@@ -69,3 +69,5 @@ For more detail, see:
 *   [Language Definition](doc/langdef.md)
 
 Released under the [Apache License](LICENSE).
+
+Disclaimer: This is not an official Google product.

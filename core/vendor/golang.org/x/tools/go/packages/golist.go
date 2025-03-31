@@ -80,12 +80,6 @@ type golistState struct {
 	cfg *Config
 	ctx context.Context
 
-	runner *gocommand.Runner
-
-	// overlay is the JSON file that encodes the Config.Overlay
-	// mapping, used by 'go list -overlay=...'.
-	overlay string
-
 	envOnce    sync.Once
 	goEnvError error
 	goEnv      map[string]string
@@ -133,10 +127,7 @@ func (state *golistState) mustGetEnv() map[string]string {
 // goListDriver uses the go list command to interpret the patterns and produce
 // the build system package structure.
 // See driver for more details.
-//
-// overlay is the JSON file that encodes the cfg.Overlay
-// mapping, used by 'go list -overlay=...'
-func goListDriver(cfg *Config, runner *gocommand.Runner, overlay string, patterns []string) (_ *DriverResponse, err error) {
+func goListDriver(cfg *Config, patterns ...string) (_ *DriverResponse, err error) {
 	// Make sure that any asynchronous go commands are killed when we return.
 	parentCtx := cfg.Context
 	if parentCtx == nil {
@@ -151,15 +142,13 @@ func goListDriver(cfg *Config, runner *gocommand.Runner, overlay string, pattern
 		cfg:        cfg,
 		ctx:        ctx,
 		vendorDirs: map[string]bool{},
-		overlay:    overlay,
-		runner:     runner,
 	}
 
 	// Fill in response.Sizes asynchronously if necessary.
-	if cfg.Mode&NeedTypesSizes != 0 || cfg.Mode&(NeedTypes|NeedTypesInfo) != 0 {
+	if cfg.Mode&NeedTypesSizes != 0 || cfg.Mode&NeedTypes != 0 {
 		errCh := make(chan error)
 		go func() {
-			compiler, arch, err := getSizesForArgs(ctx, state.cfgInvocation(), runner)
+			compiler, arch, err := getSizesForArgs(ctx, state.cfgInvocation(), cfg.gocmdRunner)
 			response.dr.Compiler = compiler
 			response.dr.Arch = arch
 			errCh <- err
@@ -322,7 +311,6 @@ type jsonPackage struct {
 	ImportPath        string
 	Dir               string
 	Name              string
-	Target            string
 	Export            string
 	GoFiles           []string
 	CompiledGoFiles   []string
@@ -506,15 +494,13 @@ func (state *golistState) createDriverResponse(words ...string) (*DriverResponse
 		pkg := &Package{
 			Name:            p.Name,
 			ID:              p.ImportPath,
-			Dir:             p.Dir,
-			Target:          p.Target,
 			GoFiles:         absJoin(p.Dir, p.GoFiles, p.CgoFiles),
 			CompiledGoFiles: absJoin(p.Dir, p.CompiledGoFiles),
 			OtherFiles:      absJoin(p.Dir, otherFiles(p)...),
 			EmbedFiles:      absJoin(p.Dir, p.EmbedFiles),
 			EmbedPatterns:   absJoin(p.Dir, p.EmbedPatterns),
 			IgnoredFiles:    absJoin(p.Dir, p.IgnoredGoFiles, p.IgnoredOtherFiles),
-			ForTest:         p.ForTest,
+			forTest:         p.ForTest,
 			depsErrors:      p.DepsErrors,
 			Module:          p.Module,
 		}
@@ -695,7 +681,7 @@ func (state *golistState) shouldAddFilenameFromError(p *jsonPackage) bool {
 // getGoVersion returns the effective minor version of the go command.
 func (state *golistState) getGoVersion() (int, error) {
 	state.goVersionOnce.Do(func() {
-		state.goVersion, state.goVersionError = gocommand.GoVersion(state.ctx, state.cfgInvocation(), state.runner)
+		state.goVersion, state.goVersionError = gocommand.GoVersion(state.ctx, state.cfgInvocation(), state.cfg.gocmdRunner)
 	})
 	return state.goVersion, state.goVersionError
 }
@@ -765,7 +751,7 @@ func jsonFlag(cfg *Config, goVersion int) string {
 		}
 	}
 	addFields("Name", "ImportPath", "Error") // These fields are always needed
-	if cfg.Mode&NeedFiles != 0 || cfg.Mode&(NeedTypes|NeedTypesInfo) != 0 {
+	if cfg.Mode&NeedFiles != 0 || cfg.Mode&NeedTypes != 0 {
 		addFields("Dir", "GoFiles", "IgnoredGoFiles", "IgnoredOtherFiles", "CFiles",
 			"CgoFiles", "CXXFiles", "MFiles", "HFiles", "FFiles", "SFiles",
 			"SwigFiles", "SwigCXXFiles", "SysoFiles")
@@ -773,7 +759,7 @@ func jsonFlag(cfg *Config, goVersion int) string {
 			addFields("TestGoFiles", "XTestGoFiles")
 		}
 	}
-	if cfg.Mode&(NeedTypes|NeedTypesInfo) != 0 {
+	if cfg.Mode&NeedTypes != 0 {
 		// CompiledGoFiles seems to be required for the test case TestCgoNoSyntax,
 		// even when -compiled isn't passed in.
 		// TODO(#52435): Should we make the test ask for -compiled, or automatically
@@ -798,7 +784,7 @@ func jsonFlag(cfg *Config, goVersion int) string {
 		// Request Dir in the unlikely case Export is not absolute.
 		addFields("Dir", "Export")
 	}
-	if cfg.Mode&NeedForTest != 0 {
+	if cfg.Mode&needInternalForTest != 0 {
 		addFields("ForTest")
 	}
 	if cfg.Mode&needInternalDepsErrors != 0 {
@@ -812,9 +798,6 @@ func jsonFlag(cfg *Config, goVersion int) string {
 	}
 	if cfg.Mode&NeedEmbedPatterns != 0 {
 		addFields("EmbedPatterns")
-	}
-	if cfg.Mode&NeedTarget != 0 {
-		addFields("Target")
 	}
 	return "-json=" + strings.Join(fields, ",")
 }
@@ -857,7 +840,7 @@ func (state *golistState) cfgInvocation() gocommand.Invocation {
 		Env:        cfg.Env,
 		Logf:       cfg.Logf,
 		WorkingDir: cfg.Dir,
-		Overlay:    state.overlay,
+		Overlay:    cfg.goListOverlayFile,
 	}
 }
 
@@ -868,8 +851,11 @@ func (state *golistState) invokeGo(verb string, args ...string) (*bytes.Buffer, 
 	inv := state.cfgInvocation()
 	inv.Verb = verb
 	inv.Args = args
-
-	stdout, stderr, friendlyErr, err := state.runner.RunRaw(cfg.Context, inv)
+	gocmdRunner := cfg.gocmdRunner
+	if gocmdRunner == nil {
+		gocmdRunner = &gocommand.Runner{}
+	}
+	stdout, stderr, friendlyErr, err := gocmdRunner.RunRaw(cfg.Context, inv)
 	if err != nil {
 		// Check for 'go' executable not being found.
 		if ee, ok := err.(*exec.Error); ok && ee.Err == exec.ErrNotFound {
@@ -890,12 +876,6 @@ func (state *golistState) invokeGo(verb string, args ...string) (*bytes.Buffer, 
 
 		// Related to #24854
 		if len(stderr.String()) > 0 && strings.Contains(stderr.String(), "unexpected directory layout") {
-			return nil, friendlyErr
-		}
-
-		// Return an error if 'go list' failed due to missing tools in
-		// $GOROOT/pkg/tool/$GOOS_$GOARCH (#69606).
-		if len(stderr.String()) > 0 && strings.Contains(stderr.String(), `go: no such tool`) {
 			return nil, friendlyErr
 		}
 

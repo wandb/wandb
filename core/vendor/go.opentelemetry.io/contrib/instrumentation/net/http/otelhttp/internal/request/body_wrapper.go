@@ -1,6 +1,3 @@
-// Code created by gotmpl. DO NOT MODIFY.
-// source: internal/shared/request/body_wrapper.go.tmpl
-
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 

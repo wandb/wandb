@@ -14,6 +14,7 @@ import (
 
 	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/errors"
 	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/exported"
+	internalTime "github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/json/types/time"
 	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/oauth/ops"
 	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/oauth/ops/accesstokens"
 	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/oauth/ops/authority"
@@ -119,9 +120,11 @@ func (t *Client) Credential(ctx context.Context, authParams authority.AuthParams
 			return accesstokens.TokenResponse{}, err
 		}
 		return accesstokens.TokenResponse{
-			TokenType:     authParams.AuthnScheme.AccessTokenType(),
-			AccessToken:   tr.AccessToken,
-			ExpiresOn:     now.Add(time.Duration(tr.ExpiresInSeconds) * time.Second),
+			TokenType:   authParams.AuthnScheme.AccessTokenType(),
+			AccessToken: tr.AccessToken,
+			ExpiresOn: internalTime.DurationTime{
+				T: now.Add(time.Duration(tr.ExpiresInSeconds) * time.Second),
+			},
 			GrantedScopes: accesstokens.Scopes{Slice: authParams.Scopes},
 		}, nil
 	}

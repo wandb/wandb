@@ -245,10 +245,7 @@ func newModuleResolver(e *ProcessEnv, moduleCacheCache *DirInfoCache) (*ModuleRe
 //  2. Use this to separate module cache scanning from other scanning.
 func gomodcacheForEnv(goenv map[string]string) string {
 	if gmc := goenv["GOMODCACHE"]; gmc != "" {
-		// golang/go#67156: ensure that the module cache is clean, since it is
-		// assumed as a prefix to directories scanned by gopathwalk, which are
-		// themselves clean.
-		return filepath.Clean(gmc)
+		return gmc
 	}
 	gopaths := filepath.SplitList(goenv["GOPATH"])
 	if len(gopaths) == 0 {
@@ -743,8 +740,8 @@ func (r *ModuleResolver) loadExports(ctx context.Context, pkg *pkg, includeTest 
 
 func (r *ModuleResolver) scanDirForPackage(root gopathwalk.Root, dir string) directoryPackageInfo {
 	subdir := ""
-	if prefix := root.Path + string(filepath.Separator); strings.HasPrefix(dir, prefix) {
-		subdir = dir[len(prefix):]
+	if dir != root.Path {
+		subdir = dir[len(root.Path)+len("/"):]
 	}
 	importPath := filepath.ToSlash(subdir)
 	if strings.HasPrefix(importPath, "vendor/") {
