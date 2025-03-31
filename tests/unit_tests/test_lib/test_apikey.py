@@ -3,7 +3,9 @@ import stat
 from unittest import mock
 
 import pytest
+
 from wandb import wandb, wandb_lib
+from wandb.sdk.lib.apikey import api_key_prompt_referrer
 
 
 def test_write_netrc(mock_wandb_log):
@@ -144,3 +146,16 @@ def test_read_apikey_no_netrc_access(tmp_path, monkeypatch, mock_wandb_log):
         api_key = wandb_lib.apikey.api_key(settings)
         assert api_key is None
         assert mock_wandb_log.warned(f"Cannot access {netrc_path}.")
+
+
+def test_apikey_prompt_referrer(mock_wandb_log, tmp_path, monkeypatch):
+    netrc_path = str(tmp_path / "netrc")
+    monkeypatch.setenv("NETRC", netrc_path)
+    settings = wandb.Settings(base_url="http://localhost")
+    with api_key_prompt_referrer("weave"):
+        wandb_lib.apikey.prompt_api_key(
+            settings, input_callback=lambda _: "x" * 40, no_offline=True, no_create=True
+        )
+        assert mock_wandb_log.logged(
+            "You can find your API key in your browser here: http://localhost/authorize?ref=weave"
+        )
