@@ -729,6 +729,10 @@ class _WandbInit:
         ):
             setattr(drun, symbol, lambda *_, **__: None)  # type: ignore
 
+        # set properties to None
+        for attr in ("url", "project_url", "sweep_url"):
+            setattr(type(drun), attr, property(lambda _: None))
+
         class _ChainableNoOp:
             """An object that allows chaining arbitrary attributes and method calls."""
 
