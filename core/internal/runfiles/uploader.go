@@ -50,6 +50,9 @@ type uploader struct {
 
 	// A watcher for 'live' mode files.
 	watcher watcher.Watcher
+
+	// The file cleaner for the run.
+	fileCleaner *FileCleaner
 }
 
 func newUploader(params UploaderParams) *uploader {
@@ -71,13 +74,14 @@ func newUploader(params UploaderParams) *uploader {
 	}
 
 	uploader := &uploader{
-		extraWork:  params.ExtraWork,
-		logger:     params.Logger,
-		operations: params.Operations,
-		fs:         params.FileStream,
-		ftm:        params.FileTransfer,
-		settings:   params.Settings,
-		graphQL:    params.GraphQL,
+		extraWork:   params.ExtraWork,
+		logger:      params.Logger,
+		operations:  params.Operations,
+		fs:          params.FileStream,
+		ftm:         params.FileTransfer,
+		settings:    params.Settings,
+		graphQL:     params.GraphQL,
+		fileCleaner: params.FileCleaner,
 
 		knownFiles:  make(map[paths.RelativePath]*savedFile),
 		uploadAtEnd: make(map[paths.RelativePath]struct{}),
@@ -251,6 +255,7 @@ func (u *uploader) knownFile(runPath paths.RelativePath) *savedFile {
 			u.operations,
 			u.toRealPath(string(runPath)),
 			runPath,
+			u.fileCleaner,
 		)
 	}
 

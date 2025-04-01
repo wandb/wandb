@@ -49,6 +49,9 @@ type savedFile struct {
 	// HTTP headers to set on the reupload request for the file if
 	// `reuploadScheduled`.
 	reuploadHeaders []string
+
+	// FileCleaner is responsible for deleting files after they are uploaded.
+	fileCleaner *FileCleaner
 }
 
 func newSavedFile(
@@ -58,16 +61,17 @@ func newSavedFile(
 	operations *wboperation.WandbOperations,
 	realPath string,
 	runPath paths.RelativePath,
+	fileCleaner *FileCleaner,
 ) *savedFile {
 	return &savedFile{
-		fs:         fs,
-		ftm:        ftm,
-		logger:     logger,
-		operations: operations,
-		realPath:   realPath,
-		runPath:    runPath,
-
-		wg: &sync.WaitGroup{},
+		fs:          fs,
+		ftm:         ftm,
+		logger:      logger,
+		operations:  operations,
+		realPath:    realPath,
+		runPath:     runPath,
+		fileCleaner: fileCleaner,
+		wg:          &sync.WaitGroup{},
 	}
 }
 
@@ -138,6 +142,10 @@ func (f *savedFile) onFinishUpload(task *filetransfer.DefaultUploadTask) {
 			// Since the backend API requires forward slashes.
 			RelativePath: filepath.ToSlash(string(f.runPath)),
 		})
+
+		if f.fileCleaner != nil {
+			f.fileCleaner.ScheduleDeleteFile(f.realPath)
+		}
 	}
 
 	f.Lock()

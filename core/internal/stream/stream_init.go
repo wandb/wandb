@@ -285,6 +285,15 @@ func NewFileTransferManager(
 	)
 }
 
+func NewFileCleaner(settings *settings.Settings, logger *observability.CoreLogger) *runfiles.FileCleaner {
+	// Only create a file cleaner if the user wants to clean run files and we're not offline.
+	if settings.CleanRunFiles() && !settings.IsOffline() {
+		return runfiles.NewFileCleaner(logger)
+	}
+
+	return nil
+}
+
 func NewRunfilesUploader(
 	extraWork runwork.ExtraWork,
 	logger *observability.CoreLogger,
@@ -292,6 +301,7 @@ func NewRunfilesUploader(
 	settings *settings.Settings,
 	fileStream filestream.FileStream,
 	fileTransfer filetransfer.FileTransferManager,
+	fileCleaner *runfiles.FileCleaner,
 	fileWatcher watcher.Watcher,
 	graphQL graphql.Client,
 ) runfiles.Uploader {
@@ -304,6 +314,7 @@ func NewRunfilesUploader(
 		FileTransfer: fileTransfer,
 		GraphQL:      graphQL,
 		FileWatcher:  fileWatcher,
+		FileCleaner:  fileCleaner,
 		BatchDelay:   waiting.NewDelay(50 * time.Millisecond),
 	})
 }

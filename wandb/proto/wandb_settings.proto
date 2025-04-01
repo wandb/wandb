@@ -52,7 +52,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 190
+// Next ID: 191
 message Settings {
   reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 100, 136, 137, 176;
 
@@ -471,4 +471,5 @@ message Settings {
   google.protobuf.StringValue x_jupyter_name = 143;
   google.protobuf.StringValue x_jupyter_path = 144;
   google.protobuf.StringValue job_name = 145;
+  google.protobuf.BoolValue clean_run_files = 190;
 }

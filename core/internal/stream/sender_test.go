@@ -68,6 +68,7 @@ func makeSender(client graphql.Client, resultChan chan *spb.Result) *stream.Send
 		settings,
 		fileStream,
 		fileTransferManager,
+		nil,
 		watchertest.NewFakeWatcher(),
 		client,
 	)

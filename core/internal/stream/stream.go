@@ -68,6 +68,9 @@ type Stream struct {
 
 	// sentryClient is the client used to report errors to sentry.io
 	sentryClient *sentry_ext.Client
+
+	// fileCleaner is responsible for deleting files for the stream.
+	fileCleaner *runfiles.FileCleaner
 }
 
 func streamLogger(
@@ -164,6 +167,7 @@ func NewStream(
 		logger:       logger,
 		settings:     params.Settings,
 		sentryClient: params.Sentry,
+		fileCleaner:  NewFileCleaner(params.Settings, logger),
 	}
 	clientId := randomid.GenerateUniqueID(32)
 
@@ -211,6 +215,7 @@ func NewStream(
 			params.Settings,
 			fileStreamOrNil,
 			fileTransferManagerOrNil,
+			s.fileCleaner,
 			fileWatcher,
 			graphqlClientOrNil,
 		)
@@ -376,6 +381,13 @@ func (s *Stream) Close() {
 	s.logger.Info("stream: closing", "id", s.settings.GetRunID())
 	s.runWork.Close()
 	s.wg.Wait()
+
+	if s.fileCleaner != nil {
+		// Clean up the files directory, and any remaining files.
+		s.fileCleaner.ScheduleDeleteFile(s.settings.GetFilesDir())
+		s.fileCleaner.Close()
+	}
+
 	s.logger.Info("stream: closed", "id", s.settings.GetRunID())
 }
 
