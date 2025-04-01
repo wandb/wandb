@@ -157,7 +157,9 @@ func AppendToFile(filename string, data []byte) error {
 func TestCorruptFile(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "temp-db")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 	_ = tmpFile.Close()
 
 	store := stream.NewStore(tmpFile.Name())
