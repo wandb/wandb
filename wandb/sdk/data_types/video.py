@@ -1,4 +1,3 @@
-import asyncio
 import functools
 import logging
 import os
@@ -7,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Optional, Sequence, Type, Union
 
 import wandb
 from wandb import util
-from wandb.sdk.lib import asyncio_compat, filesystem, printer, runid
+from wandb.sdk.lib import filesystem, runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -75,7 +74,7 @@ class Video(BatchableMedia):
 
         run = wandb.init()
         # axes are (time, channel, height, width)
-        frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
+        frames = np.random.randint(
             low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8
         )
         run.log({"video": wandb.Video(frames, fps=4)})
@@ -138,7 +137,10 @@ class Video(BatchableMedia):
                     "wandb.Video accepts a file path or numpy like data as input"
                 )
             fps = fps or 4
-            asyncio_compat.run(functools.partial(self._encode_with_spinner, fps=fps))
+            util.run_async_with_spinner(
+                "Encoding video...",
+                functools.partial(self.encode, fps=fps),
+            )
 
     def encode(self, fps: int = 4) -> None:
         # import ImageSequenceClip from the appropriate MoviePy module
@@ -163,27 +165,6 @@ class Video(BatchableMedia):
             clip.write_videofile(filename, logger=None)
 
         self._set_file(filename, is_tmp=True)
-
-    async def _encode_with_spinner(self, fps: int = 4) -> None:
-        term_printer = printer.new_printer()
-        encoding_done = asyncio.Event()
-
-        async def update_spinner() -> None:
-            tick = 0
-            with term_printer.dynamic_text() as text_area:
-                if text_area:
-                    while not encoding_done.is_set():
-                        spinner = self.printer.loading_symbol(tick)
-                        text_area.set_text(f"{spinner} Encoding video...")
-                        tick += 1
-                        await asyncio.sleep(0.1)
-                else:
-                    term_printer.display("Encoding video...")
-
-        async with asyncio_compat.open_task_group() as group:
-            group.start_soon(update_spinner())
-            await asyncio.get_running_loop().run_in_executor(None, self.encode, fps)
-            encoding_done.set()
 
     @classmethod
     def get_media_subdir(cls: Type["Video"]) -> str:
