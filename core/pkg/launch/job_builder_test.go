@@ -1005,7 +1005,9 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 	assert.Nil(t, err)
 	yamlContents := "key1: value1\nkey2: value2\nkey3:\n  key4:\n    key6: value6\n    key7: value7\n  key5: value5\n"
 	writeFile(t, configDir, "config.yaml", yamlContents)
-	defer os.RemoveAll(fdir)
+	defer func() {
+		_ = os.RemoveAll(fdir)
+	}()
 	settings := &spb.Settings{
 		Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 		Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
