@@ -174,7 +174,9 @@ func TestManifest_WriteToFile(t *testing.T) {
 	assert.NotEmpty(t, filename)
 	assert.NotEmpty(t, digest)
 	assert.NotZero(t, size)
-	defer os.Remove(filename)
+	defer func() {
+		_ = os.Remove(filename)
+	}()
 }
 
 func TestManifest_GetManifestEntryFromArtifactFilePath(t *testing.T) {

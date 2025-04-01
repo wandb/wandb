@@ -822,7 +822,9 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.writeManifest: %w", err)
 	}
-	defer os.Remove(manifestFile)
+	defer func() {
+		_ = os.Remove(manifestFile)
+	}()
 
 	uploadUrl, uploadHeaders, err := as.upsertManifest(artifactID, baseArtifactId, manifestAttrs.Id, manifestDigest)
 	if err != nil {
