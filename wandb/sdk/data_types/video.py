@@ -90,13 +90,12 @@ class Video(BatchableMedia):
         fps: Optional[int] = None,
         format: Optional[str] = None,
     ):
-        super().__init__()
+        super().__init__(caption=caption)
 
         self._format = format or "gif"
         self._width = None
         self._height = None
         self._channels = None
-        self._caption = caption
         if self._format not in Video.EXTS:
             raise ValueError(
                 "wandb.Video accepts {} formats".format(", ".join(Video.EXTS))
@@ -190,8 +189,6 @@ class Video(BatchableMedia):
             json_dict["width"] = self._width
         if self._height is not None:
             json_dict["height"] = self._height
-        if self._caption:
-            json_dict["caption"] = self._caption
 
         return json_dict
 
