@@ -235,7 +235,9 @@ func TestDefaultFileTransfer_UploadContextCancelled(t *testing.T) {
 
 	tempFile, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
-	defer os.Remove(tempFile.Name())
+	defer func() {
+		_ = os.Remove(tempFile.Name())
+	}()
 
 	err = ft.Upload(&filetransfer.DefaultUploadTask{
 		Path:    tempFile.Name(),
@@ -259,7 +261,9 @@ func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {
 
 	tempFile, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
-	defer os.Remove(tempFile.Name())
+	defer func() {
+		_ = os.Remove(tempFile.Name())
+	}()
 
 	task := &filetransfer.DefaultUploadTask{
 		Path: tempFile.Name(),

@@ -278,7 +278,9 @@ func TestJobBuilderArtifact(t *testing.T) {
 		writeDiffFile(t, fdir)
 		writeWandbMetadata(t, fdir, metadata)
 
-		defer os.RemoveAll(fdir)
+		defer func() {
+			_ = os.RemoveAll(fdir)
+		}()
 		settings := &spb.Settings{
 			Project:      toWrapperPb("testProject").(*wrapperspb.StringValue),
 			Entity:       toWrapperPb("testEntity").(*wrapperspb.StringValue),
@@ -305,7 +307,9 @@ func TestJobBuilderArtifact(t *testing.T) {
 			if content.Path == "wandb-job.json" {
 				jobFile, err := os.Open(content.LocalPath)
 				assert.Nil(t, err)
-				defer jobFile.Close()
+				defer func() {
+					_ = jobFile.Close()
+				}()
 				assert.Nil(t, err)
 				data := make(map[string]interface{})
 				err = json.NewDecoder(jobFile).Decode(&data)
@@ -333,7 +337,10 @@ func TestJobBuilderImage(t *testing.T) {
 		writeRequirements(t, fdir)
 		writeWandbMetadata(t, fdir, metadata)
 
-		defer os.RemoveAll(fdir)
+		defer func() {
+			_ = os.RemoveAll(fdir)
+		}()
+
 		settings := &spb.Settings{
 			Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 			Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
@@ -354,7 +361,9 @@ func TestJobBuilderImage(t *testing.T) {
 			if content.Path == "wandb-job.json" {
 				jobFile, err := os.Open(content.LocalPath)
 				assert.Nil(t, err)
-				defer jobFile.Close()
+				defer func() {
+					_ = jobFile.Close()
+				}()
 				assert.Nil(t, err)
 				data := make(map[string]interface{})
 				err = json.NewDecoder(jobFile).Decode(&data)
@@ -426,7 +435,9 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 		writeRequirements(t, fdir)
 		writeWandbMetadata(t, fdir, metadata)
 
-		defer os.RemoveAll(fdir)
+		defer func() {
+			_ = os.RemoveAll(fdir)
+		}()
 
 		settings := &spb.Settings{
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
@@ -727,7 +738,9 @@ func TestWandbConfigParameters(t *testing.T) {
 	writeDiffFile(t, fdir)
 	writeWandbMetadata(t, fdir, metadata)
 
-	defer os.RemoveAll(fdir)
+	defer func() {
+		_ = os.RemoveAll(fdir)
+	}()
 	settings := &spb.Settings{
 		Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 		Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
@@ -814,7 +827,9 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 	writeDiffFile(t, fdir)
 	writeWandbMetadata(t, fdir, metadata)
 
-	defer os.RemoveAll(fdir)
+	defer func() {
+		_ = os.RemoveAll(fdir)
+	}()
 	settings := &spb.Settings{
 		Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 		Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
@@ -911,7 +926,9 @@ func TestConfigFileParameters(t *testing.T) {
 	assert.Nil(t, err)
 	yamlContents := "key1: value1\nkey2: value2\nkey3:\n  key4:\n    key6: value6\n    key7: value7\n  key5: value5\n"
 	writeFile(t, configDir, "config.yaml", yamlContents)
-	defer os.RemoveAll(fdir)
+	defer func() {
+		_ = os.RemoveAll(fdir)
+	}()
 	settings := &spb.Settings{
 		Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 		Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),

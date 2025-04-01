@@ -136,11 +136,11 @@ func (ft *S3FileTransfer) findObjectFromTask(
 	objectName string,
 	task *ReferenceArtifactDownloadTask,
 ) (*s3.GetObjectInput, error) {
-	var getObjInput *s3.GetObjectInput = &s3.GetObjectInput{
+	var getObjInput = &s3.GetObjectInput{
 		Bucket: aws.String(bucketName),
 		Key:    aws.String(objectName),
 	}
-	var getObjAttrsInput *s3.GetObjectAttributesInput = &s3.GetObjectAttributesInput{
+	var getObjAttrsInput = &s3.GetObjectAttributesInput{
 		Bucket:           aws.String(bucketName),
 		Key:              aws.String(objectName),
 		ObjectAttributes: []types.ObjectAttributes{types.ObjectAttributesEtag},

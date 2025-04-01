@@ -98,7 +98,9 @@ func TestManifestContentsFromFile(t *testing.T) {
 	// Create a temporary gzipped file with manifest contents
 	tmpFile, err := os.CreateTemp("", "manifest-*.jl.gz")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 
 	gzWriter := gzip.NewWriter(tmpFile)
 	writer := bufio.NewWriter(gzWriter)
