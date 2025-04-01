@@ -167,7 +167,7 @@ jobs:
           #
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
           CIBW_SKIP: cp36-* cp37-*
-          CIBW_ARCHS_LINUX: aarch64 armv7l
+          CIBW_ARCHS_LINUX: aarch64
           CIBW_BEFORE_ALL_LINUX: >
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
             curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-arm64.tar.gz > go.tar.gz &&
@@ -223,7 +223,7 @@ jobs:
           #
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
           CIBW_SKIP: cp36-* cp37-*
-          CIBW_ARCHS_LINUX: x86_64 ppc64le #aarch64 is handled by build-linux-arm64-wheels
+          CIBW_ARCHS_LINUX: ppc64le #aarch64 is handled by build-linux-arm64-wheels
           CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
 
           # Work around https://github.com/matthew-brett/delocate/issues/204
