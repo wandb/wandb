@@ -3,7 +3,6 @@ import stat
 from unittest import mock
 
 import pytest
-
 from wandb import wandb, wandb_lib
 from wandb.sdk.lib.apikey import _api_key_prompt_str, api_key_prompt_referrer
 
