@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Optional, Sequence, Type, Union
 
 import wandb
 from wandb import util
-from wandb.sdk.lib import filesystem, runid
+from wandb.sdk.lib import filesystem, printer_asyncio, runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -74,9 +74,7 @@ class Video(BatchableMedia):
 
         run = wandb.init()
         # axes are (time, channel, height, width)
-        frames = np.random.randint(
-            low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8
-        )
+        frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
         run.log({"video": wandb.Video(frames, fps=4)})
         ```
     """
@@ -137,7 +135,7 @@ class Video(BatchableMedia):
                     "wandb.Video accepts a file path or numpy like data as input"
                 )
             fps = fps or 4
-            util.run_async_with_spinner(
+            printer_asyncio.run_async_with_spinner(
                 "Encoding video...",
                 functools.partial(self.encode, fps=fps),
             )
