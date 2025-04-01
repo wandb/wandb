@@ -184,7 +184,7 @@ func writePortFile(portFile string, port int) error {
 		return err
 	}
 
-	if _, err = f.WriteString(fmt.Sprintf("sock=%d\n", port)); err != nil {
+	if _, err = fmt.Fprintf(f, "sock=%d\n", port); err != nil {
 		err = fmt.Errorf("fail write port: %w", err)
 		return err
 	}
