@@ -255,14 +255,18 @@ ignore-decorators = [
 # See: https://docs.python.org/3/library/ast.html#ast.NodeTransformer
 "tools/graphql_codegen/**" = ["N802"]
 
-# On generated code:
-"wandb/sdk/automations/_generated/**" = [
-    "N8", # Ignore naming rules, as names from the GraphQL schema may not respect PEP8
-]
-"!wandb/sdk/automations/_generated/**" = [
-    "UP", # Enforce newer python syntax: https://docs.astral.sh/ruff/rules/#pyupgrade-up
+# On generated (pydantic) code:
+"wandb/**/_generated/**/*.py" = [
+    "N8",    # Ignore naming rules, as names from the GraphQL schema may not respect PEP8
+    "UP006", # Avoid using standard library generics e.g. `list[...]`, as this can cause issues with earlier pydantic versions
+    "UP007", # Avoid using `X | Y` for union fields, as this can cause issues with pydantic < 2.6
 ]
 
+# For other pydantic code:
+"wandb/sdk/{wandb_settings,wandb_metadata,lib/run_moment}.py" = [
+    "UP006", # Avoid using standard library generics e.g. `list[...]`, as this can cause issues with earlier pydantic versions
+    "UP007", # Avoid using `X | Y` for union fields, as this can cause issues with pydantic < 2.6
+]
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
