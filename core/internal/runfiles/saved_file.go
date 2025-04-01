@@ -3,6 +3,7 @@ package runfiles
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -133,7 +134,9 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 func (f *savedFile) onFinishUpload(task *filetransfer.DefaultUploadTask) {
 	if task.Err == nil {
 		f.fs.StreamUpdate(&filestream.FilesUploadedUpdate{
-			RelativePath: string(f.runPath),
+			// Convert backslashes to forward slashes in the file path.
+			// Since the backend API requires forward slashes.
+			RelativePath: filepath.ToSlash(string(f.runPath)),
 		})
 	}
 
