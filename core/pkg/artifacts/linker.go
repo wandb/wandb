@@ -133,7 +133,7 @@ func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organizat
 	inputMatchesOrgEntityName := organization == orgEntityName
 	if organization != "" && !inputMatchesOrgName && !inputMatchesOrgEntityName {
 		return "", fmt.Errorf("artifact belongs to the organization %q and cannot be linked/fetched with %q. "+
-			"Please update the target path with the correct organization name.", orgDisplayName, organization)
+			"Please update the target path with the correct organization name", orgDisplayName, organization)
 	}
 	return orgEntityName, nil
 }

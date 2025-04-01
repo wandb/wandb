@@ -50,7 +50,9 @@ func TestManifestContentsFromFile_MissingPath(t *testing.T) {
 	// Create a temporary gzipped file with manifest contents missing the "path" field
 	tmpFile, err := os.CreateTemp("", "manifest-*.jl.gz")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 
 	gzWriter := gzip.NewWriter(tmpFile)
 	writer := bufio.NewWriter(gzWriter)
@@ -74,7 +76,9 @@ func TestManifestContentsFromFile_MissingDigest(t *testing.T) {
 	// Create a temporary gzipped file with manifest contents missing the "digest" field
 	tmpFile, err := os.CreateTemp("", "manifest-*.jl.gz")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 
 	gzWriter := gzip.NewWriter(tmpFile)
 	writer := bufio.NewWriter(gzWriter)

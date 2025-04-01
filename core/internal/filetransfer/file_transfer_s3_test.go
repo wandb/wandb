@@ -279,8 +279,10 @@ func TestS3FileTransfer_Download(t *testing.T) {
 	}
 	path1 := "test/file1.txt"
 	path2 := "test/file2.txt"
-	defer os.Remove(path1)
-	defer os.Remove(path2)
+	defer func() {
+		_ = os.Remove(path2)
+		_ = os.Remove(path1)
+	}()
 
 	// Performing the download
 	err := ft.Download(task)
