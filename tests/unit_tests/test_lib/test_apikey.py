@@ -157,7 +157,7 @@ def test_apikey_prompt_referrer(mock_wandb_log, tmp_path, monkeypatch):
             settings, input_callback=lambda _: "x" * 40, no_offline=True, no_create=True
         )
         print("mock_wandb_log._logs(mock_wandb_log._termlog)")
-        print(mock_wandb_log._logs(mock_wandb_log._termlog))
+        print(list(mock_wandb_log._logs(mock_wandb_log._termlog)))
         assert mock_wandb_log.logged(
             "You can find your API key in your browser here: http://localhost/authorize?ref=weave"
         )
