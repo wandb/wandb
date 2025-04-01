@@ -1,28 +1,28 @@
+from __future__ import annotations
+
 import contextlib
-import time
-from typing import Any, Iterator, List
-from unittest.mock import patch
+from typing import Any, Iterator
 
 import pytest
 from wandb.sdk.lib import printer, printer_asyncio
 from wandb.sdk.lib.printer import _PrinterTerm
 
 
-class PrinterWrapper(_PrinterTerm):
-    """A test printer that captures text set with set_text."""
+class MockDynamicTextPrinter(_PrinterTerm):
+    """Test printer that captures text set through dynamic text."""
 
     def __init__(self) -> None:
         super().__init__()
-        self._captured_text: List[str] = []
+        self._captured_text: list[str] = []
 
     @property
-    def captured_text(self) -> List[str]:
+    def captured_text(self) -> list[str]:
         return self._captured_text
 
     @contextlib.contextmanager
     def dynamic_text(self) -> Iterator[printer.DynamicText | None]:
         class TestDynamicText(printer.DynamicText):
-            def __init__(self, printer: PrinterWrapper) -> None:
+            def __init__(self, printer: MockDynamicTextPrinter) -> None:
                 self._printer = printer
 
             def set_text(self, text: str) -> None:
@@ -31,30 +31,27 @@ class PrinterWrapper(_PrinterTerm):
         yield TestDynamicText(self)
 
 
-def test_run_async_with_spinner():
-    test_printer = PrinterWrapper()
+def test_run_async_with_spinner(monkeypatch):
+    test_printer = MockDynamicTextPrinter()
+    monkeypatch.setattr(printer, "new_printer", lambda: test_printer)
 
-    with patch.object(printer, "new_printer", return_value=test_printer):
+    def slow_func() -> int:
+        return 42
 
-        def slow_func() -> int:
-            time.sleep(0.5)
-            return 42
-
-        result = printer_asyncio.run_async_with_spinner("Loading", slow_func)
-        assert result == 42
-        assert len(test_printer.captured_text) > 0
-        assert all("Loading" in text for text in test_printer.captured_text)
+    result = printer_asyncio.run_async_with_spinner("Loading", slow_func)
+    assert result == 42
+    assert len(test_printer.captured_text) > 0
+    assert all("Loading" in text for text in test_printer.captured_text)
 
 
-def test_run_async_with_spinner_exception():
-    test_printer = PrinterWrapper()
+def test_run_async_with_spinner_exception(monkeypatch):
+    test_printer = MockDynamicTextPrinter()
+    monkeypatch.setattr(printer, "new_printer", lambda: test_printer)
 
-    with patch.object(printer, "new_printer", return_value=test_printer):
+    def failing_func() -> Any:
+        raise ValueError("Test error")
 
-        def failing_func() -> Any:
-            raise ValueError("Test error")
-
-        with pytest.raises(ValueError, match="Test error"):
-            printer_asyncio.run_async_with_spinner("Loading", failing_func)
-        assert len(test_printer.captured_text) > 0
-        assert all("Loading" in text for text in test_printer.captured_text)
+    with pytest.raises(ValueError, match="Test error"):
+        printer_asyncio.run_async_with_spinner("Loading", failing_func)
+    assert len(test_printer.captured_text) > 0
+    assert all("Loading" in text for text in test_printer.captured_text)

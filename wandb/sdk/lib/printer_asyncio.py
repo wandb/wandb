@@ -25,7 +25,7 @@ def run_async_with_spinner(
     async def _loop_run_with_spinner(
         text: str,
         func: Callable,
-    ) -> None:
+    ) -> _T:
         func_running = asyncio.Event()
 
         async def update_spinner() -> None:
