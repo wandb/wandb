@@ -127,9 +127,9 @@ func computeManifestDigest(manifest *Manifest) string {
 	})
 
 	hasher := md5.New()
-	fmt.Fprintf(hasher, "wandb-artifact-manifest-v1\n")
+	_, _ = fmt.Fprintf(hasher, "wandb-artifact-manifest-v1\n")
 	for _, entry := range entries {
-		fmt.Fprintf(hasher, "%s:%s\n", entry.name, entry.digest)
+		_, _ = fmt.Fprintf(hasher, "%s:%s\n", entry.name, entry.digest)
 	}
 
 	return hex.EncodeToString(hasher.Sum(nil))
