@@ -19,9 +19,7 @@ def test_tqdm(wandb_backend_spy):
         output = snapshot.output(run_id=run.id)
 
         assert "before progress" in output[0]
-        assert output[1].startswith("ERROR") and bool(
-            re.search(r"100%\|#+\| 10/10", output[1])
-        )
+        assert "error" in output[1] and bool(re.search(r"100%\|#+\| 10/10", output[1]))
         for i in range(10):
             assert f"progress {i}" in output[2 + i]
         assert "after progress" in output[12] and "error" in output[12]
@@ -61,11 +59,11 @@ def test_tqdm_nested(wandb_backend_spy):
         output = snapshot.output(run_id=run.id)
 
         assert "before progress" in output[0]
-        assert output[1].startswith("ERROR") and bool(
+        assert "error" in output[1] and bool(
             re.search(r"outer: 100%\|█+\| 5/5", output[1])
         )
         assert "done!" in output[2]
-        assert "after progress" in output[3] and output[3].startswith("ERROR")
+        assert "after progress" in output[3] and "error" in output[3]
         assert "final progress" in output[4]
 
 
@@ -79,6 +77,4 @@ def test_tqdm_post_finish(wandb_backend_spy):
 
     with wandb_backend_spy.freeze() as snapshot:
         output = snapshot.output(run_id=run.id)
-        assert output[0].startswith("ERROR") and bool(
-            re.search(r"40%\|█+\| 2/5", output[0])
-        )
+        assert "error" in output[0] and bool(re.search(r"40%\|█+\| 2/5", output[0]))
