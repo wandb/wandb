@@ -222,8 +222,8 @@ jobs:
           # make it invalid, breaking the job.
           #
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_SKIP: cp36-*
-          CIBW_ARCHS_LINUX: x86_64 #aarch64 is handled by build-linux-arm64-wheels
+          CIBW_SKIP: cp36-* cp37-*
+          CIBW_ARCHS_LINUX: x86_64 ppc64le armv7l #aarch64 is handled by build-linux-arm64-wheels
           CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
 
           # Work around https://github.com/matthew-brett/delocate/issues/204
