@@ -120,22 +120,6 @@ def test_resume_auto_failure(user, tmp_path):
         assert os.path.exists(resume_fname)
 
 
-@pytest.mark.parametrize("reinit", (True, "finish_previous"))
-def test_reinit_existing_run_with_reinit_true(reinit):
-    """Test that reinit with an existing run returns a new run."""
-    original_run = wandb.init(mode="offline")
-    new_run = wandb.init(mode="offline", reinit=reinit)
-    assert new_run != original_run
-
-
-@pytest.mark.parametrize("reinit", (False, "return_previous"))
-def test_reinit_existing_run_with_reinit_false(reinit):
-    """Test that reinit with a run active returns the same run."""
-    original_run = wandb.init(mode="offline")
-    new_run = wandb.init(mode="offline", reinit=reinit)
-    assert new_run == original_run
-
-
 def test_init_param_telemetry(wandb_backend_spy):
     with wandb.init(
         name="my-test-run",

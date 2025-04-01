@@ -156,6 +156,7 @@ def init(
             "default",
             "return_previous",
             "finish_previous",
+            "allow",
         ]
     ) = None,
     resume: bool | Literal["allow", "never", "must", "auto"] | None = None,
