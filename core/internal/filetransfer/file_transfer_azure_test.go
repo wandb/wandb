@@ -321,7 +321,9 @@ func TestAzureFileTransfer_Upload(t *testing.T) {
 	filename := "test-upload-file.txt"
 	err := os.WriteFile(filename, contentExpected, 0644)
 	assert.NoError(t, err)
-	defer os.Remove(filename)
+	defer func() {
+		_ = os.Remove(filename)
+	}()
 
 	// Mocking task
 	task := &filetransfer.DefaultUploadTask{
@@ -398,7 +400,9 @@ func TestAzureFileTransfer_UploadClientError(t *testing.T) {
 	filename := "test-upload-file.txt"
 	err := os.WriteFile(filename, contentExpected, 0644)
 	assert.NoError(t, err)
-	defer os.Remove(filename)
+	defer func() {
+		_ = os.Remove(filename)
+	}()
 
 	// Mocking task
 	task := &filetransfer.DefaultUploadTask{

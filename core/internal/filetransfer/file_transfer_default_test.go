@@ -45,7 +45,9 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 		Path: "test-download-file.txt",
 		Url:  mockServer.URL,
 	}
-	defer os.Remove(task.Path)
+	defer func() {
+		_ = os.Remove(task.Path)
+	}()
 
 	// Performing the download
 	err := ft.Download(task)
@@ -104,7 +106,9 @@ func TestDefaultFileTransfer_Upload(t *testing.T) {
 	filename := "test-upload-file.txt"
 	err := os.WriteFile(filename, contentExpected, 0644)
 	assert.NoError(t, err)
-	defer os.Remove(filename)
+	defer func() {
+		_ = os.Remove(filename)
+	}()
 
 	// Mocking task
 	task := &filetransfer.DefaultUploadTask{

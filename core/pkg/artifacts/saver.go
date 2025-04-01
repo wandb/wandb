@@ -516,7 +516,9 @@ func multiPartRequest(path string) ([]gql.UploadPartsInput, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	partsInfo := []gql.UploadPartsInput{}
 	partNumber := int64(1)

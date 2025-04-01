@@ -228,7 +228,7 @@ func (c *FileCache) Write(src io.Reader) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(dstPath), defaultDirPermissions); err != nil {
 		return "", err
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 	if err := os.Rename(tmpFile.Name(), dstPath); err != nil {
 		return "", err
 	}

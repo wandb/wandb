@@ -239,7 +239,9 @@ func (j *JobBuilder) handleMetadataFile() (*RunMetadata, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	var runMetadata RunMetadata
 	err = json.NewDecoder(file).Decode(&runMetadata)
