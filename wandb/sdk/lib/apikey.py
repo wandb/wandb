@@ -107,6 +107,14 @@ def api_key_prompt_referrer(referrer: Optional[str]) -> Generator[None, None, No
         _api_key_prompt_referrer.reset(token)
 
 
+def _api_key_prompt_str(app_url: str) -> str:
+    ref = ""
+    referrer = _api_key_prompt_referrer.get()
+    if referrer:
+        ref = f"?ref={referrer}"
+    return f"You can find your API key in your browser here: {app_url}/authorize{ref}"
+
+
 def prompt_api_key(  # noqa: C901
     settings: "Settings",
     api: Optional[InternalApi] = None,
@@ -188,13 +196,7 @@ def prompt_api_key(  # noqa: C901
                     f"Logging into {host}. (Learn how to deploy a W&B server "
                     f"locally: {url_registry.url('wandb-server')})"
                 )
-            ref = ""
-            referrer = _api_key_prompt_referrer.get()
-            if referrer:
-                ref = f"?ref={referrer}"
-            wandb.termlog(
-                f"You can find your API key in your browser here: {app_url}/authorize{ref}"
-            )
+            wandb.termlog(_api_key_prompt_str(app_url))
             key = input_callback(api_ask).strip()
     elif result == LOGIN_CHOICE_NOTTY:
         # TODO: Needs refactor as this needs to be handled by caller
