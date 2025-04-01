@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/mail"
+	"net/url"
 	"reflect"
 	"strconv"
 	"time"
@@ -19,6 +20,7 @@ var (
 	durationType        = reflect.TypeOf(time.Duration(0))
 	mailAddressType     = reflect.TypeOf(mail.Address{})
 	macType             = reflect.TypeOf(net.HardwareAddr{})
+	urlType             = reflect.TypeOf(url.URL{})
 )
 
 var (
@@ -86,6 +88,13 @@ func ParseValue(v reflect.Value, s string) error {
 		}
 		v.Set(reflect.ValueOf(ip))
 		return nil
+	case url.URL:
+		url, err := url.Parse(s)
+		if err != nil {
+			return err
+		}
+		v.Set(reflect.ValueOf(*url))
+		return nil
 	}
 
 	// Switch on kind so that we can handle derived types
@@ -99,13 +108,13 @@ func ParseValue(v reflect.Value, s string) error {
 		}
 		v.SetBool(x)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		x, err := strconv.ParseInt(s, 10, v.Type().Bits())
+		x, err := strconv.ParseInt(s, 0, v.Type().Bits())
 		if err != nil {
 			return err
 		}
 		v.SetInt(x)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		x, err := strconv.ParseUint(s, 10, v.Type().Bits())
+		x, err := strconv.ParseUint(s, 0, v.Type().Bits())
 		if err != nil {
 			return err
 		}
@@ -136,7 +145,7 @@ func CanParse(t reflect.Type) bool {
 
 	// Check for other special types
 	switch t {
-	case durationType, mailAddressType, macType:
+	case durationType, mailAddressType, macType, urlType:
 		return true
 	}
 
