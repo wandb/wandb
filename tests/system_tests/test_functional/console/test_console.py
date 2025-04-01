@@ -24,7 +24,7 @@ def test_tqdm(wandb_backend_spy):
         )
         for i in range(10):
             assert f"progress {i}" in output[2 + i]
-        assert "after progress" in output[12] and output[12].startswith("ERROR")
+        assert "after progress" in output[12] and "error" in output[12]
         assert "final progress" in output[13]
 
 
@@ -41,7 +41,7 @@ def test_emoji(wandb_backend_spy):
         assert "before emoji" in output[0]
         for i in range(10):
             assert f"line-{i}-\N{GRINNING FACE}" in output[1 + i]
-        assert "after emoji" in output[11] and output[11].startswith("ERROR")
+        assert "after emoji" in output[11] and "error" in output[11]
 
 
 @pytest.mark.skip(reason="order seems to be wrong")
