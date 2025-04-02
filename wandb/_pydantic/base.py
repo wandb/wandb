@@ -36,9 +36,14 @@ MODEL_DUMP_DEFAULTS = ModelDumpKwargs(
 )
 
 
+# v1-compatible base class for pydantic types.
+class CompatBaseModel(PydanticCompatMixin, BaseModel):
+    pass
+
+
 # Base class for all generated classes/types.
 # Omitted from docstring to avoid inclusion in generated docs.
-class Base(PydanticCompatMixin, BaseModel):
+class Base(CompatBaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
