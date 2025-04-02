@@ -8,12 +8,10 @@ import platform
 import stat
 import sys
 import textwrap
-from contextlib import contextmanager
-from contextvars import ContextVar
 from functools import partial
 
 # import Literal
-from typing import TYPE_CHECKING, Callable, Dict, Generator, Literal, Optional, Union
+from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 from urllib.parse import urlparse
 
 import click
