@@ -4,7 +4,7 @@ from unittest import mock
 
 import pytest
 from wandb import wandb, wandb_lib
-from wandb.sdk.lib.apikey import _api_key_prompt_str, api_key_prompt_referrer
+from wandb.sdk.lib.apikey import _api_key_prompt_str
 
 
 def test_write_netrc(mock_wandb_log):
@@ -152,5 +152,4 @@ def test_apikey_prompt_str():
     auth_base = f"{app_url}/authorize"
     prompt_str = f"You can find your API key in your browser here: {auth_base}"
     assert _api_key_prompt_str(app_url) == prompt_str
-    with api_key_prompt_referrer("weave"):
-        assert _api_key_prompt_str(app_url) == f"{prompt_str}?ref=weave"
+    assert _api_key_prompt_str(app_url, "weave") == f"{prompt_str}?ref=weave"
