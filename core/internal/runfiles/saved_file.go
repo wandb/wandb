@@ -8,9 +8,12 @@ import (
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/wboperation"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // savedFile is a file in the run's files directory.
@@ -50,8 +53,8 @@ type savedFile struct {
 	// `reuploadScheduled`.
 	reuploadHeaders []string
 
-	// FileCleaner is responsible for deleting files after they are uploaded.
-	fileCleaner *FileCleaner
+	// The upload policy for the file.
+	filePolicy spb.FilesItem_PolicyType
 }
 
 func newSavedFile(
@@ -61,17 +64,15 @@ func newSavedFile(
 	operations *wboperation.WandbOperations,
 	realPath string,
 	runPath paths.RelativePath,
-	fileCleaner *FileCleaner,
 ) *savedFile {
 	return &savedFile{
-		fs:          fs,
-		ftm:         ftm,
-		logger:      logger,
-		operations:  operations,
-		realPath:    realPath,
-		runPath:     runPath,
-		fileCleaner: fileCleaner,
-		wg:          &sync.WaitGroup{},
+		fs:         fs,
+		ftm:        ftm,
+		logger:     logger,
+		operations: operations,
+		realPath:   realPath,
+		runPath:    runPath,
+		wg:         &sync.WaitGroup{},
 	}
 }
 
@@ -79,6 +80,12 @@ func (f *savedFile) SetCategory(category filetransfer.RunFileKind) {
 	f.Lock()
 	defer f.Unlock()
 	f.category = category
+}
+
+func (f *savedFile) SetFilePolicy(filePolicy spb.FilesItem_PolicyType) {
+	f.Lock()
+	defer f.Unlock()
+	f.filePolicy = filePolicy
 }
 
 // Upload schedules an upload of savedFile.
@@ -143,9 +150,7 @@ func (f *savedFile) onFinishUpload(task *filetransfer.DefaultUploadTask) {
 			RelativePath: filepath.ToSlash(string(f.runPath)),
 		})
 
-		if f.fileCleaner != nil {
-			f.fileCleaner.ScheduleDeleteFile(f.realPath)
-		}
+		fileutil.DeleteFile(f.realPath, f.logger)
 	}
 
 	f.Lock()

@@ -50,9 +50,6 @@ type uploader struct {
 
 	// A watcher for 'live' mode files.
 	watcher watcher.Watcher
-
-	// The file cleaner for the run.
-	fileCleaner *FileCleaner
 }
 
 func newUploader(params UploaderParams) *uploader {
@@ -74,14 +71,13 @@ func newUploader(params UploaderParams) *uploader {
 	}
 
 	uploader := &uploader{
-		extraWork:   params.ExtraWork,
-		logger:      params.Logger,
-		operations:  params.Operations,
-		fs:          params.FileStream,
-		ftm:         params.FileTransfer,
-		settings:    params.Settings,
-		graphQL:     params.GraphQL,
-		fileCleaner: params.FileCleaner,
+		extraWork:  params.ExtraWork,
+		logger:     params.Logger,
+		operations: params.Operations,
+		fs:         params.FileStream,
+		ftm:        params.FileTransfer,
+		settings:   params.Settings,
+		graphQL:    params.GraphQL,
 
 		knownFiles:  make(map[paths.RelativePath]*savedFile),
 		uploadAtEnd: make(map[paths.RelativePath]struct{}),
@@ -133,12 +129,14 @@ func (u *uploader) Process(record *spb.FilesRecord) {
 			strings.HasPrefix(file.GetPath(), "media") {
 			category = filetransfer.RunFileKindMedia
 		}
-		u.knownFile(runPath).SetCategory(category)
+
+		knownFile := u.knownFile(runPath)
+		knownFile.SetCategory(category)
 
 		switch file.GetPolicy() {
 		case spb.FilesItem_NOW:
 			nowFiles = append(nowFiles, runPath)
-
+			knownFile.SetFilePolicy(spb.FilesItem_NOW)
 		case spb.FilesItem_LIVE:
 			// Upload live files both immediately and at the end.
 			nowFiles = append(nowFiles, runPath)
@@ -154,6 +152,7 @@ func (u *uploader) Process(record *spb.FilesRecord) {
 					),
 					"path", file.GetPath())
 			}
+			knownFile.SetFilePolicy(spb.FilesItem_LIVE)
 
 		case spb.FilesItem_END:
 			u.uploadAtEnd[runPath] = struct{}{}
@@ -255,7 +254,6 @@ func (u *uploader) knownFile(runPath paths.RelativePath) *savedFile {
 			u.operations,
 			u.toRealPath(string(runPath)),
 			runPath,
-			u.fileCleaner,
 		)
 	}
 
@@ -408,6 +406,8 @@ func (u *uploader) scheduleUploadTask(
 	u.stateMu.Lock()
 	defer u.stateMu.Unlock()
 
-	u.knownFile(runPath).Upload(uploadURL, headers)
+	knownFile := u.knownFile(runPath)
+	knownFile.Upload(uploadURL, headers)
+
 	u.uploadWG.Done()
 }

@@ -66,7 +66,6 @@ type UploaderParams struct {
 	FileTransfer filetransfer.FileTransferManager
 	GraphQL      graphql.Client
 	FileWatcher  watcher.Watcher
-	FileCleaner  *FileCleaner
 
 	// How long to wait to batch upload operations.
 	//

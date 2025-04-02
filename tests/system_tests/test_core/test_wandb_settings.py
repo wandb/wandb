@@ -145,7 +145,7 @@ def test_cleanup_files_during_run(user, clean_files):
         run.log({"image": wandb_image})
 
     start_time = time.monotonic()
-    timeout_sec = 0
+    timeout_sec = 5
     while time.monotonic() - start_time < timeout_sec:
         if os.path.exists(run.settings.files_dir) != clean_files:
             return True

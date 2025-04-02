@@ -12,6 +12,7 @@ import (
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pfxout"
@@ -68,9 +69,6 @@ type Stream struct {
 
 	// sentryClient is the client used to report errors to sentry.io
 	sentryClient *sentry_ext.Client
-
-	// fileCleaner is responsible for deleting files for the stream.
-	fileCleaner *runfiles.FileCleaner
 }
 
 func streamLogger(
@@ -167,7 +165,6 @@ func NewStream(
 		logger:       logger,
 		settings:     params.Settings,
 		sentryClient: params.Sentry,
-		fileCleaner:  NewFileCleaner(params.Settings, logger),
 	}
 	clientId := randomid.GenerateUniqueID(32)
 
@@ -215,7 +212,6 @@ func NewStream(
 			params.Settings,
 			fileStreamOrNil,
 			fileTransferManagerOrNil,
-			s.fileCleaner,
 			fileWatcher,
 			graphqlClientOrNil,
 		)
@@ -382,10 +378,9 @@ func (s *Stream) Close() {
 	s.runWork.Close()
 	s.wg.Wait()
 
-	if s.fileCleaner != nil {
+	if s.settings.CleanRunFiles() {
 		// Clean up the files directory, and any remaining files.
-		s.fileCleaner.ScheduleDeleteFile(s.settings.GetFilesDir())
-		s.fileCleaner.Close()
+		fileutil.DeleteFile(s.settings.GetFilesDir(), s.logger)
 	}
 
 	s.logger.Info("stream: closed", "id", s.settings.GetRunID())
