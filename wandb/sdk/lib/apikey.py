@@ -83,7 +83,7 @@ def get_netrc_file_path() -> str:
     return os.path.join(os.path.expanduser("~"), netrc_file)
 
 
-def _api_key_prompt_str(app_url: str, referrer: str | None) -> str:
+def _api_key_prompt_str(app_url: str, referrer: str | None = None) -> str:
     """Generate a prompt string for API key authorization.
 
     Creates a URL string that directs users to the authorization page where they
