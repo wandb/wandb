@@ -10,14 +10,18 @@ type RunConfigMetrics struct {
 	// handler parses MetricRecords.
 	handler *MetricHandler
 
-	expandGlobMetrics bool
+	serverExpandGlobMetrics bool
 }
 
-func NewRunConfigMetrics(expandGlobMetrics bool) *RunConfigMetrics {
+func NewRunConfigMetrics(serverExpandGlobMetrics bool) *RunConfigMetrics {
 	return &RunConfigMetrics{
-		handler:           New(),
-		expandGlobMetrics: expandGlobMetrics,
+		handler:                 New(),
+		serverExpandGlobMetrics: serverExpandGlobMetrics,
 	}
+}
+
+func (rcm *RunConfigMetrics) IsServerExpandGlobMetrics() bool {
+	return rcm.serverExpandGlobMetrics
 }
 
 // ProcessRecord updates metric definitions.
@@ -44,7 +48,7 @@ func (rcm *RunConfigMetrics) ToRunConfigData() []map[string]any {
 		)
 	}
 
-	if rcm.expandGlobMetrics {
+	if rcm.serverExpandGlobMetrics {
 		for name, metric := range rcm.handler.globMetrics {
 			encodedMetrics = rcm.encodeToRunConfigData(
 				name,

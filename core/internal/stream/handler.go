@@ -1053,12 +1053,12 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		// are not already written to the transaction log.
 		rec := &spb.Record{
 			RecordType: &spb.Record_Metric{Metric: newMetric},
+			Control: &spb.Control{
+				Internal: true,
+			},
 		}
-
 		h.handleMetric(rec)
-		if !h.settings.IsEnableServerSideExpandGlobMetrics() {
-			h.fwdRecord(rec)
-		}
+		h.fwdRecord(rec)
 	}
 	h.metricHandler.InsertStepMetrics(h.partialHistory)
 
