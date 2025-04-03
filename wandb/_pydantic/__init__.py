@@ -1,6 +1,6 @@
 """Internal utilities for working with pydantic."""
 
-from .base import Base, GQLBase, GQLId, SerializedToJson, Typename
+from .base import Base, CompatBaseModel, GQLBase, GQLId, SerializedToJson, Typename
 from .v1_compat import (
     IS_PYDANTIC_V2,
     AliasChoices,
@@ -11,6 +11,7 @@ from .v1_compat import (
 
 __all__ = [
     "IS_PYDANTIC_V2",
+    "CompatBaseModel",
     "Base",
     "GQLBase",
     "Typename",
