@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import sys
+from functools import lru_cache
 from importlib.metadata import version
+from inspect import signature
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -34,9 +36,10 @@ if TYPE_CHECKING:
         def parse_obj(cls, *args: Any, **kwargs: Any) -> V1Model: ...
         @classmethod
         def parse_raw(cls, *args: Any, **kwargs: Any) -> V1Model: ...
-        def dict(self, *args: Any, **kwargs: Any) -> dict[str, Any]: ...
-        def json(self, *args: Any, **kwargs: Any) -> str: ...
-        def copy(self, *args: Any, **kwargs: Any) -> V1Model: ...
+
+        def dict(self, **kwargs: Any) -> dict[str, Any]: ...
+        def json(self, **kwargs: Any) -> str: ...
+        def copy(self, **kwargs: Any) -> V1Model: ...
 
 
 PYTHON_VERSION = sys.version_info
@@ -66,9 +69,15 @@ _V1_CONFIG_KEYS = {
 }
 
 
-def _convert_v2_config(v2_config: dict[str, Any]) -> dict[str, Any]:
-    """Return a copy of the v2 ConfigDict with renamed v1 keys."""
+def convert_v2_config(v2_config: dict[str, Any]) -> dict[str, Any]:
+    """Internal helper: Return a copy of the v2 ConfigDict with renamed v1 keys."""
     return {_V1_CONFIG_KEYS.get(k, k): v for k, v in v2_config.items()}
+
+
+@lru_cache(maxsize=None)  # Reduce repeat introspection via `signature()`
+def allowed_arg_names(func: Callable) -> set[str]:
+    """Internal helper: Return the names of args accepted by the given function."""
+    return set(signature(func).parameters)
 
 
 # Pydantic BaseModels are defined with a custom metaclass, but its namespace
@@ -99,7 +108,7 @@ class V1MixinMetaclass(PydanticModelMetaclass):
         #             allow_population_by_field_name = True
         #
         if config_dict := namespace.pop("model_config", None):
-            namespace["Config"] = type("Config", (), _convert_v2_config(config_dict))
+            namespace["Config"] = type("Config", (), convert_v2_config(config_dict))
         return super().__new__(cls, name, bases, namespace, **kwargs)
 
     # note: workarounds to patch "class properties" aren't consistent between python
@@ -139,14 +148,20 @@ class V1Mixin(metaclass=V1MixinMetaclass):
     def model_validate_json(cls, *args: Any, **kwargs: Any) -> V1Model:
         return cls.parse_raw(*args, **kwargs)
 
-    def model_dump(self: V1Model, *args: Any, **kwargs: Any) -> dict[str, Any]:
-        return self.dict(*args, **kwargs)
+    def model_dump(self: V1Model, **kwargs: Any) -> dict[str, Any]:
+        # Pass only kwargs that are allowed in the V1 method.
+        allowed_keys = allowed_arg_names(self.dict) & kwargs.keys()
+        return self.dict(**{k: kwargs[k] for k in allowed_keys})
 
-    def model_dump_json(self: V1Model, *args: Any, **kwargs: Any) -> str:
-        return self.json(*args, **kwargs)
+    def model_dump_json(self: V1Model, **kwargs: Any) -> str:
+        # Pass only kwargs that are allowed in the V1 method.
+        allowed_keys = allowed_arg_names(self.json) & kwargs.keys()
+        return self.json(**{k: kwargs[k] for k in allowed_keys})
 
-    def model_copy(self: V1Model, *args: Any, **kwargs: Any) -> V1Model:
-        return self.copy(*args, **kwargs)
+    def model_copy(self: V1Model, **kwargs: Any) -> V1Model:
+        # Pass only kwargs that are allowed in the V1 method.
+        allowed_keys = allowed_arg_names(self.copy) & kwargs.keys()
+        return self.copy(**{k: kwargs[k] for k in allowed_keys})
 
     # workarounds to patch "class properties" aren't consistent between python
     # versions, so this will have to do until changes are needed.

@@ -73,6 +73,7 @@ SYMBOLS_ROOT_OTHER = {
     "alert",
     "api",
     "apis",
+    "automations",
     "beta",
     "catboost",
     "data_types",
