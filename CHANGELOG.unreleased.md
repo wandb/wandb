@@ -16,3 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - Upgrade go version for `wandb-core` from 1.23.x to 1.24.x (@kptkin in https://github.com/wandb/wandb/pull/9590)
+
+### Fixed
+
+- Fixed ValueError on Windows when running a W&B script from a different drive (@jacobromero in https://github.com/wandb/wandb/pull/9677)
