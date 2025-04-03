@@ -235,16 +235,6 @@ func NewSender(
 		outputFileName = *path
 	}
 
-	structuredConsoleLogs := false
-	useArtifactProjectEntityInfo := false
-	if params.FeatureProvider != nil {
-		structuredConsoleLogs = params.FeatureProvider.GetFeature(
-			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
-		).Enabled
-		useArtifactProjectEntityInfo = params.FeatureProvider.GetFeature(
-			spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
-		).Enabled
-	}
 	consoleLogsSenderParams := runconsolelogs.Params{
 		ConsoleOutputFile:     outputFileName,
 		FilesDir:              params.Settings.GetFilesDir(),
@@ -253,7 +243,9 @@ func NewSender(
 		FileStreamOrNil:       params.FileStream,
 		Label:                 params.Settings.GetLabel(),
 		RunfilesUploaderOrNil: params.RunfilesUploader,
-		Structured:            structuredConsoleLogs,
+		Structured: params.FeatureProvider.GetFeature(
+			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
+		).Enabled,
 	}
 
 	s := &Sender{
@@ -261,7 +253,10 @@ func NewSender(
 		runConfig: runconfig.New(),
 		telemetry: &spb.TelemetryRecord{CoreVersion: version.Version},
 		runConfigMetrics: runmetric.NewRunConfigMetrics(
-			params.Settings.IsEnableServerSideExpandGlobMetrics(),
+			params.Settings.IsEnableServerSideExpandGlobMetrics() &&
+				params.FeatureProvider.GetFeature(
+					spb.ServerFeature_EXPAND_DEFINED_METRIC_GLOBS,
+				).Enabled,
 		),
 		logger:              params.Logger,
 		operations:          params.Operations,
@@ -275,7 +270,9 @@ func NewSender(
 			params.Logger,
 			params.GraphqlClient,
 			params.FileTransferManager,
-			useArtifactProjectEntityInfo,
+			params.FeatureProvider.GetFeature(
+				spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
+			).Enabled,
 		),
 		tbHandler:     params.TBHandler,
 		networkPeeker: params.Peeker,
