@@ -47,6 +47,8 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """
     USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION: _ServerFeature.ValueType  # 7
     """Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation."""
+    EXPAND_DEFINED_METRIC_GLOBS: _ServerFeature.ValueType  # 8
+    """Indicates that the server supports expanding defined metric globs on the server side."""
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
     """*
@@ -72,6 +74,8 @@ url.
 """
 USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION: ServerFeature.ValueType  # 7
 """Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation."""
+EXPAND_DEFINED_METRIC_GLOBS: ServerFeature.ValueType  # 8
+"""Indicates that the server supports expanding defined metric globs on the server side."""
 global___ServerFeature = ServerFeature
 
 @typing.final
@@ -214,6 +218,7 @@ class Control(google.protobuf.message.Message):
     FLOW_CONTROL_FIELD_NUMBER: builtins.int
     END_OFFSET_FIELD_NUMBER: builtins.int
     CONNECTION_ID_FIELD_NUMBER: builtins.int
+    INTERNAL_FIELD_NUMBER: builtins.int
     req_resp: builtins.bool
     """record is expecting a result"""
     local: builtins.bool
@@ -230,6 +235,8 @@ class Control(google.protobuf.message.Message):
     """end of message offset of this written message"""
     connection_id: builtins.str
     """connection id"""
+    internal: builtins.bool
+    """message was created by an internal process"""
     def __init__(
         self,
         *,
@@ -241,8 +248,9 @@ class Control(google.protobuf.message.Message):
         flow_control: builtins.bool = ...,
         end_offset: builtins.int = ...,
         connection_id: builtins.str = ...,
+        internal: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["always_send", b"always_send", "connection_id", b"connection_id", "end_offset", b"end_offset", "flow_control", b"flow_control", "local", b"local", "mailbox_slot", b"mailbox_slot", "relay_id", b"relay_id", "req_resp", b"req_resp"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["always_send", b"always_send", "connection_id", b"connection_id", "end_offset", b"end_offset", "flow_control", b"flow_control", "internal", b"internal", "local", b"local", "mailbox_slot", b"mailbox_slot", "relay_id", b"relay_id", "req_resp", b"req_resp"]) -> None: ...
 
 global___Control = Control
 

@@ -707,6 +707,9 @@ pub struct Control {
     /// connection id
     #[prost(string, tag = "8")]
     pub connection_id: ::prost::alloc::string::String,
+    /// message was created by an internal process
+    #[prost(bool, tag = "9")]
+    pub internal: bool,
 }
 ///
 /// Result: all results
@@ -2851,6 +2854,8 @@ pub enum ServerFeature {
     ArtifactCollectionMembershipFileDownloadHandler = 6,
     /// Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
     UseArtifactWithEntityAndProjectInformation = 7,
+    /// Indicates that the server supports expanding defined metric globs on the server side.
+    ExpandDefinedMetricGlobs = 8,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2873,6 +2878,7 @@ impl ServerFeature {
             Self::UseArtifactWithEntityAndProjectInformation => {
                 "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION"
             }
+            Self::ExpandDefinedMetricGlobs => "EXPAND_DEFINED_METRIC_GLOBS",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2892,6 +2898,7 @@ impl ServerFeature {
             "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION" => {
                 Some(Self::UseArtifactWithEntityAndProjectInformation)
             }
+            "EXPAND_DEFINED_METRIC_GLOBS" => Some(Self::ExpandDefinedMetricGlobs),
             _ => None,
         }
     }
