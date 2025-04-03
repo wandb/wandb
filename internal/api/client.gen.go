@@ -69,6 +69,20 @@ const (
 	Gcp   GetCloudProviderRegionsParamsProvider = "gcp"
 )
 
+// Defines values for UpsertDeploymentVersionJSONBodyStatus.
+const (
+	UpsertDeploymentVersionJSONBodyStatusBuilding UpsertDeploymentVersionJSONBodyStatus = "building"
+	UpsertDeploymentVersionJSONBodyStatusFailed   UpsertDeploymentVersionJSONBodyStatus = "failed"
+	UpsertDeploymentVersionJSONBodyStatusReady    UpsertDeploymentVersionJSONBodyStatus = "ready"
+)
+
+// Defines values for UpdateDeploymentVersionJSONBodyStatus.
+const (
+	UpdateDeploymentVersionJSONBodyStatusBuilding UpdateDeploymentVersionJSONBodyStatus = "building"
+	UpdateDeploymentVersionJSONBodyStatusFailed   UpdateDeploymentVersionJSONBodyStatus = "failed"
+	UpdateDeploymentVersionJSONBodyStatusReady    UpdateDeploymentVersionJSONBodyStatus = "ready"
+)
+
 // Defines values for UpsertReleaseJSONBodyStatus.
 const (
 	UpsertReleaseJSONBodyStatusBuilding UpsertReleaseJSONBodyStatus = "building"
@@ -106,6 +120,18 @@ type Deployment struct {
 	Slug           string                 `json:"slug"`
 	SystemId       openapi_types.UUID     `json:"systemId"`
 	Timeout        *int                   `json:"timeout"`
+}
+
+// DeploymentVersion defines model for DeploymentVersion.
+type DeploymentVersion struct {
+	Config         map[string]interface{}  `json:"config"`
+	CreatedAt      time.Time               `json:"createdAt"`
+	DeploymentId   openapi_types.UUID      `json:"deploymentId"`
+	Id             openapi_types.UUID      `json:"id"`
+	JobAgentConfig map[string]interface{}  `json:"jobAgentConfig"`
+	Metadata       *map[string]interface{} `json:"metadata,omitempty"`
+	Name           string                  `json:"name"`
+	Tag            string                  `json:"tag"`
 }
 
 // Environment defines model for Environment.
@@ -157,10 +183,11 @@ type JobWithTrigger struct {
 		Id     string                       `json:"id"`
 		Status JobWithTriggerApprovalStatus `json:"status"`
 	} `json:"approval"`
-	CompletedAt *time.Time   `json:"completedAt"`
-	CreatedAt   time.Time    `json:"createdAt"`
-	Deployment  *Deployment  `json:"deployment,omitempty"`
-	Environment *Environment `json:"environment,omitempty"`
+	CompletedAt       *time.Time         `json:"completedAt"`
+	CreatedAt         time.Time          `json:"createdAt"`
+	Deployment        *Deployment        `json:"deployment,omitempty"`
+	DeploymentVersion *DeploymentVersion `json:"deploymentVersion,omitempty"`
+	Environment       *Environment       `json:"environment,omitempty"`
 
 	// ExternalId External job identifier (e.g. GitHub workflow run ID)
 	ExternalId *string            `json:"externalId"`
@@ -336,6 +363,46 @@ type Workspace struct {
 // GetCloudProviderRegionsParamsProvider defines parameters for GetCloudProviderRegions.
 type GetCloudProviderRegionsParamsProvider string
 
+// CreateDeploymentVersionChannelJSONBody defines parameters for CreateDeploymentVersionChannel.
+type CreateDeploymentVersionChannelJSONBody struct {
+	DeploymentId    string                 `json:"deploymentId"`
+	Description     *string                `json:"description"`
+	Name            string                 `json:"name"`
+	VersionSelector map[string]interface{} `json:"versionSelector"`
+}
+
+// UpsertDeploymentVersionJSONBody defines parameters for UpsertDeploymentVersion.
+type UpsertDeploymentVersionJSONBody struct {
+	Config         *map[string]interface{}                `json:"config,omitempty"`
+	CreatedAt      *time.Time                             `json:"createdAt,omitempty"`
+	DeploymentId   string                                 `json:"deploymentId"`
+	JobAgentConfig *map[string]interface{}                `json:"jobAgentConfig,omitempty"`
+	Message        *string                                `json:"message,omitempty"`
+	Metadata       *map[string]string                     `json:"metadata,omitempty"`
+	Name           *string                                `json:"name,omitempty"`
+	Status         *UpsertDeploymentVersionJSONBodyStatus `json:"status,omitempty"`
+	Tag            string                                 `json:"tag"`
+}
+
+// UpsertDeploymentVersionJSONBodyStatus defines parameters for UpsertDeploymentVersion.
+type UpsertDeploymentVersionJSONBodyStatus string
+
+// UpdateDeploymentVersionJSONBody defines parameters for UpdateDeploymentVersion.
+type UpdateDeploymentVersionJSONBody struct {
+	Config         *map[string]interface{}                `json:"config,omitempty"`
+	CreatedAt      *time.Time                             `json:"createdAt,omitempty"`
+	DeploymentId   *string                                `json:"deploymentId,omitempty"`
+	JobAgentConfig *map[string]interface{}                `json:"jobAgentConfig,omitempty"`
+	Message        *string                                `json:"message,omitempty"`
+	Metadata       *map[string]string                     `json:"metadata,omitempty"`
+	Name           *string                                `json:"name,omitempty"`
+	Status         *UpdateDeploymentVersionJSONBodyStatus `json:"status,omitempty"`
+	Tag            *string                                `json:"tag,omitempty"`
+}
+
+// UpdateDeploymentVersionJSONBodyStatus defines parameters for UpdateDeploymentVersion.
+type UpdateDeploymentVersionJSONBodyStatus string
+
 // CreateDeploymentJSONBody defines parameters for CreateDeployment.
 type CreateDeploymentJSONBody struct {
 	// Description The description of the deployment
@@ -368,7 +435,8 @@ type CreateDeploymentJSONBody struct {
 
 // CreateEnvironmentJSONBody defines parameters for CreateEnvironment.
 type CreateEnvironmentJSONBody struct {
-	Description *string `json:"description,omitempty"`
+	DeploymentVersionChannels *[]string `json:"deploymentVersionChannels,omitempty"`
+	Description               *string   `json:"description,omitempty"`
 
 	// Directory The directory path of the environment
 	Directory        *string                 `json:"directory,omitempty"`
@@ -524,6 +592,15 @@ type UpdateSystemJSONBody struct {
 	// WorkspaceId UUID of the workspace
 	WorkspaceId *openapi_types.UUID `json:"workspaceId,omitempty"`
 }
+
+// CreateDeploymentVersionChannelJSONRequestBody defines body for CreateDeploymentVersionChannel for application/json ContentType.
+type CreateDeploymentVersionChannelJSONRequestBody CreateDeploymentVersionChannelJSONBody
+
+// UpsertDeploymentVersionJSONRequestBody defines body for UpsertDeploymentVersion for application/json ContentType.
+type UpsertDeploymentVersionJSONRequestBody UpsertDeploymentVersionJSONBody
+
+// UpdateDeploymentVersionJSONRequestBody defines body for UpdateDeploymentVersion for application/json ContentType.
+type UpdateDeploymentVersionJSONRequestBody UpdateDeploymentVersionJSONBody
 
 // CreateDeploymentJSONRequestBody defines body for CreateDeployment for application/json ContentType.
 type CreateDeploymentJSONRequestBody CreateDeploymentJSONBody
@@ -910,6 +987,21 @@ type ClientInterface interface {
 	// GetCloudProviderRegions request
 	GetCloudProviderRegions(ctx context.Context, provider GetCloudProviderRegionsParamsProvider, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CreateDeploymentVersionChannelWithBody request with any body
+	CreateDeploymentVersionChannelWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateDeploymentVersionChannel(ctx context.Context, body CreateDeploymentVersionChannelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpsertDeploymentVersionWithBody request with any body
+	UpsertDeploymentVersionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpsertDeploymentVersion(ctx context.Context, body UpsertDeploymentVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateDeploymentVersionWithBody request with any body
+	UpdateDeploymentVersionWithBody(ctx context.Context, deploymentVersionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateDeploymentVersion(ctx context.Context, deploymentVersionId string, body UpdateDeploymentVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreateDeploymentWithBody request with any body
 	CreateDeploymentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -925,6 +1017,9 @@ type ClientInterface interface {
 	UpdateDeploymentWithBody(ctx context.Context, deploymentId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateDeployment(ctx context.Context, deploymentId openapi_types.UUID, body UpdateDeploymentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteDeploymentVersionChannel request
+	DeleteDeploymentVersionChannel(ctx context.Context, deploymentId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteReleaseChannel request
 	DeleteReleaseChannel(ctx context.Context, deploymentId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1073,6 +1168,78 @@ func (c *Client) GetCloudProviderRegions(ctx context.Context, provider GetCloudP
 	return c.Client.Do(req)
 }
 
+func (c *Client) CreateDeploymentVersionChannelWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateDeploymentVersionChannelRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateDeploymentVersionChannel(ctx context.Context, body CreateDeploymentVersionChannelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateDeploymentVersionChannelRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpsertDeploymentVersionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertDeploymentVersionRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpsertDeploymentVersion(ctx context.Context, body UpsertDeploymentVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertDeploymentVersionRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateDeploymentVersionWithBody(ctx context.Context, deploymentVersionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateDeploymentVersionRequestWithBody(c.Server, deploymentVersionId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateDeploymentVersion(ctx context.Context, deploymentVersionId string, body UpdateDeploymentVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateDeploymentVersionRequest(c.Server, deploymentVersionId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) CreateDeploymentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateDeploymentRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -1135,6 +1302,18 @@ func (c *Client) UpdateDeploymentWithBody(ctx context.Context, deploymentId open
 
 func (c *Client) UpdateDeployment(ctx context.Context, deploymentId openapi_types.UUID, body UpdateDeploymentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateDeploymentRequest(c.Server, deploymentId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteDeploymentVersionChannel(ctx context.Context, deploymentId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteDeploymentVersionChannelRequest(c.Server, deploymentId, name)
 	if err != nil {
 		return nil, err
 	}
@@ -1767,6 +1946,133 @@ func NewGetCloudProviderRegionsRequest(server string, provider GetCloudProviderR
 	return req, nil
 }
 
+// NewCreateDeploymentVersionChannelRequest calls the generic CreateDeploymentVersionChannel builder with application/json body
+func NewCreateDeploymentVersionChannelRequest(server string, body CreateDeploymentVersionChannelJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateDeploymentVersionChannelRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateDeploymentVersionChannelRequestWithBody generates requests for CreateDeploymentVersionChannel with any type of body
+func NewCreateDeploymentVersionChannelRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/deployment-version-channels")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewUpsertDeploymentVersionRequest calls the generic UpsertDeploymentVersion builder with application/json body
+func NewUpsertDeploymentVersionRequest(server string, body UpsertDeploymentVersionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpsertDeploymentVersionRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewUpsertDeploymentVersionRequestWithBody generates requests for UpsertDeploymentVersion with any type of body
+func NewUpsertDeploymentVersionRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/deployment-versions")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewUpdateDeploymentVersionRequest calls the generic UpdateDeploymentVersion builder with application/json body
+func NewUpdateDeploymentVersionRequest(server string, deploymentVersionId string, body UpdateDeploymentVersionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateDeploymentVersionRequestWithBody(server, deploymentVersionId, "application/json", bodyReader)
+}
+
+// NewUpdateDeploymentVersionRequestWithBody generates requests for UpdateDeploymentVersion with any type of body
+func NewUpdateDeploymentVersionRequestWithBody(server string, deploymentVersionId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "deploymentVersionId", runtime.ParamLocationPath, deploymentVersionId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/deployment-versions/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewCreateDeploymentRequest calls the generic CreateDeployment builder with application/json body
 func NewCreateDeploymentRequest(server string, body CreateDeploymentJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -1918,6 +2224,47 @@ func NewUpdateDeploymentRequestWithBody(server string, deploymentId openapi_type
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteDeploymentVersionChannelRequest generates requests for DeleteDeploymentVersionChannel
+func NewDeleteDeploymentVersionChannelRequest(server string, deploymentId string, name string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "deploymentId", runtime.ParamLocationPath, deploymentId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/deployments/%s/deployment-version-channels/name/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -3347,6 +3694,21 @@ type ClientWithResponsesInterface interface {
 	// GetCloudProviderRegionsWithResponse request
 	GetCloudProviderRegionsWithResponse(ctx context.Context, provider GetCloudProviderRegionsParamsProvider, reqEditors ...RequestEditorFn) (*GetCloudProviderRegionsResponse, error)
 
+	// CreateDeploymentVersionChannelWithBodyWithResponse request with any body
+	CreateDeploymentVersionChannelWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDeploymentVersionChannelResponse, error)
+
+	CreateDeploymentVersionChannelWithResponse(ctx context.Context, body CreateDeploymentVersionChannelJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDeploymentVersionChannelResponse, error)
+
+	// UpsertDeploymentVersionWithBodyWithResponse request with any body
+	UpsertDeploymentVersionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertDeploymentVersionResponse, error)
+
+	UpsertDeploymentVersionWithResponse(ctx context.Context, body UpsertDeploymentVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertDeploymentVersionResponse, error)
+
+	// UpdateDeploymentVersionWithBodyWithResponse request with any body
+	UpdateDeploymentVersionWithBodyWithResponse(ctx context.Context, deploymentVersionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDeploymentVersionResponse, error)
+
+	UpdateDeploymentVersionWithResponse(ctx context.Context, deploymentVersionId string, body UpdateDeploymentVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDeploymentVersionResponse, error)
+
 	// CreateDeploymentWithBodyWithResponse request with any body
 	CreateDeploymentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDeploymentResponse, error)
 
@@ -3362,6 +3724,9 @@ type ClientWithResponsesInterface interface {
 	UpdateDeploymentWithBodyWithResponse(ctx context.Context, deploymentId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDeploymentResponse, error)
 
 	UpdateDeploymentWithResponse(ctx context.Context, deploymentId openapi_types.UUID, body UpdateDeploymentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDeploymentResponse, error)
+
+	// DeleteDeploymentVersionChannelWithResponse request
+	DeleteDeploymentVersionChannelWithResponse(ctx context.Context, deploymentId string, name string, reqEditors ...RequestEditorFn) (*DeleteDeploymentVersionChannelResponse, error)
 
 	// DeleteReleaseChannelWithResponse request
 	DeleteReleaseChannelWithResponse(ctx context.Context, deploymentId string, name string, reqEditors ...RequestEditorFn) (*DeleteReleaseChannelResponse, error)
@@ -3523,6 +3888,96 @@ func (r GetCloudProviderRegionsResponse) StatusCode() int {
 	return 0
 }
 
+type CreateDeploymentVersionChannelResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		CreatedAt       time.Time               `json:"createdAt"`
+		DeploymentId    string                  `json:"deploymentId"`
+		Description     *string                 `json:"description"`
+		Id              string                  `json:"id"`
+		Name            string                  `json:"name"`
+		VersionSelector *map[string]interface{} `json:"versionSelector,omitempty"`
+	}
+	JSON401 *struct {
+		Error string `json:"error"`
+	}
+	JSON403 *struct {
+		Error string `json:"error"`
+	}
+	JSON409 *struct {
+		Error string `json:"error"`
+		Id    string `json:"id"`
+	}
+	JSON500 *struct {
+		Error string `json:"error"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateDeploymentVersionChannelResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateDeploymentVersionChannelResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpsertDeploymentVersionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DeploymentVersion
+	JSON409      *struct {
+		Error *string `json:"error,omitempty"`
+		Id    *string `json:"id,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r UpsertDeploymentVersionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpsertDeploymentVersionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateDeploymentVersionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DeploymentVersion
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateDeploymentVersionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateDeploymentVersionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type CreateDeploymentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3627,6 +4082,39 @@ func (r UpdateDeploymentResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateDeploymentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteDeploymentVersionChannelResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Message string `json:"message"`
+	}
+	JSON403 *struct {
+		Error string `json:"error"`
+	}
+	JSON404 *struct {
+		Error string `json:"error"`
+	}
+	JSON500 *struct {
+		Error string `json:"error"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteDeploymentVersionChannelResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteDeploymentVersionChannelResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -4665,6 +5153,57 @@ func (c *ClientWithResponses) GetCloudProviderRegionsWithResponse(ctx context.Co
 	return ParseGetCloudProviderRegionsResponse(rsp)
 }
 
+// CreateDeploymentVersionChannelWithBodyWithResponse request with arbitrary body returning *CreateDeploymentVersionChannelResponse
+func (c *ClientWithResponses) CreateDeploymentVersionChannelWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDeploymentVersionChannelResponse, error) {
+	rsp, err := c.CreateDeploymentVersionChannelWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateDeploymentVersionChannelResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateDeploymentVersionChannelWithResponse(ctx context.Context, body CreateDeploymentVersionChannelJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDeploymentVersionChannelResponse, error) {
+	rsp, err := c.CreateDeploymentVersionChannel(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateDeploymentVersionChannelResponse(rsp)
+}
+
+// UpsertDeploymentVersionWithBodyWithResponse request with arbitrary body returning *UpsertDeploymentVersionResponse
+func (c *ClientWithResponses) UpsertDeploymentVersionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertDeploymentVersionResponse, error) {
+	rsp, err := c.UpsertDeploymentVersionWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpsertDeploymentVersionResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpsertDeploymentVersionWithResponse(ctx context.Context, body UpsertDeploymentVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertDeploymentVersionResponse, error) {
+	rsp, err := c.UpsertDeploymentVersion(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpsertDeploymentVersionResponse(rsp)
+}
+
+// UpdateDeploymentVersionWithBodyWithResponse request with arbitrary body returning *UpdateDeploymentVersionResponse
+func (c *ClientWithResponses) UpdateDeploymentVersionWithBodyWithResponse(ctx context.Context, deploymentVersionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDeploymentVersionResponse, error) {
+	rsp, err := c.UpdateDeploymentVersionWithBody(ctx, deploymentVersionId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateDeploymentVersionResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateDeploymentVersionWithResponse(ctx context.Context, deploymentVersionId string, body UpdateDeploymentVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDeploymentVersionResponse, error) {
+	rsp, err := c.UpdateDeploymentVersion(ctx, deploymentVersionId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateDeploymentVersionResponse(rsp)
+}
+
 // CreateDeploymentWithBodyWithResponse request with arbitrary body returning *CreateDeploymentResponse
 func (c *ClientWithResponses) CreateDeploymentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDeploymentResponse, error) {
 	rsp, err := c.CreateDeploymentWithBody(ctx, contentType, body, reqEditors...)
@@ -4715,6 +5254,15 @@ func (c *ClientWithResponses) UpdateDeploymentWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseUpdateDeploymentResponse(rsp)
+}
+
+// DeleteDeploymentVersionChannelWithResponse request returning *DeleteDeploymentVersionChannelResponse
+func (c *ClientWithResponses) DeleteDeploymentVersionChannelWithResponse(ctx context.Context, deploymentId string, name string, reqEditors ...RequestEditorFn) (*DeleteDeploymentVersionChannelResponse, error) {
+	rsp, err := c.DeleteDeploymentVersionChannel(ctx, deploymentId, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteDeploymentVersionChannelResponse(rsp)
 }
 
 // DeleteReleaseChannelWithResponse request returning *DeleteReleaseChannelResponse
@@ -5180,6 +5728,138 @@ func ParseGetCloudProviderRegionsResponse(rsp *http.Response) (*GetCloudProvider
 	return response, nil
 }
 
+// ParseCreateDeploymentVersionChannelResponse parses an HTTP response from a CreateDeploymentVersionChannelWithResponse call
+func ParseCreateDeploymentVersionChannelResponse(rsp *http.Response) (*CreateDeploymentVersionChannelResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateDeploymentVersionChannelResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			CreatedAt       time.Time               `json:"createdAt"`
+			DeploymentId    string                  `json:"deploymentId"`
+			Description     *string                 `json:"description"`
+			Id              string                  `json:"id"`
+			Name            string                  `json:"name"`
+			VersionSelector *map[string]interface{} `json:"versionSelector,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest struct {
+			Error string `json:"error"`
+			Id    string `json:"id"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpsertDeploymentVersionResponse parses an HTTP response from a UpsertDeploymentVersionWithResponse call
+func ParseUpsertDeploymentVersionResponse(rsp *http.Response) (*UpsertDeploymentVersionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpsertDeploymentVersionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DeploymentVersion
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+			Id    *string `json:"id,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateDeploymentVersionResponse parses an HTTP response from a UpdateDeploymentVersionWithResponse call
+func ParseUpdateDeploymentVersionResponse(rsp *http.Response) (*UpdateDeploymentVersionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateDeploymentVersionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DeploymentVersion
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseCreateDeploymentResponse parses an HTTP response from a CreateDeploymentWithResponse call
 func ParseCreateDeploymentResponse(rsp *http.Response) (*CreateDeploymentResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -5324,6 +6004,61 @@ func ParseUpdateDeploymentResponse(rsp *http.Response) (*UpdateDeploymentRespons
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteDeploymentVersionChannelResponse parses an HTTP response from a DeleteDeploymentVersionChannelWithResponse call
+func ParseDeleteDeploymentVersionChannelResponse(rsp *http.Response) (*DeleteDeploymentVersionChannelResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteDeploymentVersionChannelResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest struct {
