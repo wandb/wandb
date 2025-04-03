@@ -68,6 +68,7 @@ message Control {
   bool flow_control = 6;     // message should be passed to flow control
   int64 end_offset = 7;      // end of message offset of this written message
   string connection_id = 8;  // connection id
+  bool internal = 9;         // message was created by an internal process
 }
 
 /*

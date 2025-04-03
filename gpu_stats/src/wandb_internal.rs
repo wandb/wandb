@@ -707,6 +707,9 @@ pub struct Control {
     /// connection id
     #[prost(string, tag = "8")]
     pub connection_id: ::prost::alloc::string::String,
+    /// message was created by an internal process
+    #[prost(bool, tag = "9")]
+    pub internal: bool,
 }
 ///
 /// Result: all results
