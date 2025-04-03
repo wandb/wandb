@@ -1,4 +1,4 @@
-package release
+package deploymentversion
 
 import (
 	"encoding/json"
@@ -14,25 +14,25 @@ import (
 	"github.com/spf13/viper"
 )
 
-func safeConvertToReleaseStatus(status string) (*api.UpsertReleaseJSONBodyStatus, error) {
+func safeConvertToDeploymentVersionStatus(status string) (*api.UpsertDeploymentVersionJSONBodyStatus, error) {
 	statusLower := strings.ToLower(status)
 	if statusLower == "ready" || statusLower == "" {
-		s := api.UpsertReleaseJSONBodyStatusReady
+		s := api.UpsertDeploymentVersionJSONBodyStatusReady
 		return &s, nil
 	}
 	if statusLower == "building" {
-		s := api.UpsertReleaseJSONBodyStatusBuilding
+		s := api.UpsertDeploymentVersionJSONBodyStatusBuilding
 		return &s, nil
 	}
 	if statusLower == "failed" {
-		s := api.UpsertReleaseJSONBodyStatusFailed
+		s := api.UpsertDeploymentVersionJSONBodyStatusFailed
 		return &s, nil
 	}
-	return nil, fmt.Errorf("invalid release status: %s", status)
+	return nil, fmt.Errorf("invalid deployment version status: %s", status)
 }
 
-func NewUpsertReleaseCmd() *cobra.Command {
-	var versionFlag string
+func NewUpsertDeploymentVersionCmd() *cobra.Command {
+	var tag string
 	var deploymentID []string
 	var metadata map[string]string
 	var configArray map[string]string
@@ -43,18 +43,18 @@ func NewUpsertReleaseCmd() *cobra.Command {
 	var message string
 
 	cmd := &cobra.Command{
-		Use:   "release [flags]",
-		Short: "Upsert a release",
-		Long:  `Upsert a release with the specified version and configuration.`,
+		Use:   "deployment-version [flags]",
+		Short: "Upsert a deployment version",
+		Long:  `Upsert a deployment version with the specified tag and configuration.`,
 		Example: heredoc.Doc(`
-			# Upsert a release
-			$ ctrlc upsert release --version v1.0.0 --deployment 1234567890
+			# Upsert a deployment version
+			$ ctrlc upsert deployment-version --tag v1.0.0 --deployment 1234567890
 
-			# Upsert a release using Go template syntax
-			$ ctrlc upsert release --version v1.0.0 --deployment 1234567890 --template='{{.status.phase}}'
+			# Upsert a deployment version using Go template syntax
+			$ ctrlc upsert deployment-version --tag v1.0.0 --deployment 1234567890 --template='{{.status.phase}}'
 
-			# Upsert a new release for multiple deployments
-			$ ctrlc upsert release --version v1.0.0 --deployment 1234567890 --deployment 0987654321
+			# Upsert a new deployment version for multiple deployments
+			$ ctrlc upsert deployment-version --tag v1.0.0 --deployment 1234567890 --deployment 0987654321
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			apiURL := viper.GetString("url")
@@ -81,16 +81,16 @@ func NewUpsertReleaseCmd() *cobra.Command {
 				metadata["ctrlplane/links"] = string(linksJSON)
 			}
 
-			stat, err := safeConvertToReleaseStatus(status)
+			stat, err := safeConvertToDeploymentVersionStatus(status)
 			if err != nil {
-				return fmt.Errorf("failed to convert release status: %w", err)
+				return fmt.Errorf("failed to convert deployment version status: %w", err)
 			}
 
 			config := cliutil.ConvertConfigArrayToNestedMap(configArray)
 			var response *http.Response
 			for _, id := range deploymentID {
-				resp, err := client.UpsertRelease(cmd.Context(), api.UpsertReleaseJSONRequestBody{
-					Version:      versionFlag,
+				resp, err := client.UpsertDeploymentVersion(cmd.Context(), api.UpsertDeploymentVersionJSONRequestBody{
+					Tag:          tag,
 					DeploymentId: id,
 					Metadata:     &metadata,
 					CreatedAt:    parsedTime,
@@ -100,7 +100,7 @@ func NewUpsertReleaseCmd() *cobra.Command {
 					Message:      &message,
 				})
 				if err != nil {
-					return fmt.Errorf("failed to create release: %w", err)
+					return fmt.Errorf("failed to create deployment version: %w", err)
 				}
 				response = resp
 			}
@@ -110,17 +110,17 @@ func NewUpsertReleaseCmd() *cobra.Command {
 	}
 
 	// Add flags
-	cmd.Flags().StringVarP(&versionFlag, "version", "v", "", "Version of the release (required)")
+	cmd.Flags().StringVarP(&tag, "tag", "t", "", "Tag of the deployment version (required)")
 	cmd.Flags().StringArrayVarP(&deploymentID, "deployment", "d", []string{}, "IDs of the deployments (required, supports multiple)")
 	cmd.Flags().StringToStringVarP(&metadata, "metadata", "m", make(map[string]string), "Metadata key-value pairs (e.g. --metadata key=value)")
 	cmd.Flags().StringToStringVarP(&configArray, "config", "c", make(map[string]string), "Config key-value pairs with nested values (can be specified multiple times)")
 	cmd.Flags().StringToStringVarP(&links, "link", "l", make(map[string]string), "Links key-value pairs (can be specified multiple times)")
-	cmd.Flags().StringVarP(&createdAt, "created-at", "r", "", "Created at timestamp (e.g. --created-at 2024-01-01T00:00:00Z) for the release channel")
-	cmd.Flags().StringVarP(&name, "name", "n", "", "Name of the release channel")
-	cmd.Flags().StringVarP(&status, "status", "s", string(api.UpsertReleaseJSONBodyStatusReady), "Status of the release channel (one of: ready, building, failed)")
-	cmd.Flags().StringVar(&message, "message", "", "Message of the release channel")
+	cmd.Flags().StringVarP(&createdAt, "created-at", "r", "", "Created at timestamp (e.g. --created-at 2024-01-01T00:00:00Z) for the deployment version")
+	cmd.Flags().StringVarP(&name, "name", "n", "", "Name of the deployment version")
+	cmd.Flags().StringVarP(&status, "status", "s", string(api.UpsertDeploymentVersionJSONBodyStatusReady), "Status of the deployment version (one of: ready, building, failed)")
+	cmd.Flags().StringVar(&message, "message", "", "Message of the deployment version")
 
-	cmd.MarkFlagRequired("version")
+	cmd.MarkFlagRequired("tag")
 	cmd.MarkFlagRequired("deployment")
 
 	return cmd
