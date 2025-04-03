@@ -51,32 +51,33 @@ class Video(BatchableMedia):
     """Format a video for logging to W&B.
 
     Args:
-        data_or_path: (numpy array, string, io)
-            Video can be initialized with a path to a file or an io object.
-            The format must be "gif", "mp4", "webm" or "ogg".
+        data_or_path: Video can be initialized with a path to a file or an
+            io object. The format must be "gif", "mp4", "webm" or "ogg".
             The format must be specified with the format argument.
             Video can be initialized with a numpy tensor.
             The numpy tensor must be either 4 dimensional or 5 dimensional.
             Channels should be (time, channel, height, width) or
             (batch, time, channel, height width)
-        caption: (string) caption associated with the video for display
-        fps: (int)
-            The frame rate to use when encoding raw video frames. Default value is 4.
-            This parameter has no effect when data_or_path is a string, or bytes.
-        format: (string) format of video, necessary if initializing with path or io object.
+        caption: Caption associated with the video for display.
+        fps: The frame rate to use when encoding raw video frames.
+            Default value is 4. This parameter has no effect when
+            data_or_path is a string, or bytes.
+        format: Format of video, necessary if initializing with path or io
+            object.
 
     Examples:
-        ### Log a numpy array as a video
-        <!--yeadoc-test:log-video-numpy-->
-        ```python
-        import numpy as np
-        import wandb
 
-        run = wandb.init()
-        # axes are (time, channel, height, width)
-        frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
-        run.log({"video": wandb.Video(frames, fps=4)})
-        ```
+    Log a numpy array as a video
+
+    ```python
+    import numpy as np
+    import wandb
+
+    run = wandb.init()
+    # axes are (time, channel, height, width)
+    frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
+    run.log({"video": wandb.Video(frames, fps=4)})
+    ```
     """
 
     _log_type = "video-file"
@@ -141,6 +142,11 @@ class Video(BatchableMedia):
             )
 
     def encode(self, fps: int = 4) -> None:
+        """Encode the video data to a file.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+
         # import ImageSequenceClip from the appropriate MoviePy module
         mpy = util.get_module(
             "moviepy.video.io.ImageSequenceClip",
@@ -166,9 +172,17 @@ class Video(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls: Type["Video"]) -> str:
+        """Get media subdirectory for video files.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return os.path.join("media", "videos")
 
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        """Returns the JSON representation expected by the backend.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
 
@@ -223,6 +237,10 @@ class Video(BatchableMedia):
         key: str,
         step: Union[int, str],
     ) -> dict:
+        """Convert a sequence of Video objects to a JSON representation.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         base_path = os.path.join(run.dir, cls.get_media_subdir())
         filesystem.mkdir_exists_ok(base_path)
 
