@@ -8,9 +8,12 @@ import (
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/wboperation"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // savedFile is a file in the run's files directory.
@@ -49,6 +52,9 @@ type savedFile struct {
 	// HTTP headers to set on the reupload request for the file if
 	// `reuploadScheduled`.
 	reuploadHeaders []string
+
+	// The upload policy for the file.
+	filePolicy spb.FilesItem_PolicyType
 }
 
 func newSavedFile(
@@ -66,8 +72,7 @@ func newSavedFile(
 		operations: operations,
 		realPath:   realPath,
 		runPath:    runPath,
-
-		wg: &sync.WaitGroup{},
+		wg:         &sync.WaitGroup{},
 	}
 }
 
@@ -75,6 +80,12 @@ func (f *savedFile) SetCategory(category filetransfer.RunFileKind) {
 	f.Lock()
 	defer f.Unlock()
 	f.category = category
+}
+
+func (f *savedFile) SetFilePolicy(filePolicy spb.FilesItem_PolicyType) {
+	f.Lock()
+	defer f.Unlock()
+	f.filePolicy = filePolicy
 }
 
 // Upload schedules an upload of savedFile.
@@ -138,6 +149,8 @@ func (f *savedFile) onFinishUpload(task *filetransfer.DefaultUploadTask) {
 			// Since the backend API requires forward slashes.
 			RelativePath: filepath.ToSlash(string(f.runPath)),
 		})
+
+		fileutil.DeleteFile(f.realPath, f.logger)
 	}
 
 	f.Lock()

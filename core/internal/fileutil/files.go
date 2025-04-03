@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"strings"
 	"unicode"
+
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 // FileExists checks if a file exists at the given path.
@@ -160,4 +162,16 @@ func SanitizeFilename(filename string) string {
 		return SanitizeWindowsFilename(filename)
 	}
 	return SanitizeLinuxFilename(filename)
+}
+
+func DeleteFile(path string, logger *observability.CoreLogger) {
+	if err := os.RemoveAll(path); err != nil {
+		logger.CaptureError(
+			fmt.Errorf("fileutil: failed to delete: %v", err),
+			"path: ",
+			path,
+		)
+	} else {
+		logger.Debug("fileutil: deleted file", "path", path)
+	}
 }

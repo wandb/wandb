@@ -218,6 +218,10 @@ class Settings(BaseModel, validate_assignment=True):
     base_url: str = "https://api.wandb.ai"
     """The URL of the W&B backend for data synchronization."""
 
+    clean_run_files: bool = False
+    """Whether to automatically delete files created during a run,
+    after they have been successfully uploaded to W&B."""
+
     code_dir: Optional[str] = None
     """Directory containing the code to be tracked by W&B."""
 
