@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any, Union
 import wandb
 import wandb.integration.sagemaker as sagemaker
 from wandb.sdk.lib import import_hooks, wb_logging
+import multiprocessing as mp
 
 from . import wandb_settings
 from .lib import config_util, server
@@ -402,3 +403,33 @@ def teardown(exit_code: int | None = None) -> None:
 
     if orig_singleton:
         orig_singleton._teardown(exit_code=exit_code)
+
+
+def run_agent(sweep_id):
+    # Initialize wandb in each child process without trying to teardown the parent service
+    with wandb.init(project="my-project") as run:
+        # Your training code here using wandb.config
+        pass
+    
+if __name__ == "__main__":
+    # Setup wandb in the parent process
+    wandb.setup()
+    
+    # Create sweep and get sweep_id
+    sweep_config = {...}
+    sweep_id = wandb.sweep(sweep_config, project="my-project")
+    
+    # Create processes to run agents
+    processes = []
+    for _ in range(mp.cpu_count()):
+        # Use Process directly instead of Pool
+        p = mp.Process(target=run_agent, args=(sweep_id,))
+        p.start()
+        processes.append(p)
+    
+    # Wait for all processes to complete
+    for p in processes:
+        p.join()
+    
+    # Explicitly teardown only in parent process
+    wandb.teardown()
