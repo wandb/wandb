@@ -1,4 +1,30 @@
-"""Public API: artifacts."""
+"""W&B Public API for Artifact Management.
+
+This module provides classes for interacting with W&B artifacts and their
+collections. Classes include:
+
+
+ArtifactTypes: A paginated collection of artifact types in a project
+- List and query artifact types
+- Access type metadata
+- Create new types
+
+ArtifactCollection: A collection of related artifacts
+- Manage artifact collections
+- Update metadata and descriptions
+- Work with tags and aliases
+- Change collection types
+
+Artifacts: A paginated collection of artifact versions
+- Filter and query artifacts
+- Access artifact metadata
+- Download artifacts
+
+ArtifactFiles: A paginated collection of files within an artifact
+- List and query artifact files
+- Access file metadata
+- Download individual files
+"""
 
 import json
 import re
@@ -25,6 +51,15 @@ if TYPE_CHECKING:
 
 
 class ArtifactTypes(Paginator["ArtifactType"]):
+    """An iterable collection of artifact types associated with a project.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        entity: The entity (user or team) that owns the project.
+        project: The name of the project to query for artifact types.
+        per_page: The number of artifact types to fetch per page. Default is 50.
+    """
+
     QUERY = gql(
         """
         query ProjectArtifacts(
@@ -61,11 +96,15 @@ class ArtifactTypes(Paginator["ArtifactType"]):
 
     @property
     def length(self) -> None:
+        """Returns `None`."""
         # TODO
         return None
 
     @property
     def more(self):
+        """Returns `True` if there are more artifacts to fetch. Returns
+        `False` if there are no more files to fetch.
+        """
         if self.last_response:
             return self.last_response["project"]["artifactTypes"]["pageInfo"][
                 "hasNextPage"
@@ -75,15 +114,18 @@ class ArtifactTypes(Paginator["ArtifactType"]):
 
     @property
     def cursor(self):
+        """Returns the cursor position for pagination of file results."""
         if self.last_response:
             return self.last_response["project"]["artifactTypes"]["edges"][-1]["cursor"]
         else:
             return None
 
     def update_variables(self):
+        """Updates the variables dictionary with the cursor."""
         self.variables.update({"cursor": self.cursor})
 
     def convert_objects(self):
+        """Converts GraphQL edges to ArtifactType objects."""
         if self.last_response["project"] is None:
             return []
         return [
@@ -95,6 +137,17 @@ class ArtifactTypes(Paginator["ArtifactType"]):
 
 
 class ArtifactType:
+    """An artifact object that satisfies query based on the specified type.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        entity: The entity (user or team) that owns the project.
+        project: The name of the project to query for artifact types.
+        type_name: The name of the artifact type.
+        attrs: Optional mapping of attributes to initialize the artifact type. If not provided,
+            the object will load its attributes from W&B upon initialization.
+    """
+
     def __init__(
         self,
         client: Client,
@@ -112,6 +165,7 @@ class ArtifactType:
             self.load()
 
     def load(self):
+        """Load the artifact type metadata."""
         query = gql(
             """
         query ProjectArtifactType(
@@ -149,18 +203,30 @@ class ArtifactType:
 
     @property
     def id(self):
+        """The unique identifier of the artifact type."""
         return self._attrs["id"]
 
     @property
     def name(self):
+        """The name of the artifact type."""
         return self._attrs["name"]
 
     @normalize_exceptions
     def collections(self, per_page=50):
-        """Artifact collections."""
+        """Get all artifact collections associated with this artifact type.
+
+        Args:
+            per_page (int): The number of artifact collections to fetch per page.
+                Default is 50.
+        """
         return ArtifactCollections(self.client, self.entity, self.project, self.type)
 
     def collection(self, name):
+        """Get a specific artifact collection by name.
+
+        Args:
+            name (str): The name of the artifact collection to retrieve.
+        """
         return ArtifactCollection(
             self.client, self.entity, self.project, name, self.type
         )
@@ -170,6 +236,16 @@ class ArtifactType:
 
 
 class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
+    """An iterable collection of artifact collections associated with a project and artifact type.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        entity: The entity (user or team) that owns the project.
+        project: The name of the project to query for artifact collections.
+        type_name: The name of the artifact type for which to fetch collections.
+        per_page: The number of artifact collections to fetch per page. Default is 50.
+    """
+
     def __init__(
         self,
         client: Client,
@@ -228,6 +304,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
 
     @property
     def length(self):
+        """Returns the number of artifact collections."""
         if self.last_response:
             return self.last_response["project"]["artifactType"]["artifactCollections"][
                 "totalCount"
@@ -237,6 +314,10 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
 
     @property
     def more(self):
+        """Returns `True` if there are more artifact collections to fetch.
+
+        Returns `False` if there are no more files to fetch.
+        """
         if self.last_response:
             return self.last_response["project"]["artifactType"]["artifactCollections"][
                 "pageInfo"
@@ -246,6 +327,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
 
     @property
     def cursor(self):
+        """Returns the cursor position for pagination of file results."""
         if self.last_response:
             return self.last_response["project"]["artifactType"]["artifactCollections"][
                 "edges"
@@ -254,9 +336,11 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
             return None
 
     def update_variables(self):
+        """Updates the variables dictionary with the cursor."""
         self.variables.update({"cursor": self.cursor})
 
     def convert_objects(self):
+        """Converts GraphQL edges to ArtifactCollection objects."""
         return [
             ArtifactCollection(
                 self.client,
@@ -272,6 +356,20 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
 
 
 class ArtifactCollection:
+    """An artifact collection that represents a group of related artifacts.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        entity: The entity (user or team) that owns the project.
+        project: The name of the project to query for artifact collections.
+        name: The name of the artifact collection.
+        type: The type of the artifact collection (e.g., "dataset", "model").
+        organization: Optional organization name if applicable.
+        attrs: Optional mapping of attributes to initialize the artifact collection.
+            If not provided, the object will load its attributes from W&B upon
+            initialization.
+    """
+
     def __init__(
         self,
         client: Client,
@@ -301,11 +399,12 @@ class ArtifactCollection:
 
     @property
     def id(self):
+        """The unique identifier of the artifact collection."""
         return self._attrs["id"]
 
     @normalize_exceptions
     def artifacts(self, per_page=50):
-        """Artifacts."""
+        """Get all artifact versions associated with this artifact collection."""
         return Artifacts(
             self.client,
             self.entity,
@@ -317,14 +416,16 @@ class ArtifactCollection:
 
     @property
     def aliases(self):
-        """Artifact Collection Aliases."""
+        """The aliases associated with the artifact collection."""
         return self._aliases
 
     @property
     def created_at(self):
+        """The creation timestamp of the artifact collection."""
         return self._created_at
 
     def load(self):
+        """Load the artifact collection metadata."""
         query = gql(
             """
         query ArtifactCollection(
@@ -485,6 +586,7 @@ class ArtifactCollection:
 
     @description.setter
     def description(self, description: Optional[str]) -> None:
+        """Set the description of the artifact collection."""
         self._description = description
 
     @property
@@ -494,6 +596,7 @@ class ArtifactCollection:
 
     @tags.setter
     def tags(self, tags: List[str]) -> None:
+        """Set the tags associated with the artifact collection."""
         if any(not re.match(r"^[-\w]+([ ]+[-\w]+)*$", tag) for tag in tags):
             raise ValueError(
                 "Tags must only contain alphanumeric characters or underscores separated by spaces or hyphens"
@@ -507,15 +610,17 @@ class ArtifactCollection:
 
     @name.setter
     def name(self, name: List[str]) -> None:
+        """Set the name of the artifact collection."""
         self._name = name
 
     @property
     def type(self):
-        """The type of the artifact collection."""
+        """Returns the type of the artifact collection."""
         return self._type
 
     @type.setter
     def type(self, type: List[str]) -> None:
+        """Set the type of the artifact collection."""
         if not self.is_sequence():
             raise ValueError(
                 "Type can only be changed if the artifact collection is a sequence."
@@ -713,9 +818,21 @@ class ArtifactCollection:
 
 
 class Artifacts(SizedPaginator["wandb.Artifact"]):
-    """An iterable collection of artifact versions associated with a project and optional filter.
+    """An iterable collection of artifact versions associated with a project.
 
-    This is generally used indirectly via the `Api`.artifact_versions method.
+    Optionally pass in filters to narrow down the results based on specific criteria.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        entity: The entity (user or team) that owns the project.
+        project: The name of the project to query for artifacts.
+        collection_name: The name of the artifact collection to query.
+        type: The type of the artifacts to query. Common examples include
+            "dataset" or "model".
+        filters: Optional mapping of filters to apply to the query.
+        order: Optional string to specify the order of the results.
+        per_page: The number of artifact versions to fetch per page. Default is 50.
+        tags: Optional string or list of strings to filter artifacts by tags.
     """
 
     def __init__(
@@ -784,6 +901,7 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
 
     @property
     def length(self):
+        """Returns the number of artifact versions."""
         if self.last_response:
             return self.last_response["project"]["artifactType"]["artifactCollection"][
                 "artifacts"
@@ -793,6 +911,7 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
 
     @property
     def more(self):
+        """Returns `True` if there are more artifact versions to fetch."""
         if self.last_response:
             return self.last_response["project"]["artifactType"]["artifactCollection"][
                 "artifacts"
@@ -802,6 +921,7 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
 
     @property
     def cursor(self):
+        """Returns the cursor position for pagination of file results."""
         if self.last_response:
             return self.last_response["project"]["artifactType"]["artifactCollection"][
                 "artifacts"
@@ -810,6 +930,7 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
             return None
 
     def convert_objects(self):
+        """Converts GraphQL edges to Artifact objects."""
         collection = self.last_response["project"]["artifactType"]["artifactCollection"]
         artifact_edges = collection.get("artifacts", {}).get("edges", [])
         artifacts = (
@@ -829,6 +950,16 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
 
 
 class RunArtifacts(SizedPaginator["wandb.Artifact"]):
+    """An iterable collection of artifacts associated with a run.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        run: The run object to query for artifacts.
+        mode: The mode of artifacts to fetch, either "logged"
+            (output artifacts) or "used" (input artifacts). Default is "logged".
+        per_page: The number of artifacts to fetch per page. Default is 50.
+    """
+
     def __init__(self, client: Client, run: "Run", mode="logged", per_page: int = 50):
         from wandb.sdk.artifacts.artifact import _gql_artifact_fragment
 
@@ -906,6 +1037,7 @@ class RunArtifacts(SizedPaginator["wandb.Artifact"]):
 
     @property
     def length(self):
+        """Returns the number of artifacts associated with the run."""
         if self.last_response:
             return self.last_response["project"]["run"][self.run_key]["totalCount"]
         else:
@@ -913,6 +1045,7 @@ class RunArtifacts(SizedPaginator["wandb.Artifact"]):
 
     @property
     def more(self):
+        """Returns `True` if there are more artifacts to fetch."""
         if self.last_response:
             return self.last_response["project"]["run"][self.run_key]["pageInfo"][
                 "hasNextPage"
@@ -922,6 +1055,7 @@ class RunArtifacts(SizedPaginator["wandb.Artifact"]):
 
     @property
     def cursor(self):
+        """Returns the cursor position for pagination of file results."""
         if self.last_response:
             return self.last_response["project"]["run"][self.run_key]["edges"][-1][
                 "cursor"
@@ -930,6 +1064,7 @@ class RunArtifacts(SizedPaginator["wandb.Artifact"]):
             return None
 
     def convert_objects(self):
+        """Converts GraphQL edges to Artifact objects."""
         return [
             wandb.Artifact._from_attrs(
                 r["node"]["artifactSequence"]["project"]["entityName"],
@@ -945,6 +1080,16 @@ class RunArtifacts(SizedPaginator["wandb.Artifact"]):
 
 
 class ArtifactFiles(SizedPaginator["public.File"]):
+    """An iterable collection of files associated with an artifact version.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        artifact: The artifact object to query for files.
+        names: Optional sequence of file names to filter the results by. If
+            `None`, all files will be returned.
+        per_page: The number of files to fetch per page. Default is 50.
+    """
+
     ARTIFACT_VERSION_FILES_QUERY = gql(
         f"""
         query ArtifactFiles(
@@ -1032,14 +1177,20 @@ class ArtifactFiles(SizedPaginator["public.File"]):
 
     @property
     def path(self):
+        """Returns the path of the artifact.
+
+        The path is a list containingthe entity, project name, and artifact name.
+        """
         return [self.artifact.entity, self.artifact.project, self.artifact.name]
 
     @property
     def length(self):
+        """Returns the number of files in the artifact."""
         return self.artifact.file_count
 
     @property
     def more(self):
+        """Returns `True` if there are more files to fetch. Returns"""
         if self.last_response:
             if self.query_via_membership:
                 return self.last_response["project"]["artifactCollection"][
@@ -1053,6 +1204,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
 
     @property
     def cursor(self):
+        """Returns the cursor position for pagination of file results."""
         if self.last_response:
             if self.query_via_membership:
                 return self.last_response["project"]["artifactCollection"][
@@ -1065,9 +1217,11 @@ class ArtifactFiles(SizedPaginator["public.File"]):
             return None
 
     def update_variables(self):
+        """Updates the variables dictionary with the cursor and limit."""
         self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
 
     def convert_objects(self):
+        """Converts GraphQL edges to File objects."""
         if self.query_via_membership:
             return [
                 public.File(self.client, r["node"])
@@ -1089,6 +1243,10 @@ class ArtifactFiles(SizedPaginator["public.File"]):
 def server_supports_artifact_collections_gql_edges(
     client: "RetryingClient", warn: bool = False
 ) -> bool:
+    """Check if W&B server supports GraphQL edges for artifact collections.
+
+    <!-- lazydoc-ignore: internal -->
+    """
     # TODO: Validate this version
     # Edges were merged into core on Mar 2, 2022: https://github.com/wandb/core/commit/81c90b29eaacfe0a96dc1ebd83c53560ca763e8b
     # CLI version was bumped to "0.12.11" on Mar 3, 2022: https://github.com/wandb/core/commit/328396fa7c89a2178d510a1be9c0d4451f350d7b
@@ -1102,6 +1260,10 @@ def server_supports_artifact_collections_gql_edges(
 
 
 def artifact_collection_edge_name(server_supports_artifact_collections: bool) -> str:
+    """Return the GraphQL edge name for artifact collections or sequences.
+
+    <!-- lazydoc-ignore: internal -->
+    """
     return (
         "artifactCollection"
         if server_supports_artifact_collections
@@ -1112,6 +1274,10 @@ def artifact_collection_edge_name(server_supports_artifact_collections: bool) ->
 def artifact_collection_plural_edge_name(
     server_supports_artifact_collections: bool,
 ) -> str:
+    """Return the GraphQL edge name for artifact collections or sequences.
+
+    <!-- lazydoc-ignore: internal -->
+    """
     return (
         "artifactCollections"
         if server_supports_artifact_collections
