@@ -1438,6 +1438,12 @@ def auto_project_name(program: Optional[str]) -> str:
     return str(project.replace(os.sep, "_"))
 
 
+def are_windows_paths_on_same_drive(path1: str, path2: str) -> bool:
+    path1 = pathlib.Path(path1).resolve()
+    path2 = pathlib.Path(path2).resolve()
+    return path1.drive == path2.drive
+
+
 # TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
 def to_forward_slash_path(path: str) -> str:
     if platform.system() == "Windows":

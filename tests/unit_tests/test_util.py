@@ -809,3 +809,18 @@ def test_json_dump_uncompressed_with_numpy_datatypes():
     iostr = io.StringIO()
     util.json_dump_uncompressed(data, iostr)
     assert iostr.getvalue() == '{"a": [1, 2.0, 3]}'
+
+
+@pytest.mark.skipif(
+    platform.system() != "Windows",
+    reason="Drive letters are only relevant on Windows",
+)
+@pytest.mark.parametrize(
+    "path1,path2,expected",
+    [
+        ("C:\\foo", "C:\\bar", True),
+        ("C:\\foo", "D:\\bar", False),
+    ],
+)
+def test_are_windows_paths_on_same_drive(path1, path2, expected):
+    assert util.are_windows_paths_on_same_drive(path1, path2) == expected
