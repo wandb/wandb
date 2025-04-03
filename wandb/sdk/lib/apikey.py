@@ -83,6 +83,25 @@ def get_netrc_file_path() -> str:
     return os.path.join(os.path.expanduser("~"), netrc_file)
 
 
+def _api_key_prompt_str(app_url: str, referrer: str | None = None) -> str:
+    """Generate a prompt string for API key authorization.
+
+    Creates a URL string that directs users to the authorization page where they
+    can find their API key.
+
+    Args:
+        app_url: The base URL of the W&B application.
+        referrer: Optional referrer parameter to include in the URL.
+
+    Returns:
+        A formatted string with instructions and the authorization URL.
+    """
+    ref = ""
+    if referrer:
+        ref = f"?ref={referrer}"
+    return f"You can find your API key in your browser here: {app_url}/authorize{ref}"
+
+
 def prompt_api_key(  # noqa: C901
     settings: Settings,
     api: InternalApi | None = None,
@@ -91,6 +110,7 @@ def prompt_api_key(  # noqa: C901
     no_offline: bool = False,
     no_create: bool = False,
     local: bool = False,
+    referrer: str | None = None,
 ) -> str | bool | None:
     """Prompt for api key.
 
@@ -164,9 +184,7 @@ def prompt_api_key(  # noqa: C901
                     f"Logging into {host}. (Learn how to deploy a W&B server "
                     f"locally: {url_registry.url('wandb-server')})"
                 )
-            wandb.termlog(
-                f"You can find your API key in your browser here: {app_url}/authorize"
-            )
+            wandb.termlog(_api_key_prompt_str(app_url, referrer))
             key = input_callback(api_ask).strip()
     elif result == LOGIN_CHOICE_NOTTY:
         # TODO: Needs refactor as this needs to be handled by caller

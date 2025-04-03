@@ -476,6 +476,7 @@ def login(
     force: Optional[bool] = None,
     timeout: Optional[int] = None,
     verify: bool = False,
+    referrer: Optional[str] = None,
 ) -> bool:
     """Set up W&B login credentials.
 
@@ -495,6 +496,7 @@ def login(
         force: (bool, optional) If true, will force a relogin.
         timeout: (int, optional) Number of seconds to wait for user input.
         verify: (bool) Verify the credentials with the W&B server.
+        referrer: (string, optional) The referrer to use in the URL login request.
 
     Returns:
         bool: if key is configured
