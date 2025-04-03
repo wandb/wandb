@@ -1060,18 +1060,6 @@ def has_num(dictionary: Mapping, key: Any) -> bool:
     return key in dictionary and isinstance(dictionary[key], numbers.Number)
 
 
-def get_log_file_path() -> str:
-    """Log file path used in error messages.
-
-    It would probably be better if this pointed to a log file in a
-    run directory.
-    """
-    # TODO(jhr, cvp): refactor
-    if wandb.run is not None:
-        return wandb.run._settings.log_internal
-    return os.path.join("wandb", "debug-internal.log")
-
-
 def docker_image_regex(image: str) -> Any:
     """Regex match for valid docker image names."""
     if image:
