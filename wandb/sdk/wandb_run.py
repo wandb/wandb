@@ -685,6 +685,7 @@ class Run:
 
         self._step = 0
         self._starting_step = 0
+        self._start_runtime = 0
         # TODO: eventually would be nice to make this configurable using self._settings._start_time
         #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
         #  does the total time get calculated right (not as 2 days and 15 minutes)?
@@ -1588,6 +1589,9 @@ class Run:
 
         if run_obj.start_time:
             self._start_time = run_obj.start_time.ToMicroseconds() / 1e6
+
+        if run_obj.runtime:
+            self._start_runtime = run_obj.runtime
 
         # Grab the config from resuming
         if run_obj.config:
