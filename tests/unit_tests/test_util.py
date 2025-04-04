@@ -809,3 +809,16 @@ def test_json_dump_uncompressed_with_numpy_datatypes():
     iostr = io.StringIO()
     util.json_dump_uncompressed(data, iostr)
     assert iostr.getvalue() == '{"a": [1, 2.0, 3]}'
+
+
+def test_lazy_import_adds_attribute_to_parent_module():
+    """Tests lazy import of a submodule does not break the parent module"""
+    with mock.patch.dict("sys.modules"):
+        sys.modules.pop("PIL.Image", None)
+        sys.modules.pop("PIL", None)
+
+        util.get_module("PIL.Image", lazy=True)
+
+        import PIL.Image
+
+        assert hasattr(PIL.Image, "Image")
