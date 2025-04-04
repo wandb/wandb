@@ -1662,6 +1662,11 @@ class Settings(BaseModel, validate_assignment=True):
         if not root:
             return None
 
+        # For windows if the root and program are on different drives,
+        # os.path.relpath will raise a ValueError.
+        if not util.are_paths_on_same_drive(root, program):
+            return None
+
         full_path_to_program = os.path.join(
             root, os.path.relpath(os.getcwd(), root), program
         )
