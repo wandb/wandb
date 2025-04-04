@@ -1662,11 +1662,9 @@ class Settings(BaseModel, validate_assignment=True):
         if not root:
             return None
 
-        # On Windows if the program and root are on different drives,
-        # Python will raise a ValueError.
-        if platform.system() == "Windows" and not util.are_windows_paths_on_same_drive(
-            program, root
-        ):
+        # For windows if the root and program are on different drives,
+        # os.path.relpath will raise a ValueError.
+        if not util.are_paths_on_same_drive(root, program):
             return None
 
         full_path_to_program = os.path.join(

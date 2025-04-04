@@ -823,4 +823,4 @@ def test_json_dump_uncompressed_with_numpy_datatypes():
     ],
 )
 def test_are_windows_paths_on_same_drive(path1, path2, expected):
-    assert util.are_windows_paths_on_same_drive(path1, path2) == expected
+    assert util.are_paths_on_same_drive(path1, path2) == expected
