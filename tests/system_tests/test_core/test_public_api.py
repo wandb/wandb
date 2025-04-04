@@ -10,6 +10,8 @@ import wandb
 import wandb.apis.public
 import wandb.util
 from wandb import Api
+from wandb.apis.public import File
+from wandb.errors.errors import CommError
 from wandb.old.summary import Summary
 
 
@@ -74,6 +76,7 @@ def stub_run_gql_once(user, wandb_backend_spy):
         id: str = user,
         config: Optional[Dict] = None,
         summary_metrics: Optional[Dict] = None,
+        project_id: str = "123",
     ):
         body = {
             "data": {
@@ -81,7 +84,7 @@ def stub_run_gql_once(user, wandb_backend_spy):
                     "internalId": "testinternalid",
                     "run": {
                         "id": id,
-                        "projectId": "123",
+                        "projectId": project_id,
                         "tags": [],
                         "name": "test",
                         "displayName": "test",
@@ -539,6 +542,34 @@ def test_delete_file(
         assert delete_spy.requests[0].variables == {
             "files": [file.id],
         }
+
+
+def test_run_parses_run_project_id(user, stub_run_gql_once):
+    stub_run_gql_once(project_id="123")
+    api = Api()
+    if not File(api.client, {})._server_accepts_project_id_for_delete_file():
+        pytest.skip("Server does not support project_id for deletion")
+
+    with wandb.init(project="test") as run:
+        run.log({"scalar": 1})
+
+    run = api.run(f"{user}/test/{run.id}")
+    assert run._project_internal_id is not None
+    assert isinstance(run._project_internal_id, int)
+    assert run._project_internal_id == 123
+
+
+def test_run_fails_parse_run_project_id(user, stub_run_gql_once):
+    stub_run_gql_once(project_id="Unparseable")
+    api = Api()
+    if not File(api.client, {})._server_accepts_project_id_for_delete_file():
+        pytest.skip("Server does not support project_id for deletion")
+
+    with wandb.init(project="test") as run:
+        run.log({"scalar": 1})
+
+    with pytest.raises(CommError):
+        api.run(f"{user}/test/{run.id}")
 
 
 def test_nested_summary(user, stub_run_gql_once):
