@@ -873,6 +873,20 @@ class Api:
         _, _, mutations = self.server_info_introspection()
         return "updateRunQueueItemWarning" in mutations
 
+    def _server_features(self) -> Dict[str, bool]:
+        if self._server_features_cache is None:
+            query = gql(SERVER_FEATURES_QUERY_GQL)
+            response = self.gql(query)
+            server_info = ServerFeaturesQuery.model_validate(response).server_info
+            if server_info and (features := server_info.features):
+                self._server_features_cache = {
+                    f.name: f.is_enabled for f in features if f
+                }
+            else:
+                self._server_features_cache = {}
+
+        return self._server_features_cache
+
     def _check_server_feature(self, feature_value: ServerFeature) -> bool:
         """Check if a server feature is enabled.
 
@@ -885,18 +899,19 @@ class Api:
         Raises:
             Exception: If server doesn't support feature queries or other errors occur
         """
-        if self._server_features_cache is None:
-            query = gql(SERVER_FEATURES_QUERY_GQL)
-            response = self.gql(query)
-            server_info = ServerFeaturesQuery.model_validate(response).server_info
-            if server_info and (features := server_info.features):
-                self._server_features_cache = {
-                    f.name: f.is_enabled for f in features if f
-                }
-            else:
-                self._server_features_cache = {}
+        # if self._server_features_cache is None:
+        #     query = gql(SERVER_FEATURES_QUERY_GQL)
+        #     response = self.gql(query)
+        #     server_info = ServerFeaturesQuery.model_validate(response).server_info
+        #     if server_info and (features := server_info.features):
+        #         self._server_features_cache = {
+        #             f.name: f.is_enabled for f in features if f
+        #         }
+        #     else:
+        #         self._server_features_cache = {}
 
-        return self._server_features_cache.get(ServerFeature.Name(feature_value), False)
+        server_features = self._server_features()
+        return server_features.get(ServerFeature.Name(feature_value), False)
 
     def _check_server_feature_with_fallback(self, feature_value: ServerFeature) -> bool:
         """Wrapper around check_server_feature that warns and returns False for older unsupported servers.

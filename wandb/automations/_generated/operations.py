@@ -10,6 +10,7 @@ __all__ = [
     "GET_TRIGGERS_GQL",
     "INTEGRATIONS_BY_ENTITY_GQL",
     "SLACK_INTEGRATIONS_BY_ENTITY_GQL",
+    "SUPPORTED_ACTION_AND_EVENT_TYPES_GQL",
     "UPDATE_FILTER_TRIGGER_GQL",
 ]
 
@@ -59,6 +60,7 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
 
 fragment NoOpActionFields on NoOpTriggeredAction {
   __typename
+  noOp
 }
 
 fragment NotificationActionFields on NotificationTriggeredAction {
@@ -202,6 +204,7 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
 
 fragment NoOpActionFields on NoOpTriggeredAction {
   __typename
+  noOp
 }
 
 fragment NotificationActionFields on NotificationTriggeredAction {
@@ -299,6 +302,23 @@ fragment UserFields on User {
 }
 """
 
+SUPPORTED_ACTION_AND_EVENT_TYPES_GQL = """
+query SupportedActionAndEventTypes {
+  eventTypeInfo: __type(name: "EventTriggeringConditionType") {
+    ...EnumInfo
+  }
+  actionTypeInfo: __type(name: "TriggeredActionType") {
+    ...EnumInfo
+  }
+}
+
+fragment EnumInfo on __Type {
+  enumValues {
+    name
+  }
+}
+"""
+
 CREATE_FILTER_TRIGGER_GQL = """
 mutation CreateFilterTrigger($params: CreateFilterTriggerInput!) {
   createFilterTrigger(input: $params) {
@@ -350,6 +370,7 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
 
 fragment NoOpActionFields on NoOpTriggeredAction {
   __typename
+  noOp
 }
 
 fragment NotificationActionFields on NotificationTriggeredAction {
@@ -471,6 +492,7 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
 
 fragment NoOpActionFields on NoOpTriggeredAction {
   __typename
+  noOp
 }
 
 fragment NotificationActionFields on NotificationTriggeredAction {

@@ -1589,7 +1589,7 @@ pub struct AlertResult {}
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 80, 81, 82, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 80, 81, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1671,9 +1671,6 @@ pub mod request {
         GetSystemMetadata(super::GetSystemMetadataRequest),
         #[prost(message, tag = "81")]
         SyncFinish(super::SyncFinishRequest),
-        /// Requests information about tasks the service is performing.
-        #[prost(message, tag = "82")]
-        Operations(super::OperationStatsRequest),
         #[prost(message, tag = "1000")]
         TestInject(super::TestInjectRequest),
     }
@@ -1684,7 +1681,7 @@ pub mod request {
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 73, 74, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 73, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1742,8 +1739,6 @@ pub mod response {
         RunFinishWithoutExitResponse(super::RunFinishWithoutExitResponse),
         #[prost(message, tag = "73")]
         GetSystemMetadataResponse(super::GetSystemMetadataResponse),
-        #[prost(message, tag = "74")]
-        OperationsResponse(super::OperationStatsResponse),
         #[prost(message, tag = "1000")]
         TestInjectResponse(super::TestInjectResponse),
     }
@@ -1990,16 +1985,6 @@ pub struct PollExitResponse {
     #[prost(message, optional, tag = "4")]
     pub file_counts: ::core::option::Option<FileCounts>,
     #[prost(message, optional, tag = "5")]
-    pub operation_stats: ::core::option::Option<OperationStats>,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct OperationStatsRequest {
-    #[prost(message, optional, tag = "200")]
-    pub info: ::core::option::Option<RequestInfo>,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct OperationStatsResponse {
-    #[prost(message, optional, tag = "1")]
     pub operation_stats: ::core::option::Option<OperationStats>,
 }
 /// Information about ongoing operations in the internal process.
@@ -2851,6 +2836,12 @@ pub enum ServerFeature {
     ArtifactCollectionMembershipFileDownloadHandler = 6,
     /// Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
     UseArtifactWithEntityAndProjectInformation = 7,
+    /// Indicates that the server supports automation event RUN_METRIC.
+    AutomationEventRunMetric = 8,
+    /// Indicates that the server supports automation event RUN_METRIC_CHANGE.
+    AutomationEventRunMetricChange = 9,
+    /// Indicates that the server supports automation action NO_OP.
+    AutomationActionNoOp = 10,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2873,6 +2864,9 @@ impl ServerFeature {
             Self::UseArtifactWithEntityAndProjectInformation => {
                 "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION"
             }
+            Self::AutomationEventRunMetric => "AUTOMATION_EVENT_RUN_METRIC",
+            Self::AutomationEventRunMetricChange => "AUTOMATION_EVENT_RUN_METRIC_CHANGE",
+            Self::AutomationActionNoOp => "AUTOMATION_ACTION_NO_OP",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2892,6 +2886,11 @@ impl ServerFeature {
             "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION" => {
                 Some(Self::UseArtifactWithEntityAndProjectInformation)
             }
+            "AUTOMATION_EVENT_RUN_METRIC" => Some(Self::AutomationEventRunMetric),
+            "AUTOMATION_EVENT_RUN_METRIC_CHANGE" => {
+                Some(Self::AutomationEventRunMetricChange)
+            }
+            "AUTOMATION_ACTION_NO_OP" => Some(Self::AutomationActionNoOp),
             _ => None,
         }
     }
