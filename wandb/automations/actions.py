@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import Field
-from typing_extensions import TypeAlias, get_args
+from typing_extensions import Self, TypeAlias, get_args
 
 from wandb._pydantic import (
     IS_PYDANTIC_V2,
@@ -27,6 +27,10 @@ from ._generated import (
     TriggeredActionType,
 )
 from ._validators import ensure_json
+
+if TYPE_CHECKING:
+    from wandb.apis.public.integrations import SlackIntegration, WebhookIntegration
+
 
 # Note: Pydantic doesn't like `list['JsonValue']` or `dict[str, 'JsonValue']`,
 # which causes a RecursionError.
@@ -113,6 +117,26 @@ class DoNotification(NotificationActionInput):
             )
         return v
 
+    @classmethod
+    def from_integration(
+        cls,
+        integration: SlackIntegration,
+        *,
+        title: str = "",
+        text: str = "",
+        level: AlertSeverity = AlertSeverity.INFO,
+    ) -> Self:
+        """Define a notification action that sends to the given (Slack) integration."""
+        from wandb.apis.public.integrations import SlackIntegration
+
+        integration = SlackIntegration.model_validate(integration)
+        return cls(
+            integration_id=integration.id,
+            title=title,
+            message=text,
+            severity=level,
+        )
+
 
 class DoWebhook(GenericWebhookActionInput):
     """Schema for defining a triggered webhook action."""
@@ -134,6 +158,19 @@ class DoWebhook(GenericWebhookActionInput):
                 request_payload=v.request_payload,
             )
         return v
+
+    @classmethod
+    def from_integration(
+        cls,
+        integration: WebhookIntegration,
+        *,
+        payload: SerializedToJson[JsonValue] | None = None,
+    ) -> Self:
+        """Define a webhook action that sends to the given (webhook) integration."""
+        from wandb.apis.public.integrations import WebhookIntegration
+
+        integration = WebhookIntegration.model_validate(integration)
+        return cls(integration_id=integration.id, request_payload=payload)
 
     if not IS_PYDANTIC_V2:  # Hack for v1 compatibility
         _fix_json = field_validator("request_payload", mode="before")(ensure_json)
