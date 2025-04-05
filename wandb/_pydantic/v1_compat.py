@@ -2,23 +2,13 @@
 
 from __future__ import annotations
 
-import sys
 from functools import lru_cache
-from importlib.metadata import version
 from inspect import signature
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    ClassVar,
-    Literal,
-    Mapping,
-    TypeVar,
-    overload,
-)
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Literal, Mapping, overload
 
 import pydantic
-from typing_extensions import ParamSpec
+
+from .utils import IS_PYDANTIC_V2, PYTHON_VERSION, to_json
 
 if TYPE_CHECKING:
     from typing import Protocol
@@ -41,16 +31,9 @@ if TYPE_CHECKING:
         def json(self, **kwargs: Any) -> str: ...
         def copy(self, **kwargs: Any) -> V1Model: ...
 
-
-PYTHON_VERSION = sys.version_info
-
-pydantic_major_version, *_ = version(pydantic.__name__).split(".")
-IS_PYDANTIC_V2: bool = int(pydantic_major_version) >= 2
-
-
-ModelT = TypeVar("ModelT")
-RT = TypeVar("RT")
-P = ParamSpec("P")
+        # Not actually a v1 method, but added to satisfy mypy checks
+        @classmethod
+        def _json_keys(cls, by_alias: bool | None) -> set[str]: ...
 
 
 # Maps {v2 -> v1} model config keys that were renamed in v2.
@@ -128,6 +111,15 @@ class V1MixinMetaclass(PydanticModelMetaclass):
 # ensure full compatibility.
 class V1Mixin(metaclass=V1MixinMetaclass):
     @classmethod
+    def _json_keys(cls, by_alias: bool | None) -> set[str]:
+        """Return the expected, serialized key names for `Json`-typed fields."""
+        # In v1, `ModelField.parse_json` is True for `Json`-typed fields.
+        json_fields = (f for f in cls.__fields__.values() if f.parse_json)
+        if by_alias:
+            return {f.alias for f in json_fields}
+        return {f.name for f in json_fields}
+
+    @classmethod
     def __try_update_forward_refs__(cls: type[V1Model], **localns: Any) -> None:
         if hasattr(sup := super(), "__try_update_forward_refs__"):
             sup.__try_update_forward_refs__(**localns)
@@ -151,7 +143,14 @@ class V1Mixin(metaclass=V1MixinMetaclass):
     def model_dump(self: V1Model, **kwargs: Any) -> dict[str, Any]:
         # Pass only kwargs that are allowed in the V1 method.
         allowed_keys = allowed_arg_names(self.dict) & kwargs.keys()
-        return self.dict(**{k: kwargs[k] for k in allowed_keys})
+        result = self.dict(**{k: kwargs[k] for k in allowed_keys})
+
+        # Ugly hack: Try to serialize `Json` fields correctly when `mode="json"` and `round_trip=True` in pydantic v1
+        if kwargs.get("mode") == "json" and kwargs.get("round_trip"):
+            json_keys = self._json_keys(by_alias=kwargs.get("by_alias"))
+            return {k: to_json(v) if (k in json_keys) else v for k, v in result.items()}
+
+        return result
 
     def model_dump_json(self: V1Model, **kwargs: Any) -> str:
         # Pass only kwargs that are allowed in the V1 method.

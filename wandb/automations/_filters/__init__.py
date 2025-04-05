@@ -1,4 +1,4 @@
-from .expressions import FilterExpr, FilterField
+from .expressions import FilterExpr, FilterField, MongoOpOrFilter
 from .operators import (
     And,
     Contains,
@@ -13,6 +13,7 @@ from .operators import (
     Nor,
     Not,
     NotIn,
+    Op,
     Or,
     Regex,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "Or",
     "Nor",
     "Not",
+    "Op",
     "Gt",
     "Lt",
     "Gte",
@@ -35,4 +37,5 @@ __all__ = [
     "Regex",
     "FilterField",
     "FilterExpr",
+    "MongoOpOrFilter",
 ]

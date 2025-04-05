@@ -16,13 +16,14 @@ from typing import Any, ClassVar, Iterable, Iterator
 
 from ariadne_codegen import Plugin
 from graphlib import TopologicalSorter  # noqa # Run this only with python 3.9+
-from graphql import GraphQLSchema
+from graphql import FragmentDefinitionNode, GraphQLSchema
 
 from .plugin_utils import (
     apply_ruff,
     base_class_names,
     collect_imported_names,
     imported_names,
+    is_class_def,
     is_import_from,
     is_redundant_subclass_def,
     make_all_assignment,
@@ -42,6 +43,7 @@ GQLID_TYPE = "GQLId"  #: Custom GraphQL ID type for field annotations
 CUSTOM_BASE_IMPORT_NAMES = [
     CUSTOM_BASE_MODEL_NAME,
     CUSTOM_GQL_BASE_MODEL_NAME,
+    TYPENAME_TYPE,
 ]
 
 
@@ -205,8 +207,42 @@ class GraphQLCodegenPlugin(Plugin):
     def generate_result_types_module(self, module: ast.Module, *_, **__) -> ast.Module:
         return self._rewrite_generated_module(module)
 
-    def generate_fragments_module(self, module: ast.Module, *_, **__) -> ast.Module:
-        return self._rewrite_generated_module(module)
+    def generate_fragments_module(
+        self,
+        module: ast.Module,
+        fragments_definitions: dict[str, FragmentDefinitionNode],
+    ) -> ast.Module:
+        # Rewrite the typename fields from:
+        #   typename__: ...
+        # to:
+        #   typename__: Literal["OrigSchemaTypeName"] = "OrigSchemaTypeName"
+        fragment2typename = {  # {fragment name -> typename}
+            f.name.value: f.type_condition.name.value
+            for f in fragments_definitions.values()
+        }
+        for class_def in filter(is_class_def, module.body):
+            new_class_stmts = deque()
+            for stmt in class_def.body:
+                if (
+                    isinstance(stmt, ast.AnnAssign)
+                    and (stmt.target.id == "typename__")
+                    and (typename := fragment2typename.get(class_def.name))
+                ):
+                    new_stmt = ast.AnnAssign(
+                        target=stmt.target,
+                        annotation=ast.Subscript(
+                            value=ast.Name(id="Literal"),
+                            slice=ast.Constant(value=typename),
+                        ),
+                        value=ast.Constant(value=typename),
+                    )
+                    new_class_stmts.append(new_stmt)
+                else:
+                    new_class_stmts.append(stmt)
+            class_def.body = list(new_class_stmts)
+
+        module = self._rewrite_generated_module(module)
+        return ast.fix_missing_locations(module)
 
     def _rewrite_generated_module(self, module: ast.Module) -> ast.Module:
         """Apply common transformations to the generated module, excluding `__init__`."""
@@ -322,9 +358,37 @@ class PydanticClassRewriter(ast.NodeTransformer):
                     value=ast.Name(id=TYPENAME_TYPE),
                     slice=node.annotation,
                 ),
-                value=None,
+                value=node.value if isinstance(node.value, ast.Constant) else None,
                 simple=1,
             )
+
+        # If this is a union of a single type, drop the Field(discriminator=...) arg
+        elif (
+            isinstance(node.annotation, ast.Subscript)
+            and node.annotation.value.id == "Union"
+        ):
+            only_annotation = None
+            if (
+                isinstance(node.annotation.slice, ast.Tuple)
+                and len(node.annotation.slice.elts) == 1
+            ):
+                # e.g. BEFORE: `field: Union[OnlyType,] = Field(discriminator="...")`
+                # e.g. AFTER:  `field: OnlyType`
+                only_annotation = node.annotation.slice.elts[0]
+
+            elif isinstance(node.annotation.slice, ast.Name):
+                # e.g. BEFORE: `field: Union[OnlyType] = Field(discriminator="...")`
+                # e.g. AFTER:  `field: OnlyType`
+                only_annotation = node.annotation.slice
+
+            if only_annotation is not None:
+                node = ast.AnnAssign(
+                    target=node.target,
+                    annotation=only_annotation,
+                    value=None,
+                    simple=1,
+                )
+
         return self.generic_visit(node)
 
     def visit_Name(self, node: ast.Name) -> ast.Name:

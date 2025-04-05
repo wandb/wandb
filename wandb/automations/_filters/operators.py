@@ -2,17 +2,30 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, Tuple, TypeVar, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    Tuple,
+    TypeVar,
+    Union,
+    cast,
+    overload,
+)
 
 from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
-from pydantic_core import to_jsonable_python
 from typing_extensions import TypeAlias, get_args, override
 
-from wandb._pydantic import IS_PYDANTIC_V2, Base
+from wandb._pydantic import IS_PYDANTIC_V2, Base, to_json
 
-# For type annotations and/or narrowing
+if TYPE_CHECKING:
+    from wandb.automations.events import MetricFilter, RunMetricFilter
+
+
+# for type annotations
 Scalar = Union[StrictStr, StrictInt, StrictFloat, StrictBool]
-# For runtime `isinstance()` checks
+# for runtime type checks
 ScalarTypes = get_args(Scalar)
 
 # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
@@ -40,8 +53,18 @@ class SupportsLogicalOpSyntax:
         """Syntactic sugar for: `a | b` -> `Or(a, b)`."""
         return Or(or_=[self, other])
 
-    def __and__(self, other: Any) -> And:
+    @overload
+    def __and__(self, other: MetricFilter) -> RunMetricFilter: ...
+    @overload
+    def __and__(self, other: Any) -> And: ...
+
+    def __and__(self, other: Any) -> Any:
         """Syntactic sugar for: `a & b` -> `And(a, b)`."""
+        from wandb.automations.events import MetricFilter
+
+        # Special handling `run_filter & metric_filter`
+        if isinstance(other, MetricFilter):
+            return other.__and__(self)
         return And(and_=[self, other])
 
     def __invert__(self) -> Not:
@@ -70,12 +93,19 @@ class BaseOp(Base, SupportsLogicalOpSyntax):
         # Ugly workaround: Pydantic v1 doesn't support 'json' mode to ensure e.g. tuples -> lists
         @override
         def model_dump(self, **kwargs: Any) -> dict[str, Any]:
+            # FIXME: `pydantic_core` won't be automatically installed in v1 environments
+            from pydantic_core import to_jsonable_python
+
             return cast(
                 Dict[str, Any],
                 to_jsonable_python(
                     super().model_dump(**kwargs), by_alias=True, round_trip=True
                 ),
             )
+
+        @override
+        def model_dump_json(self, **kwargs: Any) -> str:
+            return to_json(self.model_dump(**kwargs))
 
 
 # Logical operator(s)
@@ -216,4 +246,7 @@ KnownOp = Union[
 ]
 UnknownOp = Dict[str, Any]
 
-AnyOp = Union[KnownOp, UnknownOp]
+# for type annotations
+Op = Union[KnownOp, UnknownOp]
+# for runtime type checks
+OpTypes: tuple[type, ...] = (*get_args(KnownOp), dict)

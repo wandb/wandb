@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Iterator, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, Json
 from typing_extensions import Annotated, TypedDict, Unpack, override
 
-from .v1_compat import PydanticCompatMixin
+from .utils import to_json
+from .v1_compat import IS_PYDANTIC_V2, PydanticCompatMixin
 
 if TYPE_CHECKING:
     from pydantic.main import IncEx
@@ -88,10 +89,20 @@ class GQLBase(Base):
 # Reusable annotations for field types
 T = TypeVar("T")
 
-GQLId = Annotated[
-    str,
-    Field(repr=False, strict=True, frozen=True),
-]
+if IS_PYDANTIC_V2:
+    GQLId = Annotated[
+        str,
+        Field(repr=False, strict=True, frozen=True),
+    ]
+else:
+    # FIXME: Find a way to fix this for pydantic v1, which doesn't like when
+    # `Field(...)` used in the field assignment AND `Annotated[...]`.
+    # This is a problem for codegen, which can currently outputs e.g.
+    #
+    #   class MyModel(GQLBase):
+    #       my_id: GQLId = Field(alias="myID")
+    #
+    GQLId = str  # type: ignore[misc]
 
 Typename = Annotated[
     T,
@@ -99,20 +110,29 @@ Typename = Annotated[
 ]
 
 
-# FIXME: Restore, modify, or replace this later after ensuring pydantic v1 compatibility.
-# def validate_maybe_json(v: Any, handler: ValidatorFunctionWrapHandler) -> Any:
-#     """Wraps default Json[...] field validator to allow instantiation with an already-decoded value."""
-#     try:
-#         return handler(v)
-#     except ValidationError:
-#         # Try revalidating after properly jsonifying the value
-#         return handler(to_json(v, by_alias=True, round_trip=True))
-#
-#
-# SerializedToJson = Annotated[
-#     Json[T],
-#     # Allow lenient instantiation/validation: incoming data may already be deserialized.
-#     WrapValidator(validate_maybe_json),
-# ]
+if IS_PYDANTIC_V2:
+    from pydantic import BeforeValidator
 
-SerializedToJson = Json[T]
+    def validate_maybe_json(v: Any) -> Any:
+        """Wraps default Json[...] field validator to allow instantiation with an already-decoded value."""
+        # NOTE: Assumes that the deserialized type is not itself a string.
+        # Revisit this if we need to support deserialized types that are str/bytes.
+        return v if isinstance(v, (str, bytes)) else to_json(v)
+
+    SerializedToJson = Annotated[
+        Json[T],
+        # Allow lenient instantiation/validation: incoming data may already be deserialized.
+        BeforeValidator(validate_maybe_json),
+    ]
+else:
+    # TODO: Fix this for pydantic v1.
+    # SerializedToJson = Json  # type: ignore[misc]
+
+    class SerializedToJson(Json):  # type: ignore[no-redef]
+        @classmethod
+        def __get_validators__(cls) -> Iterator[Callable[[Any], Any]]:
+            yield cls.validate
+
+        @classmethod
+        def validate(cls, v: Any) -> Any:
+            return v if isinstance(v, (str, bytes)) else to_json(v)
