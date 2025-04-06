@@ -402,6 +402,10 @@ def get_jax_tensor(obj: Any) -> Optional[Any]:
     return jax.device_get(obj)
 
 
+def is_mlx_array_typename(typename: str) -> bool:
+    return typename == 'mlx.core.array'
+
+
 def is_fastai_tensor_typename(typename: str) -> bool:
     return typename.startswith("fastai.") and ("Tensor" in typename)
 
@@ -612,6 +616,8 @@ def json_friendly(  # noqa: C901
         obj = tuple(obj)
     elif isinstance(obj, enum.Enum):
         obj = obj.name
+    elif is_mlx_array_typename(typename):
+        obj = obj.tolist()
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
