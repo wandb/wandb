@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import pathlib
 import shutil
 import sys
 from types import ModuleType
@@ -8,6 +9,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, cast
 
 import wandb
 from wandb import util
+from wandb.sdk.data_types.base_types.media import PATH
 from wandb.sdk.lib import runid
 from wandb.sdk.lib.hashutil import md5_file_hex
 from wandb.sdk.lib.paths import LogicalPath
@@ -72,10 +74,10 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
 
     _model_obj: SavedModelObjType | None
     _path: str | None
-    _input_obj_or_path: SavedModelObjType | str
+    _input_obj_or_path: SavedModelObjType | PATH
 
     # Public Methods
-    def __init__(self, obj_or_path: SavedModelObjType | str, **kwargs: Any) -> None:
+    def __init__(self, obj_or_path: SavedModelObjType | PATH, **kwargs: Any) -> None:
         super().__init__()
         if self.__class__ == _SavedModel:
             raise TypeError(
@@ -84,9 +86,11 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         self._model_obj = None
         self._path = None
         self._input_obj_or_path = obj_or_path
-        input_is_path = isinstance(obj_or_path, str) and os.path.exists(obj_or_path)
-        if input_is_path:
-            assert isinstance(obj_or_path, str)  # mypy
+        input_is_path = isinstance(obj_or_path, (str, pathlib.Path)) and os.path.exists(
+            obj_or_path
+        )
+        if isinstance(obj_or_path, (str, pathlib.Path)) and os.path.exists(obj_or_path):
+            assert isinstance(obj_or_path, (str, pathlib.Path))  # mypy
             self._set_obj(self._deserialize(obj_or_path))
         else:
             self._set_obj(obj_or_path)
@@ -184,7 +188,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
 
     # Methods to be implemented by subclasses
     @staticmethod
-    def _deserialize(path: str) -> SavedModelObjType:
+    def _deserialize(path: PATH) -> SavedModelObjType:
         """Return the model object from a path. Allowed to throw errors."""
         raise NotImplementedError
 
@@ -280,7 +284,7 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
 
     def __init__(
         self,
-        obj_or_path: SavedModelObjType | str,
+        obj_or_path: SavedModelObjType | PATH,
         dep_py_files: list[str] | None = None,
     ):
         super().__init__(obj_or_path)
@@ -348,7 +352,7 @@ class _PytorchSavedModel(_PicklingSavedModel["torch.nn.Module"]):
     _path_extension = "pt"
 
     @staticmethod
-    def _deserialize(dir_or_file_path: str) -> torch.nn.Module:
+    def _deserialize(dir_or_file_path: PATH) -> torch.nn.Module:
         return _get_torch().load(dir_or_file_path, weights_only=False)
 
     @staticmethod
@@ -377,7 +381,7 @@ class _SklearnSavedModel(_PicklingSavedModel["sklearn.base.BaseEstimator"]):
 
     @staticmethod
     def _deserialize(
-        dir_or_file_path: str,
+        dir_or_file_path: PATH,
     ) -> sklearn.base.BaseEstimator:
         with open(dir_or_file_path, "rb") as file:
             model = _get_cloudpickle().load(file)
@@ -417,7 +421,7 @@ class _TensorflowKerasSavedModel(_SavedModel["tensorflow.keras.Model"]):
 
     @staticmethod
     def _deserialize(
-        dir_or_file_path: str,
+        dir_or_file_path: PATH,
     ) -> tensorflow.keras.Model:
         return _get_tf_keras().models.load_model(dir_or_file_path)
 

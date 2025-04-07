@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import os
+import pathlib
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union, cast
 from urllib import parse
@@ -12,7 +13,7 @@ from wandb.sdk.lib.paths import LogicalPath
 
 from . import _dtypes
 from ._private import MEDIA_TMP
-from .base_types.media import BatchableMedia, Media
+from .base_types.media import PATH, BatchableMedia, Media
 from .helper_types.bounding_boxes_2d import BoundingBoxes2D
 from .helper_types.classes import Classes
 from .helper_types.image_mask import ImageMask
@@ -30,7 +31,7 @@ if TYPE_CHECKING:  # pragma: no cover
     ImageDataType = Union[
         "matplotlib.artist.Artist", "PILImage", "TorchTensorType", "np.ndarray"
     ]
-    ImageDataOrPathType = Union[str, "Image", ImageDataType]
+    ImageDataOrPathType = Union[PATH, "Image", ImageDataType]
     TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
 
@@ -169,9 +170,9 @@ class Image(BatchableMedia):
         # only overriding additional metadata passed in. If this pattern is compelling, we can generalize.
         if isinstance(data_or_path, Image):
             self._initialize_from_wbimage(data_or_path)
-        elif isinstance(data_or_path, str):
+        elif isinstance(data_or_path, (str, pathlib.Path)):
             if self.path_is_reference(data_or_path):
-                self._initialize_from_reference(data_or_path)
+                self._initialize_from_reference(str(data_or_path))
             else:
                 self._initialize_from_path(data_or_path)
         else:
@@ -263,7 +264,7 @@ class Image(BatchableMedia):
         # self._boxes = wbimage._boxes
         # self._masks = wbimage._masks
 
-    def _initialize_from_path(self, path: str) -> None:
+    def _initialize_from_path(self, path: PATH) -> None:
         pil_image = util.get_module(
             "PIL.Image",
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',

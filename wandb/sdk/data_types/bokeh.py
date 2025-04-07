@@ -1,13 +1,15 @@
 import codecs
 import json
 import os
+import pathlib
+from typing import Any, Union
 
 from wandb import util
 from wandb.sdk.lib import runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP
-from .base_types.media import Media
+from .base_types.media import PATH, Media
 
 
 class Bokeh(Media):
@@ -19,10 +21,15 @@ class Bokeh(Media):
 
     _log_type = "bokeh-file"
 
-    def __init__(self, data_or_path):
+    def __init__(
+        self,
+        data_or_path: Union[PATH, Any],
+    ):
         super().__init__()
         bokeh = util.get_module("bokeh", required=True)
-        if isinstance(data_or_path, str) and os.path.exists(data_or_path):
+        if isinstance(data_or_path, (str, pathlib.Path)) and os.path.exists(
+            data_or_path
+        ):
             with open(data_or_path) as file:
                 b_json = json.load(file)
             self.b_obj = bokeh.document.Document.from_json(b_json)

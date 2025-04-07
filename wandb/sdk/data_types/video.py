@@ -1,6 +1,7 @@
 import functools
 import logging
 import os
+import pathlib
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Type, Union
 
@@ -10,7 +11,7 @@ from wandb.sdk.lib import filesystem, printer, printer_asyncio, runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP
-from .base_types.media import BatchableMedia
+from .base_types.media import PATH, BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
@@ -57,7 +58,7 @@ class Video(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union["np.ndarray", str, "TextIO", "BytesIO"],
+        data_or_path: Union["np.ndarray", PATH, "TextIO", "BytesIO"],
         caption: Optional[str] = None,
         fps: Optional[int] = None,
         format: Optional[Literal["gif", "mp4", "webm", "ogg"]] = None,
@@ -130,7 +131,7 @@ class Video(BatchableMedia):
             with open(filename, "wb") as f:
                 f.write(data_or_path.read())
             self._set_file(filename, is_tmp=True)
-        elif isinstance(data_or_path, str):
+        elif isinstance(data_or_path, (str, pathlib.Path)):
             _, ext = os.path.splitext(data_or_path)
             ext = ext[1:].lower()
             if ext not in Video.EXTS:
