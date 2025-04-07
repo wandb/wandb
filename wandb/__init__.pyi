@@ -249,7 +249,7 @@ def init(
     `wandb.init()` spawns a new background process to log data to a run, and it
     also syncs data to https://wandb.ai by default, so you can see your results
     in real-time. When you're done logging data, call `wandb.finish()` to end the run.
-    If you don't call `wandb.finish()`, the run will end when your script exits.
+    If you don't call `run.finish()`, the run will end when your script exits.
 
     Run IDs must not contain any of the following special characters `/ \ # ? % :`
 
@@ -455,18 +455,19 @@ def login(
     `verify=True`.
 
     Args:
-        anonymous: Set to `must`, `allow`, or `never`.
-            If set to `must`, always log a user in anonymously. If set to
+        anonymous: Set to "must", "allow", or "never".
+            If set to "must", always log a user in anonymously. If set to
             "allow", only create an anonymous user if the user
-            isn't already logged in. If set to `never`, never log a
-            user anonymously. Default set to `never`.
+            isn't already logged in. If set to "never", never log a
+            user anonymously. Default set to "never".
         key: The API key to use.
         relogin: If true, will re-prompt for API key.
         host: The host to connect to.
         force: If true, will force a relogin.
         timeout: Number of seconds to wait for user input.
         verify: Verify the credentials with the W&B server.
-        referrer: The referrer to use in the URL login request.        
+        referrer: The referrer to use in the URL login request.
+
 
     Returns:
         bool: if key is configured
