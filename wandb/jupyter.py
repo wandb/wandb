@@ -259,7 +259,10 @@ def attempt_kaggle_load_ipynb():
             return None
 
 
-def attempt_colab_login(app_url):
+def attempt_colab_login(
+    app_url: str,
+    referrer: str | None = None,
+):
     """This renders an iframe to wandb in the hopes it posts back an api key."""
     from google.colab import output
     from google.colab._message import MessageError
@@ -284,7 +287,7 @@ def attempt_colab_login(app_url):
             document.body.appendChild(iframe)
             const handshake = new Postmate({{
                 container: iframe,
-                url: '{}/authorize'
+                url: '{}/authorize{}'
             }});
             const timeout = setTimeout(() => reject("Couldn't auto authenticate"), 5000)
             handshake.then(function(child) {{
@@ -295,7 +298,10 @@ def attempt_colab_login(app_url):
             }});
             }})
         }});
-    """.format(app_url.replace("http:", "https:"))
+    """.format(
+                app_url.replace("http:", "https:"),
+                f"?ref={referrer}" if referrer else "",
+            )
         )
     )
     try:
