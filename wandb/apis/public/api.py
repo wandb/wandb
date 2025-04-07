@@ -291,6 +291,7 @@ class Api:
             )
         )
         self._client = RetryingClient(self._base_client)
+        self._server_features_cache: Optional[dict[str, bool]] = None
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
