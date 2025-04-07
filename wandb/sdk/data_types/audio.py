@@ -1,13 +1,14 @@
 import hashlib
 import os
-from typing import Optional
+import pathlib
+from typing import Any, Optional, Union
 
 from wandb import util
 from wandb.sdk.lib import filesystem, runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP
-from .base_types.media import BatchableMedia
+from .base_types.media import PATH, BatchableMedia
 
 
 class Audio(BatchableMedia):
@@ -23,16 +24,23 @@ class Audio(BatchableMedia):
 
     _log_type = "audio-file"
 
-    def __init__(self, data_or_path, sample_rate=None, caption=None):
+    def __init__(
+        self,
+        data_or_path: Union[PATH, Any],
+        sample_rate=None,
+        caption=None,
+    ):
         """Accept a path to an audio file or a numpy array of audio data."""
         super().__init__(caption=caption)
         self._duration = None
         self._sample_rate = sample_rate
 
-        if isinstance(data_or_path, str):
+        if isinstance(data_or_path, (str, pathlib.Path)):
             if self.path_is_reference(data_or_path):
                 self._path = data_or_path
-                self._sha256 = hashlib.sha256(data_or_path.encode("utf-8")).hexdigest()
+                self._sha256 = hashlib.sha256(
+                    str(data_or_path).encode("utf-8")
+                ).hexdigest()
                 self._is_tmp = False
             else:
                 self._set_file(data_or_path, is_tmp=False)
@@ -48,6 +56,7 @@ class Audio(BatchableMedia):
             )
 
             tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".wav")
+
             soundfile.write(tmp_path, data_or_path, sample_rate)
             self._duration = len(data_or_path) / float(sample_rate)
 

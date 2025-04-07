@@ -1,5 +1,6 @@
 import hashlib
 import os
+import pathlib
 import platform
 import re
 import shutil
@@ -21,6 +22,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 SYS_PLATFORM = platform.system()
+
+PATH = Union[str, pathlib.Path]
 
 
 def check_windows_valid_filename(path: Union[int, str]) -> bool:
@@ -102,7 +105,7 @@ class Media(WBValue):
     gets uploaded.
     """
 
-    _path: Optional[str]
+    _path: Optional[PATH]
     _run: Optional["LocalRun"]
     _caption: Optional[str]
     _is_tmp: Optional[bool]
@@ -118,12 +121,15 @@ class Media(WBValue):
         self._caption = caption
 
     def _set_file(
-        self, path: str, is_tmp: bool = False, extension: Optional[str] = None
+        self,
+        path: PATH,
+        is_tmp: bool = False,
+        extension: Optional[str] = None,
     ) -> None:
         self._path = path
         self._is_tmp = is_tmp
         self._extension = extension
-        assert extension is None or path.endswith(
+        assert extension is None or str(path).endswith(
             extension
         ), f'Media file extension "{extension}" must occur at the end of path "{path}".'
 
@@ -168,7 +174,7 @@ class Media(WBValue):
         # The following two assertions are guaranteed to pass
         # by definition file_is_set, but are needed for
         # mypy to understand that these are strings below.
-        assert isinstance(self._path, str)
+        assert isinstance(self._path, (str, pathlib.Path))
         assert isinstance(self._sha256, str)
 
         assert run is not None, 'Argument "run" must not be None.'
@@ -329,7 +335,10 @@ class Media(WBValue):
         )
 
     @staticmethod
-    def path_is_reference(path: Optional[str]) -> bool:
+    def path_is_reference(path: Optional[PATH]) -> bool:
+        if path is None or isinstance(path, pathlib.Path):
+            return False
+
         return bool(path and re.match(r"^(gs|s3|https?)://", path))
 
 
