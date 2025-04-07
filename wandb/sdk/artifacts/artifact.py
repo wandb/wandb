@@ -19,18 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
-from typing import (
-    IO,
-    Any,
-    Dict,
-    Iterator,
-    Literal,
-    Optional,
-    Sequence,
-    Type,
-    cast,
-    final,
-)
+from typing import IO, Any, Dict, Iterator, Literal, Sequence, Type, cast, final
 from urllib.parse import quote, urljoin, urlparse
 
 import requests
@@ -302,7 +291,7 @@ class Artifact:
         name: str,
         attrs: dict[str, Any],
         client: RetryingClient,
-        aliases: Optional[list[str]] = None,
+        aliases: list[str] | None = None,
     ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
@@ -320,7 +309,7 @@ class Artifact:
         return artifact
 
     def _assign_attrs(
-        self, attrs: dict[str, Any], aliases: Optional[list[str]] = None
+        self, attrs: dict[str, Any], aliases: list[str] | None = None
     ) -> None:
         """Update this Artifact's attributes using the server response."""
         self._id = attrs["id"]

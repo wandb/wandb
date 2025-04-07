@@ -33,7 +33,9 @@ func TestHashValidity(t *testing.T) {
 func TestVerifyFileB64MD5(t *testing.T) {
 	testFile, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
-	defer testFile.Close()
+	defer func() {
+		_ = testFile.Close()
+	}()
 	_, err = testFile.Write([]byte(`foobar`))
 	assert.NoError(t, err)
 

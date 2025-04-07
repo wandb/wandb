@@ -3549,6 +3549,10 @@ class Run:
         Returns:
             path: (str) path to downloaded model artifact file(s).
         """
+        if self._settings._offline:
+            # Downloading artifacts is not supported when offline.
+            raise RuntimeError("`use_model` not supported in offline mode.")
+
         artifact = self.use_artifact(artifact_or_name=name)
         if "model" not in str(artifact.type.lower()):
             raise AssertionError(

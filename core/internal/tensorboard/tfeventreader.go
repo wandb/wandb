@@ -213,7 +213,9 @@ func (s *TFEventReader) readFromCurrent(count uint64) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	_, err = file.Seek(s.currentOffset, 0 /*offset is relative to origin*/)
 	if err != nil {
