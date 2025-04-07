@@ -66,7 +66,6 @@ class Video(BatchableMedia):
             object.
 
     Examples:
-
     Log a numpy array as a video
 
     ```python
