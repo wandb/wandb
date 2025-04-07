@@ -103,11 +103,6 @@ class RetryingClient:
 class Api:
     """Used for querying the W&B server.
 
-    Args:
-        overrides Optional[Dict[str, Any]]: You can set `base_url` if you are
-        using a W&B server other than `https://api.wandb.ai`. You can also set
-        defaults for `entity`, `project`, and `run`.
-
     Examples:
     ```python
     import wandb
@@ -244,6 +239,17 @@ class Api:
         timeout: Optional[int] = None,
         api_key: Optional[str] = None,
     ) -> None:
+        """Initialize the API.
+
+        Args:
+            overrides (dict[str, Any] | None): You can set `base_url` if you are
+                using a W&B server other than `https://api.wandb.ai`. You can also
+                set defaults for `entity`, `project`, and `run`.
+            timeout (int | None): HTTP timeout in seconds for API requests. If not
+                specified, the default timeout will be used.
+            api_key (str | None): API key to use for authentication. If not provided,
+                the API key from the current environment or configuration will be used.
+        """
         self.settings = InternalApi().settings()
         _overrides = overrides or {}
         self._api_key = api_key
@@ -313,7 +319,7 @@ class Api:
 
         Args:
             run_id: The ID to assign to the run. If not specified, W&B
-                creates random ID.
+                creates a random ID.
             project: The project where to log the run to. If no project is specified,
                 log the run to a project called "Uncategorized".
             entity: The entity that owns the project. If no entity is

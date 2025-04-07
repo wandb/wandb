@@ -54,11 +54,11 @@ def login(
     `verify=True`.
 
     Args:
-        anonymous: Set to `must`, `allow`, or `never`.
-            If set to `must`, always log a user in anonymously. If set to
+        anonymous: Set to "must", "allow", or "never".
+            If set to "must", always log a user in anonymously. If set to
             "allow", only create an anonymous user if the user
-            isn't already logged in. If set to `never`, never log a
-            user anonymously. Default set to `never`.
+            isn't already logged in. If set to "never", never log a
+            user anonymously. Default set to "never".
         key: The API key to use.
         relogin: If true, will re-prompt for API key.
         host: The host to connect to.
