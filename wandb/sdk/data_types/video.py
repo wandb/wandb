@@ -145,7 +145,6 @@ class Video(BatchableMedia):
 
         <!-- lazydoc-ignore: internal -->
         """
-
         # import ImageSequenceClip from the appropriate MoviePy module
         mpy = util.get_module(
             "moviepy.video.io.ImageSequenceClip",
