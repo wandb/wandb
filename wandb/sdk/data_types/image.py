@@ -155,12 +155,11 @@ class Image(BatchableMedia):
         masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
         file_type: Optional[str] = None,
     ) -> None:
-        super().__init__()
+        super().__init__(caption=caption)
         # TODO: We should remove grouping, it's a terrible name and I don't
         # think anyone uses it.
 
         self._grouping = None
-        self._caption = None
         self._width = None
         self._height = None
         self._image = None
@@ -195,9 +194,6 @@ class Image(BatchableMedia):
     ) -> None:
         if grouping is not None:
             self._grouping = grouping
-
-        if caption is not None:
-            self._caption = caption
 
         total_classes = {}
 
@@ -455,8 +451,6 @@ class Image(BatchableMedia):
             json_dict["height"] = self._height
         if self._grouping:
             json_dict["grouping"] = self._grouping
-        if self._caption:
-            json_dict["caption"] = self._caption
 
         if isinstance(run_or_artifact, wandb.Artifact):
             artifact = run_or_artifact
