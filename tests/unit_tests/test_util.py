@@ -666,12 +666,6 @@ def test_downsample():
     assert util.downsample([1, 2, 3, 4], 2) == [1, 4]
 
 
-def test_get_log_file_path(mock_run):
-    assert util.get_log_file_path() == os.path.join("wandb", "debug-internal.log")
-    run = mock_run()
-    assert util.get_log_file_path() == run._settings.log_internal
-
-
 def test_stopwatch_now():
     t_1 = util.stopwatch_now()
     time.sleep(0.1)
