@@ -171,8 +171,10 @@ class Image(BatchableMedia):
         if isinstance(data_or_path, Image):
             self._initialize_from_wbimage(data_or_path)
         elif isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             if self.path_is_reference(data_or_path):
-                self._initialize_from_reference(str(data_or_path))
+                self._initialize_from_reference(data_or_path)
             else:
                 self._initialize_from_path(data_or_path)
         else:
@@ -264,7 +266,7 @@ class Image(BatchableMedia):
         # self._boxes = wbimage._boxes
         # self._masks = wbimage._masks
 
-    def _initialize_from_path(self, path: PATH) -> None:
+    def _initialize_from_path(self, path: str) -> None:
         pil_image = util.get_module(
             "PIL.Image",
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',

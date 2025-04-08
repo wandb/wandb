@@ -36,11 +36,11 @@ class Audio(BatchableMedia):
         self._sample_rate = sample_rate
 
         if isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             if self.path_is_reference(data_or_path):
                 self._path = data_or_path
-                self._sha256 = hashlib.sha256(
-                    str(data_or_path).encode("utf-8")
-                ).hexdigest()
+                self._sha256 = hashlib.sha256(data_or_path.encode("utf-8")).hexdigest()
                 self._is_tmp = False
             else:
                 self._set_file(data_or_path, is_tmp=False)

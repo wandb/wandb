@@ -132,6 +132,8 @@ class Video(BatchableMedia):
                 f.write(data_or_path.read())
             self._set_file(filename, is_tmp=True)
         elif isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             _, ext = os.path.splitext(data_or_path)
             ext = ext[1:].lower()
             if ext not in Video.EXTS:

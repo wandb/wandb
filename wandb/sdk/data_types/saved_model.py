@@ -90,7 +90,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
             obj_or_path
         )
         if isinstance(obj_or_path, (str, pathlib.Path)) and os.path.exists(obj_or_path):
-            assert isinstance(obj_or_path, (str, pathlib.Path))  # mypy
+            obj_or_path = str(obj_or_path)
             self._set_obj(self._deserialize(obj_or_path))
         else:
             self._set_obj(obj_or_path)
@@ -188,7 +188,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
 
     # Methods to be implemented by subclasses
     @staticmethod
-    def _deserialize(path: PATH) -> SavedModelObjType:
+    def _deserialize(path: str) -> SavedModelObjType:
         """Return the model object from a path. Allowed to throw errors."""
         raise NotImplementedError
 
@@ -352,7 +352,7 @@ class _PytorchSavedModel(_PicklingSavedModel["torch.nn.Module"]):
     _path_extension = "pt"
 
     @staticmethod
-    def _deserialize(dir_or_file_path: PATH) -> torch.nn.Module:
+    def _deserialize(dir_or_file_path: str) -> torch.nn.Module:
         return _get_torch().load(dir_or_file_path, weights_only=False)
 
     @staticmethod
@@ -381,7 +381,7 @@ class _SklearnSavedModel(_PicklingSavedModel["sklearn.base.BaseEstimator"]):
 
     @staticmethod
     def _deserialize(
-        dir_or_file_path: PATH,
+        dir_or_file_path: str,
     ) -> sklearn.base.BaseEstimator:
         with open(dir_or_file_path, "rb") as file:
             model = _get_cloudpickle().load(file)
@@ -421,7 +421,7 @@ class _TensorflowKerasSavedModel(_SavedModel["tensorflow.keras.Model"]):
 
     @staticmethod
     def _deserialize(
-        dir_or_file_path: PATH,
+        dir_or_file_path: str,
     ) -> tensorflow.keras.Model:
         return _get_tf_keras().models.load_model(dir_or_file_path)
 
