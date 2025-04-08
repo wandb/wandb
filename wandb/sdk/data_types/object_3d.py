@@ -2,6 +2,7 @@ import codecs
 import itertools
 import json
 import os
+import pathlib
 from typing import (
     TYPE_CHECKING,
     ClassVar,
@@ -220,7 +221,7 @@ class Object3D(BatchableMedia):
     ) -> None:
         super().__init__(caption=caption)
 
-        if hasattr(data_or_path, "name"):
+        if hasattr(data_or_path, "name") and not isinstance(data_or_path, pathlib.Path):
             # if the file has a path, we just detect the type and copy it from there
             data_or_path = data_or_path.name
 
@@ -247,11 +248,11 @@ class Object3D(BatchableMedia):
                 f.write(object_3d)
 
             self._set_file(tmp_path, is_tmp=True, extension=extension)
-        elif isinstance(data_or_path, str):
+        elif isinstance(data_or_path, (str, pathlib.Path)):
             path = data_or_path
             extension = None
             for supported_type in Object3D.SUPPORTED_TYPES:
-                if path.endswith(supported_type):
+                if str(path).endswith(supported_type):
                     extension = "." + supported_type
                     break
 
