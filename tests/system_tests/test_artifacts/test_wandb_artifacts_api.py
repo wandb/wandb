@@ -32,28 +32,6 @@ def test_fetching_artifact_files(user):
     assert open(file_path).read() == "testing"
 
 
-def test_artifact_download_offline_mode(user, monkeypatch, tmp_path):
-    project = "test"
-
-    # Create the test file in the temporary directory
-    file_path = tmp_path / "boom.txt"
-    file_path.write_text("testing")
-
-    with wandb.init(entity=user, project=project) as run:
-        artifact = wandb.Artifact("test-artifact", "test-type")
-        artifact.add_file(str(file_path), "test-name")  # Convert Path to string
-        run.log_artifact(artifact, aliases=["sequence"])
-        artifact.wait()
-
-    # Use monkeypatch to set WANDB_MODE after creating the artifact
-    monkeypatch.setenv("WANDB_MODE", "offline")
-
-    with pytest.raises(
-        RuntimeError, match="Cannot download artifacts in offline mode."
-    ):
-        artifact.download()
-
-
 def test_save_aliases_after_logging_artifact(user):
     project = "test"
     run = wandb.init(entity=user, project=project)
