@@ -14,7 +14,7 @@ from bokeh.document import Document
 from bokeh.plotting import figure
 
 
-def create_image(temp_dir):
+def create_image(temp_dir) -> Path:
     image_path = Path(temp_dir) / "image.png"
     PIL.Image.fromarray(np.random.randint(0, 255, (10, 10, 3), dtype=np.uint8)).save(
         image_path
@@ -22,7 +22,7 @@ def create_image(temp_dir):
     return image_path
 
 
-def create_video(temp_dir):
+def create_video(temp_dir) -> Path:
     video_path = Path(temp_dir) / "video.mp4"
     moviepy.video.io.ImageSequenceClip.ImageSequenceClip(
         list(np.random.randint(0, 255, (10, 10, 3, 30), dtype=np.uint8)),
@@ -31,13 +31,13 @@ def create_video(temp_dir):
     return video_path
 
 
-def create_audio(temp_dir):
+def create_audio(temp_dir) -> Path:
     audio_path = Path(temp_dir) / "audio.wav"
     sf.write(audio_path, np.random.uniform(-1, 1, int(1 * 2)), 1)
     return audio_path
 
 
-def create_bokeh(temp_dir):
+def create_bokeh(temp_dir) -> Path:
     bokeh_path = Path(temp_dir) / "bokeh.bokeh.json"
     doc = Document()
     doc.add_root(figure(title="test", x_axis_label="x", y_axis_label="y"))
@@ -46,13 +46,20 @@ def create_bokeh(temp_dir):
     return bokeh_path
 
 
-def create_object3d(temp_dir):
+def create_object3d(temp_dir) -> Path:
     object3d_path = Path(temp_dir) / "mediaobj.pts.json"
     point_cloud = np.random.rand(100, 6)
     point_cloud[:, 3:] *= 255
     with open(object3d_path, "w") as f:
         json.dump(point_cloud.tolist(), f, indent=4)
     return object3d_path
+
+
+def create_html(temp_dir) -> Path:
+    html_path = Path(temp_dir) / "index.html"
+    with open(html_path, "w") as f:
+        f.write("<html><body><h1>Hello, World!</h1></body></html>")
+    return html_path
 
 
 def test_big_table_throws_error_that_can_be_overridden(user):
@@ -213,13 +220,18 @@ def test_image_array_old_wandb_mp_warning(
             "pts.json",
             wandb.Object3D,
         ),
+        (
+            create_html,
+            "html",
+            wandb.Html,
+        ),
     ],
 )
 def test_log_media_with_pathlib_path(
     user, wandb_backend_spy, create_media, file_ext, wandb_class
 ):
     temp_dir = tempfile.mkdtemp()
-    media_path = Path(create_media(temp_dir))
+    media_path = create_media(temp_dir)
     with wandb.init() as run:
         run.log({"media": wandb_class(media_path)})
 

@@ -1,11 +1,12 @@
 import os
+import pathlib
 from typing import TYPE_CHECKING, Sequence, Type, Union
 
 from wandb.sdk.lib import filesystem, runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP
-from .base_types.media import BatchableMedia
+from .base_types.media import PATH, BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
@@ -58,7 +59,7 @@ class Html(BatchableMedia):
         ) and not data_is_not_path
         data_path = ""
         if data_is_path:
-            assert isinstance(data, str)
+            assert isinstance(data, (str, pathlib.Path))
             data_path = data
             with open(data_path, encoding="utf-8") as file:
                 self.html = file.read()
