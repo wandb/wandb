@@ -151,6 +151,16 @@ class Media(WBValue):
     def file_is_set(self) -> bool:
         return self._path is not None and self._sha256 is not None
 
+    def unbind_from_run(self) -> None:
+        if not self.is_bound():
+            return
+            
+        self._run = None
+        self._path = None
+        self._sha256 = None
+        self._size = None
+        self._is_tmp = None
+
     def bind_to_run(
         self,
         run: "LocalRun",

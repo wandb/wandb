@@ -505,6 +505,10 @@ class Table(Media):
             util.json_dump_safer(data, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".table.json")
         super().bind_to_run(*args, **kwargs)
+        
+    def unbind_from_run(self):
+        super().unbind_from_run()
+        self._artifact_target = None
 
     @classmethod
     def get_media_subdir(cls):

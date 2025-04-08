@@ -140,6 +140,9 @@ def val_to_json(
                 for v in val
             ]
 
+    if isinstance(val, wandb.Table):
+        val.unbind_from_run()
+
     if isinstance(val, WBValue):
         assert run
         if isinstance(val, Media) and not val.is_bound():
