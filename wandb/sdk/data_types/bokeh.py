@@ -30,6 +30,8 @@ class Bokeh(Media):
         if isinstance(data_or_path, (str, pathlib.Path)) and os.path.exists(
             data_or_path
         ):
+            data_or_path = str(data_or_path)
+
             with open(data_or_path) as file:
                 b_json = json.load(file)
             self.b_obj = bokeh.document.Document.from_json(b_json)

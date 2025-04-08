@@ -83,6 +83,8 @@ class Molecule(BatchableMedia):
 
             self._set_file(tmp_path, is_tmp=True)
         elif isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             extension = os.path.splitext(data_or_path)[1][1:]
             if extension not in Molecule.SUPPORTED_TYPES:
                 raise ValueError(

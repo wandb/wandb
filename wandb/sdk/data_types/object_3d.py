@@ -249,10 +249,12 @@ class Object3D(BatchableMedia):
 
             self._set_file(tmp_path, is_tmp=True, extension=extension)
         elif isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             path = data_or_path
             extension = None
             for supported_type in Object3D.SUPPORTED_TYPES:
-                if str(path).endswith(supported_type):
+                if path.endswith(supported_type):
                     extension = "." + supported_type
                     break
 
@@ -426,7 +428,7 @@ class Object3D(BatchableMedia):
         json_dict["_type"] = Object3D._log_type
 
         if isinstance(run_or_artifact, wandb.Artifact):
-            if self._path is None or not str(self._path).endswith(".pts.json"):
+            if self._path is None or not self._path.endswith(".pts.json"):
                 raise ValueError(
                     "Non-point cloud 3D objects are not yet supported with Artifacts"
                 )

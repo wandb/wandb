@@ -105,7 +105,7 @@ class Media(WBValue):
     gets uploaded.
     """
 
-    _path: Optional[PATH]
+    _path: Optional[str]
     _run: Optional["LocalRun"]
     _caption: Optional[str]
     _is_tmp: Optional[bool]
@@ -122,14 +122,14 @@ class Media(WBValue):
 
     def _set_file(
         self,
-        path: PATH,
+        path: str,
         is_tmp: bool = False,
         extension: Optional[str] = None,
     ) -> None:
         self._path = path
         self._is_tmp = is_tmp
         self._extension = extension
-        assert extension is None or str(path).endswith(
+        assert extension is None or path.endswith(
             extension
         ), f'Media file extension "{extension}" must occur at the end of path "{path}".'
 
@@ -174,7 +174,7 @@ class Media(WBValue):
         # The following two assertions are guaranteed to pass
         # by definition file_is_set, but are needed for
         # mypy to understand that these are strings below.
-        assert isinstance(self._path, (str, pathlib.Path))
+        assert isinstance(self._path, str)
         assert isinstance(self._sha256, str)
 
         assert run is not None, 'Argument "run" must not be None.'
