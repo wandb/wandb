@@ -402,7 +402,7 @@ class Image(BatchableMedia):
 
         if (
             not _server_accepts_artifact_path(run)
-            or self._get_artifact_entry_ref_url() is None
+            or self._get_artifact_entry_ref_url(run) is None
         ):
             super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
         if self._boxes is not None:

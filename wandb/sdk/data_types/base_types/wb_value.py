@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Type, Union
 
-import wandb
 from wandb import util
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -11,7 +10,7 @@ if TYPE_CHECKING:  # pragma: no cover
     TypeMappingType = Dict[str, Type["WBValue"]]
 
 
-def _server_accepts_client_ids() -> bool:
+def _server_accepts_client_ids(run: "Optional[LocalRun]") -> bool:
     from wandb.util import parse_version
 
     # There are versions of W&B Server that cannot accept client IDs. Those versions of
@@ -25,15 +24,8 @@ def _server_accepts_client_ids() -> bool:
     # AS OF NOW, 2024/11/06, we assume that all customer's server deployments accept
     # client IDs.
 
-    if util._is_offline():
-        # If there are any users with issues on an older backend, customers can disable the
-        # setting `allow_offline_artifacts` to revert the SDK's behavior back to not
-        # using client IDs in offline mode.
-        if wandb.run and not wandb.run.settings.allow_offline_artifacts:
-            return False
-        # Assume client IDs are accepted
-        else:
-            return True
+    if run and run.offline:
+        return run._settings.allow_offline_artifacts
 
     # If the script is online, request the max_cli_version and ensure the server
     # is of a high enough version.
@@ -212,7 +204,12 @@ class WBValue:
         )
         self._artifact_target = _WBValueArtifactTarget(artifact, name)
 
-    def _get_artifact_entry_ref_url(self) -> Optional[str]:
+    def _get_artifact_entry_ref_url(
+        self,
+        run: "Optional[LocalRun]",
+    ) -> Optional[str]:
+        is_online = not run or not run.offline
+
         # If the object is coming from another artifact
         if self._artifact_source and self._artifact_source.name:
             ref_entry = self._artifact_source.artifact.get_entry(
@@ -225,7 +222,7 @@ class WBValue:
             and self._artifact_target.name
             and self._artifact_target.artifact._client_id is not None
             and self._artifact_target.artifact._final
-            and _server_accepts_client_ids()
+            and _server_accepts_client_ids(run)
         ):
             return "wandb-client-artifact://{}/{}".format(
                 self._artifact_target.artifact._client_id,
@@ -240,8 +237,8 @@ class WBValue:
             self._artifact_target
             and self._artifact_target.name
             and self._artifact_target.artifact._is_draft_save_started()
-            and not util._is_offline()
-            and not _server_accepts_client_ids()
+            and is_online
+            and not _server_accepts_client_ids(run)
         ):
             self._artifact_target.artifact.wait()
             ref_entry = self._artifact_target.artifact.get_entry(
@@ -250,13 +247,18 @@ class WBValue:
             return str(ref_entry.ref_url())
         return None
 
-    def _get_artifact_entry_latest_ref_url(self) -> Optional[str]:
+    def _get_artifact_entry_latest_ref_url(
+        self,
+        run: "Optional[LocalRun]",
+    ) -> Optional[str]:
+        is_online = not run or not run.offline
+
         if (
             self._artifact_target
             and self._artifact_target.name
             and self._artifact_target.artifact._client_id is not None
             and self._artifact_target.artifact._final
-            and _server_accepts_client_ids()
+            and _server_accepts_client_ids(run)
         ):
             return "wandb-client-artifact://{}:latest/{}".format(
                 self._artifact_target.artifact._sequence_client_id,
@@ -271,8 +273,8 @@ class WBValue:
             self._artifact_target
             and self._artifact_target.name
             and self._artifact_target.artifact._is_draft_save_started()
-            and not util._is_offline()
-            and not _server_accepts_client_ids()
+            and is_online
+            and not _server_accepts_client_ids(run)
         ):
             self._artifact_target.artifact.wait()
             ref_entry = self._artifact_target.artifact.get_entry(

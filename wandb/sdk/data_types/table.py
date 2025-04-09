@@ -949,7 +949,7 @@ class PartitionedTable(Media):
             "_type": PartitionedTable._log_type,
         }
         if isinstance(artifact_or_run, wandb.wandb_sdk.wandb_run.Run):
-            artifact_entry_url = self._get_artifact_entry_ref_url()
+            artifact_entry_url = self._get_artifact_entry_ref_url(artifact_or_run)
             if artifact_entry_url is None:
                 raise ValueError(
                     "PartitionedTables must first be added to an Artifact before logging to a Run"
@@ -1109,7 +1109,7 @@ class JoinedTable(Media):
             "_type": JoinedTable._log_type,
         }
         if isinstance(artifact_or_run, wandb.wandb_sdk.wandb_run.Run):
-            artifact_entry_url = self._get_artifact_entry_ref_url()
+            artifact_entry_url = self._get_artifact_entry_ref_url(artifact_or_run)
             if artifact_entry_url is None:
                 raise ValueError(
                     "JoinedTables must first be added to an Artifact before logging to a Run"

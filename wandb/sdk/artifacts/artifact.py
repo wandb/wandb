@@ -1529,7 +1529,7 @@ class Artifact:
             return self._added_objs[obj_id][1]
 
         # If the object is coming from another artifact, save it as a reference
-        ref_path = obj._get_artifact_entry_ref_url()
+        ref_path = obj._get_artifact_entry_ref_url(run=None)
         if ref_path is not None:
             return self.add_reference(ref_path, type(obj).with_suffix(name))[0]
 
