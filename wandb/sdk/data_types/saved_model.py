@@ -90,7 +90,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         input_is_path = isinstance(obj_or_path, (str, pathlib.Path)) and os.path.exists(
             obj_or_path
         )
-        if isinstance(obj_or_path, (str, pathlib.Path)) and os.path.exists(obj_or_path):
+        if input_is_path:
             obj_or_path = str(obj_or_path)
             self._set_obj(self._deserialize(obj_or_path))
         else:

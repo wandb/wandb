@@ -23,8 +23,6 @@ if TYPE_CHECKING:  # pragma: no cover
 
 SYS_PLATFORM = platform.system()
 
-PATH = Union[str, pathlib.Path]
-
 
 def check_windows_valid_filename(path: Union[int, str]) -> bool:
     r"""Verify that the given path does not contain any invalid characters for a Windows filename.
