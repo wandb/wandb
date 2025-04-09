@@ -8,7 +8,6 @@ from unittest import mock
 
 import pytest
 import wandb
-import wandb.jupyter
 import wandb.sdk.lib.apikey
 import wandb.util
 
