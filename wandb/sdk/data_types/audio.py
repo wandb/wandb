@@ -1,7 +1,7 @@
 import hashlib
 import os
 import pathlib
-from typing import Any, Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 from wandb import util
 from wandb.sdk.lib import filesystem, runid
@@ -9,6 +9,9 @@ from wandb.sdk.lib import filesystem, runid
 from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia
+
+if TYPE_CHECKING:
+    import numpy as np
 
 
 class Audio(BatchableMedia):
@@ -26,7 +29,12 @@ class Audio(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union[str, pathlib.Path, Any],
+        data_or_path: Union[
+            str,
+            pathlib.Path,
+            list,
+            "np.ndarray",
+        ],
         sample_rate=None,
         caption=None,
     ):

@@ -118,9 +118,7 @@ class Image(BatchableMedia):
             examples = []
             for i in range(3):
                 pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
-                image = wandb.Image(
-                    pixels, caption=f"random field {i}", file_type="jpg"
-                )
+                image = wandb.Image(pixels, caption=f"random field {i}", file_type="jpg")
                 examples.append(image)
             run.log({"examples": examples})
         ```

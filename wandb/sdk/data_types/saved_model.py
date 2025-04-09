@@ -257,9 +257,9 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         self._model_obj = None
 
     def _set_obj(self, model_obj: Any) -> None:
-        assert model_obj is not None and self._validate_obj(model_obj), (
-            f"Invalid model object {model_obj}"
-        )
+        assert model_obj is not None and self._validate_obj(
+            model_obj
+        ), f"Invalid model object {model_obj}"
         self._model_obj = model_obj
 
     def _dump(self, target_path: str) -> None:

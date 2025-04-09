@@ -2,7 +2,7 @@ import codecs
 import json
 import os
 import pathlib
-from typing import Any, Union
+from typing import TYPE_CHECKING, Union
 
 from wandb import util
 from wandb.sdk.lib import runid
@@ -10,6 +10,9 @@ from wandb.sdk.lib import runid
 from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import Media
+
+if TYPE_CHECKING:
+    from bokeh import document, model
 
 
 class Bokeh(Media):
@@ -24,7 +27,12 @@ class Bokeh(Media):
     def __init__(
         self,
         # TODO: update Any to be more specific
-        data_or_path: Union[str, pathlib.Path, Any],
+        data_or_path: Union[
+            str,
+            pathlib.Path,
+            "document.Document",
+            "model.Model",
+        ],
     ):
         super().__init__()
         bokeh = util.get_module("bokeh", required=True)
