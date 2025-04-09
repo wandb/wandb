@@ -1,6 +1,6 @@
 import re
 from enum import Enum
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Optional, Set
 from urllib.parse import urlparse
 
 from wandb_gql import gql
@@ -110,15 +110,15 @@ def fetch_org_from_settings_or_entity(
 class _GQLCompatRewriter(visitor.Visitor):
     """GraphQL AST visitor to rewrite queries/mutations to be compatible with older server versions."""
 
-    omit_variables: set[str]
-    omit_fragments: set[str]
-    omit_fields: set[str]
+    omit_variables: Set[str]
+    omit_fragments: Set[str]
+    omit_fields: Set[str]
 
     def __init__(
         self,
-        omit_variables: Iterable[str] | None = None,
-        omit_fragments: Iterable[str] | None = None,
-        omit_fields: Iterable[str] | None = None,
+        omit_variables: Optional[Iterable[str]] = None,
+        omit_fragments: Optional[Iterable[str]] = None,
+        omit_fields: Optional[Iterable[str]] = None,
     ):
         self.omit_variables = set(omit_variables or ())
         self.omit_fragments = set(omit_fragments or ())
@@ -170,9 +170,9 @@ class _GQLCompatRewriter(visitor.Visitor):
 
 def gql_compat(
     request_string: str,
-    omit_variables: Iterable[str] | None = None,
-    omit_fragments: Iterable[str] | None = None,
-    omit_fields: Iterable[str] | None = None,
+    omit_variables: Optional[Iterable[str]] = None,
+    omit_fragments: Optional[Iterable[str]] = None,
+    omit_fields: Optional[Iterable[str]] = None,
 ) -> ast.Document:
     """Rewrite a GraphQL request string to ensure compatibility with older server versions.
 
