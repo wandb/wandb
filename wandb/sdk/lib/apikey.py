@@ -169,7 +169,10 @@ def prompt_api_key(  # noqa: C901
         key = browser_callback(signup=True) if browser_callback else None
 
         if not key:
-            wandb.termlog(f"Create an account here: {app_url}/authorize?signup=true")
+            ref = f"&ref={referrer}" if referrer else ""
+            wandb.termlog(
+                f"Create an account here: {app_url}/authorize?signup=true{ref}"
+            )
             key = input_callback(api_ask).strip()
     elif result == LOGIN_CHOICE_EXISTS:
         key = browser_callback() if browser_callback else None
