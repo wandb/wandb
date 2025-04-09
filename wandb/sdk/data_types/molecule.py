@@ -8,7 +8,7 @@ from wandb.sdk.lib import runid
 from wandb.sdk.lib.paths import LogicalPath
 
 from ._private import MEDIA_TMP
-from .base_types.media import PATH, BatchableMedia, Media
+from .base_types.media import BatchableMedia, Media
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
@@ -49,7 +49,7 @@ class Molecule(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union[PATH, "TextIO"],
+        data_or_path: Union[str, pathlib.Path, "TextIO"],
         caption: Optional[str] = None,
         **kwargs: str,
     ) -> None:

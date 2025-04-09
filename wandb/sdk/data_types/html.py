@@ -6,7 +6,7 @@ from wandb.sdk.lib import filesystem, runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP
-from .base_types.media import PATH, BatchableMedia
+from .base_types.media import BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
@@ -23,7 +23,7 @@ class Html(BatchableMedia):
 
     def __init__(
         self,
-        data: Union[str, "TextIO"],
+        data: Union[str, pathlib.Path, "TextIO"],
         inject: bool = True,
         data_is_not_path: bool = False,
     ) -> None:

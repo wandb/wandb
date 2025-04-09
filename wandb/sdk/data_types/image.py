@@ -13,7 +13,7 @@ from wandb.sdk.lib.paths import LogicalPath
 
 from . import _dtypes
 from ._private import MEDIA_TMP
-from .base_types.media import PATH, BatchableMedia, Media
+from .base_types.media import BatchableMedia, Media
 from .helper_types.bounding_boxes_2d import BoundingBoxes2D
 from .helper_types.classes import Classes
 from .helper_types.image_mask import ImageMask
@@ -31,7 +31,7 @@ if TYPE_CHECKING:  # pragma: no cover
     ImageDataType = Union[
         "matplotlib.artist.Artist", "PILImage", "TorchTensorType", "np.ndarray"
     ]
-    ImageDataOrPathType = Union[PATH, "Image", ImageDataType]
+    ImageDataOrPathType = Union[str, pathlib.Path, "Image", ImageDataType]
     TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
 
