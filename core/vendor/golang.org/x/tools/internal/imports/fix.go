@@ -559,7 +559,7 @@ func fixImportsDefault(fset *token.FileSet, f *ast.File, filename string, env *P
 		return err
 	}
 	apply(fset, f, fixes)
-	return err
+	return nil
 }
 
 // getFixes gets the import fixes that need to be made to f in order to fix the imports.
@@ -780,7 +780,7 @@ func GetAllCandidates(ctx context.Context, wrapped func(ImportFix), searchPrefix
 			return true
 		},
 		dirFound: func(pkg *pkg) bool {
-			if !canUse(filename, pkg.dir) {
+			if !CanUse(filename, pkg.dir) {
 				return false
 			}
 			// Try the assumed package name first, then a simpler path match
@@ -815,7 +815,7 @@ func GetImportPaths(ctx context.Context, wrapped func(ImportFix), searchPrefix, 
 			return true
 		},
 		dirFound: func(pkg *pkg) bool {
-			if !canUse(filename, pkg.dir) {
+			if !CanUse(filename, pkg.dir) {
 				return false
 			}
 			return strings.HasPrefix(pkg.importPathShort, searchPrefix)
@@ -927,7 +927,7 @@ type ProcessEnv struct {
 	WorkingDir string
 
 	// If Logf is non-nil, debug logging is enabled through this function.
-	Logf func(format string, args ...interface{})
+	Logf func(format string, args ...any)
 
 	// If set, ModCache holds a shared cache of directory info to use across
 	// multiple ProcessEnvs.
@@ -1030,7 +1030,7 @@ func (e *ProcessEnv) GetResolver() (Resolver, error) {
 		//
 		// For gopls, we can optionally explicitly choose a resolver type, since we
 		// already know the view type.
-		if len(e.Env["GOMOD"]) == 0 && len(e.Env["GOWORK"]) == 0 {
+		if e.Env["GOMOD"] == "" && (e.Env["GOWORK"] == "" || e.Env["GOWORK"] == "off") {
 			e.resolver = newGopathResolver(e)
 			e.logf("created gopath resolver")
 		} else if r, err := newModuleResolver(e, e.ModCache); err != nil {
@@ -1132,6 +1132,9 @@ func addStdlibCandidates(pass *pass, refs References) error {
 			// but we have no way of figuring out what the user is using
 			// TODO: investigate using the toolchain version to disambiguate in the stdlib
 			add("math/rand/v2")
+			// math/rand has an overlapping API
+			// TestIssue66407 fails without this
+			add("math/rand")
 			continue
 		}
 		for importPath := range stdlib.PackageSymbols {
@@ -1736,7 +1739,7 @@ func (s *symbolSearcher) searchOne(ctx context.Context, c pkgDistance, symbols m
 // searching for "client.New")
 func pkgIsCandidate(filename string, refs References, pkg *pkg) bool {
 	// Check "internal" and "vendor" visibility:
-	if !canUse(filename, pkg.dir) {
+	if !CanUse(filename, pkg.dir) {
 		return false
 	}
 
@@ -1759,9 +1762,9 @@ func pkgIsCandidate(filename string, refs References, pkg *pkg) bool {
 	return false
 }
 
-// canUse reports whether the package in dir is usable from filename,
+// CanUse reports whether the package in dir is usable from filename,
 // respecting the Go "internal" and "vendor" visibility rules.
-func canUse(filename, dir string) bool {
+func CanUse(filename, dir string) bool {
 	// Fast path check, before any allocations. If it doesn't contain vendor
 	// or internal, it's not tricky:
 	// Note that this can false-negative on directories like "notinternal",

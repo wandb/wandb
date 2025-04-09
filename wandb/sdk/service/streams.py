@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import functools
-import multiprocessing
 import queue
 import threading
 import time
@@ -22,15 +21,13 @@ import psutil
 import wandb
 import wandb.util
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.interface.interface_relay import InterfaceRelay
+from wandb.sdk.interface.router_relay import MessageRelayRouter
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib import asyncio_compat, progress
 from wandb.sdk.lib import printer as printerlib
 from wandb.sdk.mailbox import Mailbox, MailboxHandle, wait_all_with_progress
 from wandb.sdk.wandb_run import Run
-
-from ..interface.interface_relay import InterfaceRelay
-
-# from wandb.sdk.wandb_settings import Settings
 
 
 class StreamThread(threading.Thread):
@@ -57,19 +54,22 @@ class StreamRecord:
     _settings: SettingsStatic
     _started: bool
 
-    def __init__(self, settings: SettingsStatic, mailbox: Mailbox) -> None:
+    def __init__(self, settings: SettingsStatic) -> None:
         self._started = False
-        self._mailbox = mailbox
+        self._mailbox = Mailbox()
         self._record_q = queue.Queue()
         self._result_q = queue.Queue()
         self._relay_q = queue.Queue()
-        process = multiprocessing.current_process()
+        self._router = MessageRelayRouter(
+            request_queue=self._record_q,
+            response_queue=self._result_q,
+            relay_queue=self._relay_q,
+            mailbox=self._mailbox,
+        )
         self._iface = InterfaceRelay(
             record_q=self._record_q,
             result_q=self._result_q,
             relay_q=self._relay_q,
-            process=process,
-            process_check=False,
             mailbox=self._mailbox,
         )
         self._settings = settings
@@ -84,6 +84,7 @@ class StreamRecord:
 
     def join(self) -> None:
         self._iface.join()
+        self._router.join()
         if self._thread:
             self._thread.join()
 
@@ -137,7 +138,6 @@ class StreamMux:
     _action_q: queue.Queue[StreamAction]
     _stopped: Event
     _pid_checked_ts: float | None
-    _mailbox: Mailbox
 
     def __init__(self) -> None:
         self._streams_lock = threading.Lock()
@@ -147,7 +147,6 @@ class StreamMux:
         self._stopped = Event()
         self._action_q = queue.Queue()
         self._pid_checked_ts = None
-        self._mailbox = Mailbox()
 
     def _get_stopped_event(self) -> Event:
         # TODO: clean this up, there should be a better way to abstract this
@@ -204,7 +203,7 @@ class StreamMux:
             return stream
 
     def _process_add(self, action: StreamAction) -> None:
-        stream = StreamRecord(action._data, mailbox=self._mailbox)
+        stream = StreamRecord(action._data)
         # run_id = action.stream_id  # will want to fix if a streamid != runid
         settings = action._data
         thread = StreamThread(
@@ -296,7 +295,7 @@ class StreamMux:
 
         # fixme: for now we have a single printer for all streams,
         # and jupyter is disabled if at least single stream's setting set `_jupyter` to false
-        exit_handles: list[MailboxHandle] = []
+        exit_handles: list[MailboxHandle[pb.Result]] = []
 
         # only finish started streams, non started streams failed early
         started_streams: dict[str, StreamRecord] = {}
@@ -309,7 +308,10 @@ class StreamMux:
             handle = stream.interface.deliver_exit(exit_code)
             exit_handles.append(handle)
 
-        with progress.progress_printer(printer) as progress_printer:
+        with progress.progress_printer(
+            printer,
+            default_text="Finishing up...",
+        ) as progress_printer:
             # todo: should we wait for the max timeout (?) of all exit handles or just wait forever?
             # timeout = max(stream._settings._exit_timeout for stream in streams.values())
             wait_all_with_progress(

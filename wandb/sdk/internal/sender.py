@@ -1,6 +1,7 @@
 """sender."""
 
 import contextlib
+import glob
 import gzip
 import json
 import logging
@@ -1408,7 +1409,8 @@ class SendManager:
         for k in files.files:
             # TODO(jhr): fix paths with directories
             self._save_file(
-                interface.GlobStr(k.path), interface.file_enum_to_policy(k.policy)
+                interface.GlobStr(glob.escape(k.path)),
+                interface.file_enum_to_policy(k.policy),
             )
 
     def send_header(self, record: "Record") -> None:
@@ -1529,6 +1531,8 @@ class SendManager:
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
         res = saver.save(
+            entity=artifact.entity,
+            project=artifact.project,
             type=artifact.type,
             name=artifact.name,
             client_id=artifact.client_id,

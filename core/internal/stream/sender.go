@@ -16,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/debounce"
+	"github.com/wandb/wandb/core/internal/featurechecker"
 	fs "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/fileutil"
@@ -55,6 +56,7 @@ type SenderParams struct {
 	Operations          *wboperation.WandbOperations
 	Settings            *settings.Settings
 	Backend             *api.Backend
+	FeatureProvider     *featurechecker.ServerFeaturesCache
 	FileStream          fs.FileStream
 	FileTransferManager filetransfer.FileTransferManager
 	FileTransferStats   filetransfer.FileTransferStats
@@ -69,7 +71,13 @@ type SenderParams struct {
 	RunWork             runwork.RunWork
 }
 
+// senderSentinel is used when flushing buffered work while finalizing a run.
 type senderSentinel int64
+
+// String returns a string representation of senderSentinel for debugging.
+func (s senderSentinel) String() string {
+	return fmt.Sprintf("senderSentinel(%d)", s)
+}
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
 // or/and to the dispatcher/handler
@@ -227,6 +235,16 @@ func NewSender(
 		outputFileName = *path
 	}
 
+	structuredConsoleLogs := false
+	useArtifactProjectEntityInfo := false
+	if params.FeatureProvider != nil {
+		structuredConsoleLogs = params.FeatureProvider.GetFeature(
+			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
+		).Enabled
+		useArtifactProjectEntityInfo = params.FeatureProvider.GetFeature(
+			spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
+		).Enabled
+	}
 	consoleLogsSenderParams := runconsolelogs.Params{
 		ConsoleOutputFile:     outputFileName,
 		FilesDir:              params.Settings.GetFilesDir(),
@@ -235,6 +253,7 @@ func NewSender(
 		FileStreamOrNil:       params.FileStream,
 		Label:                 params.Settings.GetLabel(),
 		RunfilesUploaderOrNil: params.RunfilesUploader,
+		Structured:            structuredConsoleLogs,
 	}
 
 	s := &Sender{
@@ -254,6 +273,7 @@ func NewSender(
 			params.Logger,
 			params.GraphqlClient,
 			params.FileTransferManager,
+			useArtifactProjectEntityInfo,
 		),
 		tbHandler:     params.TBHandler,
 		networkPeeker: params.Peeker,
@@ -1124,7 +1144,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 		clients.UpsertBucketRetryPolicy,
 	)
 
-	operation := s.operations.New("updating run metadata")
+	operation := s.operations.New("creating run")
 	defer operation.Finish()
 	ctx = operation.Context(ctx)
 

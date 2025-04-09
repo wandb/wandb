@@ -1,28 +1,49 @@
 """Public API: registries."""
 
 import json
-from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Dict, Optional
-
-from wandb_gql import gql
-
-import wandb
-from wandb.apis.attrs import Attrs
-from wandb.apis.paginator import Paginator
-from wandb.apis.public.artifacts import ArtifactCollection
-from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
-from wandb.sdk.artifacts.graphql_fragments import (
-    _gql_artifact_fragment,
-    _gql_registry_fragment,
-)
-from wandb.sdk.artifacts.registry_visibility import RegistryVisibility
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence
 
 if TYPE_CHECKING:
     from wandb_gql import Client
 
+from wandb_gql import gql
+
+import wandb
+from wandb.apis.paginator import Paginator
+from wandb.apis.public.artifacts import ArtifactCollection
+from wandb.sdk.artifacts._graphql_fragments import (
+    _gql_artifact_fragment,
+    _gql_registry_fragment,
+)
+from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
+
 
 class Registries(Paginator):
     """Iterator that returns Registries."""
+
+    QUERY = gql(
+        """
+        query Registries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
+            organization(name: $organization) {
+                orgEntity {
+                    name
+                    projects(filters: $filters, after: $cursor, first: $perPage) {
+                        pageInfo {
+                            endCursor
+                            hasNextPage
+                        }
+                        edges {
+                            node {
+                                ...RegistryFragment
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+        + _gql_registry_fragment()
+    )
 
     def __init__(
         self,
@@ -33,30 +54,7 @@ class Registries(Paginator):
     ):
         self.client = client
         self.organization = organization
-        self.filter = filter or {}
-        self.QUERY = gql(
-            """
-            query Registries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
-                organization(name: $organization) {
-                    orgEntity {
-                        name
-                        projects(filters: $filters, after: $cursor, first: $perPage) {
-                            pageInfo {
-                                endCursor
-                                hasNextPage
-                            }
-                            edges {
-                                node {
-                                    ...RegistryFragment
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        """
-            + _gql_registry_fragment()
-        )
+        self.filter = _ensure_registry_prefix_on_names(filter or {})
         variables = {
             "organization": organization,
             "filters": json.dumps(self.filter),
@@ -65,18 +63,31 @@ class Registries(Paginator):
         super().__init__(client, variables, per_page)
 
     def __bool__(self):
-        return len(self) > 0
+        return len(self) > 0 or len(self.objects) > 0
+
+    def __next__(self):
+        # Implement custom next since its possible to load empty pages because of auth
+        self.index += 1
+        while len(self.objects) <= self.index:
+            if not self._load_page():
+                raise StopIteration
+        return self.objects[self.index]
 
     def collections(self, filter: Optional[Dict[str, Any]] = None) -> "Collections":
-        return Collections(self.client, self.organization, self.filter, filter)
+        return Collections(
+            self.client,
+            self.organization,
+            registry_filter=self.filter,
+            collection_filter=filter,
+        )
 
     def versions(self, filter: Optional[Dict[str, Any]] = None) -> "Versions":
         return Versions(
             self.client,
             self.organization,
-            self.filter,
-            None,
-            filter,
+            registry_filter=self.filter,
+            collection_filter=None,
+            artifact_filter=filter,
         )
 
     @property
@@ -107,6 +118,16 @@ class Registries(Paginator):
             return None
 
     def convert_objects(self):
+        if not self.last_response:
+            return []
+        if (
+            not self.last_response["organization"]
+            or not self.last_response["organization"]["orgEntity"]
+        ):
+            raise ValueError(
+                f"Organization '{self.organization}' not found. Please verify the organization name is correct"
+            )
+
         return [
             Registry(
                 self.client,
@@ -121,8 +142,8 @@ class Registries(Paginator):
         ]
 
 
-class Registry(Attrs):
-    """Registry in the Global registry."""
+class Registry:
+    """A single registry in the Registry."""
 
     def __init__(
         self,
@@ -134,7 +155,7 @@ class Registry(Attrs):
     ):
         self.client = client
         self._full_name = full_name
-        self._name = self.full_name.replace(REGISTRY_PREFIX, "")
+        self._name = full_name.replace(REGISTRY_PREFIX, "")
         self._entity = entity
         self._organization = organization
         self._description = attrs.get("description", "")
@@ -200,169 +221,73 @@ class Registry(Attrs):
         }
         return Versions(self.client, self.organization, registry_filter, None, filter)
 
-    def add_artifact_type(self, accepted_artifact_types: Optional[list[str]] = None):
-        if accepted_artifact_types is None:
-            return
 
-        mutation = gql("""
-            mutation CreateArtifactTypes($entityName: String!, $projectName: String!, $artifactTypes: [ArtifactTypeInput!]!) {
-                createArtifactTypes(
-                    input: {entityName: $entityName, projectName: $projectName, artifactTypes: $artifactTypes}
-                ) {
-                    artifactTypes {
-                        name
-                    }
-                }
-            }
-        """)
+class Collections(Paginator):
+    """Iterator that returns Artifact collections in the Registry."""
 
-        new_types = [
-            artifact_type
-            for artifact_type in accepted_artifact_types
-            if artifact_type not in self._artifact_types
-        ]
-        artifact_types = [{"name": artifact_type} for artifact_type in new_types]
-
-        response = self.client.execute(
-            mutation,
-            variable_values={
-                "entityName": self.entity,
-                "projectName": self.full_name,
-                "artifactTypes": artifact_types,
-            },
-        )
-        new_types = [
-            artifact_type["name"]
-            for artifact_type in response["createArtifactTypes"]["artifactTypes"]
-        ]
-        self._artifact_types.extend(new_types)
-
-    @classmethod
-    def create(
-        cls,
-        client: "Client",
-        organization: str,
-        name: str,
-        description: Optional[str] = None,
-        registry_visibility: RegistryVisibility = RegistryVisibility.ORGANIZATION,
-        accepted_artifact_types: Optional[list[str]] = None,
-    ):
-        org_entity = _fetch_org_entity_from_organization(client, organization)
-
-        full_name = REGISTRY_PREFIX + name
-        # Check if registry already exists
-        existing_registry = Registries(client, organization, filter={"name": full_name})
-        if existing_registry:
-            raise ValueError(
-                f"Registry {name} already exists in organization {organization}, please use a different name."
-            )
-
-        mutation = gql(
-            """
-            mutation UpsertRegistryProject($description: String, $entityName: String, $name: String, $access: String, $allowAllArtifactTypesInRegistry: Boolean) {
-            upsertModel(
-                input: {description: $description, entityName: $entityName, name: $name, access: $access, allowAllArtifactTypesInRegistry: $allowAllArtifactTypesInRegistry}
-            ) {
-                project {
-                    ...RegistryFragment
-                }
-                inserted
-                }
-            }
+    QUERY = gql(
         """
-            + _gql_registry_fragment()
-        )
-        response = client.execute(
-            mutation,
-            variable_values={
-                "description": description,
-                "entityName": org_entity,
-                "name": full_name,
-                "access": registry_visibility.value,
-                "allowAllArtifactTypesInRegistry": accepted_artifact_types is None,
-            },
-        )
-        if not response["upsertModel"]["inserted"]:
-            raise ValueError(
-                f"Failed to create registry {name} in organization {organization}"
-            )
-
-        registry = Registry(
-            client,
-            organization,
-            org_entity,
-            full_name,
-            response["upsertModel"]["project"],
-        )
-
-        registry.add_artifact_type(accepted_artifact_types)
-
-        return registry
-
-    def delete(self):
-        mutation = gql("""
-            mutation deleteModel($id: String!) {
-                deleteModel(input: {id: $id}) {
-                    success
-                    __typename
-                }
-            }
-        """)
-        self.client.execute(mutation, variable_values={"id": self._id})
-
-    def load(self):
-        # TODO: make this not duplicate code from init
-        try:
-            response = self.client.execute(
-                gql(
-                    """
-                    query Registry($name: String, $entityName: String) {
-                        entity(name: $entityName) {
-                            project(name: $name) {
-                                ...RegistryFragment
+        query Collections(
+            $organization: String!,
+            $registryFilter: JSONString,
+            $collectionFilter: JSONString,
+            $collectionTypes: [ArtifactCollectionType!],
+            $cursor: String,
+            $perPage: Int
+        ) {
+            organization(name: $organization) {
+                orgEntity {
+                    name
+                    artifactCollections(
+                        projectFilters: $registryFilter,
+                        filters: $collectionFilter,
+                        collectionTypes: $collectionTypes,
+                        after: $cursor,
+                        first: $perPage
+                    ) {
+                        totalCount
+                        pageInfo {
+                            endCursor
+                            hasNextPage
+                        }
+                        edges {
+                            cursor
+                            node {
+                                id
+                                name
+                                description
+                                createdAt
+                                tags {
+                                    edges {
+                                        node {
+                                            name
+                                        }
+                                    }
+                                }
+                                project {
+                                    name
+                                    entity {
+                                        name
+                                    }
+                                }
+                                defaultArtifactType {
+                                    name
+                                }
+                                aliases {
+                                    edges {
+                                        node {
+                                            alias
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
-                """
-                    + _gql_registry_fragment()
-                ),
-                variable_values={
-                    "name": self.full_name,
-                    "entityName": self.entity,
-                },
-            )
-        except Exception as e:
-            if e.response.status_code == 404:
-                raise ValueError(
-                    f"Registry {self.name} not found in organization {self.organization}"
-                )
-            raise e
-        if response["entity"] is None:
-            raise ValueError(
-                f"Registry {self.name} not found in organization {self.organization}"
-            )
-        self.attrs = response["entity"]["project"]
-        if self.attrs is None:
-            raise ValueError(
-                f"Registry {self.name} not found in organization {self.organization}"
-            )
-        self._id = self.attrs.get("id", "")
-        if self._id is None:
-            raise ValueError(f"Registry {self.name}'s id is not found")
-        self._artifact_types = [
-            t["node"]["name"]
-            for t in self.attrs.get("artifactTypes", {}).get("edges", [])
-        ]
-        self._description = self.attrs.get("description", "")
-        self._allow_all_artifact_types = self.attrs.get(
-            "allowAllArtifactTypesInRegistry", False
-        )
-        self._created_at = self.attrs.get("createdAt", "")
-        self._updated_at = self.attrs.get("updatedAt", "")
-
-
-class Collections(Paginator):
-    """Iterator that returns Artifact collections."""
+                }
+            }
+        }
+        """
+    )
 
     def __init__(
         self,
@@ -389,82 +314,26 @@ class Collections(Paginator):
             "perPage": per_page,
         }
 
-        self.QUERY = gql("""
-            query Collections(
-                $organization: String!,
-                $registryFilter: JSONString,
-                $collectionFilter: JSONString,
-                $collectionTypes: [ArtifactCollectionType!],
-                $cursor: String,
-                $perPage: Int
-            ) {
-                organization(name: $organization) {
-                    id
-                    name
-                    orgEntity {
-                        name
-                        artifactCollections(
-                            projectFilters: $registryFilter,
-                            filters: $collectionFilter,
-                            collectionTypes: $collectionTypes,
-                            after: $cursor,
-                            first: $perPage
-                        ) {
-                            totalCount
-                            pageInfo {
-                                endCursor
-                                hasNextPage
-                            }
-                            edges {
-                                cursor
-                                node {
-                                    id
-                                    name
-                                    description
-                                    createdAt
-                                    tags {
-                                        edges {
-                                            node {
-                                                name
-                                            }
-                                        }
-                                    }
-                                    project {
-                                        name
-                                        entity {
-                                            name
-                                        }
-                                    }
-                                    defaultArtifactType {
-                                        name
-                                    }
-                                    aliases {
-                                        edges {
-                                            node {
-                                                alias
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        """)
-
         super().__init__(client, variables, per_page)
 
     def __bool__(self):
-        return len(self) > 0
+        return len(self) > 0 or len(self.objects) > 0
+
+    def __next__(self):
+        # Implement custom next since its possible to load empty pages because of auth
+        self.index += 1
+        while len(self.objects) <= self.index:
+            if not self._load_page():
+                raise StopIteration
+        return self.objects[self.index]
 
     def versions(self, filter: Optional[Dict[str, Any]] = None) -> "Versions":
         return Versions(
             self.client,
             self.organization,
-            self.registry_filter,
-            self.collection_filter,
-            filter,
+            registry_filter=self.registry_filter,
+            collection_filter=self.collection_filter,
+            artifact_filter=filter,
         )
 
     @property
@@ -495,6 +364,16 @@ class Collections(Paginator):
             return None
 
     def convert_objects(self):
+        if not self.last_response:
+            return []
+        if (
+            not self.last_response["organization"]
+            or not self.last_response["organization"]["orgEntity"]
+        ):
+            raise ValueError(
+                f"Organization '{self.organization}' not found. Please verify the organization name is correct"
+            )
+
         return [
             ArtifactCollection(
                 self.client,
@@ -512,7 +391,7 @@ class Collections(Paginator):
 
 
 class Versions(Paginator):
-    """Iterator that returns Artifact versions."""
+    """Iterator that returns Artifact versions in the Registry."""
 
     def __init__(
         self,
@@ -528,7 +407,6 @@ class Versions(Paginator):
         self.registry_filter = registry_filter
         self.collection_filter = collection_filter
         self.artifact_filter = artifact_filter or {}
-
         self.QUERY = gql(
             """
             query Versions(
@@ -568,6 +446,9 @@ class Versions(Paginator):
                                     artifact {
                                         ...ArtifactFragment
                                     }
+                                    aliases {
+                                        alias
+                                    }
                                 }
                             }
                         }
@@ -575,7 +456,7 @@ class Versions(Paginator):
                 }
             }
             """
-            + _gql_artifact_fragment()
+            + _gql_artifact_fragment(include_aliases=False)
         )
 
         variables = {
@@ -593,8 +474,16 @@ class Versions(Paginator):
 
         super().__init__(client, variables, per_page)
 
+    def __next__(self):
+        # Implement custom next since its possible to load empty pages because of auth
+        self.index += 1
+        while len(self.objects) <= self.index:
+            if not self._load_page():
+                raise StopIteration
+        return self.objects[self.index]
+
     def __bool__(self):
-        return len(self) > 0
+        return len(self) > 0 or len(self.objects) > 0
 
     @property
     def length(self):
@@ -626,6 +515,16 @@ class Versions(Paginator):
             return None
 
     def convert_objects(self):
+        if not self.last_response:
+            return []
+        if (
+            not self.last_response["organization"]
+            or not self.last_response["organization"]["orgEntity"]
+        ):
+            raise ValueError(
+                f"Organization '{self.organization}' not found. Please verify the organization name is correct"
+            )
+
         artifacts = (
             wandb.Artifact._from_attrs(
                 a["node"]["artifactCollection"]["project"]["entity"]["name"],
@@ -635,6 +534,7 @@ class Versions(Paginator):
                 + str(a["node"]["versionIndex"]),
                 a["node"]["artifact"],
                 self.client,
+                [alias["alias"] for alias in a["node"]["aliases"]],
             )
             for a in self.last_response["organization"]["orgEntity"][
                 "artifactMemberships"
@@ -643,31 +543,31 @@ class Versions(Paginator):
         return artifacts
 
 
-@lru_cache(maxsize=10)
-def _fetch_org_entity_from_organization(client: "Client", organization: str) -> str:
-    """Fetch the org entity from the organization.
+def _ensure_registry_prefix_on_names(query, in_name=False):
+    """Traverse the filter to prepend the `name` key value with the registry prefix unless the value is a regex.
 
-    Args:
-        client (Client): Graphql client.
-        organization (str): The organization to fetch the org entity for.
+    - in_name: True if we are under a "name" key (or propagating from one).
+
+    EX: {"name": "model"} -> {"name": "wandb-registry-model"}
     """
-    query = gql("""
-        query FetchOrgEntityFromOrganization($organization: String!) {
-            organization(name: $organization) {
-                    orgEntity {
-                        name
-                    }
-                }
-            }
-        """)
-    response = client.execute(query, variable_values={"organization": organization})
-    if response["organization"]["orgEntity"]:
-        if not response["organization"]["orgEntity"]["name"]:
-            return ValueError(
-                f"Organization entity for organization: {organization} is empty"
-            )
-        return response["organization"]["orgEntity"]["name"]
-    else:
-        raise ValueError(
-            f"Organization entity for organization: {organization} not found"
+    if isinstance((txt := query), str):
+        if in_name:
+            return txt if txt.startswith(REGISTRY_PREFIX) else f"{REGISTRY_PREFIX}{txt}"
+        return txt
+    if isinstance((dct := query), Mapping):
+        new_dict = {}
+        for key, obj in dct.items():
+            if key == "name":
+                new_dict[key] = _ensure_registry_prefix_on_names(obj, in_name=True)
+            elif key == "$regex":
+                # For regex operator, we skip transformation of its value.
+                new_dict[key] = obj
+            else:
+                # For any other key, propagate the in_name and skip_transform flags as-is.
+                new_dict[key] = _ensure_registry_prefix_on_names(obj, in_name=in_name)
+        return new_dict
+    if isinstance((objs := query), Sequence):
+        return list(
+            map(lambda x: _ensure_registry_prefix_on_names(x, in_name=in_name), objs)
         )
+    return query

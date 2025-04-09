@@ -10,19 +10,21 @@ from wandb_gql import Client, gql
 import wandb
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.paginator import Paginator
+from wandb.apis.paginator import Paginator, SizedPaginator
 from wandb.errors.term import termlog
-from wandb.sdk.artifacts.graphql_fragments import (
+from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.sdk.artifacts._graphql_fragments import (
     ARTIFACT_FILES_FRAGMENT,
     ARTIFACTS_TYPES_FRAGMENT,
 )
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib import deprecate
 
 if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient, Run
 
 
-class ArtifactTypes(Paginator):
+class ArtifactTypes(Paginator["ArtifactType"]):
     QUERY = gql(
         """
         query ProjectArtifacts(
@@ -45,7 +47,7 @@ class ArtifactTypes(Paginator):
         client: Client,
         entity: str,
         project: str,
-        per_page: Optional[int] = 50,
+        per_page: int = 50,
     ):
         self.entity = entity
         self.project = project
@@ -58,7 +60,7 @@ class ArtifactTypes(Paginator):
         super().__init__(client, variable_values, per_page)
 
     @property
-    def length(self):
+    def length(self) -> None:
         # TODO
         return None
 
@@ -167,14 +169,14 @@ class ArtifactType:
         return f"<ArtifactType {self.type}>"
 
 
-class ArtifactCollections(Paginator):
+class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
     def __init__(
         self,
         client: Client,
         entity: str,
         project: str,
         type_name: str,
-        per_page: Optional[int] = 50,
+        per_page: int = 50,
     ):
         self.entity = entity
         self.project = project
@@ -710,7 +712,7 @@ class ArtifactCollection:
         return f"<ArtifactCollection {self._name} ({self._type})>"
 
 
-class Artifacts(Paginator):
+class Artifacts(SizedPaginator["wandb.Artifact"]):
     """An iterable collection of artifact versions associated with a project and optional filter.
 
     This is generally used indirectly via the `Api`.artifact_versions method.
@@ -826,10 +828,8 @@ class Artifacts(Paginator):
         ]
 
 
-class RunArtifacts(Paginator):
-    def __init__(
-        self, client: Client, run: "Run", mode="logged", per_page: Optional[int] = 50
-    ):
+class RunArtifacts(SizedPaginator["wandb.Artifact"]):
+    def __init__(self, client: Client, run: "Run", mode="logged", per_page: int = 50):
         from wandb.sdk.artifacts.artifact import _gql_artifact_fragment
 
         output_query = gql(
@@ -944,9 +944,9 @@ class RunArtifacts(Paginator):
         ]
 
 
-class ArtifactFiles(Paginator):
-    QUERY = gql(
-        """
+class ArtifactFiles(SizedPaginator["public.File"]):
+    ARTIFACT_VERSION_FILES_QUERY = gql(
+        f"""
         query ArtifactFiles(
             $entityName: String!,
             $projectName: String!,
@@ -959,13 +959,40 @@ class ArtifactFiles(Paginator):
             project(name: $projectName, entityName: $entityName) {{
                 artifactType(name: $artifactTypeName) {{
                     artifact(name: $artifactName) {{
-                        ...ArtifactFilesFragment
+                        files(names: $fileNames, after: $fileCursor, first: $fileLimit) {{
+                            ...FilesFragment
+                        }}
                     }}
                 }}
             }}
         }}
-        {}
-    """.format(ARTIFACT_FILES_FRAGMENT)
+        {ARTIFACT_FILES_FRAGMENT}
+    """
+    )
+
+    ARTIFACT_COLLECTION_MEMBERSHIP_FILES_QUERY = gql(
+        f"""
+        query ArtifactCollectionMembershipFiles(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactName: String!,
+            $artifactVersionIndex: String!,
+            $fileNames: [String!],
+            $fileCursor: String,
+            $fileLimit: Int = 50
+        ) {{
+            project(name: $projectName, entityName: $entityName) {{
+                artifactCollection(name: $artifactName) {{
+                    artifactMembership (aliasName: $artifactVersionIndex) {{
+                        files(names: $fileNames, after: $fileCursor, first: $fileLimit) {{
+                            ...FilesFragment
+                        }}
+                    }}
+                }}
+            }}
+        }}
+        {ARTIFACT_FILES_FRAGMENT}
+        """
     )
 
     def __init__(
@@ -975,6 +1002,9 @@ class ArtifactFiles(Paginator):
         names: Optional[Sequence[str]] = None,
         per_page: int = 50,
     ):
+        self.query_via_membership = InternalApi()._check_server_feature_with_fallback(
+            ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
+        )
         self.artifact = artifact
         variables = {
             "entityName": artifact.source_entity,
@@ -983,6 +1013,17 @@ class ArtifactFiles(Paginator):
             "artifactName": artifact.source_name,
             "fileNames": names,
         }
+        if self.query_via_membership:
+            self.QUERY = self.ARTIFACT_COLLECTION_MEMBERSHIP_FILES_QUERY
+            variables = {
+                "entityName": artifact.entity,
+                "projectName": artifact.project,
+                "artifactName": artifact.name.split(":")[0],
+                "artifactVersionIndex": artifact.version,
+                "fileNames": names,
+            }
+        else:
+            self.QUERY = self.ARTIFACT_VERSION_FILES_QUERY
         # The server must advertise at least SDK 0.12.21
         # to get storagePath
         if not client.version_supported("0.12.21"):
@@ -1000,6 +1041,10 @@ class ArtifactFiles(Paginator):
     @property
     def more(self):
         if self.last_response:
+            if self.query_via_membership:
+                return self.last_response["project"]["artifactCollection"][
+                    "artifactMembership"
+                ]["files"]["pageInfo"]["hasNextPage"]
             return self.last_response["project"]["artifactType"]["artifact"]["files"][
                 "pageInfo"
             ]["hasNextPage"]
@@ -1009,6 +1054,10 @@ class ArtifactFiles(Paginator):
     @property
     def cursor(self):
         if self.last_response:
+            if self.query_via_membership:
+                return self.last_response["project"]["artifactCollection"][
+                    "artifactMembership"
+                ]["files"]["edges"][-1]["cursor"]
             return self.last_response["project"]["artifactType"]["artifact"]["files"][
                 "edges"
             ][-1]["cursor"]
@@ -1019,6 +1068,13 @@ class ArtifactFiles(Paginator):
         self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
 
     def convert_objects(self):
+        if self.query_via_membership:
+            return [
+                public.File(self.client, r["node"])
+                for r in self.last_response["project"]["artifactCollection"][
+                    "artifactMembership"
+                ]["files"]["edges"]
+            ]
         return [
             public.File(self.client, r["node"])
             for r in self.last_response["project"]["artifactType"]["artifact"]["files"][

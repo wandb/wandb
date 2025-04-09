@@ -4,7 +4,7 @@ from typing import NoReturn
 
 import pytest
 import wandb.sdk.mailbox as mb
-from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto import wandb_server_pb2 as spb
 
 
 async def _loop_forever() -> NoReturn:
@@ -32,12 +32,16 @@ def test_short_timeout_uses_blocking_wait():
 
 
 def test_delivered_returns_immediately():
-    handle1 = mb.MailboxHandle("address1")
-    handle2 = mb.MailboxHandle("address2")
-    result1 = pb.Result(uuid="abc")
-    result2 = pb.Result(uuid="xyz")
-    handle1.deliver(result1)
-    handle2.deliver(result2)
+    mailbox = mb.Mailbox()
+    request1 = spb.ServerRequest()
+    request2 = spb.ServerRequest()
+    handle1 = mailbox.require_response(request1)
+    handle2 = mailbox.require_response(request2)
+    response1 = spb.ServerResponse(request_id=request1.request_id)
+    response2 = spb.ServerResponse(request_id=request2.request_id)
+
+    mailbox.deliver(response1)
+    mailbox.deliver(response2)
 
     values = mb.wait_all_with_progress(
         [handle1, handle2],
@@ -46,13 +50,15 @@ def test_delivered_returns_immediately():
         display_progress=_loop_forever,
     )
 
-    assert values == [result1, result2]
+    assert values == [response1, response2]
 
 
 def test_wait_all_same_handle_ok():
-    handle = mb.MailboxHandle("address")
-    result = pb.Result(uuid="abc")
-    handle.deliver(result)
+    mailbox = mb.Mailbox()
+    request = spb.ServerRequest()
+    handle = mailbox.require_response(request)
+    response = spb.ServerResponse(request_id=request.request_id)
+    mailbox.deliver(response)
 
     values = mb.wait_all_with_progress(
         [handle, handle, handle],
@@ -61,11 +67,11 @@ def test_wait_all_same_handle_ok():
         display_progress=_loop_forever,
     )
 
-    assert values == [result, result, result]
+    assert values == [response, response, response]
 
 
 def test_abandoned_raises_immediately():
-    handle = mb.MailboxHandle("address")
+    handle = mb.Mailbox().require_response(spb.ServerRequest())
     handle.abandon()
 
     with pytest.raises(mb.HandleAbandonedError):
@@ -78,13 +84,15 @@ def test_abandoned_raises_immediately():
 
 
 def test_runs_and_cancels_display_callback():
-    handle = mb.MailboxHandle("address")
-    result = pb.Result()
+    mailbox = mb.Mailbox()
+    request = spb.ServerRequest()
+    handle = mailbox.require_response(request)
+    response = spb.ServerResponse(request_id=request.request_id)
     cancelled = False
 
     async def deliver_handle():
         nonlocal cancelled
-        handle.deliver(result)
+        mailbox.deliver(response)
         try:
             await _loop_forever()
         except asyncio.CancelledError:
@@ -97,12 +105,12 @@ def test_runs_and_cancels_display_callback():
         display_progress=deliver_handle,
     )
 
-    assert value is result
+    assert value is response
     assert cancelled
 
 
 def test_times_out():
-    handle = mb.MailboxHandle("address")
+    handle = mb.Mailbox().require_response(spb.ServerRequest())
 
     with pytest.raises(TimeoutError):
         mb.wait_with_progress(

@@ -1,3 +1,24 @@
+# v1.7.0 (2025-03-11)
+
+* **Feature**: Add extra check during output checksum validation so the validation skip warning would not be logged if object is not fetched from s3
+
+# v1.6.2 (2025-02-27)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.6.1 (2025-02-18)
+
+* **Bug Fix**: Bump go version to 1.22
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.6.0 (2025-02-10)
+
+* **Feature**: Support CRC64NVME flex checksums.
+
+# v1.5.6 (2025-02-05)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.5.5 (2025-01-31)
 
 * **Dependency Update**: Updated to the latest SDK module versions

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -5,13 +7,13 @@ import re
 import shutil
 import sys
 from base64 import b64encode
-from typing import Dict
 
 import requests
 from requests.compat import urljoin
 
 import wandb
 import wandb.util
+from wandb.sdk import wandb_run
 from wandb.sdk.lib import filesystem
 
 try:
@@ -193,7 +195,7 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
         return None
 
 
-def notebook_metadata(silent: bool) -> Dict[str, str]:
+def notebook_metadata(silent: bool) -> dict[str, str]:
     """Attempt to query jupyter for the path and name of the notebook file.
 
     This can handle different jupyter environments, specifically:
@@ -205,8 +207,9 @@ def notebook_metadata(silent: bool) -> Dict[str, str]:
     5. Other?
     """
     error_message = (
-        "Failed to detect the name of this notebook, you can set it manually with "
-        "the WANDB_NOTEBOOK_NAME environment variable to enable code saving."
+        "Failed to detect the name of this notebook. You can set it manually"
+        " with the WANDB_NOTEBOOK_NAME environment variable to enable code"
+        " saving."
     )
     try:
         jupyter_metadata = notebook_metadata_from_jupyter_servers_and_kernel_id()
@@ -234,15 +237,11 @@ def notebook_metadata(silent: bool) -> Dict[str, str]:
 
         if jupyter_metadata:
             return jupyter_metadata
-        if not silent:
-            logger.error(error_message)
+        wandb.termerror(error_message)
         return {}
     except Exception:
-        # TODO: report this exception
-        # TODO: Fix issue this is not the logger initialized in in wandb.init()
-        # since logger is not attached, outputs to notebook
-        if not silent:
-            logger.error(error_message)
+        wandb.termerror(error_message)
+        logger.exception(error_message)
         return {}
 
 
@@ -289,7 +288,8 @@ def attempt_kaggle_load_ipynb():
             parsed["metadata"]["name"] = "kaggle.ipynb"
             return parsed
         except Exception:
-            logger.exception("Unable to load kaggle notebook")
+            wandb.termerror("Unable to load kaggle notebook.")
+            logger.exception("Unable to load kaggle notebook.")
             return None
 
 
@@ -339,7 +339,7 @@ def attempt_colab_login(app_url):
 
 
 class Notebook:
-    def __init__(self, settings):
+    def __init__(self, settings: wandb.Settings) -> None:
         self.outputs = {}
         self.settings = settings
         self.shell = IPython.get_ipython()
@@ -388,8 +388,9 @@ class Notebook:
         ret = False
         try:
             ret = self._save_ipynb()
-        except Exception as e:
-            logger.info(f"Problem saving notebook: {repr(e)}")
+        except Exception:
+            wandb.termerror("Failed to save notebook.")
+            logger.exception("Problem saving notebook.")
         return ret
 
     def _save_ipynb(self) -> bool:
@@ -442,12 +443,15 @@ class Notebook:
 
         return False
 
-    def save_history(self):
+    def save_history(self, run: wandb_run.Run):
         """This saves all cell executions in the current session as a new notebook."""
         try:
             from nbformat import v4, validator, write
         except ImportError:
-            logger.error("Run pip install nbformat to save notebook history")
+            wandb.termerror(
+                "The nbformat package was not found."
+                " It is required to save notebook history."
+            )
             return
         # TODO: some tests didn't patch ipython properly?
         if self.shell is None:
@@ -497,8 +501,8 @@ class Notebook:
                 },
             )
             state_path = os.path.join("code", "_session_history.ipynb")
-            wandb.run._set_config_wandb("session_history", state_path)
-            filesystem.mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))
+            run._set_config_wandb("session_history", state_path)
+            filesystem.mkdir_exists_ok(os.path.join(self.settings.files_dir, "code"))
             with open(
                 os.path.join(self.settings._tmp_code_dir, "_session_history.ipynb"),
                 "w",
@@ -506,8 +510,11 @@ class Notebook:
             ) as f:
                 write(nb, f, version=4)
             with open(
-                os.path.join(wandb.run.dir, state_path), "w", encoding="utf-8"
+                os.path.join(self.settings.files_dir, state_path),
+                "w",
+                encoding="utf-8",
             ) as f:
                 write(nb, f, version=4)
-        except (OSError, validator.NotebookValidationError) as e:
-            logger.error("Unable to save ipython session history:\n%s", e)
+        except (OSError, validator.NotebookValidationError):
+            wandb.termerror("Unable to save notebook session history.")
+            logger.exception("Unable to save notebook session history.")

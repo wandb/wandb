@@ -94,7 +94,7 @@ func TestWatcher(t *testing.T) {
 		time.Sleep(100 * time.Millisecond) // see below
 		t2 := writeFileAndGetModTime(t, file, "xyz")
 
-		if t1 == t2 {
+		if time.Time.Equal(t1, t2) {
 			// We sleep before updating the file to try to increase the
 			// likelihood of the second write updating the file's ModTime.
 			//

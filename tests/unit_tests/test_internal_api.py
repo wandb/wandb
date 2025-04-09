@@ -14,6 +14,7 @@ import wandb.sdk.internal.internal_api
 import wandb.sdk.internal.progress
 from wandb.apis import internal
 from wandb.errors import CommError
+from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.internal.internal_api import (
     _match_org_with_fetched_org_entities,
     _OrgNames,
@@ -732,3 +733,224 @@ class TestUploadFileRetry:
             )
 
         assert handler.call_count == num_retries + 1
+
+
+ENABLED_FEATURE_RESPONSE = {
+    "serverInfo": {
+        "features": [
+            {"name": "LARGE_FILENAMES", "isEnabled": True},
+            {"name": "ARTIFACT_TAGS", "isEnabled": False},
+        ]
+    }
+}
+
+
+@pytest.fixture
+def mock_client(mocker):
+    mock = mocker.patch("wandb.sdk.internal.internal_api.Client")
+    mock.return_value = mocker.Mock()
+    yield mock.return_value
+
+
+@pytest.fixture
+def mock_client_with_enabled_features(mock_client):
+    mock_client.execute.return_value = ENABLED_FEATURE_RESPONSE
+    yield mock_client
+
+
+NO_FEATURES_RESPONSE = {"serverInfo": {"features": []}}
+
+
+@pytest.fixture
+def mock_client_with_no_features(mock_client):
+    mock_client.execute.return_value = NO_FEATURES_RESPONSE
+    yield mock_client
+
+
+@pytest.fixture
+def mock_client_with_error_no_field(mock_client):
+    error_msg = 'Cannot query field "features" on type "ServerInfo".'
+    mock_client.execute.side_effect = Exception(error_msg)
+    yield mock_client
+
+
+@pytest.fixture
+def mock_client_with_random_error(mock_client):
+    error_msg = "Some random error"
+    mock_client.execute.side_effect = Exception(error_msg)
+    yield mock_client
+
+
+@pytest.mark.parametrize(
+    "fixture_name, feature, expected_result, expected_error",
+    [
+        # Test enabled features
+        (
+            "mock_client_with_enabled_features",
+            ServerFeature.LARGE_FILENAMES,
+            True,
+            False,
+        ),
+        # Test disabled features
+        (
+            "mock_client_with_enabled_features",
+            ServerFeature.ARTIFACT_TAGS,
+            False,
+            False,
+        ),
+        # Test features not in response
+        (
+            "mock_client_with_enabled_features",
+            ServerFeature.ARTIFACT_REGISTRY_SEARCH,
+            False,
+            False,
+        ),
+        # Test empty features list
+        ("mock_client_with_no_features", ServerFeature.LARGE_FILENAMES, False, False),
+        # Test server not supporting features
+        (
+            "mock_client_with_error_no_field",
+            ServerFeature.LARGE_FILENAMES,
+            False,
+            False,
+        ),
+        # Test other server errors
+        ("mock_client_with_random_error", ServerFeature.LARGE_FILENAMES, False, True),
+    ],
+)
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt")
+def test_server_feature_checks(
+    request,
+    fixture_name,
+    feature,
+    expected_result,
+    expected_error,
+):
+    """Test check_server_feature with various scenarios."""
+    request.getfixturevalue(fixture_name)
+    api = internal.InternalApi()
+
+    if expected_error:
+        with pytest.raises(Exception, match="Some random error"):
+            api._check_server_feature_with_fallback(feature)
+    else:
+        result = api._check_server_feature_with_fallback(feature)
+        assert result == expected_result
+
+
+def test_construct_use_artifact_query_with_every_field():
+    # Create mock internal API instance
+    api = internal.InternalApi()
+    api.settings = Mock(side_effect=lambda x: "default-" + x)
+
+    # Mock the server introspection methods
+    api.server_use_artifact_input_introspection = Mock(
+        return_value={"usedAs": "String"}
+    )
+    api._check_server_feature_with_fallback = Mock(return_value=True)
+
+    test_cases = [
+        {
+            "entity_name": "test-entity",
+            "project_name": "test-project",
+            "run_name": "test-run",
+            "artifact_id": "test-artifact-id",
+            "use_as": "test-use-as",
+            "artifact_entity_name": "test-artifact-entity",
+            "artifact_project_name": "test-artifact-project",
+        },
+        {
+            "entity_name": None,
+            "project_name": None,
+            "run_name": None,
+            "artifact_id": "test-artifact-id",
+            "use_as": None,
+            "artifact_entity_name": "test-artifact-entity",
+            "artifact_project_name": "test-artifact-project",
+        },
+    ]
+
+    for case in test_cases:
+        query, variables = api._construct_use_artifact_query(
+            entity_name=case["entity_name"],
+            project_name=case["project_name"],
+            run_name=case["run_name"],
+            artifact_id=case["artifact_id"],
+            use_as=case["use_as"],
+            artifact_entity_name=case["artifact_entity_name"],
+            artifact_project_name=case["artifact_project_name"],
+        )
+
+        # Verify variables are correctly set
+        expected_variables = {
+            "entityName": case["entity_name"] or "default-entity",
+            "projectName": case["project_name"] or "default-project",
+            "runName": case["run_name"],
+            "artifactID": case["artifact_id"],
+            "usedAs": case["use_as"],
+            "artifactEntityName": case["artifact_entity_name"],
+            "artifactProjectName": case["artifact_project_name"],
+        }
+        assert variables == expected_variables
+
+        query_str = str(query)
+        assert "artifactEntityName" in query_str
+        assert "artifactProjectName" in query_str
+        if case["use_as"]:
+            assert "usedAs" in query_str
+        else:
+            assert "usedAs" not in query_str
+
+
+def test_construct_use_artifact_query_without_entity_project():
+    # Test when server doesn't support entity/project information
+    api = internal.InternalApi()
+    api.settings = Mock(side_effect=lambda x: "default-" + x)
+
+    # Mock methods to return False for entity/project support
+    api.server_use_artifact_input_introspection = Mock(
+        return_value={"usedAs": "String"}
+    )
+    api._check_server_feature_with_fallback = Mock(return_value=False)
+
+    query, variables = api._construct_use_artifact_query(
+        entity_name="test-entity",
+        project_name="test-project",
+        run_name="test-run",
+        artifact_id="test-artifact-id",
+        use_as="test-use-as",
+        artifact_entity_name="test-artifact-entity",
+        artifact_project_name="test-artifact-project",
+    )
+    query_str = str(query)
+
+    # Verify entity/project information is not in variables
+    assert "artifactEntityName" not in variables
+    assert "artifactProjectName" not in variables
+    assert "artifactEntityName" not in query_str
+    assert "artifactProjectName" not in query_str
+
+
+def test_construct_use_artifact_query_without_used_as():
+    # Test when server doesn't support usedAs field
+    api = internal.InternalApi()
+    api.settings = Mock(side_effect=lambda x: "default-" + x)
+
+    # Mock methods to return empty dict for introspection
+    api.server_use_artifact_input_introspection = Mock(return_value={})
+    api._check_server_feature_with_fallback = Mock(return_value=True)
+
+    query, variables = api._construct_use_artifact_query(
+        entity_name="test-entity",
+        project_name="test-project",
+        run_name="test-run",
+        artifact_id="test-artifact-id",
+        use_as="test-use-as",
+        artifact_entity_name="test-artifact-entity",
+        artifact_project_name="test-artifact-project",
+    )
+    query_str = str(query)
+
+    # Verify usedAs is still in variables but not in query
+    assert "usedAs" in variables
+    assert "usedAs:" not in query_str

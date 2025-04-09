@@ -50,7 +50,9 @@ func TestManifestContentsFromFile_MissingPath(t *testing.T) {
 	// Create a temporary gzipped file with manifest contents missing the "path" field
 	tmpFile, err := os.CreateTemp("", "manifest-*.jl.gz")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 
 	gzWriter := gzip.NewWriter(tmpFile)
 	writer := bufio.NewWriter(gzWriter)
@@ -61,9 +63,9 @@ func TestManifestContentsFromFile_MissingPath(t *testing.T) {
 	})
 	_, err = writer.Write(entryJson)
 	assert.NoError(t, err)
-	writer.Flush()
-	gzWriter.Close()
-	tmpFile.Close()
+	_ = writer.Flush()
+	_ = gzWriter.Close()
+	_ = tmpFile.Close()
 
 	_, err = ManifestContentsFromFile(tmpFile.Name())
 	assert.Error(t, err)
@@ -74,7 +76,9 @@ func TestManifestContentsFromFile_MissingDigest(t *testing.T) {
 	// Create a temporary gzipped file with manifest contents missing the "digest" field
 	tmpFile, err := os.CreateTemp("", "manifest-*.jl.gz")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 
 	gzWriter := gzip.NewWriter(tmpFile)
 	writer := bufio.NewWriter(gzWriter)
@@ -85,9 +89,9 @@ func TestManifestContentsFromFile_MissingDigest(t *testing.T) {
 	})
 	_, err = writer.Write(entryJson)
 	assert.NoError(t, err)
-	writer.Flush()
-	gzWriter.Close()
-	tmpFile.Close()
+	_ = writer.Flush()
+	_ = gzWriter.Close()
+	_ = tmpFile.Close()
 
 	_, err = ManifestContentsFromFile(tmpFile.Name())
 	assert.Error(t, err)
@@ -98,7 +102,9 @@ func TestManifestContentsFromFile(t *testing.T) {
 	// Create a temporary gzipped file with manifest contents
 	tmpFile, err := os.CreateTemp("", "manifest-*.jl.gz")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 
 	gzWriter := gzip.NewWriter(tmpFile)
 	writer := bufio.NewWriter(gzWriter)
@@ -127,9 +133,9 @@ func TestManifestContentsFromFile(t *testing.T) {
 	assert.NoError(t, err)
 	err = writer.WriteByte('\n')
 	assert.NoError(t, err)
-	writer.Flush()
-	gzWriter.Close()
-	tmpFile.Close()
+	_ = writer.Flush()
+	_ = gzWriter.Close()
+	_ = tmpFile.Close()
 
 	contents, err := ManifestContentsFromFile(tmpFile.Name())
 	assert.NoError(t, err)
@@ -168,7 +174,9 @@ func TestManifest_WriteToFile(t *testing.T) {
 	assert.NotEmpty(t, filename)
 	assert.NotEmpty(t, digest)
 	assert.NotZero(t, size)
-	defer os.Remove(filename)
+	defer func() {
+		_ = os.Remove(filename)
+	}()
 }
 
 func TestManifest_GetManifestEntryFromArtifactFilePath(t *testing.T) {

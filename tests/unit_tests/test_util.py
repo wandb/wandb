@@ -666,12 +666,6 @@ def test_downsample():
     assert util.downsample([1, 2, 3, 4], 2) == [1, 4]
 
 
-def test_get_log_file_path(mock_run):
-    assert util.get_log_file_path() == os.path.join("wandb", "debug-internal.log")
-    run = mock_run()
-    assert util.get_log_file_path() == run._settings.log_internal
-
-
 def test_stopwatch_now():
     t_1 = util.stopwatch_now()
     time.sleep(0.1)
@@ -794,3 +788,33 @@ def test_sampling_weights():
     )
     # Expect more samples from the start of the list
     assert np.mean(sampled_xs) < np.mean(xs)
+
+
+def test_json_dump_uncompressed_with_numpy_datatypes():
+    import io
+
+    data = {
+        "a": [
+            np.int32(1),
+            np.float32(2.0),
+            np.int64(3),
+        ]
+    }
+    iostr = io.StringIO()
+    util.json_dump_uncompressed(data, iostr)
+    assert iostr.getvalue() == '{"a": [1, 2.0, 3]}'
+
+
+@pytest.mark.skipif(
+    platform.system() != "Windows",
+    reason="Drive letters are only relevant on Windows",
+)
+@pytest.mark.parametrize(
+    "path1,path2,expected",
+    [
+        ("C:\\foo", "C:\\bar", True),
+        ("C:\\foo", "D:\\bar", False),
+    ],
+)
+def test_are_windows_paths_on_same_drive(path1, path2, expected):
+    assert util.are_paths_on_same_drive(path1, path2) == expected
