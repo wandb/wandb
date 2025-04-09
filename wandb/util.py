@@ -1426,6 +1426,20 @@ def auto_project_name(program: Optional[str]) -> str:
     return str(project.replace(os.sep, "_"))
 
 
+def are_paths_on_same_drive(path1: str, path2: str) -> bool:
+    """Check if two paths are on the same drive.
+
+    This check is only relevant on Windows,
+    since the concept of drives only exists on Windows.
+    """
+    if platform.system() != "Windows":
+        return True
+
+    path1_drive = pathlib.Path(path1).resolve().drive
+    path2_drive = pathlib.Path(path2).resolve().drive
+    return path1_drive == path2_drive
+
+
 # TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
 def to_forward_slash_path(path: str) -> str:
     if platform.system() == "Windows":
