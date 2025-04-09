@@ -51,8 +51,9 @@ type RunWork interface {
 	// Chan returns the channel of work for the run.
 	Chan() <-chan Work
 
-	// SetDone indicates that the run is done, allowing the channel
-	// to become closed.
+	// SetDone indicates that the run is done, unblocking Close().
+	//
+	// It does not close the channel or cancel any work.
 	SetDone()
 
 	// Close cancels any ongoing work and closes the output channel.

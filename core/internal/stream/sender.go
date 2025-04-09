@@ -761,7 +761,7 @@ func (s *Sender) finishRunSync() {
 
 	// Prevent any new work from being added.
 	//
-	// Note that any work queued up at this point does get processed.
+	// Note that any work queued up at this point still gets processed.
 	s.runWork.SetDone()
 }
 
