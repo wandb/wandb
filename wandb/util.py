@@ -51,6 +51,11 @@ from typing import (
     Union,
 )
 
+if sys.version_info < (3, 10):
+    from typing_extensions import TypeGuard
+else:
+    from typing import TypeGuard
+
 import requests
 import yaml
 
@@ -1700,15 +1705,15 @@ def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
         raise ValueError("`aliases` must be Iterable or None") from exc
 
 
-def _is_artifact_object(v: Any) -> bool:
+def _is_artifact_object(v: Any) -> "TypeGuard[wandb.Artifact]":
     return isinstance(v, wandb.Artifact)
 
 
-def _is_artifact_string(v: Any) -> bool:
+def _is_artifact_string(v: Any) -> "TypeGuard[str]":
     return isinstance(v, str) and v.startswith("wandb-artifact://")
 
 
-def _is_artifact_version_weave_dict(v: Any) -> bool:
+def _is_artifact_version_weave_dict(v: Any) -> "TypeGuard[dict]":
     return isinstance(v, dict) and v.get("_type") == "artifactVersion"
 
 
