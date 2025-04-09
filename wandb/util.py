@@ -1060,18 +1060,6 @@ def has_num(dictionary: Mapping, key: Any) -> bool:
     return key in dictionary and isinstance(dictionary[key], numbers.Number)
 
 
-def get_log_file_path() -> str:
-    """Log file path used in error messages.
-
-    It would probably be better if this pointed to a log file in a
-    run directory.
-    """
-    # TODO(jhr, cvp): refactor
-    if wandb.run is not None:
-        return wandb.run._settings.log_internal
-    return os.path.join("wandb", "debug-internal.log")
-
-
 def docker_image_regex(image: str) -> Any:
     """Regex match for valid docker image names."""
     if image:
@@ -1436,6 +1424,20 @@ def auto_project_name(program: Optional[str]) -> str:
     if sub_path != ".":
         project += "-" + sub_path
     return str(project.replace(os.sep, "_"))
+
+
+def are_paths_on_same_drive(path1: str, path2: str) -> bool:
+    """Check if two paths are on the same drive.
+
+    This check is only relevant on Windows,
+    since the concept of drives only exists on Windows.
+    """
+    if platform.system() != "Windows":
+        return True
+
+    path1_drive = pathlib.Path(path1).resolve().drive
+    path2_drive = pathlib.Path(path2).resolve().drive
+    return path1_drive == path2_drive
 
 
 # TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py

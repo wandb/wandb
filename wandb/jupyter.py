@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -5,13 +7,13 @@ import re
 import shutil
 import sys
 from base64 import b64encode
-from typing import Dict
 
 import requests
 from requests.compat import urljoin
 
 import wandb
 import wandb.util
+from wandb.sdk import wandb_run
 from wandb.sdk.lib import filesystem
 
 try:
@@ -193,7 +195,7 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
         return None
 
 
-def notebook_metadata(silent: bool) -> Dict[str, str]:
+def notebook_metadata(silent: bool) -> dict[str, str]:
     """Attempt to query jupyter for the path and name of the notebook file.
 
     This can handle different jupyter environments, specifically:
@@ -337,7 +339,7 @@ def attempt_colab_login(app_url):
 
 
 class Notebook:
-    def __init__(self, settings):
+    def __init__(self, settings: wandb.Settings) -> None:
         self.outputs = {}
         self.settings = settings
         self.shell = IPython.get_ipython()
@@ -441,7 +443,7 @@ class Notebook:
 
         return False
 
-    def save_history(self):
+    def save_history(self, run: wandb_run.Run):
         """This saves all cell executions in the current session as a new notebook."""
         try:
             from nbformat import v4, validator, write
@@ -499,8 +501,8 @@ class Notebook:
                 },
             )
             state_path = os.path.join("code", "_session_history.ipynb")
-            wandb.run._set_config_wandb("session_history", state_path)
-            filesystem.mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))
+            run._set_config_wandb("session_history", state_path)
+            filesystem.mkdir_exists_ok(os.path.join(self.settings.files_dir, "code"))
             with open(
                 os.path.join(self.settings._tmp_code_dir, "_session_history.ipynb"),
                 "w",
@@ -508,7 +510,9 @@ class Notebook:
             ) as f:
                 write(nb, f, version=4)
             with open(
-                os.path.join(wandb.run.dir, state_path), "w", encoding="utf-8"
+                os.path.join(self.settings.files_dir, state_path),
+                "w",
+                encoding="utf-8",
             ) as f:
                 write(nb, f, version=4)
         except (OSError, validator.NotebookValidationError):
