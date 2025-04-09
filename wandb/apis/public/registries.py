@@ -738,6 +738,7 @@ def _ensure_registry_prefix_on_names(query, in_name=False):
 @lru_cache(maxsize=10)
 def _fetch_org_entity_from_organization(client: "Client", organization: str) -> str:
     """Fetch the org entity from the organization.
+
     Args:
         client (Client): Graphql client.
         organization (str): The organization to fetch the org entity for.

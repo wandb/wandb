@@ -456,11 +456,6 @@ class Artifact:
         return self._id
 
     @property
-    def created_at(self):
-        """The time when the source artifact was created."""
-        return self._created_at
-
-    @property
     @ensure_logged
     def entity(self) -> str:
         """The name of the entity of the secondary (portfolio) artifact collection."""
