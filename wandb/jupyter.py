@@ -8,36 +8,16 @@ import shutil
 import sys
 from base64 import b64encode
 
+import IPython
 import requests
+from IPython.core.magic import Magics, line_cell_magic, magics_class
+from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 from requests.compat import urljoin
 
 import wandb
 import wandb.util
 from wandb.sdk import wandb_run
 from wandb.sdk.lib import filesystem
-
-try:
-    import IPython
-    from IPython.core.magic import Magics, line_cell_magic, magics_class
-    from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
-except ImportError:
-    wandb.termwarn("ipython is not supported in python 2.7, upgrade to 3.x")
-
-    class Magics:
-        pass
-
-    def magics_class(*args, **kwargs):
-        return lambda *args, **kwargs: None
-
-    def magic_arguments(*args, **kwargs):
-        return lambda *args, **kwargs: None
-
-    def argument(*args, **kwargs):
-        return lambda *args, **kwargs: None
-
-    def line_cell_magic(*args, **kwargs):
-        return lambda *args, **kwargs: None
-
 
 logger = logging.getLogger(__name__)
 
