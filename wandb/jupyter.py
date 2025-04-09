@@ -31,12 +31,6 @@ def maybe_display():
     return False
 
 
-def quiet():
-    if __IFrame is not None:
-        return __IFrame.opts.get("quiet")
-    return False
-
-
 class IFrame:
     def __init__(self, path=None, opts=None):
         self.path = path
@@ -98,13 +92,6 @@ class WandBMagics(Magics):
         help="Display the entire run project workspace",
     )
     @argument(
-        "-q",
-        "--quiet",
-        default=False,
-        action="store_true",
-        help="Display the minimal amount of output",
-    )
-    @argument(
         "-h",
         "--height",
         default=420,
@@ -125,7 +112,6 @@ class WandBMagics(Magics):
         args = parse_argstring(self.wandb, line)
         self.options["height"] = args.height
         self.options["workspace"] = args.workspace
-        self.options["quiet"] = args.quiet
         iframe = IFrame(args.path, opts=self.options)
         displayed = iframe.maybe_display()
         if cell is not None:
