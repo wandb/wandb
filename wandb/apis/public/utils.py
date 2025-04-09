@@ -1,7 +1,10 @@
 import re
 from enum import Enum
-from typing import Optional
+from typing import Any, Iterable, Optional
 from urllib.parse import urlparse
+
+from wandb_gql import gql
+from wandb_graphql.language import ast, visitor
 
 from wandb._iterutils import one
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
@@ -102,3 +105,96 @@ def fetch_org_from_settings_or_entity(
         )
         organization = entity_org.display_name
     return organization
+
+
+class _GQLCompatRewriter(visitor.Visitor):
+    """GraphQL AST visitor to rewrite queries/mutations to be compatible with older server versions."""
+
+    omit_variables: set[str]
+    omit_fragments: set[str]
+    omit_fields: set[str]
+
+    def __init__(
+        self,
+        omit_variables: Iterable[str] | None = None,
+        omit_fragments: Iterable[str] | None = None,
+        omit_fields: Iterable[str] | None = None,
+    ):
+        self.omit_variables = set(omit_variables or ())
+        self.omit_fragments = set(omit_fragments or ())
+        self.omit_fields = set(omit_fields or ())
+
+    def enter_VariableDefinition(self, node: ast.VariableDefinition, *_, **__) -> Any:  # noqa: N802
+        if node.variable.name.value in self.omit_variables:
+            return visitor.REMOVE
+        return node
+
+    def enter_ObjectField(self, node: ast.ObjectField, *_, **__) -> Any:  # noqa: N802
+        # For context, note that e.g.:
+        #
+        #   {description: $description
+        #   ...}
+        #
+        # Is parsed as:
+        #
+        #   ObjectValue(fields=[
+        #     ObjectField(name=Name(value='description'), value=Variable(name=Name(value='description'))),
+        #   ...])
+        if (
+            isinstance(var := node.value, ast.Variable)
+            and var.name.value in self.omit_variables
+        ):
+            return visitor.REMOVE
+
+    def enter_Argument(self, node: ast.Argument, *_, **__) -> Any:  # noqa: N802
+        if node.name.value in self.omit_variables:
+            return visitor.REMOVE
+
+    def enter_FragmentDefinition(self, node: ast.FragmentDefinition, *_, **__) -> Any:  # noqa: N802
+        if node.name.value in self.omit_fragments:
+            return visitor.REMOVE
+
+    def enter_FragmentSpread(self, node: ast.FragmentSpread, *_, **__) -> Any:  # noqa: N802
+        if node.name.value in self.omit_fragments:
+            return visitor.REMOVE
+
+    def enter_Field(self, node: ast.Field, *_, **__) -> Any:  # noqa: N802
+        if node.name.value in self.omit_fields:
+            return visitor.REMOVE
+
+    def leave_Field(self, node: ast.Field, *_, **__) -> Any:  # noqa: N802
+        # If the field had a selection set, but now it's empty, remove the field entirely
+        if (node.selection_set is not None) and (not node.selection_set.selections):
+            return visitor.REMOVE
+
+
+def gql_compat(
+    request_string: str,
+    omit_variables: Iterable[str] | None = None,
+    omit_fragments: Iterable[str] | None = None,
+    omit_fields: Iterable[str] | None = None,
+) -> ast.Document:
+    """Rewrite a GraphQL request string to ensure compatibility with older server versions.
+
+    Args:
+        request_string (str): The GraphQL request string to rewrite.
+        omit_variables (Iterable[str] | None): Names of variables to remove from the request string.
+        omit_fragments (Iterable[str] | None): Names of fragments to remove from the request string.
+        omit_fields (Iterable[str] | None): Names of fields to remove from the request string.
+
+    Returns:
+        str: Modified GraphQL request string with fragments on omitted types removed.
+    """
+    # Parse the request into a GraphQL AST
+    doc = gql(request_string)
+
+    if not (omit_variables or omit_fragments or omit_fields):
+        return doc
+
+    # Visit the AST with our visitor to filter out unwanted fragments
+    rewriter = _GQLCompatRewriter(
+        omit_variables=omit_variables,
+        omit_fragments=omit_fragments,
+        omit_fields=omit_fields,
+    )
+    return visitor.visit(doc, rewriter)
