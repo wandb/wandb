@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, cast
 
 import wandb
 from wandb import util
-from wandb.sdk.data_types.base_types.media import PATH
 from wandb.sdk.lib import runid
 from wandb.sdk.lib.hashutil import md5_file_hex
 from wandb.sdk.lib.paths import LogicalPath
@@ -74,10 +73,12 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
 
     _model_obj: SavedModelObjType | None
     _path: str | None
-    _input_obj_or_path: SavedModelObjType | PATH
+    _input_obj_or_path: SavedModelObjType | str | pathlib.Path
 
     # Public Methods
-    def __init__(self, obj_or_path: SavedModelObjType | PATH, **kwargs: Any) -> None:
+    def __init__(
+        self, obj_or_path: SavedModelObjType | str | pathlib.Path, **kwargs: Any
+    ) -> None:
         super().__init__()
         if self.__class__ == _SavedModel:
             raise TypeError(
@@ -256,9 +257,9 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         self._model_obj = None
 
     def _set_obj(self, model_obj: Any) -> None:
-        assert model_obj is not None and self._validate_obj(
-            model_obj
-        ), f"Invalid model object {model_obj}"
+        assert model_obj is not None and self._validate_obj(model_obj), (
+            f"Invalid model object {model_obj}"
+        )
         self._model_obj = model_obj
 
     def _dump(self, target_path: str) -> None:
@@ -284,7 +285,7 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
 
     def __init__(
         self,
-        obj_or_path: SavedModelObjType | PATH,
+        obj_or_path: SavedModelObjType | str | pathlib.Path,
         dep_py_files: list[str] | None = None,
     ):
         super().__init__(obj_or_path)

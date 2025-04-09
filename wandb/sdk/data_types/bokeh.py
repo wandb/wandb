@@ -9,7 +9,7 @@ from wandb.sdk.lib import runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP
-from .base_types.media import PATH, Media
+from .base_types.media import Media
 
 
 class Bokeh(Media):
@@ -23,7 +23,8 @@ class Bokeh(Media):
 
     def __init__(
         self,
-        data_or_path: Union[PATH, Any],
+        # TODO: update Any to be more specific
+        data_or_path: Union[str, pathlib.Path, Any],
     ):
         super().__init__()
         bokeh = util.get_module("bokeh", required=True)

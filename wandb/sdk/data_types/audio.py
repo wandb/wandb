@@ -8,7 +8,7 @@ from wandb.sdk.lib import filesystem, runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP
-from .base_types.media import PATH, BatchableMedia
+from .base_types.media import BatchableMedia
 
 
 class Audio(BatchableMedia):
@@ -26,7 +26,7 @@ class Audio(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union[PATH, Any],
+        data_or_path: Union[str, pathlib.Path, Any],
         sample_rate=None,
         caption=None,
     ):

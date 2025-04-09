@@ -24,7 +24,7 @@ from wandb.sdk.lib.paths import LogicalPath
 
 from . import _dtypes
 from ._private import MEDIA_TMP
-from .base_types.media import PATH, BatchableMedia
+from .base_types.media import BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy as np
@@ -215,7 +215,7 @@ class Object3D(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union["np.ndarray", PATH, "TextIO", dict],
+        data_or_path: Union["np.ndarray", str, pathlib.Path, "TextIO", dict],
         caption: Optional[str] = None,
         **kwargs: Optional[Union[str, "FileFormat3D"]],
     ) -> None:

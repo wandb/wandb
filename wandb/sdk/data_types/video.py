@@ -11,7 +11,7 @@ from wandb.sdk.lib import filesystem, printer, printer_asyncio, runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP
-from .base_types.media import PATH, BatchableMedia
+from .base_types.media import BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
@@ -58,7 +58,7 @@ class Video(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union["np.ndarray", PATH, "TextIO", "BytesIO"],
+        data_or_path: Union[str, pathlib.Path, "np.ndarray", "TextIO", "BytesIO"],
         caption: Optional[str] = None,
         fps: Optional[int] = None,
         format: Optional[Literal["gif", "mp4", "webm", "ogg"]] = None,
