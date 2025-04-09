@@ -26,7 +26,11 @@ from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.registries import Registries
+from wandb.apis.public.registries import (
+    Registries,
+    Registry,
+    _fetch_org_entity_from_organization,
+)
 from wandb.apis.public.utils import (
     PathType,
     fetch_org_from_settings_or_entity,
@@ -1475,9 +1479,7 @@ class Api:
 
             Find all collections in the registries with the name "my_collection" and the tag "my_tag"
             ```python
-            api.registries().collections(
-                filter={"name": "my_collection", "tag": "my_tag"}
-            )
+            api.registries().collections(filter={"name": "my_collection", "tag": "my_tag"})
             ```
 
             Find all artifact versions in the registries with a collection name that contains "my_collection" and a version that has the alias "best"

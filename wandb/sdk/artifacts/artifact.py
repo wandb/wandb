@@ -49,7 +49,6 @@ from wandb.sdk.artifacts.artifact_manifests.artifact_manifest_v1 import (
 from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError, WaitTimeoutError
-from wandb.sdk.artifacts.graphql_fragments import _gql_artifact_fragment
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import _GCSIsADirectoryError
 from wandb.sdk.artifacts.storage_layout import StorageLayout
@@ -455,6 +454,11 @@ class Artifact:
             return None
         assert self._id is not None
         return self._id
+
+    @property
+    def created_at(self):
+        """The time when the source artifact was created."""
+        return self._created_at
 
     @property
     @ensure_logged
