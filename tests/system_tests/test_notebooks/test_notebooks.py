@@ -113,6 +113,9 @@ def test_notebook_metadata_no_servers(mocked_module):
 
 
 def test_notebook_metadata_colab(mocked_module):
+    # Needed for patching due to the lazy-load set up in wandb/__init__.py
+    import wandb.jupyter
+
     colab = mocked_module("google.colab")
     colab._message.blocking_request.return_value = {
         "ipynb": {"metadata": {"colab": {"name": "koalab.ipynb"}}}
@@ -136,6 +139,9 @@ def test_notebook_metadata_colab(mocked_module):
 
 
 def test_notebook_metadata_kaggle(mocked_module):
+    # Needed for patching due to the lazy-load set up in wandb/__init__.py
+    import wandb.jupyter
+
     os.environ["KAGGLE_KERNEL_RUN_TYPE"] = "test"
     kaggle = mocked_module("kaggle_session")
     kaggle_client = mock.MagicMock()

@@ -3945,8 +3945,7 @@ class Run:
                 run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
 
-                # TODO(settings): make settings the source of truth
-                if not wandb.jupyter.quiet():  # type: ignore
+                if not settings.quiet:
                     doc_html = printer.link(url_registry.url("developer-guide"), "docs")
 
                     project_html = printer.link(project_url, "Weights & Biases")
