@@ -30,6 +30,11 @@ from typing import (
     TypeVar,
 )
 
+if sys.version_info < (3, 10):
+    from typing_extensions import Concatenate, ParamSpec
+else:
+    from typing import Concatenate, ParamSpec
+
 import requests
 
 import wandb
@@ -369,10 +374,13 @@ class RunStatusChecker:
         self._internal_messages_thread.join()
 
 
+_P = ParamSpec("_P")
 _T = TypeVar("_T")
 
 
-def _log_to_run(func: Callable[..., _T]) -> Callable[..., _T]:
+def _log_to_run(
+    func: Callable[Concatenate[Run, _P], _T],
+) -> Callable[Concatenate[Run, _P], _T]:
     """Decorate a Run method to set the run ID in the logging context.
 
     Any logs during the execution of the method go to the run's log file
@@ -403,7 +411,9 @@ def _log_to_run(func: Callable[..., _T]) -> Callable[..., _T]:
 _is_attaching: str = ""
 
 
-def _attach(func: Callable[..., _T]) -> Callable[..., _T]:
+def _attach(
+    func: Callable[Concatenate[Run, _P], _T],
+) -> Callable[Concatenate[Run, _P], _T]:
     """Decorate a Run method to auto-attach when in a new process.
 
     When in a forked process or using a pickled Run instance, this automatically
@@ -443,7 +453,9 @@ def _attach(func: Callable[..., _T]) -> Callable[..., _T]:
     return wrapper
 
 
-def _raise_if_finished(func: Callable[..., _T]) -> Callable[..., _T]:
+def _raise_if_finished(
+    func: Callable[Concatenate[Run, _P], _T],
+) -> Callable[Concatenate[Run, _P], _T]:
     """Decorate a Run method to raise an error after the run is finished."""
 
     @functools.wraps(func)
@@ -463,8 +475,8 @@ def _raise_if_finished(func: Callable[..., _T]) -> Callable[..., _T]:
 
 
 def _noop_if_forked_with_no_service(
-    func: Callable[..., None],
-) -> Callable[..., None]:
+    func: Callable[Concatenate[Run, _P], None],
+) -> Callable[Concatenate[Run, _P], None]:
     """Do nothing if called in a forked process and service is disabled.
 
     Disabling the service is a very old and barely supported setting.
@@ -1365,6 +1377,8 @@ class Run:
             assert isinstance(val, dict)
             public_api = self._public_api()
             artifact = Artifact._from_id(val["id"], public_api.client)
+
+            assert artifact
             return self.use_artifact(artifact, use_as=key)
         elif _is_artifact_string(val):
             # this will never fail, but is required to make mypy happy
@@ -1383,6 +1397,7 @@ class Run:
             # in the future we'll need to support using artifacts from
             # different instances of wandb.
 
+            assert artifact
             return self.use_artifact(artifact, use_as=key)
         elif _is_artifact_object(val):
             return self.use_artifact(val, use_as=key)
@@ -2653,6 +2668,7 @@ class Run:
             docker_image_name=docker_image_name,
         )
 
+        assert job_artifact
         artifact = self.log_artifact(job_artifact)
 
         if not artifact:
@@ -3941,7 +3957,9 @@ class Run:
             return
 
         if printer.supports_html:
-            if not wandb.jupyter.maybe_display():  # type: ignore
+            import wandb.jupyter
+
+            if not wandb.jupyter.maybe_display():
                 run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
 
