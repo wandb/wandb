@@ -101,7 +101,7 @@ def val_to_json(
 
             items = _prune_max_seq(val)
 
-            if _server_accepts_image_filenames():
+            if _server_accepts_image_filenames(run):
                 for item in items:
                     item.bind_to_run(
                         run=run,
