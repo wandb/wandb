@@ -113,6 +113,8 @@ class WebhookIntegrations(Paginator["WebhookIntegration"]):
 
     def convert_objects(self) -> Iterable[WebhookIntegration]:
         """Parse the page data into a list of Integrations."""
+        from wandb.automations import WebhookIntegration
+
         page = self.last_response
         return [WebhookIntegration.model_validate(edge.node) for edge in page.edges]
 
@@ -160,5 +162,7 @@ class SlackIntegrations(Paginator["SlackIntegration"]):
 
     def convert_objects(self) -> list[SlackIntegration]:
         """Parse the page data into a list of Integrations."""
+        from wandb.automations import SlackIntegration
+
         page = self.last_response
         return [SlackIntegration.model_validate(edge.node) for edge in page.edges]
