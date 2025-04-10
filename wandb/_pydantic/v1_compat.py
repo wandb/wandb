@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import sys
 from functools import lru_cache
-from importlib.metadata import version
 from inspect import signature
 from typing import (
     TYPE_CHECKING,
@@ -19,6 +17,8 @@ from typing import (
 
 import pydantic
 from typing_extensions import ParamSpec
+
+from .utils import IS_PYDANTIC_V2, PYTHON_VERSION
 
 if TYPE_CHECKING:
     from typing import Protocol
@@ -40,12 +40,6 @@ if TYPE_CHECKING:
         def dict(self, **kwargs: Any) -> dict[str, Any]: ...
         def json(self, **kwargs: Any) -> str: ...
         def copy(self, **kwargs: Any) -> V1Model: ...
-
-
-PYTHON_VERSION = sys.version_info
-
-pydantic_major_version, *_ = version(pydantic.__name__).split(".")
-IS_PYDANTIC_V2: bool = int(pydantic_major_version) >= 2
 
 
 ModelT = TypeVar("ModelT")
