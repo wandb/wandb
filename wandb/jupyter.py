@@ -44,31 +44,39 @@ class IFrame:
             IPython.display.display(self)
         return self.displayed
 
-    def _repr_html_(self):
+    def _repr_html_(self) -> str:
         try:
             self.displayed = True
-            if self.opts.get("workspace", False):
-                if self.path is None and wandb.run:
-                    self.path = wandb.run.path
+
+            # Display the explicit resource if specified.
             if isinstance(self.path, str):
-                object = self.api.from_path(self.path)
+                return self.api.from_path(self.path).to_html(
+                    self.height,
+                    hidden=False,
+                )
+
+            # Otherwise, display the global run, if there is one.
+            elif wandb.run:
+                return wandb.run.to_html(self.height, hidden=False)
+
+            # Otherwise, display the user's project.
+            elif wandb.Api().api_key is None:
+                return (
+                    "You must be logged in to display wandb in Jupyter."
+                    " Please run `wandb.login()`."
+                )
             else:
-                object = wandb.run
-            if object is None:
-                if wandb.Api().api_key is None:
-                    return "You must be logged in to render wandb in jupyter, run `wandb.login()`"
-                else:
-                    object = self.api.project(
-                        "/".join(
-                            [
-                                wandb.Api().default_entity,
-                                wandb.util.auto_project_name(None),
-                            ]
-                        )
+                return self.api.project(
+                    "/".join(
+                        [
+                            wandb.Api().default_entity,
+                            wandb.util.auto_project_name(None),
+                        ]
                     )
-            return object.to_html(self.height, hidden=False)
-        except wandb.Error as e:
-            return f"Can't display wandb interface<br/>{e}"
+                ).to_html(self.height, hidden=False)
+
+        except Exception as e:
+            return f"Error displaying wandb object.<br/>{e}"
 
 
 @magics_class
@@ -82,21 +90,14 @@ class WandBMagics(Magics):
         "path",
         default=None,
         nargs="?",
-        help="A path to a resource you want to display, defaults to wandb.run.path",
-    )
-    @argument(
-        "-w",
-        "--workspace",
-        default=False,
-        action="store_true",
-        help="Display the entire run project workspace",
+        help="The path to a resource you want to display.",
     )
     @argument(
         "-h",
         "--height",
         default=420,
         type=int,
-        help="The height of the iframe in pixels",
+        help="The height of the iframe in pixels.",
     )
     @line_cell_magic
     def wandb(self, line, cell=None):
@@ -111,7 +112,6 @@ class WandBMagics(Magics):
         # Record options
         args = parse_argstring(self.wandb, line)
         self.options["height"] = args.height
-        self.options["workspace"] = args.workspace
         iframe = IFrame(args.path, opts=self.options)
         displayed = iframe.maybe_display()
         if cell is not None:
