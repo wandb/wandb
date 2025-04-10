@@ -1,4 +1,5 @@
 import os
+import tempfile
 from unittest import mock
 
 from wandb.old.settings import Settings
@@ -26,3 +27,14 @@ def test__global_path_default_does_not_exist_and_is_not_writable():
         assert Settings._global_path() == os.path.join(
             "/tmp", "testuser", ".config", "wandb", "settings"
         )
+
+
+def test__global_path_env_var_exists_and_is_writable(monkeypatch):
+    tmp_dir = tempfile.mkdtemp()
+    config_dir = os.path.join(tmp_dir, "config")
+    monkeypatch.setenv("WANDB_CONFIG_DIR", config_dir)
+
+    settings_path = Settings._global_path()
+
+    assert settings_path == os.path.join(config_dir, "settings")
+    assert os.path.exists(config_dir)

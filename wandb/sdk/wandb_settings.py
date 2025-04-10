@@ -33,6 +33,7 @@ from wandb._pydantic import (
     field_validator,
     model_validator,
 )
+from wandb.env import CONFIG_DIR
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 
@@ -467,7 +468,11 @@ class Settings(BaseModel, validate_assignment=True):
 
     settings_system: str = Field(
         default_factory=lambda: _path_convert(
-            os.path.join("~", ".config", "wandb", "settings")
+            os.getenv(
+                CONFIG_DIR,
+                os.path.join("~", ".config", "wandb"),
+            ),
+            "settings",
         )
     )
     """Path to the system-wide settings file."""
