@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from textwrap import dedent
 
 from wandb_graphql.language.printer import print_ast
@@ -5,59 +7,30 @@ from wandb_graphql.language.printer import print_ast
 from wandb.apis.public.utils import gql_compat
 from wandb.sdk.internal.internal_api import Api as InternalApi
 
-ARTIFACTS_TYPES_FRAGMENT = """
-fragment ArtifactTypesFragment on ArtifactTypeConnection {
-    edges {
-         node {
-             id
-             name
-             description
-             createdAt
-         }
-         cursor
-    }
-    pageInfo {
-        endCursor
-        hasNextPage
-    }
-}
-"""
-
-ARTIFACT_FILES_FRAGMENT = """fragment FilesFragment on FileConnection {
-    edges {
-        node {
-            id
-            name: displayName
-            url
-            sizeBytes
-            storagePath
-            mimetype
-            updatedAt
-            digest
-            md5
-            directUrl
-        }
-        cursor
-    }
-    pageInfo {
-        endCursor
-        hasNextPage
-    }
-}"""
-
-
-def _gql_artifact_fragment(include_aliases: bool = True) -> str:
-    """Return a GraphQL query fragment with all parseable Artifact attributes."""
-    allowed_fields = set(InternalApi().server_artifact_introspection())
-
-    omit_fields = {
+OMITTABLE_ARTIFACT_FIELDS = frozenset(
+    {
         "ttlDurationSeconds",
         "ttlIsInherited",
         "aliases",
         "tags",
         "historyStep",
     }
-    omit_fields = omit_fields - set(allowed_fields)
+)
+
+
+def omit_artifact_fields(api: InternalApi) -> set[str]:
+    """Return names of Artifact fields to remove from GraphQL requests (for server compatibility)."""
+    allowed_fields = set(api.server_artifact_introspection())
+    return set(OMITTABLE_ARTIFACT_FIELDS - allowed_fields)
+
+
+def _gql_artifact_fragment(include_aliases: bool = True) -> str:
+    """Return a GraphQL query fragment with all parseable Artifact attributes."""
+    omit_fields = omit_artifact_fields(api=InternalApi())
+
+    # Respect the `include_aliases` flag
+    if not include_aliases:
+        omit_fields.add("aliases")
 
     artifact_fragment_str = dedent(
         """\
