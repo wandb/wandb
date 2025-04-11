@@ -7,19 +7,20 @@ _T = TypeVar("_T")
 
 
 def run_async_with_spinner(
+    spinner_printer: printer.Printer,
     text: str,
     func: Callable[[], _T],
 ) -> _T:
     """Run a slow function while displaying a loading icon.
 
     Args:
+        spinner_printer: The printer to use to display text.
         text: The text to display next to the spinner while the function runs.
         func: The function to run.
 
     Returns:
         The result of func.
     """
-    spinner_printer = printer.new_printer()
 
     async def _loop_run_with_spinner() -> _T:
         func_running = asyncio.Event()
