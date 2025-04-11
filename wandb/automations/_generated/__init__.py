@@ -67,6 +67,13 @@ from .generic_webhook_integrations_by_entity import (
     GenericWebhookIntegrationsByEntityEntity,
 )
 from .get_triggers import GetTriggers, GetTriggersSearchScope
+from .get_triggers_by_artifact_collection import (
+    GetTriggersByArtifactCollection,
+    GetTriggersByArtifactCollectionProject,
+    GetTriggersByArtifactCollectionProjectArtifactCollection,
+    GetTriggersByArtifactCollectionProjectArtifactCollectionTriggers,
+    GetTriggersByArtifactCollectionProjectArtifactCollectionTriggersEdges,
+)
 from .get_triggers_by_entity import GetTriggersByEntity, GetTriggersByEntitySearchScope
 from .input_types import (
     CreateFilterTriggerInput,
@@ -84,6 +91,7 @@ from .operations import (
     CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL,
     DELETE_TRIGGER_GQL,
     GENERIC_WEBHOOK_INTEGRATIONS_BY_ENTITY_GQL,
+    GET_TRIGGERS_BY_ARTIFACT_COLLECTION_GQL,
     GET_TRIGGERS_BY_ENTITY_GQL,
     GET_TRIGGERS_GQL,
     INTEGRATIONS_BY_ENTITY_GQL,
@@ -101,6 +109,7 @@ __all__ = [
     "CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL",
     "DELETE_TRIGGER_GQL",
     "GENERIC_WEBHOOK_INTEGRATIONS_BY_ENTITY_GQL",
+    "GET_TRIGGERS_BY_ARTIFACT_COLLECTION_GQL",
     "GET_TRIGGERS_BY_ENTITY_GQL",
     "GET_TRIGGERS_GQL",
     "INTEGRATIONS_BY_ENTITY_GQL",
@@ -110,6 +119,11 @@ __all__ = [
     "GetTriggersSearchScope",
     "GetTriggersByEntity",
     "GetTriggersByEntitySearchScope",
+    "GetTriggersByArtifactCollection",
+    "GetTriggersByArtifactCollectionProject",
+    "GetTriggersByArtifactCollectionProjectArtifactCollection",
+    "GetTriggersByArtifactCollectionProjectArtifactCollectionTriggers",
+    "GetTriggersByArtifactCollectionProjectArtifactCollectionTriggersEdges",
     "CreateFilterTrigger",
     "UpdateFilterTrigger",
     "DeleteTrigger",

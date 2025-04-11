@@ -157,6 +157,26 @@ query GetTriggersByEntity (
     }
 }
 
+query GetTriggersByArtifactCollection (
+    $entityName: String!,
+    $projectName: String!,
+    $artifactCollectionName: String!,
+    $cursor: String,
+    $perPage: Int,
+) {
+    project(name: $projectName, entityName: $entityName) {
+        artifactCollection(name: $artifactCollectionName) {
+            triggers(after: $cursor, first: $perPage) {
+                edges {
+                    node {
+                        ...TriggerFields
+                    }
+                }
+            }
+        }
+    }
+}
+
 # ------------------------------------------------------------------------------
 fragment CreateFilterTriggerResult on CreateFilterTriggerPayload {
     __typename

@@ -6,6 +6,7 @@ __all__ = [
     "CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL",
     "DELETE_TRIGGER_GQL",
     "GENERIC_WEBHOOK_INTEGRATIONS_BY_ENTITY_GQL",
+    "GET_TRIGGERS_BY_ARTIFACT_COLLECTION_GQL",
     "GET_TRIGGERS_BY_ENTITY_GQL",
     "GET_TRIGGERS_GQL",
     "INTEGRATIONS_BY_ENTITY_GQL",
@@ -235,6 +236,137 @@ fragment ProjectConnectionFields on ProjectConnection {
       }
     }
   }
+}
+
+fragment ProjectScopeFields on Project {
+  __typename
+  id
+  name
+}
+
+fragment QueueJobActionFields on QueueJobTriggeredAction {
+  __typename
+  queue {
+    ...RunQueueFields
+  }
+  template
+}
+
+fragment RunQueueFields on RunQueue {
+  __typename
+  id
+  name
+}
+
+fragment SlackIntegrationFields on SlackIntegration {
+  __typename
+  id
+  teamName
+  channelName
+}
+
+fragment TriggerFields on Trigger {
+  __typename
+  id
+  createdAt
+  createdBy {
+    ...UserFields
+  }
+  updatedAt
+  name
+  description
+  enabled
+  scope {
+    __typename
+    ...ProjectScopeFields
+    ...ArtifactPortfolioScopeFields
+    ...ArtifactSequenceScopeFields
+  }
+  event: triggeringCondition {
+    __typename
+    ...FilterEventFields
+  }
+  action: triggeredAction {
+    __typename
+    ...QueueJobActionFields
+    ...NotificationActionFields
+    ...GenericWebhookActionFields
+    ...NoOpActionFields
+  }
+}
+
+fragment UserFields on User {
+  __typename
+  id
+  username
+}
+"""
+
+GET_TRIGGERS_BY_ARTIFACT_COLLECTION_GQL = """
+query GetTriggersByArtifactCollection($entityName: String!, $projectName: String!, $artifactCollectionName: String!, $cursor: String, $perPage: Int) {
+  project(name: $projectName, entityName: $entityName) {
+    artifactCollection(name: $artifactCollectionName) {
+      __typename
+      triggers(after: $cursor, first: $perPage) {
+        edges {
+          node {
+            ...TriggerFields
+          }
+        }
+      }
+    }
+  }
+}
+
+fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
+  __typename
+  id
+  name
+}
+
+fragment ArtifactSequenceScopeFields on ArtifactSequence {
+  __typename
+  id
+  name
+}
+
+fragment FilterEventFields on FilterEventTriggeringCondition {
+  __typename
+  eventType
+  filter
+}
+
+fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
+  __typename
+  integration {
+    __typename
+    ...GenericWebhookIntegrationFields
+  }
+  requestPayload
+}
+
+fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
+  __typename
+  id
+  name
+  urlEndpoint
+  createdAt
+}
+
+fragment NoOpActionFields on NoOpTriggeredAction {
+  __typename
+  noOp
+}
+
+fragment NotificationActionFields on NotificationTriggeredAction {
+  __typename
+  integration {
+    __typename
+    ...SlackIntegrationFields
+  }
+  title
+  message
+  severity
 }
 
 fragment ProjectScopeFields on Project {
