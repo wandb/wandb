@@ -31,6 +31,7 @@ from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient,
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk.artifacts._graphql_fragments import _gql_artifact_fragment
 from wandb.sdk.artifacts._validators import (
     ensure_logged,
@@ -59,7 +60,7 @@ from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
-from wandb.sdk.lib.deprecate import Deprecated, deprecate
+from wandb.sdk.lib.deprecate import deprecate
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_id
