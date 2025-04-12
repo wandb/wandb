@@ -1042,7 +1042,10 @@ class Run:
     @_log_to_run
     @_attach
     def mode(self) -> str:
-        """For compatibility with `0.9.x` and earlier, deprecate eventually."""
+        """Available in Python SDK version `0.9.x` and earlier.
+
+        Future releases will remove this property.
+        """
         if hasattr(self, "_telemetry_obj"):
             deprecate.deprecate(
                 field_name=deprecate.Deprecated.run__mode,
