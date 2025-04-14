@@ -1125,7 +1125,7 @@ class Run:
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def project_url(self) -> str | None:
         """URL of the W&B project associated with the run, if there is one.
 
@@ -1243,7 +1243,7 @@ class Run:
         return self.sweep_url
 
     @property
-    @_run_decorator._attach
+    @_attach
     def sweep_url(self) -> str | None:
         """URL of the sweep associated with the run, if there is one.
 
