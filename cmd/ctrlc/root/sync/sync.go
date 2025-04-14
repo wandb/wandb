@@ -2,6 +2,7 @@ package sync
 
 import (
 	"github.com/MakeNowJust/heredoc/v2"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/aws/ec2"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/clickhouse"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/tailscale"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/terraform"
@@ -27,6 +28,7 @@ func NewSyncCmd() *cobra.Command {
 	cmd.AddCommand(cliutil.AddIntervalSupport(terraform.NewSyncTerraformCmd(), ""))
 	cmd.AddCommand(cliutil.AddIntervalSupport(tailscale.NewSyncTailscaleCmd(), ""))
 	cmd.AddCommand(cliutil.AddIntervalSupport(clickhouse.NewSyncClickhouseCmd(), ""))
+	cmd.AddCommand(cliutil.AddIntervalSupport(ec2.NewSyncEC2Cmd(), ""))
 
 	return cmd
 }
