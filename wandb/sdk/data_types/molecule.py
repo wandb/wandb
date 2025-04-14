@@ -26,7 +26,7 @@ class Molecule(BatchableMedia):
     """Wandb class for 3D Molecular data.
 
     Args:
-        data_or_path: (string, io)
+        data_or_path: (pathlib.Path, string, io)
             Molecule can be initialized from a file name or an io object.
         caption: (string)
             Caption associated with the molecule for display.
