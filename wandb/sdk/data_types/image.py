@@ -67,8 +67,8 @@ class Image(BatchableMedia):
     """Format images for logging to W&B.
 
     Args:
-        data_or_path: (numpy array, string, io) Accepts numpy array of
-            image data, or a PIL image. The class attempts to infer
+        data_or_path: (numpy array, pathlib.Path, string, io) Accepts numpy array of
+            image data, a PIL image, or a path to an image file. The class attempts to infer
             the data format and converts it.
         mode: (string) The PIL mode for an image. Most common are "L", "RGB",
             "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
