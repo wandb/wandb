@@ -193,7 +193,7 @@ func NewCreatePolicyCmd() *cobra.Command {
 	cmd.Flags().StringVar(&versionAnyApprovals, "version-any-approvals", "", "JSON string for version any approvals")
 	cmd.Flags().StringVar(&versionUserApprovals, "version-user-approvals", "", "JSON string for version user approvals")
 	cmd.Flags().StringVar(&versionRoleApprovals, "version-role-approvals", "", "JSON string for version role approvals")
-	cmd.Flags().StringVar(&deploymentVersionSelector, "deployment-version-selector", "", "JSON string for deployment version selector")
+	cmd.Flags().StringVar(&deploymentVersionSelector, "version-selector", "", "JSON string for version selector")
 
 	// Mark required flags
 	cmd.MarkFlagRequired("name")
