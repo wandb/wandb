@@ -89,9 +89,9 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
         if wandb_core_only:
             # Don't merge tests like this. Implement the feature first.
-            assert (
-                not skip_wandb_core
-            ), "Cannot mark test both skip_wandb_core and wandb_core_only"
+            assert not skip_wandb_core, (
+                "Cannot mark test both skip_wandb_core and wandb_core_only"
+            )
 
             values = [False]
             ids = ["wandb_core"]

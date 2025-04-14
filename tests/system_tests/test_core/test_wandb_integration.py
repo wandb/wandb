@@ -91,9 +91,9 @@ def test_dir_on_import():
         assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
             default_path
         )
-        assert not os.path.isdir(
-            custom_env_path
-        ), f"Unexpected directory at {custom_env_path}"
+        assert not os.path.isdir(custom_env_path), (
+            f"Unexpected directory at {custom_env_path}"
+        )
 
 
 def test_dir_on_init(user):

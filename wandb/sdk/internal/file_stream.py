@@ -75,7 +75,7 @@ class DefaultFilePolicy:
 
         # get key size and convert to MB
         key_sizes = [(k, len(json.dumps(v))) for k, v in loaded.items()]
-        key_msg = [f"{k}: {v/1048576:.5f} MB" for k, v in key_sizes]
+        key_msg = [f"{k}: {v / 1048576:.5f} MB" for k, v in key_sizes]
         wandb.termerror(f"Step: {loaded['_step']} | {key_msg}", repeat=False)
         self.has_debug_log = True
 
@@ -664,8 +664,7 @@ def request_with_retry(
                 e.response is not None and e.response.status_code == 429
             ):
                 err_str = (
-                    "Filestream rate limit exceeded, "
-                    f"retrying in {delay:.1f} seconds. "
+                    f"Filestream rate limit exceeded, retrying in {delay:.1f} seconds. "
                 )
                 if retry_callback:
                     retry_callback(e.response.status_code, err_str)

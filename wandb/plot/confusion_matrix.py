@@ -150,7 +150,7 @@ def confusion_matrix(
     else:
         class_idx = set(preds).union(set(y_true))
         n_classes = len(class_idx)
-        class_names = [f"Class_{i+1}" for i in range(n_classes)]
+        class_names = [f"Class_{i + 1}" for i in range(n_classes)]
 
     # Create a mapping from class name to index
     class_mapping = {val: i for i, val in enumerate(sorted(list(class_idx)))}

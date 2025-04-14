@@ -227,8 +227,7 @@ def test_deprecated_run_log_sync(mock_run, mock_wandb_log):
     run.log(dict(this=1), sync=True)
 
     assert mock_wandb_log.warned(
-        "`sync` argument is deprecated"
-        " and does not affect the behaviour of `wandb.log`"
+        "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
     )
 
 

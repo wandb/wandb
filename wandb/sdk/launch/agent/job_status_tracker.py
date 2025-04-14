@@ -44,7 +44,9 @@ class JobAndRunStatusTracker:
             self.run_id is not None
             and self.project is not None
             and self.entity is not None
-        ), "Job tracker does not contain run info. Update with run info before checking if run stopped"
+        ), (
+            "Job tracker does not contain run info. Update with run info before checking if run stopped"
+        )
         check_stop = event_loop_thread_exec(api.api.check_stop_requested)
         try:
             return bool(await check_stop(self.project, self.entity, self.run_id))

@@ -98,9 +98,9 @@ def check_files(paths: List[PurePath]) -> None:
         with temp_fname() as temp_file:
             generate_file(p, temp_file)
             format_file(temp_file)
-            assert filecmp.cmp(
-                generated_path, temp_file
-            ), f"expected: {open(temp_file).read()}"
+            assert filecmp.cmp(generated_path, temp_file), (
+                f"expected: {open(temp_file).read()}"
+            )
 
 
 def main() -> None:

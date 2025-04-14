@@ -22,7 +22,11 @@ class WandbCallback:
 
     Example:
         ```
-        train_pool = Pool(train[features], label=train["label"], cat_features=cat_features)
+        train_pool = Pool(
+            train[features],
+            label=train["label"],
+            cat_features=cat_features,
+        )
         test_pool = Pool(test[features], label=test["label"], cat_features=cat_features)
 
         model = CatBoostRegressor(
@@ -130,7 +134,11 @@ def log_summary(
 
     Example:
         ```python
-        train_pool = Pool(train[features], label=train["label"], cat_features=cat_features)
+        train_pool = Pool(
+            train[features],
+            label=train["label"],
+            cat_features=cat_features,
+        )
         test_pool = Pool(test[features], label=test["label"], cat_features=cat_features)
 
         model = CatBoostRegressor(

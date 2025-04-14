@@ -276,9 +276,9 @@ class Table(Media):
             self.add_data(*row)
 
     def _init_from_ndarray(self, ndarray, columns, optional=True, dtype=None):
-        assert util.is_numpy_array(
-            ndarray
-        ), "ndarray argument expects a `numpy.ndarray` object"
+        assert util.is_numpy_array(ndarray), (
+            "ndarray argument expects a `numpy.ndarray` object"
+        )
         self.data = []
         self._assert_valid_columns(columns)
         self.columns = columns
@@ -287,9 +287,9 @@ class Table(Media):
             self.add_data(*row)
 
     def _init_from_dataframe(self, dataframe, columns, optional=True, dtype=None):
-        assert util.is_pandas_data_frame(
-            dataframe
-        ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
+        assert util.is_pandas_data_frame(dataframe), (
+            "dataframe argument expects a `pandas.core.frame.DataFrame` object"
+        )
         self.data = []
         columns = list(dataframe.columns)
         self._assert_valid_columns(columns)
@@ -349,18 +349,18 @@ class Table(Media):
         is_fk = isinstance(wbtype, _ForeignKeyType)
         is_fi = isinstance(wbtype, _ForeignIndexType)
         if is_pk or is_fk or is_fi:
-            assert (
-                not optional
-            ), "Primary keys, foreign keys, and foreign indexes cannot be optional."
+            assert not optional, (
+                "Primary keys, foreign keys, and foreign indexes cannot be optional."
+            )
 
         if (is_fk or is_fk) and id(wbtype.params["table"]) == id(self):
             raise AssertionError("Cannot set a foreign table reference to same table.")
 
         if is_pk:
-            assert (
-                self._pk_col is None
-            ), "Cannot have multiple primary keys - {} is already set as the primary key.".format(
-                self._pk_col
+            assert self._pk_col is None, (
+                "Cannot have multiple primary keys - {} is already set as the primary key.".format(
+                    self._pk_col
+                )
             )
 
         # Update the column type
@@ -387,10 +387,10 @@ class Table(Media):
             other.columns, self.columns
         )
         eq = eq and self._column_types == other._column_types
-        assert (
-            not should_assert or eq
-        ), "Found column type {}, expected column type {}".format(
-            other._column_types, self._column_types
+        assert not should_assert or eq, (
+            "Found column type {}, expected column type {}".format(
+                other._column_types, self._column_types
+            )
         )
         if eq:
             for row_ndx in range(len(self.data)):
@@ -400,13 +400,13 @@ class Table(Media):
                     if util.is_numpy_array(_eq):
                         _eq = ((_eq * -1) + 1).sum() == 0
                     eq = eq and _eq
-                    assert (
-                        not should_assert or eq
-                    ), "Unequal data at row_ndx {} col_ndx {}: found {}, expected {}".format(
-                        row_ndx,
-                        col_ndx,
-                        other.data[row_ndx][col_ndx],
-                        self.data[row_ndx][col_ndx],
+                    assert not should_assert or eq, (
+                        "Unequal data at row_ndx {} col_ndx {}: found {}, expected {}".format(
+                            row_ndx,
+                            col_ndx,
+                            other.data[row_ndx][col_ndx],
+                            self.data[row_ndx][col_ndx],
+                        )
                     )
                     if not eq:
                         return eq
@@ -807,9 +807,9 @@ class Table(Media):
         assert isinstance(data, list) or is_np
         assert isinstance(optional, bool)
         is_first_col = len(self.columns) == 0
-        assert is_first_col or len(data) == len(
-            self.data
-        ), f"Expected length {len(self.data)}, found {len(data)}"
+        assert is_first_col or len(data) == len(self.data), (
+            f"Expected length {len(self.data)}, found {len(data)}"
+        )
 
         # Add the new data
         for ndx in range(max(len(data), len(self.data))):

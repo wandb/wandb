@@ -69,7 +69,7 @@ class SagemakerSubmittedRun(AbstractRun):
             )
             assert "events" in res
             return "\n".join(
-                [f'{event["timestamp"]}:{event["message"]}' for event in res["events"]]
+                [f"{event['timestamp']}:{event['message']}" for event in res["events"]]
             )
         except self.log_client.exceptions.ResourceNotFoundException:
             wandb.termwarn(

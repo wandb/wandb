@@ -271,10 +271,10 @@ def create_component_from_func(
         Example of a component function declaring file input and output::
 
             def catboost_train_classifier(
-                training_data_path: InputPath("CSV"),  # Path to input data file of type "CSV"
-                trained_model_path: OutputPath(
-                    "CatBoostModel"
-                ),  # Path to output data file of type "CatBoostModel"
+                # Path to input data file of type "CSV"
+                training_data_path: InputPath("CSV"),
+                # Path to output data file of type "CatBoostModel"
+                trained_model_path: OutputPath("CatBoostModel"),
                 number_of_trees: int = 100,  # Small output of type "Integer"
             ) -> NamedTuple(
                 "Outputs",

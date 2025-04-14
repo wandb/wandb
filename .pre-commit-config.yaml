@@ -10,7 +10,7 @@ default_stages:
 default_install_hook_types: [pre-push, pre-commit]
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.8.2"
+    rev: "v0.11.5"
     hooks:
       - id: ruff
         args: [--fix]
@@ -58,7 +58,7 @@ repos:
         language: "python"
         pass_filenames: false
         always_run: true
-        additional_dependencies: ["ruff", "astunparse>=1.6.3"]
+        additional_dependencies: ["ruff", "astunparse~=1.6"]
         description: "Generates stubs for wandb module"
       - id: go-generate-proto
         name: "go-generate-proto"
