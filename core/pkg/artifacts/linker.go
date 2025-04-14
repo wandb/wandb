@@ -98,7 +98,7 @@ func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organizat
 	canFetchOrgEntity := slices.Contains(orgFieldNames, "orgEntity")
 	if organization == "" && !canFetchOrgEntity {
 		// Support is added in version 0.50.0 of the wandb server.
-		return "", fmt.Errorf("Fetching Registry artifacts unsupported and no organization given")
+		return "", fmt.Errorf("fetching Registry artifacts unsupported and no organization given")
 	}
 	if !canFetchOrgEntity {
 		// Use traditional registry path with org entity if server doesn't support it
@@ -117,7 +117,7 @@ func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organizat
 		response.GetEntity() == nil ||
 		response.GetEntity().GetOrganization() == nil ||
 		response.GetEntity().GetOrganization().GetOrgEntity() == nil {
-		return "", fmt.Errorf("Unable to resolve an organization associated with the entity: %s "+
+		return "", fmt.Errorf("unable to resolve an organization associated with the entity: %s "+
 			"that is initialized in the API or Run settings. This could be because %s is a personal entity or "+
 			"the team entity doesn't exist. "+
 			"Please re-initialize the API or Run with a team entity using "+
@@ -132,8 +132,8 @@ func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organizat
 	inputMatchesOrgName := organization == orgDisplayName
 	inputMatchesOrgEntityName := organization == orgEntityName
 	if organization != "" && !inputMatchesOrgName && !inputMatchesOrgEntityName {
-		return "", fmt.Errorf("Artifact belongs to the organization %q and cannot be linked/fetched with %q. "+
-			"Please update the target path with the correct organization name.", orgDisplayName, organization)
+		return "", fmt.Errorf("artifact belongs to the organization %q and cannot be linked/fetched with %q. "+
+			"Please update the target path with the correct organization name", orgDisplayName, organization)
 	}
 	return orgEntityName, nil
 }

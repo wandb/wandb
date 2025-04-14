@@ -50,7 +50,7 @@ func setupTestRepo() (string, func(), error) {
 	fmt.Printf("Commit created: %s\n", commit.String())
 
 	cleanup := func() {
-		os.RemoveAll(repoPath)
+		_ = os.RemoveAll(repoPath)
 	}
 	return repoPath, cleanup, nil
 }
@@ -100,7 +100,9 @@ func TestSavePatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 	outputPath := filepath.Join(tempDir, "diff.patch")
 
 	logger := observability.NewNoOpLogger()

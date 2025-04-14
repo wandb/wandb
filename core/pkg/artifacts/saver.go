@@ -516,7 +516,9 @@ func multiPartRequest(path string) ([]gql.UploadPartsInput, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	partsInfo := []gql.UploadPartsInput{}
 	partNumber := int64(1)
@@ -820,7 +822,9 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.writeManifest: %w", err)
 	}
-	defer os.Remove(manifestFile)
+	defer func() {
+		_ = os.Remove(manifestFile)
+	}()
 
 	uploadUrl, uploadHeaders, err := as.upsertManifest(artifactID, baseArtifactId, manifestAttrs.Id, manifestDigest)
 	if err != nil {

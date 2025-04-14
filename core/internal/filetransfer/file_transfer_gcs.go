@@ -200,7 +200,9 @@ func (ft *GCSFileTransfer) downloadFile(
 	if err != nil {
 		return ft.formatDownloadError("error creating reader", err)
 	}
-	defer r.Close()
+	defer func() {
+		_ = r.Close()
+	}()
 
 	// Check if the directory exists, and create it if it doesn't
 	dir := path.Dir(localPath)
