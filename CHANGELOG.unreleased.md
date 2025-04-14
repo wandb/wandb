@@ -21,6 +21,15 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - Dropped the `-q` / `--quiet` argument to the `wandb` magic in IPython / Jupyter; use the `quiet` run setting instead (@timoffex in https://github.com/wandb/wandb/pull/9705)
 
+### Deprecated
+
+- The following `wandb.Run` methods are deprecated in favor of properties and will be removed in a future release (@kptkin in https://github.com/wandb/wandb/pull/8925):
+    - `run.project_name()` is deprecated in favor of `run.project`
+    - `run.get_url()` method is deprecated in favor of `run.url`
+    - `run.get_project_url()` method is deprecated in favor of `run.project_url`
+    - `run.get_sweep_url()` method is deprecated in favor of `run.sweep_url`
+
+
 ### Fixed
 
 - Fixed ValueError on Windows when running a W&B script from a different drive (@jacobromero in https://github.com/wandb/wandb/pull/9678)
