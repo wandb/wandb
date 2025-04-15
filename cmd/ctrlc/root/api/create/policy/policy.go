@@ -56,27 +56,27 @@ func NewCreatePolicyCmd() *cobra.Command {
 			}
 
 			// Parse selectors from JSON strings
-			var deploymentSelector *map[string]interface{}
+			var deploymentSelector *map[string]any
 			if deploymentTargetSelector != "" {
-				var parsedSelector map[string]interface{}
+				var parsedSelector map[string]any
 				if err := json.Unmarshal([]byte(deploymentTargetSelector), &parsedSelector); err != nil {
 					return fmt.Errorf("invalid deployment target selector JSON: %w", err)
 				}
 				deploymentSelector = &parsedSelector
 			}
 
-			var environmentSelector *map[string]interface{}
+			var environmentSelector *map[string]any
 			if environmentTargetSelector != "" {
-				var parsedSelector map[string]interface{}
+				var parsedSelector map[string]any
 				if err := json.Unmarshal([]byte(environmentTargetSelector), &parsedSelector); err != nil {
 					return fmt.Errorf("invalid environment target selector JSON: %w", err)
 				}
 				environmentSelector = &parsedSelector
 			}
 
-			var resourceSelector *map[string]interface{}
+			var resourceSelector *map[string]any
 			if resourceTargetSelector != "" {
-				var parsedSelector map[string]interface{}
+				var parsedSelector map[string]any
 				if err := json.Unmarshal([]byte(resourceTargetSelector), &parsedSelector); err != nil {
 					return fmt.Errorf("invalid resource target selector JSON: %w", err)
 				}
@@ -86,7 +86,7 @@ func NewCreatePolicyCmd() *cobra.Command {
 			// Parse deployment version selector
 			var parsedDeploymentVersionSelector *api.DeploymentVersionSelector
 			if deploymentVersionSelector != "" {
-				var selector map[string]interface{}
+				var selector map[string]any
 
 				if err := json.Unmarshal([]byte(deploymentVersionSelector), &selector); err != nil {
 					return fmt.Errorf("invalid deployment version selector JSON: %w", err)
