@@ -125,7 +125,6 @@ func NewCreatePolicyCmd() *cobra.Command {
 	}
 
 	// Add flags
-	cmd.Flags().String("workspace", "", "ID of the workspace (required)")
 	cmd.Flags().StringVarP(&name, "name", "n", "", "Name of the policy (required)")
 	cmd.Flags().StringVarP(&description, "description", "d", "", "Description of the policy")
 	cmd.Flags().Float32VarP(&priority, "priority", "p", 0, "Priority of the policy (default: 0)")

@@ -103,7 +103,6 @@ func NewUpsertResourceCmd() *cobra.Command {
 	}
 
 	// Add flags
-	cmd.Flags().String("workspace", "", "ID of the workspace (required)")
 	cmd.Flags().StringVar(&name, "name", "", "Name of the resource (required)")
 	cmd.Flags().StringVar(&identifier, "identifier", "", "Identifier of the resource (required)")
 	cmd.Flags().StringVar(&kind, "kind", "", "Kind of the resource (required)")

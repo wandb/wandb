@@ -66,7 +66,6 @@ func NewCreateSystemCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&name, "name", "n", "", "Name of the system (will default to slug if not provided)")
 	cmd.Flags().StringVarP(&slug, "slug", "l", "", "Slug of the system (required)")
 	cmd.Flags().StringVarP(&description, "description", "d", "", "Description of the system")
-	cmd.Flags().String("workspace", "", "ID of the workspace (required)")
 
 	cmd.MarkFlagRequired("slug")
 
