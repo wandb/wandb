@@ -52,7 +52,7 @@ func NewDeletePolicyCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&policyId, "policy-id", "", "Policy ID")
+	cmd.Flags().StringVar(&policyId, "id", "", "Policy ID")
 	cmd.Flags().StringVar(&name, "name", "", "Policy name")
 	cmd.Flags().String("workspace", "", "ID of the workspace")
 
