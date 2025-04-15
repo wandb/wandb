@@ -6,6 +6,7 @@ import (
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/ctrlplanedev/cli/internal/api"
 	"github.com/ctrlplanedev/cli/internal/cliutil"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -43,7 +44,7 @@ func NewDeletePolicyCmd() *cobra.Command {
 				return fmt.Errorf("policy ID is not yet supported")
 			}
 
-			resp, err := client.DeletePolicyByName(cmd.Context(), workspace, name)
+			resp, err := client.DeletePolicyByName(cmd.Context(), uuid.MustParse(workspace), name)
 			if err != nil {
 				return fmt.Errorf("failed to delete policy: %w", err)
 			}

@@ -1250,7 +1250,7 @@ type ClientInterface interface {
 	ListEnvironments(ctx context.Context, workspaceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeletePolicyByName request
-	DeletePolicyByName(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeletePolicyByName(ctx context.Context, workspaceId openapi_types.UUID, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpsertResourceProvider request
 	UpsertResourceProvider(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2012,7 +2012,7 @@ func (c *Client) ListEnvironments(ctx context.Context, workspaceId string, reqEd
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeletePolicyByName(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) DeletePolicyByName(ctx context.Context, workspaceId openapi_types.UUID, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeletePolicyByNameRequest(c.Server, workspaceId, name)
 	if err != nil {
 		return nil, err
@@ -3703,7 +3703,7 @@ func NewListEnvironmentsRequest(server string, workspaceId string) (*http.Reques
 }
 
 // NewDeletePolicyByNameRequest generates requests for DeletePolicyByName
-func NewDeletePolicyByNameRequest(server string, workspaceId string, name string) (*http.Request, error) {
+func NewDeletePolicyByNameRequest(server string, workspaceId openapi_types.UUID, name string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -4144,7 +4144,7 @@ type ClientWithResponsesInterface interface {
 	ListEnvironmentsWithResponse(ctx context.Context, workspaceId string, reqEditors ...RequestEditorFn) (*ListEnvironmentsResponse, error)
 
 	// DeletePolicyByNameWithResponse request
-	DeletePolicyByNameWithResponse(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*DeletePolicyByNameResponse, error)
+	DeletePolicyByNameWithResponse(ctx context.Context, workspaceId openapi_types.UUID, name string, reqEditors ...RequestEditorFn) (*DeletePolicyByNameResponse, error)
 
 	// UpsertResourceProviderWithResponse request
 	UpsertResourceProviderWithResponse(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*UpsertResourceProviderResponse, error)
@@ -6071,7 +6071,7 @@ func (c *ClientWithResponses) ListEnvironmentsWithResponse(ctx context.Context, 
 }
 
 // DeletePolicyByNameWithResponse request returning *DeletePolicyByNameResponse
-func (c *ClientWithResponses) DeletePolicyByNameWithResponse(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*DeletePolicyByNameResponse, error) {
+func (c *ClientWithResponses) DeletePolicyByNameWithResponse(ctx context.Context, workspaceId openapi_types.UUID, name string, reqEditors ...RequestEditorFn) (*DeletePolicyByNameResponse, error) {
 	rsp, err := c.DeletePolicyByName(ctx, workspaceId, name, reqEditors...)
 	if err != nil {
 		return nil, err
