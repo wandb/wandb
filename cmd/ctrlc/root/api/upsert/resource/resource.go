@@ -13,7 +13,6 @@ import (
 )
 
 func NewUpsertResourceCmd() *cobra.Command {
-	var workspaceID string
 	var name string
 	var identifier string
 	var kind string
@@ -37,6 +36,12 @@ func NewUpsertResourceCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			apiURL := viper.GetString("url")
 			apiKey := viper.GetString("api-key")
+			workspaceId := viper.GetString("workspace")
+
+			if workspaceId == "" {
+				return fmt.Errorf("workspace is required")
+			}
+
 			client, err := api.NewAPIKeyClientWithResponses(apiURL, apiKey)
 			if err != nil {
 				return fmt.Errorf("failed to create API client: %w", err)
@@ -86,7 +91,7 @@ func NewUpsertResourceCmd() *cobra.Command {
 					},
 				},
 
-				WorkspaceId: uuid.Must(uuid.Parse(workspaceID)),
+				WorkspaceId: uuid.Must(uuid.Parse(workspaceId)),
 			})
 
 			if err != nil {
@@ -98,7 +103,7 @@ func NewUpsertResourceCmd() *cobra.Command {
 	}
 
 	// Add flags
-	cmd.Flags().StringVar(&workspaceID, "workspace", "", "ID of the workspace (required)")
+	cmd.Flags().String("workspace", "", "ID of the workspace (required)")
 	cmd.Flags().StringVar(&name, "name", "", "Name of the resource (required)")
 	cmd.Flags().StringVar(&identifier, "identifier", "", "Identifier of the resource (required)")
 	cmd.Flags().StringVar(&kind, "kind", "", "Kind of the resource (required)")
@@ -110,7 +115,6 @@ func NewUpsertResourceCmd() *cobra.Command {
 	cmd.Flags().StringToStringVar(&links, "link", make(map[string]string), "Links key-value pairs (can be specified multiple times)")
 
 	cmd.MarkFlagRequired("version")
-	cmd.MarkFlagRequired("workspace")
 	cmd.MarkFlagRequired("name")
 	cmd.MarkFlagRequired("identifier")
 	cmd.MarkFlagRequired("kind")

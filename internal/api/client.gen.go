@@ -1249,6 +1249,9 @@ type ClientInterface interface {
 	// ListEnvironments request
 	ListEnvironments(ctx context.Context, workspaceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeletePolicyByName request
+	DeletePolicyByName(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// UpsertResourceProvider request
 	UpsertResourceProvider(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1260,9 +1263,6 @@ type ClientInterface interface {
 
 	// GetResourceByIdentifier request
 	GetResourceByIdentifier(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetResourcesByFilter request
-	GetResourcesByFilter(ctx context.Context, workspaceId string, filter string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListSystems request
 	ListSystems(ctx context.Context, workspaceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2012,6 +2012,18 @@ func (c *Client) ListEnvironments(ctx context.Context, workspaceId string, reqEd
 	return c.Client.Do(req)
 }
 
+func (c *Client) DeletePolicyByName(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeletePolicyByNameRequest(c.Server, workspaceId, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) UpsertResourceProvider(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpsertResourceProviderRequest(c.Server, workspaceId, name)
 	if err != nil {
@@ -2050,18 +2062,6 @@ func (c *Client) DeleteResourceByIdentifier(ctx context.Context, workspaceId str
 
 func (c *Client) GetResourceByIdentifier(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetResourceByIdentifierRequest(c.Server, workspaceId, identifier)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetResourcesByFilter(ctx context.Context, workspaceId string, filter string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetResourcesByFilterRequest(c.Server, workspaceId, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -3702,6 +3702,47 @@ func NewListEnvironmentsRequest(server string, workspaceId string) (*http.Reques
 	return req, nil
 }
 
+// NewDeletePolicyByNameRequest generates requests for DeletePolicyByName
+func NewDeletePolicyByNameRequest(server string, workspaceId string, name string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workspaceId", runtime.ParamLocationPath, workspaceId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/workspaces/%s/policies/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewUpsertResourceProviderRequest generates requests for UpsertResourceProvider
 func NewUpsertResourceProviderRequest(server string, workspaceId string, name string) (*http.Request, error) {
 	var err error
@@ -3842,47 +3883,6 @@ func NewGetResourceByIdentifierRequest(server string, workspaceId string, identi
 	}
 
 	operationPath := fmt.Sprintf("/v1/workspaces/%s/resources/identifier/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetResourcesByFilterRequest generates requests for GetResourcesByFilter
-func NewGetResourcesByFilterRequest(server string, workspaceId string, filter string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workspaceId", runtime.ParamLocationPath, workspaceId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "filter", runtime.ParamLocationPath, filter)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/v1/workspaces/%s/resources/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -4143,6 +4143,9 @@ type ClientWithResponsesInterface interface {
 	// ListEnvironmentsWithResponse request
 	ListEnvironmentsWithResponse(ctx context.Context, workspaceId string, reqEditors ...RequestEditorFn) (*ListEnvironmentsResponse, error)
 
+	// DeletePolicyByNameWithResponse request
+	DeletePolicyByNameWithResponse(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*DeletePolicyByNameResponse, error)
+
 	// UpsertResourceProviderWithResponse request
 	UpsertResourceProviderWithResponse(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*UpsertResourceProviderResponse, error)
 
@@ -4154,9 +4157,6 @@ type ClientWithResponsesInterface interface {
 
 	// GetResourceByIdentifierWithResponse request
 	GetResourceByIdentifierWithResponse(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*GetResourceByIdentifierResponse, error)
-
-	// GetResourcesByFilterWithResponse request
-	GetResourcesByFilterWithResponse(ctx context.Context, workspaceId string, filter string, reqEditors ...RequestEditorFn) (*GetResourcesByFilterResponse, error)
 
 	// ListSystemsWithResponse request
 	ListSystemsWithResponse(ctx context.Context, workspaceId string, reqEditors ...RequestEditorFn) (*ListSystemsResponse, error)
@@ -5363,6 +5363,33 @@ func (r ListEnvironmentsResponse) StatusCode() int {
 	return 0
 }
 
+type DeletePolicyByNameResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Success *bool `json:"success,omitempty"`
+	}
+	JSON404 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r DeletePolicyByNameResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeletePolicyByNameResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type UpsertResourceProviderResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -5475,31 +5502,6 @@ func (r GetResourceByIdentifierResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetResourceByIdentifierResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetResourcesByFilterResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *[]Resource
-	JSON400      *struct {
-		Error *string `json:"error,omitempty"`
-	}
-}
-
-// Status returns HTTPResponse.Status
-func (r GetResourcesByFilterResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetResourcesByFilterResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -6068,6 +6070,15 @@ func (c *ClientWithResponses) ListEnvironmentsWithResponse(ctx context.Context, 
 	return ParseListEnvironmentsResponse(rsp)
 }
 
+// DeletePolicyByNameWithResponse request returning *DeletePolicyByNameResponse
+func (c *ClientWithResponses) DeletePolicyByNameWithResponse(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*DeletePolicyByNameResponse, error) {
+	rsp, err := c.DeletePolicyByName(ctx, workspaceId, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeletePolicyByNameResponse(rsp)
+}
+
 // UpsertResourceProviderWithResponse request returning *UpsertResourceProviderResponse
 func (c *ClientWithResponses) UpsertResourceProviderWithResponse(ctx context.Context, workspaceId string, name string, reqEditors ...RequestEditorFn) (*UpsertResourceProviderResponse, error) {
 	rsp, err := c.UpsertResourceProvider(ctx, workspaceId, name, reqEditors...)
@@ -6102,15 +6113,6 @@ func (c *ClientWithResponses) GetResourceByIdentifierWithResponse(ctx context.Co
 		return nil, err
 	}
 	return ParseGetResourceByIdentifierResponse(rsp)
-}
-
-// GetResourcesByFilterWithResponse request returning *GetResourcesByFilterResponse
-func (c *ClientWithResponses) GetResourcesByFilterWithResponse(ctx context.Context, workspaceId string, filter string, reqEditors ...RequestEditorFn) (*GetResourcesByFilterResponse, error) {
-	rsp, err := c.GetResourcesByFilter(ctx, workspaceId, filter, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetResourcesByFilterResponse(rsp)
 }
 
 // ListSystemsWithResponse request returning *ListSystemsResponse
@@ -7794,6 +7796,43 @@ func ParseListEnvironmentsResponse(rsp *http.Response) (*ListEnvironmentsRespons
 	return response, nil
 }
 
+// ParseDeletePolicyByNameResponse parses an HTTP response from a DeletePolicyByNameWithResponse call
+func ParseDeletePolicyByNameResponse(rsp *http.Response) (*DeletePolicyByNameResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeletePolicyByNameResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Success *bool `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseUpsertResourceProviderResponse parses an HTTP response from a UpsertResourceProviderWithResponse call
 func ParseUpsertResourceProviderResponse(rsp *http.Response) (*UpsertResourceProviderResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -7934,41 +7973,6 @@ func ParseGetResourceByIdentifierResponse(rsp *http.Response) (*GetResourceByIde
 			return nil, err
 		}
 		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetResourcesByFilterResponse parses an HTTP response from a GetResourcesByFilterWithResponse call
-func ParseGetResourcesByFilterResponse(rsp *http.Response) (*GetResourcesByFilterResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetResourcesByFilterResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []Resource
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest struct {
-			Error *string `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
 
 	}
 

@@ -22,7 +22,6 @@ func NewCreateSystemCmd() *cobra.Command {
 	var name string
 	var slug string
 	var description string
-	var workspace string
 	cmd := &cobra.Command{
 		Use:   "system [flags]",
 		Short: "Create a new system",
@@ -34,14 +33,15 @@ func NewCreateSystemCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			apiURL := viper.GetString("url")
 			apiKey := viper.GetString("api-key")
+
+			workspaceId, err := uuid.Parse(viper.GetString("workspace"))
+			if err != nil {
+				return fmt.Errorf("invalid workspace ID: %w", err)
+			}
+
 			client, err := api.NewAPIKeyClientWithResponses(apiURL, apiKey)
 			if err != nil {
 				return fmt.Errorf("failed to create API client: %w", err)
-			}
-
-			workspaceId, err := uuid.Parse(workspace)
-			if err != nil {
-				return fmt.Errorf("invalid workspace ID: %w", err)
 			}
 
 			body := api.CreateSystemJSONRequestBody{
@@ -66,10 +66,9 @@ func NewCreateSystemCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&name, "name", "n", "", "Name of the system (will default to slug if not provided)")
 	cmd.Flags().StringVarP(&slug, "slug", "l", "", "Slug of the system (required)")
 	cmd.Flags().StringVarP(&description, "description", "d", "", "Description of the system")
-	cmd.Flags().StringVarP(&workspace, "workspace", "w", "", "ID of the workspace (required)")
+	cmd.Flags().String("workspace", "", "ID of the workspace (required)")
 
 	cmd.MarkFlagRequired("slug")
-	cmd.MarkFlagRequired("workspace")
 
 	return cmd
 }
