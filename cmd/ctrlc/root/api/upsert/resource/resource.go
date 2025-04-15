@@ -115,7 +115,6 @@ func NewUpsertResourceCmd() *cobra.Command {
 	cmd.Flags().StringToStringVar(&links, "link", make(map[string]string), "Links key-value pairs (can be specified multiple times)")
 
 	cmd.MarkFlagRequired("version")
-	cmd.MarkFlagRequired("workspace")
 	cmd.MarkFlagRequired("name")
 	cmd.MarkFlagRequired("identifier")
 	cmd.MarkFlagRequired("kind")

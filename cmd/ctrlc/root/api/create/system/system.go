@@ -69,7 +69,6 @@ func NewCreateSystemCmd() *cobra.Command {
 	cmd.Flags().String("workspace", "", "ID of the workspace (required)")
 
 	cmd.MarkFlagRequired("slug")
-	cmd.MarkFlagRequired("workspace")
 
 	return cmd
 }

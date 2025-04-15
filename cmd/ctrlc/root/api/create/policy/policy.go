@@ -202,7 +202,6 @@ func NewCreatePolicyCmd() *cobra.Command {
 
 	// Mark required flags
 	cmd.MarkFlagRequired("name")
-	cmd.MarkFlagRequired("workspace")
 
 	return cmd
 }
