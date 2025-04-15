@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewCreatePolicyCmd() *cobra.Command {
+func NewUpsertPolicyCmd() *cobra.Command {
 	var name string
 	var description string
 	var priority float32
@@ -23,23 +23,23 @@ func NewCreatePolicyCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "policy [flags]",
-		Short: "Create a new policy",
-		Long:  `Create a new policy with specified parameters`,
+		Short: "Upsert a policy",
+		Long:  `Upsert a policy with specified parameters`,
 		Example: heredoc.Doc(`
-			# Create a new policy
-			$ ctrlc create policy --name my-policy
+			# Upsert a new policy
+			$ ctrlc upsert policy --name my-policy
 
-			# Create a new policy with deployment selector
-			$ ctrlc create policy --name my-policy --deployment-selector '{"type": "production"}'
+			# Upsert a policy with deployment selector
+			$ ctrlc upsert policy --name my-policy --deployment-selector '{"type": "production"}'
 
-			# Create a new policy with environment selector
-			$ ctrlc create policy --name my-policy --environment-selector '{"name": "prod"}'
+			# Upsert a policy with environment selector
+			$ ctrlc upsert policy --name my-policy --environment-selector '{"name": "prod"}'
 
-			# Create a new policy with deny windows
-			$ ctrlc create policy --name my-policy --deny-windows '[{"timeZone": "UTC", "rrule": {"freq": "WEEKLY", "byday": ["SA", "SU"]}}]'
+			# Upsert a policy with deny windows
+			$ ctrlc upsert policy --name my-policy --deny-windows '[{"timeZone": "UTC", "rrule": {"freq": "WEEKLY", "byday": ["SA", "SU"]}}]'
 
-			# Create a new policy with version approvals
-			$ ctrlc create policy --name my-policy --version-any-approvals '{"requiredApprovalsCount": 2}' --version-user-approvals '[{"userId": "user1"}, {"userId": "user2"}]' --version-role-approvals '[{"roleId": "role1", "requiredApprovalsCount": 1}]'
+			# Upsert a policy with version approvals
+			$ ctrlc upsert policy --name my-policy --version-any-approvals '{"requiredApprovalsCount": 2}' --version-user-approvals '[{"userId": "user1"}, {"userId": "user2"}]' --version-role-approvals '[{"roleId": "role1", "requiredApprovalsCount": 1}]'
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			apiURL := viper.GetString("url")

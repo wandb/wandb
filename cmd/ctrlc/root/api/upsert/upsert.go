@@ -2,6 +2,7 @@ package upsert
 
 import (
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/upsert/deploymentversion"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/upsert/policy"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/upsert/release"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/upsert/resource"
 	"github.com/spf13/cobra"
@@ -20,6 +21,7 @@ func NewUpsertCmd() *cobra.Command {
 	cmd.AddCommand(resource.NewUpsertResourceCmd())
 	cmd.AddCommand(release.NewUpsertReleaseCmd())
 	cmd.AddCommand(deploymentversion.NewUpsertDeploymentVersionCmd())
+	cmd.AddCommand(policy.NewUpsertPolicyCmd())
 
 	return cmd
 }

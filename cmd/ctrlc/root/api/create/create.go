@@ -4,7 +4,6 @@ import (
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/create/deploymentversion"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/create/deploymentversionchannel"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/create/environment"
-	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/create/policy"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/create/relationship"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/create/release"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/api/create/releasechannel"
@@ -29,7 +28,6 @@ func NewCreateCmd() *cobra.Command {
 	cmd.AddCommand(relationship.NewRelationshipCmd())
 	cmd.AddCommand(release.NewCreateReleaseCmd())
 	cmd.AddCommand(system.NewCreateSystemCmd())
-	cmd.AddCommand(policy.NewCreatePolicyCmd())
 
 	return cmd
 }
