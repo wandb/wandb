@@ -2435,6 +2435,7 @@ class Run:
                     lambda data: self._console_callback("stdout", data),
                     self._output_writer.write,  # type: ignore
                 ],
+                flush_periodically=(self._settings.mode == "online"),
             )
             err_redir = redirect.Redirect(
                 src="stderr",
@@ -2442,6 +2443,7 @@ class Run:
                     lambda data: self._console_callback("stderr", data),
                     self._output_writer.write,  # type: ignore
                 ],
+                flush_periodically=(self._settings.mode == "online"),
             )
             if os.name == "nt":
 
@@ -2467,6 +2469,7 @@ class Run:
                     lambda data: self._console_callback("stdout", data),
                     self._output_writer.write,  # type: ignore
                 ],
+                flush_periodically=(self._settings.mode == "online"),
             )
             err_redir = redirect.StreamWrapper(
                 src="stderr",
@@ -2474,6 +2477,7 @@ class Run:
                     lambda data: self._console_callback("stderr", data),
                     self._output_writer.write,  # type: ignore
                 ],
+                flush_periodically=(self._settings.mode == "online"),
             )
         elif console == "wrap_raw":
             logger.info("Wrapping output streams.")
