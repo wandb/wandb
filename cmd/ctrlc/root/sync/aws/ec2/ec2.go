@@ -137,7 +137,14 @@ func NewSyncEC2Cmd() *cobra.Command {
 						region,
 						*instance.InstanceId)
 
-					metadata := tags
+					metadata := make(map[string]string)
+					for _, tag := range instance.Tags {
+						if tag.Key != nil && tag.Value != nil {
+							metadata[*tag.Key] = *tag.Value
+							metadata["compute/tag/"+*tag.Key] = *tag.Value
+							metadata["aws/tag/"+*tag.Key] = *tag.Value
+						}
+					}
 					metadata["compute/machine-type"] = string(instance.InstanceType)
 					metadata["compute/region"] = region
 					metadata["compute/type"] = "standard"
