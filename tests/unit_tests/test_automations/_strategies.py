@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import re
+from base64 import b64encode
 from string import ascii_letters, digits, punctuation
 from typing import Any, Literal
 
 from hypothesis.strategies import (
+    DrawFn,
     SearchStrategy,
     booleans,
+    composite,
     deferred,
     dictionaries,
     fixed_dictionaries,
@@ -20,6 +23,24 @@ from hypothesis.strategies import (
     text,
 )
 
+
+@composite
+def gql_ids(
+    draw: DrawFn,
+    name: str | SearchStrategy[str] | None = None,
+) -> SearchStrategy[str]:
+    """GraphQL IDs as base64-encoded strings."""
+    if name is None:
+        name = text(ascii_letters)
+
+    prefix = draw(name) if isinstance(name, SearchStrategy) else name
+    index = draw(integers(min_value=0, max_value=1_000_000))
+
+    return b64encode(f"{prefix}:{index:d}".encode()).decode()
+
+
+# ------------------------------------------------------------------------------
+# For MongoDB filter expressions
 FIELD_NAME_REGEX: re.Pattern[str] = re.compile(
     r"""
     \A         # String start, multiline not allowed

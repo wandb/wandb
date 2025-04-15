@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -5,37 +7,17 @@ import re
 import shutil
 import sys
 from base64 import b64encode
-from typing import Dict
 
+import IPython
 import requests
+from IPython.core.magic import Magics, line_cell_magic, magics_class
+from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 from requests.compat import urljoin
 
 import wandb
 import wandb.util
+from wandb.sdk import wandb_run
 from wandb.sdk.lib import filesystem
-
-try:
-    import IPython
-    from IPython.core.magic import Magics, line_cell_magic, magics_class
-    from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
-except ImportError:
-    wandb.termwarn("ipython is not supported in python 2.7, upgrade to 3.x")
-
-    class Magics:
-        pass
-
-    def magics_class(*args, **kwargs):
-        return lambda *args, **kwargs: None
-
-    def magic_arguments(*args, **kwargs):
-        return lambda *args, **kwargs: None
-
-    def argument(*args, **kwargs):
-        return lambda *args, **kwargs: None
-
-    def line_cell_magic(*args, **kwargs):
-        return lambda *args, **kwargs: None
-
 
 logger = logging.getLogger(__name__)
 
@@ -46,12 +28,6 @@ def maybe_display():
     """Display a run if the user added cell magic and we have run."""
     if __IFrame is not None:
         return __IFrame.maybe_display()
-    return False
-
-
-def quiet():
-    if __IFrame is not None:
-        return __IFrame.opts.get("quiet")
     return False
 
 
@@ -116,13 +92,6 @@ class WandBMagics(Magics):
         help="Display the entire run project workspace",
     )
     @argument(
-        "-q",
-        "--quiet",
-        default=False,
-        action="store_true",
-        help="Display the minimal amount of output",
-    )
-    @argument(
         "-h",
         "--height",
         default=420,
@@ -143,7 +112,6 @@ class WandBMagics(Magics):
         args = parse_argstring(self.wandb, line)
         self.options["height"] = args.height
         self.options["workspace"] = args.workspace
-        self.options["quiet"] = args.quiet
         iframe = IFrame(args.path, opts=self.options)
         displayed = iframe.maybe_display()
         if cell is not None:
@@ -193,7 +161,7 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
         return None
 
 
-def notebook_metadata(silent: bool) -> Dict[str, str]:
+def notebook_metadata(silent: bool) -> dict[str, str]:
     """Attempt to query jupyter for the path and name of the notebook file.
 
     This can handle different jupyter environments, specifically:
@@ -291,7 +259,10 @@ def attempt_kaggle_load_ipynb():
             return None
 
 
-def attempt_colab_login(app_url):
+def attempt_colab_login(
+    app_url: str,
+    referrer: str | None = None,
+):
     """This renders an iframe to wandb in the hopes it posts back an api key."""
     from google.colab import output
     from google.colab._message import MessageError
@@ -316,7 +287,7 @@ def attempt_colab_login(app_url):
             document.body.appendChild(iframe)
             const handshake = new Postmate({{
                 container: iframe,
-                url: '{}/authorize'
+                url: '{}/authorize{}'
             }});
             const timeout = setTimeout(() => reject("Couldn't auto authenticate"), 5000)
             handshake.then(function(child) {{
@@ -327,7 +298,10 @@ def attempt_colab_login(app_url):
             }});
             }})
         }});
-    """.format(app_url.replace("http:", "https:"))
+    """.format(
+                app_url.replace("http:", "https:"),
+                f"?ref={referrer}" if referrer else "",
+            )
         )
     )
     try:
@@ -337,7 +311,7 @@ def attempt_colab_login(app_url):
 
 
 class Notebook:
-    def __init__(self, settings):
+    def __init__(self, settings: wandb.Settings) -> None:
         self.outputs = {}
         self.settings = settings
         self.shell = IPython.get_ipython()
@@ -441,7 +415,7 @@ class Notebook:
 
         return False
 
-    def save_history(self):
+    def save_history(self, run: wandb_run.Run):
         """This saves all cell executions in the current session as a new notebook."""
         try:
             from nbformat import v4, validator, write
@@ -499,8 +473,8 @@ class Notebook:
                 },
             )
             state_path = os.path.join("code", "_session_history.ipynb")
-            wandb.run._set_config_wandb("session_history", state_path)
-            filesystem.mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))
+            run._set_config_wandb("session_history", state_path)
+            filesystem.mkdir_exists_ok(os.path.join(self.settings.files_dir, "code"))
             with open(
                 os.path.join(self.settings._tmp_code_dir, "_session_history.ipynb"),
                 "w",
@@ -508,7 +482,9 @@ class Notebook:
             ) as f:
                 write(nb, f, version=4)
             with open(
-                os.path.join(wandb.run.dir, state_path), "w", encoding="utf-8"
+                os.path.join(self.settings.files_dir, state_path),
+                "w",
+                encoding="utf-8",
             ) as f:
                 write(nb, f, version=4)
         except (OSError, validator.NotebookValidationError):

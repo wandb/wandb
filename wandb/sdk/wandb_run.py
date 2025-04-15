@@ -14,13 +14,26 @@ import sys
 import threading
 import time
 import traceback
-import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, Sequence, TextIO
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Literal,
+    NamedTuple,
+    Sequence,
+    TextIO,
+    TypeVar,
+)
+
+if sys.version_info < (3, 10):
+    from typing_extensions import Concatenate, ParamSpec
+else:
+    from typing import Concatenate, ParamSpec
 
 import requests
 
@@ -361,7 +374,13 @@ class RunStatusChecker:
         self._internal_messages_thread.join()
 
 
-def _log_to_run(func: Callable) -> Callable:
+_P = ParamSpec("_P")
+_T = TypeVar("_T")
+
+
+def _log_to_run(
+    func: Callable[Concatenate[Run, _P], _T],
+) -> Callable[Concatenate[Run, _P], _T]:
     """Decorate a Run method to set the run ID in the logging context.
 
     Any logs during the execution of the method go to the run's log file
@@ -375,7 +394,7 @@ def _log_to_run(func: Callable) -> Callable:
     """
 
     @functools.wraps(func)
-    def wrapper(self: Run, *args, **kwargs) -> Any:
+    def wrapper(self: Run, *args, **kwargs) -> _T:
         # In "attach" usage, many properties of the Run are not initially
         # populated.
         if hasattr(self, "_settings"):
@@ -389,100 +408,118 @@ def _log_to_run(func: Callable) -> Callable:
     return wrapper
 
 
-class _run_decorator:  # noqa: N801
-    _is_attaching: str = ""
+_is_attaching: str = ""
 
-    class Dummy: ...
 
-    @classmethod
-    def _attach(cls, func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(self: type[Run], *args: Any, **kwargs: Any) -> Any:
-            # * `_attach_id` is only assigned in service hence for all non-service cases
-            # it will be a passthrough.
-            # * `_attach_pid` is only assigned in _init (using _attach_pid guarantees single attach):
-            #   - for non-fork case the object is shared through pickling so will be None.
-            #   - for fork case the new process share mem space hence the value would be of parent process.
-            if (
-                getattr(self, "_attach_id", None)
-                and getattr(self, "_attach_pid", None) != os.getpid()
-            ):
-                if cls._is_attaching:
-                    message = (
-                        f"Trying to attach `{func.__name__}` "
-                        f"while in the middle of attaching `{cls._is_attaching}`"
-                    )
-                    raise RuntimeError(message)
-                cls._is_attaching = func.__name__
-                try:
-                    wandb._attach(run=self)  # type: ignore
-                except Exception as e:
-                    # In case the attach fails we will raise the exception that caused the issue.
-                    # This exception should be caught and fail the execution of the program.
-                    cls._is_attaching = ""
-                    raise e
-                cls._is_attaching = ""
-            return func(self, *args, **kwargs)
+def _attach(
+    func: Callable[Concatenate[Run, _P], _T],
+) -> Callable[Concatenate[Run, _P], _T]:
+    """Decorate a Run method to auto-attach when in a new process.
 
-        return wrapper
+    When in a forked process or using a pickled Run instance, this automatically
+    connects to the service process to "attach" to the existing run.
+    """
 
-    @classmethod
-    def _noop_on_finish(cls, message: str = "", only_warn: bool = False) -> Callable:
-        def decorator_fn(func: Callable) -> Callable:
-            @functools.wraps(func)
-            def wrapper_fn(self: type[Run], *args: Any, **kwargs: Any) -> Any:
-                if not getattr(self, "_is_finished", False):
-                    return func(self, *args, **kwargs)
+    @functools.wraps(func)
+    def wrapper(self: Run, *args, **kwargs) -> _T:
+        global _is_attaching
 
-                default_message = (
-                    f"Run ({self.id}) is finished. The call to `{func.__name__}` will be ignored. "
-                    f"Please make sure that you are using an active run."
+        # The _attach_id attribute is only None when running in the "disable
+        # service" mode.
+        #
+        # Since it is set early in `__init__` and included in the run's pickled
+        # state, the attribute always exists.
+        is_using_service = self._attach_id is not None
+
+        # The _attach_pid attribute is not pickled, so it might not exist.
+        # It is set when the run is initialized.
+        attach_pid = getattr(self, "_attach_pid", None)
+
+        if is_using_service and attach_pid != os.getpid():
+            if _is_attaching:
+                raise RuntimeError(
+                    f"Trying to attach `{func.__name__}`"
+                    f" while in the middle of attaching `{_is_attaching}`"
                 )
-                resolved_message = message or default_message
-                if only_warn:
-                    warnings.warn(resolved_message, UserWarning, stacklevel=2)
-                else:
-                    raise UsageError(resolved_message)
 
-            return wrapper_fn
+            _is_attaching = func.__name__
+            try:
+                wandb._attach(run=self)  # type: ignore
+            finally:
+                _is_attaching = ""
 
-        return decorator_fn
+        return func(self, *args, **kwargs)
 
-    @classmethod
-    def _noop(cls, func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(self: type[Run], *args: Any, **kwargs: Any) -> Any:
-            # `_attach_id` is only assigned in service hence for all service cases
-            # it will be a passthrough. We don't pickle non-service so again a way
-            # to see that we are in non-service case
-            if getattr(self, "_attach_id", None) is None:
-                # `_init_pid` is only assigned in __init__ (this will be constant check for mp):
-                #   - for non-fork case the object is shared through pickling,
-                #     and we don't pickle non-service so will be None
-                #   - for fork case the new process share mem space hence the value would be of parent process.
-                _init_pid = getattr(self, "_init_pid", None)
-                if _init_pid != os.getpid():
-                    message = (
-                        f"`{func.__name__}` ignored (called from pid={os.getpid()}, "
-                        f"`init` called from pid={_init_pid}). "
-                        f"See: {url_registry.url('multiprocess')}"
-                    )
-                    # - if this process was pickled in non-service case,
-                    #   we ignore the attributes (since pickle is not supported)
-                    # - for fork case will use the settings of the parent process
-                    # - only point of inconsistent behavior from forked and non-forked cases
-                    settings = getattr(self, "_settings", None)
-                    if settings and settings.strict:
-                        wandb.termerror(message, repeat=False)
-                        raise UnsupportedError(
-                            f"`{func.__name__}` does not support multiprocessing"
-                        )
-                    wandb.termwarn(message, repeat=False)
-                    return cls.Dummy()
+    return wrapper
 
+
+def _raise_if_finished(
+    func: Callable[Concatenate[Run, _P], _T],
+) -> Callable[Concatenate[Run, _P], _T]:
+    """Decorate a Run method to raise an error after the run is finished."""
+
+    @functools.wraps(func)
+    def wrapper_fn(self: Run, *args, **kwargs) -> _T:
+        if not getattr(self, "_is_finished", False):
             return func(self, *args, **kwargs)
 
-        return wrapper
+        message = (
+            f"Run ({self.id}) is finished. The call to"
+            f" `{func.__name__}` will be ignored."
+            f" Please make sure that you are using an active run."
+        )
+
+        raise UsageError(message)
+
+    return wrapper_fn
+
+
+def _noop_if_forked_with_no_service(
+    func: Callable[Concatenate[Run, _P], None],
+) -> Callable[Concatenate[Run, _P], None]:
+    """Do nothing if called in a forked process and service is disabled.
+
+    Disabling the service is a very old and barely supported setting.
+    """
+
+    @functools.wraps(func)
+    def wrapper(self: Run, *args, **kwargs) -> None:
+        # The _attach_id attribute is only None when running in the "disable
+        # service" mode.
+        #
+        # Since it is set early in `__init__` and included in the run's pickled
+        # state, the attribute always exists.
+        is_using_service = self._attach_id is not None
+
+        # This is the PID in which the Run object was constructed. The attribute
+        # always exists because it is set early in `__init__` and is included
+        # in the pickled state in `__getstate__` and `__setstate__`.
+        #
+        # It is not equal to the current PID if the process was forked or if
+        # the Run object was pickled and sent to another process.
+        init_pid = self._init_pid
+
+        if is_using_service or init_pid == os.getpid():
+            return func(self, *args, **kwargs)
+
+        message = (
+            f"`{func.__name__}` ignored (called from pid={os.getpid()},"
+            f" `init` called from pid={init_pid})."
+            f" See: {url_registry.url('multiprocess')}"
+        )
+
+        # This attribute may not exist because it is not included in the run's
+        # pickled state.
+        settings = getattr(self, "_settings", None)
+        if settings and settings.strict:
+            wandb.termerror(message, repeat=False)
+            raise UnsupportedError(
+                f"`{func.__name__}` does not support multiprocessing"
+            )
+        wandb.termwarn(message, repeat=False)
+        return None
+
+    return wrapper
 
 
 @dataclass
@@ -606,6 +643,7 @@ class Run:
     ) -> None:
         # pid is set, so we know if this run object was initialized by this process
         self._init_pid = os.getpid()
+        self._attach_id = None
 
         if settings._noop:
             # TODO: properly handle setting for disabled mode
@@ -647,6 +685,7 @@ class Run:
 
         self._step = 0
         self._starting_step = 0
+        self._start_runtime = 0
         # TODO: eventually would be nice to make this configurable using self._settings._start_time
         #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
         #  does the total time get calculated right (not as 2 days and 15 minutes)?
@@ -846,47 +885,45 @@ class Run:
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def settings(self) -> Settings:
         """A frozen copy of run's Settings object."""
         return self._settings.model_copy(deep=True)
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def dir(self) -> str:
         """The directory where files associated with the run are saved."""
         return self._settings.files_dir
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def config(self) -> wandb_config.Config:
         """Config object associated with this run."""
         return self._config
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def config_static(self) -> wandb_config.ConfigStatic:
         return wandb_config.ConfigStatic(self._config)
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def name(self) -> str | None:
         """Display name of the run.
 
         Display names are not guaranteed to be unique and may be descriptive.
         By default, they are randomly generated.
         """
-        if self._settings.run_name:
-            return self._settings.run_name
-        return None
+        return self._settings.run_name
 
     @name.setter
     @_log_to_run
-    @_run_decorator._noop_on_finish()
+    @_raise_if_finished
     def name(self, name: str) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_name = True
@@ -896,18 +933,18 @@ class Run:
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def notes(self) -> str | None:
         """Notes associated with the run, if there are any.
 
-        Notes can be a multiline string and can also use markdown and latex equations
-        inside `$$`, like `$x + 3$`.
+        Notes can be a multiline string and can also use markdown and latex
+        equations inside `$$`, like `$x + 3$`.
         """
         return self._settings.run_notes
 
     @notes.setter
     @_log_to_run
-    @_run_decorator._noop_on_finish()
+    @_raise_if_finished
     def notes(self, notes: str) -> None:
         self._settings.run_notes = notes
         if self._backend and self._backend.interface:
@@ -915,14 +952,14 @@ class Run:
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def tags(self) -> tuple | None:
         """Tags associated with the run, if there are any."""
         return self._settings.run_tags or ()
 
     @tags.setter
     @_log_to_run
-    @_run_decorator._noop_on_finish()
+    @_raise_if_finished
     def tags(self, tags: Sequence) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_tags = True
@@ -932,18 +969,17 @@ class Run:
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def id(self) -> str:
         """Identifier for this run."""
-        if TYPE_CHECKING:
-            assert self._settings.run_id is not None
+        assert self._settings.run_id is not None
         return self._settings.run_id
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def sweep_id(self) -> str | None:
-        """ID of the sweep associated with the run, if there is one."""
+        """Identifier for the sweep associated with the run, if there is one."""
         return self._settings.sweep_id
 
     def _get_path(self) -> str:
@@ -959,7 +995,7 @@ class Run:
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def path(self) -> str:
         """Path to the run.
 
@@ -970,28 +1006,28 @@ class Run:
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def start_time(self) -> float:
         """Unix timestamp (in seconds) of when the run started."""
         return self._start_time
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def starting_step(self) -> int:
         """The first step of the run."""
         return self._starting_step
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def resumed(self) -> bool:
         """True if the run was resumed, False otherwise."""
         return self._settings.resumed
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def step(self) -> int:
         """Current value of the step.
 
@@ -1001,34 +1037,33 @@ class Run:
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
-        if hasattr(self, "_telemetry_obj"):
-            deprecate.deprecate(
-                field_name=deprecate.Deprecated.run__mode,
-                warning_message=(
-                    "The mode property of wandb.run is deprecated "
-                    "and will be removed in a future release."
-                ),
-            )
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__mode,
+            warning_message=(
+                "The mode property of wandb.run is deprecated "
+                "and will be removed in a future release."
+            ),
+        )
         return "dryrun" if self._settings._offline else "run"
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def offline(self) -> bool:
         return self._settings._offline
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def disabled(self) -> bool:
         return self._settings._noop
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def group(self) -> str:
         """Name of the group associated with the run.
 
@@ -1043,24 +1078,67 @@ class Run:
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def job_type(self) -> str:
         return self._settings.run_job_type or ""
 
     def project_name(self) -> str:
-        # TODO: deprecate this in favor of project
-        return self._settings.project or ""
+        """Name of the W&B project associated with the run.
+
+        Note: this method is deprecated and will be removed in a future release.
+        Please use `run.project` instead.
+        """
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__project_name,
+            warning_message=(
+                "The project_name method is deprecated and will be removed in a"
+                " future release. Please use `run.project` instead."
+            ),
+        )
+        return self.project
 
     @property
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def project(self) -> str:
         """Name of the W&B project associated with the run."""
-        return self.project_name()
+        assert self._settings.project is not None
+        return self._settings.project
 
-    @_run_decorator._noop_on_finish()
     @_log_to_run
-    @_run_decorator._attach
+    def get_project_url(self) -> str | None:
+        """URL of the W&B project associated with the run, if there is one.
+
+        Offline runs do not have a project URL.
+
+        Note: this method is deprecated and will be removed in a future release.
+        Please use `run.project_url` instead.
+        """
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__get_project_url,
+            warning_message=(
+                "The get_project_url method is deprecated and will be removed in a"
+                " future release. Please use `run.project_url` instead."
+            ),
+        )
+        return self.project_url
+
+    @property
+    @_log_to_run
+    @_attach
+    def project_url(self) -> str | None:
+        """URL of the W&B project associated with the run, if there is one.
+
+        Offline runs do not have a project URL.
+        """
+        if self._settings._offline:
+            wandb.termwarn("URL not available in offline run")
+            return None
+        return self._settings.project_url
+
+    @_raise_if_finished
+    @_log_to_run
+    @_attach
     def log_code(
         self,
         root: str | None = ".",
@@ -1147,19 +1225,30 @@ class Run:
         return self._log_artifact(art)
 
     @_log_to_run
-    def get_project_url(self) -> str | None:
-        """Return the url for the W&B project associated with the run, if there is one.
-
-        Offline runs will not have a project url.
-        """
-        if self._settings._offline:
-            wandb.termwarn("URL not available in offline run")
-            return None
-        return self._settings.project_url
-
-    @_log_to_run
     def get_sweep_url(self) -> str | None:
-        """Return the url for the sweep associated with the run, if there is one."""
+        """The URL of the sweep associated with the run, if there is one.
+
+        Offline runs do not have a sweep URL.
+
+        Note: this method is deprecated and will be removed in a future release.
+        Please use `run.sweep_url` instead.
+        """
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__get_sweep_url,
+            warning_message=(
+                "The get_sweep_url method is deprecated and will be removed in a"
+                " future release. Please use `run.sweep_url` instead."
+            ),
+        )
+        return self.sweep_url
+
+    @property
+    @_attach
+    def sweep_url(self) -> str | None:
+        """URL of the sweep associated with the run, if there is one.
+
+        Offline runs do not have a sweep URL.
+        """
         if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
@@ -1167,7 +1256,27 @@ class Run:
 
     @_log_to_run
     def get_url(self) -> str | None:
-        """Return the url for the W&B run, if there is one.
+        """URL of the W&B run, if there is one.
+
+        Offline runs do not have a URL.
+
+        Note: this method is deprecated and will be removed in a future release.
+        Please use `run.url` instead.
+        """
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__get_url,
+            warning_message=(
+                "The get_url method is deprecated and will be removed in a"
+                " future release. Please use `run.url` instead."
+            ),
+        )
+        return self.url
+
+    @property
+    @_log_to_run
+    @_attach
+    def url(self) -> str | None:
+        """The url for the W&B run, if there is one.
 
         Offline runs will not have a url.
         """
@@ -1178,14 +1287,7 @@ class Run:
 
     @property
     @_log_to_run
-    @_run_decorator._attach
-    def url(self) -> str | None:
-        """The W&B url associated with the run."""
-        return self.get_url()
-
-    @property
-    @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def entity(self) -> str:
         """The name of the W&B entity associated with the run.
 
@@ -1280,7 +1382,7 @@ class Run:
             self._label_probe_lines(lines)
 
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def display(self, height: int = 420, hidden: bool = False) -> bool:
         """Display this run in jupyter."""
         if self._settings.silent:
@@ -1300,7 +1402,7 @@ class Run:
             return False
 
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying the current run."""
         url = self._settings.run_url + "?jupyter=true"
@@ -1317,7 +1419,7 @@ class Run:
         return {"text/html": self.to_html(hidden=True)}
 
     @_log_to_run
-    @_run_decorator._noop_on_finish()
+    @_raise_if_finished
     def _config_callback(
         self,
         key: tuple[str, ...] | str | None = None,
@@ -1339,6 +1441,8 @@ class Run:
             assert isinstance(val, dict)
             public_api = self._public_api()
             artifact = Artifact._from_id(val["id"], public_api.client)
+
+            assert artifact
             return self.use_artifact(artifact, use_as=key)
         elif _is_artifact_string(val):
             # this will never fail, but is required to make mypy happy
@@ -1357,6 +1461,7 @@ class Run:
             # in the future we'll need to support using artifacts from
             # different instances of wandb.
 
+            assert artifact
             return self.use_artifact(artifact, use_as=key)
         elif _is_artifact_object(val):
             return self.use_artifact(val, use_as=key)
@@ -1369,7 +1474,7 @@ class Run:
         self._config_callback(key=("_wandb", key), val=val)
 
     @_log_to_run
-    @_run_decorator._noop_on_finish()
+    @_raise_if_finished
     def _summary_update_callback(self, summary_record: SummaryRecord) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_summary = True
@@ -1502,7 +1607,7 @@ class Run:
             self._backend.interface.publish_output(name, data)
 
     @_log_to_run
-    @_run_decorator._noop_on_finish(only_warn=True)
+    @_raise_if_finished
     def _console_raw_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
 
@@ -1547,6 +1652,9 @@ class Run:
 
         if run_obj.start_time:
             self._start_time = run_obj.start_time.ToMicroseconds() / 1e6
+
+        if run_obj.runtime:
+            self._start_runtime = run_obj.runtime
 
         # Grab the config from resuming
         if run_obj.config:
@@ -1683,9 +1791,9 @@ class Run:
             self._step += 1
 
     @_log_to_run
-    @_run_decorator._noop
-    @_run_decorator._noop_on_finish()
-    @_run_decorator._attach
+    @_noop_if_forked_with_no_service
+    @_raise_if_finished
+    @_attach
     def log(
         self,
         data: dict[str, Any],
@@ -1946,8 +2054,8 @@ class Run:
         self._log(data=data, step=step, commit=commit)
 
     @_log_to_run
-    @_run_decorator._noop_on_finish()
-    @_run_decorator._attach
+    @_raise_if_finished
+    @_attach
     def save(
         self,
         glob_str: str | os.PathLike | None = None,
@@ -2132,7 +2240,7 @@ class Run:
         return [str(f) for f in globbed_files]
 
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def restore(
         self,
         name: str,
@@ -2148,8 +2256,8 @@ class Run:
         )
 
     @_log_to_run
-    @_run_decorator._noop
-    @_run_decorator._attach
+    @_noop_if_forked_with_no_service
+    @_attach
     def finish(
         self,
         exit_code: int | None = None,
@@ -2223,8 +2331,8 @@ class Run:
             wandb._sentry.end_session()
 
     @_log_to_run
-    @_run_decorator._noop
-    @_run_decorator._attach
+    @_noop_if_forked_with_no_service
+    @_attach
     def join(self, exit_code: int | None = None) -> None:
         """Deprecated alias for `finish()` - use finish instead."""
         if hasattr(self, "_telemetry_obj"):
@@ -2237,8 +2345,8 @@ class Run:
         self._finish(exit_code=exit_code)
 
     @_log_to_run
-    @_run_decorator._noop_on_finish()
-    @_run_decorator._attach
+    @_raise_if_finished
+    @_attach
     def status(
         self,
     ) -> RunStatus:
@@ -2627,6 +2735,7 @@ class Run:
             docker_image_name=docker_image_name,
         )
 
+        assert job_artifact
         artifact = self.log_artifact(job_artifact)
 
         if not artifact:
@@ -2739,8 +2848,8 @@ class Run:
             unregister_post_import_hook(module_name, run_id)
 
     @_log_to_run
-    @_run_decorator._noop_on_finish()
-    @_run_decorator._attach
+    @_raise_if_finished
+    @_attach
     def define_metric(
         self,
         name: str,
@@ -2881,7 +2990,7 @@ class Run:
         return m
 
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def watch(
         self,
         models: torch.nn.Module | Sequence[torch.nn.Module],
@@ -2919,7 +3028,7 @@ class Run:
         wandb.sdk._watch(self, models, criterion, log, log_freq, idx, log_graph)
 
     @_log_to_run
-    @_run_decorator._attach
+    @_attach
     def unwatch(
         self, models: torch.nn.Module | Sequence[torch.nn.Module] | None = None
     ) -> None:
@@ -2970,8 +3079,8 @@ class Run:
         pass
 
     @_log_to_run
-    @_run_decorator._noop_on_finish()
-    @_run_decorator._attach
+    @_raise_if_finished
+    @_attach
     def link_artifact(
         self,
         artifact: Artifact,
@@ -3036,8 +3145,8 @@ class Run:
             wandb.termerror(response.error_message)
 
     @_log_to_run
-    @_run_decorator._noop_on_finish()
-    @_run_decorator._attach
+    @_raise_if_finished
+    @_attach
     def use_artifact(
         self,
         artifact_or_name: str | Artifact,
@@ -3156,8 +3265,8 @@ class Run:
         return artifact
 
     @_log_to_run
-    @_run_decorator._noop_on_finish()
-    @_run_decorator._attach
+    @_raise_if_finished
+    @_attach
     def log_artifact(
         self,
         artifact_or_path: Artifact | StrPath,
@@ -3199,8 +3308,8 @@ class Run:
         )
 
     @_log_to_run
-    @_run_decorator._noop_on_finish()
-    @_run_decorator._attach
+    @_raise_if_finished
+    @_attach
     def upsert_artifact(
         self,
         artifact_or_path: Artifact | str,
@@ -3254,8 +3363,8 @@ class Run:
         )
 
     @_log_to_run
-    @_run_decorator._noop_on_finish()
-    @_run_decorator._attach
+    @_raise_if_finished
+    @_attach
     def finish_artifact(
         self,
         artifact_or_path: Artifact | str,
@@ -3456,8 +3565,8 @@ class Run:
         return artifact, _resolve_aliases(aliases)
 
     @_log_to_run
-    @_run_decorator._noop_on_finish()
-    @_run_decorator._attach
+    @_raise_if_finished
+    @_attach
     def log_model(
         self,
         path: StrPath,
@@ -3508,8 +3617,8 @@ class Run:
         )
 
     @_log_to_run
-    @_run_decorator._noop_on_finish()
-    @_run_decorator._attach
+    @_raise_if_finished
+    @_attach
     def use_model(self, name: str) -> FilePathStr:
         """Download the files logged in a model artifact 'name'.
 
@@ -3570,8 +3679,8 @@ class Run:
         return path
 
     @_log_to_run
-    @_run_decorator._noop_on_finish()
-    @_run_decorator._attach
+    @_raise_if_finished
+    @_attach
     def link_model(
         self,
         path: StrPath,
@@ -3672,8 +3781,8 @@ class Run:
         self.link_artifact(artifact=artifact, target_path=target_path, aliases=aliases)
 
     @_log_to_run
-    @_run_decorator._noop_on_finish()
-    @_run_decorator._attach
+    @_raise_if_finished
+    @_attach
     def alert(
         self,
         title: str,
@@ -3724,8 +3833,8 @@ class Run:
         return not exception_raised
 
     @_log_to_run
-    @_run_decorator._noop_on_finish()
-    @_run_decorator._attach
+    @_raise_if_finished
+    @_attach
     def mark_preempting(self) -> None:
         """Mark this run as preempting.
 
@@ -3736,8 +3845,8 @@ class Run:
 
     @property
     @_log_to_run
-    @_run_decorator._noop_on_finish()
-    @_run_decorator._attach
+    @_raise_if_finished
+    @_attach
     def _system_metrics(self) -> dict[str, list[tuple[datetime, float]]]:
         """Returns a dictionary of system metrics.
 
@@ -3785,8 +3894,8 @@ class Run:
 
     @property
     @_log_to_run
-    @_run_decorator._attach
-    @_run_decorator._noop_on_finish()
+    @_attach
+    @_raise_if_finished
     def _metadata(self) -> Metadata | None:
         """The metadata associated with this run.
 
@@ -3824,8 +3933,8 @@ class Run:
         return None
 
     @_log_to_run
-    @_run_decorator._noop_on_finish()
-    @_run_decorator._attach
+    @_raise_if_finished
+    @_attach
     def _metadata_callback(
         self,
         metadata: MetadataRequest,
@@ -3915,12 +4024,13 @@ class Run:
             return
 
         if printer.supports_html:
-            if not wandb.jupyter.maybe_display():  # type: ignore
+            import wandb.jupyter
+
+            if not wandb.jupyter.maybe_display():
                 run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
 
-                # TODO(settings): make settings the source of truth
-                if not wandb.jupyter.quiet():  # type: ignore
+                if not settings.quiet:
                     doc_html = printer.link(url_registry.url("developer-guide"), "docs")
 
                     project_html = printer.link(project_url, "Weights & Biases")

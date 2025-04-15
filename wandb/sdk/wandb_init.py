@@ -21,7 +21,7 @@ import platform
 import sys
 import tempfile
 import time
-from typing import Any, Iterator, Literal, Sequence
+from typing import TYPE_CHECKING, Any, Iterator, Literal, Sequence
 
 if sys.version_info >= (3, 11):
     from typing import Self
@@ -48,6 +48,9 @@ from .mailbox import wait_with_progress
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings
+
+if TYPE_CHECKING:
+    import wandb.jupyter
 
 
 def _huggingface_version() -> str | None:
@@ -143,7 +146,7 @@ class _WandbInit:
         self.backend: Backend | None = None
 
         self._teardown_hooks: list[TeardownHook] = []
-        self.notebook: wandb.jupyter.Notebook | None = None  # type: ignore
+        self.notebook: wandb.jupyter.Notebook | None = None
         self.printer = printer.new_printer()
 
         self.deprecated_features_used: dict[str, str] = dict()
@@ -176,6 +179,7 @@ class _WandbInit:
 
         wandb_login._login(
             anonymous=run_settings.anonymous,
+            host=run_settings.base_url,
             force=run_settings.force,
             _disable_warning=True,
             _silent=run_settings.quiet or run_settings.silent,
@@ -533,62 +537,73 @@ class _WandbInit:
         except OSError:
             pass
 
-    def _pause_backend(self, *args: Any, **kwargs: Any) -> None:  #  noqa
-        if self.backend is None:
-            return None
+    def _pre_run_cell_hook(self, *args, **kwargs) -> None:
+        """Hook for the IPython pre_run_cell event.
 
-        # Attempt to save the code on every execution
-        if self.notebook.save_ipynb():  # type: ignore
+        This pauses a run, preventing system metrics from being collected
+        the run's runtime from increasing. It also uploads the notebook's code.
+        """
+        if not self.backend:
+            return
+
+        if self.notebook and self.notebook.save_ipynb():
             assert self.run is not None
             res = self.run.log_code(root=None)
-            self._logger.info("saved code: %s", res)  # type: ignore
+            self._logger.info("saved code: %s", res)
+
         if self.backend.interface is not None:
-            self._logger.info("pausing backend")  # type: ignore
+            self._logger.info("pausing backend")
             self.backend.interface.publish_pause()
 
-    def _resume_backend(self, *args: Any, **kwargs: Any) -> None:  #  noqa
-        if self.backend is not None and self.backend.interface is not None:
-            self._logger.info("resuming backend")  # type: ignore
-            self.backend.interface.publish_resume()
+    def _post_run_cell_hook(self, *args, **kwargs) -> None:
+        """Hook for the IPython post_run_cell event.
+
+        Resumes collection of system metrics and the run's timer.
+        """
+        if self.backend is None or self.backend.interface is None:
+            return
+
+        self._logger.info("resuming backend")
+        self.backend.interface.publish_resume()
 
     def _jupyter_teardown(self) -> None:
         """Teardown hooks and display saving, called with wandb.finish."""
         assert self.notebook
         ipython = self.notebook.shell
-        self.notebook.save_history()
+
+        if self.run:
+            self.notebook.save_history(self.run)
+
         if self.notebook.save_ipynb():
             assert self.run is not None
             res = self.run.log_code(root=None)
-            self._logger.info("saved code and history: %s", res)  # type: ignore
-        self._logger.info("cleaning up jupyter logic")  # type: ignore
-        # because of how we bind our methods we manually find them to unregister
-        for hook in ipython.events.callbacks["pre_run_cell"]:
-            if "_resume_backend" in hook.__name__:
-                ipython.events.unregister("pre_run_cell", hook)
-        for hook in ipython.events.callbacks["post_run_cell"]:
-            if "_pause_backend" in hook.__name__:
-                ipython.events.unregister("post_run_cell", hook)
+            self._logger.info("saved code and history: %s", res)
+        self._logger.info("cleaning up jupyter logic")
+
+        ipython.events.unregister("pre_run_cell", self._pre_run_cell_hook)
+        ipython.events.unregister("post_run_cell", self._post_run_cell_hook)
+
         ipython.display_pub.publish = ipython.display_pub._orig_publish
         del ipython.display_pub._orig_publish
 
     def monkeypatch_ipython(self, settings: Settings) -> None:
         """Add hooks, and session history saving."""
-        self.notebook = wandb.jupyter.Notebook(settings)  # type: ignore
+        self.notebook = wandb.jupyter.Notebook(settings)
         ipython = self.notebook.shell
 
         # Monkey patch ipython publish to capture displayed outputs
         if not hasattr(ipython.display_pub, "_orig_publish"):
-            self._logger.info("configuring jupyter hooks %s", self)  # type: ignore
+            self._logger.info("configuring jupyter hooks %s", self)
             ipython.display_pub._orig_publish = ipython.display_pub.publish
-            # Registering resume and pause hooks
 
-            ipython.events.register("pre_run_cell", self._resume_backend)
-            ipython.events.register("post_run_cell", self._pause_backend)
+            ipython.events.register("pre_run_cell", self._pre_run_cell_hook)
+            ipython.events.register("post_run_cell", self._post_run_cell_hook)
+
             self._teardown_hooks.append(
                 TeardownHook(self._jupyter_teardown, TeardownStage.EARLY)
             )
 
-        def publish(data, metadata=None, **kwargs) -> None:  # type: ignore
+        def publish(data, metadata=None, **kwargs) -> None:
             ipython.display_pub._orig_publish(data, metadata=metadata, **kwargs)
             assert self.notebook is not None
             self.notebook.save_display(
@@ -729,6 +744,10 @@ class _WandbInit:
         ):
             setattr(drun, symbol, lambda *_, **__: None)  # type: ignore
 
+        # set properties to None
+        for attr in ("url", "project_url", "sweep_url"):
+            setattr(type(drun), attr, property(lambda _: None))
+
         class _ChainableNoOp:
             """An object that allows chaining arbitrary attributes and method calls."""
 
@@ -753,7 +772,7 @@ class _WandbInit:
             def __call__(self, *args: Any, **kwargs: Any) -> _ChainableNoOp:
                 return _ChainableNoOp()
 
-        drun.log_artifact = _ChainableNoOpField()  # type: ignore[method-assign]
+        drun.log_artifact = _ChainableNoOpField()  # type: ignore
         # attributes
         drun._start_time = time.time()
         drun._starting_step = 0
