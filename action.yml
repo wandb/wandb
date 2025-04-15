@@ -16,6 +16,9 @@ inputs:
   api_key:
     description: "API key for the ctrlplane instance"
     required: false
+  workspace:
+    description: "Workspace ID (uuid)"
+    required: false
 
 runs:
   using: "composite"
@@ -59,3 +62,9 @@ runs:
       if: inputs.api_key != ''
       run: |
         ctrlc config set api-key ${{ inputs.api_key }}
+
+    - name: Set Ctrlplane Workspace
+      shell: bash
+      if: inputs.workspace != ''
+      run: |
+        ctrlc config set workspace ${{ inputs.workspace }}
