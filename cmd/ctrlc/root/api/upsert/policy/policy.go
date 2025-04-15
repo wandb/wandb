@@ -27,19 +27,19 @@ func NewUpsertPolicyCmd() *cobra.Command {
 		Long:  `Upsert a policy with specified parameters`,
 		Example: heredoc.Doc(`
 			# Upsert a new policy
-			$ ctrlc upsert policy --name my-policy
+			$ ctrlc api upsert policy --name my-policy
 
 			# Upsert a policy with deployment selector
-			$ ctrlc upsert policy --name my-policy --deployment-selector '{"type": "production"}'
+			$ ctrlc api upsert policy --name my-policy --deployment-selector '{"type": "production"}'
 
 			# Upsert a policy with environment selector
-			$ ctrlc upsert policy --name my-policy --environment-selector '{"name": "prod"}'
+			$ ctrlc api upsert policy --name my-policy --environment-selector '{"name": "prod"}'
 
 			# Upsert a policy with deny windows
-			$ ctrlc upsert policy --name my-policy --deny-windows '[{"timeZone": "UTC", "rrule": {"freq": "WEEKLY", "byday": ["SA", "SU"]}}]'
+			$ ctrlc api upsert policy --name my-policy --deny-windows '[{"timeZone": "UTC", "rrule": {"freq": "WEEKLY", "byday": ["SA", "SU"]}}]'
 
 			# Upsert a policy with version approvals
-			$ ctrlc upsert policy --name my-policy --version-any-approvals '{"requiredApprovalsCount": 2}' --version-user-approvals '[{"userId": "user1"}, {"userId": "user2"}]' --version-role-approvals '[{"roleId": "role1", "requiredApprovalsCount": 1}]'
+			$ ctrlc api upsert policy --name my-policy --version-any-approvals '{"requiredApprovalsCount": 2}' --version-user-approvals '[{"userId": "user1"}, {"userId": "user2"}]' --version-role-approvals '[{"roleId": "role1", "requiredApprovalsCount": 1}]'
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			apiURL := viper.GetString("url")
