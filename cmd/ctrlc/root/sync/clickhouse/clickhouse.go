@@ -17,18 +17,18 @@ import (
 )
 
 type ClickHouseConfig struct {
-	ID             string                 `json:"id"`
-	Name           string                 `json:"name"`
-	State          string                 `json:"state"`
-	Region         string                 `json:"region"`
-	CloudProvider  string                 `json:"cloudProvider"`
-	Tier           string                 `json:"tier"`
-	IdleScaling    map[string]interface{} `json:"idleScaling"`
-	TotalDiskSize  int                    `json:"totalDiskSize"`
-	TotalMemoryMB  int                    `json:"totalMemoryMB"`
-	MinTotalMemory int                    `json:"minTotalMemory"`
-	MaxTotalMemory int                    `json:"maxTotalMemory"`
-	Created        string                 `json:"created"`
+	ID             string                   `json:"id"`
+	Name           string                   `json:"name"`
+	State          string                   `json:"state"`
+	Region         string                   `json:"region"`
+	CloudProvider  string                   `json:"cloudProvider"`
+	Tier           string                   `json:"tier"`
+	IdleScaling    map[string]interface{}   `json:"idleScaling"`
+	TotalDiskSize  int                      `json:"totalDiskSize"`
+	TotalMemoryMB  int                      `json:"totalMemoryMB"`
+	MinTotalMemory int                      `json:"minTotalMemory"`
+	MaxTotalMemory int                      `json:"maxTotalMemory"`
+	Created        string                   `json:"created"`
 	Endpoints      []map[string]interface{} `json:"endpoints"`
 }
 
@@ -40,17 +40,17 @@ func (c *ClickHouseConfig) Struct() map[string]interface{} {
 }
 
 type ClickHouseClient struct {
-	httpClient    *http.Client
-	apiUrl        string
-	apiKey        string
+	httpClient     *http.Client
+	apiUrl         string
+	apiKey         string
 	organizationID string
 }
 
 func NewClickHouseClient(apiUrl, apiKey, organizationID string) *ClickHouseClient {
 	return &ClickHouseClient{
-		httpClient:    &http.Client{},
-		apiUrl:        apiUrl,
-		apiKey:        apiKey,
+		httpClient:     &http.Client{},
+		apiUrl:         apiUrl,
+		apiKey:         apiKey,
 		organizationID: organizationID,
 	}
 }
@@ -60,18 +60,18 @@ type ServiceList struct {
 }
 
 type Service struct {
-	ID             string                 `json:"id"`
-	Name           string                 `json:"name"`
-	State          string                 `json:"state"`
-	Region         string                 `json:"region"`
-	CloudProvider  string                 `json:"cloudProvider"`
-	Tier           string                 `json:"tier"`
-	IdleScaling    map[string]interface{} `json:"idleScaling"`
-	TotalDiskSize  int                    `json:"totalDiskSize"`
-	TotalMemoryMB  int                    `json:"totalMemoryMB"`
-	MinTotalMemory int                    `json:"minTotalMemory"`
-	MaxTotalMemory int                    `json:"maxTotalMemory"`
-	Created        string                 `json:"created"`
+	ID             string                   `json:"id"`
+	Name           string                   `json:"name"`
+	State          string                   `json:"state"`
+	Region         string                   `json:"region"`
+	CloudProvider  string                   `json:"cloudProvider"`
+	Tier           string                   `json:"tier"`
+	IdleScaling    map[string]interface{}   `json:"idleScaling"`
+	TotalDiskSize  int                      `json:"totalDiskSize"`
+	TotalMemoryMB  int                      `json:"totalMemoryMB"`
+	MinTotalMemory int                      `json:"minTotalMemory"`
+	MaxTotalMemory int                      `json:"maxTotalMemory"`
+	Created        string                   `json:"created"`
 	Endpoints      []map[string]interface{} `json:"endpoints"`
 }
 

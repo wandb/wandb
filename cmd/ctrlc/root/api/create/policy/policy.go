@@ -14,7 +14,6 @@ import (
 
 func NewCreatePolicyCmd() *cobra.Command {
 	var name string
-	var workspaceID string
 	var description string
 	var priority float32
 	var enabled bool
@@ -33,23 +32,29 @@ func NewCreatePolicyCmd() *cobra.Command {
 		Long:  `Create a new policy with specified parameters`,
 		Example: heredoc.Doc(`
 			# Create a new policy
-			$ ctrlc create policy --name my-policy --workspace-id 00000000-0000-0000-0000-000000000000
+			$ ctrlc create policy --name my-policy
 
 			# Create a new policy with deployment selector
-			$ ctrlc create policy --name my-policy --workspace-id 00000000-0000-0000-0000-000000000000 --deployment-selector '{"type": "production"}'
+			$ ctrlc create policy --name my-policy --deployment-selector '{"type": "production"}'
 
 			# Create a new policy with environment selector
-			$ ctrlc create policy --name my-policy --workspace-id 00000000-0000-0000-0000-000000000000 --environment-selector '{"name": "prod"}'
+			$ ctrlc create policy --name my-policy --environment-selector '{"name": "prod"}'
 
 			# Create a new policy with deny windows
-			$ ctrlc create policy --name my-policy --workspace-id 00000000-0000-0000-0000-000000000000 --deny-windows '[{"timeZone": "UTC", "rrule": {"freq": "WEEKLY", "byday": ["SA", "SU"]}}]'
+			$ ctrlc create policy --name my-policy --deny-windows '[{"timeZone": "UTC", "rrule": {"freq": "WEEKLY", "byday": ["SA", "SU"]}}]'
 
 			# Create a new policy with version approvals
-			$ ctrlc create policy --name my-policy --workspace-id 00000000-0000-0000-0000-000000000000 --version-any-approvals '{"requiredApprovalsCount": 2}' --version-user-approvals '[{"userId": "user1"}, {"userId": "user2"}]' --version-role-approvals '[{"roleId": "role1", "requiredApprovalsCount": 1}]'
+			$ ctrlc create policy --name my-policy --version-any-approvals '{"requiredApprovalsCount": 2}' --version-user-approvals '[{"userId": "user1"}, {"userId": "user2"}]' --version-role-approvals '[{"roleId": "role1", "requiredApprovalsCount": 1}]'
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			apiURL := viper.GetString("url")
 			apiKey := viper.GetString("api-key")
+			workspaceId := viper.GetString("workspace")
+
+			if workspaceId == "" {
+				return fmt.Errorf("workspace is required")
+			}
+
 			client, err := api.NewAPIKeyClientWithResponses(apiURL, apiKey)
 			if err != nil {
 				return fmt.Errorf("failed to create API client: %w", err)
@@ -153,7 +158,7 @@ func NewCreatePolicyCmd() *cobra.Command {
 			// Create policy request
 			body := api.CreatePolicyJSONRequestBody{
 				Name:        name,
-				WorkspaceId: workspaceID,
+				WorkspaceId: workspaceId,
 				Description: &description,
 				Priority:    &priority,
 				Enabled:     &enabled,
@@ -181,8 +186,8 @@ func NewCreatePolicyCmd() *cobra.Command {
 	}
 
 	// Add flags
+	cmd.Flags().String("workspace", "", "ID of the workspace (required)")
 	cmd.Flags().StringVarP(&name, "name", "n", "", "Name of the policy (required)")
-	cmd.Flags().StringVarP(&workspaceID, "workspace-id", "w", "", "Workspace ID (required)")
 	cmd.Flags().StringVarP(&description, "description", "d", "", "Description of the policy")
 	cmd.Flags().Float32VarP(&priority, "priority", "p", 0, "Priority of the policy (default: 0)")
 	cmd.Flags().BoolVarP(&enabled, "enabled", "e", true, "Whether the policy is enabled (default: true)")
@@ -197,7 +202,7 @@ func NewCreatePolicyCmd() *cobra.Command {
 
 	// Mark required flags
 	cmd.MarkFlagRequired("name")
-	cmd.MarkFlagRequired("workspace-id")
+	cmd.MarkFlagRequired("workspace")
 
 	return cmd
 }
