@@ -17,9 +17,10 @@ func NewDeletePolicyCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "policy [flags]",
 		Short: "Delete a policy",
-		Long:  `Delete a policy by specifying a policy ID.`,
+		Long:  `Delete a policy by specifying a policy ID or name.`,
 		Example: heredoc.Doc(`
-			$ ctrlc delete policy --policy-id 123e4567-e89b-12d3-a456-426614174000
+			$ ctrlc delete policy --id 123e4567-e89b-12d3-a456-426614174000
+			$ ctrlc delete policy --name "My Policy"
 		`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if policyId == "" && name == "" {
