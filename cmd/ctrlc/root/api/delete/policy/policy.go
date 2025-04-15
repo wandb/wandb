@@ -1,4 +1,4 @@
-package releasechannel
+package policy
 
 import (
 	"fmt"
