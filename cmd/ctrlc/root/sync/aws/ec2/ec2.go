@@ -148,14 +148,8 @@ func NewSyncEC2Cmd() *cobra.Command {
 					metadata["compute/machine-type"] = string(instance.InstanceType)
 					metadata["compute/region"] = region
 					metadata["compute/type"] = "standard"
-
-					if instance.Architecture != "" {
-						metadata["compute/architecture"] = strings.ReplaceAll(string(instance.Architecture), "_mac", "")
-					}
-
-					if instance.BootMode != "" {
-						metadata["compute/boot-mode"] = string(instance.BootMode)
-					}
+					metadata["compute/architecture"] = strings.ReplaceAll(string(instance.Architecture), "_mac", "")
+					metadata["compute/boot-mode"] = string(instance.BootMode)
 
 					if instance.PlatformDetails != nil {
 						metadata["compute/platform"] = *instance.PlatformDetails
@@ -168,9 +162,7 @@ func NewSyncEC2Cmd() *cobra.Command {
 							metadata["compute/cpu-threads"] = strconv.Itoa(int(*instance.CpuOptions.ThreadsPerCore) * int(*instance.CpuOptions.CoreCount))
 						}
 					}
-					if instance.Hypervisor != "" {
-						metadata["compute/hypervisor"] = string(instance.Hypervisor)
-					}
+					metadata["compute/hypervisor"] = string(instance.Hypervisor)
 
 					if instance.State != nil {
 						metadata["compute/state"] = string(instance.State.Name)
