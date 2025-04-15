@@ -191,10 +191,9 @@ class LazyModuleState:
 
             # Set the submodule as an attribute on the parent module
             # This enables access to the submodule via normal attribute access.
-            parent = self.module.__name__.rpartition(".")[0]
+            parent, _, child = self.module.__name__.rpartition(".")
             if parent:
                 parent_module = sys.modules[parent]
-                child = self.module.__name__.rpartition(".")[-1]
                 setattr(parent_module, child, self.module)
 
 
