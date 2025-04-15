@@ -3,7 +3,6 @@ package policy
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/ctrlplanedev/cli/internal/api"
@@ -20,10 +19,6 @@ func NewCreatePolicyCmd() *cobra.Command {
 	var deploymentTargetSelector string
 	var environmentTargetSelector string
 	var resourceTargetSelector string
-	var denyWindows string
-	var versionAnyApprovals string
-	var versionUserApprovals string
-	var versionRoleApprovals string
 	var deploymentVersionSelector string
 
 	cmd := &cobra.Command{
@@ -88,58 +83,6 @@ func NewCreatePolicyCmd() *cobra.Command {
 				resourceSelector = &parsedSelector
 			}
 
-			// Parse deny windows
-			var parsedDenyWindows []struct {
-				Dtend    *time.Time              `json:"dtend,omitempty"`
-				Rrule    *map[string]interface{} `json:"rrule,omitempty"`
-				TimeZone string                  `json:"timeZone"`
-			}
-			if denyWindows != "" {
-				if err := json.Unmarshal([]byte(denyWindows), &parsedDenyWindows); err != nil {
-					return fmt.Errorf("invalid deny windows JSON: %w", err)
-				}
-			}
-
-			// Parse version any approvals
-			var parsedVersionAnyApprovals *[]struct {
-				RequiredApprovalsCount *float32 `json:"requiredApprovalsCount,omitempty"`
-			}
-			if versionAnyApprovals != "" {
-				var approvals []struct {
-					RequiredApprovalsCount *float32 `json:"requiredApprovalsCount,omitempty"`
-				}
-				if err := json.Unmarshal([]byte(versionAnyApprovals), &approvals); err != nil {
-					return fmt.Errorf("invalid version any approvals JSON: %w", err)
-				}
-				parsedVersionAnyApprovals = &approvals
-			}
-
-			// Parse version user approvals
-			var parsedVersionUserApprovals []api.VersionUserApproval
-			if versionUserApprovals != "" {
-				if err := json.Unmarshal([]byte(versionUserApprovals), &parsedVersionUserApprovals); err != nil {
-					return fmt.Errorf("invalid version user approvals JSON: %w", err)
-				}
-			} else {
-				parsedVersionUserApprovals = []api.VersionUserApproval{}
-			}
-
-			// Parse version role approvals
-			var parsedVersionRoleApprovals []struct {
-				RequiredApprovalsCount *float32 `json:"requiredApprovalsCount,omitempty"`
-				RoleId                 *string  `json:"roleId,omitempty"`
-			}
-			if versionRoleApprovals != "" {
-				if err := json.Unmarshal([]byte(versionRoleApprovals), &parsedVersionRoleApprovals); err != nil {
-					return fmt.Errorf("invalid version role approvals JSON: %w", err)
-				}
-			} else {
-				parsedVersionRoleApprovals = []struct {
-					RequiredApprovalsCount *float32 `json:"requiredApprovalsCount,omitempty"`
-					RoleId                 *string  `json:"roleId,omitempty"`
-				}{}
-			}
-
 			// Parse deployment version selector
 			var parsedDeploymentVersionSelector *api.DeploymentVersionSelector
 			if deploymentVersionSelector != "" {
@@ -169,11 +112,7 @@ func NewCreatePolicyCmd() *cobra.Command {
 						ResourceSelector:    resourceSelector,
 					},
 				},
-				DenyWindows:               parsedDenyWindows,
 				DeploymentVersionSelector: parsedDeploymentVersionSelector,
-				VersionAnyApprovals:       parsedVersionAnyApprovals,
-				VersionUserApprovals:      parsedVersionUserApprovals,
-				VersionRoleApprovals:      parsedVersionRoleApprovals,
 			}
 
 			resp, err := client.CreatePolicy(cmd.Context(), body)
@@ -194,10 +133,7 @@ func NewCreatePolicyCmd() *cobra.Command {
 	cmd.Flags().StringVar(&deploymentTargetSelector, "deployment-selector", "", "JSON string for deployment target selector")
 	cmd.Flags().StringVar(&environmentTargetSelector, "environment-selector", "", "JSON string for environment target selector")
 	cmd.Flags().StringVar(&resourceTargetSelector, "resource-selector", "", "JSON string for resource target selector")
-	cmd.Flags().StringVar(&denyWindows, "deny-windows", "", "JSON string for deny windows")
-	cmd.Flags().StringVar(&versionAnyApprovals, "version-any-approvals", "", "JSON string for version any approvals")
-	cmd.Flags().StringVar(&versionUserApprovals, "version-user-approvals", "", "JSON string for version user approvals")
-	cmd.Flags().StringVar(&versionRoleApprovals, "version-role-approvals", "", "JSON string for version role approvals")
+
 	cmd.Flags().StringVar(&deploymentVersionSelector, "version-selector", "", "JSON string for version selector")
 
 	// Mark required flags
