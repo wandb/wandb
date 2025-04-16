@@ -685,6 +685,7 @@ class Run:
 
         self._step = 0
         self._starting_step = 0
+        self._start_runtime = 0
         # TODO: eventually would be nice to make this configurable using self._settings._start_time
         #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
         #  does the total time get calculated right (not as 2 days and 15 minutes)?
@@ -918,9 +919,7 @@ class Run:
         Display names are not guaranteed to be unique and may be descriptive.
         By default, they are randomly generated.
         """
-        if self._settings.run_name:
-            return self._settings.run_name
-        return None
+        return self._settings.run_name
 
     @name.setter
     @_log_to_run
@@ -938,8 +937,8 @@ class Run:
     def notes(self) -> str | None:
         """Notes associated with the run, if there are any.
 
-        Notes can be a multiline string and can also use markdown and latex equations
-        inside `$$`, like `$x + 3$`.
+        Notes can be a multiline string and can also use markdown and latex
+        equations inside `$$`, like `$x + 3$`.
         """
         return self._settings.run_notes
 
@@ -973,15 +972,14 @@ class Run:
     @_attach
     def id(self) -> str:
         """Identifier for this run."""
-        if TYPE_CHECKING:
-            assert self._settings.run_id is not None
+        assert self._settings.run_id is not None
         return self._settings.run_id
 
     @property
     @_log_to_run
     @_attach
     def sweep_id(self) -> str | None:
-        """ID of the sweep associated with the run, if there is one."""
+        """Identifier for the sweep associated with the run, if there is one."""
         return self._settings.sweep_id
 
     def _get_path(self) -> str:
@@ -1042,14 +1040,13 @@ class Run:
     @_attach
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
-        if hasattr(self, "_telemetry_obj"):
-            deprecate.deprecate(
-                field_name=deprecate.Deprecated.run__mode,
-                warning_message=(
-                    "The mode property of wandb.run is deprecated "
-                    "and will be removed in a future release."
-                ),
-            )
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__mode,
+            warning_message=(
+                "The mode property of wandb.run is deprecated "
+                "and will be removed in a future release."
+            ),
+        )
         return "dryrun" if self._settings._offline else "run"
 
     @property
@@ -1086,15 +1083,58 @@ class Run:
         return self._settings.run_job_type or ""
 
     def project_name(self) -> str:
-        # TODO: deprecate this in favor of project
-        return self._settings.project or ""
+        """Name of the W&B project associated with the run.
+
+        Note: this method is deprecated and will be removed in a future release.
+        Please use `run.project` instead.
+        """
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__project_name,
+            warning_message=(
+                "The project_name method is deprecated and will be removed in a"
+                " future release. Please use `run.project` instead."
+            ),
+        )
+        return self.project
 
     @property
     @_log_to_run
     @_attach
     def project(self) -> str:
         """Name of the W&B project associated with the run."""
-        return self.project_name()
+        assert self._settings.project is not None
+        return self._settings.project
+
+    @_log_to_run
+    def get_project_url(self) -> str | None:
+        """URL of the W&B project associated with the run, if there is one.
+
+        Offline runs do not have a project URL.
+
+        Note: this method is deprecated and will be removed in a future release.
+        Please use `run.project_url` instead.
+        """
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__get_project_url,
+            warning_message=(
+                "The get_project_url method is deprecated and will be removed in a"
+                " future release. Please use `run.project_url` instead."
+            ),
+        )
+        return self.project_url
+
+    @property
+    @_log_to_run
+    @_attach
+    def project_url(self) -> str | None:
+        """URL of the W&B project associated with the run, if there is one.
+
+        Offline runs do not have a project URL.
+        """
+        if self._settings._offline:
+            wandb.termwarn("URL not available in offline run")
+            return None
+        return self._settings.project_url
 
     @_raise_if_finished
     @_log_to_run
@@ -1185,19 +1225,30 @@ class Run:
         return self._log_artifact(art)
 
     @_log_to_run
-    def get_project_url(self) -> str | None:
-        """Return the url for the W&B project associated with the run, if there is one.
-
-        Offline runs will not have a project url.
-        """
-        if self._settings._offline:
-            wandb.termwarn("URL not available in offline run")
-            return None
-        return self._settings.project_url
-
-    @_log_to_run
     def get_sweep_url(self) -> str | None:
-        """Return the url for the sweep associated with the run, if there is one."""
+        """The URL of the sweep associated with the run, if there is one.
+
+        Offline runs do not have a sweep URL.
+
+        Note: this method is deprecated and will be removed in a future release.
+        Please use `run.sweep_url` instead.
+        """
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__get_sweep_url,
+            warning_message=(
+                "The get_sweep_url method is deprecated and will be removed in a"
+                " future release. Please use `run.sweep_url` instead."
+            ),
+        )
+        return self.sweep_url
+
+    @property
+    @_attach
+    def sweep_url(self) -> str | None:
+        """URL of the sweep associated with the run, if there is one.
+
+        Offline runs do not have a sweep URL.
+        """
         if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
@@ -1205,7 +1256,27 @@ class Run:
 
     @_log_to_run
     def get_url(self) -> str | None:
-        """Return the url for the W&B run, if there is one.
+        """URL of the W&B run, if there is one.
+
+        Offline runs do not have a URL.
+
+        Note: this method is deprecated and will be removed in a future release.
+        Please use `run.url` instead.
+        """
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__get_url,
+            warning_message=(
+                "The get_url method is deprecated and will be removed in a"
+                " future release. Please use `run.url` instead."
+            ),
+        )
+        return self.url
+
+    @property
+    @_log_to_run
+    @_attach
+    def url(self) -> str | None:
+        """The url for the W&B run, if there is one.
 
         Offline runs will not have a url.
         """
@@ -1213,13 +1284,6 @@ class Run:
             wandb.termwarn("URL not available in offline run")
             return None
         return self._settings.run_url
-
-    @property
-    @_log_to_run
-    @_attach
-    def url(self) -> str | None:
-        """The W&B url associated with the run."""
-        return self.get_url()
 
     @property
     @_log_to_run
@@ -1588,6 +1652,9 @@ class Run:
 
         if run_obj.start_time:
             self._start_time = run_obj.start_time.ToMicroseconds() / 1e6
+
+        if run_obj.runtime:
+            self._start_runtime = run_obj.runtime
 
         # Grab the config from resuming
         if run_obj.config:
@@ -2368,6 +2435,7 @@ class Run:
                     lambda data: self._console_callback("stdout", data),
                     self._output_writer.write,  # type: ignore
                 ],
+                flush_periodically=(self._settings.mode == "online"),
             )
             err_redir = redirect.Redirect(
                 src="stderr",
@@ -2375,6 +2443,7 @@ class Run:
                     lambda data: self._console_callback("stderr", data),
                     self._output_writer.write,  # type: ignore
                 ],
+                flush_periodically=(self._settings.mode == "online"),
             )
             if os.name == "nt":
 
@@ -2400,6 +2469,7 @@ class Run:
                     lambda data: self._console_callback("stdout", data),
                     self._output_writer.write,  # type: ignore
                 ],
+                flush_periodically=(self._settings.mode == "online"),
             )
             err_redir = redirect.StreamWrapper(
                 src="stderr",
@@ -2407,6 +2477,7 @@ class Run:
                     lambda data: self._console_callback("stderr", data),
                     self._output_writer.write,  # type: ignore
                 ],
+                flush_periodically=(self._settings.mode == "online"),
             )
         elif console == "wrap_raw":
             logger.info("Wrapping output streams.")
@@ -2512,10 +2583,8 @@ class Run:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
         # (we want to do the set globals after attach)
         # TODO(console) However _console_start calls Redirect that uses `wandb.run` hence breaks
-        # TODO(jupyter) However _header calls _header_run_info that uses wandb.jupyter that uses
-        #               `wandb.run` and hence breaks
         self._set_globals()
-        self._header(settings=self._settings, printer=self._printer)
+        self._header()
 
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
@@ -3887,59 +3956,41 @@ class Run:
     # ------------------------------------------------------------------------------
     # HEADER
     # ------------------------------------------------------------------------------
-    # Note: All the header methods are static methods since we want to share the printing logic
-    # with the service execution path that doesn't have access to the run instance
-    @staticmethod
-    def _header(
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
-        Run._header_wandb_version_info(settings=settings, printer=printer)
-        Run._header_sync_info(settings=settings, printer=printer)
-        Run._header_run_info(settings=settings, printer=printer)
+    def _header(self) -> None:
+        self._header_wandb_version_info()
+        self._header_sync_info()
+        self._header_run_info()
 
-    @staticmethod
-    def _header_wandb_version_info(
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
-        if settings.quiet or settings.silent:
+    def _header_wandb_version_info(self) -> None:
+        if self._settings.quiet or self._settings.silent:
             return
 
         # TODO: add this to a higher verbosity level
-        printer.display(f"Tracking run with wandb version {wandb.__version__}")
+        self._printer.display(f"Tracking run with wandb version {wandb.__version__}")
 
-    @staticmethod
-    def _header_sync_info(
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
-        if settings._offline:
-            printer.display(
+    def _header_sync_info(self) -> None:
+        if self._settings._offline:
+            self._printer.display(
                 [
-                    f"W&B syncing is set to {printer.code('`offline`')} in this directory.  ",
-                    f"Run {printer.code('`wandb online`')} or set {printer.code('WANDB_MODE=online')} "
-                    "to enable cloud syncing.",
+                    f"W&B syncing is set to {self._printer.code('`offline`')}"
+                    f" in this directory. Run {self._printer.code('`wandb online`')}"
+                    f" or set {self._printer.code('WANDB_MODE=online')}"
+                    " to enable cloud syncing.",
                 ]
             )
         else:
-            info = [f"Run data is saved locally in {printer.files(settings.sync_dir)}"]
-            if not printer.supports_html:
+            sync_dir = self._settings.sync_dir
+            info = [f"Run data is saved locally in {self._printer.files(sync_dir)}"]
+            if not self._printer.supports_html:
                 info.append(
-                    f"Run {printer.code('`wandb offline`')} to turn off syncing."
+                    f"Run {self._printer.code('`wandb offline`')} to turn off syncing."
                 )
-            if not settings.quiet and not settings.silent:
-                printer.display(info)
+            if not self._settings.quiet and not self._settings.silent:
+                self._printer.display(info)
 
-    @staticmethod
-    def _header_run_info(
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
+    def _header_run_info(self) -> None:
+        settings, printer = self._settings, self._printer
+
         if settings._offline or settings.silent:
             return
 
@@ -3959,7 +4010,7 @@ class Run:
         if printer.supports_html:
             import wandb.jupyter
 
-            if not wandb.jupyter.maybe_display():
+            if not wandb.jupyter.display_if_magic_is_used(self):
                 run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
 
