@@ -2435,6 +2435,7 @@ class Run:
                     lambda data: self._console_callback("stdout", data),
                     self._output_writer.write,  # type: ignore
                 ],
+                flush_periodically=(self._settings.mode == "online"),
             )
             err_redir = redirect.Redirect(
                 src="stderr",
@@ -2442,6 +2443,7 @@ class Run:
                     lambda data: self._console_callback("stderr", data),
                     self._output_writer.write,  # type: ignore
                 ],
+                flush_periodically=(self._settings.mode == "online"),
             )
             if os.name == "nt":
 
@@ -2467,6 +2469,7 @@ class Run:
                     lambda data: self._console_callback("stdout", data),
                     self._output_writer.write,  # type: ignore
                 ],
+                flush_periodically=(self._settings.mode == "online"),
             )
             err_redir = redirect.StreamWrapper(
                 src="stderr",
@@ -2474,6 +2477,7 @@ class Run:
                     lambda data: self._console_callback("stderr", data),
                     self._output_writer.write,  # type: ignore
                 ],
+                flush_periodically=(self._settings.mode == "online"),
             )
         elif console == "wrap_raw":
             logger.info("Wrapping output streams.")
@@ -2579,10 +2583,8 @@ class Run:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
         # (we want to do the set globals after attach)
         # TODO(console) However _console_start calls Redirect that uses `wandb.run` hence breaks
-        # TODO(jupyter) However _header calls _header_run_info that uses wandb.jupyter that uses
-        #               `wandb.run` and hence breaks
         self._set_globals()
-        self._header(settings=self._settings, printer=self._printer)
+        self._header()
 
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
@@ -3954,59 +3956,41 @@ class Run:
     # ------------------------------------------------------------------------------
     # HEADER
     # ------------------------------------------------------------------------------
-    # Note: All the header methods are static methods since we want to share the printing logic
-    # with the service execution path that doesn't have access to the run instance
-    @staticmethod
-    def _header(
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
-        Run._header_wandb_version_info(settings=settings, printer=printer)
-        Run._header_sync_info(settings=settings, printer=printer)
-        Run._header_run_info(settings=settings, printer=printer)
+    def _header(self) -> None:
+        self._header_wandb_version_info()
+        self._header_sync_info()
+        self._header_run_info()
 
-    @staticmethod
-    def _header_wandb_version_info(
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
-        if settings.quiet or settings.silent:
+    def _header_wandb_version_info(self) -> None:
+        if self._settings.quiet or self._settings.silent:
             return
 
         # TODO: add this to a higher verbosity level
-        printer.display(f"Tracking run with wandb version {wandb.__version__}")
+        self._printer.display(f"Tracking run with wandb version {wandb.__version__}")
 
-    @staticmethod
-    def _header_sync_info(
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
-        if settings._offline:
-            printer.display(
+    def _header_sync_info(self) -> None:
+        if self._settings._offline:
+            self._printer.display(
                 [
-                    f"W&B syncing is set to {printer.code('`offline`')} in this directory.  ",
-                    f"Run {printer.code('`wandb online`')} or set {printer.code('WANDB_MODE=online')} "
-                    "to enable cloud syncing.",
+                    f"W&B syncing is set to {self._printer.code('`offline`')}"
+                    f" in this directory. Run {self._printer.code('`wandb online`')}"
+                    f" or set {self._printer.code('WANDB_MODE=online')}"
+                    " to enable cloud syncing.",
                 ]
             )
         else:
-            info = [f"Run data is saved locally in {printer.files(settings.sync_dir)}"]
-            if not printer.supports_html:
+            sync_dir = self._settings.sync_dir
+            info = [f"Run data is saved locally in {self._printer.files(sync_dir)}"]
+            if not self._printer.supports_html:
                 info.append(
-                    f"Run {printer.code('`wandb offline`')} to turn off syncing."
+                    f"Run {self._printer.code('`wandb offline`')} to turn off syncing."
                 )
-            if not settings.quiet and not settings.silent:
-                printer.display(info)
+            if not self._settings.quiet and not self._settings.silent:
+                self._printer.display(info)
 
-    @staticmethod
-    def _header_run_info(
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
+    def _header_run_info(self) -> None:
+        settings, printer = self._settings, self._printer
+
         if settings._offline or settings.silent:
             return
 
@@ -4026,7 +4010,7 @@ class Run:
         if printer.supports_html:
             import wandb.jupyter
 
-            if not wandb.jupyter.maybe_display():
+            if not wandb.jupyter.display_if_magic_is_used(self):
                 run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
 

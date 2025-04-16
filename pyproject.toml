@@ -305,7 +305,6 @@ module = [
     "wandb.sdk.verify.*",
     "wandb.trigger.*",
     "wandb.wandb_summary.*",
-    "wandb.jupyter.*",
     "wandb.sync.*",
     "wandb.sdk.integration_utils.*",
     "wandb.plot.*",
