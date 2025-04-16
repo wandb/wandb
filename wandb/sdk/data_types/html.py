@@ -19,7 +19,11 @@ class Html(BatchableMedia):
     """Wandb class for arbitrary html.
 
     Args:
-        data: (string or io object) HTML to display in wandb
+        data: (string or io object)
+            HTML can be initialized by providing either a path to a file,
+            or literal HTML in a string or io object.
+            If `data` matches a path to a file on your system,
+            the contents of this file will be used for the HTML value displayed on W&b.
         inject: (boolean) Add a stylesheet to the HTML object.  If set
             to False the HTML will pass through unchanged.
     """
@@ -28,7 +32,11 @@ class Html(BatchableMedia):
 
     def __init__(self, data: Union[str, "TextIO"], inject: bool = True) -> None:
         super().__init__()
-        data_is_path = isinstance(data, str) and os.path.exists(data)
+        data_is_path = (
+            isinstance(data, str)
+            and os.path.isfile(data)
+            and os.path.splitext(data)[1] == ".html"
+        )
         data_path = ""
         if data_is_path:
             assert isinstance(data, str)

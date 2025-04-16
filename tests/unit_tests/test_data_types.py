@@ -1,6 +1,7 @@
 import io
 import os
 import platform
+import tempfile
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -1428,6 +1429,50 @@ def test_partitioned_table():
     assert len([(ndx, row) for ndx, row in partition_table.iterrows()]) == 0
     assert partition_table == wandb.data_types.PartitionedTable(parts_path="parts")
     assert partition_table != wandb.data_types.PartitionedTable(parts_path="parts2")
+
+
+################################################################################
+# Test wandb.Html
+################################################################################
+
+
+def test_wandb_html_with_directory():
+    dir = tempfile.gettempdir()
+
+    html = wandb.Html(dir, inject=False)
+
+    assert html._is_tmp is True
+    assert html._path is not None
+    assert os.path.exists(html._path)
+    with open(html._path) as f:
+        assert f.read() == dir
+
+
+def test_wandb_html_with_html_file():
+    with tempfile.NamedTemporaryFile("w", suffix=".html") as file:
+        file.write("Hello, world!")
+        file.flush()
+
+        html = wandb.Html(file.name, inject=False)
+
+        assert html._is_tmp is False
+        assert html._path is not None
+        assert html._path == file.name
+        assert os.path.exists(html._path)
+        with open(html._path) as f:
+            assert f.read() == "Hello, world!"
+
+
+def test_wandb_html_with_non_html_file():
+    with tempfile.NamedTemporaryFile("w") as file:
+        file.write("Hello, world!")
+        file.flush()
+
+        html = wandb.Html(file.name, inject=False)
+
+        assert html._is_tmp is True
+        with open(html._path) as f:
+            assert f.read() == file.name
 
 
 ################################################################################
