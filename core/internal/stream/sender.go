@@ -1590,7 +1590,7 @@ func (s *Sender) sendMetric(record *spb.Record, _ *spb.MetricRecord) {
 	// Note: we still send these metrics from the handler to the writer to ensure they are
 	// available in the transaction log for offline runs that may be synced to a server that
 	// does not support expanding glob metrics.
-	if s.runConfigMetrics.IsServerExpandGlobMetrics() && record.GetControl().GetInternal() {
+	if s.runConfigMetrics.IsServerExpandGlobMetrics() && record.GetMetric().GetExpandedFromGlob() {
 		return
 	}
 

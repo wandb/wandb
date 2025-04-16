@@ -719,9 +719,6 @@ pub struct Control {
     /// connection id
     #[prost(string, tag = "8")]
     pub connection_id: ::prost::alloc::string::String,
-    /// message was created by an internal process
-    #[prost(bool, tag = "9")]
-    pub internal: bool,
 }
 ///
 /// Result: all results
@@ -1114,6 +1111,8 @@ pub struct MetricRecord {
     pub goal: i32,
     #[prost(message, optional, tag = "9")]
     pub control: ::core::option::Option<MetricControl>,
+    #[prost(bool, tag = "10")]
+    pub expanded_from_glob: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }

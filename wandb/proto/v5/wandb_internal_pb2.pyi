@@ -218,7 +218,6 @@ class Control(google.protobuf.message.Message):
     FLOW_CONTROL_FIELD_NUMBER: builtins.int
     END_OFFSET_FIELD_NUMBER: builtins.int
     CONNECTION_ID_FIELD_NUMBER: builtins.int
-    INTERNAL_FIELD_NUMBER: builtins.int
     req_resp: builtins.bool
     """record is expecting a result"""
     local: builtins.bool
@@ -235,8 +234,6 @@ class Control(google.protobuf.message.Message):
     """end of message offset of this written message"""
     connection_id: builtins.str
     """connection id"""
-    internal: builtins.bool
-    """message was created by an internal process"""
     def __init__(
         self,
         *,
@@ -248,9 +245,8 @@ class Control(google.protobuf.message.Message):
         flow_control: builtins.bool = ...,
         end_offset: builtins.int = ...,
         connection_id: builtins.str = ...,
-        internal: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["always_send", b"always_send", "connection_id", b"connection_id", "end_offset", b"end_offset", "flow_control", b"flow_control", "internal", b"internal", "local", b"local", "mailbox_slot", b"mailbox_slot", "relay_id", b"relay_id", "req_resp", b"req_resp"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["always_send", b"always_send", "connection_id", b"connection_id", "end_offset", b"end_offset", "flow_control", b"flow_control", "local", b"local", "mailbox_slot", b"mailbox_slot", "relay_id", b"relay_id", "req_resp", b"req_resp"]) -> None: ...
 
 global___Control = Control
 
@@ -910,6 +906,7 @@ class MetricRecord(google.protobuf.message.Message):
     SUMMARY_FIELD_NUMBER: builtins.int
     GOAL_FIELD_NUMBER: builtins.int
     _CONTROL_FIELD_NUMBER: builtins.int
+    EXPANDED_FROM_GLOB_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     name: builtins.str
     """only name or globname is set"""
@@ -921,6 +918,7 @@ class MetricRecord(google.protobuf.message.Message):
     step_metric_index: builtins.int
     """one-based array index"""
     goal: global___MetricRecord.MetricGoal.ValueType
+    expanded_from_glob: builtins.bool
     @property
     def options(self) -> global___MetricOptions: ...
     @property
@@ -940,10 +938,11 @@ class MetricRecord(google.protobuf.message.Message):
         summary: global___MetricSummary | None = ...,
         goal: global___MetricRecord.MetricGoal.ValueType = ...,
         _control: global___MetricControl | None = ...,
+        expanded_from_glob: builtins.bool = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["_control", b"_control", "_info", b"_info", "options", b"options", "summary", b"summary"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_control", b"_control", "_info", b"_info", "glob_name", b"glob_name", "goal", b"goal", "name", b"name", "options", b"options", "step_metric", b"step_metric", "step_metric_index", b"step_metric_index", "summary", b"summary"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["_control", b"_control", "_info", b"_info", "expanded_from_glob", b"expanded_from_glob", "glob_name", b"glob_name", "goal", b"goal", "name", b"name", "options", b"options", "step_metric", b"step_metric", "step_metric_index", b"step_metric_index", "summary", b"summary"]) -> None: ...
 
 global___MetricRecord = MetricRecord
 
