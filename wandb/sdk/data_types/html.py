@@ -26,17 +26,24 @@ class Html(BatchableMedia):
             the contents of this file will be used for the HTML value displayed on W&b.
         inject: (boolean) Add a stylesheet to the HTML object.  If set
             to False the HTML will pass through unchanged.
+        data_is_not_path: (boolean) If set to True, the data will be
+            treated as a path to a file.
     """
 
     _log_type = "html-file"
 
-    def __init__(self, data: Union[str, "TextIO"], inject: bool = True) -> None:
+    def __init__(
+        self,
+        data: Union[str, "TextIO"],
+        inject: bool = True,
+        data_is_not_path: bool = False,
+    ) -> None:
         super().__init__()
         data_is_path = (
             isinstance(data, str)
             and os.path.isfile(data)
             and os.path.splitext(data)[1] == ".html"
-        )
+        ) and not data_is_not_path
         data_path = ""
         if data_is_path:
             assert isinstance(data, str)

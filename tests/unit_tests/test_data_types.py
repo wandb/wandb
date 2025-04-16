@@ -1463,6 +1463,19 @@ def test_wandb_html_with_html_file():
             assert f.read() == "Hello, world!"
 
 
+def test_wandb_html_with_html_file_skip_file_check():
+    with tempfile.NamedTemporaryFile("w", suffix=".html") as file:
+        file.write("Hello, world!")
+        file.flush()
+
+        html = wandb.Html(file.name, inject=False, data_is_not_path=True)
+
+        assert html._is_tmp is True
+        assert html._path is not None
+        with open(html._path) as f:
+            assert f.read() == file.name
+
+
 def test_wandb_html_with_non_html_file():
     with tempfile.NamedTemporaryFile("w") as file:
         file.write("Hello, world!")
