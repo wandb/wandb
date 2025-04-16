@@ -248,8 +248,8 @@ func NewSender(
 		).Enabled,
 	}
 
-	// if the server doesn't support expanding defined metric globs, and the user
-	// has requested it, we default to the client side expansion of defined metric
+	// If the server doesn't support expanding defined metric globs, and the user
+	// has requested it, we default to the client-side expansion of defined metric
 	// globs.
 	serverSupportsExpandGlobMetrics := params.FeatureProvider.GetFeature(
 		spb.ServerFeature_EXPAND_DEFINED_METRIC_GLOBS,
@@ -257,7 +257,7 @@ func NewSender(
 	if !serverSupportsExpandGlobMetrics &&
 		params.Settings.IsEnableServerSideExpandGlobMetrics() {
 		params.Logger.Warn(
-			"server does not support expanding defined metric globs, defaulting to client side expansion",
+			"server does not support expanding defined metric globs, defaulting to client-side expansion",
 		)
 	}
 
@@ -1584,11 +1584,11 @@ func (s *Sender) sendExit(record *spb.Record) {
 
 // sendMetric updates the metrics in the run config.
 func (s *Sender) sendMetric(record *spb.Record, _ *spb.MetricRecord) {
-	// if server side expand glob metrics is enabled, we don't need to send internal metrics
+	// If server-side expand glob metrics is enabled, we don't need to send internal metrics
 	// as these were expanded internally by the client.
 	//
 	// Note: we still send these metrics from the handler to the writer to ensure they are
-	// available in the transaction log for offline runs, that are synced to a server that
+	// available in the transaction log for offline runs that may be synced to a server that
 	// does not support expanding glob metrics.
 	if s.runConfigMetrics.IsServerExpandGlobMetrics() && record.GetControl().GetInternal() {
 		return

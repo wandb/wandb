@@ -31,6 +31,7 @@ func TestMetricSelfStep(t *testing.T) {
 	assert.Equal(t, config[yidx]["5"], 1+int64(xidx))
 }
 
+// TestMetricGlob tests the case where server-side glob expansion is enabled.
 func TestMetricGlob(t *testing.T) {
 	rcm := runmetric.NewRunConfigMetrics(true)
 
@@ -42,6 +43,7 @@ func TestMetricGlob(t *testing.T) {
 
 	assert.Len(t, config, 2)
 
+	// Glob is passed as is, expansion will be done server-side.
 	assert.Equal(t, config[0]["2"], "x/*")
 	assert.Equal(t, config[1]["1"], "y")
 }
