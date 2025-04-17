@@ -895,7 +895,8 @@ class Artifact:
 
         Examples:
             ```python
-            artifact.logged_by().sample_history(
+            run = artifact.logged_by()
+            history = run.sample_history(
                 min_step=artifact.history_step,
                 max_step=artifact.history_step + 1,
                 keys=["my_metric"],
