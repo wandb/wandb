@@ -48,6 +48,7 @@ from wandb.errors import CommError, UnsupportedError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
+from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import (
     MetadataRequest,
     MetricRecord,
@@ -1041,11 +1042,12 @@ class Run:
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
         deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__mode,
+            field_name=Deprecated.run__mode,
             warning_message=(
                 "The mode property of wandb.run is deprecated "
                 "and will be removed in a future release."
             ),
+            run=self,
         )
         return "dryrun" if self._settings._offline else "run"
 
@@ -1089,7 +1091,7 @@ class Run:
         Please use `run.project` instead.
         """
         deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__project_name,
+            field_name=Deprecated.run__project_name,
             warning_message=(
                 "The project_name method is deprecated and will be removed in a"
                 " future release. Please use `run.project` instead."
@@ -1115,7 +1117,7 @@ class Run:
         Please use `run.project_url` instead.
         """
         deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__get_project_url,
+            field_name=Deprecated.run__get_project_url,
             warning_message=(
                 "The get_project_url method is deprecated and will be removed in a"
                 " future release. Please use `run.project_url` instead."
@@ -1234,7 +1236,7 @@ class Run:
         Please use `run.sweep_url` instead.
         """
         deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__get_sweep_url,
+            field_name=Deprecated.run__get_sweep_url,
             warning_message=(
                 "The get_sweep_url method is deprecated and will be removed in a"
                 " future release. Please use `run.sweep_url` instead."
@@ -1264,7 +1266,7 @@ class Run:
         Please use `run.url` instead.
         """
         deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__get_url,
+            field_name=Deprecated.run__get_url,
             warning_message=(
                 "The get_url method is deprecated and will be removed in a"
                 " future release. Please use `run.url` instead."
@@ -2039,10 +2041,11 @@ class Run:
 
         if sync is not None:
             deprecate.deprecate(
-                field_name=deprecate.Deprecated.run__log_sync,
+                field_name=Deprecated.run__log_sync,
                 warning_message=(
                     "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
                 ),
+                run=self,
             )
         if self._settings._shared and step is not None:
             wandb.termwarn(
@@ -2112,11 +2115,12 @@ class Run:
         if glob_str is None:
             # noop for historical reasons, run.save() may be called in legacy code
             deprecate.deprecate(
-                field_name=deprecate.Deprecated.run__save_no_args,
+                field_name=Deprecated.run__save_no_args,
                 warning_message=(
                     "Calling wandb.run.save without any arguments is deprecated."
                     "Changes to attributes are automatically persisted."
                 ),
+                run=self,
             )
             return True
 
@@ -2281,11 +2285,12 @@ class Run:
         """
         if quiet is not None:
             deprecate.deprecate(
-                field_name=deprecate.Deprecated.run__finish_quiet,
+                field_name=Deprecated.run__finish_quiet,
                 warning_message=(
                     "The `quiet` argument to `wandb.run.finish()` is deprecated, "
                     "use `wandb.Settings(quiet=...)` to set this instead."
                 ),
+                run=self,
             )
         return self._finish(exit_code)
 
@@ -2337,10 +2342,11 @@ class Run:
         """Deprecated alias for `finish()` - use finish instead."""
         if hasattr(self, "_telemetry_obj"):
             deprecate.deprecate(
-                field_name=deprecate.Deprecated.run__join,
+                field_name=Deprecated.run__join,
                 warning_message=(
                     "wandb.run.join() is deprecated, please use wandb.run.finish()."
                 ),
+                run=self,
             )
         self._finish(exit_code=exit_code)
 
@@ -2890,14 +2896,14 @@ class Run:
         """
         if summary and "copy" in summary:
             deprecate.deprecate(
-                deprecate.Deprecated.run__define_metric_copy,
+                Deprecated.run__define_metric_copy,
                 "define_metric(summary='copy') is deprecated and will be removed.",
                 self,
             )
 
         if (summary and "best" in summary) or goal is not None:
             deprecate.deprecate(
-                deprecate.Deprecated.run__define_metric_best_goal,
+                Deprecated.run__define_metric_best_goal,
                 "define_metric(summary='best', goal=...) is deprecated and will be removed. "
                 "Use define_metric(summary='min') or define_metric(summary='max') instead.",
                 self,

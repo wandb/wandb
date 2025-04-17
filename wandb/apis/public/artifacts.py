@@ -12,6 +12,7 @@ from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator, SizedPaginator
 from wandb.errors.term import termlog
+from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._graphql_fragments import (
     ARTIFACT_FILES_FRAGMENT,
@@ -403,7 +404,7 @@ class ArtifactCollection:
     def change_type(self, new_type: str) -> None:
         """Deprecated, change type directly with `save` instead."""
         deprecate.deprecate(
-            field_name=deprecate.Deprecated.artifact_collection__change_type,
+            field_name=Deprecated.artifact_collection__change_type,
             warning_message="ArtifactCollection.change_type(type) is deprecated, use ArtifactCollection.save() instead.",
         )
 
