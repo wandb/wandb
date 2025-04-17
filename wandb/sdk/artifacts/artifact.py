@@ -189,6 +189,7 @@ class Artifact:
         self._created_at: str | None = None
         self._updated_at: str | None = None
         self._final: bool = False
+        self._history_step: int | None = None
 
         # Cache.
         artifact_instance_cache[self._client_id] = self
@@ -409,6 +410,7 @@ class Artifact:
         self._file_count = attrs["fileCount"]
         self._created_at = attrs["createdAt"]
         self._updated_at = attrs["updatedAt"]
+        self._history_step = attrs.get("historyStep", None)
 
     @ensure_logged
     def new_draft(self) -> Artifact:
@@ -885,6 +887,12 @@ class Artifact:
         """The time when the artifact was last updated."""
         assert self._created_at is not None
         return self._updated_at or self._created_at
+    
+    @property
+    @ensure_logged
+    def history_step(self) -> int | None:
+        """The history step of the artifact."""
+        return max(0, self._history_step - 1)
 
     # State management.
 
