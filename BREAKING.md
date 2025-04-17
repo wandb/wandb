@@ -65,4 +65,7 @@ When preparing a release that can include breaking changes, consider applying ch
 - Deprecate `data_is_not_path` flag in `wandb.Html` and add `path` keyword argument to explicitly handle files paths.
     - Owner: @jacobromero
     - Deprecated after 0.19.9
+
+- Remove storing system settings in temporary directory
+    - Owner: @jacobromero
     - Can do in >=0.20
