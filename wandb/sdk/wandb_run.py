@@ -693,7 +693,7 @@ class Run:
 
         _datatypes_set_callback(self._datatypes_callback)
 
-        self._printer = printer.new_printer()
+        self._printer = printer.new_printer(settings)
 
         self._torch_history: wandb_torch.TorchHistory | None = None  # type: ignore
 
