@@ -196,7 +196,7 @@ func NewSyncEC2Cmd() *cobra.Command {
 						metadata["aws/vpc-id"] = *instance.VpcId
 					}
 					if instance.PlatformDetails != nil {
-						metadata["aws/instance-type"] = string(*instance.PlatformDetails)
+						metadata["aws/platform-details"] = string(*instance.PlatformDetails)
 					}
 					if instance.InstanceId != nil {
 						metadata["aws/instance-id"] = *instance.InstanceId
