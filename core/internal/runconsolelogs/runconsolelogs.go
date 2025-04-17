@@ -89,7 +89,6 @@ func New(params Params) *Sender {
 		fsWriter = &filestreamWriter{
 			FileStream: params.FileStreamOrNil,
 			Structured: params.Structured,
-			// Structured: false,
 		}
 	}
 
