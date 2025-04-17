@@ -896,11 +896,12 @@ class Artifact:
         Examples:
             ```python
             run = artifact.logged_by()
-            history = run.sample_history(
-                min_step=artifact.history_step,
-                max_step=artifact.history_step + 1,
-                keys=["my_metric"],
-            )
+            if run and artifact.history_step:
+                history = run.sample_history(
+                    min_step=artifact.history_step,
+                    max_step=artifact.history_step + 1,
+                    keys=["my_metric"],
+                )
             ```
         """
         if not self._history_step:
