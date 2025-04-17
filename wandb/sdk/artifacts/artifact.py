@@ -894,9 +894,8 @@ class Artifact:
         """The nearest step at which history metrics were logged for the source run of the artifact.
 
         Examples:
-            You can use this to fetch the history metrics for the source run of the artifact as follows.
             ```python
-            run.sample_history(
+            artifact.logged_by().sample_history(
                 min_step=artifact.history_step,
                 max_step=artifact.history_step + 1,
                 keys=["my_metric"],
