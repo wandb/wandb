@@ -475,6 +475,9 @@ pub struct Feature {
     /// server-side derived summary computation was enabled
     #[prost(bool, tag = "68")]
     pub server_side_derived_summary: bool,
+    /// User set the x_label value
+    #[prost(bool, tag = "69")]
+    pub user_provided_label: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Env {

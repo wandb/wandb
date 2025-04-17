@@ -968,6 +968,9 @@ class _WandbInit:
                 )
                 tel.feature.shared_mode = True
 
+            if settings.x_label:
+                tel.feature.user_provided_label = True
+
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
         if not settings.label_disable:
