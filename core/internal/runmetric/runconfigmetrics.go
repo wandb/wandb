@@ -10,6 +10,8 @@ type RunConfigMetrics struct {
 	// handler parses MetricRecords.
 	handler *MetricHandler
 
+	// serverExpandGlobMetrics indicates that server-side expansion is supported,
+	// so expanded metrics don't need to be added to the config.
 	serverExpandGlobMetrics bool
 }
 
