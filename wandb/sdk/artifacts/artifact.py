@@ -892,6 +892,8 @@ class Artifact:
     @ensure_logged
     def history_step(self) -> int | None:
         """The history step of the artifact."""
+        if not self._history_step:
+            return None
         return max(0, self._history_step - 1)
 
     # State management.
