@@ -47,12 +47,12 @@ def _gql_artifact_fragment(include_aliases: bool = True) -> str:
 
     supports_ttl = "ttlIsInherited" in allowed_fields
     supports_tags = "tags" in allowed_fields
-    supports_historyStep = "historyStep" in allowed_fields
+    supports_history_step = "historyStep" in allowed_fields
 
     ttl_duration_seconds = "ttlDurationSeconds" if supports_ttl else ""
     ttl_is_inherited = "ttlIsInherited" if supports_ttl else ""
 
-    history_step = "historyStep" if supports_historyStep else ""
+    history_step = "historyStep" if supports_history_step else ""
     tags = "tags {name}" if supports_tags else ""
 
     # The goal is to move all artifact aliases fetches to the membership level in the future

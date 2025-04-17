@@ -484,6 +484,7 @@ def test_artifact_enable_tracking_flag(user, api, mocker):
         enable_tracking=False,
     )
 
+
 def test_artifact_history_step(user, api):
     """Test that the correct history step is returned for an artifact."""
     entity = user

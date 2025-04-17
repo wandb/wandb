@@ -887,11 +887,22 @@ class Artifact:
         """The time when the artifact was last updated."""
         assert self._created_at is not None
         return self._updated_at or self._created_at
-    
+
     @property
     @ensure_logged
     def history_step(self) -> int | None:
-        """The history step of the artifact."""
+        """The nearest step at which history metrics were logged for the source run of the artifact.
+
+        Examples:
+            You can use this to fetch the history metrics for the source run of the artifact as follows.
+            ```python
+            run.sample_history(
+                min_step=artifact.history_step,
+                max_step=artifact.history_step + 1,
+                keys=["my_metric"],
+            )
+            ```
+        """
         if not self._history_step:
             return None
         return max(0, self._history_step - 1)
