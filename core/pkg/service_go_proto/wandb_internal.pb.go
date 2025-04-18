@@ -3343,7 +3343,7 @@ type FilesItem struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// A path or Unix glob relative to the W&B files directory.
+	// A path or Unix glob relative to the run's files directory.
 	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	// When to upload the file.
 	Policy FilesItem_PolicyType `protobuf:"varint,2,opt,name=policy,proto3,enum=wandb_internal.FilesItem_PolicyType" json:"policy,omitempty"`
