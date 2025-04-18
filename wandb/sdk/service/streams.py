@@ -198,6 +198,11 @@ class StreamMux:
             return stream_id in self._streams
 
     def get_stream(self, stream_id: str) -> StreamRecord:
+        """Returns the StreamRecord for the ID.
+
+        Raises:
+            KeyError: If a corresponding StreamRecord does not exist.
+        """
         with self._streams_lock:
             stream = self._streams[stream_id]
             return stream

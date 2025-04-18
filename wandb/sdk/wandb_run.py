@@ -816,8 +816,9 @@ class Run:
                     self._unique_launch_artifact_sequence_names[sequence_name] = item
 
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
-        if not hasattr(self, "_telemetry_obj"):
+        if not hasattr(self, "_telemetry_obj") or self._is_finished:
             return
+
         self._telemetry_obj.MergeFrom(telem_obj)
         self._telemetry_obj_dirty = True
         self._telemetry_flush()
