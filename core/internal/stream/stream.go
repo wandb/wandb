@@ -12,6 +12,7 @@ import (
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pfxout"
@@ -376,6 +377,12 @@ func (s *Stream) Close() {
 	s.logger.Info("stream: closing", "id", s.settings.GetRunID())
 	s.runWork.Close()
 	s.wg.Wait()
+
+	if s.settings.CleanRunFiles() {
+		// Clean up the files directory, and any remaining files.
+		fileutil.DeleteFile(s.settings.GetFilesDir(), s.logger)
+	}
+
 	s.logger.Info("stream: closed", "id", s.settings.GetRunID())
 }
 

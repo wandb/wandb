@@ -537,3 +537,7 @@ func (s *Settings) UpdateRunID(runID string) {
 func (s *Settings) UpdateServerSideDerivedSummary(enable bool) {
 	s.Proto.XServerSideDerivedSummary = &wrapperspb.BoolValue{Value: enable}
 }
+
+func (s *Settings) CleanRunFiles() bool {
+	return s.Proto.CleanRunFiles.GetValue()
+}

@@ -13,6 +13,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Added
+
+- Added `clean_run_files` setting to delete files as they are uploaded to the W&B backend. (@jacobromero in https://github.com/wandb/wandb/pull/9664)
+
 ### Changed
 
 - `Artifact.download()` no longer raises an error when using `WANDB_MODE=offline` or when an offline run exists (@timoffex in https://github.com/wandb/wandb/pull/9695)
