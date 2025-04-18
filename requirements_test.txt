@@ -29,5 +29,21 @@ coverage[toml]~=7.6
 
 pyte~=0.8.1  # Terminal emulator for testing interactions with the terminal.
 
-hypothesis
+hypothesis<6.131.1
+# Stopgap fix until we can resolve sys.modules-related error, inadvertently introduced by hypothesis==6.131.1.
+# This manifests in CI as RuntimeErrors like:
+#
+#     .0 = <dict_valueiterator object at ...>
+#
+#         return tuple(
+#             module
+#     >       for module in sys.modules.values()
+#             if (
+#                 getattr(module, "__file__", None) is not None
+#                 and _is_local_module_file(module.__file__)
+#             )
+#         )
+#     E   RuntimeError: dictionary changed size during iteration
+#
+#     .../site-packages/hypothesis/internal/constants_ast.py:147: RuntimeError
 hypothesis-fspaths
