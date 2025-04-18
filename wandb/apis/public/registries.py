@@ -1,10 +1,21 @@
 """Public API: registries."""
 
 import json
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence
-
-if TYPE_CHECKING:
-    from wandb_gql import Client
+from collections.abc import MutableSet
+from itertools import chain
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Generic,
+    Iterable,
+    Iterator,
+    Mapping,
+    Optional,
+    Sequence,
+    TypeVar,
+    final,
+)
 
 from wandb_gql import gql
 
@@ -16,6 +27,63 @@ from wandb.sdk.artifacts._graphql_fragments import (
     _gql_registry_fragment,
 )
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
+
+if TYPE_CHECKING:
+    from wandb_gql import Client
+
+
+T = TypeVar("T")
+
+
+@final
+class _AddOnlySet(MutableSet[T], Generic[T]):
+    """A set-like container type that only allows adding new items.
+
+    More specifically, this tracks "frozen" and "draft" items.
+    Items can be added and removed while in draft state, but once frozen,
+    they become immutable.  As with a normal set, all items must be unique.
+
+    Any initial items passed to the constructor are frozen.
+    """
+
+    def __init__(self, iterable: Iterable[T] | None = None, /) -> None:
+        self.frozen: set[T] = frozenset(iterable or ())
+        self._draft: set[T] = set()
+
+    def add(self, value: T) -> None:
+        """Add an item to the draft set."""
+        # Note: We can add duplicate items to the *draft* set, like any normal set.
+        # They'll just be ignored.
+        if value not in self.frozen:
+            self._draft.add(value)
+
+    def discard(self, value: T) -> None:
+        """Remove an item from the draft set if it exists."""
+        if value in self.frozen:
+            raise ValueError(f"Cannot remove frozen item: {value!r}")
+        self._draft.discard(value)
+
+    def freeze(self) -> None:
+        """Freeze any draft items, making them immutable."""
+        self.frozen = frozenset(self.frozen | self.draft)
+        self._draft.clear()
+
+    def __contains__(self, value: Any) -> bool:
+        return value in (self.frozen | self.draft)
+
+    def __len__(self) -> int:
+        return len(self.frozen | self.draft)
+
+    def __iter__(self) -> Iterator[T]:
+        return iter(chain(self.frozen, self.draft))
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(frozen={set(self.frozen)!r}, draft={set(self.draft)!r})"
+
+    @property
+    def draft(self) -> frozenset[T]:
+        """A read-only, frozen copy of the current draft items."""
+        return frozenset(self._draft)
 
 
 class Registries(Paginator):
@@ -162,9 +230,9 @@ class Registry:
         self._allow_all_artifact_types = attrs.get(
             "allowAllArtifactTypesInRegistry", False
         )
-        self._artifact_types = [
+        self._artifact_types = _AddOnlySet(
             t["node"]["name"] for t in attrs.get("artifactTypes", {}).get("edges", [])
-        ]
+        )
         self._id = attrs.get("id", "")
         self._created_at = attrs.get("createdAt", "")
         self._updated_at = attrs.get("updatedAt", "")
@@ -194,7 +262,7 @@ class Registry:
         return self._allow_all_artifact_types
 
     @property
-    def artifact_types(self):
+    def artifact_types(self) -> _AddOnlySet[str]:
         return self._artifact_types
 
     @property
