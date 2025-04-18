@@ -32,13 +32,14 @@ from wandb.apis.public.utils import (
     fetch_org_from_settings_or_entity,
     parse_org_from_registry_path,
 )
+from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import retry, runid
-from wandb.sdk.lib.deprecate import Deprecated, deprecate
+from wandb.sdk.lib.deprecate import deprecate
 from wandb.sdk.lib.gql_request import GraphQLSession
 
 if TYPE_CHECKING:
