@@ -487,9 +487,10 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
         session.install("grpcio-tools~=1.64.1")
     elif pb == 6:
         session.install("mypy-protobuf==3.6.0")
-        session.install("grpcio==1.71.0")
-        session.install("grpcio-tools==1.71.0")
-        session.install("protobuf==6.30.1")
+        # TODO: update to 1.72.0 when released
+        session.install("grpcio==1.72.0rc1")
+        session.install("grpcio-tools==1.72.0rc1")
+        session.install("protobuf==6.30.2")
     else:
         session.error("Invalid protobuf version given. `pb` must be 3, 4, 5, or 6.")
 

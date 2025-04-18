@@ -9,8 +9,7 @@ elif protobuf_version == "4":
 elif protobuf_version == "5":
     from wandb.proto.v5.wandb_internal_pb2 import *
 elif protobuf_version == "6":
-    pass
-    # from wandb.proto.v6.wandb_internal_pb2 import *
+    from wandb.proto.v6.wandb_internal_pb2 import *
 else:
     raise ImportError(
         "Failed to import protobufs for protobuf version"

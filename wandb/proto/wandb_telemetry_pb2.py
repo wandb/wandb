@@ -9,5 +9,4 @@ elif protobuf_version == "4":
 elif protobuf_version == "5":
     from wandb.proto.v5.wandb_telemetry_pb2 import *
 elif protobuf_version == "6":
-    pass
-    # from wandb.proto.v6.wandb_telemetry_pb2 import *
+    from wandb.proto.v6.wandb_telemetry_pb2 import *
