@@ -35,6 +35,7 @@ from wandb.errors import CommError, Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
+from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk.lib import ipython as wb_ipython
 from wandb.sdk.lib import progress, runid, wb_logging
 from wandb.sdk.lib.paths import StrPath
@@ -43,7 +44,7 @@ from wandb.util import _is_artifact_representation
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import SummaryDisabled, filesystem, module, paths, printer, telemetry
-from .lib.deprecate import Deprecated, deprecate
+from .lib.deprecate import deprecate
 from .mailbox import wait_with_progress
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
@@ -966,6 +967,9 @@ class _WandbInit:
                     "Please contact support@wandb.com for guidance and to report any issues."
                 )
                 tel.feature.shared_mode = True
+
+            if settings.x_label:
+                tel.feature.user_provided_label = True
 
             tel.env.maybe_mp = _maybe_mp_process(backend)
 

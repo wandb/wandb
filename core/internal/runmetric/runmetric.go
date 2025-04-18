@@ -175,7 +175,7 @@ func (mh *MetricHandler) createGlobMetrics(
 		metric, ok := mh.matchGlobMetric(key)
 		if ok {
 			mh.definedMetrics[key] = metric
-			newMetrics = append(newMetrics, metric.ToRecord(key))
+			newMetrics = append(newMetrics, metric.ToRecord(key, false))
 		}
 
 		return true
