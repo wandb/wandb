@@ -502,3 +502,19 @@ def test_download_with_pathlib_root(monkeypatch):
     root = list(artifact._download_roots)[0]
     path_parts = custom_path.parts
     assert Path(root).parts[-len(path_parts) :] == path_parts
+
+
+def test_artifact_multipart_download_threshold():
+    policy = WandbStoragePolicy()
+    mb = 1024 * 1024
+    assert policy._should_multipart_download(100 * mb, True)
+    assert not policy._should_multipart_download(100 * mb, None)
+    assert not policy._should_multipart_download(2080 * mb, False)
+    assert policy._should_multipart_download(5070 * mb, None)
+
+
+# TODO: test network error handling, we already verified manually it works.
+# TODO: test disk write handling, which we are were relying on cache_open for both network and disk error
+# def test_artifact_multipart_download_network_error(monkeypatch):
+#     policy = WandbStoragePolicy()
+#     policy._multipart_file_download(None, None, None)
