@@ -120,20 +120,6 @@ def test_resume_auto_failure(user, tmp_path):
         assert os.path.exists(resume_fname)
 
 
-def test_reinit_existing_run_with_reinit_true():
-    """Test that reinit with an existing run returns a new run."""
-    original_run = wandb.init(mode="offline")
-    new_run = wandb.init(mode="offline", reinit=True)
-    assert new_run != original_run
-
-
-def test_reinit_existing_run_with_reinit_false():
-    """Test that reinit with a run active returns the same run."""
-    original_run = wandb.init(mode="offline")
-    new_run = wandb.init(mode="offline", reinit=False)
-    assert new_run == original_run
-
-
 def test_init_param_telemetry(wandb_backend_spy):
     with wandb.init(
         name="my-test-run",
@@ -161,3 +147,49 @@ def test_init_param_not_set_telemetry(wandb_backend_spy):
         assert 14 not in features  # set_init_id
         assert 15 not in features  # set_init_tags
         assert 16 not in features  # set_init_config
+
+
+@pytest.mark.wandb_core_only
+def test_shared_mode_x_label(user):
+    _ = user  # Create a fake user on the backend server.
+
+    with wandb.init() as run:
+        assert run.settings.x_label is None
+
+    with wandb.init(
+        settings=wandb.Settings(
+            mode="shared",
+        )
+    ) as run:
+        assert run.settings.x_label is not None
+
+    with wandb.init(
+        settings=wandb.Settings(
+            mode="shared",
+            x_label="node-rank",
+        )
+    ) as run:
+        assert run.settings.x_label == "node-rank"
+
+
+@pytest.mark.wandb_core_only
+def test_resume_from_run_id_is_not_set(wandb_backend_spy):
+    run_id = runid.generate_id()
+
+    gql = wandb_backend_spy.gql
+    data = {
+        "data": {
+            "rewindRun": {
+                "rewoundRun": {"id": run_id},
+            },
+        }
+    }
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="RewindRun"),
+        gql.once(content=data, status=200),
+    )
+
+    with wandb.init(resume_from=f"{run_id}?_step=10") as rewound_run:
+        pass
+
+    assert rewound_run.id == run_id

@@ -8,7 +8,6 @@ from unittest import mock
 
 import pytest
 import wandb
-import wandb.jupyter
 import wandb.sdk.lib.apikey
 import wandb.util
 
@@ -38,22 +37,22 @@ def test_one_cell(notebook, run_id):
         assert run_id in output
 
 
+def test_init_finishes_previous_by_default(notebook):
+    with notebook("init_finishes_previous.ipynb") as nb:
+        nb.execute_all()
+        output = nb.cell_output_text(1)
+        assert output == "run1 finished? True\nrun1 is run2? False\n"
+
+
 def test_magic(notebook):
     with notebook("magic.ipynb") as nb:
         nb.execute_all()
-        iframes = 0
-        text = ""
-        for c, cell in enumerate(nb.cells):
-            for i, out in enumerate(cell["outputs"]):
-                print(f"CELL {c} output {i}: ", out)  # noqa: T201
-                if not out.get("data", {}).get("text/html"):
-                    continue
-                if c == 0 and i == 0:
-                    assert "display:none" in out
-                text += out["data"]["text/html"]
-            iframes += 1
-        assert notebook.base_url in text
-        assert iframes == 6
+
+        assert "<iframe" in nb.cell_output_html(0)
+        assert "CommError" in nb.cell_output_text(1)
+        assert nb.cell_output_html(1) == (
+            "Path 'does/not/exist' does not refer to a W&B object you can access."
+        )
 
 
 def test_notebook_exits(user, assets_path):
@@ -66,11 +65,14 @@ def test_notebook_exits(user, assets_path):
 
 
 def test_notebook_metadata_jupyter(mocked_module, notebook):
+    base_url = os.getenv("WANDB_BASE_URL")
+    assert base_url
+
     with mock.patch("ipykernel.connect.get_connection_file") as ipyconnect:
         ipyconnect.return_value = "kernel-12345.json"
         serverapp = mocked_module("jupyter_server.serverapp")
         serverapp.list_running_servers.return_value = [
-            {"url": notebook.base_url, "notebook_dir": "/test"}
+            {"url": base_url, "notebook_dir": "/test"}
         ]
         with mock.patch.object(
             wandb.jupyter.requests,
@@ -101,6 +103,9 @@ def test_notebook_metadata_no_servers(mocked_module):
 
 
 def test_notebook_metadata_colab(mocked_module):
+    # Needed for patching due to the lazy-load set up in wandb/__init__.py
+    import wandb.jupyter
+
     colab = mocked_module("google.colab")
     colab._message.blocking_request.return_value = {
         "ipynb": {"metadata": {"colab": {"name": "koalab.ipynb"}}}
@@ -124,6 +129,9 @@ def test_notebook_metadata_colab(mocked_module):
 
 
 def test_notebook_metadata_kaggle(mocked_module):
+    # Needed for patching due to the lazy-load set up in wandb/__init__.py
+    import wandb.jupyter
+
     os.environ["KAGGLE_KERNEL_RUN_TYPE"] = "test"
     kaggle = mocked_module("kaggle_session")
     kaggle_client = mock.MagicMock()
@@ -195,33 +203,6 @@ def test_mocked_notebook_run_display(user, mocked_ipython):
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")  # noqa: T201
     assert any("<iframe" in html for html in displayed_html)
-
-
-def test_mocked_notebook_magic(user, run_id, mocked_ipython):
-    magic = wandb.jupyter.WandBMagics(None)
-    s = wandb.Settings()
-    s.update_from_env_vars(os.environ)
-    basic_settings = {
-        "api_key": user,
-        "base_url": s.base_url,
-        "run_id": run_id,
-    }
-    magic.wandb(
-        "",
-        """with wandb.init(settings=wandb.Settings(**{})):
-        wandb.log({{"a": 1}})""".format(basic_settings),
-    )
-    displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
-    for i, html in enumerate(displayed_html):
-        print(f"[{i}]: {html}")  # noqa: T201
-    assert wandb.jupyter.__IFrame is None
-    assert any("<iframe" in html for html in displayed_html)
-    run_uri = f"{user}/uncategorized/runs/{run_id}"
-    magic.wandb(run_uri)
-    displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
-    for i, html in enumerate(displayed_html):
-        print(f"[{i}]: {html}")  # noqa: T201
-    assert any(f"{run_uri}?jupyter=true" in html for html in displayed_html)
 
 
 def test_code_saving(notebook):

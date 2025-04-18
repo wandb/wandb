@@ -186,9 +186,9 @@ func processResponse(params *RunParams, data *gql.RunResumeStatusModelProjectBuc
 			}
 		}
 
-		// if summary["wandb"]["runtime"] exists it takes precedence over
+		// if summary["_wandb"]["runtime"] exists it takes precedence over
 		// summary["_runtime"] for the runtime value
-		switch x := r.Summary["wandb"].(type) {
+		switch x := r.Summary["_wandb"].(type) {
 		case map[string]any:
 			if runtime, ok := x["runtime"]; ok {
 				r.Runtime = int32(math.Max(extractRuntime(runtime), float64(r.Runtime)))

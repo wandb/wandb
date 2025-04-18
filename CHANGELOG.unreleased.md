@@ -15,14 +15,26 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
-- Prometheus API support for Nvidia DCGM GPU metrics collection (@dmitryduev in https://github.com/wandb/wandb/pull/9369)
+- The new `reinit="create_new"` setting causes `wandb.init()` to create a new run even if other runs are active, without finishing the other runs (in contrast to `reinit="finish_previous"`). This will eventually become the default (@timoffex in https://github.com/wandb/wandb/pull/9562)
 
 ### Changed
 
-- Changed Nvidia GPU ECC counters from aggregated to volatile (@gritukan in https://github.com/wandb/wandb/pull/9347)
+- `Artifact.download()` no longer raises an error when using `WANDB_MODE=offline` or when an offline run exists (@timoffex in https://github.com/wandb/wandb/pull/9695)
+
+### Removed
+
+- Dropped the `-q` / `--quiet` argument to the `wandb` magic in IPython / Jupyter; use the `quiet` run setting instead (@timoffex in https://github.com/wandb/wandb/pull/9705)
+
+### Deprecated
+
+- The following `wandb.Run` methods are deprecated in favor of properties and will be removed in a future release (@kptkin in https://github.com/wandb/wandb/pull/8925):
+    - `run.project_name()` is deprecated in favor of `run.project`
+    - `run.get_url()` method is deprecated in favor of `run.url`
+    - `run.get_project_url()` method is deprecated in favor of `run.project_url`
+    - `run.get_sweep_url()` method is deprecated in favor of `run.sweep_url`
+
 
 ### Fixed
 
-- Fixed a performance issue causing slow instantiation of `wandb.Artifact`, which in turn slowed down fetching artifacts in various API methods. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9355)
-- Some errors from `wandb.Api` have better string representations (@timoffex in https://github.com/wandb/wandb/pull/9361)
-- Fixed a bug causing `Artifact.add_reference()` with `checksum=False` to log new versions of local reference artifacts without changes to the reference URI. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9326)
+- Fixed ValueError on Windows when running a W&B script from a different drive (@jacobromero in https://github.com/wandb/wandb/pull/9678)
+- Fix base_url setting was not provided to wandb.login (@jacobromero in https://github.com/wandb/wandb/pull/9703)

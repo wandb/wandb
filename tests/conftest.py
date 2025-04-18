@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import logging
 import os
+import pathlib
 import platform
 import shutil
+import sys
 import time
 import unittest.mock
 from itertools import takewhile
 from pathlib import Path
 from queue import Queue
-from typing import Any, Callable, Generator, Iterable
+from typing import Any, Callable, Generator, Iterable, Iterator
 
 import pyte
 import pyte.modes
@@ -28,7 +31,7 @@ import wandb.util  # noqa: E402
 from click.testing import CliRunner  # noqa: E402
 from wandb import Api  # noqa: E402
 from wandb.sdk.interface.interface_queue import InterfaceQueue  # noqa: E402
-from wandb.sdk.lib import filesystem, runid  # noqa: E402
+from wandb.sdk.lib import filesystem, module, runid  # noqa: E402
 from wandb.sdk.lib.gitlib import GitRepo  # noqa: E402
 from wandb.sdk.lib.paths import StrPath  # noqa: E402
 
@@ -138,6 +141,25 @@ def copy_asset(
 # --------------------------------
 # Misc Fixtures
 # --------------------------------
+
+
+@pytest.fixture()
+def wandb_caplog(
+    caplog: pytest.LogCaptureFixture,
+) -> Iterator[pytest.LogCaptureFixture]:
+    """Modified caplog fixture that detect wandb log messages.
+
+    The wandb logger is configured to not propagate messages to the root logger,
+    so caplog does not work out of the box.
+    """
+
+    logger = logging.getLogger("wandb")
+
+    logger.addHandler(caplog.handler)
+    try:
+        yield caplog
+    finally:
+        logger.removeHandler(caplog.handler)
 
 
 @pytest.fixture(autouse=True)
@@ -279,9 +301,22 @@ def emulated_terminal(monkeypatch, capsys) -> EmulatedTerminal:
 
 
 @pytest.fixture(scope="function", autouse=True)
-def filesystem_isolate(tmp_path):
-    kwargs = dict(temp_dir=tmp_path)
-    with CliRunner().isolated_filesystem(**kwargs):
+def filesystem_isolate(tmp_path, monkeypatch):
+    # isolated_filesystem() changes the current working directory, which is
+    # where coverage.py stores coverage by default. This causes Python
+    # subprocesses to place their coverage into a temporary directory that is
+    # discarded after each test.
+    #
+    # Setting COVERAGE_FILE to an absolute path fixes this.
+    if covfile := os.getenv("COVERAGE_FILE"):
+        new_covfile = str(pathlib.Path(covfile).absolute())
+    else:
+        new_covfile = str(pathlib.Path(os.getcwd()) / ".coverage")
+
+    print(f"Setting COVERAGE_FILE to {new_covfile}", file=sys.stderr)  # noqa: T201
+    monkeypatch.setenv("COVERAGE_FILE", new_covfile)
+
+    with CliRunner().isolated_filesystem(temp_dir=tmp_path):
         yield
 
 
@@ -448,8 +483,6 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
     own unit-tested module instead.
     """
 
-    from wandb.sdk.lib.module import unset_globals
-
     def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> wandb.sdk.wandb_run.Run:
         kwargs_settings = kwargs.pop("settings", dict())
         kwargs_settings = {
@@ -462,11 +495,26 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
         run._set_backend(
             unittest.mock.MagicMock() if use_magic_mock else mocked_backend
         )
-        run._set_globals()
+        run._set_library(unittest.mock.MagicMock())
+
+        module.set_global(
+            run=run,
+            config=run.config,
+            log=run.log,
+            summary=run.summary,
+            save=run.save,
+            use_artifact=run.use_artifact,
+            log_artifact=run.log_artifact,
+            define_metric=run.define_metric,
+            alert=run.alert,
+            watch=run.watch,
+            unwatch=run.unwatch,
+        )
+
         return run
 
     yield mock_run_fn
-    unset_globals()
+    module.unset_globals()
 
 
 @pytest.fixture

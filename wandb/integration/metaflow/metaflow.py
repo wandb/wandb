@@ -13,6 +13,7 @@ import inspect
 import pickle
 from functools import wraps
 from pathlib import Path
+from typing import Union
 
 import wandb
 from wandb.sdk.lib import telemetry as wb_telemetry
@@ -25,17 +26,18 @@ except ImportError as e:
     ) from e
 
 try:
-    from fastcore.all import typedispatch
+    from plum import dispatch
 except ImportError as e:
     raise Exception(
-        "Error: `fastcore` not installed >> This integration requires fastcore!  To fix, please `pip install -Uqq fastcore`"
+        "Error: `plum-dispatch` not installed >> "
+        "This integration requires plum-dispatch! To fix, please `pip install -Uqq plum-dispatch`"
     ) from e
 
 
 try:
     import pandas as pd
 
-    @typedispatch  # noqa: F811
+    @dispatch  # noqa: F811
     def _wandb_use(
         name: str,
         data: pd.DataFrame,
@@ -52,7 +54,7 @@ try:
             run.use_artifact(f"{name}:latest")
             wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
-    @typedispatch  # noqa: F811
+    @dispatch  # noqa: F811
     def wandb_track(
         name: str,
         data: pd.DataFrame,
@@ -81,7 +83,7 @@ try:
     import torch
     import torch.nn as nn
 
-    @typedispatch  # noqa: F811
+    @dispatch  # noqa: F811
     def _wandb_use(
         name: str,
         data: nn.Module,
@@ -98,7 +100,7 @@ try:
             run.use_artifact(f"{name}:latest")
             wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
-    @typedispatch  # noqa: F811
+    @dispatch  # noqa: F811
     def wandb_track(
         name: str,
         data: nn.Module,
@@ -126,7 +128,7 @@ except ImportError:
 try:
     from sklearn.base import BaseEstimator
 
-    @typedispatch  # noqa: F811
+    @dispatch  # noqa: F811
     def _wandb_use(
         name: str,
         data: BaseEstimator,
@@ -143,7 +145,7 @@ try:
             run.use_artifact(f"{name}:latest")
             wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
-    @typedispatch  # noqa: F811
+    @dispatch  # noqa: F811
     def wandb_track(
         name: str,
         data: BaseEstimator,
@@ -192,10 +194,10 @@ class ArtifactProxy:
         return getattr(self.flow, key)
 
 
-@typedispatch  # noqa: F811
+@dispatch  # noqa: F811
 def wandb_track(
     name: str,
-    data: (dict, list, set, str, int, float, bool),
+    data: Union[dict, list, set, str, int, float, bool],
     run=None,
     testing=False,
     *args,
@@ -207,7 +209,7 @@ def wandb_track(
     run.log({name: data})
 
 
-@typedispatch  # noqa: F811
+@dispatch  # noqa: F811
 def wandb_track(
     name: str, data: Path, datasets=False, run=None, testing=False, *args, **kwargs
 ):
@@ -225,7 +227,7 @@ def wandb_track(
 
 
 # this is the base case
-@typedispatch  # noqa: F811
+@dispatch  # noqa: F811
 def wandb_track(
     name: str, data, others=False, run=None, testing=False, *args, **kwargs
 ):
@@ -240,7 +242,7 @@ def wandb_track(
         wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 
-@typedispatch
+@dispatch  # noqa: F811
 def wandb_use(name: str, data, *args, **kwargs):
     try:
         return _wandb_use(name, data, *args, **kwargs)
@@ -252,14 +254,14 @@ def wandb_use(name: str, data, *args, **kwargs):
         )
 
 
-@typedispatch  # noqa: F811
+@dispatch  # noqa: F811
 def wandb_use(
-    name: str, data: (dict, list, set, str, int, float, bool), *args, **kwargs
+    name: str, data: Union[dict, list, set, str, int, float, bool], *args, **kwargs
 ):  # type: ignore
     pass  # do nothing for these types
 
 
-@typedispatch  # noqa: F811
+@dispatch  # noqa: F811
 def _wandb_use(
     name: str, data: Path, datasets=False, run=None, testing=False, *args, **kwargs
 ):  # type: ignore
@@ -271,7 +273,7 @@ def _wandb_use(
         wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
 
-@typedispatch  # noqa: F811
+@dispatch  # noqa: F811
 def _wandb_use(name: str, data, others=False, run=None, testing=False, *args, **kwargs):  # type: ignore
     if testing:
         return "others" if others else None

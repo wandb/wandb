@@ -1,24 +1,26 @@
 from __future__ import annotations
 
-import sys
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any, Callable
+
+# For backward compatibility with pydantic v1
+from typing import Any, Callable, Dict, List, Optional
 
 from google.protobuf.timestamp_pb2 import Timestamp
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
+from typing_extensions import Self
 
+from wandb import termwarn
+from wandb._pydantic import IS_PYDANTIC_V2
 from wandb.proto import wandb_internal_pb2
 
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
+if IS_PYDANTIC_V2:
+    from pydantic import model_validator
 
 
 class DiskInfo(BaseModel, validate_assignment=True):
-    total: int | None = None
-    used: int | None = None
+    total: Optional[int] = None
+    used: Optional[int] = None
 
     def to_proto(self) -> wandb_internal_pb2.DiskInfo:
         return wandb_internal_pb2.DiskInfo(
@@ -32,7 +34,7 @@ class DiskInfo(BaseModel, validate_assignment=True):
 
 
 class MemoryInfo(BaseModel, validate_assignment=True):
-    total: int | None = None
+    total: Optional[int] = None
 
     def to_proto(self) -> wandb_internal_pb2.MemoryInfo:
         return wandb_internal_pb2.MemoryInfo(total=self.total or 0)
@@ -43,8 +45,8 @@ class MemoryInfo(BaseModel, validate_assignment=True):
 
 
 class CpuInfo(BaseModel, validate_assignment=True):
-    count: int | None = None
-    count_logical: int | None = None
+    count: Optional[int] = None
+    count_logical: Optional[int] = None
 
     def to_proto(self) -> wandb_internal_pb2.CpuInfo:
         return wandb_internal_pb2.CpuInfo(
@@ -58,13 +60,13 @@ class CpuInfo(BaseModel, validate_assignment=True):
 
 
 class AppleInfo(BaseModel, validate_assignment=True):
-    name: str | None = None
-    ecpu_cores: int | None = None
-    pcpu_cores: int | None = None
-    gpu_cores: int | None = None
-    memory_gb: int | None = None
-    swap_total_bytes: int | None = None
-    ram_total_bytes: int | None = None
+    name: Optional[str] = None
+    ecpu_cores: Optional[int] = None
+    pcpu_cores: Optional[int] = None
+    gpu_cores: Optional[int] = None
+    memory_gb: Optional[int] = None
+    swap_total_bytes: Optional[int] = None
+    ram_total_bytes: Optional[int] = None
 
     def to_proto(self) -> wandb_internal_pb2.AppleInfo:
         return wandb_internal_pb2.AppleInfo(
@@ -91,11 +93,11 @@ class AppleInfo(BaseModel, validate_assignment=True):
 
 
 class GpuNvidiaInfo(BaseModel, validate_assignment=True):
-    name: str | None = None
-    memory_total: int | None = None
-    cuda_cores: int | None = None
-    architecture: str | None = None
-    uuid: str | None = None
+    name: Optional[str] = None
+    memory_total: Optional[int] = None
+    cuda_cores: Optional[int] = None
+    architecture: Optional[str] = None
+    uuid: Optional[str] = None
 
     def to_proto(self) -> wandb_internal_pb2.GpuNvidiaInfo:
         return wandb_internal_pb2.GpuNvidiaInfo(
@@ -118,19 +120,19 @@ class GpuNvidiaInfo(BaseModel, validate_assignment=True):
 
 
 class GpuAmdInfo(BaseModel, validate_assignment=True):
-    id: str | None = None
-    unique_id: str | None = None
-    vbios_version: str | None = None
-    performance_level: str | None = None
-    gpu_overdrive: str | None = None
-    gpu_memory_overdrive: str | None = None
-    max_power: str | None = None
-    series: str | None = None
-    model: str | None = None
-    vendor: str | None = None
-    sku: str | None = None
-    sclk_range: str | None = None
-    mclk_range: str | None = None
+    id: Optional[str] = None
+    unique_id: Optional[str] = None
+    vbios_version: Optional[str] = None
+    performance_level: Optional[str] = None
+    gpu_overdrive: Optional[str] = None
+    gpu_memory_overdrive: Optional[str] = None
+    max_power: Optional[str] = None
+    series: Optional[str] = None
+    model: Optional[str] = None
+    vendor: Optional[str] = None
+    sku: Optional[str] = None
+    sclk_range: Optional[str] = None
+    mclk_range: Optional[str] = None
 
     def to_proto(self) -> wandb_internal_pb2.GpuAmdInfo:
         return wandb_internal_pb2.GpuAmdInfo(
@@ -169,10 +171,10 @@ class GpuAmdInfo(BaseModel, validate_assignment=True):
 
 
 class TrainiumInfo(BaseModel, validate_assignment=True):
-    name: str | None = None
-    vendor: str | None = None
-    neuron_device_count: int | None = None
-    neuroncore_per_device_count: int | None = None
+    name: Optional[str] = None
+    vendor: Optional[str] = None
+    neuron_device_count: Optional[int] = None
+    neuroncore_per_device_count: Optional[int] = None
 
     def to_proto(self) -> wandb_internal_pb2.TrainiumInfo:
         return wandb_internal_pb2.TrainiumInfo(
@@ -193,10 +195,10 @@ class TrainiumInfo(BaseModel, validate_assignment=True):
 
 
 class TPUInfo(BaseModel, validate_assignment=True):
-    name: str | None = None
-    hbm_gib: int | None = None
-    devices_per_chip: int | None = None
-    count: int | None = None
+    name: Optional[str] = None
+    hbm_gib: Optional[int] = None
+    devices_per_chip: Optional[int] = None
+    count: Optional[int] = None
 
     def to_proto(self) -> wandb_internal_pb2.TPUInfo:
         return wandb_internal_pb2.TPUInfo(
@@ -217,8 +219,8 @@ class TPUInfo(BaseModel, validate_assignment=True):
 
 
 class GitRepoRecord(BaseModel, validate_assignment=True):
-    remote_url: str | None = Field(None, alias="remote")
-    commit: str | None = None
+    remote_url: Optional[str] = Field(None, alias="remote")
+    commit: Optional[str] = None
 
     def to_proto(self) -> wandb_internal_pb2.GitRepoRecord:
         return wandb_internal_pb2.GitRepoRecord(
@@ -235,39 +237,6 @@ class Metadata(BaseModel, validate_assignment=True):
     """Metadata about the run environment.
 
     NOTE: Definitions must be kept in sync with wandb_internal.proto::MetadataRequest.
-
-    Attributes:
-        os: Operating system.
-        python: Python version.
-        heartbeat_at: Timestamp of last heartbeat.
-        started_at: Timestamp of run start.
-        docker: Docker image.
-        cuda: CUDA version.
-        args: Command-line arguments.
-        state: Run state.
-        program: Program name.
-        code_path: Path to code.
-        git: Git repository information.
-        email: Email address.
-        root: Root directory.
-        host: Host name.
-        username: Username.
-        executable: Python executable path.
-        code_path_local: Local code path.
-        colab: Colab URL.
-        cpu_count: CPU count.
-        cpu_count_logical: Logical CPU count.
-        gpu_type: GPU type.
-        disk: Disk information.
-        memory: Memory information.
-        cpu: CPU information.
-        apple: Apple silicon information.
-        gpu_nvidia: NVIDIA GPU information.
-        gpu_amd: AMD GPU information.
-        slurm: Slurm environment information.
-        cuda_version: CUDA version.
-        trainium: Trainium information.
-        tpu: TPU information.
 
     Examples:
         Update Run metadata:
@@ -296,71 +265,149 @@ class Metadata(BaseModel, validate_assignment=True):
         ```
     """
 
-    # TODO: Pydantic configuration.
     model_config = ConfigDict(
         extra="ignore",  # ignore extra fields
         validate_default=True,  # validate default values
+        use_attribute_docstrings=True,  # for field descriptions
+        revalidate_instances="always",
     )
 
-    os: str | None = None
-    python: str | None = None
-    heartbeat_at: datetime | None = Field(default=None, alias="heartbeatAt")
-    started_at: datetime | None = Field(default=None, alias="startedAt")
-    docker: str | None = None
-    cuda: str | None = None
-    args: list[str] = Field(default_factory=list)
-    state: str | None = None
-    program: str | None = None
-    code_path: str | None = Field(default=None, alias="codePath")
-    git: GitRepoRecord | None = None
-    email: str | None = None
-    root: str | None = None
-    host: str | None = None
-    username: str | None = None
-    executable: str | None = None
-    code_path_local: str | None = Field(default=None, alias="codePathLocal")
-    colab: str | None = None
-    cpu_count: int | None = Field(default=None, alias="cpuCount")
-    cpu_count_logical: int | None = Field(default=None, alias="cpuCountLogical")
-    gpu_type: str | None = Field(default=None, alias="gpuType")
-    gpu_count: int | None = Field(default=None, alias="gpuCount")
-    disk: dict[str, DiskInfo] = Field(default_factory=dict)
-    memory: MemoryInfo | None = None
-    cpu: CpuInfo | None = None
-    apple: AppleInfo | None = None
-    gpu_nvidia: list[GpuNvidiaInfo] = Field(default_factory=list, alias="gpuNvidia")
-    gpu_amd: list[GpuAmdInfo] = Field(default_factory=list, alias="gpuAmd")
-    slurm: dict[str, str] = Field(default_factory=dict)
-    cuda_version: str | None = Field(default=None, alias="cudaVersion")
-    trainium: TrainiumInfo | None = None
-    tpu: TPUInfo | None = None
+    os: Optional[str] = None
+    """Operating system."""
+
+    python: Optional[str] = None
+    """Python version."""
+
+    heartbeat_at: Optional[datetime] = Field(default=None, alias="heartbeatAt")
+    """Timestamp of last heartbeat."""
+
+    started_at: Optional[datetime] = Field(default=None, alias="startedAt")
+    """Timestamp of run start."""
+
+    docker: Optional[str] = None
+    """Docker image."""
+
+    cuda: Optional[str] = None
+    """CUDA version."""
+
+    args: List[str] = Field(default_factory=list)
+    """Command-line arguments."""
+
+    state: Optional[str] = None
+    """Run state."""
+
+    program: Optional[str] = None
+    """Program name."""
+
+    code_path: Optional[str] = Field(default=None, alias="codePath")
+    """Path to code."""
+
+    git: Optional[GitRepoRecord] = None
+    """Git repository information."""
+
+    email: Optional[str] = None
+    """Email address."""
+
+    root: Optional[str] = None
+    """Root directory."""
+
+    host: Optional[str] = None
+    """Host name."""
+
+    username: Optional[str] = None
+    """Username."""
+
+    executable: Optional[str] = None
+    """Python executable path."""
+
+    code_path_local: Optional[str] = Field(default=None, alias="codePathLocal")
+    """Local code path."""
+
+    colab: Optional[str] = None
+    """Colab URL."""
+
+    cpu_count: Optional[int] = Field(default=None, alias="cpuCount")
+    """CPU count."""
+
+    cpu_count_logical: Optional[int] = Field(default=None, alias="cpuCountLogical")
+    """Logical CPU count."""
+
+    gpu_type: Optional[str] = Field(default=None, alias="gpuType")
+    """GPU type."""
+
+    gpu_count: Optional[int] = Field(default=None, alias="gpuCount")
+    """GPU count."""
+
+    disk: Dict[str, DiskInfo] = Field(default_factory=dict)
+    """Disk information."""
+
+    memory: Optional[MemoryInfo] = None
+    """Memory information."""
+
+    cpu: Optional[CpuInfo] = None
+    """CPU information."""
+
+    apple: Optional[AppleInfo] = None
+    """Apple silicon information."""
+
+    gpu_nvidia: List[GpuNvidiaInfo] = Field(default_factory=list, alias="gpuNvidia")
+    """NVIDIA GPU information."""
+
+    gpu_amd: List[GpuAmdInfo] = Field(default_factory=list, alias="gpuAmd")
+    """AMD GPU information."""
+
+    slurm: Dict[str, str] = Field(default_factory=dict)
+    """Slurm environment information."""
+
+    cuda_version: Optional[str] = Field(default=None, alias="cudaVersion")
+    """CUDA version."""
+
+    trainium: Optional[TrainiumInfo] = None
+    """Trainium information."""
+
+    tpu: Optional[TPUInfo] = None
+    """TPU information."""
 
     def __init__(self, **data):
         super().__init__(**data)
 
+        if not IS_PYDANTIC_V2:
+            termwarn(
+                "Metadata is read-only when using pydantic v1.",
+                repeat=False,
+            )
+            return
+
         # Callback for post-update. This is used in the Run object to trigger
         # a metadata update after the object is modified.
-        self._post_update_callback: Callable | None = None  # type: ignore
+        self._post_update_callback: Optional[Callable] = None  # type: ignore
 
     def _set_callback(self, callback: Callable) -> None:
+        if not IS_PYDANTIC_V2:
+            return
         self._post_update_callback = callback
 
     @contextmanager
     def disable_callback(self):
         """Temporarily disable callback."""
-        original_callback = self._post_update_callback
-        self._post_update_callback = None
-        try:
+        if not IS_PYDANTIC_V2:
             yield
-        finally:
-            self._post_update_callback = original_callback
+        else:
+            original_callback = self._post_update_callback
+            self._post_update_callback = None
+            try:
+                yield
+            finally:
+                self._post_update_callback = original_callback
 
-    @model_validator(mode="after")
-    def _callback(self) -> Self:
-        if getattr(self, "_post_update_callback", None) is not None:
-            self._post_update_callback(self.to_proto())  # type: ignore
+    if IS_PYDANTIC_V2:
 
-        return self
+        @model_validator(mode="after")
+        def _callback(self) -> Self:
+            if getattr(self, "_post_update_callback", None) is not None:
+                self._post_update_callback(self.to_proto())  # type: ignore
+
+            return self
 
     @classmethod
     def _datetime_to_timestamp(cls, dt: datetime | None) -> Timestamp | None:
@@ -482,7 +529,7 @@ class Metadata(BaseModel, validate_assignment=True):
             proto (wandb_internal_pb2.MetadataRequest): The protobuf message.
             skip_existing (bool, optional): Skip updating fields that are already set.
         """
-        data: dict[str, Any] = {}
+        data: Dict[str, Any] = {}
 
         # Handle all scalar fields.
         if proto.os:

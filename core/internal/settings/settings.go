@@ -22,6 +22,11 @@ type Settings struct {
 	Proto *spb.Settings
 }
 
+// Creates a new Settings object.
+func New() *Settings {
+	return &Settings{Proto: &spb.Settings{}}
+}
+
 // Parses the Settings proto into a Settings object.
 func From(proto *spb.Settings) *Settings {
 	return &Settings{Proto: proto}
@@ -430,6 +435,14 @@ func (s *Settings) IsDisableStats() bool {
 	return s.Proto.XDisableStats.GetValue()
 }
 
+func (s *Settings) IsEnableServerSideDerivedSummary() bool {
+	return s.Proto.XServerSideDerivedSummary.GetValue()
+}
+
+func (s *Settings) IsEnableServerSideExpandGlobMetrics() bool {
+	return s.Proto.XServerSideExpandGlobMetrics.GetValue()
+}
+
 // Determines whether to save internal wandb files and metadata.
 //
 // In a distributed setting, this is useful for avoiding file overwrites from secondary processes
@@ -522,4 +535,9 @@ func (s *Settings) UpdateDisplayName(displayName string) {
 // Updates the run ID.
 func (s *Settings) UpdateRunID(runID string) {
 	s.Proto.RunId = &wrapperspb.StringValue{Value: runID}
+}
+
+// Update server-side derived summary computation setting.
+func (s *Settings) UpdateServerSideDerivedSummary(enable bool) {
+	s.Proto.XServerSideDerivedSummary = &wrapperspb.BoolValue{Value: enable}
 }

@@ -33,9 +33,14 @@ message OpenMetricsFilters {
 // Used to communicate the moment in a run at which forking or resuming should
 // take place.
 message RunMoment {
-  string run = 1;     // The name of the run to fork from.
-  double value = 2;   // The value of the metric to fork at.
-  string metric = 3;  // The name of the metric to use to find a fork point.
+  // The name of the run to fork from.
+  string run = 1;
+
+  // The value of the metric to fork at.
+  double value = 2;
+
+  // The name of the metric to use to find a fork point.
+  string metric = 3;
 }
 
 // Settings for the SDK.
@@ -47,9 +52,9 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 188
+// Next ID: 191
 message Settings {
-  reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 136, 137;
+  reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 100, 136, 137, 176;
 
   // The W&B API key.
   //
@@ -92,6 +97,9 @@ message Settings {
 
   // The W&B entity, like a user or a team.
   google.protobuf.StringValue entity = 69;
+
+  // The W&B organization.
+  google.protobuf.StringValue organization = 188;
 
   // The start time of the run in seconds since the Unix epoch.
   google.protobuf.DoubleValue x_start_time = 41;
@@ -327,15 +335,6 @@ message Settings {
   // Explicitly require wandb-core to not be used.
   google.protobuf.BoolValue x_require_legacy_service = 173;
 
-  // Feature flag controlling the rollout of an improved run.finish() UX.
-  //
-  // Defaults to true, but is kept now to make this functionality easy to
-  // disable. Ignored when using `wandb.require("legacy-service")`.
-  //
-  // Remove a month after the next release after 0.19.0 (probably in
-  // January 2025).
-  google.protobuf.BoolValue x_show_operation_stats = 176;
-
   // Determines whether to save internal wandb files and metadata.
   //
   // In a distributed setting, this is useful for avoiding file overwrites from secondary processes
@@ -377,6 +376,12 @@ message Settings {
 
   // Whether to sync TensorBoard logs to W&B.
   google.protobuf.BoolValue sync_tensorboard = 179;
+
+  // Whether to delegate automatic computation of summary from history to the server.
+  google.protobuf.BoolValue x_server_side_derived_summary = 189;
+
+  // Whether to delegate glob matching of metrics in define_metric to the server.
+  google.protobuf.BoolValue x_server_side_expand_glob_metrics = 190;
 
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.BoolValue x_cli_only_mode = 4;
@@ -434,7 +439,6 @@ message Settings {
   google.protobuf.StringValue notebook_name = 93;
   google.protobuf.StringValue project_url = 98;
   google.protobuf.BoolValue quiet = 99;
-  google.protobuf.BoolValue reinit = 100;
   google.protobuf.BoolValue relogin = 101;
   google.protobuf.StringValue resume_fname = 103;
   google.protobuf.BoolValue resumed = 104;

@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 import wandb
 
@@ -51,3 +52,17 @@ def test_fails_on_non_retryable_codes(status_code, wandb_backend_spy):
     # No history should be uploaded.
     with wandb_backend_spy.freeze() as snapshot:
         assert len(snapshot.history(run_id=run.id)) == 0
+
+
+def test_file_stream_forward_slashes(wandb_backend_spy):
+    """
+    Tests that the uploaded files have forward slashes.
+    As expected by the backend API.
+    """
+    image = wandb.Image(np.ones((2, 2, 3)))
+    with wandb.init() as run:
+        run.log({"image": image})
+
+    with wandb_backend_spy.freeze() as snapshot:
+        for file in snapshot.uploaded_files(run_id=run.id):
+            assert "\\" not in file

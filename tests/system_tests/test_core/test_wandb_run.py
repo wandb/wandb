@@ -72,7 +72,7 @@ def test_invalid_project_name(user, project_name):
 
 def test_resume_must_failure(user):
     with pytest.raises(wandb.UsageError):
-        wandb.init(reinit=True, resume="must")
+        wandb.init(resume="must")
 
 
 def test_unlogged_artifact_in_config(user, test_settings):

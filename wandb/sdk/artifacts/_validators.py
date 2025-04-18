@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 
 REGISTRY_PREFIX: Final[str] = "wandb-registry-"
+MAX_ARTIFACT_METADATA_KEYS: Final[int] = 100
 
 
 # For mypy checks

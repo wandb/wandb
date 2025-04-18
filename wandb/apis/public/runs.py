@@ -24,7 +24,7 @@ from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.paginator import Paginator
+from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.sdk.lib import ipython, json_util, runid
 from wandb.sdk.lib.paths import LogicalPath
@@ -61,7 +61,7 @@ RUN_FRAGMENT = """fragment RunFragment on Run {
 }"""
 
 
-class Runs(Paginator):
+class Runs(SizedPaginator["Run"]):
     """An iterable collection of runs associated with a project and optional filter.
 
     This is generally used indirectly via the `Api`.runs method.
@@ -421,16 +421,15 @@ class Run(Attrs):
             """
         query Run($project: String!, $entity: String!, $name: String!) {{
             project(name: $project, entityName: $entity) {{
-                {}
                 run(name: $name) {{
+                    {}
                     ...RunFragment
                 }}
             }}
         }}
         {}
         """.format(
-                # Only query internalId if the server supports it
-                "internalId" if self._server_provides_internal_id_for_project() else "",
+                "projectId" if self._server_provides_internal_id_for_project() else "",
                 RUN_FRAGMENT,
             )
         )
@@ -444,7 +443,11 @@ class Run(Attrs):
                 raise ValueError("Could not find run {}".format(self))
             self._attrs = response["project"]["run"]
             self._state = self._attrs["state"]
-            self._project_internal_id = response["project"].get("internalId", None)
+
+            self._project_internal_id = (
+                int(self._attrs["projectId"]) if "projectId" in self._attrs else None
+            )
+
             if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
@@ -847,7 +850,12 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
 
         if isinstance(artifact, wandb.Artifact) and not artifact.is_draft():
-            api.use_artifact(artifact.id, use_as=use_as or artifact.name)
+            api.use_artifact(
+                artifact.id,
+                use_as=use_as or artifact.name,
+                artifact_entity_name=artifact.entity,
+                artifact_project_name=artifact.project,
+            )
             return artifact
         elif isinstance(artifact, wandb.Artifact) and artifact.is_draft():
             raise ValueError(
@@ -911,8 +919,8 @@ class Run(Attrs):
         This check is done by utilizing GraphQL introspection in the available fields on the Project type.
         """
         query_string = """
-           query ProbeProjectInput {
-                ProjectType: __type(name:"Project") {
+           query ProbeRunInput {
+                RunType: __type(name:"Run") {
                     fields {
                         name
                     }
@@ -924,8 +932,8 @@ class Run(Attrs):
         if self.server_provides_internal_id_field is None:
             query = gql(query_string)
             res = self.client.execute(query)
-            self.server_provides_internal_id_field = "internalId" in [
-                x["name"] for x in (res.get("ProjectType", {}).get("fields", [{}]))
+            self.server_provides_internal_id_field = "projectId" in [
+                x["name"] for x in (res.get("RunType", {}).get("fields", [{}]))
             ]
 
         return self.server_provides_internal_id_field

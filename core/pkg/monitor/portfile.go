@@ -21,7 +21,7 @@ func NewPortfile() *portfile {
 	if err != nil {
 		return nil
 	}
-	file.Close()
+	_ = file.Close()
 	return &portfile{path: file.Name()}
 }
 
@@ -47,7 +47,9 @@ func (p *portfile) readFile() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	scanner := bufio.NewScanner(file)
 	if scanner.Scan() {

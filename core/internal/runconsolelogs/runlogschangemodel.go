@@ -1,11 +1,17 @@
 package runconsolelogs
 
 import (
+	"encoding/json"
+	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/terminalemulator"
 )
+
+// Timestamps are generated in the Python ISO format (microseconds without Z)
+const rfc3339Micro = "2006-01-02T15:04:05.000000Z07:00"
 
 // RunLogsChangeModel tracks changes to a run's console logs.
 type RunLogsChangeModel struct {
@@ -48,6 +54,68 @@ func (l *RunLogsLine) Clone() *RunLogsLine {
 		StreamLabel:  l.StreamLabel,
 		Timestamp:    l.Timestamp,
 	}
+}
+
+type logLine struct {
+	Level   string `json:"level,omitempty"`
+	TS      string `json:"ts"`
+	Label   string `json:"label,omitempty"`
+	Content string `json:"content"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+func (l *RunLogsLine) MarshalJSON() ([]byte, error) {
+	// Format timestamp and trim the Z suffix as specified
+	timestamp := strings.TrimSuffix(l.Timestamp.UTC().Format(rfc3339Micro), "Z")
+
+	// Convert rune slice to string for content
+	content := string(l.Content)
+
+	// We only indicate the log level if it is an error
+	level := ""
+	if l.StreamPrefix != "" {
+		level = "error"
+	}
+
+	// Create the JSON structure with the required fields
+	jsonLine := logLine{
+		Level:   level,
+		TS:      timestamp,
+		Label:   l.StreamLabel,
+		Content: content,
+	}
+
+	// Marshal the custom struct to JSON
+	return json.Marshal(jsonLine)
+}
+
+// StructuredFormat returns the line in the structured JSON format.
+func (l *RunLogsLine) StructuredFormat() (string, error) {
+	jsonLine, err := json.Marshal(l)
+	if err != nil {
+		return "", err
+	}
+	return string(jsonLine), nil
+}
+
+// LegacyFormat returns the line in the legacy plaintext format.
+func (l *RunLogsLine) LegacyFormat() string {
+	timestamp := strings.TrimSuffix(l.Timestamp.UTC().Format(rfc3339Micro), "Z")
+	if l.StreamLabel != "" {
+		return fmt.Sprintf(
+			"%s%s [%s] %s",
+			l.StreamPrefix,
+			timestamp,
+			l.StreamLabel,
+			string(l.Content),
+		)
+	}
+	return fmt.Sprintf(
+		"%s%s %s",
+		l.StreamPrefix,
+		timestamp,
+		string(l.Content),
+	)
 }
 
 // LineSupplier returns a terminalemulator.LineSupplier for the stream prefix.

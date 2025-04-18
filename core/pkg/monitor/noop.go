@@ -8,13 +8,7 @@ import (
 )
 
 // Trainium is a dummy implementation of the Asset interface for Trainium.
-type Trainium struct {
-	name                    string
-	pid                     int32
-	samplingInterval        float64
-	logger                  *observability.CoreLogger
-	neuronMonitorConfigPath string
-}
+type Trainium struct{}
 
 func NewTrainium(
 	logger *observability.CoreLogger,
@@ -22,39 +16,23 @@ func NewTrainium(
 	samplingInterval float64,
 	neuronMonitorConfigPath string,
 ) *Trainium {
-	return &Trainium{
-		name:                    "trainium",
-		pid:                     pid,
-		samplingInterval:        samplingInterval,
-		logger:                  logger,
-		neuronMonitorConfigPath: neuronMonitorConfigPath,
-	}
+	return nil
 }
 
-func (t *Trainium) Name() string { return t.name }
-
 func (t *Trainium) Sample() (*spb.StatsRecord, error) { return nil, nil }
-
-func (t *Trainium) IsAvailable() bool { return false }
 
 func (t *Trainium) Probe() *spb.MetadataRequest {
 	return nil
 }
 
 // TPU is a dummy implementation of the Asset interface for TPUs.
-type TPU struct {
-	name string
-}
+type TPU struct{}
 
 func NewTPU() *TPU {
-	return &TPU{name: "tpu"}
+	return nil
 }
 
-func (t *TPU) Name() string { return t.name }
-
 func (t *TPU) Sample() (*spb.StatsRecord, error) { return nil, nil }
-
-func (t *TPU) IsAvailable() bool { return false }
 
 func (t *TPU) Probe() *spb.MetadataRequest {
 	return nil

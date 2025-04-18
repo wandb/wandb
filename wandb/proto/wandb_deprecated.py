@@ -21,6 +21,11 @@ DEPRECATED_FEATURES = Literal[
     "keras_callback",
     "run__define_metric_best_goal",
     "run__finish_quiet",
+    "run__reinit_bool",
+    "run__get_url",
+    "run__project_name",
+    "run__get_project_url",
+    "run__get_sweep_url",
 ]
 
 class Deprecated:
@@ -43,3 +48,8 @@ class Deprecated:
     keras_callback: DEPRECATED_FEATURES = "keras_callback"
     run__define_metric_best_goal: DEPRECATED_FEATURES = "run__define_metric_best_goal"
     run__finish_quiet: DEPRECATED_FEATURES = "run__finish_quiet"
+    run__reinit_bool: DEPRECATED_FEATURES = "run__reinit_bool"
+    run__get_url: DEPRECATED_FEATURES = "run__get_url"
+    run__project_name: DEPRECATED_FEATURES = "run__project_name"
+    run__get_project_url: DEPRECATED_FEATURES = "run__get_project_url"
+    run__get_sweep_url: DEPRECATED_FEATURES = "run__get_sweep_url"

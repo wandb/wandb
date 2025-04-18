@@ -28,5 +28,5 @@ func (s *workSentinel) Process(func(*spb.Record)) {}
 func (s *workSentinel) Sentinel() any { return s.value }
 
 func (s *workSentinel) DebugInfo() string {
-	return fmt.Sprintf("WorkSentinel(%s)", s.value)
+	return fmt.Sprintf("WorkSentinel(%v)", s.value)
 }

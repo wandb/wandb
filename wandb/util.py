@@ -51,6 +51,11 @@ from typing import (
     Union,
 )
 
+if sys.version_info < (3, 10):
+    from typing_extensions import TypeGuard
+else:
+    from typing import TypeGuard
+
 import requests
 import yaml
 
@@ -788,6 +793,8 @@ class JSONEncoderUncompressed(json.JSONEncoder):
     def default(self, obj: Any) -> Any:
         if is_numpy_array(obj):
             return obj.tolist()
+        elif np and isinstance(obj, np.number):
+            return obj.item()
         elif np and isinstance(obj, np.generic):
             obj = obj.item()
         return json.JSONEncoder.default(self, obj)
@@ -872,7 +879,7 @@ def parse_backend_error_messages(response: requests.Response) -> List[str]:
     # Backend error values are returned in one of two ways:
     # - A string containing the error message
     # - A JSON object with a "message" field that is a string
-    def get_message(err: Any) -> Optional[str]:
+    def get_message(error: Any) -> Optional[str]:
         if isinstance(error, str):
             return error
         elif (
@@ -1056,18 +1063,6 @@ def downsample(values: Sequence, target_length: int) -> list:
 
 def has_num(dictionary: Mapping, key: Any) -> bool:
     return key in dictionary and isinstance(dictionary[key], numbers.Number)
-
-
-def get_log_file_path() -> str:
-    """Log file path used in error messages.
-
-    It would probably be better if this pointed to a log file in a
-    run directory.
-    """
-    # TODO(jhr, cvp): refactor
-    if wandb.run is not None:
-        return wandb.run._settings.log_internal
-    return os.path.join("wandb", "debug-internal.log")
 
 
 def docker_image_regex(image: str) -> Any:
@@ -1436,6 +1431,20 @@ def auto_project_name(program: Optional[str]) -> str:
     return str(project.replace(os.sep, "_"))
 
 
+def are_paths_on_same_drive(path1: str, path2: str) -> bool:
+    """Check if two paths are on the same drive.
+
+    This check is only relevant on Windows,
+    since the concept of drives only exists on Windows.
+    """
+    if platform.system() != "Windows":
+        return True
+
+    path1_drive = pathlib.Path(path1).resolve().drive
+    path2_drive = pathlib.Path(path2).resolve().drive
+    return path1_drive == path2_drive
+
+
 # TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
 def to_forward_slash_path(path: str) -> str:
     if platform.system() == "Windows":
@@ -1696,15 +1705,15 @@ def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
         raise ValueError("`aliases` must be Iterable or None") from exc
 
 
-def _is_artifact_object(v: Any) -> bool:
+def _is_artifact_object(v: Any) -> "TypeGuard[wandb.Artifact]":
     return isinstance(v, wandb.Artifact)
 
 
-def _is_artifact_string(v: Any) -> bool:
+def _is_artifact_string(v: Any) -> "TypeGuard[str]":
     return isinstance(v, str) and v.startswith("wandb-artifact://")
 
 
-def _is_artifact_version_weave_dict(v: Any) -> bool:
+def _is_artifact_version_weave_dict(v: Any) -> "TypeGuard[dict]":
     return isinstance(v, dict) and v.get("_type") == "artifactVersion"
 
 
@@ -1746,20 +1755,6 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str], bool]:
 def _get_max_cli_version() -> Union[str, None]:
     max_cli_version = wandb.api.max_cli_version()
     return str(max_cli_version) if max_cli_version is not None else None
-
-
-def _is_offline() -> bool:
-    """Returns true if wandb is configured to be offline.
-
-    If there is an active run, returns whether the run is offline.
-    Otherwise, returns the default mode, which is affected by explicit settings
-    passed to `wandb.setup()`, environment variables, and W&B configuration
-    files.
-    """
-    if wandb.run:
-        return wandb.run.settings._offline
-    else:
-        return wandb.setup().settings._offline
 
 
 def ensure_text(

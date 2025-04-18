@@ -1,6 +1,8 @@
 """Utilities for wandb verify."""
 
+import contextlib
 import getpass
+import io
 import os
 import time
 from functools import partial
@@ -130,7 +132,10 @@ def check_run(api: Api) -> bool:
     f.close()
 
     with wandb.init(
-        id=nice_id("check_run"), reinit=True, config=config, project=PROJECT_NAME
+        id=nice_id("check_run"),
+        reinit=True,
+        config=config,
+        project=PROJECT_NAME,
     ) as run:
         run_id = run.id
         entity = run.entity
@@ -153,7 +158,7 @@ def check_run(api: Api) -> bool:
                 "Failed to log to media. Contact W&B for support."
             )
 
-        wandb.save(filepath)
+        run.save(filepath)
     public_api = wandb.Api()
     prev_run = public_api.run(f"{entity}/{PROJECT_NAME}/{run_id}")
     # raise Exception(prev_run.__dict__)
@@ -163,8 +168,8 @@ def check_run(api: Api) -> bool:
         )
         print_results(failed_test_strings, False)
         return False
-    for key, value in prev_run.config.items():
-        if config[key] != value:
+    for key, value in config.items():
+        if prev_run.config.get(key) != value:
             failed_test_strings.append(
                 "Read config values don't match run config. Contact W&B for support."
             )
@@ -377,7 +382,7 @@ def check_graphql_put(api: Api, host: str) -> Tuple[bool, Optional[str]]:
         project=PROJECT_NAME,
         config={"test": "put to graphql"},
     ) as run:
-        wandb.save(gql_fp)
+        run.save(gql_fp)
     public_api = wandb.Api()
     prev_run = public_api.run(f"{run.entity}/{PROJECT_NAME}/{run.id}")
     if prev_run is None:
@@ -484,6 +489,56 @@ def check_wandb_version(api: Api) -> None:
         warning = True
 
     print_results(fail_string, warning)
+
+
+def check_sweeps(api: Api) -> bool:
+    print("Checking sweep creation and agent execution".ljust(72, "."), end="")  # noqa: T201
+    failed_test_strings: List[str] = []
+
+    sweep_config = {
+        "method": "random",
+        "metric": {"goal": "minimize", "name": "score"},
+        "parameters": {
+            "x": {"values": [0.01, 0.05, 0.1]},
+            "y": {"values": [1, 2, 3]},
+        },
+        "name": "verify_sweep",
+    }
+
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            sweep_id = wandb.sweep(
+                sweep=sweep_config, project=PROJECT_NAME, entity=api.default_entity
+            )
+    except Exception as e:
+        failed_test_strings.append(f"Failed to create sweep: {e}")
+        print_results(failed_test_strings, False)
+        return False
+
+    if not sweep_id:
+        failed_test_strings.append("Sweep creation returned an invalid ID.")
+        print_results(failed_test_strings, False)
+        return False
+
+    try:
+
+        def objective(config):
+            score = config.x**3 + config.y
+            return score
+
+        def main():
+            with wandb.init(project=PROJECT_NAME) as run:
+                score = objective(run.config)
+                run.log({"score": score})
+
+        wandb.agent(sweep_id, function=main, count=10)
+    except Exception as e:
+        failed_test_strings.append(f"Failed to run sweep agent: {e}")
+        print_results(failed_test_strings, False)
+        return False
+
+    print_results(failed_test_strings, False)
+    return len(failed_test_strings) == 0
 
 
 def retry_fn(fn: Callable) -> Any:

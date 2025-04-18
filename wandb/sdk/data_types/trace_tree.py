@@ -431,6 +431,8 @@ class Trace:
             name: The name of the trace to be logged
         """
         trace_tree = WBTraceTree(self._span, self._model_dict)
+        # NOTE: Does not work for reinit="create_new" runs.
+        #   This method should be deprecated and users should call run.log().
         assert (
             wandb.run is not None
         ), "You must call wandb.init() before logging a trace"

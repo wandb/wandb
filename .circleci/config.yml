@@ -9,7 +9,7 @@ orbs:
 parameters:
   go_version:
     type: string
-    default: "1.23.4"
+    default: "1.24.1"
   server_image:
     type: string
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
@@ -303,7 +303,7 @@ jobs:
       - checkout
       - run:
           name: Install system deps
-          command: apt-get update && apt-get install -y libsndfile1 ffmpeg
+          command: apt-get update && apt-get install -y libsndfile1 ffmpeg git
       - install_go
       - install_rust
       - install_extras:
@@ -487,6 +487,16 @@ workflows:
           matrix:
             parameters:
               python: ["3.8", "3.12", "3.13"]
+
+      - nox-tests-linux:
+          name: unit-tests-pydantic-v1-linux-<<matrix.python>>
+          session: unit_tests_pydantic_v1
+          codecov_flags: unit
+          parallelism: 2
+
+          matrix:
+            parameters:
+              python: ["3.8", "3.12"]
 
       #
       # Unit tests with pytest on macOS

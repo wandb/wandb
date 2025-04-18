@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
-from typing import Iterable, Iterator
+import time
+from typing import Iterable, Iterator, NoReturn
 
-import wandb
 from wandb import env
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.interface import interface
+from wandb.sdk.lib import asyncio_compat
 
 from . import printer as p
 
@@ -31,14 +34,67 @@ def print_sync_dedupe_stats(
     printer.display(f"W&B sync reduced upload amount by {frac:.1%}")
 
 
+async def loop_printing_operation_stats(
+    progress: ProgressPrinter,
+    interface: interface.InterfaceBase,
+) -> None:
+    """Poll and display ongoing tasks in the internal service process.
+
+    This never returns and must be cancelled. This is meant to be used with
+    `mailbox.wait_with_progress()`.
+
+    Args:
+        progress: The printer to update with operation stats.
+        interface: The interface to use to poll for updates.
+
+    Raises:
+        HandleAbandonedError: If the mailbox associated with the interface
+            becomes closed.
+        Exception: Any other problem communicating with the service process.
+    """
+    stats: pb.OperationStats | None = None
+
+    async def loop_update_screen() -> NoReturn:
+        while True:
+            if stats:
+                progress.update(stats)
+            await asyncio.sleep(0.1)
+
+    async def loop_poll_stats() -> NoReturn:
+        nonlocal stats
+        while True:
+            start_time = time.monotonic()
+
+            handle = interface.deliver_operation_stats()
+            result = await handle.wait_async(timeout=None)
+            stats = result.response.operations_response.operation_stats
+
+            elapsed_time = time.monotonic() - start_time
+            if elapsed_time < 0.5:
+                await asyncio.sleep(0.5 - elapsed_time)
+
+    async with asyncio_compat.open_task_group() as task_group:
+        task_group.start_soon(loop_update_screen())
+        task_group.start_soon(loop_poll_stats())
+
+
 @contextlib.contextmanager
 def progress_printer(
     printer: p.Printer,
-    settings: wandb.Settings | None = None,
+    default_text: str,
 ) -> Iterator[ProgressPrinter]:
-    """Context manager providing an object for printing run progress."""
+    """Context manager providing an object for printing run progress.
+
+    Args:
+        printer: The printer to use.
+        default_text: The text to show if no information is available.
+    """
     with printer.dynamic_text() as text_area:
-        yield ProgressPrinter(printer, text_area, settings)
+        yield ProgressPrinter(
+            printer,
+            text_area,
+            default_text=default_text,
+        )
         printer.progress_close()
 
 
@@ -49,28 +105,27 @@ class ProgressPrinter:
         self,
         printer: p.Printer,
         progress_text_area: p.DynamicText | None,
-        settings: wandb.Settings | None,
+        default_text: str,
     ) -> None:
-        self._show_operation_stats = (
-            settings
-            and settings.x_show_operation_stats
-            # Not implemented by the legacy service.
-            and not env.is_require_legacy_service()
-        )
+        # Not implemented by the legacy service.
+        self._show_operation_stats = not env.is_require_legacy_service()
         self._printer = printer
         self._progress_text_area = progress_text_area
+        self._default_text = default_text
         self._tick = 0
         self._last_printed_line = ""
 
     def update(
         self,
-        progress: list[pb.PollExitResponse],
+        progress: list[pb.PollExitResponse] | pb.OperationStats,
     ) -> None:
         """Update the displayed information."""
         if not progress:
             return
 
-        if self._show_operation_stats:
+        if isinstance(progress, pb.OperationStats):
+            self._update_operation_stats([progress])
+        elif self._show_operation_stats:
             self._update_operation_stats(
                 list(response.operation_stats for response in progress)
             )
@@ -88,6 +143,7 @@ class ProgressPrinter:
                 self._progress_text_area,
                 max_lines=6,
                 loading_symbol=self._printer.loading_symbol(self._tick),
+                default_text=self._default_text,
             ).display(stats_list)
 
         else:
@@ -159,6 +215,10 @@ class ProgressPrinter:
             self._update_progress_text(line, 1.0)
 
     def _update_progress_text(self, text: str, progress: float) -> None:
+        if text == self._last_printed_line:
+            return
+        self._last_printed_line = text
+
         if self._progress_text_area:
             self._progress_text_area.set_text(text)
         else:
@@ -174,11 +234,13 @@ class _DynamicOperationStatsPrinter:
         text_area: p.DynamicText,
         max_lines: int,
         loading_symbol: str,
+        default_text: str,
     ) -> None:
         self._printer = printer
         self._text_area = text_area
         self._max_lines = max_lines
         self._loading_symbol = loading_symbol
+        self._default_text = default_text
 
         self._lines: list[str] = []
         self._ops_shown = 0
@@ -204,9 +266,9 @@ class _DynamicOperationStatsPrinter:
 
         if len(self._lines) == 0:
             if self._loading_symbol:
-                self._text_area.set_text(f"{self._loading_symbol} Finishing up...")
+                self._text_area.set_text(f"{self._loading_symbol} {self._default_text}")
             else:
-                self._text_area.set_text("Finishing up...")
+                self._text_area.set_text(self._default_text)
         else:
             self._text_area.set_text("\n".join(self._lines))
 

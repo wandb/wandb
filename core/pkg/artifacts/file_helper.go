@@ -18,7 +18,9 @@ func WriteJSONToTempFileWithMetadata(data any) (filename string, digest string, 
 	if err != nil {
 		return "", "", 0, fmt.Errorf("unable to create temporary file: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	// Marshal the data into JSON
 	dataJSON, err := json.Marshal(data)

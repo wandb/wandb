@@ -43,9 +43,9 @@ use wandb_internal::{
     record::RecordType,
     request::RequestType,
     stats_record::StatsType,
-    system_monitor_server::{SystemMonitor, SystemMonitorServer},
-    GetMetadataRequest, GetStatsRequest, MetadataRequest, Record, Request as Req, StatsItem,
-    StatsRecord,
+    system_monitor_service_server::{SystemMonitorService, SystemMonitorServiceServer},
+    GetMetadataRequest, GetMetadataResponse, GetStatsRequest, GetStatsResponse, MetadataRequest,
+    Record, Request as Req, StatsItem, StatsRecord, TearDownRequest, TearDownResponse,
 };
 
 fn current_timestamp() -> Timestamp {
@@ -79,11 +79,11 @@ struct Args {
     verbose: bool,
 }
 
-/// System monitor implementation.
+/// System monitor service implementation.
 ///
-/// Implements the gRPC service defined in `wandb_internal::system_monitor_server`.
+/// Implements the gRPC service defined in `wandb_internal::system_monitor_service_server`.
 #[derive(Default)]
-pub struct SystemMonitorImpl {
+pub struct SystemMonitorServiceImpl {
     /// Sender handle for the shutdown channel.
     ///
     /// Used to trigger service shutdown. The service will terminate if:
@@ -105,7 +105,7 @@ pub struct SystemMonitorImpl {
     amd_gpu: Option<GpuAmd>,
 }
 
-impl SystemMonitorImpl {
+impl SystemMonitorServiceImpl {
     fn new(
         ppid: i32,
         shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
@@ -149,7 +149,7 @@ impl SystemMonitorImpl {
             }
         };
 
-        let mut system_monitor = SystemMonitorImpl {
+        let mut system_monitor = SystemMonitorServiceImpl {
             shutdown_sender: shutdown_sender.clone(),
             parent_monitor_handle: None,
             #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -247,9 +247,12 @@ impl SystemMonitorImpl {
 
 /// The gRPC service implementation for the system monitor.
 #[tonic::async_trait]
-impl SystemMonitor for SystemMonitorImpl {
+impl SystemMonitorService for SystemMonitorServiceImpl {
     /// Tear down the system monitor service.
-    async fn tear_down(&self, request: Request<()>) -> Result<Response<()>, Status> {
+    async fn tear_down(
+        &self,
+        request: Request<TearDownRequest>,
+    ) -> Result<Response<TearDownResponse>, Status> {
         debug!("Received a request to shutdown: {:?}", request);
 
         // Signal the gRPC server to shutdown
@@ -257,14 +260,15 @@ impl SystemMonitor for SystemMonitorImpl {
         if let Some(sender) = sender.take() {
             sender.send(()).unwrap();
         }
-        Ok(Response::new(()))
+
+        Ok(Response::new(TearDownResponse {}))
     }
 
     /// Get static metadata about the system.
     async fn get_metadata(
         &self,
         request: Request<GetMetadataRequest>,
-    ) -> Result<Response<Record>, Status> {
+    ) -> Result<Response<GetMetadataResponse>, Status> {
         debug!("Received a request to get metadata: {:?}", request);
 
         // Do not apply any filters for metadata.
@@ -321,14 +325,19 @@ impl SystemMonitor for SystemMonitorImpl {
             })),
             ..Default::default()
         };
-        Ok(Response::new(record))
+
+        let response = GetMetadataResponse {
+            record: Some(record),
+        };
+
+        Ok(Response::new(response))
     }
 
     /// Get system metrics.
     async fn get_stats(
         &self,
         request: Request<GetStatsRequest>,
-    ) -> Result<Response<Record>, Status> {
+    ) -> Result<Response<GetStatsResponse>, Status> {
         debug!("Received a request to get stats: {:?}", request);
 
         let request = request.into_inner();
@@ -365,7 +374,11 @@ impl SystemMonitor for SystemMonitorImpl {
             ..Default::default()
         };
 
-        Ok(Response::new(record))
+        let response = GetStatsResponse {
+            record: Some(record),
+        };
+
+        Ok(Response::new(response))
     }
 }
 
@@ -407,7 +420,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel::<()>();
     let shutdown_sender = Arc::new(tokio::sync::Mutex::new(Some(shutdown_sender)));
 
-    let system_monitor = SystemMonitorImpl::new(args.ppid, shutdown_sender.clone());
+    let system_monitor_service = SystemMonitorServiceImpl::new(args.ppid, shutdown_sender.clone());
 
     // Write the server port to the portfile
     let local_addr = listener.local_addr()?;
@@ -416,7 +429,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     debug!("System metrics service listening on {}", local_addr);
 
     Server::builder()
-        .add_service(SystemMonitorServer::new(system_monitor))
+        .add_service(SystemMonitorServiceServer::new(system_monitor_service))
         .serve_with_incoming_shutdown(
             tokio_stream::wrappers::TcpListenerStream::new(listener),
             async {

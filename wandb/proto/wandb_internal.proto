@@ -284,6 +284,8 @@ message MetricRecord {
   MetricGoal goal = 8;
   MetricControl _control = 9;
 
+  bool expanded_from_glob = 10;
+
   enum MetricGoal {
     GOAL_UNSET = 0;
     GOAL_MINIMIZE = 1;
@@ -390,7 +392,7 @@ message FilesItem {
     ARTIFACT = 3;
   }
 
-  // A path or Unix glob relative to the W&B files directory.
+  // A path or Unix glob relative to the run's files directory.
   string path = 1;
 
   // When to upload the file.
@@ -600,6 +602,10 @@ message Request {
     RunFinishWithoutExitRequest run_finish_without_exit = 79;
     GetSystemMetadataRequest get_system_metadata = 80;
     SyncFinishRequest sync_finish = 81;
+
+    // Requests information about tasks the service is performing.
+    OperationStatsRequest operations = 82;
+
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -634,6 +640,7 @@ message Response {
     SyncResponse sync_response = 70;
     RunFinishWithoutExitResponse run_finish_without_exit_response = 72;
     GetSystemMetadataResponse get_system_metadata_response = 73;
+    OperationStatsResponse operations_response = 74;
     TestInjectResponse test_inject_response = 1000;
   }
 }
@@ -681,9 +688,7 @@ message ResumeRequest {
 
 message ResumeResponse {}
 
-/*
- * LoginRequest: wandb/sdk/wandb_login
- */
+// Old request, no longer used for logging in (if it ever was).
 message LoginRequest {
   string api_key = 1;
   _RequestInfo _info = 200;
@@ -795,6 +800,14 @@ message PollExitResponse {
   FilePusherStats pusher_stats = 3;
   FileCounts file_counts = 4;
   OperationStats operation_stats = 5;
+}
+
+message OperationStatsRequest {
+  _RequestInfo _info = 200;
+}
+
+message OperationStatsResponse {
+  OperationStats operation_stats = 1;
 }
 
 // Information about ongoing operations in the internal process.
@@ -1367,10 +1380,38 @@ message JobInputRequest {
   string input_schema = 4;
 }
 
+/**
+ * Server features are features that the server supports.
+ * This name should match the name of the feature defined in the backend server.
+ */
 enum ServerFeature {
+  // Indicates that the server supports recieving an array of filenames as metadata.
   LARGE_FILENAMES = 0;
+
+  // Indicates that the server supports adding tags to artifacts.
   ARTIFACT_TAGS = 1;
+
+  // Indicates that the server supports client IDs for artifact reference urls.
   CLIENT_IDS = 2;
+
+  // Indicates that the server supports searching for artifacts in a registry.
+  ARTIFACT_REGISTRY_SEARCH = 3;
+
+  // Indicates that the server supports structured console logs.
+  STRUCTURED_CONSOLE_LOGS = 4;
+
+  // Indicates that the server supports querying for files on artifact collection memberships.
+  ARTIFACT_COLLECTION_MEMBERSHIP_FILES = 5;
+
+  // Indicates that the server supports downloading files with additional artifact collection memberships context in the
+  // url.
+  ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER = 6;
+
+  // Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
+  USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION = 7;
+
+  // Indicates that the server supports expanding defined metric globs on the server side.
+  EXPAND_DEFINED_METRIC_GLOBS = 8;
 }
 
 /**

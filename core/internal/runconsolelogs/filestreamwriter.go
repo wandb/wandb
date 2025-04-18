@@ -1,9 +1,6 @@
 package runconsolelogs
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/sparselist"
 )
@@ -11,34 +8,37 @@ import (
 // filestreamWriter sends modified console log lines to the filestream.
 type filestreamWriter struct {
 	FileStream filestream.FileStream
+
+	// Structured controls the format of uploaded lines.
+	//
+	// If false, then the legacy plain text format is used:
+	//
+	// ERROR 2023-04-05T10:15:30.000000 [node-1-rank-0] Critical error occurred
+	//
+	// If true, then the JSON format is used:
+	//
+	//  {
+	//    "level":"error",
+	//    "ts":"2023-04-05T10:15:30.000000",
+	//    "label":"node-1-rank-0",
+	//    "content":"Division by zero",
+	//  }
+	Structured bool
 }
 
 func (w *filestreamWriter) SendChanged(
 	changes sparselist.SparseList[*RunLogsLine],
 ) {
-	// Generate timestamps in the Python ISO format (microseconds without Z)
-	const rfc3339Micro = "2006-01-02T15:04:05.000000Z07:00"
-
 	lines := sparselist.Map(changes, func(line *RunLogsLine) string {
-		timestamp := strings.TrimSuffix(
-			line.Timestamp.UTC().Format(rfc3339Micro), "Z")
-
-		if line.StreamLabel != "" {
-			return fmt.Sprintf(
-				"%s%s [%s] %s",
-				line.StreamPrefix,
-				timestamp,
-				line.StreamLabel,
-				string(line.Content),
-			)
-		} else {
-			return fmt.Sprintf(
-				"%s%s %s",
-				line.StreamPrefix,
-				timestamp,
-				string(line.Content),
-			)
+		if w.Structured {
+			s, err := line.StructuredFormat()
+			if err != nil {
+				return line.LegacyFormat()
+			}
+			return s
 		}
+
+		return line.LegacyFormat()
 	})
 
 	w.FileStream.StreamUpdate(&filestream.LogsUpdate{

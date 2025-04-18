@@ -9,8 +9,10 @@ Example:
     wandb.require("incremental-artifacts@beta")
 """
 
+from __future__ import annotations
+
 import os
-from typing import Optional, Sequence, Union
+from typing import Iterable
 
 import wandb
 from wandb.env import _REQUIRE_LEGACY_SERVICE
@@ -21,9 +23,9 @@ from wandb.sdk import wandb_run
 class _Requires:
     """Internal feature class."""
 
-    _features: Sequence[str]
+    _features: tuple[str, ...]
 
-    def __init__(self, features: Union[str, Sequence[str]]) -> None:
+    def __init__(self, features: str | Iterable[str]) -> None:
         self._features = (
             tuple([features]) if isinstance(features, str) else tuple(features)
         )
@@ -67,17 +69,21 @@ class _Requires:
 
 
 def require(
-    requirement: Optional[Union[str, Sequence[str]]] = None,
-    experiment: Optional[Union[str, Sequence[str]]] = None,
+    requirement: str | Iterable[str] | None = None,
+    experiment: str | Iterable[str] | None = None,
 ) -> None:
     """Indicate which experimental features are used by the script.
 
+    This should be called before any other `wandb` functions, ideally right
+    after importing `wandb`.
+
     Args:
-        requirement: (str or list) Features to require
-        experiment: (str or list) Features to require
+        requirement: The name of a feature to require or an iterable of
+            feature names.
+        experiment: An alias for `requirement`.
 
     Raises:
-        wandb.errors.UnsupportedError: if not supported
+        wandb.errors.UnsupportedError: If a feature name is unknown.
     """
     features = requirement or experiment
     if not features:

@@ -83,14 +83,13 @@ def cli_unsupported(argument):
 
 class ClickWandbException(ClickException):
     def format_message(self):
-        # log_file = util.get_log_file_path()
-        log_file = ""
         orig_type = f"{self.orig_type.__module__}.{self.orig_type.__name__}"
         if issubclass(self.orig_type, Error):
             return click.style(str(self.message), fg="red")
         else:
             return (
-                f"An Exception was raised, see {log_file} for full traceback.\n"
+                f"An Exception was raised, see {_wandb_log_path} for full"
+                " traceback.\n"
                 f"{orig_type}: {self.message}"
             )
 
@@ -241,33 +240,23 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     wandb_sdk.wandb_login._handle_host_wandb_setting(host, cloud)
     # A change in click or the test harness means key can be none...
     key = key[0] if key is not None and len(key) > 0 else None
-    if key:
-        relogin = True
+    relogin = True if key or relogin else False
 
-    login_settings = dict(
-        x_cli_only_mode=True,
-        x_disable_viewer=relogin and not verify,
-        anonymous=anon_mode,
-        base_url=host,
+    wandb.setup(
+        settings=wandb.Settings(
+            x_cli_only_mode=True,
+            x_disable_viewer=relogin and not verify,
+        )
     )
 
-    try:
-        wandb.setup(
-            settings=wandb.Settings(
-                **{k: v for k, v in login_settings.items() if v is not None}
-            )
-        )
-    except TypeError as e:
-        wandb.termerror(str(e))
-        sys.exit(1)
-
     wandb.login(
-        relogin=relogin,
-        key=key,
         anonymous=anon_mode,
-        host=host,
         force=True,
+        host=host,
+        key=key,
+        relogin=relogin,
         verify=verify,
+        referrer="models",
     )
 
 
@@ -2805,11 +2794,13 @@ def verify(host):
     wandb_verify.check_wandb_version(api)
     check_run_success = wandb_verify.check_run(api)
     check_artifacts_success = wandb_verify.check_artifacts()
+    check_sweeps_success = wandb_verify.check_sweeps(api)
     if not (
         check_artifacts_success
         and check_run_success
         and large_post_success
         and url_success
+        and check_sweeps_success
     ):
         sys.exit(1)
 

@@ -1,22 +1,46 @@
 # GraphQL
 /wandb/sdk/internal/internal_api.py @wandb/sdk-team
+
 # Changing public interfaces
 /tests/unit_tests/test_library_public.py @wandb/sdk-team
 /wandb/__init__.py @wandb/sdk-team
+
+# Updating core tools and testing infrastructure
+/tests/conftest.py @wandb/sdk-team
+
+/tests/system_tests/backend_fixtures.py @wandb/sdk-team
+/tests/system_tests/wandb_backend_spy/ @wandb/sdk-team
+/tests/system_tests/conftest.py @wandb/sdk-team
+
+/tests/unit_tests/conftest.py @wandb/sdk-team
+
+/tools/changelog.py @wandb/sdk-team
+/tools/generate_stubs.py @wandb/sdk-team
+/tools/local_wandb_server.py @wandb/sdk-team
+
 # Updating type hints
 /wandb/__init__.template.pyi @wandb/sdk-team
 /wandb/__init__.pyi @wandb/sdk-team
+
 # Packaging and releasing-related files
 /pyproject.toml @wandb/sdk-team
 /setup.py @wandb/sdk-team
+/hatch.toml @wandb/sdk-team
+/hatch_build.py @wandb/sdk-team
 /CHANGELOG.md @wandb/sdk-team
+/BREAKING.md @wandb/sdk-team
 /MANIFEST.in @wandb/sdk-team
+/CONTRIBUTING.md @wandb/sdk-team
+
 # wandb-core backend. TODO: relax after initial roll-out
 /core/ @wandb/sdk-team
+
 # system metrics
 /gpu_stats/ @wandb/sdk-team
+
 # CircleCI configuration
 /.circleci @wandb/sdk-team
+
 # GitHub configuration
 /.github @wandb/sdk-team
 
@@ -24,7 +48,7 @@
 # ML Workflows team
 /core/pkg/artifacts/ @wandb/mlw-team
 /wandb/sdk/artifacts/ @wandb/mlw-team
-/wandb/sdk/automations/ @wandb/mlw-team
+/wandb/automations/ @wandb/mlw-team
 /tests/system_tests/test_artifacts/ @wandb/mlw-team
 /tests/system_tests/test_automations/ @wandb/mlw-team
 /tests/unit_tests/test_artifacts/ @wandb/mlw-team
