@@ -207,6 +207,7 @@ message Feature {
   bool metric_step_sync = 66;             // step_sync arg passed to define_metric
   bool shared_mode = 67;                  // shared mode was added in wandb.Settings
   bool server_side_derived_summary = 68;  // server-side derived summary computation was enabled
+  bool user_provided_label = 69;          // User set the x_label value
 }
 
 message Env {
@@ -264,7 +265,11 @@ message Deprecated {
 
   bool run__finish_quiet = 19;  // wandb.run.finish(quiet=...) called
 
-  bool run__reinit_bool = 20;  // reinit setting set to a boolean value
+  bool run__reinit_bool = 20;      // reinit setting set to a boolean value
+  bool run__get_url = 21;          // wandb.run.get_url() called
+  bool run__project_name = 22;     // wandb.run.project_name() called
+  bool run__get_project_url = 23;  // wandb.run.get_project_url() called
+  bool run__get_sweep_url = 24;    // wandb.run.get_sweep_url() called
 }
 
 message Issues {

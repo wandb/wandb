@@ -1,11 +1,12 @@
+import functools
 import logging
 import os
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Type, Union
 
 import wandb
 from wandb import util
-from wandb.sdk.lib import filesystem, runid
+from wandb.sdk.lib import filesystem, printer, printer_asyncio, runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -90,13 +91,12 @@ class Video(BatchableMedia):
         fps: Optional[int] = None,
         format: Optional[str] = None,
     ):
-        super().__init__()
+        super().__init__(caption=caption)
 
         self._format = format or "gif"
         self._width = None
         self._height = None
         self._channels = None
-        self._caption = caption
         if self._format not in Video.EXTS:
             raise ValueError(
                 "wandb.Video accepts {} formats".format(", ".join(Video.EXTS))
@@ -135,7 +135,11 @@ class Video(BatchableMedia):
                     "wandb.Video accepts a file path or numpy like data as input"
                 )
             fps = fps or 4
-            self.encode(fps=fps)
+            printer_asyncio.run_async_with_spinner(
+                printer.new_printer(),
+                "Encoding video...",
+                functools.partial(self.encode, fps=fps),
+            )
 
     def encode(self, fps: int = 4) -> None:
         # import ImageSequenceClip from the appropriate MoviePy module
@@ -153,29 +157,12 @@ class Video(BatchableMedia):
         filename = os.path.join(
             MEDIA_TMP.name, runid.generate_id() + "." + self._format
         )
-        if TYPE_CHECKING:
-            kwargs: Dict[str, Optional[bool]] = {}
-        try:  # older versions of moviepy do not support logger argument
-            kwargs = {"logger": None}
-            if self._format == "gif":
-                write_gif_with_image_io(clip, filename)
-            else:
-                clip.write_videofile(filename, **kwargs)
-        except TypeError:
-            try:  # even older versions of moviepy do not support progress_bar argument
-                kwargs = {"verbose": False, "progress_bar": False}
-                if self._format == "gif":
-                    clip.write_gif(filename, **kwargs)
-                else:
-                    clip.write_videofile(filename, **kwargs)
-            except TypeError:
-                kwargs = {
-                    "verbose": False,
-                }
-                if self._format == "gif":
-                    clip.write_gif(filename, **kwargs)
-                else:
-                    clip.write_videofile(filename, **kwargs)
+
+        if self._format == "gif":
+            write_gif_with_image_io(clip, filename)
+        else:
+            clip.write_videofile(filename, logger=None)
+
         self._set_file(filename, is_tmp=True)
 
     @classmethod
@@ -190,8 +177,6 @@ class Video(BatchableMedia):
             json_dict["width"] = self._width
         if self._height is not None:
             json_dict["height"] = self._height
-        if self._caption:
-            json_dict["caption"] = self._caption
 
         return json_dict
 

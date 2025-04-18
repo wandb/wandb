@@ -10,8 +10,10 @@ from wandb.apis.public.artifacts import (
     ArtifactTypes,
     RunArtifacts,
 )
+from wandb.apis.public.automations import Automations
 from wandb.apis.public.files import FILE_FRAGMENT, File, Files
 from wandb.apis.public.history import HistoryScan, SampledHistoryScan
+from wandb.apis.public.integrations import SlackIntegrations, WebhookIntegrations
 from wandb.apis.public.jobs import (
     Job,
     QueuedRun,

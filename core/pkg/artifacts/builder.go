@@ -70,7 +70,9 @@ func (b *ArtifactBuilder) AddFile(path string, name string) error {
 		size = stat.Size()
 	}
 
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	data, err := io.ReadAll(file)
 	if err != nil {
@@ -125,9 +127,9 @@ func computeManifestDigest(manifest *Manifest) string {
 	})
 
 	hasher := md5.New()
-	hasher.Write([]byte("wandb-artifact-manifest-v1\n"))
+	_, _ = fmt.Fprintf(hasher, "wandb-artifact-manifest-v1\n")
 	for _, entry := range entries {
-		hasher.Write([]byte(fmt.Sprintf("%s:%s\n", entry.name, entry.digest)))
+		_, _ = fmt.Fprintf(hasher, "%s:%s\n", entry.name, entry.digest)
 	}
 
 	return hex.EncodeToString(hasher.Sum(nil))

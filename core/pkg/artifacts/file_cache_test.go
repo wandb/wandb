@@ -16,11 +16,11 @@ func setupTestEnvironment(t *testing.T) (*FileCache, func()) {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "wandb_test")
 	require.NoError(t, err)
-	os.Setenv("WANDB_CACHE_DIR", dir)
+	_ = os.Setenv("WANDB_CACHE_DIR", dir)
 
 	cleanup := func() {
-		os.RemoveAll(dir)
-		os.Unsetenv("WANDB_CACHE_DIR")
+		_ = os.RemoveAll(dir)
+		_ = os.Unsetenv("WANDB_CACHE_DIR")
 	}
 
 	fc := NewFileCache(UserCacheDir())
@@ -67,12 +67,14 @@ func TestFileCache_AddFile(t *testing.T) {
 
 	srcFile, err := os.CreateTemp("", "source")
 	require.NoError(t, err)
-	defer os.Remove(srcFile.Name())
+	defer func() {
+		_ = os.Remove(srcFile.Name())
+	}()
 
 	data := []byte("test data")
 	_, err = srcFile.Write(data)
 	require.NoError(t, err)
-	srcFile.Close()
+	_ = srcFile.Close()
 
 	md5Hash, err := cache.AddFile(srcFile.Name())
 	require.NoError(t, err)
@@ -93,13 +95,15 @@ func TestFileCache_AddFileAndCheckDigest(t *testing.T) {
 
 	srcFile, err := os.CreateTemp("", "source")
 	require.NoError(t, err)
-	defer os.Remove(srcFile.Name())
+	defer func() {
+		_ = os.Remove(srcFile.Name())
+	}()
 
 	data := []byte("some data")
 	calculatedHash := hashencode.ComputeB64MD5(data)
 	_, err = srcFile.Write(data)
 	require.NoError(t, err)
-	srcFile.Close()
+	_ = srcFile.Close()
 
 	err = cache.AddFileAndCheckDigest(srcFile.Name(), calculatedHash)
 	require.NoError(t, err)
@@ -113,13 +117,15 @@ func TestHashOnlyCache_AddFileAndCheckDigest(t *testing.T) {
 
 	srcFile, err := os.CreateTemp("", "source")
 	require.NoError(t, err)
-	defer os.Remove(srcFile.Name())
+	defer func() {
+		_ = os.Remove(srcFile.Name())
+	}()
 
 	data := []byte("some data")
 	calculatedHash := hashencode.ComputeB64MD5(data)
 	_, err = srcFile.Write(data)
 	require.NoError(t, err)
-	srcFile.Close()
+	_ = srcFile.Close()
 
 	err = cache.AddFileAndCheckDigest(srcFile.Name(), "invalid")
 	require.ErrorContains(t, err, "file hash mismatch")
@@ -157,7 +163,9 @@ func TestFileCache_RestoreTo(t *testing.T) {
 	require.NoError(t, err)
 
 	rootDir := filepath.Join(os.TempDir(), "restore_root")
-	defer os.Remove(rootDir)
+	defer func() {
+		_ = os.Remove(rootDir)
+	}()
 	localPath := filepath.Join(rootDir, "test", "dir", "restore_target.test")
 	manifestEntry := ManifestEntry{
 		Digest: cacheKey,
@@ -204,7 +212,9 @@ func TestFileCache_RestoreToReference(t *testing.T) {
 	require.NoError(t, err)
 
 	rootDir := filepath.Join(os.TempDir(), "restore_root")
-	defer os.Remove(rootDir)
+	defer func() {
+		_ = os.Remove(rootDir)
+	}()
 	localPath := filepath.Join(rootDir, "test", "dir", "restore_target.test")
 	refPath := "gs://example-bucket/some/object/path"
 	manifestEntry := ManifestEntry{

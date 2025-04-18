@@ -7,6 +7,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/mailbox"
@@ -54,6 +55,7 @@ func makeSender(client graphql.Client, resultChan chan *spb.Result) *stream.Send
 		observability.NewPrinter(),
 		settings,
 		nil, // peeker
+		"clientId",
 	)
 	fileTransferManager := stream.NewFileTransferManager(
 		filetransfer.NewFileTransferStats(),
@@ -82,6 +84,11 @@ func makeSender(client graphql.Client, resultChan chan *spb.Result) *stream.Send
 			Mailbox:             mailbox.New(),
 			GraphqlClient:       client,
 			RunWork:             runWork,
+			FeatureProvider: featurechecker.NewServerFeaturesCache(
+				runWork.BeforeEndCtx(),
+				nil,
+				logger,
+			),
 		},
 	)
 	return sender

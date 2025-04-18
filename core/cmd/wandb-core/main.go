@@ -84,7 +84,9 @@ func main() {
 			"shutdown-on-parent-exit", shutdownOnParentExitEnabled,
 		)
 		loggerPath = file.Name()
-		defer file.Close()
+		defer func() {
+			_ = file.Close()
+		}()
 	}
 
 	// Log when we receive a shutdown signal

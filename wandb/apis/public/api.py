@@ -15,7 +15,7 @@ import json
 import logging
 import os
 import urllib
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional
 
 import requests
 from wandb_gql import Client, gql
@@ -25,7 +25,6 @@ import wandb
 from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries import Registries
 from wandb.apis.public.utils import (
@@ -33,14 +32,18 @@ from wandb.apis.public.utils import (
     fetch_org_from_settings_or_entity,
     parse_org_from_registry_path,
 )
+from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import retry, runid
-from wandb.sdk.lib.deprecate import Deprecated, deprecate
+from wandb.sdk.lib.deprecate import deprecate
 from wandb.sdk.lib.gql_request import GraphQLSession
+
+if TYPE_CHECKING:
+    from wandb.automations import Integration, SlackIntegration, WebhookIntegration
 
 logger = logging.getLogger(__name__)
 
@@ -289,7 +292,7 @@ class Api:
             )
         )
         self._client = RetryingClient(self._base_client)
-        self._server_features_cache = None
+        self._server_features_cache: Optional[dict[str, bool]] = None
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
@@ -757,15 +760,14 @@ class Api:
         return parts
 
     def projects(
-        self, entity: Optional[str] = None, per_page: Optional[int] = 200
+        self, entity: Optional[str] = None, per_page: int = 200
     ) -> "public.Projects":
         """Get projects for a given entity.
 
         Args:
             entity: (str) Name of the entity requested.  If None, will fall back to the
                 default entity passed to `Api`.  If no default entity, will raise a `ValueError`.
-            per_page: (int) Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
 
         Returns:
             A `Projects` object which is an iterable collection of `Project` objects.
@@ -808,7 +810,7 @@ class Api:
         return public.Project(self.client, entity, name, {})
 
     def reports(
-        self, path: str = "", name: Optional[str] = None, per_page: Optional[int] = 50
+        self, path: str = "", name: Optional[str] = None, per_page: int = 50
     ) -> "public.Reports":
         """Get reports for a given project path.
 
@@ -817,8 +819,7 @@ class Api:
         Args:
             path: (str) path to project the report resides in, should be in the form: "entity/project"
             name: (str, optional) optional name of the report requested.
-            per_page: (int) Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
 
         Returns:
             A `Reports` object which is an iterable collection of `BetaReport` objects.
@@ -1153,15 +1154,14 @@ class Api:
 
     @normalize_exceptions
     def artifact_collections(
-        self, project_name: str, type_name: str, per_page: Optional[int] = 50
+        self, project_name: str, type_name: str, per_page: int = 50
     ) -> "public.ArtifactCollections":
         """Return a collection of matching artifact collections.
 
         Args:
             project_name: (str) The name of the project to filter on.
             type_name: (str) The name of the artifact type to filter on.
-            per_page: (int, optional) Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
 
         Returns:
             An iterable `ArtifactCollections` object.
@@ -1226,7 +1226,7 @@ class Api:
         self,
         type_name: str,
         name: str,
-        per_page: Optional[int] = 50,
+        per_page: int = 50,
         tags: Optional[List[str]] = None,
     ) -> "public.Artifacts":
         """Return an `Artifacts` collection from the given parameters.
@@ -1234,8 +1234,7 @@ class Api:
         Args:
             type_name: (str) The type of artifacts to fetch.
             name: (str) An artifact collection name. May be prefixed with entity/project.
-            per_page: (int, optional) Sets the page size for query pagination.  None will use the default size.
-                Usually there is no reason to change this.
+            per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
             tags: (list[str], optional) Only return artifacts with all of these tags.
 
         Returns:
@@ -1510,7 +1509,7 @@ class Api:
         Returns:
             A registry iterator.
         """
-        if not self._check_server_feature_with_fallback(
+        if not InternalApi()._check_server_feature_with_fallback(
             ServerFeature.ARTIFACT_REGISTRY_SEARCH
         ):
             raise RuntimeError(
@@ -1523,51 +1522,110 @@ class Api:
         )
         return Registries(self.client, organization, filter)
 
-    def _check_server_feature(self, feature: ServerFeature) -> bool:
-        """Check if a server feature is enabled.
+    def integrations(
+        self,
+        entity: Optional[str] = None,
+        *,
+        per_page: int = 50,
+    ) -> Iterator["Integration"]:
+        """Return an iterator of all integrations for an entity.
 
         Args:
-            feature (ServerFeature): The feature to check.
+            entity (str, optional): The entity (e.g. team name) for which to
+                fetch integrations.  If not provided, the user's default entity
+                will be used.
+            per_page (int, optional): Number of integrations to fetch per page.
+                Defaults to 50.
 
-        Returns:
-            bool: True if the feature is enabled, False otherwise.
-
-        Raises:
-            Exception: If server doesn't support feature queries or other errors occur
+        Yields:
+            Iterator[SlackIntegration | WebhookIntegration]: An iterator of any supported integrations.
         """
-        if self._server_features_cache is None:
-            response = self.client.execute(gql(SERVER_FEATURES_QUERY_GQL))
-            self._server_features_cache = ServerFeaturesQuery.model_validate(response)
+        from wandb.apis.public.integrations import Integrations
 
-        feature_name = ServerFeature.Name(feature)
-        if (
-            self._server_features_cache
-            and self._server_features_cache.server_info
-            and self._server_features_cache.server_info.features
-        ):
-            for feature_info in self._server_features_cache.server_info.features:
-                if feature_info and feature_info.name == feature_name:
-                    return feature_info.is_enabled
+        entity = entity or self.default_entity
+        params = {"entityName": entity, "includeWebhook": True, "includeSlack": True}
+        return Integrations(client=self.client, variables=params, per_page=per_page)
 
-        return False
-
-    def _check_server_feature_with_fallback(self, feature: ServerFeature) -> bool:
-        """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
-
-        Good to use for features that have a fallback mechanism for older servers.
+    def webhook_integrations(
+        self, entity: Optional[str] = None, *, per_page: int = 50
+    ) -> Iterator["WebhookIntegration"]:
+        """Return an iterator of webhook integrations for an entity.
 
         Args:
-            feature (ServerFeature): The feature to check.
+            entity (str, optional): The entity (e.g. team name) for which to
+                fetch integrations.  If not provided, the user's default entity
+                will be used.
+            per_page (int, optional): Number of integrations to fetch per page.
+                Defaults to 50.
 
-        Returns:
-            bool: True if the feature is enabled, False otherwise.
+        Yields:
+            Iterator[WebhookIntegration]: An iterator of webhook integrations.
 
-        Exceptions:
-            Exception: If an error other than the server not supporting feature queries occurs.
+        Examples:
+            Get all registered webhook integrations for the team "my-team":
+            ```python
+            import wandb
+
+            api = wandb.Api()
+            webhook_integrations = api.webhook_integrations(entity="my-team")
+            ```
+
+            Find only webhook integrations that post requests to "https://my-fake-url.com":
+            ```python
+            webhook_integrations = api.webhook_integrations(entity="my-team")
+            my_webhooks = [
+                ig
+                for ig in webhook_integrations
+                if ig.url_endpoint.startswith("https://my-fake-url.com")
+            ]
+            ```
         """
-        try:
-            return self._check_server_feature(feature)
-        except Exception as e:
-            if 'Cannot query field "features" on type "ServerInfo".' in str(e):
-                return False
-            raise e
+        from wandb.apis.public.integrations import WebhookIntegrations
+
+        entity = entity or self.default_entity
+        params = {"entityName": entity, "includeWebhook": True}
+        return WebhookIntegrations(
+            client=self.client, variables=params, per_page=per_page
+        )
+
+    def slack_integrations(
+        self, entity: Optional[str] = None, *, per_page: int = 50
+    ) -> Iterator["SlackIntegration"]:
+        """Return an iterator of Slack integrations for an entity.
+
+        Args:
+            entity (str, optional): The entity (e.g. team name) for which to
+                fetch integrations.  If not provided, the user's default entity
+                will be used.
+            per_page (int, optional): Number of integrations to fetch per page.
+                Defaults to 50.
+
+        Yields:
+            Iterator[SlackIntegration]: An iterator of Slack integrations.
+
+        Examples:
+            Get all registered Slack integrations for the team "my-team":
+            ```python
+            import wandb
+
+            api = wandb.Api()
+            slack_integrations = api.slack_integrations(entity="my-team")
+            ```
+
+            Find only Slack integrations that post to channel names starting with "team-alerts-":
+            ```python
+            slack_integrations = api.slack_integrations(entity="my-team")
+            team_alert_integrations = [
+                ig
+                for ig in slack_integrations
+                if ig.channel_name.startswith("team-alerts-")
+            ]
+            ```
+        """
+        from wandb.apis.public.integrations import SlackIntegrations
+
+        entity = entity or self.default_entity
+        params = {"entityName": entity, "includeSlack": True}
+        return SlackIntegrations(
+            client=self.client, variables=params, per_page=per_page
+        )

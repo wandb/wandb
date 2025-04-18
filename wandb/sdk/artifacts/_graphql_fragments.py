@@ -18,27 +18,25 @@ fragment ArtifactTypesFragment on ArtifactTypeConnection {
 }
 """
 
-ARTIFACT_FILES_FRAGMENT = """fragment ArtifactFilesFragment on Artifact {
-    files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
-        edges {
-            node {
-                id
-                name: displayName
-                url
-                sizeBytes
-                storagePath
-                mimetype
-                updatedAt
-                digest
-                md5
-                directUrl
-            }
-            cursor
+ARTIFACT_FILES_FRAGMENT = """fragment FilesFragment on FileConnection {
+    edges {
+        node {
+            id
+            name: displayName
+            url
+            sizeBytes
+            storagePath
+            mimetype
+            updatedAt
+            digest
+            md5
+            directUrl
         }
-        pageInfo {
-            endCursor
-            hasNextPage
-        }
+        cursor
+    }
+    pageInfo {
+        endCursor
+        hasNextPage
     }
 }"""
 
