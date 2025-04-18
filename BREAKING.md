@@ -62,7 +62,7 @@ When preparing a release that can include breaking changes, consider applying ch
     - Deprecated after 0.19.8 (https://github.com/wandb/wandb/pull/9557)
     - Can do after September 2025
 
-- Deprecate `data_is_not_path` and add `path` keyword argument to explicitly handle files.
+- Deprecate `data_is_not_path` flag in `wandb.Html` and add `path` keyword argument to explicitly handle files paths.
     - Owner: @jacobromero
-    - Deprecated after 0.19.10
+    - Deprecated after 0.19.9
     - Can do in >=0.20

@@ -1,7 +1,6 @@
 import io
 import os
 import platform
-import tempfile
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -1436,56 +1435,51 @@ def test_partitioned_table():
 ################################################################################
 
 
-def test_wandb_html_with_directory():
-    dir = tempfile.gettempdir()
-
-    html = wandb.Html(dir, inject=False)
+def test_wandb_html_with_directory(tmp_path):
+    html = wandb.Html(str(tmp_path), inject=False)
 
     assert html._is_tmp is True
     assert html._path is not None
     assert os.path.exists(html._path)
     with open(html._path) as f:
-        assert f.read() == dir
+        assert f.read() == str(tmp_path)
 
 
-def test_wandb_html_with_html_file():
-    with tempfile.NamedTemporaryFile("w", suffix=".html") as file:
-        file.write("Hello, world!")
-        file.flush()
+def test_wandb_html_with_html_file(tmp_path):
+    html_file = tmp_path / "index.html"
+    html_file.write_text("Hello, world!")
 
-        html = wandb.Html(file.name, inject=False)
+    html = wandb.Html(str(html_file), inject=False)
 
-        assert html._is_tmp is False
-        assert html._path is not None
-        assert html._path == file.name
-        assert os.path.exists(html._path)
-        with open(html._path) as f:
-            assert f.read() == "Hello, world!"
-
-
-def test_wandb_html_with_html_file_skip_file_check():
-    with tempfile.NamedTemporaryFile("w", suffix=".html") as file:
-        file.write("Hello, world!")
-        file.flush()
-
-        html = wandb.Html(file.name, inject=False, data_is_not_path=True)
-
-        assert html._is_tmp is True
-        assert html._path is not None
-        with open(html._path) as f:
-            assert f.read() == file.name
+    assert html._is_tmp is False
+    assert html._path is not None
+    assert html._path == str(html_file)
+    assert os.path.exists(html._path)
+    with open(html._path) as f:
+        assert f.read() == "Hello, world!"
 
 
-def test_wandb_html_with_non_html_file():
-    with tempfile.NamedTemporaryFile("w") as file:
-        file.write("Hello, world!")
-        file.flush()
+def test_wandb_html_with_html_file_skip_file_check(tmp_path):
+    html_file = tmp_path / "index.html"
+    html_file.write_text("Hello, world!")
 
-        html = wandb.Html(file.name, inject=False)
+    html = wandb.Html(str(html_file), inject=False, data_is_not_path=True)
 
-        assert html._is_tmp is True
-        with open(html._path) as f:
-            assert f.read() == file.name
+    assert html._is_tmp is True
+    assert html._path is not None
+    with open(html._path) as f:
+        assert f.read() == str(html_file)
+
+
+def test_wandb_html_with_non_html_file(tmp_path):
+    file = tmp_path / "index.txt"
+    file.write_text("Hello, world!")
+
+    html = wandb.Html(str(file), inject=False)
+
+    assert html._is_tmp is True
+    with open(html._path) as f:
+        assert f.read() == str(file)
 
 
 ################################################################################
