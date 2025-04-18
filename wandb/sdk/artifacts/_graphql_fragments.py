@@ -1,3 +1,8 @@
+from textwrap import dedent
+
+from wandb_graphql.language.printer import print_ast
+
+from wandb.apis.public.utils import gql_compat
 from wandb.sdk.internal.internal_api import Api as InternalApi
 
 ARTIFACTS_TYPES_FRAGMENT = """
@@ -49,16 +54,45 @@ def _gql_artifact_fragment(include_aliases: bool = True) -> str:
     supports_tags = "tags" in allowed_fields
     supports_history_step = "historyStep" in allowed_fields
 
-    ttl_duration_seconds = "ttlDurationSeconds" if supports_ttl else ""
-    ttl_is_inherited = "ttlIsInherited" if supports_ttl else ""
+    omit_fields = [
+        "ttlDurationSeconds",
+        "ttlIsInherited",
+        "aliases",
+        "tags",
+        "historyStep",
+    ]
+    if supports_ttl:
+        omit_fields.remove("ttlDurationSeconds")
+        omit_fields.remove("ttlIsInherited")
 
-    history_step = "historyStep" if supports_history_step else ""
-    tags = "tags {name}" if supports_tags else ""
+    if supports_tags:
+        omit_fields.remove("tags")
+    if supports_history_step:
+        omit_fields.remove("historyStep")
 
-    # The goal is to move all artifact aliases fetches to the membership level in the future
-    # but this is a quick fix to unblock the registry work
-    aliases = (
-        """aliases {
+    if include_aliases:
+        omit_fields.remove("aliases")
+
+    artifact_fragment_str = dedent(
+        """\
+        fragment ArtifactFragment on Artifact {
+            id
+            artifactSequence {
+                project {
+                    entityName
+                    name
+                }
+                name
+            }
+            versionIndex
+            artifactType {
+                name
+            }
+            description
+            metadata
+            ttlDurationSeconds
+            ttlIsInherited
+            aliases {
                 artifactCollection {
                     project {
                         entityName
@@ -67,44 +101,25 @@ def _gql_artifact_fragment(include_aliases: bool = True) -> str:
                     name
                 }
                 alias
-            }"""
-        if include_aliases
-        else ""
-    )
-
-    return f"""
-        fragment ArtifactFragment on Artifact {{
-            id
-            artifactSequence {{
-                project {{
-                    entityName
-                    name
-                }}
+            }
+            tags {
                 name
-            }}
-            versionIndex
-            artifactType {{
-                name
-            }}
-            description
-            metadata
-            {ttl_duration_seconds}
-            {ttl_is_inherited}
-            {aliases}
-            {tags}
-            {history_step}
+            }
+            historyStep
             state
-            currentManifest {{
-                file {{
+            currentManifest {
+                file {
                     directUrl
-                }}
-            }}
+                }
+            }
             commitHash
             fileCount
             createdAt
             updatedAt
-        }}
-    """
+        }"""
+    )
+    compat_doc = gql_compat(artifact_fragment_str, omit_fields=omit_fields)
+    return print_ast(compat_doc)
 
 
 def _gql_registry_fragment() -> str:
