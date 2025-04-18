@@ -50,28 +50,14 @@ def _gql_artifact_fragment(include_aliases: bool = True) -> str:
     """Return a GraphQL query fragment with all parseable Artifact attributes."""
     allowed_fields = set(InternalApi().server_artifact_introspection())
 
-    supports_ttl = "ttlIsInherited" in allowed_fields
-    supports_tags = "tags" in allowed_fields
-    supports_history_step = "historyStep" in allowed_fields
-
-    omit_fields = [
+    omit_fields = {
         "ttlDurationSeconds",
         "ttlIsInherited",
         "aliases",
         "tags",
         "historyStep",
-    ]
-    if supports_ttl:
-        omit_fields.remove("ttlDurationSeconds")
-        omit_fields.remove("ttlIsInherited")
-
-    if supports_tags:
-        omit_fields.remove("tags")
-    if supports_history_step:
-        omit_fields.remove("historyStep")
-
-    if include_aliases:
-        omit_fields.remove("aliases")
+    }
+    omit_fields = omit_fields - set(allowed_fields)
 
     artifact_fragment_str = dedent(
         """\
