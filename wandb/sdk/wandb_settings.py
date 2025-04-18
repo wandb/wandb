@@ -246,7 +246,7 @@ class Settings(BaseModel, validate_assignment=True):
 
       "wrap_emu" - Same as "wrap" but captures output through an emulator.
       Derived from the `wrap` setting and should not be set manually.
-      """
+    """
 
     console_multipart: bool = False
     """Whether to produce multipart console log files."""
@@ -687,6 +687,12 @@ class Settings(BaseModel, validate_assignment=True):
     """Flag to delegate automatic computation of summary from history to the server.
 
     This does not disable user-provided summary updates.
+    """
+
+    x_server_side_expand_glob_metrics: bool = False
+    """Flag to delegate glob matching of metrics in define_metric to the server.
+
+    If the server does not support this, the client will perform the glob matching.
     """
 
     x_service_transport: Optional[str] = None
