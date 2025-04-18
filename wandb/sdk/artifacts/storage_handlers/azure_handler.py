@@ -171,6 +171,7 @@ class AzureHandler(StorageHandler):
     def _get_credential(
         self, account_url: str
     ) -> azure.identity.DefaultAzureCredential | str:
+        # NOTE: Always returns default credential for reinit="create_new" runs.
         if (
             wandb.run
             and wandb.run.settings.azure_account_url_to_access_key is not None

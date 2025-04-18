@@ -32,6 +32,7 @@ from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_deprecated import Deprecated
+from wandb.sdk import wandb_setup
 from wandb.sdk.artifacts._graphql_fragments import _gql_artifact_fragment
 from wandb.sdk.artifacts._validators import (
     ensure_logged,
@@ -932,7 +933,12 @@ class Artifact:
             with telemetry.context() as tel:
                 tel.feature.artifact_incremental = True
 
-        if wandb.run is None:
+        singleton = wandb_setup._setup(start_service=False)
+
+        if run := singleton.most_recent_active_run:
+            # TODO: Deprecate and encourage explicit log_artifact().
+            run.log_artifact(self)
+        else:
             if settings is None:
                 settings = wandb.Settings(silent="true")
             with wandb.init(  # type: ignore
@@ -947,8 +953,6 @@ class Artifact:
                     with telemetry.context(run=run) as tel:
                         tel.feature.artifact_incremental = True
                 run.log_artifact(self)
-        else:
-            wandb.run.log_artifact(self)
 
     def _set_save_handle(
         self,
@@ -1802,6 +1806,7 @@ class Artifact:
 
         from wandb.sdk.backend.backend import Backend
 
+        # TODO: Create a special stream instead of relying on an existing run.
         if wandb.run is None:
             wl = wandb.setup()
 
@@ -2223,16 +2228,20 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        if wandb.run is None:
-            with wandb.init(  # type: ignore
+        singleton = wandb_setup._setup(start_service=False)
+
+        if run := singleton.most_recent_active_run:
+            # TODO: Deprecate and encourage explicit link_artifact().
+            run.link_artifact(self, target_path, aliases)
+
+        else:
+            with wandb.init(
                 entity=self._source_entity,
                 project=self._source_project,
                 job_type="auto",
                 settings=wandb.Settings(silent="true"),
             ) as run:
                 run.link_artifact(self, target_path, aliases)
-        else:
-            wandb.run.link_artifact(self, target_path, aliases)
 
     @ensure_logged
     def unlink(self) -> None:

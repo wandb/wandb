@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union, ca
 
 import wandb
 from wandb import util
-from wandb._globals import _datatypes_callback
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.paths import LogicalPath
 
@@ -192,7 +191,7 @@ class Media(WBValue):
             shutil.move(self._path, new_path)
             self._path = new_path
             self._is_tmp = False
-            _datatypes_callback(media_path)
+            run._publish_file(media_path)
         else:
             try:
                 shutil.copy(self._path, new_path)
@@ -200,7 +199,7 @@ class Media(WBValue):
                 if not ignore_copy_err:
                     raise e
             self._path = new_path
-            _datatypes_callback(media_path)
+            run._publish_file(media_path)
 
     def to_json(self, run: Union["LocalRun", "Artifact"]) -> dict:
         """Serialize the object into a JSON blob.

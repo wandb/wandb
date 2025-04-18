@@ -1235,7 +1235,7 @@ class FilesItem(google.protobuf.message.Message):
     POLICY_FIELD_NUMBER: builtins.int
     TYPE_FIELD_NUMBER: builtins.int
     path: builtins.str
-    """A path or Unix glob relative to the W&B files directory."""
+    """A path or Unix glob relative to the run's files directory."""
     policy: global___FilesItem.PolicyType.ValueType
     """When to upload the file."""
     type: global___FilesItem.FileType.ValueType

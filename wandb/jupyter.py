@@ -19,7 +19,7 @@ from requests.compat import urljoin
 
 import wandb
 import wandb.util
-from wandb.sdk import wandb_run
+from wandb.sdk import wandb_run, wandb_setup
 from wandb.sdk.lib import filesystem
 
 logger = logging.getLogger(__name__)
@@ -148,8 +148,8 @@ class WandBMagics(Magics):
         if path:
             _display_by_wandb_path(path, height=height)
             displayed = True
-        elif wandb.run:
-            _display_wandb_run(wandb.run, height=height)
+        elif run := wandb_setup._setup(start_service=False).most_recent_active_run:
+            _display_wandb_run(run, height=height)
             displayed = True
         else:
             displayed = False

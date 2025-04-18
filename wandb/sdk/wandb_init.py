@@ -859,23 +859,36 @@ class _WandbInit:
             f"\nconfig: {config.base_no_artifacts}"
         )
 
-        if wandb.run is not None and os.getpid() == wandb.run._init_pid:
+        if previous_run := self._wl.most_recent_active_run:
             if (
                 settings.reinit in (True, "finish_previous")
                 # calling wandb.init() in notebooks finishes previous runs
                 # by default for user convenience.
                 or (settings.reinit == "default" and wb_ipython.in_notebook())
             ):
-                self._logger.info("finishing previous run: %s", wandb.run.id)
-                wandb.run.finish()
-            else:
-                self._logger.info("wandb.init() called while a run is active")
+                run_printer.display(
+                    "Finishing previous runs because reinit is set"
+                    f" to {settings.reinit!r}."
+                )
+                self._wl.finish_all_active_runs()
 
-                # NOTE: Updates telemetry on the pre-existing run.
-                with telemetry.context() as tel:
+            elif settings.reinit == "create_new":
+                self._logger.info(
+                    "wandb.init() called while a run is active,"
+                    " and reinit is set to 'create_new', so continuing"
+                )
+
+            else:
+                run_printer.display(
+                    "wandb.init() called while a run is active and reinit is"
+                    f" set to {settings.reinit!r}, so returning the previous"
+                    " run."
+                )
+
+                with telemetry.context(run=previous_run) as tel:
                     tel.feature.init_return_run = True
 
-                return wandb.run
+                return previous_run
 
         self._logger.info("starting backend")
 
@@ -1126,6 +1139,10 @@ class _WandbInit:
             run.use_artifact(job_artifact)
 
         self.backend = backend
+
+        if settings.reinit != "create_new":
+            _set_global_run(run)
+
         run._on_start()
         self._logger.info("run started, returning control to user process")
         return run
@@ -1202,8 +1219,34 @@ def _attach(
         raise UsageError(f"Failed to attach to run: {attach_response.error.message}")
 
     run._set_run_obj(attach_response.run)
+    _set_global_run(run)
     run._on_attach()
     return run
+
+
+def _set_global_run(run: Run) -> None:
+    """Set `wandb.run` and point some top-level functions to its methods.
+
+    Args:
+        run: The run to make global.
+    """
+    module.set_global(
+        run=run,
+        config=run.config,
+        log=run.log,
+        summary=run.summary,
+        save=run.save,
+        use_artifact=run.use_artifact,
+        log_artifact=run.log_artifact,
+        define_metric=run.define_metric,
+        alert=run.alert,
+        watch=run.watch,
+        unwatch=run.unwatch,
+        mark_preempting=run.mark_preempting,
+        log_model=run.log_model,
+        use_model=run.use_model,
+        link_model=run.link_model,
+    )
 
 
 def _monkeypatch_openai_gym() -> None:
@@ -1273,6 +1316,7 @@ def init(  # noqa: C901
             "default",
             "return_previous",
             "finish_previous",
+            "create_new",
         ]
     ) = None,
     resume: bool | Literal["allow", "never", "must", "auto"] | None = None,
