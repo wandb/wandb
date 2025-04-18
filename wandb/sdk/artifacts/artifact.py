@@ -896,7 +896,7 @@ class Artifact:
         Examples:
             ```python
             run = artifact.logged_by()
-            if run and artifact.history_step:
+            if run and (artifact.history_step is not None):
                 history = run.sample_history(
                     min_step=artifact.history_step,
                     max_step=artifact.history_step + 1,
@@ -904,7 +904,7 @@ class Artifact:
                 )
             ```
         """
-        if not self._history_step:
+        if self._history_step is None:
             return None
         return max(0, self._history_step - 1)
 
