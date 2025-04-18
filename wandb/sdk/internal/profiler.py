@@ -18,12 +18,13 @@ def torch_trace_handler():
      torch.profiler.profile(..., on_trace_ready=wandb.profiler.torch_trace_handler())
      ```
 
-    Calling this function ensures that profiler charts & tables can be viewed in your run dashboard
-    on wandb.ai.
+    Calling this function ensures that profiler charts & tables can be viewed in
+    your run dashboard on wandb.ai.
 
-    Please note that `wandb.init()` must be called before this function is invoked.
-    The PyTorch (torch) version must also be at least 1.9, in order to ensure stability
-    of their Profiler API.
+    Please note that `wandb.init()` must be called before this function is
+    invoked, and the reinit setting must not be set to "create_new". The PyTorch
+    (torch) version must also be at least 1.9, in order to ensure stability of
+    their Profiler API.
 
     Args:
         None

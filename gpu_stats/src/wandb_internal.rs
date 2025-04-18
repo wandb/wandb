@@ -1262,7 +1262,7 @@ pub struct FilesRecord {
 /// One or more files being saved with a run.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FilesItem {
-    /// A path or Unix glob relative to the W&B files directory.
+    /// A path or Unix glob relative to the run's files directory.
     #[prost(string, tag = "1")]
     pub path: ::prost::alloc::string::String,
     /// When to upload the file.

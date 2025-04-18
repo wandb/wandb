@@ -27,6 +27,7 @@ from . import wandb_settings
 from .lib import config_util, server
 
 if TYPE_CHECKING:
+    from wandb.sdk import wandb_run
     from wandb.sdk.lib.service_connection import ServiceConnection
     from wandb.sdk.wandb_settings import Settings
 
@@ -83,6 +84,8 @@ class _WandbSetup:
     ) -> None:
         self._connection: ServiceConnection | None = None
 
+        self._active_runs: list[wandb_run.Run] = []
+
         self._environ = environ or dict(os.environ)
         self._sweep_config: dict | None = None
         self._config: dict | None = None
@@ -99,6 +102,52 @@ class _WandbSetup:
 
         self._check()
         self._setup()
+
+    def add_active_run(self, run: wandb_run.Run) -> None:
+        """Append a run to the active runs list.
+
+        This must be called when a run is initialized.
+
+        Args:
+            run: A newly initialized run.
+        """
+        if run not in self._active_runs:
+            self._active_runs.append(run)
+
+    def remove_active_run(self, run: wandb_run.Run) -> None:
+        """Remove the run from the active runs list.
+
+        This must be called when a run is finished.
+
+        Args:
+            run: A run that is finished or crashed.
+        """
+        try:
+            self._active_runs.remove(run)
+        except ValueError:
+            pass  # Removing a run multiple times is not an error.
+
+    @property
+    def most_recent_active_run(self) -> wandb_run.Run | None:
+        """The most recently initialized run that is not yet finished."""
+        if not self._active_runs:
+            return None
+
+        return self._active_runs[-1]
+
+    def finish_all_active_runs(self) -> None:
+        """Finish all unfinished runs.
+
+        NOTE: This is slightly inefficient as it finishes runs one at a time.
+        This only exists to support using the `reinit="finish_previous"`
+        setting together with `reinit="create_new"` which does not seem to be a
+        useful pattern. Since `"create_new"` should eventually become the
+        default and only behavior, it does not seem worth optimizing.
+        """
+        # Take a snapshot as each call to `finish()` modifies `_active_runs`.
+        runs_copy = list(self._active_runs)
+        for run in runs_copy:
+            run.finish()
 
     def _settings_setup(
         self,
