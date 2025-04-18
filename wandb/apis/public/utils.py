@@ -1,8 +1,14 @@
 import re
 from enum import Enum
+from typing import Any, Iterable, Optional, Set
 from urllib.parse import urlparse
 
+from wandb_gql import gql
+from wandb_graphql.language import ast, visitor
+
+from wandb._iterutils import one
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
+from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
 def parse_s3_url_to_s3_uri(url) -> str:
@@ -66,3 +72,129 @@ def parse_org_from_registry_path(path: str, path_type: PathType) -> str:
         if is_artifact_registry_project(project):
             return org
     return ""
+
+
+def fetch_org_from_settings_or_entity(
+    settings: dict, default_entity: Optional[str] = None
+) -> str:
+    """Fetch the org from either the settings or deriving it from the entity.
+
+    Returns the org from the settings if available. If no org is passed in or set, the entity is used to fetch the org.
+
+    Args:
+        organization (str | None): The organization to fetch the org for.
+        settings (dict): The settings to fetch the org for.
+        default_entity (str | None): The default entity to fetch the org for.
+    """
+    if (organization := settings.get("organization")) is None:
+        # Fetch the org via the Entity. Won't work if default entity is a personal entity and belongs to multiple orgs
+        entity = settings.get("entity") or default_entity
+        if entity is None:
+            raise ValueError(
+                "No entity specified and can't fetch organization from the entity"
+            )
+        entity_orgs = InternalApi()._fetch_orgs_and_org_entities_from_entity(entity)
+        entity_org = one(
+            entity_orgs,
+            too_short=ValueError(
+                "No organizations found for entity. Please specify an organization in the settings."
+            ),
+            too_long=ValueError(
+                "Multiple organizations found for entity. Please specify an organization in the settings."
+            ),
+        )
+        organization = entity_org.display_name
+    return organization
+
+
+class _GQLCompatRewriter(visitor.Visitor):
+    """GraphQL AST visitor to rewrite queries/mutations to be compatible with older server versions."""
+
+    omit_variables: Set[str]
+    omit_fragments: Set[str]
+    omit_fields: Set[str]
+
+    def __init__(
+        self,
+        omit_variables: Optional[Iterable[str]] = None,
+        omit_fragments: Optional[Iterable[str]] = None,
+        omit_fields: Optional[Iterable[str]] = None,
+    ):
+        self.omit_variables = set(omit_variables or ())
+        self.omit_fragments = set(omit_fragments or ())
+        self.omit_fields = set(omit_fields or ())
+
+    def enter_VariableDefinition(self, node: ast.VariableDefinition, *_, **__) -> Any:  # noqa: N802
+        if node.variable.name.value in self.omit_variables:
+            return visitor.REMOVE
+        return node
+
+    def enter_ObjectField(self, node: ast.ObjectField, *_, **__) -> Any:  # noqa: N802
+        # For context, note that e.g.:
+        #
+        #   {description: $description
+        #   ...}
+        #
+        # Is parsed as:
+        #
+        #   ObjectValue(fields=[
+        #     ObjectField(name=Name(value='description'), value=Variable(name=Name(value='description'))),
+        #   ...])
+        if (
+            isinstance(var := node.value, ast.Variable)
+            and var.name.value in self.omit_variables
+        ):
+            return visitor.REMOVE
+
+    def enter_Argument(self, node: ast.Argument, *_, **__) -> Any:  # noqa: N802
+        if node.name.value in self.omit_variables:
+            return visitor.REMOVE
+
+    def enter_FragmentDefinition(self, node: ast.FragmentDefinition, *_, **__) -> Any:  # noqa: N802
+        if node.name.value in self.omit_fragments:
+            return visitor.REMOVE
+
+    def enter_FragmentSpread(self, node: ast.FragmentSpread, *_, **__) -> Any:  # noqa: N802
+        if node.name.value in self.omit_fragments:
+            return visitor.REMOVE
+
+    def enter_Field(self, node: ast.Field, *_, **__) -> Any:  # noqa: N802
+        if node.name.value in self.omit_fields:
+            return visitor.REMOVE
+
+    def leave_Field(self, node: ast.Field, *_, **__) -> Any:  # noqa: N802
+        # If the field had a selection set, but now it's empty, remove the field entirely
+        if (node.selection_set is not None) and (not node.selection_set.selections):
+            return visitor.REMOVE
+
+
+def gql_compat(
+    request_string: str,
+    omit_variables: Optional[Iterable[str]] = None,
+    omit_fragments: Optional[Iterable[str]] = None,
+    omit_fields: Optional[Iterable[str]] = None,
+) -> ast.Document:
+    """Rewrite a GraphQL request string to ensure compatibility with older server versions.
+
+    Args:
+        request_string (str): The GraphQL request string to rewrite.
+        omit_variables (Iterable[str] | None): Names of variables to remove from the request string.
+        omit_fragments (Iterable[str] | None): Names of fragments to remove from the request string.
+        omit_fields (Iterable[str] | None): Names of fields to remove from the request string.
+
+    Returns:
+        str: Modified GraphQL request string with fragments on omitted types removed.
+    """
+    # Parse the request into a GraphQL AST
+    doc = gql(request_string)
+
+    if not (omit_variables or omit_fragments or omit_fields):
+        return doc
+
+    # Visit the AST with our visitor to filter out unwanted fragments
+    rewriter = _GQLCompatRewriter(
+        omit_variables=omit_variables,
+        omit_fragments=omit_fragments,
+        omit_fields=omit_fields,
+    )
+    return visitor.visit(doc, rewriter)

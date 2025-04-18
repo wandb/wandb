@@ -205,9 +205,6 @@ class HandleManager:
         # defer is used to drive the sender finish state machine
         self._dispatch_record(record, always_send=True)
 
-    def handle_request_login(self, record: Record) -> None:
-        self._dispatch_record(record)
-
     def handle_request_python_packages(self, record: Record) -> None:
         self._dispatch_record(record)
 
@@ -891,6 +888,10 @@ class HandleManager:
         result = proto_util._result_from_record(record)
         self._respond_result(result)
         self._stopped.set()
+
+    def handle_request_operations(self, record: Record) -> None:
+        """No-op. Not implemented for the legacy-service."""
+        self._respond_result(proto_util._result_from_record(record))
 
     def finish(self) -> None:
         logger.info("shutting down handler")

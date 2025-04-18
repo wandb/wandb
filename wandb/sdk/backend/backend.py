@@ -16,9 +16,10 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
 import wandb
 from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.interface.router_queue import MessageQueueRouter
 from wandb.sdk.internal.internal import wandb_internal
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.lib.mailbox import Mailbox
+from wandb.sdk.mailbox import Mailbox
 from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
@@ -49,17 +50,18 @@ class BackendThread(threading.Thread):
 class Backend:
     # multiprocessing context or module
     _multiprocessing: multiprocessing.context.BaseContext
+
     interface: Optional[InterfaceBase]
+    _router: Optional[MessageQueueRouter]
+
     _internal_pid: Optional[int]
     wandb_process: Optional[multiprocessing.process.BaseProcess]
     _settings: Settings
     record_q: Optional["RecordQueue"]
     result_q: Optional["ResultQueue"]
-    _mailbox: Mailbox
 
     def __init__(
         self,
-        mailbox: Mailbox,
         settings: Settings,
         log_level: Optional[int] = None,
         service: "Optional[service_connection.ServiceConnection]" = None,
@@ -68,12 +70,14 @@ class Backend:
         self.record_q = None
         self.result_q = None
         self.wandb_process = None
+
         self.interface = None
+        self._router = None
+
         self._internal_pid = None
         self._settings = settings
         self._log_level = log_level
         self._service = service
-        self._mailbox = mailbox
 
         self._multiprocessing = multiprocessing  # type: ignore
         self._multiprocessing_setup()
@@ -136,7 +140,6 @@ class Backend:
         if self._service:
             assert self._settings.run_id
             self.interface = self._service.make_interface(
-                self._mailbox,
                 stream_id=self._settings.run_id,
             )
             return
@@ -190,11 +193,17 @@ class Backend:
 
         self._module_main_uninstall()
 
+        mailbox = Mailbox()
         self.interface = InterfaceQueue(
             process=self.wandb_process,
             record_q=self.record_q,  # type: ignore
             result_q=self.result_q,  # type: ignore
-            mailbox=self._mailbox,
+            mailbox=mailbox,
+        )
+        self._router = MessageQueueRouter(
+            request_queue=self.record_q,  # type: ignore
+            response_queue=self.result_q,  # type: ignore
+            mailbox=mailbox,
         )
 
     def server_status(self) -> None:
@@ -207,6 +216,8 @@ class Backend:
         self._done = True
         if self.interface:
             self.interface.join()
+        if self._router:
+            self._router.join()
         if self.wandb_process:
             self.wandb_process.join()
 

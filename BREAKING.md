@@ -35,7 +35,7 @@ When preparing a release that can include breaking changes, consider applying ch
 - Remove the `x_disable_service` setting; replace by False
     - Owner: @timoffex
     - Deprecated in 0.18.0
-    - Can remove in >=0.20
+    - Can do in >=0.20
 
 - Make `--verify` the default for `wandb login`
     - PR: https://github.com/wandb/wandb/pull/9230
@@ -56,3 +56,8 @@ When preparing a release that can include breaking changes, consider applying ch
     - Owner: @timoffex
     - Deprecated in 0.12.15 (https://github.com/wandb/wandb/pull/3510)
     - Can do in >=0.20
+
+- Disallow boolean values from the `reinit` setting
+    - Owner: @timoffex
+    - Deprecated after 0.19.8 (https://github.com/wandb/wandb/pull/9557)
+    - Can do after September 2025

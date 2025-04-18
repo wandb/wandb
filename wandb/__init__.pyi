@@ -55,6 +55,7 @@ __all__ = (
     "unwatch",
     "plot",
     "plot_table",
+    "restore",
 )
 
 import os
@@ -68,6 +69,7 @@ from typing import (
     Literal,
     Optional,
     Sequence,
+    TextIO,
     Union,
 )
 
@@ -104,7 +106,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.19.7.dev1"
+__version__: str = "0.19.10.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -220,7 +222,16 @@ def init(
     mode: Literal["online", "offline", "disabled"] | None = None,
     force: bool | None = None,
     anonymous: Literal["never", "allow", "must"] | None = None,
-    reinit: bool | None = None,
+    reinit: (
+        bool
+        | Literal[
+            None,
+            "default",
+            "return_previous",
+            "finish_previous",
+            "create_new",
+        ]
+    ) = None,
     resume: bool | Literal["allow", "never", "must", "auto"] | None = None,
     resume_from: str | None = None,
     fork_from: str | None = None,
@@ -368,12 +379,8 @@ def init(
                 to view the charts and data in the UI.
             - `"must"`: Forces the run to be logged to an anonymous account, even
                 if the user is logged in.
-        reinit: Determines if multiple `wandb.init()` calls can start new runs
-            within the same process. By default (`False`), if an active run
-            exists, calling `wandb.init()` returns the existing run instead of
-            creating a new one. When `reinit=True`, the active run is finished
-            before a new run is initialized. In notebook environments, runs are
-            reinitialized by default unless `reinit` is explicitly set to `False`.
+        reinit: Shorthand for the "reinit" setting. Determines the behavior of
+            `wandb.init()` when a run is active.
         resume: Controls the behavior when resuming a run with the specified `id`.
             Available options are:
             - `"allow"`: If a run with the specified `id` exists, it will resume
@@ -470,6 +477,7 @@ def login(
     force: Optional[bool] = None,
     timeout: Optional[int] = None,
     verify: bool = False,
+    referrer: Optional[str] = None,
 ) -> bool:
     """Set up W&B login credentials.
 
@@ -489,6 +497,7 @@ def login(
         force: (bool, optional) If true, will force a relogin.
         timeout: (int, optional) Number of seconds to wait for user input.
         verify: (bool) Verify the credentials with the W&B server.
+        referrer: (string, optional) The referrer to use in the URL login request.
 
     Returns:
         bool: if key is configured
@@ -530,7 +539,7 @@ def log(
     [guides to logging](https://docs.wandb.ai/guides/track/log) for examples,
     from 3D molecular structures and segmentation masks to PR curves and histograms.
     You can use `wandb.Table` to log structured data. See our
-    [guide to logging tables](https://docs.wandb.ai/guides/tables/tables-walkthrough)
+    [guide to logging tables](https://docs.wandb.ai/guides/models/tables/tables-walkthrough)
     for details.
 
     The W&B UI organizes metrics with a forward slash (`/`) in their name
@@ -1214,5 +1223,33 @@ def unwatch(
     Args:
         models (torch.nn.Module | Sequence[torch.nn.Module]):
             Optional list of pytorch models that have had watch called on them
+    """
+    ...
+
+def restore(
+    name: str,
+    run_path: str | None = None,
+    replace: bool = False,
+    root: str | None = None,
+) -> None | TextIO:
+    """Download the specified file from cloud storage.
+
+    File is placed into the current directory or run directory.
+    By default, will only download the file if it doesn't already exist.
+
+    Args:
+        name: the name of the file
+        run_path: optional path to a run to pull files from, i.e. `username/project_name/run_id`
+            if wandb.init has not been called, this is required.
+        replace: whether to download the file even if it already exists locally
+        root: the directory to download the file to.  Defaults to the current
+            directory or the run directory if wandb.init was called.
+
+    Returns:
+        None if it can't find the file, otherwise a file object open for reading
+
+    Raises:
+        wandb.CommError: if we can't connect to the wandb backend
+        ValueError: if the file is not found or can't find run_path
     """
     ...

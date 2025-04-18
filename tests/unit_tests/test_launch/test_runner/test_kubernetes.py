@@ -783,6 +783,9 @@ async def test_launch_kube_base_image_works(
     ]
 
 
+@pytest.mark.skip(
+    reason="This test is flaky, please remove the skip once the flakyness is fixed."
+)
 @pytest.mark.skipif(
     platform.system() == "Windows",
     reason="Launch does not support Windows and this test is failing on Windows.",

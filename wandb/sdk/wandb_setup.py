@@ -21,14 +21,14 @@ from typing import TYPE_CHECKING, Any, Union
 
 import wandb
 import wandb.integration.sagemaker as sagemaker
-from wandb.sdk.lib import import_hooks
+from wandb.sdk.lib import import_hooks, wb_logging
 
 from . import wandb_settings
 from .lib import config_util, server
 
 if TYPE_CHECKING:
+    from wandb.sdk import wandb_run
     from wandb.sdk.lib.service_connection import ServiceConnection
-    from wandb.sdk.wandb_run import Run
     from wandb.sdk.wandb_settings import Settings
 
 
@@ -84,14 +84,13 @@ class _WandbSetup:
     ) -> None:
         self._connection: ServiceConnection | None = None
 
+        self._active_runs: list[wandb_run.Run] = []
+
         self._environ = environ or dict(os.environ)
         self._sweep_config: dict | None = None
         self._config: dict | None = None
         self._server: server.Server | None = None
         self._pid = pid
-
-        # keep track of multiple runs, so we can unwind with join()s
-        self._global_run_stack: list[Run] = []
 
         # TODO(jhr): defer strict checks until settings are fully initialized
         #            and logging is ready
@@ -103,6 +102,52 @@ class _WandbSetup:
 
         self._check()
         self._setup()
+
+    def add_active_run(self, run: wandb_run.Run) -> None:
+        """Append a run to the active runs list.
+
+        This must be called when a run is initialized.
+
+        Args:
+            run: A newly initialized run.
+        """
+        if run not in self._active_runs:
+            self._active_runs.append(run)
+
+    def remove_active_run(self, run: wandb_run.Run) -> None:
+        """Remove the run from the active runs list.
+
+        This must be called when a run is finished.
+
+        Args:
+            run: A run that is finished or crashed.
+        """
+        try:
+            self._active_runs.remove(run)
+        except ValueError:
+            pass  # Removing a run multiple times is not an error.
+
+    @property
+    def most_recent_active_run(self) -> wandb_run.Run | None:
+        """The most recently initialized run that is not yet finished."""
+        if not self._active_runs:
+            return None
+
+        return self._active_runs[-1]
+
+    def finish_all_active_runs(self) -> None:
+        """Finish all unfinished runs.
+
+        NOTE: This is slightly inefficient as it finishes runs one at a time.
+        This only exists to support using the `reinit="finish_previous"`
+        setting together with `reinit="create_new"` which does not seem to be a
+        useful pattern. Since `"create_new"` should eventually become the
+        default and only behavior, it does not seem worth optimizing.
+        """
+        # Take a snapshot as each call to `finish()` modifies `_active_runs`.
+        runs_copy = list(self._active_runs)
+        for run in runs_copy:
+            run.finish()
 
     def _settings_setup(
         self,
@@ -298,18 +343,34 @@ def singleton() -> _WandbSetup | None:
         return None
 
 
-def _setup(settings: Settings | None = None) -> _WandbSetup:
-    """Set up library context."""
+@wb_logging.log_to_all_runs()
+def _setup(
+    settings: Settings | None = None,
+    start_service: bool = True,
+) -> _WandbSetup:
+    """Set up library context.
+
+    Args:
+        settings: Global settings to set, or updates to the global settings
+            if the singleton has already been initialized.
+        start_service: Whether to start up the service process.
+            NOTE: A service process will only be started if allowed by the
+            global settings (after the given updates). The service will not
+            start up if the mode resolves to "disabled".
+    """
     global _singleton
 
     pid = os.getpid()
 
     if _singleton and _singleton._pid == pid:
         _singleton._update(settings=settings)
-        return _singleton
     else:
         _singleton = _WandbSetup(settings=settings, pid=pid)
-        return _singleton
+
+    if start_service and not _singleton.settings._noop:
+        _singleton.ensure_service()
+
+    return _singleton
 
 
 def setup(settings: Settings | None = None) -> _WandbSetup:
@@ -371,6 +432,7 @@ def setup(settings: Settings | None = None) -> _WandbSetup:
     return _setup(settings=settings)
 
 
+@wb_logging.log_to_all_runs()
 def teardown(exit_code: int | None = None) -> None:
     """Waits for wandb to finish and frees resources.
 

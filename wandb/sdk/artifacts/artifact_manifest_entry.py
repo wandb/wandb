@@ -9,8 +9,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
+from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk.lib import filesystem
-from wandb.sdk.lib.deprecate import Deprecated, deprecate
+from wandb.sdk.lib.deprecate import deprecate
 from wandb.sdk.lib.hashutil import (
     B64MD5,
     ETag,

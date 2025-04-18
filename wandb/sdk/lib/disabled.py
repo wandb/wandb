@@ -1,5 +1,6 @@
 from typing import Any
 
+from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk.lib import deprecate
 
 
@@ -23,7 +24,7 @@ class RunDisabled:
 
     def __getattr__(self, name: str) -> Any:
         deprecate.deprecate(
-            field_name=deprecate.Deprecated.run_disabled,
+            field_name=Deprecated.run_disabled,
             warning_message="RunDisabled is deprecated and is a no-op. "
             '`wandb.init(mode="disabled")` now returns and instance of `wandb.sdk.wandb_run.Run`.',
         )

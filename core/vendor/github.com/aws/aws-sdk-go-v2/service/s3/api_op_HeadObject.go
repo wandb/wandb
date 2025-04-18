@@ -117,10 +117,11 @@ import (
 //
 // For directory buckets, you must make requests for this API operation to the
 // Zonal endpoint. These endpoints support virtual-hosted-style requests in the
-// format https://bucket-name.s3express-zone-id.region-code.amazonaws.com/key-name
-// . Path-style requests are not supported. For more information about endpoints in
-// Availability Zones, see [Regional and Zonal endpoints for directory buckets in Availability Zones]in the Amazon S3 User Guide. For more information about
-// endpoints in Local Zones, see [Available Local Zone for directory buckets]in the Amazon S3 User Guide.
+// format
+// https://amzn-s3-demo-bucket.s3express-zone-id.region-code.amazonaws.com/key-name
+// . Path-style requests are not supported. For more information about endpoints
+// in Availability Zones, see [Regional and Zonal endpoints for directory buckets in Availability Zones]in the Amazon S3 User Guide. For more information
+// about endpoints in Local Zones, see [Concepts for directory buckets in Local Zones]in the Amazon S3 User Guide.
 //
 // The following actions are related to HeadObject :
 //
@@ -128,14 +129,14 @@ import (
 //
 // [GetObjectAttributes]
 //
+// [Concepts for directory buckets in Local Zones]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-lzs-for-directory-buckets.html
 // [Server-Side Encryption (Using Customer-Provided Encryption Keys)]: https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html
 // [GetObjectAttributes]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectAttributes.html
 // [Protecting data with server-side encryption]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-express-serv-side-encryption.html
 // [Actions, resources, and condition keys for Amazon S3]: https://docs.aws.amazon.com/AmazonS3/latest/dev/list_amazons3.html
 // [GetObject]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html
 // [Common Request Headers]: https://docs.aws.amazon.com/AmazonS3/latest/API/RESTCommonRequestHeaders.html
-// [Regional and Zonal endpoints for directory buckets in Availability Zones]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-express-Regions-and-Zones.html
-// [Available Local Zone for directory buckets]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-lzs-for-directory-buckets.html
+// [Regional and Zonal endpoints for directory buckets in Availability Zones]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/endpoint-directory-buckets-AZ.html
 //
 // [CreateSession]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateSession.html
 func (c *Client) HeadObject(ctx context.Context, params *HeadObjectInput, optFns ...func(*Options)) (*HeadObjectOutput, error) {
@@ -163,28 +164,28 @@ type HeadObjectInput struct {
 	// are not supported. Directory bucket names must be unique in the chosen Zone
 	// (Availability Zone or Local Zone). Bucket names must follow the format
 	// bucket-base-name--zone-id--x-s3 (for example,
-	// DOC-EXAMPLE-BUCKET--usw2-az1--x-s3 ). For information about bucket naming
+	// amzn-s3-demo-bucket--usw2-az1--x-s3 ). For information about bucket naming
 	// restrictions, see [Directory bucket naming rules]in the Amazon S3 User Guide.
 	//
-	// Access points - When you use this action with an access point, you must provide
-	// the alias of the access point in place of the bucket name or specify the access
-	// point ARN. When using the access point ARN, you must direct requests to the
-	// access point hostname. The access point hostname takes the form
+	// Access points - When you use this action with an access point for general
+	// purpose buckets, you must provide the alias of the access point in place of the
+	// bucket name or specify the access point ARN. When you use this action with an
+	// access point for directory buckets, you must provide the access point name in
+	// place of the bucket name. When using the access point ARN, you must direct
+	// requests to the access point hostname. The access point hostname takes the form
 	// AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com. When using this
 	// action with an access point through the Amazon Web Services SDKs, you provide
 	// the access point ARN in place of the bucket name. For more information about
 	// access point ARNs, see [Using access points]in the Amazon S3 User Guide.
 	//
-	// Access points and Object Lambda access points are not supported by directory
-	// buckets.
+	// Object Lambda access points are not supported by directory buckets.
 	//
-	// S3 on Outposts - When you use this action with Amazon S3 on Outposts, you must
-	// direct requests to the S3 on Outposts hostname. The S3 on Outposts hostname
-	// takes the form
-	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com . When you
-	// use this action with S3 on Outposts through the Amazon Web Services SDKs, you
-	// provide the Outposts access point ARN in place of the bucket name. For more
-	// information about S3 on Outposts ARNs, see [What is S3 on Outposts?]in the Amazon S3 User Guide.
+	// S3 on Outposts - When you use this action with S3 on Outposts, you must direct
+	// requests to the S3 on Outposts hostname. The S3 on Outposts hostname takes the
+	// form AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com . When
+	// you use this action with S3 on Outposts, the destination bucket must be the
+	// Outposts access point ARN or the access point alias. For more information about
+	// S3 on Outposts, see [What is S3 on Outposts?]in the Amazon S3 User Guide.
 	//
 	// [Directory bucket naming rules]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-bucket-naming-rules.html
 	// [What is S3 on Outposts?]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/S3onOutposts.html
@@ -381,7 +382,7 @@ type HeadObjectOutput struct {
 	// Specifies caching behavior along the request/reply chain.
 	CacheControl *string
 
-	// The Base64 encoded, 32-bit CRC-32 checksum of the object. This checksum is only
+	// The Base64 encoded, 32-bit CRC32 checksum of the object. This checksum is only
 	// be present if the checksum was uploaded with the object. When you use an API
 	// operation on an object that was uploaded using multipart uploads, this value may
 	// not be a direct checksum value of the full object. Instead, it's a calculation
@@ -392,8 +393,8 @@ type HeadObjectOutput struct {
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html#large-object-checksums
 	ChecksumCRC32 *string
 
-	// The Base64 encoded, 32-bit CRC-32C checksum of the object. This checksum is
-	// only present if the checksum was uploaded with the object. When you use an API
+	// The Base64 encoded, 32-bit CRC32C checksum of the object. This checksum is only
+	// present if the checksum was uploaded with the object. When you use an API
 	// operation on an object that was uploaded using multipart uploads, this value may
 	// not be a direct checksum value of the full object. Instead, it's a calculation
 	// based on the checksum values of each individual part. For more information about
@@ -403,13 +404,13 @@ type HeadObjectOutput struct {
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html#large-object-checksums
 	ChecksumCRC32C *string
 
-	// The Base64 encoded, 64-bit CRC-64NVME checksum of the object. For more
+	// The Base64 encoded, 64-bit CRC64NVME checksum of the object. For more
 	// information, see [Checking object integrity in the Amazon S3 User Guide].
 	//
 	// [Checking object integrity in the Amazon S3 User Guide]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumCRC64NVME *string
 
-	// The Base64 encoded, 160-bit SHA-1 digest of the object. This will only be
+	// The Base64 encoded, 160-bit SHA1 digest of the object. This will only be
 	// present if the object was uploaded with the object. When you use the API
 	// operation on an object that was uploaded using multipart uploads, this value may
 	// not be a direct checksum value of the full object. Instead, it's a calculation
@@ -420,7 +421,7 @@ type HeadObjectOutput struct {
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html#large-object-checksums
 	ChecksumSHA1 *string
 
-	// The Base64 encoded, 256-bit SHA-256 digest of the object. This will only be
+	// The Base64 encoded, 256-bit SHA256 digest of the object. This will only be
 	// present if the object was uploaded with the object. When you use an API
 	// operation on an object that was uploaded using multipart uploads, this value may
 	// not be a direct checksum value of the full object. Instead, it's a calculation
@@ -453,6 +454,9 @@ type HeadObjectOutput struct {
 
 	// Size of the body in bytes.
 	ContentLength *int64
+
+	// The portion of the object returned in the response for a GET request.
+	ContentRange *string
 
 	// A standard MIME type describing the format of the object data.
 	ContentType *string
@@ -596,8 +600,10 @@ type HeadObjectOutput struct {
 	//
 	// For more information about archiving objects, see [Transitioning Objects: General Considerations].
 	//
-	// This functionality is not supported for directory buckets. Only the S3 Express
-	// One Zone storage class is supported by directory buckets to store objects.
+	// This functionality is not supported for directory buckets. Directory buckets
+	// only support EXPRESS_ONEZONE (the S3 Express One Zone storage class) in
+	// Availability Zones and ONEZONE_IA (the S3 One Zone-Infrequent Access storage
+	// class) in Dedicated Local Zones.
 	//
 	// [Transitioning Objects: General Considerations]: https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lifecycle-mgmt.html#lifecycle-transition-general-considerations
 	// [RestoreObject]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_RestoreObject.html
@@ -629,8 +635,9 @@ type HeadObjectOutput struct {
 	//
 	// For more information, see [Storage Classes].
 	//
-	// Directory buckets - Only the S3 Express One Zone storage class is supported by
-	// directory buckets to store objects.
+	// Directory buckets - Directory buckets only support EXPRESS_ONEZONE (the S3
+	// Express One Zone storage class) in Availability Zones and ONEZONE_IA (the S3
+	// One Zone-Infrequent Access storage class) in Dedicated Local Zones.
 	//
 	// [Storage Classes]: https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html
 	StorageClass types.StorageClass
@@ -721,6 +728,9 @@ func (c *Client) addOperationHeadObjectMiddlewares(stack *middleware.Stack, opti
 		return err
 	}
 	if err = addIsExpressUserAgent(stack); err != nil {
+		return err
+	}
+	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpHeadObjectValidationMiddleware(stack); err != nil {

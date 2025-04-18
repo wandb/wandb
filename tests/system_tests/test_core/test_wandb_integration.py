@@ -26,7 +26,7 @@ reload_fn = importlib.reload
 
 
 def test_resume_auto_success(user):
-    run = wandb.init(reinit=True, resume=True)
+    run = wandb.init(resume=True)
     run.finish()
     assert not os.path.exists(run.settings.resume_fname)
 
@@ -37,30 +37,30 @@ def test_include_exclude_config_keys(user):
         "bar": 2,
         "baz": 3,
     }
-    run = wandb.init(
-        reinit=True, resume=True, config=config, config_exclude_keys=("bar",)
-    )
 
-    assert run.config["foo"] == 1
-    assert run.config["baz"] == 3
-    assert "bar" not in run.config
-    run.finish()
+    with wandb.init(
+        resume=True,
+        config=config,
+        config_exclude_keys=("bar",),
+    ) as run:
+        assert run.config["foo"] == 1
+        assert run.config["baz"] == 3
+        assert "bar" not in run.config
 
-    run = wandb.init(
-        reinit=True, resume=True, config=config, config_include_keys=("bar",)
-    )
-
-    assert run.config["bar"] == 2
-    assert "foo" not in run.config
-    assert "baz" not in run.config
-    run.finish()
+    with wandb.init(
+        resume=True,
+        config=config,
+        config_include_keys=("bar",),
+    ) as run:
+        assert run.config["bar"] == 2
+        assert "foo" not in run.config
+        assert "baz" not in run.config
 
     with pytest.raises(
         wandb.errors.UsageError,
         match="Expected at most only one of exclude or include",
     ):
         wandb.init(
-            reinit=True,
             resume=True,
             config=config,
             config_include_keys=("bar",),

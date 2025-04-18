@@ -86,6 +86,15 @@ message ServerInformTeardownResponse {}
  */
 
 message ServerRequest {
+  // An ID for the request, if a response is expected.
+  //
+  // If record_publish or record_communicate is used, this must be equal to
+  // `control.mailbox_slot`.
+  //
+  // IDs for requests on a single connection must be unique, but requests
+  // from different connections could have conflicting IDs.
+  string request_id = 10;
+
   oneof server_request_type {
     Record record_publish = 1;
     Record record_communicate = 2;
@@ -100,6 +109,12 @@ message ServerRequest {
 }
 
 message ServerResponse {
+  // The ID of the request this is a response to.
+  //
+  // If result_communicate is used, this must be equal to
+  // `control.mailbox_slot`.
+  string request_id = 10;
+
   oneof server_response_type {
     Result result_communicate = 2;
     ServerInformInitResponse inform_init_response = 3;

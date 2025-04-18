@@ -16,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/debounce"
+	"github.com/wandb/wandb/core/internal/featurechecker"
 	fs "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/fileutil"
@@ -55,6 +56,7 @@ type SenderParams struct {
 	Operations          *wboperation.WandbOperations
 	Settings            *settings.Settings
 	Backend             *api.Backend
+	FeatureProvider     *featurechecker.ServerFeaturesCache
 	FileStream          fs.FileStream
 	FileTransferManager filetransfer.FileTransferManager
 	FileTransferStats   filetransfer.FileTransferStats
@@ -69,7 +71,13 @@ type SenderParams struct {
 	RunWork             runwork.RunWork
 }
 
+// senderSentinel is used when flushing buffered work while finalizing a run.
 type senderSentinel int64
+
+// String returns a string representation of senderSentinel for debugging.
+func (s senderSentinel) String() string {
+	return fmt.Sprintf("senderSentinel(%d)", s)
+}
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
 // or/and to the dispatcher/handler
@@ -235,13 +243,32 @@ func NewSender(
 		FileStreamOrNil:       params.FileStream,
 		Label:                 params.Settings.GetLabel(),
 		RunfilesUploaderOrNil: params.RunfilesUploader,
+		Structured: params.FeatureProvider.GetFeature(
+			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
+		).Enabled,
+	}
+
+	// If the server doesn't support expanding defined metric globs, and the user
+	// has requested it, we default to the client-side expansion of defined metric
+	// globs.
+	serverSupportsExpandGlobMetrics := params.FeatureProvider.GetFeature(
+		spb.ServerFeature_EXPAND_DEFINED_METRIC_GLOBS,
+	).Enabled
+	if !serverSupportsExpandGlobMetrics &&
+		params.Settings.IsEnableServerSideExpandGlobMetrics() {
+		params.Logger.Warn(
+			"server does not support expanding defined metric globs, defaulting to client-side expansion",
+		)
 	}
 
 	s := &Sender{
-		runWork:             params.RunWork,
-		runConfig:           runconfig.New(),
-		telemetry:           &spb.TelemetryRecord{CoreVersion: version.Version},
-		runConfigMetrics:    runmetric.NewRunConfigMetrics(),
+		runWork:   params.RunWork,
+		runConfig: runconfig.New(),
+		telemetry: &spb.TelemetryRecord{CoreVersion: version.Version},
+		runConfigMetrics: runmetric.NewRunConfigMetrics(
+			serverSupportsExpandGlobMetrics &&
+				params.Settings.IsEnableServerSideExpandGlobMetrics(),
+		),
 		logger:              params.Logger,
 		operations:          params.Operations,
 		settings:            params.Settings,
@@ -254,6 +281,9 @@ func NewSender(
 			params.Logger,
 			params.GraphqlClient,
 			params.FileTransferManager,
+			params.FeatureProvider.GetFeature(
+				spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
+			).Enabled,
 		),
 		tbHandler:     params.TBHandler,
 		networkPeeker: params.Peeker,
@@ -442,7 +472,7 @@ func (s *Sender) sendRecord(record *spb.Record) {
 	case *spb.Record_Alert:
 		s.sendAlert(record, x.Alert)
 	case *spb.Record_Metric:
-		s.sendMetric(x.Metric)
+		s.sendMetric(record, x.Metric)
 	case *spb.Record_Files:
 		s.sendFiles(record, x.Files)
 	case *spb.Record_History:
@@ -741,7 +771,7 @@ func (s *Sender) finishRunSync() {
 
 	// Prevent any new work from being added.
 	//
-	// Note that any work queued up at this point does get processed.
+	// Note that any work queued up at this point still gets processed.
 	s.runWork.SetDone()
 }
 
@@ -1124,7 +1154,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 		clients.UpsertBucketRetryPolicy,
 	)
 
-	operation := s.operations.New("updating run metadata")
+	operation := s.operations.New("creating run")
 	defer operation.Finish()
 	ctx = operation.Context(ctx)
 
@@ -1553,8 +1583,18 @@ func (s *Sender) sendExit(record *spb.Record) {
 }
 
 // sendMetric updates the metrics in the run config.
-func (s *Sender) sendMetric(metric *spb.MetricRecord) {
-	err := s.runConfigMetrics.ProcessRecord(metric)
+func (s *Sender) sendMetric(record *spb.Record, _ *spb.MetricRecord) {
+	// If server-side expand glob metrics is enabled, we don't need to send internal metrics
+	// as these were expanded internally by the client.
+	//
+	// Note: we still send these metrics from the handler to the writer to ensure they are
+	// available in the transaction log for offline runs that may be synced to a server that
+	// does not support expanding glob metrics.
+	if s.runConfigMetrics.IsServerExpandGlobMetrics() && record.GetMetric().GetExpandedFromGlob() {
+		return
+	}
+
+	err := s.runConfigMetrics.ProcessRecord(record.GetMetric())
 
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: sendMetric: %v", err))

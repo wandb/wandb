@@ -52,9 +52,6 @@ type RuntimeMetricServiceClient interface {
 // This code is based on Google's Cloud Accelerator Diagnostics project:
 // https://github.com/google/cloud-accelerator-diagnostics.
 type TPU struct {
-	// Name of the TPU asset used to identify the asset in the metadata.
-	name string
-
 	// gRPC client connection and client for runtime metrics.
 	//
 	// TPU runtime metrics are exposed via a gRPC server running on a Google Cloud TPU VM.
@@ -70,7 +67,7 @@ type TPU struct {
 
 // NewTPU creates a new TPU instance by detecting local TPU chips and initializing the gRPC connection.
 func NewTPU() *TPU {
-	t := &TPU{name: "tpu"}
+	t := &TPU{}
 
 	chip, count := getLocalTPUChips()
 	if count == 0 {
@@ -88,14 +85,6 @@ func NewTPU() *TPU {
 	t.client = client
 
 	return t
-}
-
-func (t *TPU) Name() string {
-	return t.name
-}
-
-func (t *TPU) SetName(name string) {
-	t.name = name
 }
 
 func (t *TPU) SetChip(chip TPUChip, count int) {
@@ -167,11 +156,11 @@ func (t *TPU) Sample() (*spb.StatsRecord, error) {
 
 	for deviceID := range deviceIDs {
 		// Memory usage [%]
-		memoryUsageKey := fmt.Sprintf("%s.%d.memoryUsage", t.Name(), deviceID)
+		memoryUsageKey := fmt.Sprintf("tpu.%d.memoryUsage", deviceID)
 		// Memory usage [bytes]
-		memoryUsageBytesKey := fmt.Sprintf("%s.%d.memoryUsageBytes", t.Name(), deviceID)
+		memoryUsageBytesKey := fmt.Sprintf("tpu.%d.memoryUsageBytes", deviceID)
 		// Duty cycle [%]
-		dutyCycleKey := fmt.Sprintf("%s.%d.dutyCycle", t.Name(), deviceID)
+		dutyCycleKey := fmt.Sprintf("tpu.%d.dutyCycle", deviceID)
 
 		if memoryUsage, ok := memoryUsages[deviceID]; ok {
 			metrics[memoryUsageBytesKey] = memoryUsage
@@ -199,7 +188,7 @@ func (t *TPU) IsAvailable() bool {
 // Close closes the gRPC connection and releases resources.
 func (t *TPU) Close() {
 	if t.conn != nil {
-		t.conn.Close()
+		_ = t.conn.Close()
 		t.conn = nil
 		t.client = nil
 	}

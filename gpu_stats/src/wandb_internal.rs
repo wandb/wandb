@@ -472,6 +472,12 @@ pub struct Feature {
     /// shared mode was added in wandb.Settings
     #[prost(bool, tag = "67")]
     pub shared_mode: bool,
+    /// server-side derived summary computation was enabled
+    #[prost(bool, tag = "68")]
+    pub server_side_derived_summary: bool,
+    /// User set the x_label value
+    #[prost(bool, tag = "69")]
+    pub user_provided_label: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Env {
@@ -592,6 +598,21 @@ pub struct Deprecated {
     /// wandb.run.finish(quiet=...) called
     #[prost(bool, tag = "19")]
     pub run_finish_quiet: bool,
+    /// reinit setting set to a boolean value
+    #[prost(bool, tag = "20")]
+    pub run_reinit_bool: bool,
+    /// wandb.run.get_url() called
+    #[prost(bool, tag = "21")]
+    pub run_get_url: bool,
+    /// wandb.run.project_name() called
+    #[prost(bool, tag = "22")]
+    pub run_project_name: bool,
+    /// wandb.run.get_project_url() called
+    #[prost(bool, tag = "23")]
+    pub run_get_project_url: bool,
+    /// wandb.run.get_sweep_url() called
+    #[prost(bool, tag = "24")]
+    pub run_get_sweep_url: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {
@@ -1093,6 +1114,8 @@ pub struct MetricRecord {
     pub goal: i32,
     #[prost(message, optional, tag = "9")]
     pub control: ::core::option::Option<MetricControl>,
+    #[prost(bool, tag = "10")]
+    pub expanded_from_glob: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
@@ -1239,7 +1262,7 @@ pub struct FilesRecord {
 /// One or more files being saved with a run.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FilesItem {
-    /// A path or Unix glob relative to the W&B files directory.
+    /// A path or Unix glob relative to the run's files directory.
     #[prost(string, tag = "1")]
     pub path: ::prost::alloc::string::String,
     /// When to upload the file.
@@ -1583,7 +1606,7 @@ pub struct AlertResult {}
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 80, 81, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 80, 81, 82, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1665,6 +1688,9 @@ pub mod request {
         GetSystemMetadata(super::GetSystemMetadataRequest),
         #[prost(message, tag = "81")]
         SyncFinish(super::SyncFinishRequest),
+        /// Requests information about tasks the service is performing.
+        #[prost(message, tag = "82")]
+        Operations(super::OperationStatsRequest),
         #[prost(message, tag = "1000")]
         TestInject(super::TestInjectRequest),
     }
@@ -1675,7 +1701,7 @@ pub mod request {
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 73, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 73, 74, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1733,6 +1759,8 @@ pub mod response {
         RunFinishWithoutExitResponse(super::RunFinishWithoutExitResponse),
         #[prost(message, tag = "73")]
         GetSystemMetadataResponse(super::GetSystemMetadataResponse),
+        #[prost(message, tag = "74")]
+        OperationsResponse(super::OperationStatsResponse),
         #[prost(message, tag = "1000")]
         TestInjectResponse(super::TestInjectResponse),
     }
@@ -1841,8 +1869,7 @@ pub struct ResumeRequest {
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct ResumeResponse {}
-///
-/// LoginRequest: wandb/sdk/wandb_login
+/// Old request, no longer used for logging in (if it ever was).
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct LoginRequest {
     #[prost(string, tag = "1")]
@@ -1980,6 +2007,16 @@ pub struct PollExitResponse {
     #[prost(message, optional, tag = "4")]
     pub file_counts: ::core::option::Option<FileCounts>,
     #[prost(message, optional, tag = "5")]
+    pub operation_stats: ::core::option::Option<OperationStats>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OperationStatsRequest {
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RequestInfo>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OperationStatsResponse {
+    #[prost(message, optional, tag = "1")]
     pub operation_stats: ::core::option::Option<OperationStats>,
 }
 /// Information about ongoing operations in the internal process.
@@ -2808,12 +2845,31 @@ pub struct ServerFeatureItem {
     #[prost(bool, tag = "2")]
     pub enabled: bool,
 }
+/// *
+/// Server features are features that the server supports.
+/// This name should match the name of the feature defined in the backend server.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum ServerFeature {
+    /// Indicates that the server supports recieving an array of filenames as metadata.
     LargeFilenames = 0,
+    /// Indicates that the server supports adding tags to artifacts.
     ArtifactTags = 1,
+    /// Indicates that the server supports client IDs for artifact reference urls.
     ClientIds = 2,
+    /// Indicates that the server supports searching for artifacts in a registry.
+    ArtifactRegistrySearch = 3,
+    /// Indicates that the server supports structured console logs.
+    StructuredConsoleLogs = 4,
+    /// Indicates that the server supports querying for files on artifact collection memberships.
+    ArtifactCollectionMembershipFiles = 5,
+    /// Indicates that the server supports downloading files with additional artifact collection memberships context in the
+    /// url.
+    ArtifactCollectionMembershipFileDownloadHandler = 6,
+    /// Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
+    UseArtifactWithEntityAndProjectInformation = 7,
+    /// Indicates that the server supports expanding defined metric globs on the server side.
+    ExpandDefinedMetricGlobs = 8,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2825,6 +2881,18 @@ impl ServerFeature {
             Self::LargeFilenames => "LARGE_FILENAMES",
             Self::ArtifactTags => "ARTIFACT_TAGS",
             Self::ClientIds => "CLIENT_IDS",
+            Self::ArtifactRegistrySearch => "ARTIFACT_REGISTRY_SEARCH",
+            Self::StructuredConsoleLogs => "STRUCTURED_CONSOLE_LOGS",
+            Self::ArtifactCollectionMembershipFiles => {
+                "ARTIFACT_COLLECTION_MEMBERSHIP_FILES"
+            }
+            Self::ArtifactCollectionMembershipFileDownloadHandler => {
+                "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER"
+            }
+            Self::UseArtifactWithEntityAndProjectInformation => {
+                "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION"
+            }
+            Self::ExpandDefinedMetricGlobs => "EXPAND_DEFINED_METRIC_GLOBS",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2833,6 +2901,18 @@ impl ServerFeature {
             "LARGE_FILENAMES" => Some(Self::LargeFilenames),
             "ARTIFACT_TAGS" => Some(Self::ArtifactTags),
             "CLIENT_IDS" => Some(Self::ClientIds),
+            "ARTIFACT_REGISTRY_SEARCH" => Some(Self::ArtifactRegistrySearch),
+            "STRUCTURED_CONSOLE_LOGS" => Some(Self::StructuredConsoleLogs),
+            "ARTIFACT_COLLECTION_MEMBERSHIP_FILES" => {
+                Some(Self::ArtifactCollectionMembershipFiles)
+            }
+            "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER" => {
+                Some(Self::ArtifactCollectionMembershipFileDownloadHandler)
+            }
+            "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION" => {
+                Some(Self::UseArtifactWithEntityAndProjectInformation)
+            }
+            "EXPAND_DEFINED_METRIC_GLOBS" => Some(Self::ExpandDefinedMetricGlobs),
             _ => None,
         }
     }

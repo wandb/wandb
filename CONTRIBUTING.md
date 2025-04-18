@@ -213,9 +213,9 @@ pip install -U nox uv
 
 ### Setting up Go
 
-Install Go version `1.23.4` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+Install Go version `1.24.1` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
 ```shell
-brew install go@1.23
+brew install go@1.24
 ```
 
 ### Setting up Rust
@@ -342,7 +342,7 @@ We use the [`pytest`](https://docs.pytest.org/) framework. Tests can be found in
 All test dependencies should be in `requirements_dev.txt` so you could just run:
 
 ```shell
-`pip install -r requirements_dev.txt`
+uv pip install -r requirements_dev.txt
 ```
 
 After that you can run your test using the standard `pytest` commands. For example:

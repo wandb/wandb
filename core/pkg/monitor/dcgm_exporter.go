@@ -169,10 +169,6 @@ func (de *DCGMExporter) Queries() []string {
 	return de.queries
 }
 
-func (de *DCGMExporter) Name() string {
-	return "dcgm_exporter"
-}
-
 // gpuMetric represents a GPU metric and metadata parsed from a Prometheus sample.
 type gpuMetric struct {
 	// name is the metric name.

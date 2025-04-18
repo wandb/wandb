@@ -16,6 +16,7 @@ type Candidate struct {
 	Dir        string
 	ImportPath string
 	Type       LexType
+	Deprecated bool
 	// information for Funcs
 	Results int16   // how many results
 	Sig     []Field // arg names and types
@@ -33,6 +34,36 @@ const (
 	Type
 	Func
 )
+
+// LookupAll only returns those Candidates whose import path
+// finds all the nms.
+func (ix *Index) LookupAll(pkg string, names ...string) map[string][]Candidate {
+	// this can be made faster when benchmarks show that it needs to be
+	names = uniquify(names)
+	byImpPath := make(map[string][]Candidate)
+	for _, nm := range names {
+		cands := ix.Lookup(pkg, nm, false)
+		for _, c := range cands {
+			byImpPath[c.ImportPath] = append(byImpPath[c.ImportPath], c)
+		}
+	}
+	for k, v := range byImpPath {
+		if len(v) != len(names) {
+			delete(byImpPath, k)
+		}
+	}
+	return byImpPath
+}
+
+// remove duplicates
+func uniquify(in []string) []string {
+	if len(in) == 0 {
+		return in
+	}
+	in = slices.Clone(in)
+	slices.Sort(in)
+	return slices.Compact(in)
+}
 
 // Lookup finds all the symbols in the index with the given PkgName and name.
 // If prefix is true, it finds all of these with name as a prefix.
@@ -79,8 +110,9 @@ func (ix *Index) Lookup(pkg, name string, prefix bool) []Candidate {
 				Dir:        string(e.Dir),
 				ImportPath: e.ImportPath,
 				Type:       asLexType(flds[1][0]),
+				Deprecated: len(flds[1]) > 1 && flds[1][1] == 'D',
 			}
-			if flds[1] == "F" {
+			if px.Type == Func {
 				n, err := strconv.Atoi(flds[2])
 				if err != nil {
 					continue // should never happen
@@ -111,6 +143,7 @@ func toFields(sig []string) []Field {
 }
 
 // benchmarks show this is measurably better than strings.Split
+// split into first 4 fields separated by single space
 func fastSplit(x string) []string {
 	ans := make([]string, 0, 4)
 	nxt := 0

@@ -37,13 +37,6 @@ type Config struct {
 	StructReferences    bool                    `yaml:"use_struct_references"`
 	Extensions          bool                    `yaml:"use_extensions"`
 
-	// Set to true to use features that aren't fully ready to use.
-	//
-	// This is primarily intended for genqlient's own tests.  These features
-	// are likely BROKEN and come with NO EXPECTATION OF COMPATIBILITY.  Use
-	// them at your own risk!
-	AllowBrokenFeatures bool `yaml:"allow_broken_features"`
-
 	// The directory of the config-file (relative to which all the other paths
 	// are resolved).  Set by ValidateAndFillDefaults.
 	baseDir string

@@ -13,14 +13,12 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gitops"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pathtree"
-	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
@@ -45,7 +43,6 @@ const (
 type HandlerParams struct {
 	// Commit is the W&B Git commit hash
 	Commit            string
-	FeatureProvider   *featurechecker.ServerFeaturesCache
 	FileTransferStats filetransfer.FileTransferStats
 	FwdChan           chan runwork.Work
 	Logger            *observability.CoreLogger
@@ -53,31 +50,16 @@ type HandlerParams struct {
 	Operations        *wboperation.WandbOperations
 	OutChan           chan *spb.Result
 	Settings          *settings.Settings
-
-	// SkipSummary controls whether to skip summary updates.
-	//
-	// This is only useful in a test.
-	SkipSummary bool
-
-	SystemMonitor   *monitor.SystemMonitor
-	TBHandler       *tensorboard.TBHandler
-	TerminalPrinter *observability.Printer
+	SystemMonitor     *monitor.SystemMonitor
+	TBHandler         *tensorboard.TBHandler
+	TerminalPrinter   *observability.Printer
 }
 
 // Handler handles the incoming messages, processes them, and passes them to the writer.
 type Handler struct {
-	// clientID is an ID for this process.
-	//
-	// This identifies the process that uploaded a set of metrics when
-	// running in "shared" mode, where there may be multiple writers for
-	// the same run.
-	clientID string
 
 	// commit is the W&B Git commit hash
 	commit string
-
-	// featureProvider provides server features and capabilities
-	featureProvider *featurechecker.ServerFeaturesCache
 
 	// fileTransferStats reports file upload/download statistics
 	fileTransferStats filetransfer.FileTransferStats
@@ -135,10 +117,6 @@ type Handler struct {
 	// settings is the settings for the handler
 	settings *settings.Settings
 
-	// skipSummary is set in tests where certain summary records should be
-	// ignored.
-	skipSummary bool
-
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
@@ -154,9 +132,7 @@ func NewHandler(
 	params HandlerParams,
 ) *Handler {
 	return &Handler{
-		clientID:             randomid.GenerateUniqueID(32),
 		commit:               params.Commit,
-		featureProvider:      params.FeatureProvider,
 		fileTransferStats:    params.FileTransferStats,
 		fwdChan:              params.FwdChan,
 		logger:               params.Logger,
@@ -169,7 +145,6 @@ func NewHandler(
 		runSummary:           runsummary.New(),
 		runTimer:             timer.New(),
 		settings:             params.Settings,
-		skipSummary:          params.SkipSummary,
 		systemMonitor:        params.SystemMonitor,
 		tbHandler:            params.TBHandler,
 		terminalPrinter:      params.TerminalPrinter,
@@ -304,11 +279,10 @@ func (h *Handler) handleRequest(record *spb.Record) {
 	case *spb.Request_ServerInfo:
 	case *spb.Request_CheckVersion:
 	case *spb.Request_Defer:
+	case *spb.Request_ServerFeature:
 		// The above been removed from the client but are kept here for now.
 		// Should be removed in the future.
 
-	case *spb.Request_Login:
-		h.handleRequestLogin(record)
 	case *spb.Request_RunStatus:
 		h.handleRequestRunStatus(record)
 	case *spb.Request_Metadata:
@@ -365,21 +339,14 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestJobInput(record)
 	case *spb.Request_RunFinishWithoutExit:
 		h.handleRequestRunFinishWithoutExit(record)
-	case *spb.Request_ServerFeature:
-		h.handleRequestServerFeature(record, x.ServerFeature)
+	case *spb.Request_Operations:
+		h.handleRequestOperations(record)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRequest: request type is nil"))
 	default:
 		h.logger.CaptureFatalAndPanic(
 			fmt.Errorf("handler: handleRequest: unknown request type %T", x))
-	}
-}
-
-func (h *Handler) handleRequestLogin(record *spb.Record) {
-	// TODO: implement login if it is needed
-	if record.GetControl().GetReqResp() {
-		h.respond(record, &spb.Response{})
 	}
 }
 
@@ -420,6 +387,8 @@ func (h *Handler) handleMetric(record *spb.Record) {
 	}
 
 	if len(metric.Name) > 0 {
+		// TODO: Add !h.settings.IsEnableServerSideDerivedSummary() to the condition
+		// once we support server-side derived summary aggregation (min, max, mean, etc.)
 		h.metricHandler.UpdateSummary(metric.Name, h.runSummary)
 	}
 }
@@ -443,6 +412,16 @@ func (h *Handler) handleRequestDownloadArtifact(record *spb.Record) {
 
 func (h *Handler) handleRequestLinkArtifact(record *spb.Record) {
 	h.fwdRecord(record)
+}
+
+func (h *Handler) handleRequestOperations(record *spb.Record) {
+	h.respond(record, &spb.Response{
+		ResponseType: &spb.Response_OperationsResponse{
+			OperationsResponse: &spb.OperationStatsResponse{
+				OperationStats: h.operations.ToProto(),
+			},
+		},
+	})
 }
 
 func (h *Handler) handleRequestPollExit(record *spb.Record) {
@@ -782,7 +761,7 @@ func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
 	h.runTimer.Pause()
 	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
 
-	if !h.settings.IsSync() {
+	if !h.settings.IsSync() && !h.settings.IsEnableServerSideDerivedSummary() {
 		h.updateRunTiming()
 	}
 
@@ -1072,6 +1051,7 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	for _, newMetric := range newMetricDefs {
 		// We don't mark the record 'Local' because partial history updates
 		// are not already written to the transaction log.
+		newMetric.ExpandedFromGlob = true
 		rec := &spb.Record{
 			RecordType: &spb.Record_Metric{Metric: newMetric},
 		}
@@ -1082,7 +1062,8 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 
 	h.runHistorySampler.SampleNext(h.partialHistory)
 
-	if !h.skipSummary {
+	// Update the summary if server-side derived summaries are disabled.
+	if !h.settings.IsEnableServerSideDerivedSummary() {
 		h.updateRunTiming()
 		h.updateSummary()
 	}
@@ -1154,25 +1135,6 @@ func (h *Handler) handleRequestSampledHistory(record *spb.Record) {
 		ResponseType: &spb.Response_SampledHistoryResponse{
 			SampledHistoryResponse: &spb.SampledHistoryResponse{
 				Item: h.runHistorySampler.Get(),
-			},
-		},
-	})
-}
-
-// handleRequestServerFeature gets the server features requested by the client,
-// and responds with the details of the feature provided by the server.
-func (h *Handler) handleRequestServerFeature(
-	record *spb.Record,
-	request *spb.ServerFeatureRequest,
-) {
-	serverFeatureValue := h.featureProvider.GetFeature(request.GetFeature())
-	h.respond(record, &spb.Response{
-		ResponseType: &spb.Response_ServerFeatureResponse{
-			ServerFeatureResponse: &spb.ServerFeatureResponse{
-				Feature: &spb.ServerFeatureItem{
-					Enabled: serverFeatureValue.Enabled,
-					Name:    serverFeatureValue.Name,
-				},
 			},
 		},
 	})

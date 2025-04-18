@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/processlib"
@@ -82,8 +84,19 @@ func main() {
 			"shutdown-on-parent-exit", shutdownOnParentExitEnabled,
 		)
 		loggerPath = file.Name()
-		defer file.Close()
+		defer func() {
+			_ = file.Close()
+		}()
 	}
+
+	// Log when we receive a shutdown signal
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-c
+		slog.Info("received shutdown signal", "signal", sig)
+		os.Exit(0)
+	}()
 
 	srv, err := server.NewServer(
 		&server.ServerParams{

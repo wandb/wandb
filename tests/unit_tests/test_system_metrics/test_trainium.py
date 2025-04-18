@@ -915,9 +915,8 @@ def trainium_asset(test_settings) -> AssetInterface:
     settings = SettingsStatic(
         test_settings(
             dict(
-                _stats_sample_rate_seconds=1,
-                _stats_samples_to_average=1,
-                _stats_pid=1337,
+                x_stats_sampling_interval=1,
+                x_stats_pid=1337,
             )
         ).to_proto()
     )
@@ -948,6 +947,7 @@ def trainium_asset(test_settings) -> AssetInterface:
 
 
 @pytest.mark.timeout(30)
+@pytest.mark.skip_wandb_core
 def test_trainium(test_settings):
     with mock.patch.multiple(
         "wandb.sdk.internal.system.assets.trainium.NeuronCoreStats",
@@ -959,6 +959,7 @@ def test_trainium(test_settings):
 
 
 @pytest.mark.timeout(30)
+@pytest.mark.skip_wandb_core
 @pytest.mark.parametrize("local_rank", ("0", "1"))
 def test_trainium_torchrun(test_settings, local_rank):
     with mock.patch.multiple(

@@ -1,6 +1,8 @@
 package runhistory
 
 import (
+	"math/rand/v2"
+
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/sampler"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -8,11 +10,13 @@ import (
 
 // RunHistorySampler tracks a sample of each metric in the run's history.
 type RunHistorySampler struct {
+	rand    *rand.Rand
 	samples map[string]*sampler.ReservoirSampler[float32]
 }
 
 func NewRunHistorySampler() *RunHistorySampler {
 	return &RunHistorySampler{
+		rand:    rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		samples: make(map[string]*sampler.ReservoirSampler[float32]),
 	}
 }
@@ -32,7 +36,7 @@ func (s *RunHistorySampler) SampleNext(history *RunHistory) {
 
 			sample, ok := s.samples[key]
 			if !ok {
-				sample = sampler.NewReservoirSampler[float32](48, 0.0005)
+				sample = sampler.NewReservoirSampler[float32](s.rand, 48)
 				s.samples[key] = sample
 			}
 			sample.Add(float32(value))

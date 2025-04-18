@@ -38,9 +38,9 @@ func TestNew(t *testing.T) {
 
 func TestSentryClient_CaptureException(t *testing.T) {
 	type fields struct {
-		DSN     string
-		Commit  string
-		LRUSize int
+		Disabled bool
+		Commit   string
+		LRUSize  int
 	}
 	type args struct {
 		errs []error
@@ -55,9 +55,9 @@ func TestSentryClient_CaptureException(t *testing.T) {
 		{
 			name: "TestCaptureException",
 			fields: fields{
-				DSN:     "",
-				Commit:  "commit",
-				LRUSize: 2,
+				Disabled: true,
+				Commit:   "commit",
+				LRUSize:  2,
 			},
 			args: args{
 				errs: []error{errors.New("error")},
@@ -69,9 +69,9 @@ func TestSentryClient_CaptureException(t *testing.T) {
 		{
 			name: "TestCaptureExceptionDuplicate",
 			fields: fields{
-				DSN:     "",
-				Commit:  "commit",
-				LRUSize: 2,
+				Disabled: true,
+				Commit:   "commit",
+				LRUSize:  2,
 			},
 			args: args{
 				errs: []error{errors.New("error"), errors.New("error")},
@@ -83,9 +83,9 @@ func TestSentryClient_CaptureException(t *testing.T) {
 		{
 			name: "TestCaptureExceptionMultiple",
 			fields: fields{
-				DSN:     "",
-				Commit:  "commit",
-				LRUSize: 2,
+				Disabled: true,
+				Commit:   "commit",
+				LRUSize:  2,
 			},
 			args: args{
 				errs: []error{errors.New("error1"), errors.New("error2")},
@@ -97,9 +97,9 @@ func TestSentryClient_CaptureException(t *testing.T) {
 		{
 			name: "TestCaptureExceptionMultipleExceedsCache",
 			fields: fields{
-				DSN:     "",
-				Commit:  "commit",
-				LRUSize: 2,
+				Disabled: true,
+				Commit:   "commit",
+				LRUSize:  2,
 			},
 			args: args{
 				errs: []error{errors.New("error1"), errors.New("error2"), errors.New("error3")},
@@ -111,9 +111,9 @@ func TestSentryClient_CaptureException(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			params := sentry_ext.Params{
-				DSN:     tt.fields.DSN,
-				Commit:  tt.fields.Commit,
-				LRUSize: tt.fields.LRUSize,
+				Disabled: tt.fields.Disabled,
+				Commit:   tt.fields.Commit,
+				LRUSize:  tt.fields.LRUSize,
 			}
 			sc := sentry_ext.New(params)
 
@@ -130,9 +130,9 @@ func TestSentryClient_CaptureException(t *testing.T) {
 
 func TestSentryClient_CaptureMessage(t *testing.T) {
 	type fields struct {
-		DSN     string
-		Commit  string
-		LRUSize int
+		Disabled bool
+		Commit   string
+		LRUSize  int
 	}
 	type args struct {
 		msg  string
@@ -147,9 +147,9 @@ func TestSentryClient_CaptureMessage(t *testing.T) {
 		{
 			name: "TestCaptureMessage",
 			fields: fields{
-				DSN:     "",
-				Commit:  "commit",
-				LRUSize: 2,
+				Disabled: true,
+				Commit:   "commit",
+				LRUSize:  2,
 			},
 			args: args{
 				msg:  "message",
@@ -161,9 +161,9 @@ func TestSentryClient_CaptureMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			params := sentry_ext.Params{
-				DSN:     tt.fields.DSN,
-				Commit:  tt.fields.Commit,
-				LRUSize: tt.fields.LRUSize,
+				Disabled: tt.fields.Disabled,
+				Commit:   tt.fields.Commit,
+				LRUSize:  tt.fields.LRUSize,
 			}
 			sc := sentry_ext.New(params)
 

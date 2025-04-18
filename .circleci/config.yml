@@ -9,7 +9,7 @@ orbs:
 parameters:
   go_version:
     type: string
-    default: "1.23.4"
+    default: "1.24.1"
   server_image:
     type: string
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
@@ -483,6 +483,16 @@ workflows:
           session: unit_tests
           codecov_flags: unit
           parallelism: 4
+
+          matrix:
+            parameters:
+              python: ["3.8", "3.12"]
+
+      - nox-tests-linux:
+          name: unit-tests-pydantic-v1-linux-<<matrix.python>>
+          session: unit_tests_pydantic_v1
+          codecov_flags: unit
+          parallelism: 2
 
           matrix:
             parameters:

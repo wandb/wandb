@@ -132,6 +132,42 @@ func ruleFuncValuesOfCorrectType(observers *Events, addError AddErrFunc, disable
 				}
 			}
 
+			for _, directive := range value.Definition.Directives {
+				if directive.Name == "oneOf" {
+					func() {
+						if len(value.Children) != 1 {
+							addError(
+								Message(`OneOf Input Object "%s" must specify exactly one key.`, value.Definition.Name),
+								At(value.Position),
+							)
+							return
+						}
+
+						fieldValue := value.Children[0].Value
+						isNullLiteral := fieldValue == nil || fieldValue.Kind == ast.NullValue
+						if isNullLiteral {
+							addError(
+								Message(`Field "%s.%s" must be non-null.`, value.Definition.Name, value.Definition.Fields[0].Name),
+								At(fieldValue.Position),
+							)
+							return
+						}
+
+						isVariable := fieldValue.Kind == ast.Variable
+						if isVariable {
+							variableName := fieldValue.VariableDefinition.Variable
+							isNullableVariable := !fieldValue.VariableDefinition.Type.NonNull
+							if isNullableVariable {
+								addError(
+									Message(`Variable "%s" must be non-nullable to be used for OneOf Input Object "%s".`, variableName, value.Definition.Name),
+									At(fieldValue.Position),
+								)
+							}
+						}
+					}()
+				}
+			}
+
 			for _, fieldValue := range value.Children {
 				if value.Definition.Fields.ForName(fieldValue.Name) == nil {
 					if disableSuggestion {

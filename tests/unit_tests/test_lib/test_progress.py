@@ -14,14 +14,20 @@ def dynamic_progress_printer(
     # Ensure dynamic text is supported.
     _ = emulated_terminal
 
-    with progress.progress_printer(p.new_printer()) as progress_printer:
+    with progress.progress_printer(
+        p.new_printer(),
+        "DEFAULT TEXT",
+    ) as progress_printer:
         yield progress_printer
 
 
 @pytest.fixture()
 def static_progress_printer() -> Iterator[progress.ProgressPrinter]:
     """A ProgressPrinter that writes to a file or dumb terminal."""
-    with progress.progress_printer(p.new_printer()) as progress_printer:
+    with progress.progress_printer(
+        p.new_printer(),
+        "DEFAULT TEXT",
+    ) as progress_printer:
         yield progress_printer
 
 
@@ -166,4 +172,4 @@ def test_remaining_operations(emulated_terminal, dynamic_progress_printer):
 def test_no_operations_text(emulated_terminal, dynamic_progress_printer):
     dynamic_progress_printer.update([pb.PollExitResponse()])
 
-    assert emulated_terminal.read_stderr() == ["wandb: ⢿ Finishing up..."]
+    assert emulated_terminal.read_stderr() == ["wandb: ⢿ DEFAULT TEXT"]
