@@ -257,6 +257,7 @@ class Table(Media):
             # Default empty case
             else:
                 self._init_from_list([], columns, optional, dtype)
+        self._last_logged_idx = None
 
     @staticmethod
     def _assert_valid_columns(columns):
@@ -491,7 +492,9 @@ class Table(Media):
                     f"this may cause slower queries in the W&B UI."
                 )
             logging.warning(f"Truncating wandb.Table object to {max_rows} rows.")
-        return {"columns": self.columns, "data": self.data[:max_rows]}
+        
+        start = self._last_logged_idx + 1 if self._last_logged_idx is not None else 0
+        return {"columns": self.columns, "data": self.data[start:start+max_rows]}
 
     def bind_to_run(self, *args, **kwargs):
         # We set `warn=False` since Tables will now always be logged to both

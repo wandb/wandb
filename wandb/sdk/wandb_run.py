@@ -733,6 +733,8 @@ class Run:
 
         self._atexit_cleanup_called = False
 
+        self._tables_to_finalize = {}
+
         # Initial scope setup for sentry.
         # This might get updated when the actual run comes back.
         wandb._sentry.configure_scope(
@@ -2303,6 +2305,14 @@ class Run:
         logger.info(f"finishing run {self._get_path()}")
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
+
+        for table_id in self._tables_to_finalize:
+            key, val = self._tables_to_finalize[table_id]
+            if val._last_logged_idx == len(val.data) - 1:
+                continue
+            # Reset _last_logged_idx to log entire table
+            val._last_logged_idx = None
+            self.log({key: val})
 
         # Run hooks that need to happen before the last messages to the
         # internal service, like Jupyter hooks.
