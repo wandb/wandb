@@ -3,8 +3,20 @@
 import json
 import re
 from copy import copy
-from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Iterable,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Type,
+    Union,
+)
 
+from typing_extensions import override
 from wandb_gql import Client, gql
 
 import wandb
@@ -29,8 +41,22 @@ from wandb.sdk.artifacts._generated import (
     PROJECT_ARTIFACTS_GQL,
     RUN_INPUT_ARTIFACTS_GQL,
     RUN_OUTPUT_ARTIFACTS_GQL,
-    UPDATE_ARTIFACT_COLLECTION_GQL,
     UPDATE_ARTIFACT_PORTFOLIO_GQL,
+    UPDATE_ARTIFACT_SEQUENCE_GQL,
+    ArtifactCollectionMembershipFiles,
+    ArtifactCollectionsFragment,
+    ArtifactsFragment,
+    ArtifactTypeFragment,
+    ArtifactTypesFragment,
+    ArtifactVersionFiles,
+    FilesFragment,
+    ProjectArtifactCollection,
+    ProjectArtifactCollections,
+    ProjectArtifacts,
+    ProjectArtifactType,
+    ProjectArtifactTypes,
+    RunInputArtifactsProjectRunInputArtifacts,
+    RunOutputArtifactsProjectRunOutputArtifacts,
 )
 from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -44,6 +70,8 @@ if TYPE_CHECKING:
 
 class ArtifactTypes(Paginator["ArtifactType"]):
     QUERY = gql(PROJECT_ARTIFACT_TYPES_GQL)
+
+    last_response: Optional[ArtifactTypesFragment]
 
     def __init__(
         self,
@@ -61,38 +89,52 @@ class ArtifactTypes(Paginator["ArtifactType"]):
         }
         super().__init__(client, variable_values, per_page)
 
+    @override
+    def _update_response(self) -> None:
+        """Fetch and validate the response data for the current page."""
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        result = ProjectArtifactTypes.model_validate(data)
+
+        # Extract the inner `*Connection` result for faster/easier access.
+        if not ((proj := result.project) and (conn := proj.artifact_types)):
+            raise ValueError(f"Unable to parse {type(self).__name__!r} response data")
+
+        self.last_response = ArtifactTypesFragment.model_validate(conn)
+
     @property
     def length(self) -> None:
         # TODO
         return None
 
     @property
-    def more(self):
-        if self.last_response:
-            return self.last_response["project"]["artifactTypes"]["pageInfo"][
-                "hasNextPage"
-            ]
-        else:
+    def more(self) -> bool:
+        if self.last_response is None:
             return True
+        return self.last_response.page_info.has_next_page
 
     @property
-    def cursor(self):
-        if self.last_response:
-            return self.last_response["project"]["artifactTypes"]["edges"][-1]["cursor"]
-        else:
+    def cursor(self) -> Optional[str]:
+        if self.last_response is None:
             return None
+        return self.last_response.edges[-1].cursor
 
-    def update_variables(self):
+    def update_variables(self) -> None:
         self.variables.update({"cursor": self.cursor})
 
-    def convert_objects(self):
-        if self.last_response["project"] is None:
+    def convert_objects(self) -> List["ArtifactType"]:
+        if self.last_response is None:
             return []
+
         return [
             ArtifactType(
-                self.client, self.entity, self.project, r["node"]["name"], r["node"]
+                client=self.client,
+                entity=self.entity,
+                project=self.project,
+                type_name=node.name,
+                attrs=node.model_dump(exclude_unset=True),
             )
-            for r in self.last_response["project"]["artifactTypes"]["edges"]
+            for edge in self.last_response.edges
+            if edge.node and (node := ArtifactTypeFragment.model_validate(edge.node))
         ]
 
 
@@ -114,7 +156,7 @@ class ArtifactType:
             self.load()
 
     def load(self):
-        response: Optional[Mapping[str, Any]] = self.client.execute(
+        data: Optional[Mapping[str, Any]] = self.client.execute(
             gql(PROJECT_ARTIFACT_TYPE_GQL),
             variable_values={
                 "entityName": self.entity,
@@ -122,13 +164,11 @@ class ArtifactType:
                 "artifactTypeName": self.type,
             },
         )
-        if (
-            response is None
-            or response.get("project") is None
-            or response["project"].get("artifactType") is None
-        ):
-            raise ValueError("Could not find artifact type {}".format(self.type))
-        self._attrs = response["project"]["artifactType"]
+        result = ProjectArtifactType.model_validate(data)
+        if not ((proj := result.project) and (artifact_type := proj.artifact_type)):
+            raise ValueError(f"Could not find artifact type {self.type}")
+
+        self._attrs = artifact_type.model_dump(exclude_unset=True)
         return self._attrs
 
     @property
@@ -154,6 +194,8 @@ class ArtifactType:
 
 
 class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
+    last_response: Optional[ArtifactCollectionsFragment]
+
     def __init__(
         self,
         client: Client,
@@ -183,48 +225,54 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
 
         super().__init__(client, variable_values, per_page)
 
+    @override
+    def _update_response(self) -> None:
+        """Fetch and validate the response data for the current page."""
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        result = ProjectArtifactCollections.model_validate(data)
+
+        # Extract the inner `*Connection` result for faster/easier access.
+        if not (
+            (proj := result.project)
+            and (type_ := proj.artifact_type)
+            and (conn := type_.artifact_collections)
+        ):
+            raise ValueError(f"Unable to parse {type(self).__name__!r} response data")
+
+        self.last_response = ArtifactCollectionsFragment.model_validate(conn)
+
     @property
     def length(self):
-        if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactCollections"][
-                "totalCount"
-            ]
-        else:
+        if self.last_response is None:
             return None
+        return self.last_response.total_count
 
     @property
     def more(self):
-        if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactCollections"][
-                "pageInfo"
-            ]["hasNextPage"]
-        else:
+        if self.last_response is None:
             return True
+        return self.last_response.page_info.has_next_page
 
     @property
     def cursor(self):
-        if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactCollections"][
-                "edges"
-            ][-1]["cursor"]
-        else:
+        if self.last_response is None:
             return None
+        return self.last_response.edges[-1].cursor
 
-    def update_variables(self):
+    def update_variables(self) -> None:
         self.variables.update({"cursor": self.cursor})
 
-    def convert_objects(self):
+    def convert_objects(self) -> List["ArtifactCollection"]:
         return [
             ArtifactCollection(
-                self.client,
-                self.entity,
-                self.project,
-                r["node"]["name"],
-                self.type_name,
+                client=self.client,
+                entity=self.entity,
+                project=self.project,
+                name=node.name,
+                type=self.type_name,
             )
-            for r in self.last_response["project"]["artifactType"][
-                "artifactCollections"
-            ]["edges"]
+            for edge in self.last_response.edges
+            if (node := edge.node)
         ]
 
 
@@ -257,28 +305,28 @@ class ArtifactCollection:
         self.organization = organization
 
     @property
-    def id(self):
+    def id(self) -> str:
         return self._attrs["id"]
 
     @normalize_exceptions
-    def artifacts(self, per_page=50):
+    def artifacts(self, per_page: int = 50) -> "Artifacts":
         """Artifacts."""
         return Artifacts(
-            self.client,
-            self.entity,
-            self.project,
-            self._saved_name,
-            self._saved_type,
+            client=self.client,
+            entity=self.entity,
+            project=self.project,
+            collection_name=self._saved_name,
+            type=self._saved_type,
             per_page=per_page,
         )
 
     @property
-    def aliases(self):
+    def aliases(self) -> List[str]:
         """Artifact Collection Aliases."""
         return self._aliases
 
     @property
-    def created_at(self):
+    def created_at(self) -> str:
         return self._created_at
 
     def load(self):
@@ -296,20 +344,24 @@ class ArtifactCollection:
                 "artifactCollectionName": self._saved_name,
             },
         )
-        if (
-            response is None
-            or response.get("project") is None
-            or response["project"].get("artifactType") is None
-            or response["project"]["artifactType"].get("artifactCollection") is None
+
+        result = ProjectArtifactCollection.model_validate(response)
+
+        if not (
+            result.project
+            and (proj := result.project)
+            and (type_ := proj.artifact_type)
+            and (collection := type_.artifact_collection)
         ):
-            raise ValueError("Could not find artifact type {}".format(self._saved_type))
-        sequence = response["project"]["artifactType"]["artifactSequence"]
+            raise ValueError(f"Could not find artifact type {self._saved_type}")
+
+        sequence = type_.artifact_sequence
         self._is_sequence = (
-            sequence is not None and sequence["__typename"] == "ArtifactSequence"
-        )
+            sequence is not None
+        ) and sequence.typename__ == "ArtifactSequence"
 
         if self._attrs is None:
-            self._attrs = response["project"]["artifactType"]["artifactCollection"]
+            self._attrs = collection.model_dump(exclude_unset=True)
         return self._attrs
 
     def change_type(self, new_type: str) -> None:
@@ -339,7 +391,7 @@ class ArtifactCollection:
         return self._is_sequence
 
     @normalize_exceptions
-    def delete(self):
+    def delete(self) -> None:
         """Delete the entire artifact collection."""
         self.client.execute(
             gql(
@@ -351,7 +403,7 @@ class ArtifactCollection:
         )
 
     @property
-    def description(self):
+    def description(self) -> str:
         """A description of the artifact collection."""
         return self._description
 
@@ -360,7 +412,7 @@ class ArtifactCollection:
         self._description = description
 
     @property
-    def tags(self):
+    def tags(self) -> List[str]:
         """The tags associated with the artifact collection."""
         return self._tags
 
@@ -373,7 +425,7 @@ class ArtifactCollection:
         self._tags = tags
 
     @property
-    def name(self):
+    def name(self) -> str:
         """The name of the artifact collection."""
         return self._name
 
@@ -394,18 +446,22 @@ class ArtifactCollection:
             )
         self._type = type
 
-    def _update_collection(self):
+    def _update_collection(self) -> None:
         self.client.execute(
-            gql(UPDATE_ARTIFACT_COLLECTION_GQL),
+            gql(
+                UPDATE_ARTIFACT_SEQUENCE_GQL
+                if self.is_sequence()
+                else UPDATE_ARTIFACT_PORTFOLIO_GQL
+            ),
             variable_values={
-                "artifactSequenceID": self.id,
+                "id": self.id,
                 "name": self.name,
                 "description": self.description,
             },
         )
         self._saved_name = self._name
 
-    def _update_collection_type(self):
+    def _update_collection_type(self) -> None:
         self.client.execute(
             gql(MOVE_ARTIFACT_COLLECTION_GQL),
             variable_values={
@@ -415,18 +471,7 @@ class ArtifactCollection:
         )
         self._saved_type = self._type
 
-    def _update_portfolio(self):
-        self.client.execute(
-            gql(UPDATE_ARTIFACT_PORTFOLIO_GQL),
-            variable_values={
-                "artifactPortfolioID": self.id,
-                "name": self.name,
-                "description": self.description,
-            },
-        )
-        self._saved_name = self._name
-
-    def _add_tags(self, tags_to_add):
+    def _add_tags(self, tags_to_add: Iterable[str]) -> None:
         self.client.execute(
             gql(CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL),
             variable_values={
@@ -437,7 +482,7 @@ class ArtifactCollection:
             },
         )
 
-    def _delete_tags(self, tags_to_delete):
+    def _delete_tags(self, tags_to_delete: Iterable[str]) -> None:
         self.client.execute(
             gql(DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL),
             variable_values={
@@ -450,23 +495,20 @@ class ArtifactCollection:
 
     def save(self) -> None:
         """Persist any changes made to the artifact collection."""
-        if self.is_sequence():
-            self._update_collection()
+        self._update_collection()
 
-            if self._saved_type != self._type:
-                self._update_collection_type()
-        else:
-            self._update_portfolio()
+        if self.is_sequence() and (self._saved_type != self._type):
+            self._update_collection_type()
 
-        tags_to_add = set(self._tags) - set(self._saved_tags)
-        tags_to_delete = set(self._saved_tags) - set(self._tags)
-        if len(tags_to_add) > 0:
+        current_tags = set(self._tags)
+        saved_tags = set(self._saved_tags)
+        if tags_to_add := (current_tags - saved_tags):
             self._add_tags(tags_to_add)
-        if len(tags_to_delete) > 0:
+        if tags_to_delete := (saved_tags - current_tags):
             self._delete_tags(tags_to_delete)
         self._saved_tags = copy(self._tags)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<ArtifactCollection {self._name} ({self._type})>"
 
 
@@ -475,6 +517,8 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
 
     This is generally used indirectly via the `Api`.artifact_versions method.
     """
+
+    last_response: Optional[ArtifactsFragment]
 
     def __init__(
         self,
@@ -517,54 +561,77 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
 
         super().__init__(client, variables, per_page)
 
-    @property
-    def length(self):
-        if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactCollection"][
-                "artifacts"
-            ]["totalCount"]
-        else:
-            return None
+    @override
+    def _update_response(self) -> None:
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        result = ProjectArtifacts.model_validate(data)
+
+        # Extract the inner `*Connection` result for faster/easier access.
+        if not (
+            (proj := result.project)
+            and (type_ := proj.artifact_type)
+            and (collection := type_.artifact_collection)
+            and (conn := collection.artifacts)
+        ):
+            raise ValueError(f"Unable to parse {type(self).__name__!r} response data")
+
+        self.last_response = ArtifactsFragment.model_validate(conn)
 
     @property
-    def more(self):
-        if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactCollection"][
-                "artifacts"
-            ]["pageInfo"]["hasNextPage"]
-        else:
+    def length(self) -> Optional[int]:
+        if self.last_response is None:
+            return None
+        return self.last_response.total_count
+
+    @property
+    def more(self) -> bool:
+        if self.last_response is None:
             return True
+        return self.last_response.page_info.has_next_page
 
     @property
-    def cursor(self):
-        if self.last_response:
-            return self.last_response["project"]["artifactType"]["artifactCollection"][
-                "artifacts"
-            ]["edges"][-1]["cursor"]
-        else:
+    def cursor(self) -> Optional[str]:
+        if self.last_response is None:
             return None
+        return self.last_response.edges[-1].cursor
 
-    def convert_objects(self):
-        collection = self.last_response["project"]["artifactType"]["artifactCollection"]
-        artifact_edges = collection.get("artifacts", {}).get("edges", [])
+    def convert_objects(self) -> List["wandb.Artifact"]:
+        artifact_edges = (edge for edge in self.last_response.edges if edge.node)
         artifacts = (
             wandb.Artifact._from_attrs(
-                self.entity,
-                self.project,
-                self.collection_name + ":" + a["version"],
-                a["node"],
-                self.client,
+                entity=self.entity,
+                project=self.project,
+                name=f"{self.collection_name}:{edge.version}",
+                attrs=edge.node.model_dump(exclude_unset=True),
+                client=self.client,
             )
-            for a in artifact_edges
+            for edge in artifact_edges
         )
         required_tags = set(self.tags or [])
-        return [
-            artifact for artifact in artifacts if required_tags.issubset(artifact.tags)
-        ]
+        return [art for art in artifacts if required_tags.issubset(art.tags)]
 
 
 class RunArtifacts(SizedPaginator["wandb.Artifact"]):
-    def __init__(self, client: Client, run: "Run", mode="logged", per_page: int = 50):
+    last_response: Union[
+        RunOutputArtifactsProjectRunOutputArtifacts,
+        RunInputArtifactsProjectRunInputArtifacts,
+    ]
+
+    #: The pydantic model used to parse the (inner part of the) raw response.
+    _response_cls: Type[
+        Union[
+            RunOutputArtifactsProjectRunOutputArtifacts,
+            RunInputArtifactsProjectRunInputArtifacts,
+        ]
+    ]
+
+    def __init__(
+        self,
+        client: Client,
+        run: "Run",
+        mode: Literal["logged", "used"] = "logged",
+        per_page: int = 50,
+    ):
         self.run = run
 
         if mode == "logged":
@@ -573,12 +640,14 @@ class RunArtifacts(SizedPaginator["wandb.Artifact"]):
                 RUN_OUTPUT_ARTIFACTS_GQL,
                 omit_fields=omit_artifact_fields(api=InternalApi()),
             )
+            self._response_cls = RunOutputArtifactsProjectRunOutputArtifacts
         elif mode == "used":
             self.run_key = "inputArtifacts"
             self.QUERY = gql_compat(
                 RUN_INPUT_ARTIFACTS_GQL,
                 omit_fields=omit_artifact_fields(api=InternalApi()),
             )
+            self._response_cls = RunInputArtifactsProjectRunInputArtifacts
         else:
             raise ValueError("mode must be logged or used")
 
@@ -589,47 +658,49 @@ class RunArtifacts(SizedPaginator["wandb.Artifact"]):
         }
         super().__init__(client, variable_values, per_page)
 
-    @property
-    def length(self):
-        if self.last_response:
-            return self.last_response["project"]["run"][self.run_key]["totalCount"]
-        else:
-            return None
+    @override
+    def _update_response(self) -> None:
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+
+        # Extract the inner `*Connection` result for faster/easier access.
+        inner_data = data["project"]["run"][self.run_key]
+        self.last_response = self._response_cls.model_validate(inner_data)
 
     @property
-    def more(self):
-        if self.last_response:
-            return self.last_response["project"]["run"][self.run_key]["pageInfo"][
-                "hasNextPage"
-            ]
-        else:
+    def length(self) -> Optional[int]:
+        if self.last_response is None:
+            return None
+        return self.last_response.total_count
+
+    @property
+    def more(self) -> bool:
+        if self.last_response is None:
             return True
+        return self.last_response.page_info.has_next_page
 
     @property
-    def cursor(self):
-        if self.last_response:
-            return self.last_response["project"]["run"][self.run_key]["edges"][-1][
-                "cursor"
-            ]
-        else:
+    def cursor(self) -> Optional[str]:
+        if self.last_response is None:
             return None
+        return self.last_response.edges[-1].cursor
 
-    def convert_objects(self):
+    def convert_objects(self) -> List["wandb.Artifact"]:
         return [
             wandb.Artifact._from_attrs(
-                r["node"]["artifactSequence"]["project"]["entityName"],
-                r["node"]["artifactSequence"]["project"]["name"],
-                "{}:v{}".format(
-                    r["node"]["artifactSequence"]["name"], r["node"]["versionIndex"]
-                ),
-                r["node"],
-                self.client,
+                entity=node.artifact_sequence.project.entity_name,
+                project=node.artifact_sequence.project.name,
+                name=f"{node.artifact_sequence.name}:v{node.version_index}",
+                attrs=node.model_dump(exclude_unset=True),
+                client=self.client,
             )
-            for r in self.last_response["project"]["run"][self.run_key]["edges"]
+            for r in self.last_response.edges
+            if (node := r.node)
         ]
 
 
 class ArtifactFiles(SizedPaginator["public.File"]):
+    last_response: Optional[FilesFragment]
+
     def __init__(
         self,
         client: Client,
@@ -670,60 +741,59 @@ class ArtifactFiles(SizedPaginator["public.File"]):
 
         super().__init__(client, variables, per_page)
 
+    @override
+    def _update_response(self) -> None:
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+
+        # Extract the inner `*Connection` result for faster/easier access.
+        if self.query_via_membership:
+            result = ArtifactCollectionMembershipFiles.model_validate(data)
+            conn = result.project.artifact_collection.artifact_membership.files
+        else:
+            result = ArtifactVersionFiles.model_validate(data)
+            conn = result.project.artifact_type.artifact.files
+
+        if conn is None:
+            raise ValueError(f"Unable to parse {type(self).__name__!r} response data")
+
+        self.last_response = FilesFragment.model_validate(conn)
+
     @property
-    def path(self):
+    def path(self) -> List[str]:
         return [self.artifact.entity, self.artifact.project, self.artifact.name]
 
     @property
-    def length(self):
+    def length(self) -> int:
         return self.artifact.file_count
 
     @property
-    def more(self):
-        if self.last_response:
-            if self.query_via_membership:
-                return self.last_response["project"]["artifactCollection"][
-                    "artifactMembership"
-                ]["files"]["pageInfo"]["hasNextPage"]
-            return self.last_response["project"]["artifactType"]["artifact"]["files"][
-                "pageInfo"
-            ]["hasNextPage"]
-        else:
+    def more(self) -> bool:
+        if self.last_response is None:
             return True
+        return self.last_response.page_info.has_next_page
 
     @property
-    def cursor(self):
-        if self.last_response:
-            if self.query_via_membership:
-                return self.last_response["project"]["artifactCollection"][
-                    "artifactMembership"
-                ]["files"]["edges"][-1]["cursor"]
-            return self.last_response["project"]["artifactType"]["artifact"]["files"][
-                "edges"
-            ][-1]["cursor"]
-        else:
+    def cursor(self) -> Optional[str]:
+        if self.last_response is None:
             return None
+        return self.last_response.edges[-1].cursor
 
-    def update_variables(self):
+    def update_variables(self) -> None:
         self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
 
-    def convert_objects(self):
-        if self.query_via_membership:
-            return [
-                public.File(self.client, r["node"])
-                for r in self.last_response["project"]["artifactCollection"][
-                    "artifactMembership"
-                ]["files"]["edges"]
-            ]
+    def convert_objects(self) -> List["public.File"]:
         return [
-            public.File(self.client, r["node"])
-            for r in self.last_response["project"]["artifactType"]["artifact"]["files"][
-                "edges"
-            ]
+            public.File(
+                client=self.client,
+                attrs=node.model_dump(exclude_unset=True),
+            )
+            for edge in self.last_response.edges
+            if (node := edge.node)
         ]
 
-    def __repr__(self):
-        return "<ArtifactFiles {} ({})>".format("/".join(self.path), len(self))
+    def __repr__(self) -> str:
+        path_str = "/".join(self.path)
+        return f"<ArtifactFiles {path_str} ({len(self)})>"
 
 
 def server_supports_artifact_collections_gql_edges(

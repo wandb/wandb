@@ -1,10 +1,15 @@
+fragment ArtifactTypeFragment on ArtifactType {
+    __typename
+    id
+    name
+    description
+    createdAt
+}
+
 fragment ArtifactTypesFragment on ArtifactTypeConnection {
     edges {
         node {
-            id
-            name
-            description
-            createdAt
+            ...ArtifactTypeFragment
         }
         cursor
     }
@@ -33,10 +38,7 @@ query ProjectArtifactType(
 ) {
     project(name: $projectName, entityName: $entityName) {
         artifactType(name: $artifactTypeName) {
-            id
-            name
-            description
-            createdAt
+            ...ArtifactTypeFragment
         }
     }
 }

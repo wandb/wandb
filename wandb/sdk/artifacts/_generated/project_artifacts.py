@@ -3,13 +3,13 @@
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Literal, Optional
 
 from pydantic import Field
 
 from wandb._pydantic import GQLBase, Typename
 
-from .fragments import ArtifactFragment
+from .fragments import ArtifactsFragment
 
 
 class ProjectArtifacts(GQLBase):
@@ -33,31 +33,10 @@ class ProjectArtifactsProjectArtifactTypeArtifactCollection(GQLBase):
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
     name: str
-    artifacts: Optional[ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifacts]
-
-
-class ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifacts(GQLBase):
-    total_count: int = Field(alias="totalCount")
-    edges: List[ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactsEdges]
-    page_info: ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactsPageInfo = Field(
-        alias="pageInfo"
-    )
-
-
-class ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactsEdges(GQLBase):
-    node: ArtifactFragment
-    version: str
-    cursor: str
-
-
-class ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactsPageInfo(GQLBase):
-    end_cursor: Optional[str] = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
+    artifacts: Optional[ArtifactsFragment]
 
 
 ProjectArtifacts.model_rebuild()
 ProjectArtifactsProject.model_rebuild()
 ProjectArtifactsProjectArtifactType.model_rebuild()
 ProjectArtifactsProjectArtifactTypeArtifactCollection.model_rebuild()
-ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifacts.model_rebuild()
-ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactsEdges.model_rebuild()

@@ -16,8 +16,8 @@ __all__ = [
     "PROJECT_ARTIFACT_TYPE_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
-    "UPDATE_ARTIFACT_COLLECTION_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
+    "UPDATE_ARTIFACT_SEQUENCE_GQL",
 ]
 
 DELETE_ARTIFACT_SEQUENCE_GQL = """
@@ -42,10 +42,10 @@ mutation DeleteArtifactPortfolio($id: ID!) {
 }
 """
 
-UPDATE_ARTIFACT_COLLECTION_GQL = """
-mutation UpdateArtifactCollection($artifactSequenceID: ID!, $name: String, $description: String) {
+UPDATE_ARTIFACT_SEQUENCE_GQL = """
+mutation UpdateArtifactSequence($id: ID!, $name: String, $description: String) {
   updateArtifactSequence(
-    input: {artifactSequenceID: $artifactSequenceID, name: $name, description: $description}
+    input: {artifactSequenceID: $id, name: $name, description: $description}
   ) {
     artifactCollection {
       __typename
@@ -58,9 +58,9 @@ mutation UpdateArtifactCollection($artifactSequenceID: ID!, $name: String, $desc
 """
 
 UPDATE_ARTIFACT_PORTFOLIO_GQL = """
-mutation UpdateArtifactPortfolio($artifactPortfolioID: ID!, $name: String, $description: String) {
+mutation UpdateArtifactPortfolio($id: ID!, $name: String, $description: String) {
   updateArtifactPortfolio(
-    input: {artifactPortfolioID: $artifactPortfolioID, name: $name, description: $description}
+    input: {artifactPortfolioID: $id, name: $name, description: $description}
   ) {
     artifactCollection {
       __typename
@@ -116,23 +116,27 @@ query ProjectArtifactCollections($entityName: String!, $projectName: String!, $a
   project(name: $projectName, entityName: $entityName) {
     artifactType(name: $artifactTypeName) {
       artifactCollections: artifactCollections(after: $cursor) {
-        pageInfo {
-          endCursor
-          hasNextPage
-        }
-        totalCount
-        edges {
-          node {
-            __typename
-            id
-            name
-            description
-            createdAt
-          }
-          cursor
-        }
+        ...ArtifactCollectionsFragment
       }
     }
+  }
+}
+
+fragment ArtifactCollectionsFragment on ArtifactCollectionConnection {
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
+  totalCount
+  edges {
+    node {
+      __typename
+      id
+      name
+      description
+      createdAt
+    }
+    cursor
   }
 }
 """
@@ -258,13 +262,18 @@ query ProjectArtifactTypes($entityName: String!, $projectName: String!, $cursor:
   }
 }
 
+fragment ArtifactTypeFragment on ArtifactType {
+  __typename
+  id
+  name
+  description
+  createdAt
+}
+
 fragment ArtifactTypesFragment on ArtifactTypeConnection {
   edges {
     node {
-      id
-      name
-      description
-      createdAt
+      ...ArtifactTypeFragment
     }
     cursor
   }
@@ -279,12 +288,17 @@ PROJECT_ARTIFACT_TYPE_GQL = """
 query ProjectArtifactType($entityName: String!, $projectName: String!, $artifactTypeName: String!) {
   project(name: $projectName, entityName: $entityName) {
     artifactType(name: $artifactTypeName) {
-      id
-      name
-      description
-      createdAt
+      ...ArtifactTypeFragment
     }
   }
+}
+
+fragment ArtifactTypeFragment on ArtifactType {
+  __typename
+  id
+  name
+  description
+  createdAt
 }
 """
 
@@ -296,18 +310,7 @@ query ProjectArtifacts($project: String!, $entity: String!, $type: String!, $col
         __typename
         name
         artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
-          totalCount
-          edges {
-            node {
-              ...ArtifactFragment
-            }
-            version
-            cursor
-          }
-          pageInfo {
-            endCursor
-            hasNextPage
-          }
+          ...ArtifactsFragment
         }
       }
     }
@@ -333,6 +336,7 @@ fragment ArtifactFragment on Artifact {
   ttlIsInherited @include(if: true)
   aliases @include(if: true) {
     artifactCollection {
+      __typename
       project {
         entityName
         name
@@ -355,6 +359,21 @@ fragment ArtifactFragment on Artifact {
   fileCount
   createdAt
   updatedAt
+}
+
+fragment ArtifactsFragment on VersionedArtifactConnection {
+  totalCount
+  edges {
+    node {
+      ...ArtifactFragment
+    }
+    version
+    cursor
+  }
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
 }
 """
 
@@ -398,6 +417,7 @@ fragment ArtifactFragment on Artifact {
   ttlIsInherited @include(if: true)
   aliases @include(if: true) {
     artifactCollection {
+      __typename
       project {
         entityName
         name
@@ -463,6 +483,7 @@ fragment ArtifactFragment on Artifact {
   ttlIsInherited @include(if: true)
   aliases @include(if: true) {
     artifactCollection {
+      __typename
       project {
         entityName
         name
