@@ -548,19 +548,3 @@ def test_program_relpath_windows(root_dir, expected_result):
             f.write("# Test file for program_relpath testing")
         result = Settings._get_program_relpath(test_file_path, root_dir)
         assert expected_result(result)
-
-
-def test_update_from_system_settings_env_var(monkeypatch):
-    config_dir = os.path.join(tempfile.mkdtemp(), "config")
-    monkeypatch.setenv("WANDB_CONFIG_DIR", config_dir)
-    os.makedirs(config_dir)
-    with open(os.path.join(config_dir, "settings"), "w") as f:
-        f.write("[default]\n")
-        f.write("base_url = https://test.url\n")
-    settings = Settings()
-
-    settings.update_from_env_vars(environ=os.environ)
-    settings.update_from_system_config_file()
-
-    assert settings.settings_system == os.path.join(config_dir, "settings")
-    assert settings.base_url == "https://test.url"

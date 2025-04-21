@@ -15,12 +15,14 @@ from __future__ import annotations
 
 import logging
 import os
+import pathlib
 import sys
 import threading
 from typing import TYPE_CHECKING, Any, Union
 
 import wandb
 import wandb.integration.sagemaker as sagemaker
+from wandb.env import CONFIG_DIR
 from wandb.sdk.lib import import_hooks, wb_logging
 
 from . import wandb_settings
@@ -160,6 +162,12 @@ class _WandbSetup:
         self._logger.info(f"Current SDK version is {wandb.__version__}")
         self._logger.info(f"Configure stats pid to {pid}")
         s.x_stats_pid = pid
+
+        if settings and settings.settings_system:
+            s.settings_system = os.path.join("~", ".config", "wandb", "settings")
+        elif config_dir_str := os.getenv(CONFIG_DIR, None):
+            config_dir = pathlib.Path(config_dir_str).expanduser().resolve()
+            s.settings_system = str(config_dir / "settings")
 
         # load settings from the system config
         if s.settings_system:

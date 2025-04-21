@@ -33,7 +33,6 @@ from wandb._pydantic import (
     field_validator,
     model_validator,
 )
-from wandb.env import CONFIG_DIR
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 
@@ -466,15 +465,7 @@ class Settings(BaseModel, validate_assignment=True):
     save_code: Optional[bool] = None
     """Whether to save the code associated with the run."""
 
-    settings_system: str = Field(
-        default_factory=lambda: _path_convert(
-            os.getenv(
-                CONFIG_DIR,
-                os.path.join("~", ".config", "wandb"),
-            ),
-            "settings",
-        )
-    )
+    settings_system: Optional[str] = None
     """Path to the system-wide settings file."""
 
     show_colors: Optional[bool] = None
@@ -1070,6 +1061,9 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("settings_system", mode="after")
     @classmethod
     def validate_settings_system(cls, value):
+        if value is None:
+            return None
+
         if isinstance(value, pathlib.Path):
             return str(_path_convert(value))
         return _path_convert(value)

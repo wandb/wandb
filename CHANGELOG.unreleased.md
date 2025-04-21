@@ -41,4 +41,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Fixed ValueError on Windows when running a W&B script from a different drive (@jacobromero in https://github.com/wandb/wandb/pull/9678)
 - Fix base_url setting was not provided to wandb.login (@jacobromero in https://github.com/wandb/wandb/pull/9703)
 - `wandb.Html()` no longer raises `IsADirectoryError` with a value that matched a directory on the users system. (@jacobromero in https://github.com/wandb/wandb/pull/9728)
-- Fix `WANDB_CONFIG_DIR` was not used for determining system settings (@jacobromero in https://github.com/wandb/wandb/pull/9711)
+- Correctly use `WANDB_CONFIG_DIR` for determining system settings file path (@jacobromero in https://github.com/wandb/wandb/pull/9711)

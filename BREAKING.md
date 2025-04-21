@@ -66,6 +66,6 @@ When preparing a release that can include breaking changes, consider applying ch
     - Owner: @jacobromero
     - Deprecated after 0.19.9
 
-- Remove storing system settings in temporary directory
+- Remove fallback of storing system settings in a temporary directory when we don't have permissions to write to `~/.config/wandb/settings`
     - Owner: @jacobromero
     - Can do in >=0.20
