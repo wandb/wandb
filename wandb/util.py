@@ -1764,20 +1764,6 @@ def _get_max_cli_version() -> Union[str, None]:
     return str(max_cli_version) if max_cli_version is not None else None
 
 
-def _is_offline() -> bool:
-    """Returns true if wandb is configured to be offline.
-
-    If there is an active run, returns whether the run is offline.
-    Otherwise, returns the default mode, which is affected by explicit settings
-    passed to `wandb.setup()`, environment variables, and W&B configuration
-    files.
-    """
-    if wandb.run:
-        return wandb.run.settings._offline
-    else:
-        return wandb.setup().settings._offline
-
-
 def ensure_text(
     string: Union[str, bytes], encoding: str = "utf-8", errors: str = "strict"
 ) -> str:

@@ -21,7 +21,7 @@ import platform
 import sys
 import tempfile
 import time
-from typing import TYPE_CHECKING, Any, Iterator, Literal, Sequence
+from typing import TYPE_CHECKING, Any, Iterable, Iterator, Literal, Protocol, Sequence
 
 if sys.version_info >= (3, 11):
     from typing import Self
@@ -35,6 +35,7 @@ from wandb.errors import CommError, Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
+from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk.lib import ipython as wb_ipython
 from wandb.sdk.lib import progress, runid, wb_logging
 from wandb.sdk.lib.paths import StrPath
@@ -43,7 +44,7 @@ from wandb.util import _is_artifact_representation
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import SummaryDisabled, filesystem, module, paths, printer, telemetry
-from .lib.deprecate import Deprecated, deprecate
+from .lib.deprecate import deprecate
 from .mailbox import wait_with_progress
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
@@ -127,6 +128,34 @@ class _ConfigParts:
     """
 
 
+class _PrinterCallback(Protocol):
+    """A callback for displaying messages after a printer is configured.
+
+    This is used for a few messages that may be generated before run settings
+    are computed, which are necessary for creating a printer.
+    """
+
+    def __call__(self, run_printer: printer.Printer) -> None:
+        """Display information through the given printer."""
+
+
+def _noop_printer_callback() -> _PrinterCallback:
+    """A printer callback that does not print anything."""
+    return lambda _: None
+
+
+def _concat_printer_callbacks(
+    cbs: Iterable[_PrinterCallback],
+) -> _PrinterCallback:
+    """Returns a printer callback that runs the given callbacks in order."""
+
+    def do_callbacks(run_printer: printer.Printer) -> None:
+        for cb in cbs:
+            cb(run_printer)
+
+    return do_callbacks
+
+
 class _WandbInit:
     def __init__(
         self,
@@ -147,7 +176,6 @@ class _WandbInit:
 
         self._teardown_hooks: list[TeardownHook] = []
         self.notebook: wandb.jupyter.Notebook | None = None
-        self.printer = printer.new_printer()
 
         self.deprecated_features_used: dict[str, str] = dict()
 
@@ -185,15 +213,15 @@ class _WandbInit:
             _silent=run_settings.quiet or run_settings.silent,
         )
 
-    def warn_env_vars_change_after_setup(self) -> None:
-        """Warn if environment variables change after wandb singleton is initialized.
+    def warn_env_vars_change_after_setup(self) -> _PrinterCallback:
+        """Warn if environment variables changed after `wandb.setup()`.
 
-        Any settings from environment variables set after the singleton is initialized
-        (via login/setup/etc.) will be ignored.
+        Returns:
+            A callback to print any generated warnings.
         """
         singleton = wandb_setup.singleton()
         if singleton is None:
-            return
+            return _noop_printer_callback()
 
         exclude_env_vars = {"WANDB_SERVICE", "WANDB_KUBEFLOW_URL"}
         # check if environment variables have changed
@@ -207,26 +235,36 @@ class _WandbInit:
             for k, v in os.environ.items()
             if k.startswith("WANDB_") and k not in exclude_env_vars
         }
-        if set(singleton_env.keys()) != set(os_env.keys()) or set(
-            singleton_env.values()
-        ) != set(os_env.values()):
+
+        if (
+            set(singleton_env.keys()) == set(os_env.keys())  #
+            and set(singleton_env.values()) == set(os_env.values())
+        ):
+            return _noop_printer_callback()
+
+        def print_warning(run_printer: printer.Printer) -> None:
             line = (
                 "Changes to your `wandb` environment variables will be ignored "
                 "because your `wandb` session has already started. "
                 "For more information on how to modify your settings with "
                 "`wandb.init()` arguments, please refer to "
-                f"{self.printer.link(url_registry.url('wandb-init'), 'the W&B docs')}."
+                f"{run_printer.link(url_registry.url('wandb-init'), 'the W&B docs')}."
             )
-            self.printer.display(line, level="warn")
+            run_printer.display(line, level="warn")
+
+        return print_warning
 
     def clear_run_path_if_sweep_or_launch(
         self,
         init_settings: Settings,
-    ) -> None:
+    ) -> _PrinterCallback:
         """Clear project/entity/run_id keys if in a Sweep or a Launch context.
 
         Args:
             init_settings: Settings specified in the call to `wandb.init()`.
+
+        Returns:
+            A callback to print any generated warnings.
         """
         when_doing_thing = ""
 
@@ -236,13 +274,12 @@ class _WandbInit:
             when_doing_thing = "when running from a wandb launch context"
 
         if not when_doing_thing:
-            return
+            return _noop_printer_callback()
+
+        warnings = []
 
         def warn(key: str, value: str) -> None:
-            self.printer.display(
-                f"Ignoring {key} {value!r} {when_doing_thing}.",
-                level="warn",
-            )
+            warnings.append(f"Ignoring {key} {value!r} {when_doing_thing}.")
 
         if init_settings.project is not None:
             warn("project", init_settings.project)
@@ -254,16 +291,26 @@ class _WandbInit:
             warn("run_id", init_settings.run_id)
             init_settings.run_id = None
 
-    def make_run_settings(self, init_settings: Settings) -> Settings:
-        """Returns the run's settings.
+        def print_warnings(run_printer: printer.Printer) -> None:
+            for warning in warnings:
+                run_printer.display(warning, level="warn")
+
+        return print_warnings
+
+    def make_run_settings(
+        self,
+        init_settings: Settings,
+    ) -> tuple[Settings, _PrinterCallback]:
+        """Returns the run's settings and any warnings.
 
         Args:
             init_settings: Settings passed to `wandb.init()` or set via
                 keyword arguments.
         """
-        self.warn_env_vars_change_after_setup()
-
-        self.clear_run_path_if_sweep_or_launch(init_settings)
+        warning_callbacks: list[_PrinterCallback] = [
+            self.warn_env_vars_change_after_setup(),
+            self.clear_run_path_if_sweep_or_launch(init_settings),
+        ]
 
         # Inherit global settings.
         settings = self._wl.settings.model_copy()
@@ -309,7 +356,7 @@ class _WandbInit:
             label = runid.generate_id()
             settings.x_label = f"{prefix}-{label}" if prefix else label
 
-        return settings
+        return settings, _concat_printer_callbacks(warning_callbacks)
 
     def _load_autoresume_run_id(self, resume_file: pathlib.Path) -> str | None:
         """Returns the run_id stored in the auto-resume file, if any.
@@ -796,7 +843,12 @@ class _WandbInit:
         )
         return drun
 
-    def init(self, settings: Settings, config: _ConfigParts) -> Run:  # noqa: C901
+    def init(  # noqa: C901
+        self,
+        settings: Settings,
+        config: _ConfigParts,
+        run_printer: printer.Printer,
+    ) -> Run:
         self._logger.info("calling init triggers")
         trigger.call("on_init")
 
@@ -807,23 +859,36 @@ class _WandbInit:
             f"\nconfig: {config.base_no_artifacts}"
         )
 
-        if wandb.run is not None and os.getpid() == wandb.run._init_pid:
+        if previous_run := self._wl.most_recent_active_run:
             if (
                 settings.reinit in (True, "finish_previous")
                 # calling wandb.init() in notebooks finishes previous runs
                 # by default for user convenience.
                 or (settings.reinit == "default" and wb_ipython.in_notebook())
             ):
-                self._logger.info("finishing previous run: %s", wandb.run.id)
-                wandb.run.finish()
-            else:
-                self._logger.info("wandb.init() called while a run is active")
+                run_printer.display(
+                    "Finishing previous runs because reinit is set"
+                    f" to {settings.reinit!r}."
+                )
+                self._wl.finish_all_active_runs()
 
-                # NOTE: Updates telemetry on the pre-existing run.
-                with telemetry.context() as tel:
+            elif settings.reinit == "create_new":
+                self._logger.info(
+                    "wandb.init() called while a run is active,"
+                    " and reinit is set to 'create_new', so continuing"
+                )
+
+            else:
+                run_printer.display(
+                    "wandb.init() called while a run is active and reinit is"
+                    f" set to {settings.reinit!r}, so returning the previous"
+                    " run."
+                )
+
+                with telemetry.context(run=previous_run) as tel:
                     tel.feature.init_return_run = True
 
-                return wandb.run
+                return previous_run
 
         self._logger.info("starting backend")
 
@@ -916,6 +981,9 @@ class _WandbInit:
                 )
                 tel.feature.shared_mode = True
 
+            if settings.x_label:
+                tel.feature.user_provided_label = True
+
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
         if not settings.label_disable:
@@ -965,7 +1033,7 @@ class _WandbInit:
             assert backend.interface
 
             with progress.progress_printer(
-                self.printer,
+                run_printer,
                 default_text="Waiting for wandb.init()...",
             ) as progress_printer:
                 await progress.loop_printing_operation_stats(
@@ -1071,6 +1139,10 @@ class _WandbInit:
             run.use_artifact(job_artifact)
 
         self.backend = backend
+
+        if settings.reinit != "create_new":
+            _set_global_run(run)
+
         run._on_start()
         self._logger.info("run started, returning control to user process")
         return run
@@ -1147,8 +1219,34 @@ def _attach(
         raise UsageError(f"Failed to attach to run: {attach_response.error.message}")
 
     run._set_run_obj(attach_response.run)
+    _set_global_run(run)
     run._on_attach()
     return run
+
+
+def _set_global_run(run: Run) -> None:
+    """Set `wandb.run` and point some top-level functions to its methods.
+
+    Args:
+        run: The run to make global.
+    """
+    module.set_global(
+        run=run,
+        config=run.config,
+        log=run.log,
+        summary=run.summary,
+        save=run.save,
+        use_artifact=run.use_artifact,
+        log_artifact=run.log_artifact,
+        define_metric=run.define_metric,
+        alert=run.alert,
+        watch=run.watch,
+        unwatch=run.unwatch,
+        mark_preempting=run.mark_preempting,
+        log_model=run.log_model,
+        use_model=run.use_model,
+        link_model=run.link_model,
+    )
 
 
 def _monkeypatch_openai_gym() -> None:
@@ -1218,6 +1316,7 @@ def init(  # noqa: C901
             "default",
             "return_previous",
             "finish_previous",
+            "create_new",
         ]
     ) = None,
     resume: bool | Literal["allow", "never", "must", "auto"] | None = None,
@@ -1495,7 +1594,7 @@ def init(  # noqa: C901
         wi = _WandbInit(wl, init_telemetry)
 
         wi.maybe_login(init_settings)
-        run_settings = wi.make_run_settings(init_settings)
+        run_settings, show_warnings = wi.make_run_settings(init_settings)
 
         if isinstance(run_settings.reinit, bool):
             wi.deprecated_features_used["run__reinit_bool"] = (
@@ -1513,6 +1612,8 @@ def init(  # noqa: C901
             init_telemetry.feature.offline = True
 
         wi.set_run_id(run_settings)
+        run_printer = printer.new_printer(run_settings)
+        show_warnings(run_printer)
 
         with contextlib.ExitStack() as exit_stack:
             exit_stack.enter_context(wb_logging.log_to_run(run_settings.run_id))
@@ -1546,7 +1647,7 @@ def init(  # noqa: C901
             if run_settings.x_server_side_derived_summary:
                 init_telemetry.feature.server_side_derived_summary = True
 
-            return wi.init(run_settings, run_config)
+            return wi.init(run_settings, run_config, run_printer)
 
     except KeyboardInterrupt as e:
         if wl:

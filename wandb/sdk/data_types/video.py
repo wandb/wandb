@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Optional, Sequence, Type, Union
 
 import wandb
 from wandb import util
-from wandb.sdk.lib import filesystem, printer_asyncio, runid
+from wandb.sdk.lib import filesystem, printer, printer_asyncio, runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -136,6 +136,7 @@ class Video(BatchableMedia):
                 )
             fps = fps or 4
             printer_asyncio.run_async_with_spinner(
+                printer.new_printer(),
                 "Encoding video...",
                 functools.partial(self.encode, fps=fps),
             )
