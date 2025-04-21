@@ -1063,10 +1063,10 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_settings_system(cls, value):
         if value is None:
             return None
-
-        if isinstance(value, pathlib.Path):
+        elif isinstance(value, pathlib.Path):
             return str(_path_convert(value))
-        return _path_convert(value)
+        else:
+            return _path_convert(value)
 
     @field_validator("x_service_wait", mode="after")
     @classmethod

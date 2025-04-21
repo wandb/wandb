@@ -164,10 +164,14 @@ class _WandbSetup:
         s.x_stats_pid = pid
 
         if settings and settings.settings_system:
-            s.settings_system = os.path.join("~", ".config", "wandb", "settings")
+            s.settings_system = settings.settings_system
         elif config_dir_str := os.getenv(CONFIG_DIR, None):
-            config_dir = pathlib.Path(config_dir_str).expanduser().resolve()
+            config_dir = pathlib.Path(config_dir_str).expanduser()
             s.settings_system = str(config_dir / "settings")
+        else:
+            s.settings_system = str(
+                pathlib.Path("~", ".config", "wandb", "settings").expanduser()
+            )
 
         # load settings from the system config
         if s.settings_system:
