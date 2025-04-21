@@ -143,7 +143,7 @@ def val_to_json(
     if isinstance(val, WBValue):
         assert run
         if (isinstance(val, Media) and  hasattr(val, "_log_type") and val.is_bound()
-            and val._log_type == "table" and val.version_on_log is True):
+            and val._log_type == "table"):
             # Need reset state so the delta can be logged as a new artifact version
             run._tables_to_finalize[id(val)] = (key, val)
             val._artifact_target = None
