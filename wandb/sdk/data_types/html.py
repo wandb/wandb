@@ -16,6 +16,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Html(BatchableMedia):
+    """A class for logging HTML content to W&B."""
+
     _log_type = "html-file"
 
     def __init__(
@@ -24,17 +26,17 @@ class Html(BatchableMedia):
         inject: bool = True,
         data_is_not_path: bool = False,
     ) -> None:
-        """A class for logging HTML to W&B.
+        """Creates a W&B HTML object.
 
         It can be initialized by providing a path to a file:
-        ```python
+        ```
         with wandb.init() as run:
             run.log({"html": wandb.Html("./index.html")})
         ```
 
         Alternatively, it can be initialized by providing literal HTML,
         in either a string or IO object:
-        ```python
+        ```
         with wandb.init() as run:
             run.log({"html": wandb.Html("<h1>Hello, world!</h1>")})
         ```
