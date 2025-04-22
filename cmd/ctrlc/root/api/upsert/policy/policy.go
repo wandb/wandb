@@ -99,7 +99,7 @@ func NewUpsertPolicyCmd() *cobra.Command {
 			}
 
 			// Create policy request
-			body := api.CreatePolicyJSONRequestBody{
+			body := api.UpsertPolicyJSONRequestBody{
 				Name:        name,
 				WorkspaceId: workspaceId,
 				Description: &description,
@@ -115,7 +115,7 @@ func NewUpsertPolicyCmd() *cobra.Command {
 				DeploymentVersionSelector: parsedDeploymentVersionSelector,
 			}
 
-			resp, err := client.CreatePolicy(cmd.Context(), body)
+			resp, err := client.UpsertPolicy(cmd.Context(), body)
 			if err != nil {
 				return fmt.Errorf("failed to create policy: %w", err)
 			}

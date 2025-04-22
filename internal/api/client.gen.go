@@ -288,9 +288,9 @@ type Policy1 struct {
 
 // PolicyTarget defines model for PolicyTarget.
 type PolicyTarget struct {
-	DeploymentSelector  *map[string]interface{} `json:"deploymentSelector,omitempty"`
-	EnvironmentSelector *map[string]interface{} `json:"environmentSelector,omitempty"`
-	ResourceSelector    *map[string]interface{} `json:"resourceSelector,omitempty"`
+	DeploymentSelector  *map[string]interface{} `json:"deploymentSelector"`
+	EnvironmentSelector *map[string]interface{} `json:"environmentSelector"`
+	ResourceSelector    *map[string]interface{} `json:"resourceSelector"`
 }
 
 // Release defines model for Release.
@@ -516,13 +516,13 @@ type UpdateJobJSONBody struct {
 	Status     *JobStatus `json:"status,omitempty"`
 }
 
-// CreatePolicyJSONBody defines parameters for CreatePolicy.
-type CreatePolicyJSONBody struct {
-	DenyWindows []struct {
+// UpsertPolicyJSONBody defines parameters for UpsertPolicy.
+type UpsertPolicyJSONBody struct {
+	DenyWindows *[]struct {
 		Dtend    *time.Time              `json:"dtend,omitempty"`
 		Rrule    *map[string]interface{} `json:"rrule,omitempty"`
 		TimeZone string                  `json:"timeZone"`
-	} `json:"denyWindows"`
+	} `json:"denyWindows,omitempty"`
 	DeploymentVersionSelector *DeploymentVersionSelector `json:"deploymentVersionSelector,omitempty"`
 	Description               *string                    `json:"description,omitempty"`
 	Enabled                   *bool                      `json:"enabled,omitempty"`
@@ -532,12 +532,12 @@ type CreatePolicyJSONBody struct {
 	VersionAnyApprovals       *[]struct {
 		RequiredApprovalsCount *float32 `json:"requiredApprovalsCount,omitempty"`
 	} `json:"versionAnyApprovals,omitempty"`
-	VersionRoleApprovals []struct {
+	VersionRoleApprovals *[]struct {
 		RequiredApprovalsCount *float32 `json:"requiredApprovalsCount,omitempty"`
-		RoleId                 *string  `json:"roleId,omitempty"`
-	} `json:"versionRoleApprovals"`
-	VersionUserApprovals []VersionUserApproval `json:"versionUserApprovals"`
-	WorkspaceId          string                `json:"workspaceId"`
+		RoleId                 string   `json:"roleId"`
+	} `json:"versionRoleApprovals,omitempty"`
+	VersionUserApprovals *[]VersionUserApproval `json:"versionUserApprovals,omitempty"`
+	WorkspaceId          string                 `json:"workspaceId"`
 }
 
 // CreateJobToResourceRelationshipJSONBody defines parameters for CreateJobToResourceRelationship.
@@ -631,18 +631,16 @@ type CreateResourceSchemaJSONBody struct {
 	WorkspaceId openapi_types.UUID `json:"workspaceId"`
 }
 
-// UpsertResourcesJSONBody defines parameters for UpsertResources.
-type UpsertResourcesJSONBody struct {
-	Resources []struct {
-		Config     map[string]interface{} `json:"config"`
-		Identifier string                 `json:"identifier"`
-		Kind       string                 `json:"kind"`
-		Metadata   *map[string]string     `json:"metadata,omitempty"`
-		Name       string                 `json:"name"`
-		Variables  *[]Variable            `json:"variables,omitempty"`
-		Version    string                 `json:"version"`
-	} `json:"resources"`
-	WorkspaceId openapi_types.UUID `json:"workspaceId"`
+// UpsertResourceJSONBody defines parameters for UpsertResource.
+type UpsertResourceJSONBody struct {
+	Config      map[string]interface{} `json:"config"`
+	Identifier  string                 `json:"identifier"`
+	Kind        string                 `json:"kind"`
+	Metadata    *map[string]string     `json:"metadata,omitempty"`
+	Name        string                 `json:"name"`
+	Variables   *[]Variable            `json:"variables,omitempty"`
+	Version     string                 `json:"version"`
+	WorkspaceId openapi_types.UUID     `json:"workspaceId"`
 }
 
 // UpdateResourceJSONBody defines parameters for UpdateResource.
@@ -710,8 +708,8 @@ type UpsertJobAgentJSONRequestBody UpsertJobAgentJSONBody
 // UpdateJobJSONRequestBody defines body for UpdateJob for application/json ContentType.
 type UpdateJobJSONRequestBody UpdateJobJSONBody
 
-// CreatePolicyJSONRequestBody defines body for CreatePolicy for application/json ContentType.
-type CreatePolicyJSONRequestBody CreatePolicyJSONBody
+// UpsertPolicyJSONRequestBody defines body for UpsertPolicy for application/json ContentType.
+type UpsertPolicyJSONRequestBody UpsertPolicyJSONBody
 
 // CreateJobToResourceRelationshipJSONRequestBody defines body for CreateJobToResourceRelationship for application/json ContentType.
 type CreateJobToResourceRelationshipJSONRequestBody CreateJobToResourceRelationshipJSONBody
@@ -734,8 +732,8 @@ type SetResourceProvidersResourcesJSONRequestBody SetResourceProvidersResourcesJ
 // CreateResourceSchemaJSONRequestBody defines body for CreateResourceSchema for application/json ContentType.
 type CreateResourceSchemaJSONRequestBody CreateResourceSchemaJSONBody
 
-// UpsertResourcesJSONRequestBody defines body for UpsertResources for application/json ContentType.
-type UpsertResourcesJSONRequestBody UpsertResourcesJSONBody
+// UpsertResourceJSONRequestBody defines body for UpsertResource for application/json ContentType.
+type UpsertResourceJSONRequestBody UpsertResourceJSONBody
 
 // UpdateResourceJSONRequestBody defines body for UpdateResource for application/json ContentType.
 type UpdateResourceJSONRequestBody UpdateResourceJSONBody
@@ -1123,6 +1121,9 @@ type ClientInterface interface {
 	// DeleteReleaseChannel request
 	DeleteReleaseChannel(ctx context.Context, deploymentId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetResourcesForDeployment request
+	GetResourcesForDeployment(ctx context.Context, deploymentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreateEnvironmentWithBody request with any body
 	CreateEnvironmentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1133,6 +1134,9 @@ type ClientInterface interface {
 
 	// GetEnvironment request
 	GetEnvironment(ctx context.Context, environmentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetResourcesForEnvironment request
+	GetResourcesForEnvironment(ctx context.Context, environmentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpsertJobAgentWithBody request with any body
 	UpsertJobAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1159,10 +1163,16 @@ type ClientInterface interface {
 	// AcknowledgeJob request
 	AcknowledgeJob(ctx context.Context, jobId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CreatePolicyWithBody request with any body
-	CreatePolicyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// UpsertPolicyWithBody request with any body
+	UpsertPolicyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CreatePolicy(ctx context.Context, body CreatePolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpsertPolicy(ctx context.Context, body UpsertPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeletePolicy request
+	DeletePolicy(ctx context.Context, policyId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetReleaseTargetsForPolicy request
+	GetReleaseTargetsForPolicy(ctx context.Context, policyId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateJobToResourceRelationshipWithBody request with any body
 	CreateJobToResourceRelationshipWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1202,10 +1212,10 @@ type ClientInterface interface {
 	// DeleteResourceSchema request
 	DeleteResourceSchema(ctx context.Context, schemaId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UpsertResourcesWithBody request with any body
-	UpsertResourcesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// UpsertResourceWithBody request with any body
+	UpsertResourceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpsertResources(ctx context.Context, body UpsertResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpsertResource(ctx context.Context, body UpsertResourceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteResource request
 	DeleteResource(ctx context.Context, resourceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1448,6 +1458,18 @@ func (c *Client) DeleteReleaseChannel(ctx context.Context, deploymentId string, 
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetResourcesForDeployment(ctx context.Context, deploymentId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetResourcesForDeploymentRequest(c.Server, deploymentId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) CreateEnvironmentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateEnvironmentRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -1486,6 +1508,18 @@ func (c *Client) DeleteEnvironment(ctx context.Context, environmentId string, re
 
 func (c *Client) GetEnvironment(ctx context.Context, environmentId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetEnvironmentRequest(c.Server, environmentId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetResourcesForEnvironment(ctx context.Context, environmentId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetResourcesForEnvironmentRequest(c.Server, environmentId)
 	if err != nil {
 		return nil, err
 	}
@@ -1604,8 +1638,8 @@ func (c *Client) AcknowledgeJob(ctx context.Context, jobId string, reqEditors ..
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreatePolicyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreatePolicyRequestWithBody(c.Server, contentType, body)
+func (c *Client) UpsertPolicyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertPolicyRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1616,8 +1650,32 @@ func (c *Client) CreatePolicyWithBody(ctx context.Context, contentType string, b
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreatePolicy(ctx context.Context, body CreatePolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreatePolicyRequest(c.Server, body)
+func (c *Client) UpsertPolicy(ctx context.Context, body UpsertPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertPolicyRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeletePolicy(ctx context.Context, policyId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeletePolicyRequest(c.Server, policyId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetReleaseTargetsForPolicy(ctx context.Context, policyId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetReleaseTargetsForPolicyRequest(c.Server, policyId)
 	if err != nil {
 		return nil, err
 	}
@@ -1808,8 +1866,8 @@ func (c *Client) DeleteResourceSchema(ctx context.Context, schemaId openapi_type
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpsertResourcesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpsertResourcesRequestWithBody(c.Server, contentType, body)
+func (c *Client) UpsertResourceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertResourceRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1820,8 +1878,8 @@ func (c *Client) UpsertResourcesWithBody(ctx context.Context, contentType string
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpsertResources(ctx context.Context, body UpsertResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpsertResourcesRequest(c.Server, body)
+func (c *Client) UpsertResource(ctx context.Context, body UpsertResourceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertResourceRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2482,6 +2540,40 @@ func NewDeleteReleaseChannelRequest(server string, deploymentId string, name str
 	return req, nil
 }
 
+// NewGetResourcesForDeploymentRequest generates requests for GetResourcesForDeployment
+func NewGetResourcesForDeploymentRequest(server string, deploymentId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "deploymentId", runtime.ParamLocationPath, deploymentId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/deployments/%s/resources", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewCreateEnvironmentRequest calls the generic CreateEnvironment builder with application/json body
 func NewCreateEnvironmentRequest(server string, body CreateEnvironmentJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -2573,6 +2665,40 @@ func NewGetEnvironmentRequest(server string, environmentId string) (*http.Reques
 	}
 
 	operationPath := fmt.Sprintf("/v1/environments/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetResourcesForEnvironmentRequest generates requests for GetResourcesForEnvironment
+func NewGetResourcesForEnvironmentRequest(server string, environmentId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "environmentId", runtime.ParamLocationPath, environmentId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/environments/%s/resources", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2847,19 +2973,19 @@ func NewAcknowledgeJobRequest(server string, jobId string) (*http.Request, error
 	return req, nil
 }
 
-// NewCreatePolicyRequest calls the generic CreatePolicy builder with application/json body
-func NewCreatePolicyRequest(server string, body CreatePolicyJSONRequestBody) (*http.Request, error) {
+// NewUpsertPolicyRequest calls the generic UpsertPolicy builder with application/json body
+func NewUpsertPolicyRequest(server string, body UpsertPolicyJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreatePolicyRequestWithBody(server, "application/json", bodyReader)
+	return NewUpsertPolicyRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewCreatePolicyRequestWithBody generates requests for CreatePolicy with any type of body
-func NewCreatePolicyRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewUpsertPolicyRequestWithBody generates requests for UpsertPolicy with any type of body
+func NewUpsertPolicyRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -2883,6 +3009,74 @@ func NewCreatePolicyRequestWithBody(server string, contentType string, body io.R
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeletePolicyRequest generates requests for DeletePolicy
+func NewDeletePolicyRequest(server string, policyId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "policyId", runtime.ParamLocationPath, policyId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/policies/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetReleaseTargetsForPolicyRequest generates requests for GetReleaseTargetsForPolicy
+func NewGetReleaseTargetsForPolicyRequest(server string, policyId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "policyId", runtime.ParamLocationPath, policyId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/policies/%s/release-targets", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -3215,19 +3409,19 @@ func NewDeleteResourceSchemaRequest(server string, schemaId openapi_types.UUID) 
 	return req, nil
 }
 
-// NewUpsertResourcesRequest calls the generic UpsertResources builder with application/json body
-func NewUpsertResourcesRequest(server string, body UpsertResourcesJSONRequestBody) (*http.Request, error) {
+// NewUpsertResourceRequest calls the generic UpsertResource builder with application/json body
+func NewUpsertResourceRequest(server string, body UpsertResourceJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpsertResourcesRequestWithBody(server, "application/json", bodyReader)
+	return NewUpsertResourceRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewUpsertResourcesRequestWithBody generates requests for UpsertResources with any type of body
-func NewUpsertResourcesRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewUpsertResourceRequestWithBody generates requests for UpsertResource with any type of body
+func NewUpsertResourceRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -4017,6 +4211,9 @@ type ClientWithResponsesInterface interface {
 	// DeleteReleaseChannelWithResponse request
 	DeleteReleaseChannelWithResponse(ctx context.Context, deploymentId string, name string, reqEditors ...RequestEditorFn) (*DeleteReleaseChannelResponse, error)
 
+	// GetResourcesForDeploymentWithResponse request
+	GetResourcesForDeploymentWithResponse(ctx context.Context, deploymentId string, reqEditors ...RequestEditorFn) (*GetResourcesForDeploymentResponse, error)
+
 	// CreateEnvironmentWithBodyWithResponse request with any body
 	CreateEnvironmentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateEnvironmentResponse, error)
 
@@ -4027,6 +4224,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetEnvironmentWithResponse request
 	GetEnvironmentWithResponse(ctx context.Context, environmentId string, reqEditors ...RequestEditorFn) (*GetEnvironmentResponse, error)
+
+	// GetResourcesForEnvironmentWithResponse request
+	GetResourcesForEnvironmentWithResponse(ctx context.Context, environmentId string, reqEditors ...RequestEditorFn) (*GetResourcesForEnvironmentResponse, error)
 
 	// UpsertJobAgentWithBodyWithResponse request with any body
 	UpsertJobAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertJobAgentResponse, error)
@@ -4053,10 +4253,16 @@ type ClientWithResponsesInterface interface {
 	// AcknowledgeJobWithResponse request
 	AcknowledgeJobWithResponse(ctx context.Context, jobId string, reqEditors ...RequestEditorFn) (*AcknowledgeJobResponse, error)
 
-	// CreatePolicyWithBodyWithResponse request with any body
-	CreatePolicyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePolicyResponse, error)
+	// UpsertPolicyWithBodyWithResponse request with any body
+	UpsertPolicyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertPolicyResponse, error)
 
-	CreatePolicyWithResponse(ctx context.Context, body CreatePolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*CreatePolicyResponse, error)
+	UpsertPolicyWithResponse(ctx context.Context, body UpsertPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertPolicyResponse, error)
+
+	// DeletePolicyWithResponse request
+	DeletePolicyWithResponse(ctx context.Context, policyId openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeletePolicyResponse, error)
+
+	// GetReleaseTargetsForPolicyWithResponse request
+	GetReleaseTargetsForPolicyWithResponse(ctx context.Context, policyId string, reqEditors ...RequestEditorFn) (*GetReleaseTargetsForPolicyResponse, error)
 
 	// CreateJobToResourceRelationshipWithBodyWithResponse request with any body
 	CreateJobToResourceRelationshipWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateJobToResourceRelationshipResponse, error)
@@ -4096,10 +4302,10 @@ type ClientWithResponsesInterface interface {
 	// DeleteResourceSchemaWithResponse request
 	DeleteResourceSchemaWithResponse(ctx context.Context, schemaId openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeleteResourceSchemaResponse, error)
 
-	// UpsertResourcesWithBodyWithResponse request with any body
-	UpsertResourcesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertResourcesResponse, error)
+	// UpsertResourceWithBodyWithResponse request with any body
+	UpsertResourceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertResourceResponse, error)
 
-	UpsertResourcesWithResponse(ctx context.Context, body UpsertResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertResourcesResponse, error)
+	UpsertResourceWithResponse(ctx context.Context, body UpsertResourceJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertResourceResponse, error)
 
 	// DeleteResourceWithResponse request
 	DeleteResourceWithResponse(ctx context.Context, resourceId string, reqEditors ...RequestEditorFn) (*DeleteResourceResponse, error)
@@ -4453,6 +4659,40 @@ func (r DeleteReleaseChannelResponse) StatusCode() int {
 	return 0
 }
 
+type GetResourcesForDeploymentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Count     *float32 `json:"count,omitempty"`
+		Resources *[]struct {
+			Id         *string `json:"id,omitempty"`
+			Identifier *string `json:"identifier,omitempty"`
+			Kind       *string `json:"kind,omitempty"`
+			Name       *string `json:"name,omitempty"`
+			Version    *string `json:"version,omitempty"`
+		} `json:"resources,omitempty"`
+	}
+	JSON500 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetResourcesForDeploymentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetResourcesForDeploymentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type CreateEnvironmentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4522,6 +4762,40 @@ func (r GetEnvironmentResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetEnvironmentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetResourcesForEnvironmentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Count     *float32 `json:"count,omitempty"`
+		Resources *[]struct {
+			Id         *string `json:"id,omitempty"`
+			Identifier *string `json:"identifier,omitempty"`
+			Kind       *string `json:"kind,omitempty"`
+			Name       *string `json:"name,omitempty"`
+			Version    *string `json:"version,omitempty"`
+		} `json:"resources,omitempty"`
+	}
+	JSON500 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetResourcesForEnvironmentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetResourcesForEnvironmentResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -4706,7 +4980,7 @@ func (r AcknowledgeJobResponse) StatusCode() int {
 	return 0
 }
 
-type CreatePolicyResponse struct {
+type UpsertPolicyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Policy1
@@ -4716,7 +4990,7 @@ type CreatePolicyResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r CreatePolicyResponse) Status() string {
+func (r UpsertPolicyResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -4724,7 +4998,80 @@ func (r CreatePolicyResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r CreatePolicyResponse) StatusCode() int {
+func (r UpsertPolicyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeletePolicyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Count *float32 `json:"count,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r DeletePolicyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeletePolicyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetReleaseTargetsForPolicyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Count          *float32 `json:"count,omitempty"`
+		ReleaseTargets *[]struct {
+			Description *string `json:"description,omitempty"`
+			Environment *struct {
+				Id   *string `json:"id,omitempty"`
+				Name *string `json:"name,omitempty"`
+			} `json:"environment,omitempty"`
+			Id           *string `json:"id,omitempty"`
+			Name         *string `json:"name,omitempty"`
+			PolicyTarget *struct {
+				Description *string `json:"description,omitempty"`
+				Id          *string `json:"id,omitempty"`
+				Name        *string `json:"name,omitempty"`
+				PolicyId    *string `json:"policyId,omitempty"`
+			} `json:"policyTarget,omitempty"`
+			Resource *struct {
+				Id         *string `json:"id,omitempty"`
+				Identifier *string `json:"identifier,omitempty"`
+				Kind       *string `json:"kind,omitempty"`
+				Name       *string `json:"name,omitempty"`
+				Version    *string `json:"version,omitempty"`
+			} `json:"resource,omitempty"`
+		} `json:"releaseTargets,omitempty"`
+	}
+	JSON500 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetReleaseTargetsForPolicyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetReleaseTargetsForPolicyResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -4976,16 +5323,14 @@ func (r DeleteResourceSchemaResponse) StatusCode() int {
 	return 0
 }
 
-type UpsertResourcesResponse struct {
+type UpsertResourceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Count *float32 `json:"count,omitempty"`
-	}
+	JSON200      *Resource
 }
 
 // Status returns HTTPResponse.Status
-func (r UpsertResourcesResponse) Status() string {
+func (r UpsertResourceResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -4993,7 +5338,7 @@ func (r UpsertResourcesResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r UpsertResourcesResponse) StatusCode() int {
+func (r UpsertResourceResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -5420,7 +5765,7 @@ type ListResourcesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Data *[]Resource `json:"data,omitempty"`
+		Resources *[]Resource `json:"resources,omitempty"`
 	}
 }
 
@@ -5662,6 +6007,15 @@ func (c *ClientWithResponses) DeleteReleaseChannelWithResponse(ctx context.Conte
 	return ParseDeleteReleaseChannelResponse(rsp)
 }
 
+// GetResourcesForDeploymentWithResponse request returning *GetResourcesForDeploymentResponse
+func (c *ClientWithResponses) GetResourcesForDeploymentWithResponse(ctx context.Context, deploymentId string, reqEditors ...RequestEditorFn) (*GetResourcesForDeploymentResponse, error) {
+	rsp, err := c.GetResourcesForDeployment(ctx, deploymentId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetResourcesForDeploymentResponse(rsp)
+}
+
 // CreateEnvironmentWithBodyWithResponse request with arbitrary body returning *CreateEnvironmentResponse
 func (c *ClientWithResponses) CreateEnvironmentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateEnvironmentResponse, error) {
 	rsp, err := c.CreateEnvironmentWithBody(ctx, contentType, body, reqEditors...)
@@ -5695,6 +6049,15 @@ func (c *ClientWithResponses) GetEnvironmentWithResponse(ctx context.Context, en
 		return nil, err
 	}
 	return ParseGetEnvironmentResponse(rsp)
+}
+
+// GetResourcesForEnvironmentWithResponse request returning *GetResourcesForEnvironmentResponse
+func (c *ClientWithResponses) GetResourcesForEnvironmentWithResponse(ctx context.Context, environmentId string, reqEditors ...RequestEditorFn) (*GetResourcesForEnvironmentResponse, error) {
+	rsp, err := c.GetResourcesForEnvironment(ctx, environmentId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetResourcesForEnvironmentResponse(rsp)
 }
 
 // UpsertJobAgentWithBodyWithResponse request with arbitrary body returning *UpsertJobAgentResponse
@@ -5776,21 +6139,39 @@ func (c *ClientWithResponses) AcknowledgeJobWithResponse(ctx context.Context, jo
 	return ParseAcknowledgeJobResponse(rsp)
 }
 
-// CreatePolicyWithBodyWithResponse request with arbitrary body returning *CreatePolicyResponse
-func (c *ClientWithResponses) CreatePolicyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePolicyResponse, error) {
-	rsp, err := c.CreatePolicyWithBody(ctx, contentType, body, reqEditors...)
+// UpsertPolicyWithBodyWithResponse request with arbitrary body returning *UpsertPolicyResponse
+func (c *ClientWithResponses) UpsertPolicyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertPolicyResponse, error) {
+	rsp, err := c.UpsertPolicyWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCreatePolicyResponse(rsp)
+	return ParseUpsertPolicyResponse(rsp)
 }
 
-func (c *ClientWithResponses) CreatePolicyWithResponse(ctx context.Context, body CreatePolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*CreatePolicyResponse, error) {
-	rsp, err := c.CreatePolicy(ctx, body, reqEditors...)
+func (c *ClientWithResponses) UpsertPolicyWithResponse(ctx context.Context, body UpsertPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertPolicyResponse, error) {
+	rsp, err := c.UpsertPolicy(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCreatePolicyResponse(rsp)
+	return ParseUpsertPolicyResponse(rsp)
+}
+
+// DeletePolicyWithResponse request returning *DeletePolicyResponse
+func (c *ClientWithResponses) DeletePolicyWithResponse(ctx context.Context, policyId openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeletePolicyResponse, error) {
+	rsp, err := c.DeletePolicy(ctx, policyId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeletePolicyResponse(rsp)
+}
+
+// GetReleaseTargetsForPolicyWithResponse request returning *GetReleaseTargetsForPolicyResponse
+func (c *ClientWithResponses) GetReleaseTargetsForPolicyWithResponse(ctx context.Context, policyId string, reqEditors ...RequestEditorFn) (*GetReleaseTargetsForPolicyResponse, error) {
+	rsp, err := c.GetReleaseTargetsForPolicy(ctx, policyId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetReleaseTargetsForPolicyResponse(rsp)
 }
 
 // CreateJobToResourceRelationshipWithBodyWithResponse request with arbitrary body returning *CreateJobToResourceRelationshipResponse
@@ -5921,21 +6302,21 @@ func (c *ClientWithResponses) DeleteResourceSchemaWithResponse(ctx context.Conte
 	return ParseDeleteResourceSchemaResponse(rsp)
 }
 
-// UpsertResourcesWithBodyWithResponse request with arbitrary body returning *UpsertResourcesResponse
-func (c *ClientWithResponses) UpsertResourcesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertResourcesResponse, error) {
-	rsp, err := c.UpsertResourcesWithBody(ctx, contentType, body, reqEditors...)
+// UpsertResourceWithBodyWithResponse request with arbitrary body returning *UpsertResourceResponse
+func (c *ClientWithResponses) UpsertResourceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertResourceResponse, error) {
+	rsp, err := c.UpsertResourceWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpsertResourcesResponse(rsp)
+	return ParseUpsertResourceResponse(rsp)
 }
 
-func (c *ClientWithResponses) UpsertResourcesWithResponse(ctx context.Context, body UpsertResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertResourcesResponse, error) {
-	rsp, err := c.UpsertResources(ctx, body, reqEditors...)
+func (c *ClientWithResponses) UpsertResourceWithResponse(ctx context.Context, body UpsertResourceJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertResourceResponse, error) {
+	rsp, err := c.UpsertResource(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpsertResourcesResponse(rsp)
+	return ParseUpsertResourceResponse(rsp)
 }
 
 // DeleteResourceWithResponse request returning *DeleteResourceResponse
@@ -6569,6 +6950,50 @@ func ParseDeleteReleaseChannelResponse(rsp *http.Response) (*DeleteReleaseChanne
 	return response, nil
 }
 
+// ParseGetResourcesForDeploymentResponse parses an HTTP response from a GetResourcesForDeploymentWithResponse call
+func ParseGetResourcesForDeploymentResponse(rsp *http.Response) (*GetResourcesForDeploymentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetResourcesForDeploymentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Count     *float32 `json:"count,omitempty"`
+			Resources *[]struct {
+				Id         *string `json:"id,omitempty"`
+				Identifier *string `json:"identifier,omitempty"`
+				Kind       *string `json:"kind,omitempty"`
+				Name       *string `json:"name,omitempty"`
+				Version    *string `json:"version,omitempty"`
+			} `json:"resources,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseCreateEnvironmentResponse parses an HTTP response from a CreateEnvironmentWithResponse call
 func ParseCreateEnvironmentResponse(rsp *http.Response) (*CreateEnvironmentResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -6659,6 +7084,50 @@ func ParseGetEnvironmentResponse(rsp *http.Response) (*GetEnvironmentResponse, e
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetResourcesForEnvironmentResponse parses an HTTP response from a GetResourcesForEnvironmentWithResponse call
+func ParseGetResourcesForEnvironmentResponse(rsp *http.Response) (*GetResourcesForEnvironmentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetResourcesForEnvironmentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Count     *float32 `json:"count,omitempty"`
+			Resources *[]struct {
+				Id         *string `json:"id,omitempty"`
+				Identifier *string `json:"identifier,omitempty"`
+				Kind       *string `json:"kind,omitempty"`
+				Name       *string `json:"name,omitempty"`
+				Version    *string `json:"version,omitempty"`
+			} `json:"resources,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
@@ -6895,15 +7364,15 @@ func ParseAcknowledgeJobResponse(rsp *http.Response) (*AcknowledgeJobResponse, e
 	return response, nil
 }
 
-// ParseCreatePolicyResponse parses an HTTP response from a CreatePolicyWithResponse call
-func ParseCreatePolicyResponse(rsp *http.Response) (*CreatePolicyResponse, error) {
+// ParseUpsertPolicyResponse parses an HTTP response from a UpsertPolicyWithResponse call
+func ParseUpsertPolicyResponse(rsp *http.Response) (*UpsertPolicyResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &CreatePolicyResponse{
+	response := &UpsertPolicyResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -6911,6 +7380,93 @@ func ParseCreatePolicyResponse(rsp *http.Response) (*CreatePolicyResponse, error
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Policy1
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeletePolicyResponse parses an HTTP response from a DeletePolicyWithResponse call
+func ParseDeletePolicyResponse(rsp *http.Response) (*DeletePolicyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeletePolicyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Count *float32 `json:"count,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetReleaseTargetsForPolicyResponse parses an HTTP response from a GetReleaseTargetsForPolicyWithResponse call
+func ParseGetReleaseTargetsForPolicyResponse(rsp *http.Response) (*GetReleaseTargetsForPolicyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetReleaseTargetsForPolicyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Count          *float32 `json:"count,omitempty"`
+			ReleaseTargets *[]struct {
+				Description *string `json:"description,omitempty"`
+				Environment *struct {
+					Id   *string `json:"id,omitempty"`
+					Name *string `json:"name,omitempty"`
+				} `json:"environment,omitempty"`
+				Id           *string `json:"id,omitempty"`
+				Name         *string `json:"name,omitempty"`
+				PolicyTarget *struct {
+					Description *string `json:"description,omitempty"`
+					Id          *string `json:"id,omitempty"`
+					Name        *string `json:"name,omitempty"`
+					PolicyId    *string `json:"policyId,omitempty"`
+				} `json:"policyTarget,omitempty"`
+				Resource *struct {
+					Id         *string `json:"id,omitempty"`
+					Identifier *string `json:"identifier,omitempty"`
+					Kind       *string `json:"kind,omitempty"`
+					Name       *string `json:"name,omitempty"`
+					Version    *string `json:"version,omitempty"`
+				} `json:"resource,omitempty"`
+			} `json:"releaseTargets,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -7294,24 +7850,22 @@ func ParseDeleteResourceSchemaResponse(rsp *http.Response) (*DeleteResourceSchem
 	return response, nil
 }
 
-// ParseUpsertResourcesResponse parses an HTTP response from a UpsertResourcesWithResponse call
-func ParseUpsertResourcesResponse(rsp *http.Response) (*UpsertResourcesResponse, error) {
+// ParseUpsertResourceResponse parses an HTTP response from a UpsertResourceWithResponse call
+func ParseUpsertResourceResponse(rsp *http.Response) (*UpsertResourceResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UpsertResourcesResponse{
+	response := &UpsertResourceResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Count *float32 `json:"count,omitempty"`
-		}
+		var dest Resource
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -7879,7 +8433,7 @@ func ParseListResourcesResponse(rsp *http.Response) (*ListResourcesResponse, err
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Data *[]Resource `json:"data,omitempty"`
+			Resources *[]Resource `json:"resources,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
