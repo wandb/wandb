@@ -1222,7 +1222,14 @@ class Run:
             )
             return None
 
-        return self._log_artifact(art)
+        artifact = self._log_artifact(art)
+
+        self._config.update(
+            {"_wandb": {"code_path": artifact.name}},
+            allow_val_change=True,
+        )
+
+        return artifact
 
     @_log_to_run
     def get_sweep_url(self) -> str | None:
