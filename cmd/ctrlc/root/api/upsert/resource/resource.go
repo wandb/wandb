@@ -70,27 +70,14 @@ func NewUpsertResourceCmd() *cobra.Command {
 			}
 
 			// Extrat into vars
-			resp, err := client.UpsertResources(cmd.Context(), api.UpsertResourcesJSONRequestBody{
-				Resources: []struct {
-					Config     map[string]interface{} `json:"config"`
-					Identifier string                 `json:"identifier"`
-					Kind       string                 `json:"kind"`
-					Metadata   *map[string]string     `json:"metadata,omitempty"`
-					Name       string                 `json:"name"`
-					Variables  *[]api.Variable        `json:"variables,omitempty"`
-					Version    string                 `json:"version"`
-				}{
-					{
-						Version:    version,
-						Identifier: identifier,
-						Metadata:   &metadata,
-						Name:       name,
-						Kind:       kind,
-						Config:     config,
-						Variables:  variablesRequest,
-					},
-				},
-
+			resp, err := client.UpsertResource(cmd.Context(), api.UpsertResourceJSONRequestBody{
+				Config:      config,
+				Identifier:  identifier,
+				Kind:        kind,
+				Metadata:    &metadata,
+				Name:        name,
+				Variables:   variablesRequest,
+				Version:     version,
 				WorkspaceId: uuid.Must(uuid.Parse(workspaceId)),
 			})
 
