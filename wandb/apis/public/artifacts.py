@@ -14,34 +14,36 @@ from wandb.apis.paginator import Paginator, SizedPaginator
 from wandb.errors.term import termlog
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import ServerFeature
-from wandb.sdk.artifacts._graphql_fragments import (
-    ARTIFACT_FILES_FRAGMENT,
-    ARTIFACTS_TYPES_FRAGMENT,
+from wandb.sdk.artifacts._generated import (
+    ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL,
+    ARTIFACT_VERSION_FILES_GQL,
+    CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL,
+    DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL,
+    DELETE_ARTIFACT_PORTFOLIO_GQL,
+    DELETE_ARTIFACT_SEQUENCE_GQL,
+    MOVE_ARTIFACT_COLLECTION_GQL,
+    PROJECT_ARTIFACT_COLLECTION_GQL,
+    PROJECT_ARTIFACT_COLLECTIONS_GQL,
+    PROJECT_ARTIFACT_TYPE_GQL,
+    PROJECT_ARTIFACT_TYPES_GQL,
+    PROJECT_ARTIFACTS_GQL,
+    RUN_INPUT_ARTIFACTS_GQL,
+    RUN_OUTPUT_ARTIFACTS_GQL,
+    UPDATE_ARTIFACT_COLLECTION_GQL,
+    UPDATE_ARTIFACT_PORTFOLIO_GQL,
 )
+from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib import deprecate
+
+from .utils import gql_compat
 
 if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient, Run
 
 
 class ArtifactTypes(Paginator["ArtifactType"]):
-    QUERY = gql(
-        """
-        query ProjectArtifacts(
-            $entityName: String!,
-            $projectName: String!,
-            $cursor: String,
-        ) {{
-            project(name: $projectName, entityName: $entityName) {{
-                artifactTypes(after: $cursor) {{
-                    ...ArtifactTypesFragment
-                }}
-            }}
-        }}
-        {}
-    """.format(ARTIFACTS_TYPES_FRAGMENT)
-    )
+    QUERY = gql(PROJECT_ARTIFACT_TYPES_GQL)
 
     def __init__(
         self,
@@ -57,7 +59,6 @@ class ArtifactTypes(Paginator["ArtifactType"]):
             "entityName": entity,
             "projectName": project,
         }
-
         super().__init__(client, variable_values, per_page)
 
     @property
@@ -113,26 +114,8 @@ class ArtifactType:
             self.load()
 
     def load(self):
-        query = gql(
-            """
-        query ProjectArtifactType(
-            $entityName: String!,
-            $projectName: String!,
-            $artifactTypeName: String!
-        ) {
-            project(name: $projectName, entityName: $entityName) {
-                artifactType(name: $artifactTypeName) {
-                    id
-                    name
-                    description
-                    createdAt
-                }
-            }
-        }
-        """
-        )
         response: Optional[Mapping[str, Any]] = self.client.execute(
-            query,
+            gql(PROJECT_ARTIFACT_TYPE_GQL),
             variable_values={
                 "entityName": self.entity,
                 "projectName": self.project,
@@ -189,40 +172,13 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
             "artifactTypeName": type_name,
         }
 
-        self.QUERY = gql(
-            """
-            query ProjectArtifactCollections(
-                $entityName: String!,
-                $projectName: String!,
-                $artifactTypeName: String!
-                $cursor: String,
-            ) {{
-                project(name: $projectName, entityName: $entityName) {{
-                    artifactType(name: $artifactTypeName) {{
-                        artifactCollections: {}(after: $cursor) {{
-                            pageInfo {{
-                                endCursor
-                                hasNextPage
-                            }}
-                            totalCount
-                            edges {{
-                                node {{
-                                    id
-                                    name
-                                    description
-                                    createdAt
-                                }}
-                                cursor
-                            }}
-                        }}
-                    }}
-                }}
-            }}
-        """.format(
-                artifact_collection_plural_edge_name(
-                    server_supports_artifact_collections_gql_edges(client)
-                )
-            )
+        if server_supports_artifact_collections_gql_edges(client):
+            rename_fields = None
+        else:
+            rename_fields = {"artifactCollections": "artifactSequences"}
+
+        self.QUERY = gql_compat(
+            PROJECT_ARTIFACT_COLLECTIONS_GQL, rename_fields=rename_fields
         )
 
         super().__init__(client, variable_values, per_page)
@@ -326,58 +282,13 @@ class ArtifactCollection:
         return self._created_at
 
     def load(self):
-        query = gql(
-            """
-        query ArtifactCollection(
-            $entityName: String!,
-            $projectName: String!,
-            $artifactTypeName: String!,
-            $artifactCollectionName: String!,
-            $cursor: String,
-            $perPage: Int = 1000
-        ) {{
-            project(name: $projectName, entityName: $entityName) {{
-                artifactType(name: $artifactTypeName) {{
-                    artifactCollection: {}(name: $artifactCollectionName) {{
-                        id
-                        name
-                        description
-                        createdAt
-                        tags {{
-                            edges {{
-                                node {{
-                                    id
-                                    name
-                                }}
-                            }}
-                        }}
-                        aliases(after: $cursor, first: $perPage){{
-                            edges {{
-                                node {{
-                                    alias
-                                }}
-                                cursor
-                            }}
-                            pageInfo {{
-                                endCursor
-                                hasNextPage
-                            }}
-                        }}
-                    }}
-                    artifactSequence(name: $artifactCollectionName) {{
-                        __typename
-                    }}
-                }}
-            }}
-        }}
-        """.format(
-                artifact_collection_edge_name(
-                    server_supports_artifact_collections_gql_edges(self.client)
-                )
-            )
-        )
+        if server_supports_artifact_collections_gql_edges(self.client):
+            rename_fields = None
+        else:
+            rename_fields = {"artifactCollection": "artifactSequence"}
+
         response = self.client.execute(
-            query,
+            gql_compat(PROJECT_ARTIFACT_COLLECTION_GQL, rename_fields=rename_fields),
             variable_values={
                 "entityName": self.entity,
                 "projectName": self.project,
@@ -413,32 +324,13 @@ class ArtifactCollection:
         termlog(
             f"Changing artifact collection type of {self._saved_type} to {new_type}"
         )
-        template = """
-            mutation MoveArtifactCollection(
-                $artifactSequenceID: ID!
-                $destinationArtifactTypeName: String!
-            ) {
-                moveArtifactSequence(
-                input: {
-                    artifactSequenceID: $artifactSequenceID
-                    destinationArtifactTypeName: $destinationArtifactTypeName
-                }
-                ) {
-                artifactCollection {
-                    id
-                    name
-                    description
-                    __typename
-                }
-                }
-            }
-            """
-        variable_values = {
-            "artifactSequenceID": self.id,
-            "destinationArtifactTypeName": new_type,
-        }
-        mutation = gql(template)
-        self.client.execute(mutation, variable_values=variable_values)
+        self.client.execute(
+            gql(MOVE_ARTIFACT_COLLECTION_GQL),
+            variable_values={
+                "artifactSequenceID": self.id,
+                "destinationArtifactTypeName": new_type,
+            },
+        )
         self._saved_type = new_type
         self._type = new_type
 
@@ -449,35 +341,14 @@ class ArtifactCollection:
     @normalize_exceptions
     def delete(self):
         """Delete the entire artifact collection."""
-        if self.is_sequence():
-            mutation = gql(
-                """
-                mutation deleteArtifactSequence($id: ID!) {
-                    deleteArtifactSequence(input: {
-                        artifactSequenceID: $id
-                    }) {
-                        artifactCollection {
-                            state
-                        }
-                    }
-                }
-                """
-            )
-        else:
-            mutation = gql(
-                """
-                mutation deleteArtifactPortfolio($id: ID!) {
-                    deleteArtifactPortfolio(input: {
-                        artifactPortfolioID: $id
-                    }) {
-                        artifactCollection {
-                            state
-                        }
-                    }
-                }
-                """
-            )
-        self.client.execute(mutation, variable_values={"id": self.id})
+        self.client.execute(
+            gql(
+                DELETE_ARTIFACT_SEQUENCE_GQL
+                if self.is_sequence()
+                else DELETE_ARTIFACT_PORTFOLIO_GQL
+            ),
+            variable_values={"id": self.id},
+        )
 
     @property
     def description(self):
@@ -524,170 +395,56 @@ class ArtifactCollection:
         self._type = type
 
     def _update_collection(self):
-        mutation = gql("""
-            mutation UpdateArtifactCollection(
-                $artifactSequenceID: ID!
-                $name: String
-                $description: String
-            ) {
-                updateArtifactSequence(
-                input: {
-                    artifactSequenceID: $artifactSequenceID
-                    name: $name
-                    description: $description
-                }
-                ) {
-                artifactCollection {
-                    id
-                    name
-                    description
-                }
-                }
-            }
-        """)
-
-        variable_values = {
-            "artifactSequenceID": self.id,
-            "name": self._name,
-            "description": self.description,
-        }
-        self.client.execute(mutation, variable_values=variable_values)
+        self.client.execute(
+            gql(UPDATE_ARTIFACT_COLLECTION_GQL),
+            variable_values={
+                "artifactSequenceID": self.id,
+                "name": self.name,
+                "description": self.description,
+            },
+        )
         self._saved_name = self._name
 
     def _update_collection_type(self):
-        type_mutation = gql("""
-            mutation MoveArtifactCollection(
-                $artifactSequenceID: ID!
-                $destinationArtifactTypeName: String!
-            ) {
-                moveArtifactSequence(
-                input: {
-                    artifactSequenceID: $artifactSequenceID
-                    destinationArtifactTypeName: $destinationArtifactTypeName
-                }
-                ) {
-                artifactCollection {
-                    id
-                    name
-                    description
-                    __typename
-                }
-                }
-            }
-            """)
-
-        variable_values = {
-            "artifactSequenceID": self.id,
-            "destinationArtifactTypeName": self._type,
-        }
-        self.client.execute(type_mutation, variable_values=variable_values)
+        self.client.execute(
+            gql(MOVE_ARTIFACT_COLLECTION_GQL),
+            variable_values={
+                "artifactSequenceID": self.id,
+                "destinationArtifactTypeName": self.type,
+            },
+        )
         self._saved_type = self._type
 
     def _update_portfolio(self):
-        mutation = gql("""
-            mutation UpdateArtifactPortfolio(
-                $artifactPortfolioID: ID!
-                $name: String
-                $description: String
-            ) {
-                updateArtifactPortfolio(
-                input: {
-                    artifactPortfolioID: $artifactPortfolioID
-                    name: $name
-                    description: $description
-                }
-                ) {
-                artifactCollection {
-                    id
-                    name
-                    description
-                }
-                }
-            }
-        """)
-        variable_values = {
-            "artifactPortfolioID": self.id,
-            "name": self._name,
-            "description": self.description,
-        }
-        self.client.execute(mutation, variable_values=variable_values)
+        self.client.execute(
+            gql(UPDATE_ARTIFACT_PORTFOLIO_GQL),
+            variable_values={
+                "artifactPortfolioID": self.id,
+                "name": self.name,
+                "description": self.description,
+            },
+        )
         self._saved_name = self._name
 
     def _add_tags(self, tags_to_add):
-        add_mutation = gql(
-            """
-            mutation CreateArtifactCollectionTagAssignments(
-                $entityName: String!
-                $projectName: String!
-                $artifactCollectionName: String!
-                $tags: [TagInput!]!
-            ) {
-                createArtifactCollectionTagAssignments(
-                input: {
-                    entityName: $entityName
-                    projectName: $projectName
-                    artifactCollectionName: $artifactCollectionName
-                    tags: $tags
-                }
-                ) {
-                tags {
-                    id
-                    name
-                    tagCategoryName
-                }
-                }
-            }
-            """
-        )
         self.client.execute(
-            add_mutation,
+            gql(CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL),
             variable_values={
                 "entityName": self.entity,
                 "projectName": self.project,
                 "artifactCollectionName": self._saved_name,
-                "tags": [
-                    {
-                        "tagName": tag,
-                    }
-                    for tag in tags_to_add
-                ],
+                "tags": [{"tagName": tag} for tag in tags_to_add],
             },
         )
 
     def _delete_tags(self, tags_to_delete):
-        delete_mutation = gql(
-            """
-            mutation DeleteArtifactCollectionTagAssignments(
-                $entityName: String!
-                $projectName: String!
-                $artifactCollectionName: String!
-                $tags: [TagInput!]!
-            ) {
-                deleteArtifactCollectionTagAssignments(
-                input: {
-                    entityName: $entityName
-                    projectName: $projectName
-                    artifactCollectionName: $artifactCollectionName
-                    tags: $tags
-                }
-                ) {
-                success
-                }
-            }
-            """
-        )
         self.client.execute(
-            delete_mutation,
+            gql(DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL),
             variable_values={
                 "entityName": self.entity,
                 "projectName": self.project,
                 "artifactCollectionName": self._saved_name,
-                "tags": [
-                    {
-                        "tagName": tag,
-                    }
-                    for tag in tags_to_delete
-                ],
+                "tags": [{"tagName": tag} for tag in tags_to_delete],
             },
         )
 
@@ -731,8 +488,6 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
         per_page: int = 50,
         tags: Optional[Union[str, List[str]]] = None,
     ):
-        from wandb.sdk.artifacts.artifact import _gql_artifact_fragment
-
         self.entity = entity
         self.collection_name = collection_name
         self.type = type
@@ -748,39 +503,18 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
             "collection": self.collection_name,
             "filters": json.dumps(self.filters),
         }
-        self.QUERY = gql(
-            """
-            query Artifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
-                project(name: $project, entityName: $entity) {{
-                    artifactType(name: $type) {{
-                        artifactCollection: {}(name: $collection) {{
-                            name
-                            artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
-                                totalCount
-                                edges {{
-                                    node {{
-                                        ...ArtifactFragment
-                                    }}
-                                    version
-                                    cursor
-                                }}
-                                pageInfo {{
-                                    endCursor
-                                    hasNextPage
-                                }}
-                            }}
-                        }}
-                    }}
-                }}
-            }}
-            {}
-            """.format(
-                artifact_collection_edge_name(
-                    server_supports_artifact_collections_gql_edges(client)
-                ),
-                _gql_artifact_fragment(),
-            )
+
+        if server_supports_artifact_collections_gql_edges(client):
+            rename_fields = None
+        else:
+            rename_fields = {"artifactCollection": "artifactSequence"}
+
+        self.QUERY = gql_compat(
+            PROJECT_ARTIFACTS_GQL,
+            omit_fields=omit_artifact_fields(api=InternalApi()),
+            rename_fields=rename_fields,
         )
+
         super().__init__(client, variables, per_page)
 
     @property
@@ -831,69 +565,20 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
 
 class RunArtifacts(SizedPaginator["wandb.Artifact"]):
     def __init__(self, client: Client, run: "Run", mode="logged", per_page: int = 50):
-        from wandb.sdk.artifacts.artifact import _gql_artifact_fragment
-
-        output_query = gql(
-            """
-            query RunOutputArtifacts(
-                $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
-            ) {
-                project(name: $project, entityName: $entity) {
-                    run(name: $runName) {
-                        outputArtifacts(after: $cursor, first: $perPage) {
-                            totalCount
-                            edges {
-                                node {
-                                    ...ArtifactFragment
-                                }
-                                cursor
-                            }
-                            pageInfo {
-                                endCursor
-                                hasNextPage
-                            }
-                        }
-                    }
-                }
-            }
-            """
-            + _gql_artifact_fragment()
-        )
-
-        input_query = gql(
-            """
-            query RunInputArtifacts(
-                $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
-            ) {
-                project(name: $project, entityName: $entity) {
-                    run(name: $runName) {
-                        inputArtifacts(after: $cursor, first: $perPage) {
-                            totalCount
-                            edges {
-                                node {
-                                    ...ArtifactFragment
-                                }
-                                cursor
-                            }
-                            pageInfo {
-                                endCursor
-                                hasNextPage
-                            }
-                        }
-                    }
-                }
-            }
-            """
-            + _gql_artifact_fragment()
-        )
-
         self.run = run
+
         if mode == "logged":
             self.run_key = "outputArtifacts"
-            self.QUERY = output_query
+            self.QUERY = gql_compat(
+                RUN_OUTPUT_ARTIFACTS_GQL,
+                omit_fields=omit_artifact_fields(api=InternalApi()),
+            )
         elif mode == "used":
             self.run_key = "inputArtifacts"
-            self.QUERY = input_query
+            self.QUERY = gql_compat(
+                RUN_INPUT_ARTIFACTS_GQL,
+                omit_fields=omit_artifact_fields(api=InternalApi()),
+            )
         else:
             raise ValueError("mode must be logged or used")
 
@@ -902,7 +587,6 @@ class RunArtifacts(SizedPaginator["wandb.Artifact"]):
             "project": run.project,
             "runName": run.id,
         }
-
         super().__init__(client, variable_values, per_page)
 
     @property
@@ -946,56 +630,6 @@ class RunArtifacts(SizedPaginator["wandb.Artifact"]):
 
 
 class ArtifactFiles(SizedPaginator["public.File"]):
-    ARTIFACT_VERSION_FILES_QUERY = gql(
-        f"""
-        query ArtifactFiles(
-            $entityName: String!,
-            $projectName: String!,
-            $artifactTypeName: String!,
-            $artifactName: String!
-            $fileNames: [String!],
-            $fileCursor: String,
-            $fileLimit: Int = 50
-        ) {{
-            project(name: $projectName, entityName: $entityName) {{
-                artifactType(name: $artifactTypeName) {{
-                    artifact(name: $artifactName) {{
-                        files(names: $fileNames, after: $fileCursor, first: $fileLimit) {{
-                            ...FilesFragment
-                        }}
-                    }}
-                }}
-            }}
-        }}
-        {ARTIFACT_FILES_FRAGMENT}
-    """
-    )
-
-    ARTIFACT_COLLECTION_MEMBERSHIP_FILES_QUERY = gql(
-        f"""
-        query ArtifactCollectionMembershipFiles(
-            $entityName: String!,
-            $projectName: String!,
-            $artifactName: String!,
-            $artifactVersionIndex: String!,
-            $fileNames: [String!],
-            $fileCursor: String,
-            $fileLimit: Int = 50
-        ) {{
-            project(name: $projectName, entityName: $entityName) {{
-                artifactCollection(name: $artifactName) {{
-                    artifactMembership (aliasName: $artifactVersionIndex) {{
-                        files(names: $fileNames, after: $fileCursor, first: $fileLimit) {{
-                            ...FilesFragment
-                        }}
-                    }}
-                }}
-            }}
-        }}
-        {ARTIFACT_FILES_FRAGMENT}
-        """
-    )
-
     def __init__(
         self,
         client: Client,
@@ -1007,15 +641,9 @@ class ArtifactFiles(SizedPaginator["public.File"]):
             ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
         )
         self.artifact = artifact
-        variables = {
-            "entityName": artifact.source_entity,
-            "projectName": artifact.source_project,
-            "artifactTypeName": artifact.type,
-            "artifactName": artifact.source_name,
-            "fileNames": names,
-        }
+
         if self.query_via_membership:
-            self.QUERY = self.ARTIFACT_COLLECTION_MEMBERSHIP_FILES_QUERY
+            query_str = ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL
             variables = {
                 "entityName": artifact.entity,
                 "projectName": artifact.project,
@@ -1024,11 +652,22 @@ class ArtifactFiles(SizedPaginator["public.File"]):
                 "fileNames": names,
             }
         else:
-            self.QUERY = self.ARTIFACT_VERSION_FILES_QUERY
+            query_str = ARTIFACT_VERSION_FILES_GQL
+            variables = {
+                "entityName": artifact.source_entity,
+                "projectName": artifact.source_project,
+                "artifactName": artifact.source_name,
+                "artifactTypeName": artifact.type,
+                "fileNames": names,
+            }
+
         # The server must advertise at least SDK 0.12.21
         # to get storagePath
         if not client.version_supported("0.12.21"):
-            self.QUERY = gql(self.QUERY.loc.source.body.replace("storagePath\n", ""))
+            self.QUERY = gql_compat(query_str, omit_fields={"storagePath"})
+        else:
+            self.QUERY = gql(query_str)
+
         super().__init__(client, variables, per_page)
 
     @property
@@ -1100,21 +739,3 @@ def server_supports_artifact_collections_gql_edges(
             "W&B Local Server version does not support ArtifactCollection gql edges; falling back to using legacy ArtifactSequence. Please update server to at least version 0.9.50."
         )
     return supported
-
-
-def artifact_collection_edge_name(server_supports_artifact_collections: bool) -> str:
-    return (
-        "artifactCollection"
-        if server_supports_artifact_collections
-        else "artifactSequence"
-    )
-
-
-def artifact_collection_plural_edge_name(
-    server_supports_artifact_collections: bool,
-) -> str:
-    return (
-        "artifactCollections"
-        if server_supports_artifact_collections
-        else "artifactSequences"
-    )

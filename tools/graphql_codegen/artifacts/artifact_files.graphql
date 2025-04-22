@@ -1,0 +1,61 @@
+fragment FilesFragment on FileConnection {
+    edges {
+        node {
+            id
+            name: displayName
+            url
+            sizeBytes
+            storagePath @include(if: true)  # Workaround: ensures generated pydantic field defaults to `None`
+            mimetype
+            updatedAt
+            digest
+            md5
+            directUrl
+        }
+        cursor
+    }
+    pageInfo {
+        endCursor
+        hasNextPage
+    }
+}
+
+query ArtifactVersionFiles(
+    $entityName: String!,
+    $projectName: String!,
+    $artifactTypeName: String!,
+    $artifactName: String!
+    $fileNames: [String!],
+    $fileCursor: String,
+    $fileLimit: Int = 50,
+) {
+    project(name: $projectName, entityName: $entityName) {
+        artifactType(name: $artifactTypeName) {
+            artifact(name: $artifactName) {
+                files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
+                    ...FilesFragment
+                }
+            }
+        }
+    }
+}
+
+query ArtifactCollectionMembershipFiles(
+    $entityName: String!,
+    $projectName: String!,
+    $artifactName: String!,
+    $artifactVersionIndex: String!,
+    $fileNames: [String!],
+    $fileCursor: String,
+    $fileLimit: Int = 50,
+) {
+    project(name: $projectName, entityName: $entityName) {
+        artifactCollection(name: $artifactName) {
+            artifactMembership (aliasName: $artifactVersionIndex) {
+                files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
+                    ...FilesFragment
+                }
+            }
+        }
+    }
+}

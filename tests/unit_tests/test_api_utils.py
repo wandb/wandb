@@ -187,13 +187,78 @@ def test_gql_compat():
     )
 
     # Normalize the expected and actual query strings for consistent comparison
+    orig_query_str = print_ast(gql(orig_query_str))
+    orig_query_str = "\n".join(filter(str.strip, orig_query_str.splitlines()))
+
     expected_query_str = print_ast(gql(expected_query_str))
-    expected_query_str = "\n".join(
-        line for line in expected_query_str.splitlines() if line.strip()
+    expected_query_str = "\n".join(filter(str.strip, expected_query_str.splitlines()))
+
+    compat_query_str = print_ast(compat_query)
+    compat_query_str = "\n".join(filter(str.strip, compat_query_str.splitlines()))
+
+    assert compat_query_str == expected_query_str
+    assert compat_query_str != orig_query_str
+
+
+def test_gql_compat_rename_fields():
+    orig_query_str = dedent(
+        """\
+        query ProjectArtifactCollections(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactTypeName: String!
+            $cursor: String,
+        ) {
+            project(name: $projectName, entityName: $entityName) {
+                artifactType(name: $artifactTypeName) {
+                    artifactCollections: artifactCollections(after: $cursor) {
+                        pageInfo {
+                            endCursor
+                            hasNextPage
+                        }
+                        totalCount
+                    }
+                }
+            }
+        }
+        """
     )
-    compat_query_str = "\n".join(
-        line for line in print_ast(compat_query).splitlines() if line.strip()
+    expected_query_str = dedent(
+        """\
+        query ProjectArtifactCollections(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactTypeName: String!
+            $cursor: String,
+        ) {
+            project(name: $projectName, entityName: $entityName) {
+                artifactType(name: $artifactTypeName) {
+                    artifactCollections: artifactSequences(after: $cursor) {
+                        pageInfo {
+                            endCursor
+                            hasNextPage
+                        }
+                        totalCount
+                    }
+                }
+            }
+        }
+        """
+    )
+    compat_query = gql_compat(
+        orig_query_str,
+        rename_fields={"artifactCollections": "artifactSequences"},
     )
 
-    assert compat_query_str != orig_query_str
+    # Normalize the query strings for consistent comparison
+    orig_query_str = print_ast(gql(orig_query_str))
+    orig_query_str = "\n".join(filter(str.strip, orig_query_str.splitlines()))
+
+    expected_query_str = print_ast(gql(expected_query_str))
+    expected_query_str = "\n".join(filter(str.strip, expected_query_str.splitlines()))
+
+    compat_query_str = print_ast(compat_query)
+    compat_query_str = "\n".join(filter(str.strip, compat_query_str.splitlines()))
+
     assert compat_query_str == expected_query_str
+    assert compat_query_str != orig_query_str

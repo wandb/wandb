@@ -1,0 +1,42 @@
+fragment ArtifactTypesFragment on ArtifactTypeConnection {
+    edges {
+        node {
+            id
+            name
+            description
+            createdAt
+        }
+        cursor
+    }
+    pageInfo {
+        endCursor
+        hasNextPage
+    }
+}
+
+query ProjectArtifactTypes(
+    $entityName: String!,
+    $projectName: String!,
+    $cursor: String,
+) {
+    project(name: $projectName, entityName: $entityName) {
+        artifactTypes(after: $cursor) {
+            ...ArtifactTypesFragment
+        }
+    }
+}
+
+query ProjectArtifactType(
+    $entityName: String!,
+    $projectName: String!,
+    $artifactTypeName: String!
+) {
+    project(name: $projectName, entityName: $entityName) {
+        artifactType(name: $artifactTypeName) {
+            id
+            name
+            description
+            createdAt
+        }
+    }
+}
