@@ -1,8 +1,7 @@
-"""Public API: registries."""
+"""Public API: registries search."""
 
 import json
-from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 if TYPE_CHECKING:
     from wandb_gql import Client
@@ -12,12 +11,11 @@ from wandb_gql import gql
 import wandb
 from wandb.apis.paginator import Paginator
 from wandb.apis.public.artifacts import ArtifactCollection
+from wandb.apis.public.registries.utils import _ensure_registry_prefix_on_names
 from wandb.sdk.artifacts._graphql_fragments import (
     _gql_artifact_fragment,
     _gql_registry_fragment,
 )
-from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
-from wandb.sdk.artifacts.registry_visibility import RegistryVisibility
 
 
 class Registries(Paginator):
@@ -65,7 +63,7 @@ class Registries(Paginator):
         super().__init__(client, variables, per_page)
 
     def __bool__(self):
-        return len(self) > 0 or len(self.objects) > 0
+        return len(self.objects) > 0
 
     def __next__(self):
         # Implement custom next since its possible to load empty pages because of auth
@@ -130,6 +128,8 @@ class Registries(Paginator):
                 f"Organization '{self.organization}' not found. Please verify the organization name is correct"
             )
 
+        from wandb.apis.public.registries.registry import Registry
+
         return [
             Registry(
                 self.client,
@@ -142,246 +142,6 @@ class Registries(Paginator):
                 "edges"
             ]
         ]
-
-
-class Registry:
-    """A single registry in the Registry."""
-
-    def __init__(
-        self,
-        client: "Client",
-        organization: str,
-        entity: str,
-        full_name: str,
-        attrs: Dict[str, Any],
-    ):
-        self.client = client
-        self._full_name = full_name
-        self._name = full_name.replace(REGISTRY_PREFIX, "")
-        self._entity = entity
-        self._organization = organization
-        self._description = attrs.get("description", "")
-        self._allow_all_artifact_types = attrs.get(
-            "allowAllArtifactTypesInRegistry", False
-        )
-        self._artifact_types = [
-            t["node"]["name"] for t in attrs.get("artifactTypes", {}).get("edges", [])
-        ]
-        self._id = attrs.get("id", "")
-        self._created_at = attrs.get("createdAt", "")
-        self._updated_at = attrs.get("updatedAt", "")
-
-    @property
-    def full_name(self):
-        return self._full_name
-
-    @property
-    def name(self):
-        return self._name
-
-    @property
-    def entity(self):
-        return self._entity
-
-    @property
-    def organization(self):
-        return self._organization
-
-    @property
-    def description(self):
-        return self._description
-
-    @property
-    def allow_all_artifact_types(self):
-        return self._allow_all_artifact_types
-
-    @property
-    def artifact_types(self):
-        return self._artifact_types
-
-    @property
-    def created_at(self):
-        return self._created_at
-
-    @property
-    def updated_at(self):
-        return self._updated_at
-
-    @property
-    def path(self):
-        return [self.entity, self.name]
-
-    def collections(self, filter: Optional[Dict[str, Any]] = None):
-        registry_filter = {
-            "name": self.full_name,
-        }
-        return Collections(self.client, self.organization, registry_filter, filter)
-
-    def versions(self, filter: Optional[Dict[str, Any]] = None):
-        registry_filter = {
-            "name": self.full_name,
-        }
-        return Versions(self.client, self.organization, registry_filter, None, filter)
-
-    def add_artifact_type(self, accepted_artifact_types: Optional[list[str]] = None):
-        if accepted_artifact_types is None:
-            return
-
-        mutation = gql("""
-            mutation CreateArtifactTypes($entityName: String!, $projectName: String!, $artifactTypes: [ArtifactTypeInput!]!) {
-                createArtifactTypes(
-                    input: {entityName: $entityName, projectName: $projectName, artifactTypes: $artifactTypes}
-                ) {
-                    artifactTypes {
-                        name
-                    }
-                }
-            }
-        """)
-
-        new_types = [
-            artifact_type
-            for artifact_type in accepted_artifact_types
-            if artifact_type not in self._artifact_types
-        ]
-        artifact_types = [{"name": artifact_type} for artifact_type in new_types]
-
-        response = self.client.execute(
-            mutation,
-            variable_values={
-                "entityName": self.entity,
-                "projectName": self.full_name,
-                "artifactTypes": artifact_types,
-            },
-        )
-        new_types = [
-            artifact_type["name"]
-            for artifact_type in response["createArtifactTypes"]["artifactTypes"]
-        ]
-        self._artifact_types.extend(new_types)
-
-    @classmethod
-    def create(
-        cls,
-        client: "Client",
-        organization: str,
-        name: str,
-        description: Optional[str] = None,
-        registry_visibility: RegistryVisibility = RegistryVisibility.ORGANIZATION,
-        accepted_artifact_types: Optional[list[str]] = None,
-    ):
-        org_entity = _fetch_org_entity_from_organization(client, organization)
-
-        full_name = REGISTRY_PREFIX + name
-        # Check if registry already exists
-        existing_registry = Registries(client, organization, filter={"name": full_name})
-        if existing_registry:
-            raise ValueError(
-                f"Registry {name} already exists in organization {organization}, please use a different name."
-            )
-
-        mutation = gql(
-            """
-            mutation UpsertRegistryProject($description: String, $entityName: String, $name: String, $access: String, $allowAllArtifactTypesInRegistry: Boolean) {
-            upsertModel(
-                input: {description: $description, entityName: $entityName, name: $name, access: $access, allowAllArtifactTypesInRegistry: $allowAllArtifactTypesInRegistry}
-            ) {
-                project {
-                    ...RegistryFragment
-                }
-                inserted
-                }
-            }
-        """
-            + _gql_registry_fragment()
-        )
-        response = client.execute(
-            mutation,
-            variable_values={
-                "description": description,
-                "entityName": org_entity,
-                "name": full_name,
-                "access": registry_visibility.value,
-                "allowAllArtifactTypesInRegistry": accepted_artifact_types is None,
-            },
-        )
-        if not response["upsertModel"]["inserted"]:
-            raise ValueError(
-                f"Failed to create registry {name} in organization {organization}"
-            )
-
-        registry = Registry(
-            client,
-            organization,
-            org_entity,
-            full_name,
-            response["upsertModel"]["project"],
-        )
-
-        registry.add_artifact_type(accepted_artifact_types)
-
-        return registry
-
-    def delete(self):
-        mutation = gql("""
-            mutation deleteModel($id: String!) {
-                deleteModel(input: {id: $id}) {
-                    success
-                    __typename
-                }
-            }
-        """)
-        self.client.execute(mutation, variable_values={"id": self._id})
-
-    def load(self):
-        # TODO: make this not duplicate code from init
-        try:
-            response = self.client.execute(
-                gql(
-                    """
-                    query Registry($name: String, $entityName: String) {
-                        entity(name: $entityName) {
-                            project(name: $name) {
-                                ...RegistryFragment
-                            }
-                        }
-                    }
-                """
-                    + _gql_registry_fragment()
-                ),
-                variable_values={
-                    "name": self.full_name,
-                    "entityName": self.entity,
-                },
-            )
-        except Exception as e:
-            if e.response.status_code == 404:
-                raise ValueError(
-                    f"Registry {self.name} not found in organization {self.organization}"
-                )
-            raise e
-        if response["entity"] is None:
-            raise ValueError(
-                f"Registry {self.name} not found in organization {self.organization}"
-            )
-        self.attrs = response["entity"]["project"]
-        if self.attrs is None:
-            raise ValueError(
-                f"Registry {self.name} not found in organization {self.organization}"
-            )
-        self._id = self.attrs.get("id", "")
-        if self._id is None:
-            raise ValueError(f"Registry {self.name}'s id is not found")
-        self._artifact_types = [
-            t["node"]["name"]
-            for t in self.attrs.get("artifactTypes", {}).get("edges", [])
-        ]
-        self._description = self.attrs.get("description", "")
-        self._allow_all_artifact_types = self.attrs.get(
-            "allowAllArtifactTypesInRegistry", False
-        )
-        self._created_at = self.attrs.get("createdAt", "")
-        self._updated_at = self.attrs.get("updatedAt", "")
 
 
 class Collections(Paginator):
@@ -465,12 +225,12 @@ class Collections(Paginator):
         self.collection_filter = collection_filter or {}
 
         variables = {
-            "registryFilter": json.dumps(self.registry_filter)
-            if self.registry_filter
-            else None,
-            "collectionFilter": json.dumps(self.collection_filter)
-            if self.collection_filter
-            else None,
+            "registryFilter": (
+                json.dumps(self.registry_filter) if self.registry_filter else None
+            ),
+            "collectionFilter": (
+                json.dumps(self.collection_filter) if self.collection_filter else None
+            ),
             "organization": self.organization,
             "collectionTypes": ["PORTFOLIO"],
             "perPage": per_page,
@@ -622,15 +382,15 @@ class Versions(Paginator):
         )
 
         variables = {
-            "registryFilter": json.dumps(self.registry_filter)
-            if self.registry_filter
-            else None,
-            "collectionFilter": json.dumps(self.collection_filter)
-            if self.collection_filter
-            else None,
-            "artifactFilter": json.dumps(self.artifact_filter)
-            if self.artifact_filter
-            else None,
+            "registryFilter": (
+                json.dumps(self.registry_filter) if self.registry_filter else None
+            ),
+            "collectionFilter": (
+                json.dumps(self.collection_filter) if self.collection_filter else None
+            ),
+            "artifactFilter": (
+                json.dumps(self.artifact_filter) if self.artifact_filter else None
+            ),
             "organization": self.organization,
         }
 
@@ -703,63 +463,3 @@ class Versions(Paginator):
             ]["edges"]
         )
         return artifacts
-
-
-def _ensure_registry_prefix_on_names(query, in_name=False):
-    """Traverse the filter to prepend the `name` key value with the registry prefix unless the value is a regex.
-
-    - in_name: True if we are under a "name" key (or propagating from one).
-
-    EX: {"name": "model"} -> {"name": "wandb-registry-model"}
-    """
-    if isinstance((txt := query), str):
-        if in_name:
-            return txt if txt.startswith(REGISTRY_PREFIX) else f"{REGISTRY_PREFIX}{txt}"
-        return txt
-    if isinstance((dct := query), Mapping):
-        new_dict = {}
-        for key, obj in dct.items():
-            if key == "name":
-                new_dict[key] = _ensure_registry_prefix_on_names(obj, in_name=True)
-            elif key == "$regex":
-                # For regex operator, we skip transformation of its value.
-                new_dict[key] = obj
-            else:
-                # For any other key, propagate the in_name and skip_transform flags as-is.
-                new_dict[key] = _ensure_registry_prefix_on_names(obj, in_name=in_name)
-        return new_dict
-    if isinstance((objs := query), Sequence):
-        return list(
-            map(lambda x: _ensure_registry_prefix_on_names(x, in_name=in_name), objs)
-        )
-    return query
-
-
-@lru_cache(maxsize=10)
-def _fetch_org_entity_from_organization(client: "Client", organization: str) -> str:
-    """Fetch the org entity from the organization.
-
-    Args:
-        client (Client): Graphql client.
-        organization (str): The organization to fetch the org entity for.
-    """
-    query = gql("""
-        query FetchOrgEntityFromOrganization($organization: String!) {
-            organization(name: $organization) {
-                    orgEntity {
-                        name
-                    }
-                }
-            }
-        """)
-    response = client.execute(query, variable_values={"organization": organization})
-    if response["organization"]["orgEntity"]:
-        if not response["organization"]["orgEntity"]["name"]:
-            return ValueError(
-                f"Organization entity for organization: {organization} is empty"
-            )
-        return response["organization"]["orgEntity"]["name"]
-    else:
-        raise ValueError(
-            f"Organization entity for organization: {organization} not found"
-        )

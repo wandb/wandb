@@ -4,7 +4,7 @@ from contextlib import nullcontext
 
 import pytest
 import wandb
-from wandb.apis.public.registries import Registries
+from wandb.apis.public.registries.registries_search import Registries
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 
 

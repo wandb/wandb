@@ -46,6 +46,8 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """
     USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION: _ServerFeature.ValueType  # 7
     """Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation."""
+    INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION: _ServerFeature.ValueType  # 8
+    """Indicates that the server supports including artifact types in registry creation."""
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
     """*
@@ -71,6 +73,8 @@ url.
 """
 USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION: ServerFeature.ValueType  # 7
 """Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation."""
+INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION: ServerFeature.ValueType  # 8
+"""Indicates that the server supports including artifact types in registry creation."""
 global___ServerFeature = ServerFeature
 
 @typing_extensions.final

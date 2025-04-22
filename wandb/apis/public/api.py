@@ -15,7 +15,7 @@ import json
 import logging
 import os
 import urllib
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 import requests
 from wandb_gql import Client, gql
@@ -26,11 +26,9 @@ from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.registries import (
-    Registries,
-    Registry,
-    _fetch_org_entity_from_organization,
-)
+from wandb.apis.public.registries.registries_search import Registries
+from wandb.apis.public.registries.registry import Registry
+from wandb.apis.public.registries.utils import _fetch_org_entity_from_organization
 from wandb.apis.public.utils import (
     PathType,
     fetch_org_from_settings_or_entity,
@@ -38,7 +36,6 @@ from wandb.apis.public.utils import (
 )
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
-from wandb.sdk.artifacts.registry_visibility import RegistryVisibility
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
@@ -1479,7 +1476,9 @@ class Api:
 
             Find all collections in the registries with the name "my_collection" and the tag "my_tag"
             ```python
-            api.registries().collections(filter={"name": "my_collection", "tag": "my_tag"})
+            api.registries().collections(
+                filter={"name": "my_collection", "tag": "my_tag"}
+            )
             ```
 
             Find all artifact versions in the registries with a collection name that contains "my_collection" and a version that has the alias "best"
@@ -1524,7 +1523,7 @@ class Api:
         return Registries(self.client, organization, filter)
 
     def registry(self, name: str, organization: Optional[str] = None) -> Registry:
-        """Return a registry by name.
+        """Return a registry given a registry name.
 
         Args:
             name: (str) The name of the registry. This is without the `wandb-registry-` prefix.
@@ -1537,36 +1536,44 @@ class Api:
         organization = organization or fetch_org_from_settings_or_entity(
             self.settings, self.default_entity
         )
-        full_name = f"wandb-registry-{name}"
         org_entity = _fetch_org_entity_from_organization(self.client, organization)
-        registry = Registry(self.client, organization, org_entity, full_name, {})
+        registry = Registry(self.client, organization, org_entity, name)
         registry.load()
         return registry
 
     def create_registry(
         self,
         name: str,
+        visibility: Literal["organization", "restricted"],
         organization: Optional[str] = None,
         description: Optional[str] = None,
-        registry_visibility: RegistryVisibility = RegistryVisibility.ORGANIZATION,
         accepted_artifact_types: Optional[List[str]] = None,
     ) -> Registry:
         """Create a new registry.
 
         Args:
-            name: (str) The name of the registry.
+            name: (str) The name of the registry. Name must be unique within the organization.
+            visibility: (str) The visibility of the registry.
+                organization: Anyone in the organization can view this registry. You can edit their roles later from the settings in the UI.
+                restricted: Only invited members via the UI can access this registry. Public sharing is disabled.
             organization: (str, optional) The organization of the registry.
                 If no organization is set in the settings, the organization will be fetched from the entity if the entity only belongs to one organization.
             description: (str, optional) The description of the registry.
-            registry_visibility: (str, optional) The visibility of the registry.
-                RegistryVisibility.ORGANIZATION: Anyone in the organization can view this registry. You can edit their roles later from the settings in the UI.
-                RegistryVisibility.RESTRICTED: Only invited members via the UI can access this registry. Public sharing is disabled.
-            accepted_artifact_types: (list, optional) The accepted artifact types of the registry. If not specified, all types are accepted.
+            accepted_artifact_types: (list[str], optional) The accepted artifact types of the registry. A type is no more than 128 characters and do not include characters `/` or `:`.
+                If not specified, all types are accepted.
                 Note: allowed types added to the registry cannot be removed later.
 
         Returns:
             A registry object.
         """
+        if not InternalApi()._check_server_feature_with_fallback(
+            ServerFeature.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
+        ):
+            raise RuntimeError(
+                "create_registry api is not enabled on this wandb server version. "
+                "Please upgrade your server version or contact support at support@wandb.com."
+            )
+
         organization = organization or fetch_org_from_settings_or_entity(
             self.settings, self.default_entity
         )
@@ -1574,7 +1581,7 @@ class Api:
             self.client,
             organization,
             name,
+            visibility,
             description,
-            registry_visibility,
             accepted_artifact_types,
         )

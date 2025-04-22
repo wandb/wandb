@@ -1,0 +1,126 @@
+from functools import lru_cache
+from typing import TYPE_CHECKING, Literal, Mapping, Optional, Sequence
+
+from wandb.sdk.artifacts._validators import (
+    REGISTRY_PREFIX,
+    validate_artifact_types_list,
+)
+
+if TYPE_CHECKING:
+    from wandb_gql import Client
+
+from wandb_gql import gql
+
+VISIBILITY_MAPPING = {
+    "organization": "PRIVATE",
+    "restricted": "RESTRICTED",
+}
+
+
+def _format_gql_artifact_types_input(
+    new_artifact_types: Optional[list[str]] = None,
+    existing_artifact_types: Optional[list[str]] = None,
+):
+    """Format the artifact types for the GQL input.
+
+    Args:
+        accepted_artifact_types: The artifact types to add to the registry.
+        existing_artifact_types: The artifact types that already exist in the registry.
+
+    Returns:
+        The artifact types for the GQL input.
+    """
+    new_types = validate_artifact_types_list(new_artifact_types)
+    if existing_artifact_types is not None:
+        new_types = [
+            artifact_type
+            for artifact_type in new_types
+            if artifact_type not in existing_artifact_types
+        ]
+    return [{"name": artifact_type} for artifact_type in new_types]
+
+
+def _gql_to_registry_visibility(
+    visibility: str,
+) -> Literal["organization", "restricted"]:
+    """Convert the GQL visibility to the registry visibility.
+
+    Args:
+        visibility: The GQL visibility.
+
+    Returns:
+        The registry visibility.
+    """
+    reverse_visibility_mapping = {v: k for k, v in VISIBILITY_MAPPING.items()}
+    if visibility not in reverse_visibility_mapping:
+        raise ValueError(f"Invalid visibility: {visibility} from backend")
+    return reverse_visibility_mapping[visibility]
+
+
+def _registry_visibility_to_gql(
+    visibility: Literal["organization", "restricted"],
+) -> str:
+    """Convert the registry visibility to the GQL visibility."""
+    return VISIBILITY_MAPPING[visibility]
+
+
+def _ensure_registry_prefix_on_names(query, in_name=False):
+    """Traverse the filter to prepend the `name` key value with the registry prefix unless the value is a regex.
+
+    - in_name: True if we are under a "name" key (or propagating from one).
+
+    EX: {"name": "model"} -> {"name": "wandb-registry-model"}
+    """
+    if isinstance((txt := query), str):
+        if in_name:
+            return txt if txt.startswith(REGISTRY_PREFIX) else f"{REGISTRY_PREFIX}{txt}"
+        return txt
+    if isinstance((dct := query), Mapping):
+        new_dict = {}
+        for key, obj in dct.items():
+            if key == "name":
+                new_dict[key] = _ensure_registry_prefix_on_names(obj, in_name=True)
+            elif key == "$regex":
+                # For regex operator, we skip transformation of its value.
+                new_dict[key] = obj
+            else:
+                # For any other key, propagate the in_name and skip_transform flags as-is.
+                new_dict[key] = _ensure_registry_prefix_on_names(obj, in_name=in_name)
+        return new_dict
+    if isinstance((objs := query), Sequence):
+        return list(
+            map(lambda x: _ensure_registry_prefix_on_names(x, in_name=in_name), objs)
+        )
+    return query
+
+
+@lru_cache(maxsize=10)
+def _fetch_org_entity_from_organization(client: "Client", organization: str) -> str:
+    """Fetch the org entity from the organization.
+
+    Args:
+        client (Client): Graphql client.
+        organization (str): The organization to fetch the org entity for.
+    """
+    query = gql(
+        """
+        query FetchOrgEntityFromOrganization($organization: String!) {
+            organization(name: $organization) {
+                    orgEntity {
+                        name
+                    }
+                }
+            }
+        """
+    )
+    response = client.execute(query, variable_values={"organization": organization})
+    if response["organization"]["orgEntity"]:
+        if not response["organization"]["orgEntity"]["name"]:
+            return ValueError(
+                f"Organization entity for organization: {organization} is empty"
+            )
+        return response["organization"]["orgEntity"]["name"]
+    else:
+        raise ValueError(
+            f"Organization entity for organization: {organization} not found"
+        )

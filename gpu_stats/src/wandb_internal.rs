@@ -2851,6 +2851,8 @@ pub enum ServerFeature {
     ArtifactCollectionMembershipFileDownloadHandler = 6,
     /// Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
     UseArtifactWithEntityAndProjectInformation = 7,
+    /// Indicates that the server supports including artifact types in registry creation.
+    IncludeArtifactTypesInRegistryCreation = 8,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2873,6 +2875,9 @@ impl ServerFeature {
             Self::UseArtifactWithEntityAndProjectInformation => {
                 "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION"
             }
+            Self::IncludeArtifactTypesInRegistryCreation => {
+                "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2891,6 +2896,9 @@ impl ServerFeature {
             }
             "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION" => {
                 Some(Self::UseArtifactWithEntityAndProjectInformation)
+            }
+            "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION" => {
+                Some(Self::IncludeArtifactTypesInRegistryCreation)
             }
             _ => None,
         }

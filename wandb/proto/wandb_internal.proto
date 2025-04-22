@@ -1407,6 +1407,9 @@ enum ServerFeature {
 
   // Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
   USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION = 7;
+
+  // Indicates that the server supports including artifact types in registry creation.
+  INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION = 8;
 }
 
 /**
