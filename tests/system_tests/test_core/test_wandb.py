@@ -341,11 +341,19 @@ def test_run_create_root_dir_without_permissions_defaults_to_temp_dir(
         "even if permissions are set to read only."
     ),
 )
-def test_run_create_root_dir_exists_without_permissions(user, tmp_path):
+@pytest.mark.parametrize(
+    "mode",
+    [
+        pytest.param(0o000, id="no_permissions"),
+        pytest.param(0o444, id="read_only"),
+        pytest.param(0o222, id="write_only"),
+    ],
+)
+def test_run_create_root_dir_exists_without_permissions(user, tmp_path, mode):
     temp_dir = tempfile.gettempdir()
     root_dir = tmp_path / "create_dir_test"
     root_dir.mkdir(parents=True, exist_ok=True)
-    root_dir.chmod(0o000)
+    root_dir.chmod(mode)
 
     with wandb.init(dir=root_dir) as run:
         run.log({"test": 1})
