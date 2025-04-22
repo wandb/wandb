@@ -15,7 +15,7 @@ import json
 import logging
 import os
 import urllib
-from typing import Any, Dict, List, Literal, Optional
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Literal, Optional
 
 import requests
 from wandb_gql import Client, gql
@@ -34,14 +34,18 @@ from wandb.apis.public.utils import (
     fetch_org_from_settings_or_entity,
     parse_org_from_registry_path,
 )
+from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import retry, runid
-from wandb.sdk.lib.deprecate import Deprecated, deprecate
+from wandb.sdk.lib.deprecate import deprecate
 from wandb.sdk.lib.gql_request import GraphQLSession
+
+if TYPE_CHECKING:
+    from wandb.automations import Integration, SlackIntegration, WebhookIntegration
 
 logger = logging.getLogger(__name__)
 
@@ -1476,7 +1480,9 @@ class Api:
 
             Find all collections in the registries with the name "my_collection" and the tag "my_tag"
             ```python
-            api.registries().collections(filter={"name": "my_collection", "tag": "my_tag"})
+            api.registries().collections(
+                filter={"name": "my_collection", "tag": "my_tag"}
+            )
             ```
 
             Find all artifact versions in the registries with a collection name that contains "my_collection" and a version that has the alias "best"
@@ -1582,4 +1588,112 @@ class Api:
             visibility,
             description,
             accepted_artifact_types,
+        )
+
+    def integrations(
+        self,
+        entity: Optional[str] = None,
+        *,
+        per_page: int = 50,
+    ) -> Iterator["Integration"]:
+        """Return an iterator of all integrations for an entity.
+
+        Args:
+            entity (str, optional): The entity (e.g. team name) for which to
+                fetch integrations.  If not provided, the user's default entity
+                will be used.
+            per_page (int, optional): Number of integrations to fetch per page.
+                Defaults to 50.
+
+        Yields:
+            Iterator[SlackIntegration | WebhookIntegration]: An iterator of any supported integrations.
+        """
+        from wandb.apis.public.integrations import Integrations
+
+        entity = entity or self.default_entity
+        params = {"entityName": entity, "includeWebhook": True, "includeSlack": True}
+        return Integrations(client=self.client, variables=params, per_page=per_page)
+
+    def webhook_integrations(
+        self, entity: Optional[str] = None, *, per_page: int = 50
+    ) -> Iterator["WebhookIntegration"]:
+        """Return an iterator of webhook integrations for an entity.
+
+        Args:
+            entity (str, optional): The entity (e.g. team name) for which to
+                fetch integrations.  If not provided, the user's default entity
+                will be used.
+            per_page (int, optional): Number of integrations to fetch per page.
+                Defaults to 50.
+
+        Yields:
+            Iterator[WebhookIntegration]: An iterator of webhook integrations.
+
+        Examples:
+            Get all registered webhook integrations for the team "my-team":
+            ```python
+            import wandb
+
+            api = wandb.Api()
+            webhook_integrations = api.webhook_integrations(entity="my-team")
+            ```
+
+            Find only webhook integrations that post requests to "https://my-fake-url.com":
+            ```python
+            webhook_integrations = api.webhook_integrations(entity="my-team")
+            my_webhooks = [
+                ig
+                for ig in webhook_integrations
+                if ig.url_endpoint.startswith("https://my-fake-url.com")
+            ]
+            ```
+        """
+        from wandb.apis.public.integrations import WebhookIntegrations
+
+        entity = entity or self.default_entity
+        params = {"entityName": entity, "includeWebhook": True}
+        return WebhookIntegrations(
+            client=self.client, variables=params, per_page=per_page
+        )
+
+    def slack_integrations(
+        self, entity: Optional[str] = None, *, per_page: int = 50
+    ) -> Iterator["SlackIntegration"]:
+        """Return an iterator of Slack integrations for an entity.
+
+        Args:
+            entity (str, optional): The entity (e.g. team name) for which to
+                fetch integrations.  If not provided, the user's default entity
+                will be used.
+            per_page (int, optional): Number of integrations to fetch per page.
+                Defaults to 50.
+
+        Yields:
+            Iterator[SlackIntegration]: An iterator of Slack integrations.
+
+        Examples:
+            Get all registered Slack integrations for the team "my-team":
+            ```python
+            import wandb
+
+            api = wandb.Api()
+            slack_integrations = api.slack_integrations(entity="my-team")
+            ```
+
+            Find only Slack integrations that post to channel names starting with "team-alerts-":
+            ```python
+            slack_integrations = api.slack_integrations(entity="my-team")
+            team_alert_integrations = [
+                ig
+                for ig in slack_integrations
+                if ig.channel_name.startswith("team-alerts-")
+            ]
+            ```
+        """
+        from wandb.apis.public.integrations import SlackIntegrations
+
+        entity = entity or self.default_entity
+        params = {"entityName": entity, "includeSlack": True}
+        return SlackIntegrations(
+            client=self.client, variables=params, per_page=per_page
         )

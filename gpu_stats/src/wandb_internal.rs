@@ -475,6 +475,9 @@ pub struct Feature {
     /// server-side derived summary computation was enabled
     #[prost(bool, tag = "68")]
     pub server_side_derived_summary: bool,
+    /// User set the x_label value
+    #[prost(bool, tag = "69")]
+    pub user_provided_label: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Env {
@@ -598,6 +601,18 @@ pub struct Deprecated {
     /// reinit setting set to a boolean value
     #[prost(bool, tag = "20")]
     pub run_reinit_bool: bool,
+    /// wandb.run.get_url() called
+    #[prost(bool, tag = "21")]
+    pub run_get_url: bool,
+    /// wandb.run.project_name() called
+    #[prost(bool, tag = "22")]
+    pub run_project_name: bool,
+    /// wandb.run.get_project_url() called
+    #[prost(bool, tag = "23")]
+    pub run_get_project_url: bool,
+    /// wandb.run.get_sweep_url() called
+    #[prost(bool, tag = "24")]
+    pub run_get_sweep_url: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {
@@ -1099,6 +1114,8 @@ pub struct MetricRecord {
     pub goal: i32,
     #[prost(message, optional, tag = "9")]
     pub control: ::core::option::Option<MetricControl>,
+    #[prost(bool, tag = "10")]
+    pub expanded_from_glob: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
@@ -1245,7 +1262,7 @@ pub struct FilesRecord {
 /// One or more files being saved with a run.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FilesItem {
-    /// A path or Unix glob relative to the W&B files directory.
+    /// A path or Unix glob relative to the run's files directory.
     #[prost(string, tag = "1")]
     pub path: ::prost::alloc::string::String,
     /// When to upload the file.
@@ -2851,8 +2868,10 @@ pub enum ServerFeature {
     ArtifactCollectionMembershipFileDownloadHandler = 6,
     /// Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
     UseArtifactWithEntityAndProjectInformation = 7,
+    /// Indicates that the server supports expanding defined metric globs on the server side.
+    ExpandDefinedMetricGlobs = 8,
     /// Indicates that the server supports including artifact types in registry creation.
-    IncludeArtifactTypesInRegistryCreation = 8,
+    IncludeArtifactTypesInRegistryCreation = 9,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2875,6 +2894,7 @@ impl ServerFeature {
             Self::UseArtifactWithEntityAndProjectInformation => {
                 "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION"
             }
+            Self::ExpandDefinedMetricGlobs => "EXPAND_DEFINED_METRIC_GLOBS",
             Self::IncludeArtifactTypesInRegistryCreation => {
                 "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION"
             }
@@ -2897,6 +2917,7 @@ impl ServerFeature {
             "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION" => {
                 Some(Self::UseArtifactWithEntityAndProjectInformation)
             }
+            "EXPAND_DEFINED_METRIC_GLOBS" => Some(Self::ExpandDefinedMetricGlobs),
             "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION" => {
                 Some(Self::IncludeArtifactTypesInRegistryCreation)
             }

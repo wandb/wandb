@@ -173,6 +173,8 @@ class InterfaceBase:
             self._make_config(data=config_dict, obj=proto_run.config)
         if run._telemetry_obj:
             proto_run.telemetry.MergeFrom(run._telemetry_obj)
+        if run._start_runtime:
+            proto_run.runtime = run._start_runtime
         return proto_run
 
     def publish_run(self, run: "Run") -> None:

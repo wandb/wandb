@@ -1,5 +1,4 @@
 import asyncio
-import functools
 from typing import Callable, TypeVar
 
 from wandb.sdk.lib import asyncio_compat, printer
@@ -8,24 +7,22 @@ _T = TypeVar("_T")
 
 
 def run_async_with_spinner(
+    spinner_printer: printer.Printer,
     text: str,
     func: Callable[[], _T],
 ) -> _T:
-    """Run an async function and display a loading icon while it runs.
+    """Run a slow function while displaying a loading icon.
 
     Args:
-        text: The text to display next to the spinner, while the function runs.
+        spinner_printer: The printer to use to display text.
+        text: The text to display next to the spinner while the function runs.
         func: The function to run.
 
     Returns:
         The result of func.
     """
-    spinner_printer = printer.new_printer()
 
-    async def _loop_run_with_spinner(
-        text: str,
-        func: Callable,
-    ) -> _T:
+    async def _loop_run_with_spinner() -> _T:
         func_running = asyncio.Event()
 
         async def update_spinner() -> None:
@@ -46,4 +43,4 @@ def run_async_with_spinner(
             func_running.set()
             return res
 
-    return asyncio_compat.run(functools.partial(_loop_run_with_spinner, text, func))
+    return asyncio_compat.run(_loop_run_with_spinner)

@@ -256,6 +256,7 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
         key=key,
         relogin=relogin,
         verify=verify,
+        referrer="models",
     )
 
 

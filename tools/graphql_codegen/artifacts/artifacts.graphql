@@ -1,0 +1,127 @@
+fragment ArtifactFragment on Artifact {
+    id
+    artifactSequence {
+        project {
+            entityName
+            name
+        }
+        name
+    }
+    versionIndex
+    artifactType {
+        name
+    }
+    description
+    metadata
+    ttlDurationSeconds @include(if: true)  # Workaround: ensures generated pydantic field defaults to `None`
+    ttlIsInherited @include(if: true)  # Workaround: ensures generated pydantic field defaults to `None`
+    aliases @include(if: true) {  # Workaround: ensures generated pydantic field defaults to `None`
+        artifactCollection {
+            __typename
+            project {
+                entityName
+                name
+            }
+            name
+        }
+        alias
+    }
+    tags @include(if: true) {  # Workaround: ensures generated pydantic field defaults to `None`
+        name
+    }
+    historyStep @include(if: true)  # Workaround: ensures generated pydantic field defaults to `None`
+    state
+    currentManifest {
+        file {
+            directUrl
+        }
+    }
+    commitHash
+    fileCount
+    createdAt
+    updatedAt
+}
+
+fragment ArtifactsFragment on VersionedArtifactConnection {
+    totalCount
+    edges {
+        node {
+            ...ArtifactFragment
+        }
+        version
+        cursor
+    }
+    pageInfo {
+        endCursor
+        hasNextPage
+    }
+}
+
+query ProjectArtifacts(
+    $project: String!,
+    $entity: String!,
+    $type: String!,
+    $collection: String!,
+    $cursor: String,
+    $perPage: Int = 50,
+    $order: String,
+    $filters: JSONString,
+) {
+    project(name: $project, entityName: $entity) {
+        artifactType(name: $type) {
+            # NOTE: The node being aliased is named:
+            # - `artifactCollection` for new servers
+            # - `artifactSequence` for old servers
+            artifactCollection: artifactCollection(name: $collection) {
+                name
+                artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
+                    ...ArtifactsFragment
+                }
+            }
+        }
+    }
+}
+
+query RunOutputArtifacts(
+    $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
+) {
+    project(name: $project, entityName: $entity) {
+        run(name: $runName) {
+            outputArtifacts(after: $cursor, first: $perPage) {
+                totalCount
+                edges {
+                    node {
+                        ...ArtifactFragment
+                    }
+                    cursor
+                }
+                pageInfo {
+                    endCursor
+                    hasNextPage
+                }
+            }
+        }
+    }
+}
+
+query RunInputArtifacts(
+    $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
+) {
+    project(name: $project, entityName: $entity) {
+        run(name: $runName) {
+            inputArtifacts(after: $cursor, first: $perPage) {
+                totalCount
+                edges {
+                    node {
+                        ...ArtifactFragment
+                    }
+                    cursor
+                }
+                pageInfo {
+                    endCursor
+                    hasNextPage
+                }
+            }
+        }
+    }
+}

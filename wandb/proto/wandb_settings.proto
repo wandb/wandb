@@ -52,7 +52,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 190
+// Next ID: 191
 message Settings {
   reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 100, 136, 137, 176;
 
@@ -379,6 +379,9 @@ message Settings {
 
   // Whether to delegate automatic computation of summary from history to the server.
   google.protobuf.BoolValue x_server_side_derived_summary = 189;
+
+  // Whether to delegate glob matching of metrics in define_metric to the server.
+  google.protobuf.BoolValue x_server_side_expand_glob_metrics = 190;
 
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.BoolValue x_cli_only_mode = 4;

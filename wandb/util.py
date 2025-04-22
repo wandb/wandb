@@ -51,6 +51,11 @@ from typing import (
     Union,
 )
 
+if sys.version_info < (3, 10):
+    from typing_extensions import TypeGuard
+else:
+    from typing import TypeGuard
+
 import requests
 import yaml
 
@@ -183,6 +188,13 @@ class LazyModuleState:
             assert self.module.__spec__.loader is not None
             self.module.__spec__.loader.exec_module(self.module)
             self.module.__class__ = types.ModuleType
+
+            # Set the submodule as an attribute on the parent module
+            # This enables access to the submodule via normal attribute access.
+            parent, _, child = self.module.__name__.rpartition(".")
+            if parent:
+                parent_module = sys.modules[parent]
+                setattr(parent_module, child, self.module)
 
 
 class LazyModule(types.ModuleType):
@@ -1700,15 +1712,15 @@ def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
         raise ValueError("`aliases` must be Iterable or None") from exc
 
 
-def _is_artifact_object(v: Any) -> bool:
+def _is_artifact_object(v: Any) -> "TypeGuard[wandb.Artifact]":
     return isinstance(v, wandb.Artifact)
 
 
-def _is_artifact_string(v: Any) -> bool:
+def _is_artifact_string(v: Any) -> "TypeGuard[str]":
     return isinstance(v, str) and v.startswith("wandb-artifact://")
 
 
-def _is_artifact_version_weave_dict(v: Any) -> bool:
+def _is_artifact_version_weave_dict(v: Any) -> "TypeGuard[dict]":
     return isinstance(v, dict) and v.get("_type") == "artifactVersion"
 
 
@@ -1750,20 +1762,6 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str], bool]:
 def _get_max_cli_version() -> Union[str, None]:
     max_cli_version = wandb.api.max_cli_version()
     return str(max_cli_version) if max_cli_version is not None else None
-
-
-def _is_offline() -> bool:
-    """Returns true if wandb is configured to be offline.
-
-    If there is an active run, returns whether the run is offline.
-    Otherwise, returns the default mode, which is affected by explicit settings
-    passed to `wandb.setup()`, environment variables, and W&B configuration
-    files.
-    """
-    if wandb.run:
-        return wandb.run.settings._offline
-    else:
-        return wandb.setup().settings._offline
 
 
 def ensure_text(
