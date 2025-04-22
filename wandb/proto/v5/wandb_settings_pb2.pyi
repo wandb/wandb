@@ -146,11 +146,11 @@ class RunMoment(google.protobuf.message.Message):
     VALUE_FIELD_NUMBER: builtins.int
     METRIC_FIELD_NUMBER: builtins.int
     run: builtins.str
-    """The name of the run to fork from."""
+    """The name of the run to branch off of."""
     value: builtins.float
-    """The value of the metric to fork at."""
+    """The value of the metric to branch at."""
     metric: builtins.str
-    """The name of the metric to use to find a fork point."""
+    """The name of the metric to use to find a branch point."""
     def __init__(
         self,
         *,

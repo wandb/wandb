@@ -166,6 +166,8 @@ class InterfaceBase:
             proto_run.host = run._settings.host
         if run._settings.resumed:
             proto_run.resumed = run._settings.resumed
+        if run._settings.fork_from:
+            print(run._settings.fork_from)
         if run._forked:
             proto_run.forked = run._forked
         if run._config is not None:
