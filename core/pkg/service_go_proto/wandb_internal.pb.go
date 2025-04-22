@@ -1505,6 +1505,7 @@ func (x *FooterRecord) GetXInfo() *XRecordInfo {
 	return nil
 }
 
+// BranchPointRecord stores information about a branch point for a run.
 type BranchPointRecord struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -1513,6 +1514,8 @@ type BranchPointRecord struct {
 	// The name of the source run to branch off of.
 	SourceRun string `protobuf:"bytes,1,opt,name=source_run,json=sourceRun,proto3" json:"source_run,omitempty"`
 	// The name of the metric to use to find a branch point.
+	//
+	// Currently, this is always `_step`.
 	MetricName string `protobuf:"bytes,2,opt,name=metric_name,json=metricName,proto3" json:"metric_name,omitempty"`
 	// The value of the metric to branch at.
 	MetricValue float64 `protobuf:"fixed64,3,opt,name=metric_value,json=metricValue,proto3" json:"metric_value,omitempty"`
