@@ -33,6 +33,10 @@ from .delete_artifact_sequence import (
 )
 from .enums import ArtifactCollectionState, ArtifactState
 from .fragments import (
+    ArtifactCollectionsFragment,
+    ArtifactCollectionsFragmentEdges,
+    ArtifactCollectionsFragmentEdgesNode,
+    ArtifactCollectionsFragmentPageInfo,
     ArtifactFragment,
     ArtifactFragmentAliases,
     ArtifactFragmentAliasesArtifactCollection,
@@ -43,9 +47,12 @@ from .fragments import (
     ArtifactFragmentCurrentManifest,
     ArtifactFragmentCurrentManifestFile,
     ArtifactFragmentTags,
+    ArtifactsFragment,
+    ArtifactsFragmentEdges,
+    ArtifactsFragmentPageInfo,
+    ArtifactTypeFragment,
     ArtifactTypesFragment,
     ArtifactTypesFragmentEdges,
-    ArtifactTypesFragmentEdgesNode,
     ArtifactTypesFragmentPageInfo,
     FilesFragment,
     FilesFragmentEdges,
@@ -73,8 +80,8 @@ from .operations import (
     PROJECT_ARTIFACTS_GQL,
     RUN_INPUT_ARTIFACTS_GQL,
     RUN_OUTPUT_ARTIFACTS_GQL,
-    UPDATE_ARTIFACT_COLLECTION_GQL,
     UPDATE_ARTIFACT_PORTFOLIO_GQL,
+    UPDATE_ARTIFACT_SEQUENCE_GQL,
 )
 from .project_artifact_collection import (
     ProjectArtifactCollection,
@@ -94,25 +101,14 @@ from .project_artifact_collections import (
     ProjectArtifactCollections,
     ProjectArtifactCollectionsProject,
     ProjectArtifactCollectionsProjectArtifactType,
-    ProjectArtifactCollectionsProjectArtifactTypeArtifactCollections,
-    ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdges,
-    ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdgesNode,
-    ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsPageInfo,
 )
-from .project_artifact_type import (
-    ProjectArtifactType,
-    ProjectArtifactTypeProject,
-    ProjectArtifactTypeProjectArtifactType,
-)
+from .project_artifact_type import ProjectArtifactType, ProjectArtifactTypeProject
 from .project_artifact_types import ProjectArtifactTypes, ProjectArtifactTypesProject
 from .project_artifacts import (
     ProjectArtifacts,
     ProjectArtifactsProject,
     ProjectArtifactsProjectArtifactType,
     ProjectArtifactsProjectArtifactTypeArtifactCollection,
-    ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifacts,
-    ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactsEdges,
-    ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactsPageInfo,
 )
 from .run_input_artifacts import (
     RunInputArtifacts,
@@ -130,15 +126,15 @@ from .run_output_artifacts import (
     RunOutputArtifactsProjectRunOutputArtifactsEdges,
     RunOutputArtifactsProjectRunOutputArtifactsPageInfo,
 )
-from .update_artifact_collection import (
-    UpdateArtifactCollection,
-    UpdateArtifactCollectionUpdateArtifactSequence,
-    UpdateArtifactCollectionUpdateArtifactSequenceArtifactCollection,
-)
 from .update_artifact_portfolio import (
     UpdateArtifactPortfolio,
     UpdateArtifactPortfolioUpdateArtifactPortfolio,
     UpdateArtifactPortfolioUpdateArtifactPortfolioArtifactCollection,
+)
+from .update_artifact_sequence import (
+    UpdateArtifactSequence,
+    UpdateArtifactSequenceUpdateArtifactSequence,
+    UpdateArtifactSequenceUpdateArtifactSequenceArtifactCollection,
 )
 
 __all__ = [
@@ -156,17 +152,17 @@ __all__ = [
     "PROJECT_ARTIFACT_TYPE_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
-    "UPDATE_ARTIFACT_COLLECTION_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
+    "UPDATE_ARTIFACT_SEQUENCE_GQL",
     "DeleteArtifactSequence",
     "DeleteArtifactSequenceDeleteArtifactSequence",
     "DeleteArtifactSequenceDeleteArtifactSequenceArtifactCollection",
     "DeleteArtifactPortfolio",
     "DeleteArtifactPortfolioDeleteArtifactPortfolio",
     "DeleteArtifactPortfolioDeleteArtifactPortfolioArtifactCollection",
-    "UpdateArtifactCollection",
-    "UpdateArtifactCollectionUpdateArtifactSequence",
-    "UpdateArtifactCollectionUpdateArtifactSequenceArtifactCollection",
+    "UpdateArtifactSequence",
+    "UpdateArtifactSequenceUpdateArtifactSequence",
+    "UpdateArtifactSequenceUpdateArtifactSequenceArtifactCollection",
     "UpdateArtifactPortfolio",
     "UpdateArtifactPortfolioUpdateArtifactPortfolio",
     "UpdateArtifactPortfolioUpdateArtifactPortfolioArtifactCollection",
@@ -181,10 +177,6 @@ __all__ = [
     "ProjectArtifactCollections",
     "ProjectArtifactCollectionsProject",
     "ProjectArtifactCollectionsProjectArtifactType",
-    "ProjectArtifactCollectionsProjectArtifactTypeArtifactCollections",
-    "ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdges",
-    "ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdgesNode",
-    "ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsPageInfo",
     "ProjectArtifactCollection",
     "ProjectArtifactCollectionProject",
     "ProjectArtifactCollectionProjectArtifactType",
@@ -209,14 +201,10 @@ __all__ = [
     "ProjectArtifactTypesProject",
     "ProjectArtifactType",
     "ProjectArtifactTypeProject",
-    "ProjectArtifactTypeProjectArtifactType",
     "ProjectArtifacts",
     "ProjectArtifactsProject",
     "ProjectArtifactsProjectArtifactType",
     "ProjectArtifactsProjectArtifactTypeArtifactCollection",
-    "ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifacts",
-    "ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactsEdges",
-    "ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactsPageInfo",
     "RunOutputArtifacts",
     "RunOutputArtifactsProject",
     "RunOutputArtifactsProjectRun",
@@ -230,6 +218,10 @@ __all__ = [
     "RunInputArtifactsProjectRunInputArtifactsEdges",
     "RunInputArtifactsProjectRunInputArtifactsPageInfo",
     "TagInput",
+    "ArtifactCollectionsFragment",
+    "ArtifactCollectionsFragmentEdges",
+    "ArtifactCollectionsFragmentEdgesNode",
+    "ArtifactCollectionsFragmentPageInfo",
     "ArtifactFragment",
     "ArtifactFragmentAliases",
     "ArtifactFragmentAliasesArtifactCollection",
@@ -240,10 +232,13 @@ __all__ = [
     "ArtifactFragmentCurrentManifest",
     "ArtifactFragmentCurrentManifestFile",
     "ArtifactFragmentTags",
+    "ArtifactTypeFragment",
     "ArtifactTypesFragment",
     "ArtifactTypesFragmentEdges",
-    "ArtifactTypesFragmentEdgesNode",
     "ArtifactTypesFragmentPageInfo",
+    "ArtifactsFragment",
+    "ArtifactsFragmentEdges",
+    "ArtifactsFragmentPageInfo",
     "FilesFragment",
     "FilesFragmentEdges",
     "FilesFragmentEdgesNode",

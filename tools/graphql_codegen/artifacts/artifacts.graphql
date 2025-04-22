@@ -17,6 +17,7 @@ fragment ArtifactFragment on Artifact {
     ttlIsInherited @include(if: true)  # Workaround: ensures generated pydantic field defaults to `None`
     aliases @include(if: true) {  # Workaround: ensures generated pydantic field defaults to `None`
         artifactCollection {
+            __typename
             project {
                 entityName
                 name
@@ -41,6 +42,21 @@ fragment ArtifactFragment on Artifact {
     updatedAt
 }
 
+fragment ArtifactsFragment on VersionedArtifactConnection {
+    totalCount
+    edges {
+        node {
+            ...ArtifactFragment
+        }
+        version
+        cursor
+    }
+    pageInfo {
+        endCursor
+        hasNextPage
+    }
+}
+
 query ProjectArtifacts(
     $project: String!,
     $entity: String!,
@@ -59,18 +75,7 @@ query ProjectArtifacts(
             artifactCollection: artifactCollection(name: $collection) {
                 name
                 artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
-                    totalCount
-                    edges {
-                        node {
-                            ...ArtifactFragment
-                        }
-                        version
-                        cursor
-                    }
-                    pageInfo {
-                        endCursor
-                        hasNextPage
-                    }
+                    ...ArtifactsFragment
                 }
             }
         }

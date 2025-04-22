@@ -14,14 +14,14 @@ mutation DeleteArtifactPortfolio($id: ID!) {
     }
 }
 
-mutation UpdateArtifactCollection(
-    $artifactSequenceID: ID!
+mutation UpdateArtifactSequence(
+    $id: ID!
     $name: String
     $description: String
 ) {
     updateArtifactSequence(
         input: {
-            artifactSequenceID: $artifactSequenceID
+            artifactSequenceID: $id
             name: $name
             description: $description
         }
@@ -36,13 +36,13 @@ mutation UpdateArtifactCollection(
 }
 
 mutation UpdateArtifactPortfolio(
-    $artifactPortfolioID: ID!
+    $id: ID!
     $name: String
     $description: String
 ) {
     updateArtifactPortfolio(
         input: {
-            artifactPortfolioID: $artifactPortfolioID
+            artifactPortfolioID: $id
             name: $name
             description: $description
         }
@@ -115,6 +115,24 @@ mutation DeleteArtifactCollectionTagAssignments(
     }
 }
 
+fragment ArtifactCollectionsFragment on ArtifactCollectionConnection {
+    pageInfo {
+        endCursor
+        hasNextPage
+    }
+    totalCount
+    edges {
+        node {
+            __typename
+            id
+            name
+            description
+            createdAt
+        }
+        cursor
+    }
+}
+
 query ProjectArtifactCollections(
     $entityName: String!,
     $projectName: String!,
@@ -127,24 +145,12 @@ query ProjectArtifactCollections(
             # - `artifactCollections` for new servers
             # - `artifactSequences` for old servers
             artifactCollections: artifactCollections(after: $cursor) {
-                pageInfo {
-                    endCursor
-                    hasNextPage
-                }
-                totalCount
-                edges {
-                    node {
-                        id
-                        name
-                        description
-                        createdAt
-                    }
-                    cursor
-                }
+                ...ArtifactCollectionsFragment
             }
         }
     }
 }
+
 
 query ProjectArtifactCollection(
     $entityName: String!,

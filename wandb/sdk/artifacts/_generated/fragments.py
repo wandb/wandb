@@ -12,6 +12,32 @@ from wandb._pydantic import GQLBase, GQLId, Typename
 from .enums import ArtifactState
 
 
+class ArtifactCollectionsFragment(GQLBase):
+    page_info: ArtifactCollectionsFragmentPageInfo = Field(alias="pageInfo")
+    total_count: int = Field(alias="totalCount")
+    edges: List[ArtifactCollectionsFragmentEdges]
+
+
+class ArtifactCollectionsFragmentEdges(GQLBase):
+    node: Optional[ArtifactCollectionsFragmentEdgesNode]
+    cursor: str
+
+
+class ArtifactCollectionsFragmentEdgesNode(GQLBase):
+    typename__: Typename[
+        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
+    ]
+    id: GQLId
+    name: str
+    description: Optional[str]
+    created_at: str = Field(alias="createdAt")
+
+
+class ArtifactCollectionsFragmentPageInfo(GQLBase):
+    end_cursor: Optional[str] = Field(alias="endCursor")
+    has_next_page: bool = Field(alias="hasNextPage")
+
+
 class ArtifactFragment(GQLBase):
     id: GQLId
     artifact_sequence: ArtifactFragmentArtifactSequence = Field(
@@ -84,24 +110,42 @@ class ArtifactFragmentTags(GQLBase):
     name: str
 
 
-class ArtifactTypesFragment(GQLBase):
-    edges: List[ArtifactTypesFragmentEdges]
-    page_info: ArtifactTypesFragmentPageInfo = Field(alias="pageInfo")
-
-
-class ArtifactTypesFragmentEdges(GQLBase):
-    node: Optional[ArtifactTypesFragmentEdgesNode]
-    cursor: str
-
-
-class ArtifactTypesFragmentEdgesNode(GQLBase):
+class ArtifactTypeFragment(GQLBase):
+    typename__: Typename[Literal["ArtifactType"]] = "ArtifactType"
     id: GQLId
     name: str
     description: Optional[str]
     created_at: str = Field(alias="createdAt")
 
 
+class ArtifactTypesFragment(GQLBase):
+    edges: List[ArtifactTypesFragmentEdges]
+    page_info: ArtifactTypesFragmentPageInfo = Field(alias="pageInfo")
+
+
+class ArtifactTypesFragmentEdges(GQLBase):
+    node: Optional[ArtifactTypeFragment]
+    cursor: str
+
+
 class ArtifactTypesFragmentPageInfo(GQLBase):
+    end_cursor: Optional[str] = Field(alias="endCursor")
+    has_next_page: bool = Field(alias="hasNextPage")
+
+
+class ArtifactsFragment(GQLBase):
+    total_count: int = Field(alias="totalCount")
+    edges: List[ArtifactsFragmentEdges]
+    page_info: ArtifactsFragmentPageInfo = Field(alias="pageInfo")
+
+
+class ArtifactsFragmentEdges(GQLBase):
+    node: ArtifactFragment
+    version: str
+    cursor: str
+
+
+class ArtifactsFragmentPageInfo(GQLBase):
     end_cursor: Optional[str] = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
@@ -134,6 +178,9 @@ class FilesFragmentPageInfo(GQLBase):
     has_next_page: bool = Field(alias="hasNextPage")
 
 
+ArtifactCollectionsFragment.model_rebuild()
 ArtifactFragment.model_rebuild()
+ArtifactTypeFragment.model_rebuild()
 ArtifactTypesFragment.model_rebuild()
+ArtifactsFragment.model_rebuild()
 FilesFragment.model_rebuild()

@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, GQLId, Typename
+from wandb._pydantic import GQLBase
+
+from .fragments import ArtifactCollectionsFragment
 
 
 class ProjectArtifactCollections(GQLBase):
@@ -21,45 +23,11 @@ class ProjectArtifactCollectionsProject(GQLBase):
 
 
 class ProjectArtifactCollectionsProjectArtifactType(GQLBase):
-    artifact_collections: Optional[
-        ProjectArtifactCollectionsProjectArtifactTypeArtifactCollections
-    ] = Field(alias="artifactCollections")
-
-
-class ProjectArtifactCollectionsProjectArtifactTypeArtifactCollections(GQLBase):
-    page_info: ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsPageInfo = Field(
-        alias="pageInfo"
+    artifact_collections: Optional[ArtifactCollectionsFragment] = Field(
+        alias="artifactCollections"
     )
-    total_count: int = Field(alias="totalCount")
-    edges: List[ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdges]
-
-
-class ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsPageInfo(GQLBase):
-    end_cursor: Optional[str] = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
-
-
-class ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdges(GQLBase):
-    node: Optional[
-        ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdgesNode
-    ]
-    cursor: str
-
-
-class ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdgesNode(
-    GQLBase
-):
-    typename__: Typename[
-        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
-    ]
-    id: GQLId
-    name: str
-    description: Optional[str]
-    created_at: str = Field(alias="createdAt")
 
 
 ProjectArtifactCollections.model_rebuild()
 ProjectArtifactCollectionsProject.model_rebuild()
 ProjectArtifactCollectionsProjectArtifactType.model_rebuild()
-ProjectArtifactCollectionsProjectArtifactTypeArtifactCollections.model_rebuild()
-ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdges.model_rebuild()

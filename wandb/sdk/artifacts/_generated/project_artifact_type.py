@@ -7,7 +7,9 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, GQLId
+from wandb._pydantic import GQLBase
+
+from .fragments import ArtifactTypeFragment
 
 
 class ProjectArtifactType(GQLBase):
@@ -15,16 +17,7 @@ class ProjectArtifactType(GQLBase):
 
 
 class ProjectArtifactTypeProject(GQLBase):
-    artifact_type: Optional[ProjectArtifactTypeProjectArtifactType] = Field(
-        alias="artifactType"
-    )
-
-
-class ProjectArtifactTypeProjectArtifactType(GQLBase):
-    id: GQLId
-    name: str
-    description: Optional[str]
-    created_at: str = Field(alias="createdAt")
+    artifact_type: Optional[ArtifactTypeFragment] = Field(alias="artifactType")
 
 
 ProjectArtifactType.model_rebuild()
