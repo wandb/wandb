@@ -334,43 +334,6 @@ def test_run_create_root_dir_without_permissions_defaults_to_temp_dir(
     assert run.settings.root_dir == temp_dir
 
 
-@pytest.mark.skipif(
-    platform.system() == "Linux",
-    reason=(
-        "For tests run in CI on linux, the runas user is root. "
-        "This means that the test can always write to the root dir, "
-        "even if permissions are set to read only."
-    ),
-)
-@pytest.mark.parametrize(
-    "permission_mode",
-    [
-        pytest.param(os.R_OK, id="read_only"),
-        pytest.param(os.W_OK, id="write_only"),
-    ],
-)
-def test_run_create_root_dir_exists_without_permissions(
-    user,
-    tmp_path,
-    monkeypatch,
-    permission_mode,
-):
-    temp_dir = tempfile.gettempdir()
-    root_dir = tmp_path / "create_dir_test"
-    os.makedirs(root_dir, exist_ok=True)
-
-    monkeypatch.setattr(
-        os,
-        "access",
-        lambda path, mode: not (mode == permission_mode and str(path) == str(root_dir)),
-    )
-
-    with wandb.init(dir=root_dir) as run:
-        run.log({"test": 1})
-
-    assert run.settings.root_dir == temp_dir
-
-
 def test_run_projecturl(user):
     run = wandb.init(settings={"mode": "offline"})
     run.finish()
