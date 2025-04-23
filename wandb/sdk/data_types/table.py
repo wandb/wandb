@@ -9,6 +9,7 @@ import wandb
 from wandb import util
 from wandb.sdk.lib import runid
 
+from enum import Enum
 from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import Media, _numpy_arrays_to_lists
@@ -178,6 +179,22 @@ class _ForeignIndexType(_dtypes.Type):
             raise AssertionError("Unable to deserialize referenced table")
 
         return cls(table)
+    
+def allow_relogging_after_mutation(method):
+    def wrapper(self, *args, **kwargs):
+        res = method(self, *args, **kwargs)
+        
+        if self.log_mode == TableLoggingMode.MUTABLE:
+            self._run = None
+            self._artifact_target = None
+
+        return res
+    return wrapper
+
+class TableLoggingMode(str, Enum):
+    # Controls logging behavior
+    IMMUTABLE = "IMMUTABLE" # Default: Table cannot be re-logged after first log
+    MUTABLE = "MUTABLE" # Table can be re-logged after mutations are performed
 
 
 class Table(Media):
@@ -205,6 +222,12 @@ class Table(Media):
             applies to all columns. A list of bool values applies to each respective column.
         allow_mixed_types: (bool) Determines if columns are allowed to have mixed types
             (disables type validation). Defaults to False
+        log_mode: (Optional[str]) Controls how the Table is logged when mutations occur.
+            Options:
+            - "IMMUTABLE" (default): Table can only be logged once; subsequent
+              logging attempts after the table has been mutated will be no-ops.
+            - "MUTABLE": Table can be re-logged after mutations, creating
+              a new artifact version each time it's logged.
     """
 
     MAX_ROWS = 10000
@@ -221,6 +244,7 @@ class Table(Media):
         dtype=None,
         optional=True,
         allow_mixed_types=False,
+        log_mode=TableLoggingMode.IMMUTABLE,
     ):
         """Initializes a Table object.
 
@@ -228,6 +252,9 @@ class Table(Media):
         The Table class uses data to mimic the Pandas API.
         """
         super().__init__()
+        # Convert string to enum if needed
+        self._validate_log_mode(log_mode)
+        self.log_mode = log_mode
         self._pk_col = None
         self._fk_cols = set()
         if allow_mixed_types:
@@ -258,6 +285,12 @@ class Table(Media):
             else:
                 self._init_from_list([], columns, optional, dtype)
 
+    def _validate_log_mode(self, log_mode):
+        try:
+            TableLoggingMode[log_mode]
+        except KeyError:
+            raise ValueError(f"Invalid log_mode: {log_mode}. Must be one of {[m.name for m in TableLoggingMode]}")
+    
     @staticmethod
     def _assert_valid_columns(columns):
         valid_col_types = [str, int]
@@ -312,6 +345,7 @@ class Table(Media):
         for col_name, opt, dt in zip(self.columns, optional, dtype):
             self.cast(col_name, dt, opt)
 
+    @allow_relogging_after_mutation
     def cast(self, col_name, dtype, optional=False):
         """Casts a column to a specific data type.
 
@@ -415,11 +449,13 @@ class Table(Media):
     def __eq__(self, other):
         return self._eq_debug(other)
 
+    @allow_relogging_after_mutation
     def add_row(self, *row):
         """Deprecated; use add_data instead."""
         logging.warning("add_row is deprecated, use add_data")
         self.add_data(*row)
 
+    @allow_relogging_after_mutation
     def add_data(self, *data):
         """Adds a new row of data to the table. The maximum amount of rows in a table is determined by `wandb.Table.MAX_ARTIFACT_ROWS`.
 
@@ -692,11 +728,13 @@ class Table(Media):
             index.set_table(self)
             yield index, self.data[ndx]
 
+    @allow_relogging_after_mutation
     def set_pk(self, col_name):
         # TODO: Docs
         assert col_name in self.columns
         self.cast(col_name, _PrimaryKeyType())
 
+    @allow_relogging_after_mutation
     def set_fk(self, col_name, table, table_col):
         # TODO: Docs
         assert col_name in self.columns
@@ -799,6 +837,7 @@ class Table(Media):
             for row_ndx in range(len(self.data)):
                 update_row(row_ndx)
 
+    @allow_relogging_after_mutation
     def add_column(self, name, data, optional=False):
         """Adds a column of data to the table.
 
@@ -889,6 +928,7 @@ class Table(Media):
         _index.set_table(self)
         return _index
 
+    @allow_relogging_after_mutation
     def add_computed_columns(self, fn):
         """Adds one or more computed columns based on existing data.
 

@@ -122,3 +122,35 @@ def test_reference_table_artifacts(user, test_settings, wandb_backend_spy):
     run.log_artifact(art)
 
     run.finish()
+
+def test_table_mutation_logging(user, test_settings, wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="ServerInfo"),
+        gql.once(
+            content={
+                "data": {
+                    "serverInfo": {"cliVersionInfo": {"max_cli_version": "0.11.0"}}
+                }
+            },
+            status=200,
+        ),
+    )
+
+    run = wandb.init(settings=test_settings())
+    t = wandb.Table(
+        columns=["expected", "actual", "img"],
+        log_mode="MUTABLE"
+    )
+    t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
+    run.log({"table": t})
+    t.add_data("Yes", "Yes", wandb.Image(np.ones(shape=(32, 32))))
+    run.log({"table": t})
+    t.add_data("No", "Yes", wandb.Image(np.ones(shape=(32, 32))))
+    run.log({"table": t})
+    t.get_column("expected")
+    run.log({"table": t})
+    run.finish()
+
+    run = wandb.Api().run(f"uncategorized/{run.id}")
+    assert len(run.logged_artifacts()) == 3
