@@ -53,7 +53,7 @@ class Html(BatchableMedia):
         """
         super().__init__()
         data_is_path = (
-            isinstance(data, str)
+            isinstance(data, (str, pathlib.Path))
             and os.path.isfile(data)
             and os.path.splitext(data)[1] == ".html"
         ) and not data_is_not_path
