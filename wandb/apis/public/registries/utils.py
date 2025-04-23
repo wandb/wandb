@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import TYPE_CHECKING, Literal, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, List, Literal, Mapping, Optional, Sequence
 
 from wandb.sdk.artifacts._validators import (
     REGISTRY_PREFIX,
@@ -18,26 +18,20 @@ VISIBILITY_MAPPING = {
 
 
 def _format_gql_artifact_types_input(
-    new_artifact_types: Optional[list[str]] = None,
-    existing_artifact_types: Optional[list[str]] = None,
+    artifact_types: Optional[List[str]] = None,
 ):
     """Format the artifact types for the GQL input.
 
     Args:
         accepted_artifact_types: The artifact types to add to the registry.
-        existing_artifact_types: The artifact types that already exist in the registry.
 
     Returns:
         The artifact types for the GQL input.
     """
-    new_types = validate_artifact_types_list(new_artifact_types)
-    if existing_artifact_types is not None:
-        new_types = [
-            artifact_type
-            for artifact_type in new_types
-            if artifact_type not in existing_artifact_types
-        ]
-    return [{"name": artifact_type} for artifact_type in new_types]
+    if artifact_types is None:
+        return []
+    new_types = validate_artifact_types_list(artifact_types)
+    return [{"name": type} for type in new_types]
 
 
 def _gql_to_registry_visibility(

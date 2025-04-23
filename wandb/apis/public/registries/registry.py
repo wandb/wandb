@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
 
 from wandb_gql import gql
 
@@ -195,7 +195,7 @@ class Registry:
         name: str,
         visibility: Literal["organization", "restricted"],
         description: Optional[str] = None,
-        accepted_artifact_types: Optional[list[str]] = None,
+        accepted_artifact_types: Optional[List[str]] = None,
     ):
         """Create a new registry. The registry name must be unique within the organization."""
         existing_registry = Registries(client, organization, {"name": name})
@@ -296,7 +296,7 @@ class Registry:
                 "If you want to update registry artifact types, please set `allow_all_artifact_types` to `false`."
             )
         visibility_value = _registry_visibility_to_gql(self.visibility)
-        artifact_types = _format_gql_artifact_types_input(self.artifact_types)
+        newly_added_types = _format_gql_artifact_types_input(self.artifact_types.draft)
         registry_save_error = f"Failed to save and update registry: {self.name} in organization: {self.organization}"
         try:
             response = self.client.execute(
@@ -307,7 +307,7 @@ class Registry:
                     "name": self.full_name,
                     "access": visibility_value,
                     "allowAllArtifactTypesInRegistry": self.allow_all_artifact_types,
-                    "artifactTypes": artifact_types,
+                    "artifactTypes": newly_added_types,
                 },
             )
         except Exception:

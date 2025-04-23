@@ -7,35 +7,6 @@ from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
 
 @pytest.mark.parametrize(
-    "new_artifact_types, existing_artifact_types, expected_output",
-    [
-        (None, None, []),
-        (None, ["a"], []),
-        ([], None, []),
-        ([], ["a"], []),
-        (["a", "b"], None, [{"name": "a"}, {"name": "b"}]),
-        (["a", "b"], [], [{"name": "a"}, {"name": "b"}]),
-        (["a", "b", "c"], ["b", "d"], [{"name": "a"}, {"name": "c"}]),
-        (["a", "b"], ["a", "b", "c"], []),
-        (["a", "b"], ["c", "d"], [{"name": "a"}, {"name": "b"}]),
-    ],
-)
-def test_format_gql_artifact_types_input(
-    new_artifact_types,
-    existing_artifact_types,
-    expected_output,
-):
-    """Test the format_gql_artifact_types_input function."""
-    # Assuming validate_artifact_types_list passes through valid lists
-    # and returns empty list for None/empty list input.
-    result = _format_gql_artifact_types_input(
-        new_artifact_types=new_artifact_types,
-        existing_artifact_types=existing_artifact_types,
-    )
-    assert result == expected_output
-
-
-@pytest.mark.parametrize(
     "artifact_types, expected_output",
     [
         # Valid case
@@ -55,15 +26,18 @@ def test_format_gql_artifact_types_input(
         ),
         # Too long
         (["a" * 129], ValueError),
+        # None/empty input
+        (None, []),
+        ([], []),
     ],
 )
-def test_format_gql_artifact_types_input_validation(artifact_types, expected_output):
-    """Test artifact type name validation within format_gql_artifact_types_input."""
-    if isinstance(expected_output, ValueError):
-        with pytest.raises(ValueError):
-            _format_gql_artifact_types_input(new_artifact_types=artifact_types)
+def test_format_gql_artifact_types_input(artifact_types, expected_output):
+    """Test artifact type name validation and formatting within format_gql_artifact_types_input."""
+    if isinstance(expected_output, type) and issubclass(expected_output, Exception):
+        with pytest.raises(expected_output):
+            _format_gql_artifact_types_input(artifact_types=artifact_types)
     else:
-        result = _format_gql_artifact_types_input(new_artifact_types=artifact_types)
+        result = _format_gql_artifact_types_input(artifact_types=artifact_types)
         assert result == expected_output
 
 
