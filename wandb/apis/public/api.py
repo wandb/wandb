@@ -1534,6 +1534,17 @@ class Api:
 
         Returns:
             A registry object.
+
+        Examples:
+            Fetch and update a registry
+            ```python
+            import wandb
+
+            api = wandb.Api()
+            registry = api.registry(name="my-registry", organization="my-org")
+            registry.description = "This is an updated description"
+            registry.save()
+            ```
         """
         organization = organization or fetch_org_from_settings_or_entity(
             self.settings, self.default_entity
@@ -1567,6 +1578,20 @@ class Api:
 
         Returns:
             A registry object.
+
+        Examples:
+            ```python
+            import wandb
+
+            api = wandb.Api()
+            registry = api.create_registry(
+                name="my-registry",
+                visibility="restricted",
+                organization="my-org",
+                description="This is a test registry",
+                accepted_artifact_types=["model"],
+            )
+            ```
         """
         if not InternalApi()._check_server_feature_with_fallback(
             ServerFeature.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION

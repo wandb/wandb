@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from collections import namedtuple
 from typing import Generator, Iterator
 
 import pytest
@@ -96,6 +97,39 @@ def user(mocker, backend_fixture_factory) -> Iterator[str]:
     }
     mocker.patch.dict(os.environ, envvars)
     yield username
+
+
+UserOrg = namedtuple("UserOrg", ["username", "organization_name"])
+
+
+@pytest.fixture
+def user_and_org(mocker, backend_fixture_factory) -> Iterator[UserOrg]:
+    username = backend_fixture_factory.make_user()
+    envvars = {
+        "WANDB_API_KEY": username,
+        "WANDB_ENTITY": username,
+        "WANDB_USERNAME": username,
+    }
+    org = backend_fixture_factory.make_org(username=username)
+    mocker.patch.dict(os.environ, envvars)
+    yield UserOrg(username=username, organization_name=org)
+
+
+@pytest.fixture
+def user_and_2_orgs(mocker, backend_fixture_factory) -> Iterator[UserOrg]:
+    username = backend_fixture_factory.make_user()
+    envvars = {
+        "WANDB_API_KEY": username,
+        "WANDB_ENTITY": username,
+        "WANDB_USERNAME": username,
+    }
+    org1 = backend_fixture_factory.make_org(username=username)
+    org2 = backend_fixture_factory.make_org(username=username)
+    mocker.patch.dict(os.environ, envvars)
+    yield (
+        UserOrg(username=username, organization_name=org1),
+        UserOrg(username=username, organization_name=org2),
+    )
 
 
 @pytest.fixture(scope="session")

@@ -74,11 +74,13 @@ class Registry:
         self._visibility = _gql_to_registry_visibility(attrs.get("access", ""))
 
     @property
-    def full_name(self):
+    def full_name(self) -> str:
+        """Full name of the registry which contains the internally set `wandb-registry-` prefix."""
         return self._full_name
 
     @property
-    def name(self):
+    def name(self) -> str:
+        """Name of the registry without the `wandb-registry-` prefix."""
         return self._name
 
     @name.setter
@@ -86,39 +88,67 @@ class Registry:
         self._name = value
 
     @property
-    def entity(self):
+    def entity(self) -> str:
+        """Organization entity of the registry."""
         return self._entity
 
     @property
-    def organization(self):
+    def organization(self) -> str:
+        """Organization name of the registry."""
         return self._organization
 
     @property
-    def description(self):
+    def description(self) -> str:
+        """Description of the registry."""
         return self._description
 
     @description.setter
     def description(self, value: str):
+        """Set the description of the registry."""
         self._description = value
 
     @property
     def allow_all_artifact_types(self):
+        """
+        Returns whether all artifact types are allowed in the registry.
+        If `True` then artifacts of any type can be added to this registry.
+        If `False` then artifacts are restricted to the types in `artifact_types` for this registry.
+        """
         return self._allow_all_artifact_types
 
     @allow_all_artifact_types.setter
     def allow_all_artifact_types(self, value: bool):
+        """Set whether all artifact types are allowed in the registry."""
         self._allow_all_artifact_types = value
 
     @property
     def artifact_types(self) -> AddOnlyArtifactTypesList:
+        """
+        Returns the artifact types allowed in the registry. If `allow_all_artifact_types` is `True` then
+        `artifact_types` are the types that are previously saved or currently used in the registry.
+        If `allow_all_artifact_types` is `False` then artifacts are restricted to the types in `artifact_types` for this registry.
+        Note previously saved artifact types cannot be removed.
+
+        Example:
+        ```python
+        registry.artifact_types.add("model")
+        registry.save()  # once saved, the artifact type `model` cannot be removed
+        registry.artifact_types.add("accidentally_added")
+        registry.artifact_types.remove(
+            "accidentally_added"
+        )  # Types can only be removed if it has not been saved yet
+        ```
+        """
         return self._artifact_types
 
     @property
-    def created_at(self):
+    def created_at(self) -> str:
+        """Timestamp of when the registry was created."""
         return self._created_at
 
     @property
-    def updated_at(self):
+    def updated_at(self) -> str:
+        """Timestamp of when the registry was last updated."""
         return self._updated_at
 
     @property
@@ -126,16 +156,32 @@ class Registry:
         return [self.entity, self.full_name]
 
     @property
-    def visibility(self):
+    def visibility(self) -> Literal["organization", "restricted"]:
+        """
+        Returns the visibility of the registry.
+        organization: Anyone in the organization can view this registry. You can edit their roles later from the settings in the UI.
+        restricted: Only invited members via the UI can access this registry. Public sharing is disabled.
+        """
         return self._visibility
 
-    def collections(self, filter: Optional[Dict[str, Any]] = None):
+    @visibility.setter
+    def visibility(self, value: Literal["organization", "restricted"]):
+        """Set the visibility of the registry.
+
+        organization: Anyone in the organization can view this registry. You can edit their roles later from the settings in the UI.
+        restricted: Only invited members via the UI can access this registry. Public sharing is disabled.
+        """
+        self._visibility = value
+
+    def collections(self, filter: Optional[Dict[str, Any]] = None) -> Collections:
+        """Returns the collections belonging to the registry."""
         registry_filter = {
             "name": self.full_name,
         }
         return Collections(self.client, self.organization, registry_filter, filter)
 
-    def versions(self, filter: Optional[Dict[str, Any]] = None):
+    def versions(self, filter: Optional[Dict[str, Any]] = None) -> Versions:
+        """Returns the versions belonging to the registry."""
         registry_filter = {
             "name": self.full_name,
         }
@@ -151,6 +197,7 @@ class Registry:
         description: Optional[str] = None,
         accepted_artifact_types: Optional[list[str]] = None,
     ):
+        """Create a new registry. The registry name must be unique within the organization."""
         existing_registry = Registries(client, organization, {"name": name})
         if existing_registry:
             raise ValueError(
@@ -159,7 +206,9 @@ class Registry:
 
         org_entity = _fetch_org_entity_from_organization(client, organization)
         full_name = REGISTRY_PREFIX + name
-        artifact_types = _format_gql_artifact_types_input(accepted_artifact_types)
+        artifact_types = []
+        if accepted_artifact_types:
+            artifact_types = _format_gql_artifact_types_input(accepted_artifact_types)
         visibility_value = _registry_visibility_to_gql(visibility)
         registry_creation_error = (
             """Failed to create registry {name} in organization {organization}."""
@@ -189,7 +238,8 @@ class Registry:
             response["upsertModel"]["project"],
         )
 
-    def delete(self):
+    def delete(self) -> None:
+        """Delete the registry. This is irreversible."""
         mutation = gql(
             """
             mutation deleteModel($id: String!) {
@@ -200,12 +250,16 @@ class Registry:
             }
         """
         )
-        self.client.execute(mutation, variable_values={"id": self._id})
+        try:
+            self.client.execute(mutation, variable_values={"id": self._id})
+        except Exception:
+            raise ValueError(
+                f"Failed to delete registry: {self.name} in organization: {self.organization}"
+            )
 
-    def load(self):
-        load_failure_message = (
-            f"Could not load registry: {self.name} in organization: {self.organization}"
-        )
+    def load(self) -> None:
+        """Load the registry attributes from the backend to reflect the latest saved state."""
+        load_failure_message = f"Failed to load registry '{self.name}' in organization '{self.organization}'."
         try:
             response = self.client.execute(
                 gql(
@@ -234,14 +288,16 @@ class Registry:
             raise ValueError(load_failure_message)
         self._update_attributes(self.attrs)
 
-    def save(self):
+    def save(self) -> None:
+        """Save registry attributes to the backend."""
         if self._no_updating_registry_types():
             raise ValueError(
-                "Cannot update registry types if registry `allows_all_artifact_types` is `true`, please set `allow_all_artifact_types` to `false` if you want to update registry types."
+                "Cannot update registry artifact types if registry `allows_all_artifact_types` is `true`, please set `allow_all_artifact_types` to `false`. "
+                "If you want to update registry artifact types, please set `allow_all_artifact_types` to `false`."
             )
         visibility_value = _registry_visibility_to_gql(self.visibility)
         artifact_types = _format_gql_artifact_types_input(self.artifact_types)
-        registry_save_error = f"Failed to update registry: {self.name} in organization: {self.organization}"
+        registry_save_error = f"Failed to save and update registry: {self.name} in organization: {self.organization}"
         try:
             response = self.client.execute(
                 self.UPSERT_REGISTRY_PROJECT,
