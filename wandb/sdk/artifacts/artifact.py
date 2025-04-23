@@ -40,6 +40,7 @@ from wandb import data_types, env, util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
+from wandb.errors import CommError
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._graphql_fragments import _gql_artifact_fragment
@@ -1071,8 +1072,8 @@ class Artifact:
                             ],
                         },
                     )
-                except wandb.CommError as e:
-                    raise wandb.CommError(
+                except CommError as e:
+                    raise CommError(
                         "You do not have permission to add"
                         f" {'at least one of the following aliases' if len(aliases_to_add) > 1  else 'the following alias'}"
                         f" to this artifact: {aliases_to_add}"
@@ -1109,8 +1110,8 @@ class Artifact:
                             ],
                         },
                     )
-                except wandb.CommError as e:
-                    raise wandb.CommError(
+                except CommError as e:
+                    raise CommError(
                         f"You do not have permission to delete"
                         f" {'at least one of the following aliases' if len(aliases_to_delete) > 1  else 'the following alias'}"
                         f" from this artifact: {aliases_to_delete}"
@@ -2304,8 +2305,8 @@ class Artifact:
                     "artifactPortfolioID": self.collection.id,
                 },
             )
-        except wandb.CommError as e:
-            raise wandb.CommError(
+        except CommError as e:
+            raise CommError(
                 f"You do not have permission to unlink the artifact {self.qualified_name}"
             ) from e
 
