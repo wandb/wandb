@@ -29,16 +29,7 @@ def test_run_create_root_dir_without_permissions_defaults_to_temp_dir(tmp_path):
     assert run.settings.root_dir == temp_dir
 
 
-@pytest.mark.parametrize(
-    "permission_mode",
-    [
-        pytest.param(os.R_OK, id="read_only"),
-        pytest.param(os.W_OK, id="write_only"),
-    ],
-)
-def test_run_create_root_dir_exists_without_permissions(
-    tmp_path, monkeypatch, permission_mode
-):
+def test_run_create_root_dir_exists_without_permissions(tmp_path, monkeypatch):
     temp_dir = tempfile.gettempdir()
     root_dir = tmp_path / "create_dir_test"
     os.makedirs(root_dir, exist_ok=True)
@@ -46,7 +37,9 @@ def test_run_create_root_dir_exists_without_permissions(
     monkeypatch.setattr(
         os,
         "access",
-        lambda path, mode: not (mode == permission_mode and str(path) == str(root_dir)),
+        lambda path, mode: not (
+            mode == (os.R_OK | os.W_OK) and str(path) == str(root_dir)
+        ),
     )
 
     with wandb.init(dir=root_dir, mode="offline") as run:

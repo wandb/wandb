@@ -319,7 +319,6 @@ def test_run_create_root_dir(user, tmp_path):
 def test_run_create_root_dir_without_permissions_defaults_to_temp_dir(
     user,
     tmp_path,
-    monkeypatch,
 ):
     temp_dir = tempfile.gettempdir()
     root_dir = tmp_path / "no_permissions_test"
