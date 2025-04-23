@@ -3044,41 +3044,6 @@ class Run:
         """
         wandb.sdk._unwatch(self, models=models)
 
-    # TODO(kdg): remove all artifact swapping logic
-    def _swap_artifact_name(self, artifact_name: str, use_as: str | None) -> str:
-        artifact_key_string = use_as or artifact_name
-        replacement_artifact_info = self._launch_artifact_mapping.get(
-            artifact_key_string
-        )
-        if replacement_artifact_info is not None:
-            new_name = replacement_artifact_info.get("name")
-            entity = replacement_artifact_info.get("entity")
-            project = replacement_artifact_info.get("project")
-            if new_name is None or entity is None or project is None:
-                raise ValueError(
-                    "Misconfigured artifact in launch config. Must include name, project and entity keys."
-                )
-            return f"{entity}/{project}/{new_name}"
-        elif replacement_artifact_info is None and use_as is None:
-            sequence_name = artifact_name.split(":")[0].split("/")[-1]
-            unique_artifact_replacement_info = (
-                self._unique_launch_artifact_sequence_names.get(sequence_name)
-            )
-            if unique_artifact_replacement_info is not None:
-                new_name = unique_artifact_replacement_info.get("name")
-                entity = unique_artifact_replacement_info.get("entity")
-                project = unique_artifact_replacement_info.get("project")
-                if new_name is None or entity is None or project is None:
-                    raise ValueError(
-                        "Misconfigured artifact in launch config. Must include name, project and entity keys."
-                    )
-                return f"{entity}/{project}/{new_name}"
-
-        else:
-            return artifact_name
-
-        return artifact_name
-
     def _detach(self) -> None:
         pass
 
@@ -3172,8 +3137,7 @@ class Run:
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
-            use_as: (string, optional) Optional string indicating what purpose the artifact was used with.
-                                       Will be shown in UI.
+            use_as: This argument is deprecated and does nothing.
 
         Returns:
             An `Artifact` object.
@@ -3189,11 +3153,16 @@ class Run:
         )
         api.set_current_run_id(self._settings.run_id)
 
+        if use_as is not None:
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__use_artifact_use_as,
+                warning_message=(
+                    "`use_as` argument is deprecated and does not affect the behaviour of `run.use_artifact`"
+                ),
+            )
+
         if isinstance(artifact_or_name, str):
-            if self._launch_artifact_mapping:
-                name = self._swap_artifact_name(artifact_or_name, use_as)
-            else:
-                name = artifact_or_name
+            name = artifact_or_name
             public_api = self._public_api()
             artifact = public_api._artifact(type=type, name=name)
             if type is not None and type != artifact.type:
@@ -3202,27 +3171,12 @@ class Run:
                         type, artifact.type, artifact.name
                     )
                 )
-            artifact._use_as = use_as or artifact_or_name
-            if use_as:
-                if (
-                    use_as in self._used_artifact_slots.keys()
-                    and self._used_artifact_slots[use_as] != artifact.id
-                ):
-                    raise ValueError(
-                        "Cannot call use_artifact with the same use_as argument more than once"
-                    )
-                elif ":" in use_as or "/" in use_as:
-                    raise ValueError(
-                        "use_as cannot contain special characters ':' or '/'"
-                    )
-                self._used_artifact_slots[use_as] = artifact.id
             api.use_artifact(
                 artifact.id,
                 entity_name=self._settings.entity,
                 project_name=self._settings.project,
                 artifact_entity_name=artifact.entity,
                 artifact_project_name=artifact.project,
-                use_as=use_as or artifact_or_name,
             )
         else:
             artifact = artifact_or_name
@@ -3242,20 +3196,9 @@ class Run:
                     use_after_commit=True,
                 )
                 artifact.wait()
-                artifact._use_as = use_as or artifact.name
             elif isinstance(artifact, Artifact) and not artifact.is_draft():
-                if (
-                    self._launch_artifact_mapping
-                    and artifact.name in self._launch_artifact_mapping.keys()
-                ):
-                    wandb.termwarn(
-                        "Swapping artifacts is not supported when using a non-draft artifact. "
-                        f"Using {artifact.name}."
-                    )
-                artifact._use_as = use_as or artifact.name
                 api.use_artifact(
                     artifact.id,
-                    use_as=use_as or artifact._use_as or artifact.name,
                     artifact_entity_name=artifact.entity,
                     artifact_project_name=artifact.project,
                 )

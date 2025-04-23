@@ -26,6 +26,8 @@ DEPRECATED_FEATURES = Literal[
     "run__project_name",
     "run__get_project_url",
     "run__get_sweep_url",
+    "run__use_artifact_use_as",
+    "artifact__use_as",
 ]
 
 class Deprecated:
@@ -53,3 +55,5 @@ class Deprecated:
     run__project_name: DEPRECATED_FEATURES = "run__project_name"
     run__get_project_url: DEPRECATED_FEATURES = "run__get_project_url"
     run__get_sweep_url: DEPRECATED_FEATURES = "run__get_sweep_url"
+    run__use_artifact_use_as: DEPRECATED_FEATURES = "run__use_artifact_use_as"
+    artifact__use_as: DEPRECATED_FEATURES = "artifact__use_as"

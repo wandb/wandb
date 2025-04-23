@@ -109,7 +109,7 @@ class Artifact:
             dictionary of key-value pairs. You can specify no more than 100 total keys.
         incremental: Use `Artifact.new_draft()` method instead to modify an
             existing artifact.
-        use_as: W&B Launch specific parameter. Not recommended for general use.
+        use_as: Deprecated.
 
     Returns:
         An `Artifact` object.
@@ -179,7 +179,7 @@ class Artifact:
         self._saved_tags: list[str] = []
         self._distributed_id: str | None = None
         self._incremental: bool = incremental
-        self._use_as: str | None = use_as
+        self._use_as: str | None = None
         self._state: ArtifactState = ArtifactState.PENDING
         self._manifest: ArtifactManifest | _DeferredArtifactManifest | None = (
             ArtifactManifestV1(self._storage_policy)
@@ -782,6 +782,11 @@ class Artifact:
 
     @property
     def use_as(self) -> str | None:
+        """Deprecated."""
+        deprecate(
+            field_name=Deprecated.artifact__use_as,
+            warning_message=("The use_as property of Artifact is deprecated."),
+        )
         return self._use_as
 
     @property

@@ -977,8 +977,7 @@ def use_artifact(
             You can also pass an Artifact object created by calling `wandb.Artifact`
         type: (str, optional) The type of artifact to use.
         aliases: (list, optional) Aliases to apply to this artifact
-        use_as: (string, optional) Optional string indicating what purpose the artifact was used with.
-                                   Will be shown in UI.
+        use_as: This argument is deprecated and does nothing.
 
     Returns:
         An `Artifact` object.
