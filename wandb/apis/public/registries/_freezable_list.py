@@ -1,4 +1,3 @@
-from collections.abc import MutableSequence
 from itertools import chain
 from typing import (
     Any,
@@ -6,6 +5,7 @@ from typing import (
     Iterable,
     Iterator,
     List,
+    MutableSequence,
     Sequence,
     Tuple,
     TypeVar,
@@ -28,7 +28,7 @@ class FreezableList(MutableSequence[T], Generic[T]):
     Any initial items passed to the constructor are saved.
     """
 
-    def __init__(self, iterable: Iterable[T] | None = None, /) -> None:
+    def __init__(self, iterable: Union[Iterable[T], None] = None, /) -> None:
         self._frozen: Tuple[T, ...] = tuple(iterable or ())
         self._draft: List[T] = []
 
