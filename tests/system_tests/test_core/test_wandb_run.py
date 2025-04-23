@@ -30,14 +30,19 @@ def test_log_nan_inf(wandb_backend_spy):
         assert history[0]["nested"]["neg_inf"] < 0
 
 
-def test_log_code(user):
-    with wandb.init(mode="offline") as run:
+def test_log_code(user, wandb_backend_spy):
+    with wandb.init() as run:
         with open("test.py", "w") as f:
             f.write('print("test")')
         with open("big_file.h5", "w") as f:
             f.write("Not that big")
         art = run.log_code()
         assert sorted(art.manifest.entries.keys()) == ["test.py"]
+
+    with wandb_backend_spy.freeze() as snapshot:
+        config = snapshot.config(run_id=run.id)
+        assert "code_path" in config["_wandb"]["value"]
+        assert config["_wandb"]["value"]["code_path"] == art.name
 
 
 def test_log_code_include(user):
