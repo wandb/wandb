@@ -3,28 +3,28 @@ from wandb.apis.public.registries._freezable_list import FreezableList
 
 
 @pytest.fixture
-def empty_list() -> FreezableList[int]:
-    return FreezableList[int]()
+def empty_list() -> FreezableList[str]:
+    return FreezableList[str]()
 
 
 @pytest.fixture
-def list_with_frozen() -> FreezableList[int]:
-    return FreezableList[int]([1, 2, 3])
+def list_2_frozen() -> FreezableList[str]:
+    return FreezableList[str](["frozen_one", "frozen_two", "frozen_three"])
 
 
 @pytest.fixture
-def list_with_draft() -> FreezableList[int]:
-    fl = FreezableList[int]()
-    fl.append(4)
-    fl.append(5)
+def list_2_drafts() -> FreezableList[str]:
+    fl = FreezableList[str]()
+    fl.append("draft_one")
+    fl.append("draft_two")
     return fl
 
 
 @pytest.fixture
-def list_with_frozen_and_draft() -> FreezableList[int]:
-    fl = FreezableList[int]([1, 2, 3])
-    fl.append(4)
-    fl.append(5)
+def list_3_frozen_and_2_drafts() -> FreezableList[str]:
+    fl = FreezableList[str](["frozen_one", "frozen_two", "frozen_three"])
+    fl.append("draft_one")
+    fl.append("draft_two")
     return fl
 
 
@@ -37,237 +37,328 @@ def test_init_empty():
 
 
 def test_init_with_iterable():
-    initial_items = [10, 20, 30]
-    fl = FreezableList[int](initial_items)
+    initial_items = ["date", "elderberry", "fig"]
+    fl = FreezableList[str](initial_items)
     assert list(fl) == initial_items
     assert len(fl) == len(initial_items)
     assert fl._frozen == tuple(initial_items)
     assert fl._draft == []
 
 
-def test_append(empty_list: FreezableList[int]):
-    empty_list.append(1)
-    assert list(empty_list) == [1]
+def test_append(empty_list: FreezableList[str]):
+    empty_list.append("new_item1")
+    assert list(empty_list) == ["new_item1"]
     assert len(empty_list) == 1
     assert empty_list._frozen == ()
-    assert empty_list._draft == [1]
+    assert empty_list._draft == ["new_item1"]
 
-    empty_list.append(2)
-    assert list(empty_list) == [1, 2]
+    empty_list.append("new_item2")
+    assert list(empty_list) == ["new_item1", "new_item2"]
     assert len(empty_list) == 2
     assert empty_list._frozen == ()
-    assert empty_list._draft == [1, 2]
+    assert empty_list._draft == ["new_item1", "new_item2"]
 
 
-def test_append_duplicate_in_draft(list_with_draft: FreezableList[int]):
-    list_with_draft.append(4)  # Duplicate in draft
-    assert list(list_with_draft) == [4, 5]
-    assert len(list_with_draft) == 2
-    assert list_with_draft._draft == [4, 5]
-
-
-def test_append_duplicate_in_frozen(list_with_frozen_and_draft: FreezableList[int]):
-    list_with_frozen_and_draft.append(1)  # Duplicate in frozen
-    assert list(list_with_frozen_and_draft) == [1, 2, 3, 4, 5]
-    assert len(list_with_frozen_and_draft) == 5
-    assert list_with_frozen_and_draft._draft == [4, 5]
-
-
-def test_freeze_empty_draft(list_with_frozen: FreezableList[int]):
-    original_frozen = list_with_frozen._frozen
-    list_with_frozen.freeze()
-    assert list_with_frozen._frozen == original_frozen
-    assert list_with_frozen._draft == []
-    assert list(list_with_frozen) == list(original_frozen)
-
-
-def test_freeze_non_empty_draft(list_with_frozen_and_draft: FreezableList[int]):
-    list_with_frozen_and_draft.freeze()
-    assert list_with_frozen_and_draft._frozen == (1, 2, 3, 4, 5)
-    assert list_with_frozen_and_draft._draft == []
-    assert list(list_with_frozen_and_draft) == [1, 2, 3, 4, 5]
-    assert len(list_with_frozen_and_draft) == 5
+def test_append_duplicate_list(list_3_frozen_and_2_drafts: FreezableList[str]):
+    list_3_frozen_and_2_drafts.append("frozen_one")  # Duplicate in frozen
+    assert list(list_3_frozen_and_2_drafts) == [
+        "frozen_one",
+        "frozen_two",
+        "frozen_three",
+        "draft_one",
+        "draft_two",
+    ]
+    assert list_3_frozen_and_2_drafts._draft == ["draft_one", "draft_two"]
+    list_3_frozen_and_2_drafts.append("draft_one")  # Duplicate in draft
+    assert list(list_3_frozen_and_2_drafts) == [
+        "frozen_one",
+        "frozen_two",
+        "frozen_three",
+        "draft_one",
+        "draft_two",
+    ]
+    assert list_3_frozen_and_2_drafts._draft == ["draft_one", "draft_two"]
 
 
 def test_freeze_with_duplicates_between_draft_and_frozen(
-    list_with_frozen: FreezableList[int],
+    list_3_frozen_and_2_drafts: FreezableList[str],
 ):
-    list_with_frozen.append(1)  # Exists in frozen
-    list_with_frozen.append(4)  # New
-    list_with_frozen.append(2)  # Exists in frozen
-    list_with_frozen.append(5)  # New
+    list_3_frozen_and_2_drafts.append("frozen_one")  # Exists in frozen
+    list_3_frozen_and_2_drafts.append("draft_one")  # Duplicate in draft
+    list_3_frozen_and_2_drafts.append("new_item")  # New
 
-    assert list_with_frozen._draft == [1, 4, 2, 5]
-    list_with_frozen.freeze()
-    # Only non-duplicates (4, 5) should be added to frozen
-    assert list_with_frozen._frozen == (1, 2, 3, 4, 5)
-    assert list_with_frozen._draft == []
-    assert list(list_with_frozen) == [1, 2, 3, 4, 5]
+    assert list_3_frozen_and_2_drafts._draft == [
+        "draft_one",
+        "draft_two",
+        "new_item",
+    ]
+    list_3_frozen_and_2_drafts.freeze()
+    # Only non-duplicate ("new_item") should be added to frozen
+    assert list_3_frozen_and_2_drafts._frozen == tuple(
+        list_3_frozen_and_2_drafts._frozen
+    ) + tuple(list_3_frozen_and_2_drafts._draft)
+    assert list_3_frozen_and_2_drafts._draft == []
 
 
-def test_remove_from_draft(list_with_frozen_and_draft: FreezableList[int]):
-    fl = list_with_frozen_and_draft
-    fl.remove(4)
-    assert list(fl) == [1, 2, 3, 5]
-    assert 4 not in fl._draft
+def test_remove_from_draft(list_3_frozen_and_2_drafts: FreezableList[str]):
+    fl = list_3_frozen_and_2_drafts
+    fl.remove("draft_one")
+    assert list(fl) == ["frozen_one", "frozen_two", "frozen_three", "draft_two"]
+    assert fl._draft == ["draft_two"]
 
-    fl.remove(5)
-    assert list(fl) == [1, 2, 3]
+    fl.remove("draft_two")
+    assert list(fl) == ["frozen_one", "frozen_two", "frozen_three"]
     assert fl._draft == []
 
 
-def test_remove_errors(list_with_frozen_and_draft: FreezableList[int]):
+def test_remove_errors(list_3_frozen_and_2_drafts: FreezableList[str]):
     with pytest.raises(ValueError):  # list.remove raises ValueError
-        list_with_frozen_and_draft.remove(100)
-    with pytest.raises(ValueError, match="Cannot remove item from frozen list: 1"):
-        list_with_frozen_and_draft.remove(1)
+        list_3_frozen_and_2_drafts.remove("non_existent")
+    with pytest.raises(ValueError, match="Cannot remove item from frozen list"):
+        list_3_frozen_and_2_drafts.remove("frozen_one")
 
 
-def test_contains(list_with_frozen_and_draft: FreezableList[int]):
-    assert 1 in list_with_frozen_and_draft  # frozen
-    assert 4 in list_with_frozen_and_draft  # draft
-    assert 100 not in list_with_frozen_and_draft
+def test_contains(list_3_frozen_and_2_drafts: FreezableList[str]):
+    assert "frozen_one" in list_3_frozen_and_2_drafts  # frozen
+    assert "draft_one" in list_3_frozen_and_2_drafts  # draft
+    assert "non_existent" not in list_3_frozen_and_2_drafts
 
 
-def test_len(empty_list, list_with_frozen, list_with_draft, list_with_frozen_and_draft):
+def test_len(
+    empty_list: FreezableList[str],
+    list_2_frozen: FreezableList[str],
+    list_2_drafts: FreezableList[str],
+    list_3_frozen_and_2_drafts: FreezableList[str],
+):
     assert len(empty_list) == 0
-    assert len(list_with_frozen) == 3
-    assert len(list_with_draft) == 2
-    assert len(list_with_frozen_and_draft) == 5
+    assert len(list_2_frozen) == 3
+    assert len(list_2_drafts) == 2
+    assert len(list_3_frozen_and_2_drafts) == 5
 
 
-def test_getitem_int(list_with_frozen_and_draft: FreezableList[int]):
-    assert list_with_frozen_and_draft[2] == 3  # frozen
-    assert list_with_frozen_and_draft[3] == 4  # draft
-    assert list_with_frozen_and_draft[-1] == 5  # draft
-    assert list_with_frozen_and_draft[-5] == 1  # frozen
+def test_getitem_int(list_3_frozen_and_2_drafts: FreezableList[str]):
+    assert list_3_frozen_and_2_drafts[2] == "frozen_three"  # exists in frozen
+    assert list_3_frozen_and_2_drafts[3] == "draft_one"  # exists in draft
+    assert list_3_frozen_and_2_drafts[-1] == "draft_two"  # exists in draft
+    assert list_3_frozen_and_2_drafts[-5] == "frozen_one"  # exists in frozen
 
 
-def test_getitem_int_out_of_bounds(list_with_frozen_and_draft: FreezableList[int]):
+def test_getitem_int_out_of_bounds(list_3_frozen_and_2_drafts: FreezableList[str]):
+    list_len = len(list_3_frozen_and_2_drafts)
     with pytest.raises(IndexError):
-        _ = list_with_frozen_and_draft[5]
+        _ = list_3_frozen_and_2_drafts[list_len]
     with pytest.raises(IndexError):
-        _ = list_with_frozen_and_draft[-6]
+        _ = list_3_frozen_and_2_drafts[-list_len - 1]
 
 
-def test_getitem_slice(list_with_frozen_and_draft: FreezableList[int]):
-    assert list_with_frozen_and_draft[:] == [1, 2, 3, 4, 5]
-    assert list_with_frozen_and_draft[1:4] == [2, 3, 4]
-    assert list_with_frozen_and_draft[:2] == [1, 2]  # frozen only
-    assert list_with_frozen_and_draft[3:] == [4, 5]  # draft only
-    assert list_with_frozen_and_draft[-3:] == [3, 4, 5]
-    assert list_with_frozen_and_draft[::2] == [1, 3, 5]
+def test_getitem_slice(list_3_frozen_and_2_drafts: FreezableList[str]):
+    fl = list_3_frozen_and_2_drafts
+    assert list(fl[:]) == [
+        "frozen_one",
+        "frozen_two",
+        "frozen_three",
+        "draft_one",
+        "draft_two",
+    ]
+    assert list(fl[1:4]) == [
+        "frozen_two",
+        "frozen_three",
+        "draft_one",
+    ]
+    assert list(fl[:2]) == ["frozen_one", "frozen_two"]  # frozen only
+    assert list(fl[3:]) == ["draft_one", "draft_two"]  # draft only
+    assert list(fl[-3:]) == ["frozen_three", "draft_one", "draft_two"]
+    assert list(fl[::2]) == [
+        "frozen_one",
+        "frozen_three",
+        "draft_two",
+    ]
 
 
-def test_setitem_draft(list_with_frozen_and_draft: FreezableList[int]):
-    fl = list_with_frozen_and_draft
-    fl[3] = 40  # Update draft item
-    assert list(fl) == [1, 2, 3, 40, 5]
-    assert fl._draft == [40, 5]
+def test_setitem_draft(list_3_frozen_and_2_drafts: FreezableList[str]):
+    fl = list_3_frozen_and_2_drafts
+    fl[3] = "draft_updated"  # Update draft item
+    assert list(fl) == [
+        "frozen_one",
+        "frozen_two",
+        "frozen_three",
+        "draft_updated",
+        "draft_two",
+    ]
+    assert fl._draft == ["draft_updated", "draft_two"]
 
-    fl[-1] = 50  # Update draft item using negative index
-    assert list(fl) == [1, 2, 3, 40, 50]
-    assert fl._draft == [40, 50]
+    fl[-1] = "draft_two_updated"  # Update draft item using negative index
+    assert list(fl) == [
+        "frozen_one",
+        "frozen_two",
+        "frozen_three",
+        "draft_updated",
+        "draft_two_updated",
+    ]
+    assert fl._draft == ["draft_updated", "draft_two_updated"]
 
 
-def test_setitem_duplicate(list_with_frozen_and_draft: FreezableList[int]):
-    fl = list_with_frozen_and_draft
-    fl[3] = 1  # Duplicate in frozen
-    assert list(fl) == [1, 2, 3, 4, 5]  # No change
-    assert fl._draft == [4, 5]
+def test_setitem_duplicate(list_3_frozen_and_2_drafts: FreezableList[str]):
+    fl = list_3_frozen_and_2_drafts
+    fl[3] = "frozen_one"  # Duplicate in frozen
+    assert list(fl) == [
+        "frozen_one",
+        "frozen_two",
+        "frozen_three",
+        "draft_one",
+        "draft_two",
+    ]  # No change
+    assert fl._draft == ["draft_one", "draft_two"]
 
-    fl[4] = 4  # Duplicate in draft
-    assert list(fl) == [1, 2, 3, 4, 5]  # No change
-    assert fl._draft == [4, 5]
+    fl[4] = "draft_one"  # Duplicate in draft
+    assert list(fl) == [
+        "frozen_one",
+        "frozen_two",
+        "frozen_three",
+        "draft_one",
+        "draft_two",
+    ]  # No change
+    assert fl._draft == ["draft_one", "draft_two"]
 
 
-def test_setitem_errors(list_with_frozen_and_draft: FreezableList[int]):
+def test_setitem_errors(list_3_frozen_and_2_drafts: FreezableList[str]):
+    fl = list_3_frozen_and_2_drafts
     with pytest.raises(IndexError):
-        list_with_frozen_and_draft[5] = 50
+        fl[5] = "error_val"
     with pytest.raises(IndexError):
-        list_with_frozen_and_draft[-6] = 60
+        fl[-6] = "error_val2"
     with pytest.raises(TypeError, match="Cannot assign to saved item at index 1"):
-        list_with_frozen_and_draft[1] = 20
+        fl[1] = "frozen_update"
     with pytest.raises(
         TypeError, match="'FreezableList' does not support slice assignment"
     ):
-        list_with_frozen_and_draft[1:3] = [10, 20]
+        fl[1:3] = ["new1", "new2"]
 
 
-def test_delitem_draft(list_with_frozen_and_draft: FreezableList[int]):
-    fl = list_with_frozen_and_draft
-    del fl[4]  # Delete last draft item
-    assert list(fl) == [1, 2, 3, 4]
-    assert fl._draft == [4]
+def test_delitem_draft(list_3_frozen_and_2_drafts: FreezableList[str]):
+    fl = list_3_frozen_and_2_drafts
+    del fl[4]  # Delete last draft item ("draft_two")
+    assert list(fl) == ["frozen_one", "frozen_two", "frozen_three", "draft_one"]
+    assert fl._draft == ["draft_one"]
     assert len(fl) == 4
 
-    del fl[-1]  # Delete remaining draft item (index 3)
-    assert list(fl) == [1, 2, 3]
+    del fl[-1]  # Delete remaining draft item ("draft_one" at index 3)
+    assert list(fl) == ["frozen_one", "frozen_two", "frozen_three"]
     assert fl._draft == []
     assert len(fl) == 3
 
 
-def test_delitem_errors(list_with_frozen_and_draft: FreezableList[int]):
+def test_delitem_errors(list_3_frozen_and_2_drafts: FreezableList[str]):
+    list_len = len(list_3_frozen_and_2_drafts)
+    fl = list_3_frozen_and_2_drafts
     with pytest.raises(ValueError, match="Cannot delete saved item at index 0"):
-        del list_with_frozen_and_draft[0]
+        del fl[0]
     with pytest.raises(ValueError, match="Cannot delete saved item at index -5"):
-        del list_with_frozen_and_draft[-5]
+        del fl[-list_len]
     with pytest.raises(IndexError):
-        del list_with_frozen_and_draft[5]
+        del fl[list_len]
     with pytest.raises(IndexError):
-        del list_with_frozen_and_draft[-6]
+        del fl[-list_len - 1]
     with pytest.raises(
         TypeError, match="'FreezableList' does not support slice deletion"
     ):
-        del list_with_frozen_and_draft[3:]
+        del fl[3:]
 
 
-def test_insert_into_draft(list_with_frozen_and_draft: FreezableList[int]):
-    fl = list_with_frozen_and_draft
+def test_insert_into_draft(list_3_frozen_and_2_drafts: FreezableList[str]):
+    fl = list_3_frozen_and_2_drafts
     # Insert at the beginning of draft (index 3)
-    fl.insert(3, 35)
-    assert list(fl) == [1, 2, 3, 35, 4, 5]
-    assert fl._draft == [35, 4, 5]
+    fl.insert(3, "inserted_one")
+    assert list(fl) == [
+        "frozen_one",
+        "frozen_two",
+        "frozen_three",
+        "inserted_one",
+        "draft_one",
+        "draft_two",
+    ]
+    assert fl._draft == ["inserted_one", "draft_one", "draft_two"]
     assert len(fl) == 6
 
     # Insert at the end of draft (index 6)
-    fl.insert(6, 60)
-    assert list(fl) == [1, 2, 3, 35, 4, 5, 60]
-    assert fl._draft == [35, 4, 5, 60]
+    fl.insert(6, "inserted_two")
+    assert list(fl) == [
+        "frozen_one",
+        "frozen_two",
+        "frozen_three",
+        "inserted_one",
+        "draft_one",
+        "draft_two",
+        "inserted_two",
+    ]
+    assert fl._draft == ["inserted_one", "draft_one", "draft_two", "inserted_two"]
     assert len(fl) == 7
 
     # Insert in the middle of draft (index 5, which is -2 relative to end)
-    fl.insert(-2, 45)
-    assert list(fl) == [1, 2, 3, 35, 4, 45, 5, 60]
-    assert fl._draft == [35, 4, 45, 5, 60]
+    fl.insert(-2, "inserted_three")
+    assert list(fl) == [
+        "frozen_one",
+        "frozen_two",
+        "frozen_three",
+        "inserted_one",
+        "draft_one",
+        "inserted_three",
+        "draft_two",
+        "inserted_two",
+    ]
+    assert fl._draft == [
+        "inserted_one",
+        "draft_one",
+        "inserted_three",
+        "draft_two",
+        "inserted_two",
+    ]
     assert len(fl) == 8
 
 
-def test_insert_duplicate(list_with_frozen_and_draft: FreezableList[int]):
-    fl = list_with_frozen_and_draft
-    len_before = len(fl)
+def test_insert_duplicate(list_3_frozen_and_2_drafts: FreezableList[str]):
+    len_before = len(list_3_frozen_and_2_drafts)
 
-    fl.insert(3, 1)  # Duplicate in frozen
-    assert list(fl) == [1, 2, 3, 4, 5]
-    assert fl._draft == [4, 5]
-    assert len(fl) == len_before
+    list_3_frozen_and_2_drafts.insert(3, "frozen_one")  # Duplicate in frozen
+    assert list(list_3_frozen_and_2_drafts) == [
+        "frozen_one",
+        "frozen_two",
+        "frozen_three",
+        "draft_one",
+        "draft_two",
+    ]
+    assert list_3_frozen_and_2_drafts._draft == ["draft_one", "draft_two"]
+    assert len(list_3_frozen_and_2_drafts) == len_before
 
-    fl.insert(4, 4)  # Duplicate in draft
-    assert list(fl) == [1, 2, 3, 4, 5]
-    assert fl._draft == [4, 5]
-    assert len(fl) == len_before
+    list_3_frozen_and_2_drafts.insert(5, "draft_one")  # Duplicate in draft
+    assert list(list_3_frozen_and_2_drafts) == [
+        "frozen_one",
+        "frozen_two",
+        "frozen_three",
+        "draft_one",
+        "draft_two",
+    ]
+    assert list_3_frozen_and_2_drafts._draft == ["draft_one", "draft_two"]
+    assert len(list_3_frozen_and_2_drafts) == len_before
 
 
 @pytest.mark.parametrize(
-    "invalid_index",
+    "index_type",
     [
-        0,  # Beginning of frozen
-        len(list_with_frozen_and_draft._frozen) - 1,  # End of frozen
-        -len(list_with_frozen_and_draft) - 1,  # Negative index resolving into frozen
+        "start_frozen",  # Beginning of frozen
+        "end_frozen",  # End of frozen
+        "negative_frozen",  # Negative index resolving into frozen
     ],
 )
 def test_insert_into_frozen_raises(
-    list_with_frozen_and_draft: FreezableList[int], invalid_index: int
+    list_3_frozen_and_2_drafts: FreezableList[str], index_type: str
 ):
+    if index_type == "start_frozen":
+        invalid_index = 0
+    elif index_type == "end_frozen":
+        invalid_index = len(list_3_frozen_and_2_drafts._frozen) - 1
+    elif index_type == "negative_frozen":
+        invalid_index = -len(list_3_frozen_and_2_drafts)  # Index for "frozen_one"
+
     with pytest.raises(IndexError, match="Cannot insert into the frozen list"):
-        list_with_frozen_and_draft.insert(invalid_index, 99)
+        list_3_frozen_and_2_drafts.insert(invalid_index, "invalid_insert")
