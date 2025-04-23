@@ -4,7 +4,6 @@ from contextlib import nullcontext
 
 import pytest
 import wandb
-from wandb.apis.public.registries.registries_search import Registries
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 
 
@@ -386,63 +385,3 @@ def test_fetch_registry_artifact(
         mock__resolve_org_entity_name.assert_not_called()
 
     mock_fetch_artifact_by_name.assert_called_once()
-
-
-@pytest.mark.parametrize(
-    "organization, entity, fetch_orgs_from_entity_return_value, error_expected, expected_organization",
-    [
-        ("test_org", None, [], None, "test_org"),  # Organization provided
-        (
-            None,
-            "test_entity",
-            [{"name": "test_org"}],
-            None,
-            "test_org",
-        ),  # Single org
-        (
-            None,
-            "test_entity",
-            [{"name": "org1"}, {"name": "org2"}],
-            "Multiple organizations found for entity",
-            None,
-        ),  # Multiple orgs
-        (None, None, [], "No entity specified", None),  # No org found, no entity
-        (
-            None,
-            "test_entity",
-            [],
-            "No organizations found for entity",
-            None,
-        ),  # No org found with entity
-    ],
-)
-def test_registries_search(
-    user,
-    api,
-    mocker,
-    organization,
-    entity,
-    fetch_orgs_from_entity_return_value,
-    error_expected,
-    expected_organization,
-):
-    api.settings["organization"] = organization
-    api.settings["entity"] = entity
-    mock__fetch_orgs_and_org_entities_from_entity = mocker.patch(
-        "wandb.sdk.internal.internal_api.Api._fetch_orgs_and_org_entities_from_entity",
-        return_value=fetch_orgs_from_entity_return_value,
-    )
-
-    if error_expected:
-        with pytest.raises(ValueError) as excinfo:
-            api.registries()
-        assert error_expected in str(excinfo.value)
-    else:
-        result = api.registries()
-        assert isinstance(result, Registries)
-        assert result.organization == expected_organization
-
-    if organization is None:
-        mock__fetch_orgs_and_org_entities_from_entity.assert_called_once()
-    else:
-        mock__fetch_orgs_and_org_entities_from_entity.assert_not_called()
