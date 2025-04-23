@@ -1,23 +1,25 @@
 import os
-import platform
 import tempfile
 
-import pytest
 import wandb
 
 
-@pytest.mark.skipif(
-    platform.system() == "Linux",
-    reason=(
-        "For tests run in CI on linux, the runas user is root. "
-        "This means that the test can always write to the root dir, "
-        "even if permissions are set to read only."
-    ),
-)
-def test_run_create_root_dir_without_permissions_defaults_to_temp_dir(tmp_path):
+def test_run_create_root_dir_without_permissions_defaults_to_temp_dir(
+    tmp_path,
+    monkeypatch,
+):
     temp_dir = tempfile.gettempdir()
     root_dir = tmp_path / "no_permissions_test"
-    root_dir.mkdir(parents=True, mode=0o444, exist_ok=True)
+    root_dir.mkdir(parents=True, exist_ok=True)
+    original_makedirs = os.makedirs
+
+    def mock_makedirs(path, exist_ok):
+        if str(path) == str(root_dir / "missing"):
+            raise OSError("Permission denied")
+        else:
+            return original_makedirs(path, exist_ok=exist_ok)
+
+    monkeypatch.setattr(os, "makedirs", mock_makedirs)
 
     with wandb.init(
         settings=wandb.Settings(root_dir=os.path.join(root_dir, "missing")),
