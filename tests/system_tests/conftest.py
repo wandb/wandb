@@ -103,7 +103,7 @@ UserOrg = namedtuple("UserOrg", ["username", "organization_name"])
 
 
 @pytest.fixture
-def user_and_org(mocker, backend_fixture_factory) -> Iterator[UserOrg]:
+def user_in_org(mocker, backend_fixture_factory) -> Iterator[UserOrg]:
     username = backend_fixture_factory.make_user()
     envvars = {
         "WANDB_API_KEY": username,
@@ -116,7 +116,7 @@ def user_and_org(mocker, backend_fixture_factory) -> Iterator[UserOrg]:
 
 
 @pytest.fixture
-def user_and_2_orgs(mocker, backend_fixture_factory) -> Iterator[UserOrg]:
+def user_in_multiple_orgs(mocker, backend_fixture_factory) -> Iterator[UserOrg]:
     username = backend_fixture_factory.make_user()
     envvars = {
         "WANDB_API_KEY": username,
