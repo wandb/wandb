@@ -29,6 +29,8 @@ Section headings should be at level 3 (e.g. `### Added`).
     - `run.get_project_url()` method is deprecated in favor of `run.project_url`
     - `run.get_sweep_url()` method is deprecated in favor of `run.sweep_url`
 
+- The property `Artifact.use_as` and parameter `use_as` for `run.use_artifact()` are deprecated since these have not been in use for W&B Launch (@ibindlish in https://github.com/wandb/wandb/pull/9760)
+
 
 ### Fixed
 
