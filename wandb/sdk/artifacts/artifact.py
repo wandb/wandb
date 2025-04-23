@@ -2296,13 +2296,18 @@ class Artifact:
             """
         )
         assert self._client is not None
-        self._client.execute(
-            mutation,
-            variable_values={
-                "artifactID": self.id,
-                "artifactPortfolioID": self.collection.id,
-            },
-        )
+        try:
+            self._client.execute(
+                mutation,
+                variable_values={
+                    "artifactID": self.id,
+                    "artifactPortfolioID": self.collection.id,
+                },
+            )
+        except wandb.CommError as e:
+            raise wandb.CommError(
+                f"You do not have permission to unlink the artifact {self.qualified_name}"
+            ) from e
 
     @ensure_logged
     def used_by(self) -> list[Run]:
