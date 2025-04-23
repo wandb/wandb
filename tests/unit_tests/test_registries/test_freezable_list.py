@@ -259,15 +259,22 @@ def test_insert_duplicate(list_with_frozen_and_draft: FreezableList[int]):
 
 
 @pytest.mark.parametrize(
-    "invalid_index",
+    "index_type",
     [
-        0,  # Beginning of frozen
-        len(list_with_frozen_and_draft._frozen) - 1,  # End of frozen
-        -len(list_with_frozen_and_draft) - 1,  # Negative index resolving into frozen
+        "start_frozen",  # Beginning of frozen
+        "end_frozen",  # End of frozen
+        "negative_frozen",  # Negative index resolving into frozen
     ],
 )
 def test_insert_into_frozen_raises(
-    list_with_frozen_and_draft: FreezableList[int], invalid_index: int
+    list_with_frozen_and_draft: FreezableList[int], index_type: str
 ):
+    if index_type == "start_frozen":
+        invalid_index = 0
+    elif index_type == "end_frozen":
+        invalid_index = len(list_with_frozen_and_draft._frozen) - 1
+    elif index_type == "negative_frozen":
+        invalid_index = -len(list_with_frozen_and_draft) - 1
+
     with pytest.raises(IndexError, match="Cannot insert into the frozen list"):
         list_with_frozen_and_draft.insert(invalid_index, 99)
