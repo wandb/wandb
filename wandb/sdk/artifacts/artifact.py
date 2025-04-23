@@ -1055,21 +1055,28 @@ class Artifact:
                     """
                 )
                 assert self._client is not None
-                self._client.execute(
-                    add_mutation,
-                    variable_values={
-                        "artifactID": self.id,
-                        "aliases": [
-                            {
-                                "entityName": self._entity,
-                                "projectName": self._project,
-                                "artifactCollectionName": self._name.split(":")[0],
-                                "alias": alias,
-                            }
-                            for alias in aliases_to_add
-                        ],
-                    },
-                )
+                try:
+                    self._client.execute(
+                        add_mutation,
+                        variable_values={
+                            "artifactID": self.id,
+                            "aliases": [
+                                {
+                                    "entityName": self._entity,
+                                    "projectName": self._project,
+                                    "artifactCollectionName": self._name.split(":")[0],
+                                    "alias": alias,
+                                }
+                                for alias in aliases_to_add
+                            ],
+                        },
+                    )
+                except wandb.CommError as e:
+                    raise wandb.CommError(
+                        "You do not have permission to add"
+                        f" {'at least one of the following aliases' if len(aliases_to_add) > 1  else 'the following alias'}"
+                        f" to this artifact: {aliases_to_add}"
+                    ) from e
             if aliases_to_delete:
                 delete_mutation = gql(
                     """
@@ -1086,21 +1093,28 @@ class Artifact:
                     """
                 )
                 assert self._client is not None
-                self._client.execute(
-                    delete_mutation,
-                    variable_values={
-                        "artifactID": self.id,
-                        "aliases": [
-                            {
-                                "entityName": self._entity,
-                                "projectName": self._project,
-                                "artifactCollectionName": self._name.split(":")[0],
-                                "alias": alias,
-                            }
-                            for alias in aliases_to_delete
-                        ],
-                    },
-                )
+                try:
+                    self._client.execute(
+                        delete_mutation,
+                        variable_values={
+                            "artifactID": self.id,
+                            "aliases": [
+                                {
+                                    "entityName": self._entity,
+                                    "projectName": self._project,
+                                    "artifactCollectionName": self._name.split(":")[0],
+                                    "alias": alias,
+                                }
+                                for alias in aliases_to_delete
+                            ],
+                        },
+                    )
+                except wandb.CommError as e:
+                    raise wandb.CommError(
+                        f"You do not have permission to delete"
+                        f" {'at least one of the following aliases' if len(aliases_to_delete) > 1  else 'the following alias'}"
+                        f" from this artifact: {aliases_to_delete}"
+                    ) from e
             self._saved_aliases = copy(self._aliases)
         else:  # wandb backend version < 0.13.0
             aliases = [
