@@ -3,7 +3,7 @@ import datetime
 import numpy as np
 import pytest
 import wandb
-from wandb.sdk.data_types.table import _ForeignKeyType, _PrimaryKeyType, TableLoggingMode
+from wandb.sdk.data_types.table import _ForeignKeyType, _PrimaryKeyType
 
 
 def test_basic_ndx():

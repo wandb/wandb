@@ -124,19 +124,6 @@ def test_reference_table_artifacts(user, test_settings, wandb_backend_spy):
     run.finish()
 
 def test_table_mutation_logging(user, test_settings, wandb_backend_spy):
-    gql = wandb_backend_spy.gql
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="ServerInfo"),
-        gql.once(
-            content={
-                "data": {
-                    "serverInfo": {"cliVersionInfo": {"max_cli_version": "0.11.0"}}
-                }
-            },
-            status=200,
-        ),
-    )
-
     run = wandb.init(settings=test_settings())
     t = wandb.Table(
         columns=["expected", "actual", "img"],
