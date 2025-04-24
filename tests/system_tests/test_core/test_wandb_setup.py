@@ -54,3 +54,11 @@ def test_remove_active_run_twice():
     wl.remove_active_run(run)  # This must not raise an error.
 
     assert wl.most_recent_active_run is None
+
+
+@pytest.mark.wandb_core_only(reason="does not depend on service")
+def test_setup_uses_config_dir_env_var(tmp_path, monkeypatch):
+    monkeypatch.setenv("WANDB_CONFIG_DIR", str(tmp_path))
+    with mock.patch.dict(os.environ, {"WANDB_CONFIG_DIR": str(tmp_path)}):
+        setup = wandb.setup()
+        assert setup.settings.settings_system == str(tmp_path / "settings")
