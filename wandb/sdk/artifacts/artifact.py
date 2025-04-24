@@ -112,6 +112,7 @@ class Artifact:
         incremental: Use `Artifact.new_draft()` method instead to modify an
             existing artifact.
         use_as: W&B Launch specific parameter. Not recommended for general use.
+        is_link: A boolean flag of if the artifact is a source artifact or a linked artifact.
 
     Returns:
         An `Artifact` object.
@@ -169,6 +170,7 @@ class Artifact:
         self._source_project: str | None = None
         self._source_name: str = name  # includes version after saving
         self._source_version: str | None = None
+        self._is_link: bool = False
         self._type: str = type
         self._description: str | None = description
         self._metadata: dict = self._normalize_metadata(metadata)
@@ -311,8 +313,13 @@ class Artifact:
         artifact_instance_cache[artifact.id] = artifact
         return artifact
 
+    # TODO: Eventually factor out is_link. Have to currently use it since some forms of fetching the artifact
+    # doesn't make it clear if the artifact is a link or not and have to manually set it.
     def _assign_attrs(
-        self, attrs: dict[str, Any], aliases: list[str] | None = None
+        self,
+        attrs: dict[str, Any],
+        aliases: list[str] | None = None,
+        is_link: bool | None = None,
     ) -> None:
         """Update this Artifact's attributes using the server response."""
         self._id = attrs["id"]
@@ -333,6 +340,17 @@ class Artifact:
 
         if self._name is None:
             self._name = self._source_name
+
+        # TODO: Refactor artifact query to fetch artifact via membership instead
+        # and get the collection type
+        if is_link is None:
+            self._is_link = (
+                self._entity != self._source_entity
+                or self._project != self._source_project
+                or self._name != self._source_name
+            )
+        else:
+            self._is_link = is_link
 
         self._type = attrs["artifactType"]["name"]
         self._description = attrs["description"]
@@ -558,6 +576,11 @@ class Artifact:
         )
 
     @property
+    def is_link(self) -> bool:
+        """Whether the artifact is a link to a source artifact."""
+        return self._is_link
+
+    @property
     def type(self) -> str:
         """The artifact's type. Common types include `dataset` or `model`."""
         return self._type
@@ -576,7 +599,7 @@ class Artifact:
         except AttributeError:
             return ""
 
-        if self.collection.is_sequence():
+        if not self.is_link:
             return self._construct_standard_url(base_url)
         if is_artifact_registry_project(self.project):
             return self._construct_registry_url(base_url)
@@ -1032,7 +1055,10 @@ class Artifact:
         except LookupError:
             raise ValueError(f"Unable to fetch artifact with id: {artifact_id!r}")
         else:
-            self._assign_attrs(attrs)
+            # _populate_after_save is only called on source artifacts, not linked artifacts
+            # We have to manually set is_link because we aren't fetching the collection the artifact.
+            # That requires greater refactoring for commitArtifact to return the artifact collection type.
+            self._assign_attrs(attrs, is_link=False)
 
     @normalize_exceptions
     def _update(self) -> None:
@@ -2201,7 +2227,7 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        if self.collection.is_sequence():
+        if not self.is_link:
             self._delete(delete_aliases)
         else:
             self._unlink()
@@ -2232,7 +2258,9 @@ class Artifact:
         )
 
     @normalize_exceptions
-    def link(self, target_path: str, aliases: list[str] | None = None) -> None:
+    def link(
+        self, target_path: str, aliases: list[str] | None = None
+    ) -> Artifact | None:
         """Link this artifact to a portfolio (a promoted collection of artifacts).
 
         Args:
@@ -2249,12 +2277,15 @@ class Artifact:
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
+
+        Returns:
+            The linked artifact if linking was successful, otherwise None.
         """
         singleton = wandb_setup._setup(start_service=False)
 
         if run := singleton.most_recent_active_run:
             # TODO: Deprecate and encourage explicit link_artifact().
-            run.link_artifact(self, target_path, aliases)
+            return run.link_artifact(self, target_path, aliases)
 
         else:
             with wandb.init(
@@ -2263,7 +2294,7 @@ class Artifact:
                 job_type="auto",
                 settings=wandb.Settings(silent="true"),
             ) as run:
-                run.link_artifact(self, target_path, aliases)
+                return run.link_artifact(self, target_path, aliases)
 
     @ensure_logged
     def unlink(self) -> None:
@@ -2274,7 +2305,7 @@ class Artifact:
             ValueError: If the artifact is not linked, i.e. it is not a member of a portfolio collection.
         """
         # Fail early if this isn't a linked artifact to begin with
-        if self.collection.is_sequence():
+        if not self.is_link:
             raise ValueError(
                 f"Artifact {self.qualified_name!r} is not a linked artifact and cannot be unlinked.  "
                 f"To delete it, use {self.delete.__qualname__!r} instead."

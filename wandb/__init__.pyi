@@ -1140,7 +1140,7 @@ def link_model(
         ValueError: if name has invalid special characters
 
     Returns:
-        None
+        The linked artifact if linking was successful, otherwise None.
     """
     ...
 

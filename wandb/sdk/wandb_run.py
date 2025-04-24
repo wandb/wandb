@@ -3093,7 +3093,7 @@ class Run:
         artifact: Artifact,
         target_path: str,
         aliases: list[str] | None = None,
-    ) -> None:
+    ) -> Artifact | None:
         """Link the given artifact to a portfolio (a promoted collection of artifacts).
 
         The linked artifact will be visible in the UI for the specified portfolio.
@@ -3107,7 +3107,7 @@ class Run:
             The alias "latest" will always be applied to the latest version of an artifact that is linked.
 
         Returns:
-            None
+            The linked artifact if linking was successful, otherwise None.
 
         """
         portfolio, project, entity = wandb.util._parse_entity_project_item(target_path)
@@ -3133,8 +3133,9 @@ class Run:
             # In a Registry linking, the entity is used to fetch the organization of the artifact
             # therefore the source artifact's entity is passed to the backend
             entity = artifact._source_entity
+        project = project or self.project
+        entity = entity or self.entity
         handle = self._backend.interface.deliver_link_artifact(
-            self,
             artifact,
             portfolio,
             aliases,
@@ -3150,6 +3151,22 @@ class Run:
         response = result.response.link_artifact_response
         if response.error_message:
             wandb.termerror(response.error_message)
+        if response.error_message or response.version_index is None:
+            return None
+
+        try:
+            artifact_name = f"{portfolio}:v{response.version_index}"
+            linked_artifact = wandb.Artifact._from_name(
+                entity=entity,
+                project=project,
+                name=artifact_name,
+                client=self._public_api().client,
+                enable_tracking=False,
+            )
+        except Exception as e:
+            wandb.termerror(f"Error fetching link artifact after linking: {e}")
+            return None
+        return linked_artifact
 
     @_log_to_run
     @_raise_if_finished
@@ -3694,7 +3711,7 @@ class Run:
         registered_model_name: str,
         name: str | None = None,
         aliases: list[str] | None = None,
-    ) -> None:
+    ) -> Artifact | None:
         """Log a model artifact version and link it to a registered model in the model registry.
 
         The linked model version will be visible in the UI for the specified registered model.
@@ -3756,7 +3773,7 @@ class Run:
             ValueError: if name has invalid special characters
 
         Returns:
-            None
+            The linked artifact if linking was successful, otherwise None.
         """
         name_parts = registered_model_name.split("/")
         if len(name_parts) != 1:
@@ -3785,7 +3802,9 @@ class Run:
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type="model"
             )
-        self.link_artifact(artifact=artifact, target_path=target_path, aliases=aliases)
+        return self.link_artifact(
+            artifact=artifact, target_path=target_path, aliases=aliases
+        )
 
     @_log_to_run
     @_raise_if_finished

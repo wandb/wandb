@@ -1545,6 +1545,8 @@ pub struct LinkArtifactRequest {
 pub struct LinkArtifactResponse {
     #[prost(string, tag = "1")]
     pub error_message: ::prost::alloc::string::String,
+    #[prost(int32, optional, tag = "2")]
+    pub version_index: ::core::option::Option<i32>,
 }
 /// Indicates a directory of TensorBoard tfevents files to sync with the run.
 #[derive(Clone, PartialEq, ::prost::Message)]

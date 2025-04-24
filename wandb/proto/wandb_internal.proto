@@ -503,6 +503,7 @@ message LinkArtifactRequest {
 
 message LinkArtifactResponse {
   string error_message = 1;
+  optional int32 version_index = 2;
 }
 
 // Indicates a directory of TensorBoard tfevents files to sync with the run.

@@ -1235,7 +1235,7 @@ class FilesItem(google.protobuf.message.Message):
     POLICY_FIELD_NUMBER: builtins.int
     TYPE_FIELD_NUMBER: builtins.int
     path: builtins.str
-    """A path or Unix glob relative to the W&B files directory."""
+    """A path or Unix glob relative to the run's files directory."""
     policy: global___FilesItem.PolicyType.ValueType
     """When to upload the file."""
     type: global___FilesItem.FileType.ValueType
@@ -1585,13 +1585,18 @@ class LinkArtifactResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     ERROR_MESSAGE_FIELD_NUMBER: builtins.int
+    VERSION_INDEX_FIELD_NUMBER: builtins.int
     error_message: builtins.str
+    version_index: builtins.int
     def __init__(
         self,
         *,
         error_message: builtins.str = ...,
+        version_index: builtins.int | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["error_message", b"error_message"]) -> None: ...
+    def HasField(self, field_name: typing.Literal["_version_index", b"_version_index", "version_index", b"version_index"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["_version_index", b"_version_index", "error_message", b"error_message", "version_index", b"version_index"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["_version_index", b"_version_index"]) -> typing.Literal["version_index"] | None: ...
 
 global___LinkArtifactResponse = LinkArtifactResponse
 
