@@ -18,10 +18,17 @@ from wandb.apis.public.registries._freezable_list import FreezableList
 
 T = TypeVar("T")
 
-# Basic strategies for testing
-strings: SearchStrategy[str] = text(max_size=10)
-string_lists: SearchStrategy[list[str]] = lists(strings, max_size=10)
-indices: SearchStrategy[int] = integers(min_value=-20, max_value=20)
+#: Max length of lists generated for testing.
+MAX_SIZE: int = 10
+
+#: Arbitrary key, used to share generated item(s) in a test.
+SHARED_KEY: str = "SHARED"
+
+# strategies to generate test objects
+strings: SearchStrategy[str] = text(max_size=MAX_SIZE)
+string_iterables: SearchStrategy[Iterable[str]] = iterables(strings, max_size=MAX_SIZE)
+string_lists: SearchStrategy[list[str]] = lists(strings, max_size=MAX_SIZE)
+indices: SearchStrategy[int] = integers(min_value=-MAX_SIZE * 2, max_value=MAX_SIZE * 2)
 
 
 def test_init_without_args() -> None:
@@ -34,7 +41,7 @@ def test_init_without_args() -> None:
 
 @given(
     # Valid iterables will have a finite (but not necessarily known) size
-    init_items=iterables(strings, max_size=10),
+    init_items=string_iterables,
 )
 def test_init_with_iterable(init_items: Iterable[str]) -> None:
     """Check that instantiation from iterables works like it does for builtin lists."""
@@ -108,13 +115,12 @@ def test_freeze(init_items: list[str], draft_objs: list[str]) -> None:
     addonly_list.freeze()
 
     # Check that all non-duplicate items are now frozen
-    # seen = set(init_items)
-    expected_frozen = deque(init_items)
+    expected_frozen_seq = deque(init_items)
     for obj in draft_objs:
-        if obj not in expected_frozen:
-            expected_frozen.append(obj)
+        if obj not in expected_frozen_seq:
+            expected_frozen_seq.append(obj)
 
-    assert tuple(addonly_list._frozen) == tuple(expected_frozen)
+    assert tuple(addonly_list._frozen) == tuple(expected_frozen_seq)
     assert tuple(addonly_list._draft) == ()
 
 
@@ -144,11 +150,11 @@ def test_setitem(items: list[str], idx: int, value: str) -> None:
     """Test that setitem works correctly and handles errors."""
     addonly_list = FreezableList(items)
 
-    size = len(items)
+    frozen_size = len(items)
 
-    if -size <= idx < size:  # In bounds
+    if -frozen_size <= idx < frozen_size:  # In bounds
         # Should raise error when trying to modify frozen item
-        with raises(TypeError, match="Cannot assign to saved item"):
+        with raises(ValueError, match="Cannot assign to saved item"):
             addonly_list[idx] = value
     else:  # Out of bounds
         with raises(IndexError):
@@ -163,9 +169,9 @@ def test_delitem(items: list[str], idx: int) -> None:
     """Test that `.delitem()` works correctly and handles errors."""
     addonly_list = FreezableList(items)
 
-    size = len(items)
+    frozen_size = len(items)
 
-    if -size <= idx < size:  # In bounds
+    if -frozen_size <= idx < frozen_size:  # In bounds
         # Should raise error when trying to delete frozen item
         with raises(ValueError, match="Cannot delete saved item"):
             del addonly_list[idx]
@@ -174,32 +180,35 @@ def test_delitem(items: list[str], idx: int) -> None:
             del addonly_list[idx]
 
 
-# TODO: Rewrite this test
-# @given(
-#     items=string_lists,
-#     index=indices,
-#     value=strings,
-# )
-# def test_insert(items: list[str], index: int, value: str) -> None:
-#     """Test that `.insert()` works correctly and handles errors."""
-#     addonly_list = FreezableList(items)
+@given(
+    init_items=string_lists,
+    index=indices,
+    value=strings,
+)
+def test_insert(init_items: list[str], index: int, value: str) -> None:
+    """Test that `.insert()` works correctly and handles errors."""
+    addonly_list = FreezableList(init_items)
+    frozen_size = len(init_items)
 
-#     if index < 0:
-#         index += len(items)
+    # Duplicates should be silently ignored, no matter what
+    if value in init_items:
+        addonly_list.insert(index, value)
+        assert value not in addonly_list._draft
+        assert len(addonly_list) == frozen_size
 
-#     if index < len(items):
-#         # Should raise error when trying to insert into frozen portion
-#         with raises(IndexError, match="Cannot insert into the frozen list"):
-#             addonly_list.insert(index, value)
-#     else:
-#         # Should insert into draft portion
-#         if value not in items:
-#             addonly_list.insert(index, value)
-#             assert value in addonly_list._draft
-#         else:
-#             # Should silently ignore duplicates
-#             addonly_list.insert(index, value)
-#             assert value not in addonly_list._draft
+    # Should raise error when trying to insert new items between/before frozen ones
+    elif -frozen_size <= index < frozen_size:
+        with raises(IndexError, match="Cannot insert into the frozen list"):
+            addonly_list.insert(index, value)
+
+        assert value not in addonly_list._draft
+        assert len(addonly_list) == frozen_size
+
+    # Otherwise, item should be inserted into draft portion
+    else:
+        addonly_list.insert(index, value)
+        assert value in addonly_list._draft
+        assert len(addonly_list) == frozen_size + 1
 
 
 @given(
