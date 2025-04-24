@@ -10,7 +10,6 @@ import wandb
 from wandb import util
 from wandb.sdk.lib import runid
 
-from enum import Enum
 from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import Media, _numpy_arrays_to_lists
@@ -187,10 +186,10 @@ def allow_relogging_after_mutation(method):
 
         has_been_logged = self._run is not None or self._artifact_target is not None
         
-        if self.log_mode == TableLoggingMode.MUTABLE:
+        if self.log_mode == "MUTABLE":
             self._run = None
             self._artifact_target = None
-        elif self.log_mode == TableLoggingMode.IMMUTABLE and has_been_logged:
+        elif self.log_mode == "IMMUTABLE" and has_been_logged:
             logging.warning(
                 f"You are mutating a Table with log_mode='IMMUTABLE' that has been"
                 f"logged already. Subsequent log() calls will have no effect."
@@ -200,12 +199,7 @@ def allow_relogging_after_mutation(method):
         return res
     return wrapper
 
-class TableLoggingMode(str, Enum):
-    # Controls logging behavior
-    IMMUTABLE = "IMMUTABLE" # Default: Table cannot be re-logged after first log
-    MUTABLE = "MUTABLE" # Table can be re-logged after mutations are performed
-
-
+supported_logging_modes = ["IMMUTABLE", "MUTABLE"]
 class Table(Media):
     """The Table class used to display and analyze tabular data.
 
@@ -253,7 +247,7 @@ class Table(Media):
         dtype=None,
         optional=True,
         allow_mixed_types=False,
-        log_mode: Optional[Literal["IMMUTABLE", "MUTABLE"]]=TableLoggingMode.IMMUTABLE,
+        log_mode: Optional[Literal["IMMUTABLE", "MUTABLE"]]="IMMUTABLE",
     ):
         """Initializes a Table object.
 
@@ -295,10 +289,7 @@ class Table(Media):
                 self._init_from_list([], columns, optional, dtype)
 
     def _validate_log_mode(self, log_mode):
-        try:
-            TableLoggingMode[log_mode]
-        except KeyError:
-            raise ValueError(f"Invalid log_mode: {log_mode}. Must be one of {[m.name for m in TableLoggingMode]}")
+        assert log_mode in supported_logging_modes, f"Invalid log_mode: {log_mode}. Must be one of {supported_logging_modes}"
     
     @staticmethod
     def _assert_valid_columns(columns):
