@@ -4,6 +4,7 @@ import codecs
 import datetime
 import logging
 import os
+from typing import Literal, Optional
 
 import wandb
 from wandb import util
@@ -230,7 +231,7 @@ class Table(Media):
             applies to all columns. A list of bool values applies to each respective column.
         allow_mixed_types: (bool) Determines if columns are allowed to have mixed types
             (disables type validation). Defaults to False
-        log_mode: (Optional[str]) Controls how the Table is logged when mutations occur.
+        log_mode: (Optional[Literal["IMMUTABLE", "MUTABLE"]]) Controls how the Table is logged when mutations occur.
             Options:
             - "IMMUTABLE" (default): Table can only be logged once; subsequent
               logging attempts after the table has been mutated will be no-ops.
@@ -252,7 +253,7 @@ class Table(Media):
         dtype=None,
         optional=True,
         allow_mixed_types=False,
-        log_mode=TableLoggingMode.IMMUTABLE,
+        log_mode: Optional[Literal["IMMUTABLE", "MUTABLE"]]=TableLoggingMode.IMMUTABLE,
     ):
         """Initializes a Table object.
 
