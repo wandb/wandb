@@ -124,22 +124,6 @@ class FreezableList(MutableSequence[T]):
             draft_index = (index % size) - frozen_offset
             del self._draft[draft_index]
 
-            # len_saved = len(self._frozen)
-            # original_index = index
-
-            # # if index < 0:
-            # if -len(self) <= index < -len_saved:
-            #     index += len(self)
-
-            # # if 0 <= index < len_saved:
-            # if -len_saved <= index < len_saved:
-            #     raise ValueError(f"Cannot delete saved item at index {original_index}")
-            # elif len_saved <= index < len(self):
-            #     draft_index = index - len_saved
-            #     del self._draft[draft_index]
-            # else:
-            #     raise IndexError("Index out of range")
-
     def insert(self, index: int, value: T) -> None:
         """Insert item before index.
 
@@ -172,33 +156,6 @@ class FreezableList(MutableSequence[T]):
         # - in-bounds index: insert.
         draft_index = (index % size) - frozen_offset
         return self._draft.insert(draft_index, value)
-
-        # # - negative in-bounds index: insert.
-        # if (index >= size) or (index < -size):
-        #     raise IndexError("Index out of range")
-
-        # if (index >= size) or (index < -size):
-        #     raise IndexError("Index out of range")
-
-        # if -frozen_offset <= index < frozen_offset:
-        #     raise IndexError(
-        #         f"Cannot insert into the frozen list (index < {len_frozen})"
-        #     )
-
-        # raise ValueError(f"Cannot delete saved item at index: {index!r}")
-        # len_frozen = len(self._frozen)
-
-        # if index < 0:
-        #     index += len(self)
-
-        # if index < len_frozen:
-        #     raise IndexError(
-        #         f"Cannot insert into the frozen list (index < {len_frozen})"
-        #     )
-
-        # draft_index = index - len_frozen
-
-        # self._draft.insert(draft_index, value)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(frozen={list(self._frozen)!r}, draft={list(self._draft)!r})"
