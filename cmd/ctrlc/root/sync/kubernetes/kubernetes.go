@@ -33,7 +33,6 @@ func NewSyncKubernetesCmd() *cobra.Command {
 				return err
 			}
 
-
 			pods, err := clientset.CoreV1().Pods("default").List(
 				context.Background(), metav1.ListOptions{})
 			if err != nil {
@@ -56,13 +55,11 @@ func NewSyncKubernetesCmd() *cobra.Command {
 				log.Info("No pods found in default namespace")
 			}
 
-
 			return nil
 		},
 	}
 
 	cmd.Flags().String("cluster", "", "The cluster to sync")
-
 
 	return cmd
 }
