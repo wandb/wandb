@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from collections import namedtuple
+from dataclasses import dataclass
 from typing import Generator, Iterator
 
 import pytest
@@ -99,7 +99,10 @@ def user(mocker, backend_fixture_factory) -> Iterator[str]:
     yield username
 
 
-UserOrg = namedtuple("UserOrg", ["username", "organization_name"])
+@dataclass
+class UserOrg:
+    username: str
+    organization_name: str
 
 
 @pytest.fixture

@@ -15,7 +15,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
-- Added creation, deletion, and updating of registries in the SDK
+- Added creation, deletion, and updating of registries in the SDK. (@estellazx in https://github.com/wandb/wandb/pull/9453)
 
 ### Fixed
 

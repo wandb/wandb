@@ -13,7 +13,7 @@ def test_registry_create_edit(user_in_org):
     artifact_type_1 = "model-1"
 
     # TODO: Setting visibility to restricted is giving permission errors.
-    # Need to dig into backend code to figure out why as local testing works fine.
+    # Need to dig into backend code to figure out why. Local testing works fine.
     registry = api.create_registry(
         name=registry_name,
         visibility="organization",
