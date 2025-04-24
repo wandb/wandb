@@ -616,6 +616,9 @@ pub struct Deprecated {
     /// wandb.sdk.artifacts.artifact.Artifact.use_as() called
     #[prost(bool, tag = "26")]
     pub artifact_use_as: bool,
+    /// wandb.sdk.artifacts.artifact.Artifact(use_as=...) called
+    #[prost(bool, tag = "27")]
+    pub artifact_init_use_as: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {
