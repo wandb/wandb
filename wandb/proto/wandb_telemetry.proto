@@ -264,11 +264,13 @@ message Deprecated {
 
   bool run__finish_quiet = 19;  // wandb.run.finish(quiet=...) called
 
-  bool run__reinit_bool = 20;      // reinit setting set to a boolean value
-  bool run__get_url = 21;          // wandb.run.get_url() called
-  bool run__project_name = 22;     // wandb.run.project_name() called
-  bool run__get_project_url = 23;  // wandb.run.get_project_url() called
-  bool run__get_sweep_url = 24;    // wandb.run.get_sweep_url() called
+  bool run__reinit_bool = 20;          // reinit setting set to a boolean value
+  bool run__get_url = 21;              // wandb.run.get_url() called
+  bool run__project_name = 22;         // wandb.run.project_name() called
+  bool run__get_project_url = 23;      // wandb.run.get_project_url() called
+  bool run__get_sweep_url = 24;        // wandb.run.get_sweep_url() called
+  bool run__use_artifact_use_as = 25;  // wandb.run.use_artifact(use_as=...) called
+  bool artifact__use_as = 26;          // wandb.sdk.artifacts.artifact.Artifact.use_as() called
 }
 
 message Issues {

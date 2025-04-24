@@ -610,6 +610,12 @@ pub struct Deprecated {
     /// wandb.run.get_sweep_url() called
     #[prost(bool, tag = "24")]
     pub run_get_sweep_url: bool,
+    /// wandb.run.use_artifact(use_as=...) called
+    #[prost(bool, tag = "25")]
+    pub run_use_artifact_use_as: bool,
+    /// wandb.sdk.artifacts.artifact.Artifact.use_as() called
+    #[prost(bool, tag = "26")]
+    pub artifact_use_as: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {

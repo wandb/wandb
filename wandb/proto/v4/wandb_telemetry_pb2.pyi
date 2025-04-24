@@ -822,6 +822,8 @@ class Deprecated(google.protobuf.message.Message):
     RUN__PROJECT_NAME_FIELD_NUMBER: builtins.int
     RUN__GET_PROJECT_URL_FIELD_NUMBER: builtins.int
     RUN__GET_SWEEP_URL_FIELD_NUMBER: builtins.int
+    RUN__USE_ARTIFACT_USE_AS_FIELD_NUMBER: builtins.int
+    ARTIFACT__USE_AS_FIELD_NUMBER: builtins.int
     keras_callback__data_type: builtins.bool
     """wandb.integration.keras.WandbCallback(data_type=...) called"""
     run__mode: builtins.bool
@@ -870,6 +872,10 @@ class Deprecated(google.protobuf.message.Message):
     """wandb.run.get_project_url() called"""
     run__get_sweep_url: builtins.bool
     """wandb.run.get_sweep_url() called"""
+    run__use_artifact_use_as: builtins.bool
+    """wandb.run.use_artifact(use_as=...) called"""
+    artifact__use_as: builtins.bool
+    """wandb.sdk.artifacts.artifact.Artifact.use_as() called"""
     def __init__(
         self,
         *,
@@ -897,8 +903,10 @@ class Deprecated(google.protobuf.message.Message):
         run__project_name: builtins.bool = ...,
         run__get_project_url: builtins.bool = ...,
         run__get_sweep_url: builtins.bool = ...,
+        run__use_artifact_use_as: builtins.bool = ...,
+        artifact__use_as: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["api__artifact_versions", b"api__artifact_versions", "artifact__get_path", b"artifact__get_path", "artifact_collection__change_type", b"artifact_collection__change_type", "artifactmanifestentry__name", b"artifactmanifestentry__name", "init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback", b"keras_callback", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "langchain_tracer", b"langchain_tracer", "plots", b"plots", "run__define_metric_best_goal", b"run__define_metric_best_goal", "run__define_metric_copy", b"run__define_metric_copy", "run__finish_quiet", b"run__finish_quiet", "run__get_project_url", b"run__get_project_url", "run__get_sweep_url", b"run__get_sweep_url", "run__get_url", b"run__get_url", "run__join", b"run__join", "run__log_sync", b"run__log_sync", "run__mode", b"run__mode", "run__project_name", b"run__project_name", "run__reinit_bool", b"run__reinit_bool", "run__save_no_args", b"run__save_no_args", "run_disabled", b"run_disabled"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["api__artifact_versions", b"api__artifact_versions", "artifact__get_path", b"artifact__get_path", "artifact__use_as", b"artifact__use_as", "artifact_collection__change_type", b"artifact_collection__change_type", "artifactmanifestentry__name", b"artifactmanifestentry__name", "init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback", b"keras_callback", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "langchain_tracer", b"langchain_tracer", "plots", b"plots", "run__define_metric_best_goal", b"run__define_metric_best_goal", "run__define_metric_copy", b"run__define_metric_copy", "run__finish_quiet", b"run__finish_quiet", "run__get_project_url", b"run__get_project_url", "run__get_sweep_url", b"run__get_sweep_url", "run__get_url", b"run__get_url", "run__join", b"run__join", "run__log_sync", b"run__log_sync", "run__mode", b"run__mode", "run__project_name", b"run__project_name", "run__reinit_bool", b"run__reinit_bool", "run__save_no_args", b"run__save_no_args", "run__use_artifact_use_as", b"run__use_artifact_use_as", "run_disabled", b"run_disabled"]) -> None: ...
 
 global___Deprecated = Deprecated
 
