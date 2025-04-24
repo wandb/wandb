@@ -182,8 +182,8 @@ class Artifact:
         self._distributed_id: str | None = None
         self._incremental: bool = incremental
         if use_as is not None:
-            deprecate.deprecate(
-                field_name=deprecate.Deprecated.artifact__init_use_as,
+            deprecate(
+                field_name=Deprecated.artifact__init_use_as,
                 warning_message=(
                     "`use_as` argument is deprecated and does not affect the behaviour of `wandb.Artifact()`"
                 ),

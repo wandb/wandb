@@ -3158,7 +3158,7 @@ class Run:
 
         if use_as is not None:
             deprecate.deprecate(
-                field_name=deprecate.Deprecated.run__use_artifact_use_as,
+                field_name=Deprecated.run__use_artifact_use_as,
                 warning_message=(
                     "`use_as` argument is deprecated and does not affect the behaviour of `run.use_artifact`"
                 ),
