@@ -11,7 +11,6 @@ import socket
 import sys
 import threading
 from copy import deepcopy
-from dataclasses import dataclass
 from pathlib import Path
 from typing import (
     IO,
@@ -37,6 +36,7 @@ import requests
 import yaml
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
+from wandb_graphql.language.ast import Document
 
 import wandb
 from wandb import env, util
@@ -46,6 +46,7 @@ from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
+from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
@@ -169,65 +170,6 @@ class _ThreadLocalData(threading.local):
 class _OrgNames(NamedTuple):
     entity_name: str
     display_name: str
-
-
-@dataclass
-class Feature:
-    name: str
-    is_enabled: bool
-
-
-@dataclass
-class ServerFeatures:
-    """A class for managing and querying W&B server feature flags.
-
-    Attributes:
-        features: A dictionary mapping feature names to Feature objects.
-    """
-
-    features: Dict[str, Feature]
-
-    @classmethod
-    def _from_server_info(cls, server_info: dict) -> "ServerFeatures":
-        """Creates a ServerFeatures instance from server information.
-
-        Args:
-            server_info: A dictionary containing server information, including
-                a 'serverInfo' key with feature data.
-
-        Returns:
-            ServerFeatures: A new instance populated with the server's feature flags.
-
-        Example:
-            >>> info = {"serverInfo": {"features": [{"name": "feat1", "isEnabled": True}]}}
-            >>> features = ServerFeatures._from_server_info(info)
-        """
-        features: Dict[str, Feature] = {}
-        info: Optional[dict] = server_info.get("serverInfo", {})
-        if info is None:
-            return cls(features)
-
-        for feature in info.get("features", []):
-            features[feature["name"]] = Feature(
-                name=feature["name"], is_enabled=feature["isEnabled"]
-            )
-        return cls(features)
-
-    def has_feature(self, name: str) -> bool:
-        """Checks if a specific feature is enabled on the server."""
-        return self.features.get(name, Feature(name, False)).is_enabled
-
-
-SERVER_FEATURES_QUERY_GQL = """
-query ServerFeaturesQuery {
-  serverInfo {
-    features {
-      name
-      isEnabled
-    }
-  }
-}
-"""
 
 
 def _match_org_with_fetched_org_entities(
@@ -426,7 +368,7 @@ class Api:
         self.server_create_run_queue_supports_priority: Optional[bool] = None
         self.server_supports_template_variables: Optional[bool] = None
         self.server_push_to_run_queue_supports_priority: Optional[bool] = None
-        self._server_features_cache: Optional[ServerFeatures] = None
+        self._server_features_cache: Optional[dict[str, bool]] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
@@ -946,11 +888,15 @@ class Api:
         if self._server_features_cache is None:
             query = gql(SERVER_FEATURES_QUERY_GQL)
             response = self.gql(query)
-            self._server_features_cache = ServerFeatures._from_server_info(response)
+            server_info = ServerFeaturesQuery.model_validate(response).server_info
+            if server_info and (features := server_info.features):
+                self._server_features_cache = {
+                    f.name: f.is_enabled for f in features if f
+                }
+            else:
+                self._server_features_cache = {}
 
-        return self._server_features_cache.has_feature(
-            ServerFeature.Name(feature_value)
-        )
+        return self._server_features_cache.get(ServerFeature.Name(feature_value), False)
 
     def _check_server_feature_with_fallback(self, feature_value: ServerFeature) -> bool:
         """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
@@ -3807,67 +3753,108 @@ class Api:
         else:
             raise ValueError(f"Unable to find an organization under entity {entity!r}.")
 
-    def use_artifact(
+    def _construct_use_artifact_query(
         self,
         artifact_id: str,
         entity_name: Optional[str] = None,
         project_name: Optional[str] = None,
         run_name: Optional[str] = None,
         use_as: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
-        query_template = """
-        mutation UseArtifact(
-            $entityName: String!,
-            $projectName: String!,
-            $runName: String!,
-            $artifactID: ID!,
-            _USED_AS_TYPE_
-        ) {
-            useArtifact(input: {
-                entityName: $entityName,
-                projectName: $projectName,
-                runName: $runName,
-                artifactID: $artifactID,
-                _USED_AS_VALUE_
-            }) {
-                artifact {
-                    id
-                    digest
-                    description
-                    state
-                    createdAt
-                    metadata
-                }
-            }
-        }
-        """
+        artifact_entity_name: Optional[str] = None,
+        artifact_project_name: Optional[str] = None,
+    ) -> Tuple[Document, Dict[str, Any]]:
+        query_vars = [
+            "$entityName: String!",
+            "$projectName: String!",
+            "$runName: String!",
+            "$artifactID: ID!",
+        ]
+        query_args = [
+            "entityName: $entityName",
+            "projectName: $projectName",
+            "runName: $runName",
+            "artifactID: $artifactID",
+        ]
 
         artifact_types = self.server_use_artifact_input_introspection()
-        if "usedAs" in artifact_types:
-            query_template = query_template.replace(
-                "_USED_AS_TYPE_", "$usedAs: String"
-            ).replace("_USED_AS_VALUE_", "usedAs: $usedAs")
-        else:
-            query_template = query_template.replace("_USED_AS_TYPE_", "").replace(
-                "_USED_AS_VALUE_", ""
-            )
-
-        query = gql(query_template)
+        if "usedAs" in artifact_types and use_as:
+            query_vars.append("$usedAs: String")
+            query_args.append("usedAs: $usedAs")
 
         entity_name = entity_name or self.settings("entity")
         project_name = project_name or self.settings("project")
         run_name = run_name or self.current_run_id
 
-        response = self.gql(
-            query,
-            variable_values={
-                "entityName": entity_name,
-                "projectName": project_name,
-                "runName": run_name,
-                "artifactID": artifact_id,
-                "usedAs": use_as,
-            },
+        variable_values: Dict[str, Any] = {
+            "entityName": entity_name,
+            "projectName": project_name,
+            "runName": run_name,
+            "artifactID": artifact_id,
+            "usedAs": use_as,
+        }
+
+        server_allows_entity_project_information = (
+            self._check_server_feature_with_fallback(
+                ServerFeature.USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION  # type: ignore
+            )
         )
+        if server_allows_entity_project_information:
+            query_vars.extend(
+                [
+                    "$artifactEntityName: String",
+                    "$artifactProjectName: String",
+                ]
+            )
+            query_args.extend(
+                [
+                    "artifactEntityName: $artifactEntityName",
+                    "artifactProjectName: $artifactProjectName",
+                ]
+            )
+            variable_values["artifactEntityName"] = artifact_entity_name
+            variable_values["artifactProjectName"] = artifact_project_name
+
+        vars_str = ", ".join(query_vars)
+        args_str = ", ".join(query_args)
+
+        query = gql(
+            f"""
+            mutation UseArtifact({vars_str}) {{
+                useArtifact(input: {{{args_str}}}) {{
+                    artifact {{
+                        id
+                        digest
+                        description
+                        state
+                        createdAt
+                        metadata
+                    }}
+                }}
+            }}
+            """
+        )
+        return query, variable_values
+
+    def use_artifact(
+        self,
+        artifact_id: str,
+        entity_name: Optional[str] = None,
+        project_name: Optional[str] = None,
+        run_name: Optional[str] = None,
+        artifact_entity_name: Optional[str] = None,
+        artifact_project_name: Optional[str] = None,
+        use_as: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        query, variable_values = self._construct_use_artifact_query(
+            artifact_id,
+            entity_name,
+            project_name,
+            run_name,
+            use_as,
+            artifact_entity_name,
+            artifact_project_name,
+        )
+        response = self.gql(query, variable_values)
 
         if response["useArtifact"]["artifact"]:
             artifact: Dict[str, Any] = response["useArtifact"]["artifact"]

@@ -90,7 +90,9 @@ func addFile(c Cache, path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 	return c.Write(f)
 }
 
@@ -208,7 +210,7 @@ func (c *FileCache) Write(src io.Reader) (string, error) {
 		return "", err
 	}
 	defer func() {
-		tmpFile.Close()
+		_ = tmpFile.Close()
 		_ = os.Remove(tmpFile.Name())
 	}()
 
@@ -226,7 +228,7 @@ func (c *FileCache) Write(src io.Reader) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(dstPath), defaultDirPermissions); err != nil {
 		return "", err
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 	if err := os.Rename(tmpFile.Name(), dstPath); err != nil {
 		return "", err
 	}

@@ -24,23 +24,20 @@ def test_artifacts_in_config(user, sample_data, test_settings):
         run.config.update({"myarti": artifact})
         with pytest.raises(ValueError) as e_info:
             run.config.nested_dataset = {"nested": artifact}
-        assert (
-            str(e_info.value)
-            == "Instances of wandb.Artifact can only be top level keys in wandb.config"
+        assert str(e_info.value) == (
+            "Instances of wandb.Artifact can only be top level keys in a run's config"
         )
 
         with pytest.raises(ValueError) as e_info:
             run.config.dict_nested = {"one_nest": {"two_nest": artifact}}
-        assert (
-            str(e_info.value)
-            == "Instances of wandb.Artifact can only be top level keys in wandb.config"
+        assert str(e_info.value) == (
+            "Instances of wandb.Artifact can only be top level keys in a run's config"
         )
 
         with pytest.raises(ValueError) as e_info:
             run.config.update({"one_nest": {"two_nest": artifact}})
-        assert (
-            str(e_info.value)
-            == "Instances of wandb.Artifact can only be top level keys in wandb.config"
+        assert str(e_info.value) == (
+            "Instances of wandb.Artifact can only be top level keys in a run's config"
         )
 
     run = wandb.Api().run(f"uncategorized/{run.id}")

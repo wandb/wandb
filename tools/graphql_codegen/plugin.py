@@ -12,17 +12,18 @@ from collections import defaultdict, deque
 from contextlib import suppress
 from itertools import groupby
 from pathlib import Path
-from typing import Any, Iterable, Iterator
+from typing import Any, ClassVar, Iterable, Iterator
 
 from ariadne_codegen import Plugin
 from graphlib import TopologicalSorter  # noqa # Run this only with python 3.9+
-from graphql import GraphQLSchema
+from graphql import FragmentDefinitionNode, GraphQLSchema
 
 from .plugin_utils import (
     apply_ruff,
     base_class_names,
     collect_imported_names,
     imported_names,
+    is_class_def,
     is_import_from,
     is_redundant_subclass_def,
     make_all_assignment,
@@ -42,23 +43,16 @@ GQLID_TYPE = "GQLId"  #: Custom GraphQL ID type for field annotations
 CUSTOM_BASE_IMPORT_NAMES = [
     CUSTOM_BASE_MODEL_NAME,
     CUSTOM_GQL_BASE_MODEL_NAME,
-    GQLID_TYPE,
     TYPENAME_TYPE,
-    JSON_TYPE,
 ]
 
 
-#: Names that must be conditionally imported from `typing` or `typing_extensions` depending on python version.
-TYPING_COMPAT_TYPES = frozenset({"override", "Annotated"})
+# Names that should be imported from `typing_extensions` to ensure
+# compatibility with all supported python versions.
+TYPING_EXTENSIONS_TYPES = ("override", "Annotated")
 
 # Misc
 ID = "ID"  #: The GraphQL name of the ID type
-
-# Custom import statements to prepend to generated modules
-FROM_BASE_IMPORT_CUSTOM_NAMES: ast.ImportFrom = make_import_from(
-    "base", CUSTOM_BASE_IMPORT_NAMES, level=1
-)
-FROM_FUTURE_IMPORT_ANNOTATIONS = make_import_from("__future__", "annotations")
 
 
 class FixFragmentOrder(Plugin):
@@ -138,10 +132,8 @@ def forget_default_id_type() -> None:
     # See: https://github.com/mirumee/ariadne-codegen/issues/316
     from ariadne_codegen.client_generators import constants as codegen_constants
 
-    with suppress(LookupError):
-        codegen_constants.SIMPLE_TYPE_MAP.pop(ID)
-    with suppress(LookupError):
-        codegen_constants.INPUT_SCALARS_MAP.pop(ID)
+    codegen_constants.SIMPLE_TYPE_MAP.pop(ID, None)
+    codegen_constants.INPUT_SCALARS_MAP.pop(ID, None)
 
 
 class GraphQLCodegenPlugin(Plugin):
@@ -160,11 +152,22 @@ class GraphQLCodegenPlugin(Plugin):
     package_dir: Path
     #: Generated classes that we don't need in the final code
     classes_to_drop: set[str]
-    #: Generated modules that we don't need in the final code
-    modules_to_drop: frozenset[str]
 
     #: A NodeTransformer to replace `pydantic.BaseModel` with `GQLBase`
     _pydantic_model_rewriter: PydanticClassRewriter
+
+    # From ariadne-codegen, we don't currently need the generated httpx client,
+    # exceptions, etc., so drop these generated modules in favor of
+    # the existing internal GQL client.
+    modules_to_drop: ClassVar[frozenset[str]] = frozenset(
+        {
+            "async_base_client",
+            "base_client",
+            "base_model",  # We'll swap in a module with our own custom base class
+            "client",
+            "exceptions",
+        }
+    )
 
     def __init__(self, schema: GraphQLSchema, config_dict: dict[str, Any]) -> None:
         super().__init__(schema, config_dict)
@@ -176,7 +179,6 @@ class GraphQLCodegenPlugin(Plugin):
         self.package_dir = Path(package_path) / package_name
 
         self.classes_to_drop = set()
-        self.modules_to_drop = frozenset(codegen_config["modules_to_drop"])
 
         # HACK: Override the default python type that ariadne-codegen uses for GraphQL's `ID` type.
         # See: https://github.com/mirumee/ariadne-codegen/issues/316
@@ -193,46 +195,55 @@ class GraphQLCodegenPlugin(Plugin):
         return super().generate_init_code(generated_code)
 
     def generate_init_module(self, module: ast.Module) -> ast.Module:
-        self._prepend_statements(module, FROM_BASE_IMPORT_CUSTOM_NAMES)
         module = self._cleanup_init_module(module)
         return ast.fix_missing_locations(module)
 
     def generate_enums_module(self, module: ast.Module) -> ast.Module:
-        import_stmts = [FROM_FUTURE_IMPORT_ANNOTATIONS, FROM_BASE_IMPORT_CUSTOM_NAMES]
-        self._prepend_statements(module, *import_stmts)
-
-        module = self._pydantic_model_rewriter.visit(module)
-        module = self._replace_redundant_classes(module)
-        module = self._fix_typing_imports(module)
-        return ast.fix_missing_locations(module)
+        return self._rewrite_generated_module(module)
 
     def generate_inputs_module(self, module: ast.Module) -> ast.Module:
-        self._prepend_statements(
-            module,
-            FROM_FUTURE_IMPORT_ANNOTATIONS,
-            FROM_BASE_IMPORT_CUSTOM_NAMES,
-        )
-        module = self._pydantic_model_rewriter.visit(module)
-        module = self._replace_redundant_classes(module)
-        module = self._fix_typing_imports(module)
-        return ast.fix_missing_locations(module)
+        return self._rewrite_generated_module(module)
 
     def generate_result_types_module(self, module: ast.Module, *_, **__) -> ast.Module:
-        self._prepend_statements(
-            module,
-            FROM_FUTURE_IMPORT_ANNOTATIONS,
-            FROM_BASE_IMPORT_CUSTOM_NAMES,
-        )
-        module = self._pydantic_model_rewriter.visit(module)
-        module = self._replace_redundant_classes(module)
-        module = self._fix_typing_imports(module)
+        return self._rewrite_generated_module(module)
+
+    def generate_fragments_module(
+        self,
+        module: ast.Module,
+        fragments_definitions: dict[str, FragmentDefinitionNode],
+    ) -> ast.Module:
+        # Maps {fragment names -> original schema type names}
+        fragment2typename = {
+            f.name.value: f.type_condition.name.value
+            for f in fragments_definitions.values()
+        }
+
+        # Rewrite `typename__` fields:
+        #   - BEFORE: `typename__: str = Field(alias="__typename")`
+        #   - AFTER:  `typename__: Literal["OrigSchemaTypeName"] = "OrigSchemaTypeName"`
+        for class_def in filter(is_class_def, module.body):
+            for stmt in class_def.body:
+                if (
+                    isinstance(stmt, ast.AnnAssign)
+                    and (stmt.target.id == "typename__")
+                    and (typename := fragment2typename.get(class_def.name))
+                ):
+                    stmt.annotation = ast.Subscript(
+                        value=ast.Name(id="Literal"),
+                        slice=ast.Constant(value=typename),
+                    )
+                    stmt.value = ast.Constant(value=typename)
+
+        module = self._rewrite_generated_module(module)
         return ast.fix_missing_locations(module)
 
-    def generate_fragments_module(self, module: ast.Module, *_, **__) -> ast.Module:
+    def _rewrite_generated_module(self, module: ast.Module) -> ast.Module:
+        """Apply common transformations to the generated module, excluding `__init__`."""
         self._prepend_statements(
             module,
-            FROM_FUTURE_IMPORT_ANNOTATIONS,
-            FROM_BASE_IMPORT_CUSTOM_NAMES,
+            make_import_from("__future__", "annotations"),
+            make_import_from("wandb._pydantic", CUSTOM_BASE_IMPORT_NAMES),
+            make_import_from("typing_extensions", TYPING_EXTENSIONS_TYPES),
         )
         module = self._pydantic_model_rewriter.visit(module)
         module = self._replace_redundant_classes(module)
@@ -298,7 +309,7 @@ class GraphQLCodegenPlugin(Plugin):
         for stmt in import_from_stmts:
             # Keep only imported names that aren't being dropped
             kept_names = sorted(set(imported_names(stmt)) - excluded_names)
-            yield make_import_from(stmt.module, kept_names, level=1)
+            yield make_import_from(stmt.module, kept_names, level=stmt.level)
 
     @staticmethod
     def _fix_typing_imports(module: ast.Module) -> ast.Module:
@@ -309,23 +320,12 @@ class GraphQLCodegenPlugin(Plugin):
 
 def _filter_and_fix_typing_imports(stmts: Iterable[ast.stmt]) -> Iterator[ast.stmt]:
     for stmt in stmts:
-        # Handle `from typing import ...` statements
         if is_import_from(stmt) and (stmt.module == "typing"):
-            # Get the names imported from the `typing` module
-            orig_names = set(imported_names(stmt))
-            kept_names = orig_names - TYPING_COMPAT_TYPES
-            reimported_names = orig_names & TYPING_COMPAT_TYPES
-
-            # Keep any typing imports that don't need fixing
-            if kept_names:
-                yield make_import_from("typing", kept_names)
-
-            # Add imports from typing_compat, if needed
-            if reimported_names := (orig_names & TYPING_COMPAT_TYPES):
-                yield make_import_from("typing_compat", reimported_names, level=1)
-
-        # Keep all non-typing import statements and any other statements
+            # Drop typing imports that must be imported from typing_extensions
+            if kept_names := (set(imported_names(stmt)) - set(TYPING_EXTENSIONS_TYPES)):
+                yield make_import_from(stmt.module, kept_names)
         else:
+            # Keep all non-typing import statements and any other statements
             yield stmt
 
 
@@ -343,17 +343,35 @@ class PydanticClassRewriter(ast.NodeTransformer):
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> ast.AnnAssign:
         if node.target.id == "typename__":
-            # e.g. BEFORE: `typename__: Literal["MyType"] = Field(...)`
+            # e.g. BEFORE: `typename__: Literal["MyType"] = Field(alias="__typename")`
             # e.g. AFTER:  `typename__: Typename[Literal["MyType"]]`
-            node = ast.AnnAssign(
-                target=node.target,
-                annotation=ast.Subscript(
-                    value=ast.Name(id=TYPENAME_TYPE),
-                    slice=node.annotation,
-                ),
-                value=None,
-                simple=1,
+            node.annotation = ast.Subscript(  # T -> Typename[T]
+                value=ast.Name(id=TYPENAME_TYPE),
+                slice=node.annotation,
             )
+            # Drop `= Field(alias="__typename")`, if present
+            if (
+                isinstance(node.value, ast.Call)
+                and node.value.func.id == "Field"
+                and len(node.value.keywords) == 1
+                and node.value.keywords[0].arg == "alias"
+            ):
+                node.value = None
+
+        # If this is a union of a single type, drop the `Field(discriminator=...)`
+        # since pydantic may complain.
+        # See: https://github.com/pydantic/pydantic/issues/3636
+        elif (
+            isinstance(annotation := node.annotation, ast.Subscript)
+            and annotation.value.id == "Union"
+            and isinstance(annotation.slice, ast.Tuple)
+            and len(annotation.slice.elts) == 1
+        ):
+            # e.g. BEFORE: `field: Union[OnlyType,] = Field(discriminator="...")`
+            # e.g. AFTER:  `field: OnlyType`
+            node.annotation = annotation.slice.elts[0]  # Union[T,] -> T
+            node.value = None  # drop `= Field(discriminator=...)`, if present
+
         return self.generic_visit(node)
 
     def visit_Name(self, node: ast.Name) -> ast.Name:

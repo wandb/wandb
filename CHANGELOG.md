@@ -11,6 +11,65 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.19.10] - 2025-04-22
+
+### Added
+
+- The new `reinit="create_new"` setting causes `wandb.init()` to create a new run even if other runs are active, without finishing the other runs (in contrast to `reinit="finish_previous"`). This will eventually become the default (@timoffex in https://github.com/wandb/wandb/pull/9562)
+- Added `Artifact.history_step` to return the nearest run step at which history metrics were logged for the artifact's source run (@ibindlish in https://github.com/wandb/wandb/pull/9732)
+- Added `data_is_not_path` flag to skip file checks when initializing `wandb.Html` with a sting that points to a file.
+
+### Changed
+
+- `Artifact.download()` no longer raises an error when using `WANDB_MODE=offline` or when an offline run exists (@timoffex in https://github.com/wandb/wandb/pull/9695)
+
+### Removed
+
+- Dropped the `-q` / `--quiet` argument to the `wandb` magic in IPython / Jupyter; use the `quiet` run setting instead (@timoffex in https://github.com/wandb/wandb/pull/9705)
+
+### Deprecated
+
+- The following `wandb.Run` methods are deprecated in favor of properties and will be removed in a future release (@kptkin in https://github.com/wandb/wandb/pull/8925):
+    - `run.project_name()` is deprecated in favor of `run.project`
+    - `run.get_url()` method is deprecated in favor of `run.url`
+    - `run.get_project_url()` method is deprecated in favor of `run.project_url`
+    - `run.get_sweep_url()` method is deprecated in favor of `run.sweep_url`
+
+
+### Fixed
+
+- Fixed ValueError on Windows when running a W&B script from a different drive (@jacobromero in https://github.com/wandb/wandb/pull/9678)
+- Fix base_url setting was not provided to wandb.login (@jacobromero in https://github.com/wandb/wandb/pull/9703)
+- `wandb.Html()` no longer raises `IsADirectoryError` with a value that matched a directory on the users system. (@jacobromero in https://github.com/wandb/wandb/pull/9728)
+
+## [0.19.9] - 2025-04-01
+
+### Added
+
+- The `reinit` setting can be set to `"default"` (@timoffex in https://github.com/wandb/wandb/pull/9569)
+- Added support for building artifact file download urls using the new url scheme, with artifact collection membership context (@ibindlish in https://github.com/wandb/wandb/pull/9560)
+
+### Changed
+
+- Boolean values for the `reinit` setting are deprecated; use "return_previous" and "finish_previous" instead (@timoffex in https://github.com/wandb/wandb/pull/9557)
+- The "wandb" logger is configured with `propagate=False` at import time, whereas it previously happened when starting a run. This may change the messages observed by the root logger in some workflows (@timoffex in https://github.com/wandb/wandb/pull/9540)
+- Metaflow now requires `plum-dispatch` package. (@jacobromero in https://github.com/wandb/wandb/pull/9599)
+- Relaxed the `pydantic` version requirement to support both v1 and v2 (@dmitryduev in https://github.com/wandb/wandb/pull/9605)
+- Existing `pydantic` types have been adapted to be compatible with Pydantic v1 (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9623)
+- `wandb.init(dir=...)` now creates any nonexistent directories in `dir` if it has a parent directory that is writeable (@ringohoffman in https://github.com/wandb/wandb/pull/9545)
+- The server now supports fetching artifact files by providing additional collection information; updated the artifacts api to use the new endpoints instead (@ibindlish in https://github.com/wandb/wandb/pull/9551)
+- Paginated methods (and underlying paginators) that accept a `per_page` argument now only accept `int` values.  Default `per_page` values are set directly in method signatures, and explicitly passing `None` is no longer supported (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9201)
+
+### Fixed
+
+- Calling `wandb.init()` in a notebook finishes previous runs as previously documented (@timoffex in https://github.com/wandb/wandb/pull/9569)
+    - Bug introduced in 0.19.0
+- Fixed an error being thrown when logging `jpg`/`jpeg` images containing transparency data (@jacobromero in https://github.com/wandb/wandb/pull/9527)
+- `wandb.init(resume_from=...)` now works without explicitly specifying the run's `id` (@kptkin in https://github.com/wandb/wandb/pull/9572)
+- Deleting files with the Public API works again (@jacobromero in https://github.com/wandb/wandb/pull/9604)
+    - Bug introduced in 0.19.1
+- Fixed media files not displaying in the UI when logging to a run with a custom storage bucket (@jacobromero in https://github.com/wandb/wandb/pull/9661)
+
 ## [0.19.8] - 2025-03-04
 
 ### Fixed
@@ -141,10 +200,13 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 ### Notable Changes
 
 This version drops Python 3.7 and removes the `wandb.Run.plot_table` method.
+This version adds pydantic>=2.6,<3 as a dependency.
 
 ### Changed
 
 - Set default behavior to not create a W&B Job (@KyleGoyette in https://github.com/wandb/wandb/pull/8907)
+- Add pydantic>=2.6,<3 as a dependency (@dmitryduev in https://github.com/wandb/wandb/pull/8649 & estellazx
+ in https://github.com/wandb/wandb/pull/8905)
 
 ### Removed
 

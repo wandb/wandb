@@ -2,8 +2,8 @@ package parser
 
 import (
 	"github.com/vektah/gqlparser/v2/lexer"
-	//nolint:revive
-	. "github.com/vektah/gqlparser/v2/ast"
+
+	. "github.com/vektah/gqlparser/v2/ast" //nolint:staticcheck // bad, yeah
 )
 
 func ParseQuery(source *Source) (*QueryDocument, error) {

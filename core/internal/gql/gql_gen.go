@@ -46,11 +46,11 @@ var AllArtifactDigestAlgorithm = []ArtifactDigestAlgorithm{
 
 // ArtifactFileURLsArtifact includes the requested fields of the GraphQL type Artifact.
 type ArtifactFileURLsArtifact struct {
-	Files ArtifactFileURLsArtifactFilesFileConnection `json:"files"`
+	Files *ArtifactFileURLsArtifactFilesFileConnection `json:"files"`
 }
 
 // GetFiles returns ArtifactFileURLsArtifact.Files, and is useful for accessing the field via an interface.
-func (v *ArtifactFileURLsArtifact) GetFiles() ArtifactFileURLsArtifactFilesFileConnection {
+func (v *ArtifactFileURLsArtifact) GetFiles() *ArtifactFileURLsArtifactFilesFileConnection {
 	return v.Files
 }
 
@@ -114,11 +114,11 @@ func (v *ArtifactFileURLsArtifactFilesFileConnectionPageInfo) GetEndCursor() *st
 
 // ArtifactFileURLsByManifestEntriesArtifact includes the requested fields of the GraphQL type Artifact.
 type ArtifactFileURLsByManifestEntriesArtifact struct {
-	FilesByManifestEntries ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection `json:"filesByManifestEntries"`
+	FilesByManifestEntries *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection `json:"filesByManifestEntries"`
 }
 
 // GetFilesByManifestEntries returns ArtifactFileURLsByManifestEntriesArtifact.FilesByManifestEntries, and is useful for accessing the field via an interface.
-func (v *ArtifactFileURLsByManifestEntriesArtifact) GetFilesByManifestEntries() ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection {
+func (v *ArtifactFileURLsByManifestEntriesArtifact) GetFilesByManifestEntries() *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection {
 	return v.FilesByManifestEntries
 }
 
@@ -870,6 +870,11 @@ type InputFieldsResponse struct {
 func (v *InputFieldsResponse) GetTypeInfo() *InputFieldsTypeInfoType { return v.TypeInfo }
 
 // InputFieldsTypeInfoType includes the requested fields of the GraphQL type __Type.
+// The GraphQL type's documentation follows.
+//
+// The fundamental unit of any GraphQL Schema is the type. There are many kinds of types in GraphQL as represented by the `__TypeKind` enum.
+//
+// Depending on the kind of a type, certain fields describe information about that type. Scalar types provide no information beyond a name, description and optional `specifiedByURL`, while Enum types provide their values. Object and Interface types provide the fields they describe. Abstract types, Union and Interface, provide the Object types possible at runtime. List and NonNull types compose other types.
 type InputFieldsTypeInfoType struct {
 	InputFields []InputFieldsTypeInfoTypeInputFieldsInputValue `json:"inputFields"`
 }
@@ -880,6 +885,9 @@ func (v *InputFieldsTypeInfoType) GetInputFields() []InputFieldsTypeInfoTypeInpu
 }
 
 // InputFieldsTypeInfoTypeInputFieldsInputValue includes the requested fields of the GraphQL type __InputValue.
+// The GraphQL type's documentation follows.
+//
+// Arguments provided to Fields or Directives and the input fields of an InputObject are represented as Input Values which describe their type and optionally a default value.
 type InputFieldsTypeInfoTypeInputFieldsInputValue struct {
 	Name string `json:"name"`
 }
@@ -1229,6 +1237,11 @@ type TypeFieldsResponse struct {
 func (v *TypeFieldsResponse) GetTypeInfo() *TypeFieldsTypeInfoType { return v.TypeInfo }
 
 // TypeFieldsTypeInfoType includes the requested fields of the GraphQL type __Type.
+// The GraphQL type's documentation follows.
+//
+// The fundamental unit of any GraphQL Schema is the type. There are many kinds of types in GraphQL as represented by the `__TypeKind` enum.
+//
+// Depending on the kind of a type, certain fields describe information about that type. Scalar types provide no information beyond a name, description and optional `specifiedByURL`, while Enum types provide their values. Object and Interface types provide the fields they describe. Abstract types, Union and Interface, provide the Object types possible at runtime. List and NonNull types compose other types.
 type TypeFieldsTypeInfoType struct {
 	Fields []TypeFieldsTypeInfoTypeFieldsField `json:"fields"`
 }
@@ -1237,6 +1250,9 @@ type TypeFieldsTypeInfoType struct {
 func (v *TypeFieldsTypeInfoType) GetFields() []TypeFieldsTypeInfoTypeFieldsField { return v.Fields }
 
 // TypeFieldsTypeInfoTypeFieldsField includes the requested fields of the GraphQL type __Field.
+// The GraphQL type's documentation follows.
+//
+// Object and Interface types are described by a list of Fields, each of which has a name, potentially a list of arguments, and a return type.
 type TypeFieldsTypeInfoTypeFieldsField struct {
 	Name string `json:"name"`
 }
@@ -1444,6 +1460,41 @@ func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProjectEntity) GetI
 func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProjectEntity) GetName() string {
 	return v.Name
 }
+
+type UseArtifactInput struct {
+	EntityName          string  `json:"entityName"`
+	ProjectName         string  `json:"projectName"`
+	RunName             string  `json:"runName"`
+	ArtifactID          string  `json:"artifactID"`
+	ArtifactEntityName  *string `json:"artifactEntityName,omitempty"`
+	ArtifactProjectName *string `json:"artifactProjectName,omitempty"`
+	UsedAs              *string `json:"usedAs"`
+	ClientMutationId    *string `json:"clientMutationId"`
+}
+
+// GetEntityName returns UseArtifactInput.EntityName, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetEntityName() string { return v.EntityName }
+
+// GetProjectName returns UseArtifactInput.ProjectName, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetProjectName() string { return v.ProjectName }
+
+// GetRunName returns UseArtifactInput.RunName, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetRunName() string { return v.RunName }
+
+// GetArtifactID returns UseArtifactInput.ArtifactID, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetArtifactID() string { return v.ArtifactID }
+
+// GetArtifactEntityName returns UseArtifactInput.ArtifactEntityName, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetArtifactEntityName() *string { return v.ArtifactEntityName }
+
+// GetArtifactProjectName returns UseArtifactInput.ArtifactProjectName, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetArtifactProjectName() *string { return v.ArtifactProjectName }
+
+// GetUsedAs returns UseArtifactInput.UsedAs, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetUsedAs() *string { return v.UsedAs }
+
+// GetClientMutationId returns UseArtifactInput.ClientMutationId, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetClientMutationId() *string { return v.ClientMutationId }
 
 // UseArtifactResponse is returned by UseArtifact on success.
 type UseArtifactResponse struct {
@@ -1963,23 +2014,11 @@ func (v *__UpsertBucketInput) GetSummaryMetrics() *string { return v.SummaryMetr
 
 // __UseArtifactInput is used internally by genqlient
 type __UseArtifactInput struct {
-	EntityName  string `json:"entityName"`
-	ProjectName string `json:"projectName"`
-	RunName     string `json:"runName"`
-	ArtifactID  string `json:"artifactID"`
+	Input UseArtifactInput `json:"input"`
 }
 
-// GetEntityName returns __UseArtifactInput.EntityName, and is useful for accessing the field via an interface.
-func (v *__UseArtifactInput) GetEntityName() string { return v.EntityName }
-
-// GetProjectName returns __UseArtifactInput.ProjectName, and is useful for accessing the field via an interface.
-func (v *__UseArtifactInput) GetProjectName() string { return v.ProjectName }
-
-// GetRunName returns __UseArtifactInput.RunName, and is useful for accessing the field via an interface.
-func (v *__UseArtifactInput) GetRunName() string { return v.RunName }
-
-// GetArtifactID returns __UseArtifactInput.ArtifactID, and is useful for accessing the field via an interface.
-func (v *__UseArtifactInput) GetArtifactID() string { return v.ArtifactID }
+// GetInput returns __UseArtifactInput.Input, and is useful for accessing the field via an interface.
+func (v *__UseArtifactInput) GetInput() UseArtifactInput { return v.Input }
 
 // The query executed by ArtifactFileURLs.
 const ArtifactFileURLs_Operation = `
@@ -3039,8 +3078,8 @@ func UpsertBucket(
 
 // The mutation executed by UseArtifact.
 const UseArtifact_Operation = `
-mutation UseArtifact ($entityName: String!, $projectName: String!, $runName: String!, $artifactID: ID!) {
-	useArtifact(input: {entityName:$entityName,projectName:$projectName,runName:$runName,artifactID:$artifactID}) {
+mutation UseArtifact ($input: UseArtifactInput!) {
+	useArtifact(input: $input) {
 		artifact {
 			id
 		}
@@ -3048,22 +3087,17 @@ mutation UseArtifact ($entityName: String!, $projectName: String!, $runName: Str
 }
 `
 
+// artifactEntityName and artifactProjectName are in a later server version
 func UseArtifact(
 	ctx_ context.Context,
 	client_ graphql.Client,
-	entityName string,
-	projectName string,
-	runName string,
-	artifactID string,
+	input UseArtifactInput,
 ) (data_ *UseArtifactResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "UseArtifact",
 		Query:  UseArtifact_Operation,
 		Variables: &__UseArtifactInput{
-			EntityName:  entityName,
-			ProjectName: projectName,
-			RunName:     runName,
-			ArtifactID:  artifactID,
+			Input: input,
 		},
 	}
 

@@ -15,6 +15,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pfxout"
+	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -164,6 +165,7 @@ func NewStream(
 		settings:     params.Settings,
 		sentryClient: params.Sentry,
 	}
+	clientId := randomid.GenerateUniqueID(32)
 
 	// TODO: replace this with a logger that can be read by the user
 	peeker := &observability.Peeker{}
@@ -182,7 +184,12 @@ func NewStream(
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
 	var runfilesUploaderOrNil runfiles.Uploader
 	if backendOrNil != nil {
-		graphqlClientOrNil = NewGraphQLClient(backendOrNil, params.Settings, peeker)
+		graphqlClientOrNil = NewGraphQLClient(
+			backendOrNil,
+			params.Settings,
+			peeker,
+			clientId,
+		)
 		fileStreamOrNil = NewFileStream(
 			backendOrNil,
 			s.logger,
@@ -190,6 +197,7 @@ func NewStream(
 			terminalPrinter,
 			params.Settings,
 			peeker,
+			clientId,
 		)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileTransferStats,

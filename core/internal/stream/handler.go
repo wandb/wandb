@@ -19,7 +19,6 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pathtree"
-	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
@@ -58,12 +57,6 @@ type HandlerParams struct {
 
 // Handler handles the incoming messages, processes them, and passes them to the writer.
 type Handler struct {
-	// clientID is an ID for this process.
-	//
-	// This identifies the process that uploaded a set of metrics when
-	// running in "shared" mode, where there may be multiple writers for
-	// the same run.
-	clientID string
 
 	// commit is the W&B Git commit hash
 	commit string
@@ -139,7 +132,6 @@ func NewHandler(
 	params HandlerParams,
 ) *Handler {
 	return &Handler{
-		clientID:             randomid.GenerateUniqueID(32),
 		commit:               params.Commit,
 		fileTransferStats:    params.FileTransferStats,
 		fwdChan:              params.FwdChan,
@@ -1059,6 +1051,7 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	for _, newMetric := range newMetricDefs {
 		// We don't mark the record 'Local' because partial history updates
 		// are not already written to the transaction log.
+		newMetric.ExpandedFromGlob = true
 		rec := &spb.Record{
 			RecordType: &spb.Record_Metric{Metric: newMetric},
 		}

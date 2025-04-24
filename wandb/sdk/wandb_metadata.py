@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
@@ -9,24 +8,14 @@ from typing import Any, Callable, Dict, List, Optional
 
 from google.protobuf.timestamp_pb2 import Timestamp
 from pydantic import BaseModel, ConfigDict, Field
-from pydantic.version import VERSION as PYDANTIC_VERSION
+from typing_extensions import Self
 
 from wandb import termwarn
+from wandb._pydantic import IS_PYDANTIC_V2
 from wandb.proto import wandb_internal_pb2
 
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
-
-
-is_pydantic_v2 = int(PYDANTIC_VERSION[0]) == 2
-
-if is_pydantic_v2:
+if IS_PYDANTIC_V2:
     from pydantic import model_validator
-
-else:
-    pass
 
 
 class DiskInfo(BaseModel, validate_assignment=True):
@@ -382,7 +371,7 @@ class Metadata(BaseModel, validate_assignment=True):
     def __init__(self, **data):
         super().__init__(**data)
 
-        if not is_pydantic_v2:
+        if not IS_PYDANTIC_V2:
             termwarn(
                 "Metadata is read-only when using pydantic v1.",
                 repeat=False,
@@ -394,14 +383,14 @@ class Metadata(BaseModel, validate_assignment=True):
         self._post_update_callback: Optional[Callable] = None  # type: ignore
 
     def _set_callback(self, callback: Callable) -> None:
-        if not is_pydantic_v2:
+        if not IS_PYDANTIC_V2:
             return
         self._post_update_callback = callback
 
     @contextmanager
     def disable_callback(self):
         """Temporarily disable callback."""
-        if not is_pydantic_v2:
+        if not IS_PYDANTIC_V2:
             yield
         else:
             original_callback = self._post_update_callback
@@ -411,7 +400,7 @@ class Metadata(BaseModel, validate_assignment=True):
             finally:
                 self._post_update_callback = original_callback
 
-    if is_pydantic_v2:
+    if IS_PYDANTIC_V2:
 
         @model_validator(mode="after")
         def _callback(self) -> Self:

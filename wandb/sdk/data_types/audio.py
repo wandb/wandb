@@ -25,10 +25,9 @@ class Audio(BatchableMedia):
 
     def __init__(self, data_or_path, sample_rate=None, caption=None):
         """Accept a path to an audio file or a numpy array of audio data."""
-        super().__init__()
+        super().__init__(caption=caption)
         self._duration = None
         self._sample_rate = sample_rate
-        self._caption = caption
 
         if isinstance(data_or_path, str):
             if self.path_is_reference(data_or_path):
@@ -80,7 +79,6 @@ class Audio(BatchableMedia):
         json_dict.update(
             {
                 "_type": self._log_type,
-                "caption": self._caption,
             }
         )
         return json_dict

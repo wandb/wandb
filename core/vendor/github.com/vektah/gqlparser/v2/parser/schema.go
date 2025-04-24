@@ -1,8 +1,7 @@
 package parser
 
 import (
-	//nolint:revive
-	. "github.com/vektah/gqlparser/v2/ast"
+	. "github.com/vektah/gqlparser/v2/ast" //nolint:staticcheck // bad, yeah
 	"github.com/vektah/gqlparser/v2/lexer"
 )
 

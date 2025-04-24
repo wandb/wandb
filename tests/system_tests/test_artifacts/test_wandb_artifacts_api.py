@@ -32,28 +32,6 @@ def test_fetching_artifact_files(user):
     assert open(file_path).read() == "testing"
 
 
-def test_artifact_download_offline_mode(user, monkeypatch, tmp_path):
-    project = "test"
-
-    # Create the test file in the temporary directory
-    file_path = tmp_path / "boom.txt"
-    file_path.write_text("testing")
-
-    with wandb.init(entity=user, project=project) as run:
-        artifact = wandb.Artifact("test-artifact", "test-type")
-        artifact.add_file(str(file_path), "test-name")  # Convert Path to string
-        run.log_artifact(artifact, aliases=["sequence"])
-        artifact.wait()
-
-    # Use monkeypatch to set WANDB_MODE after creating the artifact
-    monkeypatch.setenv("WANDB_MODE", "offline")
-
-    with pytest.raises(
-        RuntimeError, match="Cannot download artifacts in offline mode."
-    ):
-        artifact.download()
-
-
 def test_save_aliases_after_logging_artifact(user):
     project = "test"
     run = wandb.init(entity=user, project=project)
@@ -505,3 +483,29 @@ def test_artifact_enable_tracking_flag(user, api, mocker):
         client=api.client,
         enable_tracking=False,
     )
+
+
+def test_artifact_history_step(user, api):
+    """Test that the correct history step is returned for an artifact."""
+    entity = user
+    project = "test-project"
+    artifact_name = "test-artifact"
+    artifact_type = "test-type"
+
+    with wandb.init(entity=entity, project=project) as run:
+        for i in range(2):
+            art = wandb.Artifact(artifact_name, artifact_type)
+            with art.new_file("test.txt", "w") as f:
+                f.write(f"testing {i}")
+            run.log_artifact(art)
+            wandb.log({"metric": 5})
+
+    artifact = api.artifact(
+        name=f"{entity}/{project}/{artifact_name}:v0",
+    )
+    assert artifact.history_step is None
+
+    artifact = api.artifact(
+        name=f"{entity}/{project}/{artifact_name}:v1",
+    )
+    assert artifact.history_step == 0

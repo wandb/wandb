@@ -33,7 +33,9 @@ func ComputeFileB64MD5(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	hasher := md5.New()
 	if _, err = io.Copy(hasher, f); err != nil {

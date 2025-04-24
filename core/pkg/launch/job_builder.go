@@ -216,12 +216,12 @@ func NewJobBuilder(settings *spb.Settings, logger *observability.CoreLogger, ver
 
 func (j *JobBuilder) logIfVerbose(msg string, level LogLevel) {
 
-	switch {
-	case level == Log:
+	switch level {
+	case Log:
 		j.logger.Info(msg)
-	case level == Warn:
+	case Warn:
 		j.logger.Warn(msg)
-	case level == Error:
+	case Error:
 		j.logger.Error(msg)
 	default:
 		j.logger.Info(msg)
@@ -239,7 +239,9 @@ func (j *JobBuilder) handleMetadataFile() (*RunMetadata, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	var runMetadata RunMetadata
 	err = json.NewDecoder(file).Decode(&runMetadata)
@@ -372,18 +374,18 @@ func (j *JobBuilder) hasImageJobIngredients(metadata RunMetadata) bool {
 }
 
 func (j *JobBuilder) getSourceAndName(sourceType SourceType, programRelpath *string, metadata RunMetadata) (Source, *string, error) {
-	switch {
-	case sourceType == RepoSourceType:
+	switch sourceType {
+	case RepoSourceType:
 		if programRelpath == nil {
 			return nil, nil, fmt.Errorf("no program path found for repo sourced job")
 		}
 		return j.createRepoJobSource(*programRelpath, metadata)
-	case sourceType == ArtifactSourceType:
+	case ArtifactSourceType:
 		if programRelpath == nil {
 			return nil, nil, fmt.Errorf("no program path found for artifact sourced job")
 		}
 		return j.createArtifactJobSource(*programRelpath, metadata)
-	case sourceType == ImageSourceType:
+	case ImageSourceType:
 		return j.createImageJobSource(metadata)
 	default:
 		// TODO: warn if source type was set to something different

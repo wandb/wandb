@@ -21,7 +21,7 @@ on:
 jobs:
   prepare-release:
     name: Prepare release (${{ inputs.version }})
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
@@ -86,7 +86,7 @@ jobs:
       ##################################################
       - name: Downgrade Go version
         run: |
-          sed -i '' 's/1.23.6/1.22.12/' core/go.mod
+          sed -i '' 's/1.24.2/1.22.12/' core/go.mod
 
       ##################################################
       # Install Go.
@@ -166,7 +166,7 @@ jobs:
           # make it invalid, breaking the job.
           #
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_SKIP: cp36-*
+          CIBW_SKIP: cp36-* cp37-*
           CIBW_ARCHS_LINUX: aarch64
           CIBW_BEFORE_ALL_LINUX: >
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
@@ -189,7 +189,7 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-20.04
+          - ubuntu-22.04
           - windows-2019
           - macos-14
 
@@ -222,7 +222,7 @@ jobs:
           # make it invalid, breaking the job.
           #
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_SKIP: cp36-*
+          CIBW_SKIP: cp36-* cp37-*
           CIBW_ARCHS_LINUX: x86_64 #aarch64 is handled by build-linux-arm64-wheels
           CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
 
@@ -372,7 +372,7 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-20.04
+          - ubuntu-22.04
           - windows-2019
           - macos-14
         use_legacy_service: [false, true]

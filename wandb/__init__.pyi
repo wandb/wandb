@@ -106,7 +106,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.19.9.dev1"
+__version__: str = "0.19.11.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -229,6 +229,7 @@ def init(
             "default",
             "return_previous",
             "finish_previous",
+            "create_new",
         ]
     ) = None,
     resume: bool | Literal["allow", "never", "must", "auto"] | None = None,
@@ -476,6 +477,7 @@ def login(
     force: Optional[bool] = None,
     timeout: Optional[int] = None,
     verify: bool = False,
+    referrer: Optional[str] = None,
 ) -> bool:
     """Set up W&B login credentials.
 
@@ -495,6 +497,7 @@ def login(
         force: (bool, optional) If true, will force a relogin.
         timeout: (int, optional) Number of seconds to wait for user input.
         verify: (bool) Verify the credentials with the W&B server.
+        referrer: (string, optional) The referrer to use in the URL login request.
 
     Returns:
         bool: if key is configured

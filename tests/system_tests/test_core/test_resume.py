@@ -1,6 +1,45 @@
 import numpy as np
 import pytest
 import wandb
+from wandb.sdk.lib import runid
+
+
+@pytest.mark.wandb_core_only
+def test_resume_runtime_calculation(user, wandb_backend_spy):
+    """
+    This test is used to verify that the runtime is calculated correctly for a
+    run that is resumed.
+    """
+    run_id = runid.generate_id()
+
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="RunResumeStatus"),
+        gql.once(
+            content={
+                "data": {
+                    "model": {
+                        "entity": {"name": f"{user}"},
+                        "bucket": {
+                            "name": run_id,
+                            "config": "{}",
+                            "historyLineCount": 0,
+                            "eventsLineCount": 0,
+                            "logLineCount": 0,
+                            "eventsTail": "[]",
+                            "historyTail": "[]",
+                            "summaryMetrics": '{"_wandb": {"runtime": 130}}',  # injected runtime
+                            "wandbConfig": '{"t": 1}',  # required to check that the run exists
+                        },
+                    },
+                }
+            },
+            status=200,
+        ),
+    )
+
+    with wandb.init(id=run_id, resume="must", project="runtime") as run:
+        assert run._start_runtime == 130
 
 
 def test_resume_tags_overwrite(user, test_settings):

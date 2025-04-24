@@ -3,11 +3,10 @@ import os
 import platform
 import re
 import shutil
-from typing import TYPE_CHECKING, Optional, Sequence, Type, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union, cast
 
 import wandb
 from wandb import util
-from wandb._globals import _datatypes_callback
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.paths import LogicalPath
 
@@ -192,7 +191,7 @@ class Media(WBValue):
             shutil.move(self._path, new_path)
             self._path = new_path
             self._is_tmp = False
-            _datatypes_callback(media_path)
+            run._publish_file(media_path)
         else:
             try:
                 shutil.copy(self._path, new_path)
@@ -200,7 +199,7 @@ class Media(WBValue):
                 if not ignore_copy_err:
                     raise e
             self._path = new_path
-            _datatypes_callback(media_path)
+            run._publish_file(media_path)
 
     def to_json(self, run: Union["LocalRun", "Artifact"]) -> dict:
         """Serialize the object into a JSON blob.
@@ -222,7 +221,10 @@ class Media(WBValue):
         from wandb.data_types import Audio
         from wandb.sdk.wandb_run import Run
 
-        json_obj = {}
+        json_obj: Dict[str, Any] = {}
+
+        if self._caption is not None:
+            json_obj["caption"] = self._caption
 
         if isinstance(run, Run):
             json_obj.update(
@@ -232,6 +234,7 @@ class Media(WBValue):
                     "size": self._size,
                 }
             )
+
             artifact_entry_url = self._get_artifact_entry_ref_url()
             if artifact_entry_url is not None:
                 json_obj["artifact_path"] = artifact_entry_url
@@ -337,8 +340,11 @@ class BatchableMedia(Media):
     organize files by name in the media directory.
     """
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(
+        self,
+        caption: Optional[str] = None,
+    ) -> None:
+        super().__init__(caption=caption)
 
     @classmethod
     def seq_to_json(

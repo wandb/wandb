@@ -284,6 +284,8 @@ message MetricRecord {
   MetricGoal goal = 8;
   MetricControl _control = 9;
 
+  bool expanded_from_glob = 10;
+
   enum MetricGoal {
     GOAL_UNSET = 0;
     GOAL_MINIMIZE = 1;
@@ -390,7 +392,7 @@ message FilesItem {
     ARTIFACT = 3;
   }
 
-  // A path or Unix glob relative to the W&B files directory.
+  // A path or Unix glob relative to the run's files directory.
   string path = 1;
 
   // When to upload the file.
@@ -1404,6 +1406,12 @@ enum ServerFeature {
   // Indicates that the server supports downloading files with additional artifact collection memberships context in the
   // url.
   ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER = 6;
+
+  // Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
+  USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION = 7;
+
+  // Indicates that the server supports expanding defined metric globs on the server side.
+  EXPAND_DEFINED_METRIC_GLOBS = 8;
 }
 
 /**

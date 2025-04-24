@@ -1531,6 +1531,8 @@ class SendManager:
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
         res = saver.save(
+            entity=artifact.entity,
+            project=artifact.project,
             type=artifact.type,
             name=artifact.name,
             client_id=artifact.client_id,
