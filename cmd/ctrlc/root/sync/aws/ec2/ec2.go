@@ -121,8 +121,8 @@ func NewSyncEC2Cmd() *cobra.Command {
 					}
 
 					instanceData := EC2Instance{
-						ID:         *instance.InstanceId,
-						Name:       name,
+						ID:   *instance.InstanceId,
+						Name: name,
 						ConnectionMethod: ConnectionMethod{
 							Type:       "aws",
 							Region:     region,
