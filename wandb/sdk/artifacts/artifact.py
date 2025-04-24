@@ -480,35 +480,48 @@ class Artifact:
     @property
     @ensure_logged
     def entity(self) -> str:
-        """The name of the entity of the secondary (portfolio) artifact collection."""
+        """The name of the entity of the artifact collection.
+
+        If the artifact is a link, the entity will be the entity of the linked artifact.
+        """
         assert self._entity is not None
         return self._entity
 
     @property
     @ensure_logged
     def project(self) -> str:
-        """The name of the project of the secondary (portfolio) artifact collection."""
+        """The name of the project of the artifact.
+
+        If the artifact is a link, the project will be the project of the linked artifact.
+        """
         assert self._project is not None
         return self._project
 
     @property
     def name(self) -> str:
-        """The artifact name and version in its secondary (portfolio) collection.
+        """The artifact name and version of the artifact.
 
-        A string with the format `{collection}:{alias}`. Before the artifact is saved,
-        contains only the name since the version is not yet known.
+        A string with the format `{collection}:{alias}`. If fetched before an artifact is logged/saved, the name won't contain the alias.
+        If the artifact is a link, the name will be the name of the linked artifact.
         """
         return self._name
 
     @property
     def qualified_name(self) -> str:
-        """The entity/project/name of the secondary (portfolio) collection."""
+        """The entity/project/name of the artifact.
+
+        If the artifact is a link, the qualified name will be the qualified name of the linked artifact path.
+        """
         return f"{self.entity}/{self.project}/{self.name}"
 
     @property
     @ensure_logged
     def version(self) -> str:
-        """The artifact's version in its secondary (portfolio) collection."""
+        """The artifact's version.
+
+        A string with the format `v{number}`.
+        If the artifact is a link artifact, the version will be from the linked collection.
+        """
         assert self._version is not None
         return self._version
 
@@ -531,35 +544,35 @@ class Artifact:
     @property
     @ensure_logged
     def source_entity(self) -> str:
-        """The name of the entity of the primary (sequence) artifact collection."""
+        """The name of the entity of the source artifact."""
         assert self._source_entity is not None
         return self._source_entity
 
     @property
     @ensure_logged
     def source_project(self) -> str:
-        """The name of the project of the primary (sequence) artifact collection."""
+        """The name of the project of the source artifact."""
         assert self._source_project is not None
         return self._source_project
 
     @property
     def source_name(self) -> str:
-        """The artifact name and version in its primary (sequence) collection.
+        """The artifact name and version of the source artifact.
 
-        A string with the format `{collection}:{alias}`. Before the artifact is saved,
+        A string with the format `{source_collection}:{alias}`. Before the artifact is saved,
         contains only the name since the version is not yet known.
         """
         return self._source_name
 
     @property
     def source_qualified_name(self) -> str:
-        """The entity/project/name of the primary (sequence) collection."""
+        """The source_entity/source_project/source_name of the source artifact."""
         return f"{self.source_entity}/{self.source_project}/{self.source_name}"
 
     @property
     @ensure_logged
     def source_version(self) -> str:
-        """The artifact's version in its primary (sequence) collection.
+        """The source artifact's version.
 
         A string with the format `v{number}`.
         """
@@ -569,7 +582,7 @@ class Artifact:
     @property
     @ensure_logged
     def source_collection(self) -> ArtifactCollection:
-        """The artifact's primary (sequence) collection."""
+        """The artifact's original collection."""
         base_name = self.source_name.split(":")[0]
         return ArtifactCollection(
             self._client, self.source_entity, self.source_project, base_name, self.type
@@ -577,7 +590,11 @@ class Artifact:
 
     @property
     def is_link(self) -> bool:
-        """Whether the artifact is a link to a source artifact."""
+        """Boolean flag indicating if the artifact is a link artifact.
+
+        True: The artifact is a link artifact to a source artifact.
+        False: The artifact is a source artifact.
+        """
         return self._is_link
 
     @property
@@ -683,9 +700,15 @@ class Artifact:
         standardized team model or dataset card. In the W&B UI the
         description is rendered as markdown.
 
+        Editing description will apply the changes to the source artifact and all linked artifacts associated with it.
+
         Args:
             description: Free text that offers a description of the artifact.
         """
+        if self.is_link:
+            wandb.termwarn(
+                "Editing the description of this linked artifact will edit the description for the source artifact and it's linked artifacts as well."
+            )
         self._description = description
 
     @property
@@ -704,10 +727,15 @@ class Artifact:
         the class distribution of a dataset.
 
         Note: There is currently a limit of 100 total keys.
+        Editing metadata will apply the changes to the source artifact and all linked artifacts associated with it.
 
         Args:
             metadata: Structured data associated with the artifact.
         """
+        if self.is_link:
+            wandb.termwarn(
+                "Editing the metadata of this linked artifact will edit the metadata for the source artifact and it's linked artifacts as well."
+            )
         self._metadata = self._normalize_metadata(metadata)
 
     @property
@@ -747,6 +775,12 @@ class Artifact:
         """
         if self.type == "wandb-history":
             raise ValueError("Cannot set artifact TTL for type wandb-history")
+
+        if self.is_link:
+            raise ValueError(
+                "Cannot set TTL for link artifact."
+                " Please unlink the artifact first then set the TTL for the source artifact"
+            )
 
         self._ttl_changed = True
         if isinstance(ttl, ArtifactTTL):
@@ -792,7 +826,14 @@ class Artifact:
     @tags.setter
     @ensure_logged
     def tags(self, tags: list[str]) -> None:
-        """Set the tags associated with this artifact."""
+        """Set the tags associated with this artifact.
+
+        Editing tags will apply the changes to the source artifact and all linked artifacts associated with it.
+        """
+        if self.is_link:
+            wandb.termwarn(
+                "Editing tags will apply the changes to the source artifact and all linked artifacts associated with it."
+            )
         self._tags = validate_tags(tags)
 
     @property
@@ -2218,6 +2259,8 @@ class Artifact:
         If called on a linked artifact (i.e. a member of a portfolio collection): only the link is deleted, and the
         source artifact is unaffected.
 
+        Note: Use `artifact.unlink()` to unlink a link artifact from the source artifact instead of calling `artifact.delete()`.
+
         Args:
             delete_aliases: If set to `True`, deletes all aliases associated with the artifact.
                 Otherwise, this raises an exception if the artifact has existing
@@ -2227,10 +2270,13 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        if not self.is_link:
-            self._delete(delete_aliases)
-        else:
+        if self.is_link:
+            wandb.termwarn(
+                "Deleting a link artifact will only unlink the artifact from the source artifact and not delete the source artifact and the data of the source artifact."
+            )
             self._unlink()
+        else:
+            self._delete(delete_aliases)
 
     @normalize_exceptions
     def _delete(self, delete_aliases: bool = False) -> None:
@@ -2276,6 +2322,11 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
+        if self.is_link:
+            wandb.termwarn(
+                "Linking to a link artifact will result in directly linking to the source artifact of that link artifact."
+            )
+
         singleton = wandb_setup._setup(start_service=False)
 
         if run := singleton.most_recent_active_run:
@@ -2334,7 +2385,7 @@ class Artifact:
 
     @ensure_logged
     def used_by(self) -> list[Run]:
-        """Get a list of the runs that have used this artifact.
+        """Get a list of the runs that have used this artifact and its linked artifacts.
 
         Returns:
             A list of `Run` objects.
