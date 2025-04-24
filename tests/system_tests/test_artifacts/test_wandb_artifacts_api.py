@@ -483,3 +483,29 @@ def test_artifact_enable_tracking_flag(user, api, mocker):
         client=api.client,
         enable_tracking=False,
     )
+
+
+def test_artifact_history_step(user, api):
+    """Test that the correct history step is returned for an artifact."""
+    entity = user
+    project = "test-project"
+    artifact_name = "test-artifact"
+    artifact_type = "test-type"
+
+    with wandb.init(entity=entity, project=project) as run:
+        for i in range(2):
+            art = wandb.Artifact(artifact_name, artifact_type)
+            with art.new_file("test.txt", "w") as f:
+                f.write(f"testing {i}")
+            run.log_artifact(art)
+            wandb.log({"metric": 5})
+
+    artifact = api.artifact(
+        name=f"{entity}/{project}/{artifact_name}:v0",
+    )
+    assert artifact.history_step is None
+
+    artifact = api.artifact(
+        name=f"{entity}/{project}/{artifact_name}:v1",
+    )
+    assert artifact.history_step == 0

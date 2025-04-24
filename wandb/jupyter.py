@@ -6,9 +6,12 @@ import os
 import re
 import shutil
 import sys
+import traceback
 from base64 import b64encode
+from typing import Any
 
 import IPython
+import IPython.display
 import requests
 from IPython.core.magic import Magics, line_cell_magic, magics_class
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
@@ -16,113 +19,153 @@ from requests.compat import urljoin
 
 import wandb
 import wandb.util
-from wandb.sdk import wandb_run
+from wandb.sdk import wandb_run, wandb_setup
 from wandb.sdk.lib import filesystem
 
 logger = logging.getLogger(__name__)
 
-__IFrame = None
+
+def display_if_magic_is_used(run: wandb_run.Run) -> bool:
+    """Display a run's page if the cell has the %%wandb cell magic.
+
+    Args:
+        run: The run to display.
+
+    Returns:
+        Whether the %%wandb cell magic was present.
+    """
+    if not _current_cell_wandb_magic:
+        return False
+
+    _current_cell_wandb_magic.display_if_allowed(run)
+    return True
 
 
-def maybe_display():
-    """Display a run if the user added cell magic and we have run."""
-    if __IFrame is not None:
-        return __IFrame.maybe_display()
-    return False
+class _WandbCellMagicState:
+    """State for a cell with the %%wandb cell magic."""
+
+    def __init__(self, *, height: int) -> None:
+        """Initializes the %%wandb cell magic state.
+
+        Args:
+            height: The desired height for displayed iframes.
+        """
+        self._height = height
+        self._already_displayed = False
+
+    def display_if_allowed(self, run: wandb_run.Run) -> None:
+        """Display a run's iframe if one is not already displayed.
+
+        Args:
+            run: The run to display.
+        """
+        if self._already_displayed:
+            return
+        self._already_displayed = True
+
+        _display_wandb_run(run, height=self._height)
 
 
-class IFrame:
-    def __init__(self, path=None, opts=None):
-        self.path = path
-        self.api = wandb.Api()
-        self.opts = opts or {}
-        self.displayed = False
-        self.height = self.opts.get("height", 420)
+_current_cell_wandb_magic: _WandbCellMagicState | None = None
 
-    def maybe_display(self) -> bool:
-        if not self.displayed and (self.path or wandb.run):
-            IPython.display.display(self)
-        return self.displayed
 
-    def _repr_html_(self):
-        try:
-            self.displayed = True
-            if self.opts.get("workspace", False):
-                if self.path is None and wandb.run:
-                    self.path = wandb.run.path
-            if isinstance(self.path, str):
-                object = self.api.from_path(self.path)
-            else:
-                object = wandb.run
-            if object is None:
-                if wandb.Api().api_key is None:
-                    return "You must be logged in to render wandb in jupyter, run `wandb.login()`"
-                else:
-                    object = self.api.project(
-                        "/".join(
-                            [
-                                wandb.Api().default_entity,
-                                wandb.util.auto_project_name(None),
-                            ]
-                        )
-                    )
-            return object.to_html(self.height, hidden=False)
-        except wandb.Error as e:
-            return f"Can't display wandb interface<br/>{e}"
+def _display_by_wandb_path(path: str, *, height: int) -> None:
+    """Display a wandb object (usually in an iframe) given its URI.
+
+    Args:
+        path: A path to a run, sweep, project, report, etc.
+        height: Height of the iframe in pixels.
+    """
+    api = wandb.Api()
+
+    try:
+        obj = api.from_path(path)
+
+        IPython.display.display_html(
+            obj.to_html(height=height),
+            raw=True,
+        )
+    except wandb.Error:
+        traceback.print_exc()
+        IPython.display.display_html(
+            f"Path {path!r} does not refer to a W&B object you can access.",
+            raw=True,
+        )
+
+
+def _display_wandb_run(run: wandb_run.Run, *, height: int) -> None:
+    """Display a run (usually in an iframe).
+
+    Args:
+        run: The run to display.
+        height: Height of the iframe in pixels.
+    """
+    IPython.display.display_html(
+        run.to_html(height=height),
+        raw=True,
+    )
 
 
 @magics_class
 class WandBMagics(Magics):
-    def __init__(self, shell, require_interaction=False):
+    def __init__(self, shell):
         super().__init__(shell)
-        self.options = {}
 
     @magic_arguments()
     @argument(
         "path",
         default=None,
         nargs="?",
-        help="A path to a resource you want to display, defaults to wandb.run.path",
-    )
-    @argument(
-        "-w",
-        "--workspace",
-        default=False,
-        action="store_true",
-        help="Display the entire run project workspace",
+        help="The path to a resource you want to display.",
     )
     @argument(
         "-h",
         "--height",
         default=420,
         type=int,
-        help="The height of the iframe in pixels",
+        help="The height of the iframe in pixels.",
     )
     @line_cell_magic
-    def wandb(self, line, cell=None):
-        """Display wandb resources in jupyter.  This can be used as cell or line magic.
+    def wandb(self, line: str, cell: str | None = None) -> None:
+        """Display wandb resources in Jupyter.
 
-        %wandb USERNAME/PROJECT/runs/RUN_ID
-        ---
-        %%wandb -h 1024
-        with wandb.init() as run:
-            run.log({"loss": 1})
+        This can be used as a line magic:
+
+            %wandb USERNAME/PROJECT/runs/RUN_ID
+
+        Or as a cell magic:
+
+            %%wandb -h 1024
+            with wandb.init() as run:
+                run.log({"loss": 1})
         """
-        # Record options
+        global _current_cell_wandb_magic
+
         args = parse_argstring(self.wandb, line)
-        self.options["height"] = args.height
-        self.options["workspace"] = args.workspace
-        iframe = IFrame(args.path, opts=self.options)
-        displayed = iframe.maybe_display()
-        if cell is not None:
-            if not displayed:
-                # Store the IFrame globally and attempt to display if we have a run
-                cell = (
-                    f"wandb.jupyter.__IFrame = wandb.jupyter.IFrame(opts={self.options})\n"
-                    + cell
-                    + "\nwandb.jupyter.__IFrame = None"
-                )
+        path: str | None = args.path
+        height: int = args.height
+
+        if path:
+            _display_by_wandb_path(path, height=height)
+            displayed = True
+        elif run := wandb_setup._setup(start_service=False).most_recent_active_run:
+            _display_wandb_run(run, height=height)
+            displayed = True
+        else:
+            displayed = False
+
+        # If this is being used as a line magic ("%wandb"), we are done.
+        # When used as a cell magic ("%%wandb"), we must run the cell.
+        if cell is None:
+            return
+
+        if not displayed:
+            _current_cell_wandb_magic = _WandbCellMagicState(height=height)
+
+        try:
             IPython.get_ipython().run_cell(cell)
+        finally:
+            _current_cell_wandb_magic = None
 
 
 def notebook_metadata_from_jupyter_servers_and_kernel_id():
@@ -217,7 +260,7 @@ def jupyter_servers_and_kernel_id():
     Used to query for the name of the notebook.
     """
     try:
-        import ipykernel
+        import ipykernel  # type: ignore
 
         kernel_id = re.search(
             "kernel-(.*).json", ipykernel.connect.get_connection_file()
@@ -264,8 +307,8 @@ def attempt_colab_login(
     referrer: str | None = None,
 ):
     """This renders an iframe to wandb in the hopes it posts back an api key."""
-    from google.colab import output
-    from google.colab._message import MessageError
+    from google.colab import output  # type: ignore
+    from google.colab._message import MessageError  # type: ignore
     from IPython import display
 
     display.display(
@@ -312,7 +355,7 @@ def attempt_colab_login(
 
 class Notebook:
     def __init__(self, settings: wandb.Settings) -> None:
-        self.outputs = {}
+        self.outputs: dict[int, Any] = {}
         self.settings = settings
         self.shell = IPython.get_ipython()
 
@@ -418,7 +461,7 @@ class Notebook:
     def save_history(self, run: wandb_run.Run):
         """This saves all cell executions in the current session as a new notebook."""
         try:
-            from nbformat import v4, validator, write
+            from nbformat import v4, validator, write  # type: ignore
         except ImportError:
             wandb.termerror(
                 "The nbformat package was not found."

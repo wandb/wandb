@@ -41,13 +41,13 @@ import wandb
 import wandb.env
 import wandb.util
 from wandb import trigger
-from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError, UnsupportedError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
+from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import (
     MetadataRequest,
     MetricRecord,
@@ -691,9 +691,7 @@ class Run:
         #  does the total time get calculated right (not as 2 days and 15 minutes)?
         self._start_time = time.time()
 
-        _datatypes_set_callback(self._datatypes_callback)
-
-        self._printer = printer.new_printer()
+        self._printer = printer.new_printer(settings)
 
         self._torch_history: wandb_torch.TorchHistory | None = None  # type: ignore
 
@@ -815,8 +813,9 @@ class Run:
                     self._unique_launch_artifact_sequence_names[sequence_name] = item
 
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
-        if not hasattr(self, "_telemetry_obj"):
+        if not hasattr(self, "_telemetry_obj") or self._is_finished:
             return
+
         self._telemetry_obj.MergeFrom(telem_obj)
         self._telemetry_obj_dirty = True
         self._telemetry_flush()
@@ -1041,11 +1040,12 @@ class Run:
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
         deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__mode,
+            field_name=Deprecated.run__mode,
             warning_message=(
                 "The mode property of wandb.run is deprecated "
                 "and will be removed in a future release."
             ),
+            run=self,
         )
         return "dryrun" if self._settings._offline else "run"
 
@@ -1089,7 +1089,7 @@ class Run:
         Please use `run.project` instead.
         """
         deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__project_name,
+            field_name=Deprecated.run__project_name,
             warning_message=(
                 "The project_name method is deprecated and will be removed in a"
                 " future release. Please use `run.project` instead."
@@ -1115,7 +1115,7 @@ class Run:
         Please use `run.project_url` instead.
         """
         deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__get_project_url,
+            field_name=Deprecated.run__get_project_url,
             warning_message=(
                 "The get_project_url method is deprecated and will be removed in a"
                 " future release. Please use `run.project_url` instead."
@@ -1222,7 +1222,14 @@ class Run:
             )
             return None
 
-        return self._log_artifact(art)
+        artifact = self._log_artifact(art)
+
+        self._config.update(
+            {"_wandb": {"code_path": artifact.name}},
+            allow_val_change=True,
+        )
+
+        return artifact
 
     @_log_to_run
     def get_sweep_url(self) -> str | None:
@@ -1234,7 +1241,7 @@ class Run:
         Please use `run.sweep_url` instead.
         """
         deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__get_sweep_url,
+            field_name=Deprecated.run__get_sweep_url,
             warning_message=(
                 "The get_sweep_url method is deprecated and will be removed in a"
                 " future release. Please use `run.sweep_url` instead."
@@ -1264,7 +1271,7 @@ class Run:
         Please use `run.url` instead.
         """
         deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__get_url,
+            field_name=Deprecated.run__get_url,
             warning_message=(
                 "The get_url method is deprecated and will be removed in a"
                 " future release. Please use `run.url` instead."
@@ -1505,7 +1512,16 @@ class Run:
             self._backend.interface._publish_metric(metric_record)
 
     @_log_to_run
-    def _datatypes_callback(self, fname: str) -> None:
+    def _publish_file(self, fname: str) -> None:
+        """Mark a run file to be uploaded with the run.
+
+        This is a W&B-internal function: it can be used by other internal
+        wandb code.
+
+        Args:
+            fname: The path to the file in the run's files directory, relative
+                to the run's files directory.
+        """
         if not self._backend or not self._backend.interface:
             return
         files: FilesDict = dict(files=[(GlobStr(fname), "now")])
@@ -2039,10 +2055,11 @@ class Run:
 
         if sync is not None:
             deprecate.deprecate(
-                field_name=deprecate.Deprecated.run__log_sync,
+                field_name=Deprecated.run__log_sync,
                 warning_message=(
                     "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
                 ),
+                run=self,
             )
         if self._settings._shared and step is not None:
             wandb.termwarn(
@@ -2112,11 +2129,12 @@ class Run:
         if glob_str is None:
             # noop for historical reasons, run.save() may be called in legacy code
             deprecate.deprecate(
-                field_name=deprecate.Deprecated.run__save_no_args,
+                field_name=Deprecated.run__save_no_args,
                 warning_message=(
                     "Calling wandb.run.save without any arguments is deprecated."
                     "Changes to attributes are automatically persisted."
                 ),
+                run=self,
             )
             return True
 
@@ -2281,11 +2299,12 @@ class Run:
         """
         if quiet is not None:
             deprecate.deprecate(
-                field_name=deprecate.Deprecated.run__finish_quiet,
+                field_name=Deprecated.run__finish_quiet,
                 warning_message=(
                     "The `quiet` argument to `wandb.run.finish()` is deprecated, "
                     "use `wandb.Settings(quiet=...)` to set this instead."
                 ),
+                run=self,
             )
         return self._finish(exit_code)
 
@@ -2294,6 +2313,11 @@ class Run:
         self,
         exit_code: int | None = None,
     ) -> None:
+        if self._is_finished:
+            return
+
+        assert self._wl
+
         logger.info(f"finishing run {self._get_path()}")
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
@@ -2307,6 +2331,7 @@ class Run:
         # Early-stage hooks may use methods that require _is_finished
         # to be False, so we set this after running those hooks.
         self._is_finished = True
+        self._wl.remove_active_run(self)
 
         try:
             self._atexit_cleanup(exit_code=exit_code)
@@ -2322,12 +2347,12 @@ class Run:
             #
             # TODO: Why not do this in _atexit_cleanup()?
             if self._settings.run_id:
-                assert self._wl
                 service = self._wl.assert_service()
                 service.inform_finish(run_id=self._settings.run_id)
 
         finally:
-            module.unset_globals()
+            if wandb.run is self:
+                module.unset_globals()
             wandb._sentry.end_session()
 
     @_log_to_run
@@ -2337,10 +2362,11 @@ class Run:
         """Deprecated alias for `finish()` - use finish instead."""
         if hasattr(self, "_telemetry_obj"):
             deprecate.deprecate(
-                field_name=deprecate.Deprecated.run__join,
+                field_name=Deprecated.run__join,
                 warning_message=(
                     "wandb.run.join() is deprecated, please use wandb.run.finish()."
                 ),
+                run=self,
             )
         self._finish(exit_code=exit_code)
 
@@ -2377,25 +2403,6 @@ class Run:
             "panel_config": panel_config,
         }
         self._config_callback(val=config, key=("_wandb", "visualize", visualize_key))
-
-    def _set_globals(self) -> None:
-        module.set_global(
-            run=self,
-            config=self.config,
-            log=self.log,
-            summary=self.summary,
-            save=self.save,
-            use_artifact=self.use_artifact,
-            log_artifact=self.log_artifact,
-            define_metric=self.define_metric,
-            alert=self.alert,
-            watch=self.watch,
-            unwatch=self.unwatch,
-            mark_preempting=self.mark_preempting,
-            log_model=self.log_model,
-            use_model=self.use_model,
-            link_model=self.link_model,
-        )
 
     def _redirect(
         self,
@@ -2580,13 +2587,7 @@ class Run:
             self._output_writer = None
 
     def _on_start(self) -> None:
-        # would like to move _set_global to _on_ready to unify _on_start and _on_attach
-        # (we want to do the set globals after attach)
-        # TODO(console) However _console_start calls Redirect that uses `wandb.run` hence breaks
-        # TODO(jupyter) However _header calls _header_run_info that uses wandb.jupyter that uses
-        #               `wandb.run` and hence breaks
-        self._set_globals()
-        self._header(settings=self._settings, printer=self._printer)
+        self._header()
 
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
@@ -2616,7 +2617,6 @@ class Run:
         with telemetry.context(run=self) as tel:
             tel.feature.attach = True
 
-        self._set_globals()
         self._is_attached = True
         self._on_ready()
 
@@ -2648,6 +2648,9 @@ class Run:
 
     def _on_ready(self) -> None:
         """Event triggered when run is ready for the user."""
+        assert self._wl
+        self._wl.add_active_run(self)
+
         self._register_telemetry_import_hooks()
 
         # start reporting any telemetry changes
@@ -2892,14 +2895,14 @@ class Run:
         """
         if summary and "copy" in summary:
             deprecate.deprecate(
-                deprecate.Deprecated.run__define_metric_copy,
+                Deprecated.run__define_metric_copy,
                 "define_metric(summary='copy') is deprecated and will be removed.",
                 self,
             )
 
         if (summary and "best" in summary) or goal is not None:
             deprecate.deprecate(
-                deprecate.Deprecated.run__define_metric_best_goal,
+                Deprecated.run__define_metric_best_goal,
                 "define_metric(summary='best', goal=...) is deprecated and will be removed. "
                 "Use define_metric(summary='min') or define_metric(summary='max') instead.",
                 self,
@@ -3901,59 +3904,41 @@ class Run:
     # ------------------------------------------------------------------------------
     # HEADER
     # ------------------------------------------------------------------------------
-    # Note: All the header methods are static methods since we want to share the printing logic
-    # with the service execution path that doesn't have access to the run instance
-    @staticmethod
-    def _header(
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
-        Run._header_wandb_version_info(settings=settings, printer=printer)
-        Run._header_sync_info(settings=settings, printer=printer)
-        Run._header_run_info(settings=settings, printer=printer)
+    def _header(self) -> None:
+        self._header_wandb_version_info()
+        self._header_sync_info()
+        self._header_run_info()
 
-    @staticmethod
-    def _header_wandb_version_info(
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
-        if settings.quiet or settings.silent:
+    def _header_wandb_version_info(self) -> None:
+        if self._settings.quiet or self._settings.silent:
             return
 
         # TODO: add this to a higher verbosity level
-        printer.display(f"Tracking run with wandb version {wandb.__version__}")
+        self._printer.display(f"Tracking run with wandb version {wandb.__version__}")
 
-    @staticmethod
-    def _header_sync_info(
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
-        if settings._offline:
-            printer.display(
+    def _header_sync_info(self) -> None:
+        if self._settings._offline:
+            self._printer.display(
                 [
-                    f"W&B syncing is set to {printer.code('`offline`')} in this directory.  ",
-                    f"Run {printer.code('`wandb online`')} or set {printer.code('WANDB_MODE=online')} "
-                    "to enable cloud syncing.",
+                    f"W&B syncing is set to {self._printer.code('`offline`')}"
+                    f" in this directory. Run {self._printer.code('`wandb online`')}"
+                    f" or set {self._printer.code('WANDB_MODE=online')}"
+                    " to enable cloud syncing.",
                 ]
             )
         else:
-            info = [f"Run data is saved locally in {printer.files(settings.sync_dir)}"]
-            if not printer.supports_html:
+            sync_dir = self._settings.sync_dir
+            info = [f"Run data is saved locally in {self._printer.files(sync_dir)}"]
+            if not self._printer.supports_html:
                 info.append(
-                    f"Run {printer.code('`wandb offline`')} to turn off syncing."
+                    f"Run {self._printer.code('`wandb offline`')} to turn off syncing."
                 )
-            if not settings.quiet and not settings.silent:
-                printer.display(info)
+            if not self._settings.quiet and not self._settings.silent:
+                self._printer.display(info)
 
-    @staticmethod
-    def _header_run_info(
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
+    def _header_run_info(self) -> None:
+        settings, printer = self._settings, self._printer
+
         if settings._offline or settings.silent:
             return
 
@@ -3973,7 +3958,7 @@ class Run:
         if printer.supports_html:
             import wandb.jupyter
 
-            if not wandb.jupyter.maybe_display():
+            if not wandb.jupyter.display_if_magic_is_used(self):
                 run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
 

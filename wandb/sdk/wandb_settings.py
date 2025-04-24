@@ -246,7 +246,7 @@ class Settings(BaseModel, validate_assignment=True):
 
       "wrap_emu" - Same as "wrap" but captures output through an emulator.
       Derived from the `wrap` setting and should not be set manually.
-      """
+    """
 
     console_multipart: bool = False
     """Whether to produce multipart console log files."""
@@ -376,6 +376,7 @@ class Settings(BaseModel, validate_assignment=True):
             "default",
             "return_previous",
             "finish_previous",
+            "create_new",
         ],
         bool,
     ] = "default"
@@ -384,8 +385,14 @@ class Settings(BaseModel, validate_assignment=True):
     Options:
     - "default": Use "finish_previous" in notebooks and "return_previous"
         otherwise.
-    - "return_previous": Return the active run.
-    - "finish_previous": Finish the active run, then return a new one.
+    - "return_previous": Return the most recently created run
+        that is not yet finished. This does not update `wandb.run`; see
+        the "create_new" option.
+    - "finish_previous": Finish all active runs, then return a new run.
+    - "create_new": Create a new run without modifying other active runs.
+        Does not update `wandb.run` and top-level functions like `wandb.log`.
+        Because of this, some older integrations that rely on the global run
+        will not work.
 
     Can also be a boolean, but this is deprecated. False is the same as
     "return_previous", and True is the same as "finish_previous".
@@ -458,11 +465,7 @@ class Settings(BaseModel, validate_assignment=True):
     save_code: Optional[bool] = None
     """Whether to save the code associated with the run."""
 
-    settings_system: str = Field(
-        default_factory=lambda: _path_convert(
-            os.path.join("~", ".config", "wandb", "settings")
-        )
-    )
+    settings_system: Optional[str] = None
     """Path to the system-wide settings file."""
 
     show_colors: Optional[bool] = None
@@ -687,6 +690,12 @@ class Settings(BaseModel, validate_assignment=True):
     """Flag to delegate automatic computation of summary from history to the server.
 
     This does not disable user-provided summary updates.
+    """
+
+    x_server_side_expand_glob_metrics: bool = False
+    """Flag to delegate glob matching of metrics in define_metric to the server.
+
+    If the server does not support this, the client will perform the glob matching.
     """
 
     x_service_transport: Optional[str] = None
@@ -1052,9 +1061,12 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("settings_system", mode="after")
     @classmethod
     def validate_settings_system(cls, value):
-        if isinstance(value, pathlib.Path):
+        if value is None:
+            return None
+        elif isinstance(value, pathlib.Path):
             return str(_path_convert(value))
-        return _path_convert(value)
+        else:
+            return _path_convert(value)
 
     @field_validator("x_service_wait", mode="after")
     @classmethod

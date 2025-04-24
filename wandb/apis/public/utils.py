@@ -1,6 +1,6 @@
 import re
 from enum import Enum
-from typing import Any, Iterable, Optional, Set
+from typing import Any, Dict, Iterable, Mapping, Optional, Set
 from urllib.parse import urlparse
 
 from wandb_gql import gql
@@ -113,21 +113,24 @@ class _GQLCompatRewriter(visitor.Visitor):
     omit_variables: Set[str]
     omit_fragments: Set[str]
     omit_fields: Set[str]
+    rename_fields: Dict[str, str]
 
     def __init__(
         self,
         omit_variables: Optional[Iterable[str]] = None,
         omit_fragments: Optional[Iterable[str]] = None,
         omit_fields: Optional[Iterable[str]] = None,
+        rename_fields: Optional[Mapping[str, str]] = None,
     ):
         self.omit_variables = set(omit_variables or ())
         self.omit_fragments = set(omit_fragments or ())
         self.omit_fields = set(omit_fields or ())
+        self.rename_fields = dict(rename_fields or {})
 
     def enter_VariableDefinition(self, node: ast.VariableDefinition, *_, **__) -> Any:  # noqa: N802
         if node.variable.name.value in self.omit_variables:
             return visitor.REMOVE
-        return node
+        # return node
 
     def enter_ObjectField(self, node: ast.ObjectField, *_, **__) -> Any:  # noqa: N802
         # For context, note that e.g.:
@@ -161,6 +164,9 @@ class _GQLCompatRewriter(visitor.Visitor):
     def enter_Field(self, node: ast.Field, *_, **__) -> Any:  # noqa: N802
         if node.name.value in self.omit_fields:
             return visitor.REMOVE
+        if new_name := self.rename_fields.get(node.name.value):
+            node.name.value = new_name
+            return node
 
     def leave_Field(self, node: ast.Field, *_, **__) -> Any:  # noqa: N802
         # If the field had a selection set, but now it's empty, remove the field entirely
@@ -173,6 +179,7 @@ def gql_compat(
     omit_variables: Optional[Iterable[str]] = None,
     omit_fragments: Optional[Iterable[str]] = None,
     omit_fields: Optional[Iterable[str]] = None,
+    rename_fields: Optional[Mapping[str, str]] = None,
 ) -> ast.Document:
     """Rewrite a GraphQL request string to ensure compatibility with older server versions.
 
@@ -181,6 +188,8 @@ def gql_compat(
         omit_variables (Iterable[str] | None): Names of variables to remove from the request string.
         omit_fragments (Iterable[str] | None): Names of fragments to remove from the request string.
         omit_fields (Iterable[str] | None): Names of fields to remove from the request string.
+        rename_fields (Mapping[str, str] | None):
+            A mapping of fields to rename in the request string, given as `{old_name -> new_name}`.
 
     Returns:
         str: Modified GraphQL request string with fragments on omitted types removed.
@@ -188,7 +197,7 @@ def gql_compat(
     # Parse the request into a GraphQL AST
     doc = gql(request_string)
 
-    if not (omit_variables or omit_fragments or omit_fields):
+    if not (omit_variables or omit_fragments or omit_fields or rename_fields):
         return doc
 
     # Visit the AST with our visitor to filter out unwanted fragments
@@ -196,5 +205,6 @@ def gql_compat(
         omit_variables=omit_variables,
         omit_fragments=omit_fragments,
         omit_fields=omit_fields,
+        rename_fields=rename_fields,
     )
     return visitor.visit(doc, rewriter)
