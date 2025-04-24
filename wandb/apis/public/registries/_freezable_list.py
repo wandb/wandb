@@ -89,16 +89,16 @@ class FreezableList(MutableSequence[T]):
             )
         else:
             # The frozen items are sequentially first and protected from changes
-            frozen_offset = len(self._frozen)
+            len_frozen = len(self._frozen)
             size = len(self)
 
-            if -frozen_offset <= index < frozen_offset:
+            if -len_frozen <= index < len_frozen:
                 raise ValueError(f"Cannot assign to saved item at index: {index!r}")
 
             if (index >= size) or (index < -size):
                 raise IndexError("Index out of range")
 
-            draft_index = (index % size) - frozen_offset
+            draft_index = (index % size) - len_frozen
             self._draft[draft_index] = value
 
     @overload
@@ -112,16 +112,16 @@ class FreezableList(MutableSequence[T]):
             raise TypeError(f"{type(self).__name__!r} does not support slice deletion")
         else:
             # The frozen items are sequentially first and protected from changes
-            frozen_offset = len(self._frozen)
+            len_frozen = len(self._frozen)
             size = len(self)
 
-            if -frozen_offset <= index < frozen_offset:
+            if -len_frozen <= index < len_frozen:
                 raise ValueError(f"Cannot delete saved item at index: {index!r}")
 
             if (index >= size) or (index < -size):
                 raise IndexError("Index out of range")
 
-            draft_index = (index % size) - frozen_offset
+            draft_index = (index % size) - len_frozen
             del self._draft[draft_index]
 
     def insert(self, index: int, value: T) -> None:
@@ -136,12 +136,12 @@ class FreezableList(MutableSequence[T]):
             return
 
         # The frozen items are sequentially first and protected from changes
-        frozen_offset = len(self._frozen)
+        len_frozen = len(self._frozen)
         size = len(self)
 
-        if -frozen_offset <= index < frozen_offset:
+        if -len_frozen <= index < len_frozen:
             raise IndexError(
-                f"Cannot insert into the frozen list (index < {frozen_offset})"
+                f"Cannot insert into the frozen list (index < {len_frozen})"
             )
 
         # Follow the behavior of `list.insert()` when the index is out of range.
@@ -154,7 +154,7 @@ class FreezableList(MutableSequence[T]):
             return self._draft.append(value)
 
         # - in-bounds index: insert.
-        draft_index = (index % size) - frozen_offset
+        draft_index = (index % size) - len_frozen
         return self._draft.insert(draft_index, value)
 
     def __repr__(self) -> str:
