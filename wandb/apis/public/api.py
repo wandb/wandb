@@ -1806,16 +1806,16 @@ class Api:
             project = api.project("my-project", entity="my-team")
 
             # Use the first Slack integration for the team
-            slack_integration = next(api.slack_integrations(entity="my-team"))
+            slack_hook = next(api.slack_integrations(entity="my-team"))
 
-            triggering_event = OnRunMetric(
+            event = OnRunMetric(
                 scope=project,
                 filter=RunEvent.metric("custom-metric") > 10,
             )
-            triggered_action = SendNotification.from_integration(slack_integration)
+            action = SendNotification.from_integration(slack_hook)
 
             automation = api.create_automation(
-                triggering_event >> triggered_action,
+                event >> action,
                 name="my-automation",
                 description="Send a Slack message whenever 'custom-metric' exceeds 10.",
             )
