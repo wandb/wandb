@@ -1,7 +1,6 @@
 from itertools import chain
 from typing import (
     Any,
-    Generic,
     Iterable,
     Iterator,
     List,
@@ -18,7 +17,7 @@ T = TypeVar("T")
 
 
 @final
-class FreezableList(MutableSequence[T], Generic[T]):
+class FreezableList(MutableSequence[T]):
     """A list-like container type that only allows adding new items.
 
     It tracks "saved" (immutable) and "draft" (mutable) items.
@@ -34,7 +33,7 @@ class FreezableList(MutableSequence[T], Generic[T]):
 
     def append(self, value: T) -> None:
         """Append an item to the draft list. No duplicates are allowed."""
-        if value in self._frozen or value in self._draft:
+        if (value in self._frozen) or (value in self._draft):
             return
         self._draft.append(value)
 
@@ -50,6 +49,11 @@ class FreezableList(MutableSequence[T], Generic[T]):
         new_items = tuple(item for item in self._draft if item not in self._frozen)
         self._frozen = self._frozen + new_items
         self._draft.clear()
+
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, Sequence):
+            return NotImplemented
+        return list(self) == list(value)
 
     def __contains__(self, value: Any) -> bool:
         return value in self._frozen or value in self._draft
@@ -67,8 +71,7 @@ class FreezableList(MutableSequence[T], Generic[T]):
     def __getitem__(self, index: slice) -> Sequence[T]: ...
 
     def __getitem__(self, index: Union[int, slice]) -> Union[T, Sequence[T]]:
-        combined = list(self._frozen) + self._draft
-        return combined[index]
+        return [*self._frozen, *self._draft][index]
 
     @overload
     def __setitem__(self, index: int, value: T) -> None: ...
@@ -81,26 +84,24 @@ class FreezableList(MutableSequence[T], Generic[T]):
     ) -> None:
         if isinstance(index, slice):
             # Setting slices might affect saved items, disallow for simplicity
-            raise TypeError("'FreezableList' does not support slice assignment")
+            raise TypeError(
+                f"{type(self).__name__!r} does not support slice assignment"
+            )
         else:
             if value in self._frozen or value in self._draft:
                 return
 
-            len_saved = len(self._frozen)
-            original_index = index
+            # The frozen items are sequentially first and protected from changes
+            len_frozen = len(self._frozen)
+            size = len(self)
 
-            if index < 0:
-                index += len(self)
-
-            if 0 <= index < len_saved:
-                raise TypeError(
-                    f"Cannot assign to saved item at index {original_index}"
-                )
-            elif len_saved <= index < len(self):
-                draft_index = index - len_saved
-                self._draft[draft_index] = value
-            else:
+            if (index >= size) or (index < -size):
                 raise IndexError("Index out of range")
+
+            draft_index = (index % size) - len_frozen
+            if draft_index < 0:
+                raise ValueError(f"Cannot assign to saved item at index {index!r}")
+            self._draft[draft_index] = value
 
     @overload
     def __delitem__(self, index: int) -> None: ...
@@ -110,21 +111,19 @@ class FreezableList(MutableSequence[T], Generic[T]):
 
     def __delitem__(self, index: Union[int, slice]) -> None:
         if isinstance(index, slice):
-            raise TypeError("'FreezableList' does not support slice deletion")
+            raise TypeError(f"{type(self).__name__!r} does not support slice deletion")
         else:
-            len_saved = len(self._frozen)
-            original_index = index
+            # The frozen items are sequentially first and protected from changes
+            len_frozen = len(self._frozen)
+            size = len(self)
 
-            if index < 0:
-                index += len(self)
-
-            if 0 <= index < len_saved:
-                raise ValueError(f"Cannot delete saved item at index {original_index}")
-            elif len_saved <= index < len(self):
-                draft_index = index - len_saved
-                del self._draft[draft_index]
-            else:
+            if (index >= size) or (index < -size):
                 raise IndexError("Index out of range")
+
+            draft_index = (index % size) - len_frozen
+            if draft_index < 0:
+                raise ValueError(f"Cannot delete saved item at index {index!r}")
+            del self._draft[draft_index]
 
     def insert(self, index: int, value: T) -> None:
         """Insert item before index.
@@ -137,19 +136,26 @@ class FreezableList(MutableSequence[T], Generic[T]):
             # Silently ignore duplicates, similar to append
             return
 
+        # The frozen items are sequentially first and protected from changes
         len_frozen = len(self._frozen)
+        size = len(self)
 
-        if index < 0:
-            index += len(self)
+        # Follow the behavior of `list.insert()` when the index is out of bounds.
+        # - negative out-of-bounds index: prepend.  Will only work if the frozen items are empty.
+        if index < -size and not self._frozen:
+            return self._draft.insert(0, value)
 
-        if index < len_frozen:
+        # - positive out-of-bounds index: append.
+        if index >= size:
+            return self._draft.append(value)
+
+        # - in-bounds index: insert only if into the draft portion.
+        draft_index = (index % size) - len_frozen
+        if draft_index < 0:
             raise IndexError(
                 f"Cannot insert into the frozen list (index < {len_frozen})"
             )
-
-        draft_index = index - len_frozen
-
-        self._draft.insert(draft_index, value)
+        return self._draft.insert(draft_index, value)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(frozen={list(self._frozen)!r}, draft={list(self._draft)!r})"
