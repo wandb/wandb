@@ -465,11 +465,7 @@ class Settings(BaseModel, validate_assignment=True):
     save_code: Optional[bool] = None
     """Whether to save the code associated with the run."""
 
-    settings_system: str = Field(
-        default_factory=lambda: _path_convert(
-            os.path.join("~", ".config", "wandb", "settings")
-        )
-    )
+    settings_system: Optional[str] = None
     """Path to the system-wide settings file."""
 
     show_colors: Optional[bool] = None
@@ -1065,9 +1061,12 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("settings_system", mode="after")
     @classmethod
     def validate_settings_system(cls, value):
-        if isinstance(value, pathlib.Path):
+        if value is None:
+            return None
+        elif isinstance(value, pathlib.Path):
             return str(_path_convert(value))
-        return _path_convert(value)
+        else:
+            return _path_convert(value)
 
     @field_validator("x_service_wait", mode="after")
     @classmethod
