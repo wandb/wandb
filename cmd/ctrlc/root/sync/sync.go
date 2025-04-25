@@ -7,6 +7,7 @@ import (
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/google/bigtable"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/google/buckets"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/google/cloudsql"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/google/redis"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/kubernetes"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/tailscale"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/terraform"
@@ -36,6 +37,7 @@ func NewSyncCmd() *cobra.Command {
 	cmd.AddCommand(cliutil.AddIntervalSupport(cloudsql.NewSyncCloudSQLCmd(), ""))
 	cmd.AddCommand(cliutil.AddIntervalSupport(bigtable.NewSyncBigtableCmd(), ""))
 	cmd.AddCommand(cliutil.AddIntervalSupport(buckets.NewSyncBucketsCmd(), ""))
+	cmd.AddCommand(cliutil.AddIntervalSupport(redis.NewSyncRedisCmd(), ""))
 
 	cmd.AddCommand(kubernetes.NewSyncKubernetesCmd())
 	return cmd
