@@ -21,6 +21,7 @@ from wandb.automations import (
     SendWebhook,
     WebhookIntegration,
 )
+from wandb.automations._filters.run_metrics import MetricChangeFilter
 from wandb.automations.actions import SavedNoOpAction, SavedWebhookAction
 from wandb.automations.events import MetricThresholdFilter, RunMetricFilter
 from wandb.automations.scopes import ArtifactCollectionScopeTypes
@@ -207,21 +208,31 @@ def test_create_automation_for_run_metric_threshold_event(
     api: wandb.Api,
     automation_name: str,
 ):
+    """Check that creating an automation for the `RUN_METRIC_THRESHOLD` event works, and the automation is saved with the expected filter."""
+    metric_name = "my-metric"
+    run_name = "my-run"
+    window = 5
+    threshold = 0
+
     expected_filter = RunMetricFilter(
-        run={"$and": [{"display_name": {"$contains": "my-run"}}]},
+        run={
+            "$and": [{"display_name": {"$contains": run_name}}],
+        },
         metric=MetricThresholdFilter(
-            name="my-metric",
-            window=5,
+            name=metric_name,
+            window=window,
             agg="AVERAGE",
             cmp="$gt",
-            threshold=0,
+            threshold=threshold,
         ),
     )
 
     event = OnRunMetric(
         scope=project,
-        filter=(RunEvent.metric("my-metric").mean(5) > 0)
-        & RunEvent.name.contains("my-run"),
+        filter=(
+            RunEvent.metric(metric_name).mean(window).gt(threshold)
+            & RunEvent.name.contains(run_name)
+        ),
     )
     action = SendWebhook.from_integration(webhook)
 
@@ -229,21 +240,79 @@ def test_create_automation_for_run_metric_threshold_event(
 
     expectation = nullcontext() if server_supports_event else raises(ValueError)
 
-    with expectation:
-        automation = api.create_automation(
+    with expectation as exc_info:
+        created = api.create_automation(
             (event >> action),
             name=automation_name,
             description="longer description here",
         )
 
-    if server_supports_event:
-        assert isinstance(automation, Automation)
-        assert automation.event.filter == expected_filter
+    if exc_info is None:
+        # The server supports the event, so there should be an automation to check
+        assert isinstance(created, Automation)
+        assert created.event.filter == expected_filter
 
-        # We should be able to fetch the automation by name (optionally filtering by entity)
-        entity_name = project.entity
-        assert len(list(api.automations(entity=entity_name, name=automation_name))) == 1
-        assert len(list(api.automations(name=automation_name))) == 1
+        # Refetch it to be sure
+        refetched = api.automation(name=automation_name)
+        assert refetched.event.filter == expected_filter
+
+
+@mark.usefixtures(reset_automations.__name__)
+def test_create_automation_for_run_metric_change_event(
+    project,
+    webhook,
+    api: wandb.Api,
+    automation_name: str,
+):
+    """Check that creating an automation for the `RUN_METRIC_CHANGE` event works, and the automation is saved with the expected filter."""
+    metric_name = "my-metric"
+    run_name = "my-run"
+    window = 5
+    amount = 0.5
+
+    expected_filter = RunMetricFilter(
+        run={
+            "$and": [{"display_name": {"$contains": run_name}}],
+        },
+        metric=MetricChangeFilter(
+            name=metric_name,
+            window=window,
+            prior_window=window,
+            agg="AVERAGE",
+            change_dir="ANY",
+            change_type="RELATIVE",
+            threshold=amount,
+        ),
+    )
+
+    event = OnRunMetric(
+        scope=project,
+        filter=(
+            RunEvent.metric(metric_name).average(window).changes_by(frac=amount)
+            & RunEvent.name.contains(run_name)
+        ),
+    )
+    action = SendWebhook.from_integration(webhook)
+
+    server_supports_event = api._supports_automation(event=event.event_type)
+
+    expectation = nullcontext() if server_supports_event else raises(ValueError)
+
+    with expectation as exc_info:
+        created = api.create_automation(
+            (event >> action),
+            name=automation_name,
+            description="longer description here",
+        )
+
+    if exc_info is None:
+        # The server supports the event, so there should be an automation to check
+        assert isinstance(created, Automation)
+        assert created.event.filter == expected_filter
+
+        # Refetch it to be sure
+        refetched = api.automation(name=automation_name)
+        assert refetched.event.filter == expected_filter
 
 
 @mark.usefixtures(reset_automations.__name__)

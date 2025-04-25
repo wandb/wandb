@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import json
+from operator import methodcaller
 
 from hypothesis import given
-from hypothesis.strategies import SearchStrategy, integers, none, sampled_from
+from hypothesis.strategies import integers, none
 from pytest import mark, raises
 from wandb.apis.public import Project
 from wandb.automations import EventType, ScopeType
@@ -21,9 +21,13 @@ from wandb.automations.events import (
     RunEvent,
 )
 
-from ._strategies import ints_or_floats, printable_text, sample_with_randomcase
-
-cmp_vals: SearchStrategy[str] = sampled_from(["$gt", "$gte", "$lt", "$lte"])
+from ._strategies import (
+    cmp_op_keys,
+    ints_or_floats,
+    metric_threshold_filters,
+    printable_text,
+    sample_with_randomcase,
+)
 
 
 def test_public_event_type_enum_matches_generated():
@@ -70,159 +74,122 @@ def test_declarative_artifact_filter(expr, expected):
 @given(
     name=printable_text,
     window=integers(1, 100),
-    agg=none() | sampled_from([*Agg, *(e.value for e in Agg)]),
-    cmp=cmp_vals,
-    threshold=ints_or_floats,
-)
-def test_metric_threshold_filter_serialization(
-    name: str, window: int, agg: str | None, cmp: str, threshold: float
-):
-    """Check that a normally-instantiated `MetricThresholdFilter` produces the expected JSON-serializable dict."""
-    threshold_filter = MetricThresholdFilter(
-        name=name,
-        window=window,
-        agg=agg,
-        cmp=cmp,
-        threshold=threshold,
-    )
-    expected_dict = {
-        "name": name,
-        "window_size": window,
-        "agg_op": agg,
-        "cmp_op": cmp,
-        "threshold": threshold,
-    }
-
-    assert threshold_filter.model_dump() == expected_dict
-    assert json.loads(threshold_filter.model_dump_json()) == expected_dict
-
-
-@given(
-    name=printable_text,
-    window=integers(1, 100),
-    agg=sample_with_randomcase(Agg),  # check case-insensitivity
-    cmp=cmp_vals,
+    agg=none() | sample_with_randomcase(Agg),  # check case-insensitivity
+    cmp=cmp_op_keys,
     threshold=ints_or_floats,
 )
 def test_run_metric_agg_threshold_filter_without_run_filter(
-    project: Project, name: str, window: int, agg: str | Agg, cmp: str, threshold: float
+    project: Project,
+    name: str,
+    window: int,
+    agg: str | Agg | None,
+    cmp: str,
+    threshold: float,
 ):
     # Chain the method calls: the steps below parameterize over all possible combos of
     # chained method calls that would normally be written as, e.g.:
     #     RunEvent.metric(name).average(window).gt(threshold)
     #     RunEvent.metric(name).max(window).lte(threshold)
-    run_metric = RunEvent.metric(name)
+    agg_enum = None if (agg is None) else Agg(agg)
 
     # Chain the first method calls to declare the (maybe aggregated) metric expression
     agg_methodcallers = {
-        Agg.AVERAGE: lambda: run_metric.average(window),
-        Agg.MIN: lambda: run_metric.min(window),
-        Agg.MAX: lambda: run_metric.max(window),
+        Agg.AVERAGE: methodcaller("average", window),
+        Agg.MIN: methodcaller("min", window),
+        Agg.MAX: methodcaller("max", window),
+        None: lambda x: x,  # Pass through, no aggregation
     }
-    metric_expr = agg_methodcallers[Agg(agg)]()
 
     # Chain the next method call(s) to declare the evaluated threshold condition
     cmp_methodcallers = {
-        "$gt": lambda: metric_expr.gt(threshold),
-        "$gte": lambda: metric_expr.gte(threshold),
-        "$lt": lambda: metric_expr.lt(threshold),
-        "$lte": lambda: metric_expr.lte(threshold),
+        "$gt": methodcaller("gt", threshold),
+        "$gte": methodcaller("gte", threshold),
+        "$lt": methodcaller("lt", threshold),
+        "$lte": methodcaller("lte", threshold),
     }
-    declared_metric_filter = cmp_methodcallers[cmp]()
+
+    # Self-explanatory
+    run_metric = RunEvent.metric(name)
+
+    # Equivalent to e.g.: `run_metric -> run_metric.average(window)`
+    metric_expr = agg_methodcallers[agg_enum](run_metric)
+
+    # Equivalent to e.g.: `metric_expr -> metric_expr.gt(threshold)`
+    declared_metric_filter = cmp_methodcallers[cmp](metric_expr)
 
     # ----------------------------------------------------------------------------
     event = OnRunMetric(scope=project, filter=declared_metric_filter)
 
+    expected_window = 1 if (agg_enum is None) else window
+    expected_agg_op = None if (agg_enum is None) else agg_enum.value
     expected_metric_filter = MetricThresholdFilter(
-        name=name, window=window, agg=agg, cmp=cmp, threshold=threshold
+        name=name,
+        window=expected_window,
+        agg=expected_agg_op,
+        cmp=cmp,
+        threshold=threshold,
     )
     expected_metric_filter_dict = {
         "name": name,
-        "window_size": window,
-        "agg_op": Agg(agg).value,  # Expect the string value
+        "window_size": expected_window,
+        "agg_op": expected_agg_op,
         "cmp_op": cmp,
         "threshold": threshold,
     }
 
+    expected_run_filter_dict = {"$and": []}
+
     # Check that...
     # - the metric filter has the expected contents
-    assert expected_metric_filter == declared_metric_filter
+    assert isinstance(declared_metric_filter, MetricThresholdFilter)
+    assert dict(expected_metric_filter) == dict(declared_metric_filter)
     assert expected_metric_filter_dict == declared_metric_filter.model_dump()
 
     # - the metric filter is parsed/validated correctly by pydantic
-    actual_metric_filter = event.filter.metric.threshold_filter
-    assert expected_metric_filter == actual_metric_filter
-    assert expected_metric_filter_dict == actual_metric_filter.model_dump()
+    inner_metric_filter = event.filter.metric.threshold_filter
+    assert dict(expected_metric_filter) == dict(inner_metric_filter)
+    assert expected_metric_filter_dict == inner_metric_filter.model_dump()
 
     # - the accompanying run filter here is as expected
-    expected_run_filter_dict = {"$and": []}
     assert expected_run_filter_dict == event.filter.run.model_dump()
 
 
 @given(
-    name=printable_text,
-    window=integers(1, 100),
-    agg=sampled_from([*Agg, *(e.value for e in Agg)]),
-    cmp=cmp_vals,
-    threshold=ints_or_floats,
+    metric_filter=metric_threshold_filters(),
 )
 def test_run_metric_threshold_events(
-    project: Project, name: str, window: int, agg: Agg | str, cmp: str, threshold: float
+    project: Project, metric_filter: MetricThresholdFilter
 ):
-    # Chain the method calls: the steps below parameterize over all possible combos of
-    # chained method calls that would normally be written as, e.g.:
-    #     RunEvent.metric(name).average(window).gt(threshold)
-    #     RunEvent.metric(name).max(window).lte(threshold)
-    run_metric = RunEvent.metric(name)
-
-    # Chain the first method calls to declare the (maybe aggregated) metric expression
-    agg_methodcallers = {
-        Agg.AVERAGE: lambda: run_metric.average(window),
-        Agg.MIN: lambda: run_metric.min(window),
-        Agg.MAX: lambda: run_metric.max(window),
-    }
-    metric_expr = agg_methodcallers[Agg(agg)]()
-
-    # Chain the next method call(s) to declare the evaluated threshold condition
-    cmp_methodcallers = {
-        "$gt": lambda: metric_expr.gt(threshold),
-        "$gte": lambda: metric_expr.gte(threshold),
-        "$lt": lambda: metric_expr.lt(threshold),
-        "$lte": lambda: metric_expr.lte(threshold),
-    }
-    declared_metric_filter = cmp_methodcallers[cmp]()
+    run_filter = RunEvent.name.contains("my-run")
 
     # ----------------------------------------------------------------------------
-    declared_run_filter = RunEvent.name.contains("my-run")
+    event = OnRunMetric(scope=project, filter=run_filter & metric_filter)
 
-    # ----------------------------------------------------------------------------
-    event = OnRunMetric(
-        scope=project, filter=declared_run_filter & declared_metric_filter
-    )
-
-    expected_metric_filter = MetricThresholdFilter(
-        name=name, window=window, agg=agg, cmp=cmp, threshold=threshold
-    )
     expected_metric_filter_dict = {
-        "name": name,
-        "window_size": window,
-        "agg_op": Agg(agg).value,  # Expect the string value
-        "cmp_op": cmp,
-        "threshold": threshold,
+        "name": metric_filter.name,
+        "window_size": metric_filter.window,
+        "agg_op": None if (metric_filter.agg is None) else metric_filter.agg.value,
+        "cmp_op": metric_filter.cmp,
+        "threshold": metric_filter.threshold,
+    }
+    expected_run_filter_dict = {
+        "$and": [
+            {"display_name": {"$contains": "my-run"}},
+        ]
     }
 
     # Check that...
-    # - the metric filter has the expected contents
-    assert expected_metric_filter == declared_metric_filter
-    assert expected_metric_filter_dict == declared_metric_filter.model_dump()
+    # - the event has the expected event_type
+    assert event.event_type is EventType.RUN_METRIC_THRESHOLD
+
+    # - the metric filter has the expected JSON-serializable contents
+    assert expected_metric_filter_dict == metric_filter.model_dump()
 
     # - the metric filter is parsed/validated correctly by pydantic
-    actual_metric_filter = event.filter.metric.threshold_filter
-    assert expected_metric_filter == actual_metric_filter
-    assert expected_metric_filter_dict == actual_metric_filter.model_dump()
+    inner_metric_filter = event.filter.metric.threshold_filter
+    assert expected_metric_filter_dict == inner_metric_filter.model_dump()
 
     # - the accompanying run filter here is as expected
-    expected_run_filter_dict = {"$and": [{"display_name": {"$contains": "my-run"}}]}
     assert expected_run_filter_dict == event.filter.run.model_dump()
 
 

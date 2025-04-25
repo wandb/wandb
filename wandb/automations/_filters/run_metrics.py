@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Final, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Final, Literal, Optional, Union, overload
 
-from pydantic import Field, PositiveInt, StrictFloat, StrictInt, field_validator
+from annotated_types import Gt
+from pydantic import (
+    Field,
+    PositiveFloat,
+    PositiveInt,
+    StrictFloat,
+    StrictInt,
+    field_validator,
+)
 from typing_extensions import Annotated, override
 
 from wandb._pydantic import GQLBase
@@ -36,6 +44,9 @@ class Agg(LenientStrEnum):  # wandb/core: `Aggregation`
     MIN = "MIN"
     AVERAGE = "AVERAGE"
 
+    # Shorter aliases for convenience
+    AVG = AVERAGE
+
 
 class ChangeType(LenientStrEnum):  # wandb/core: `RunMetricChangeType`
     """Describes the metric change as absolute (arithmetic difference) or relative (decimal percentage)."""
@@ -43,16 +54,24 @@ class ChangeType(LenientStrEnum):  # wandb/core: `RunMetricChangeType`
     ABSOLUTE = "ABSOLUTE"
     RELATIVE = "RELATIVE"
 
+    # Shorter aliases for convenience
+    ABS = ABSOLUTE
+    REL = RELATIVE
 
-class ChangeDirection(LenientStrEnum):  # wandb/core: `RunMetricChangeDirection`
+
+class ChangeDir(LenientStrEnum):  # wandb/core: `RunMetricChangeDirection`
     """Describes the direction of the metric change."""
 
     INCREASE = "INCREASE"
     DECREASE = "DECREASE"
     ANY = "ANY"
 
+    # Shorter aliases for convenience
+    INC = INCREASE
+    DEC = DECREASE
 
-class BaseMetricFilter(GQLBase):
+
+class BaseMetricFilter(GQLBase, extra="forbid"):
     name: str
     """Name of the observed metric."""
 
@@ -60,15 +79,20 @@ class BaseMetricFilter(GQLBase):
     """Aggregation operation, if any, to apply over the window size."""
 
     window: PositiveInt
-    """Size of the window over which the metric is aggregated."""
+    """Size of the window over which the metric is aggregated.
+
+    Ignored if `agg` is None.
+    """
+    # ------------------------------------------------------------------------------
+    cmp: Optional[str]
+    """Comparison between the metric expression (left) vs. the threshold or target value (right)."""
 
     # ------------------------------------------------------------------------------
-
     threshold: Union[StrictInt, StrictFloat]
     """Threshold value to compare against."""
 
     def __and__(self, other: Any) -> RunMetricFilter:
-        """Supports syntactic sugar for defining a RunMetricEvent from `metric_filter & run_filter`."""
+        """Implements `(metric_filter & run_filter) -> RunMetricFilter`."""
         from wandb.automations.events import RunMetricFilter
 
         if isinstance(run_filter := other, (BaseOp, FilterExpr)):
@@ -78,7 +102,7 @@ class BaseMetricFilter(GQLBase):
         return NotImplemented
 
     def __rand__(self, other: BaseOp | FilterExpr) -> RunMetricFilter:
-        """Ensures `&` is commutative when using it to define a RunMetricEvent: `run_filter & metric_filter == metric_filter & run_filter`."""
+        """Ensures `&` is commutative: `(run_filter & metric_filter) == (metric_filter & run_filter)`."""
         return self.__and__(other)
 
 
@@ -109,43 +133,70 @@ class MetricThresholdFilter(BaseMetricFilter):  # wandb/core: `RunMetricThreshol
         yield None, repr(self)
 
 
-class MetricChangeFilter(BaseMetricFilter):  # from `RunMetricChangeFilter`
+class MetricChangeFilter(BaseMetricFilter):  # wandb/core: `RunMetricChangeFilter`
+    """Defines a filter that compares a change in a run metric against a user-defined threshold.
+
+    The change is calculated over "tumbling" windows, i.e. the difference
+    between the current window and the non-overlapping prior window.
+    """
+
+    # ------------------------------------------------------------------------------
+    change_type: Annotated[ChangeType, Field(alias="change_type")]
+    change_dir: Annotated[ChangeDir, Field(alias="change_dir")]
+
     # FIXME:
-    # - `prior_window` should be optional and default to `window` if not provided.
     # - implement declarative syntax for `MetricChangeFilter` similar to `MetricThresholdFilter`.
     # - split this into tagged union of relative/absolute change filters.
 
+    # ------------------------------------------------------------------------------
     name: str
     agg: Annotated[Optional[Agg], Field(alias="agg_op")] = None
+    window: Annotated[PositiveInt, Field(alias="current_window_size")] = 1
 
-    # FIXME: Set the `prior_window` to `window` if it's not provided, for convenience.
-    window: Annotated[PositiveInt, Field(alias="current_window_size")]
-    prior_window: Annotated[PositiveInt, Field(alias="prior_window_size")]
-    """Size of the preceding window over which the metric is aggregated."""
+    # `prior_window` is only for `RUN_METRIC_CHANGE` events
+    prior_window: Annotated[
+        PositiveInt,
+        # By default, set `window -> prior_window` if the latter wasn't provided.
+        Field(alias="prior_window_size", default_factory=lambda data: data["window"]),
+    ]
+    """Size of the preceding window over which the metric is aggregated.
 
-    # NOTE: `cmp_op` isn't a field here.  In the backend, it's effectively `cmp_op` = "$gte"
+    Ignored if `agg` is None. If omitted, defaults to the size of the current window.
+    """
 
-    change_type: Annotated[ChangeType, Field(alias="change_type")]
-    change_direction: Annotated[ChangeDirection, Field(alias="change_dir")]
+    # ------------------------------------------------------------------------------
+    # NOTE: the "comparison" operator isn't actually a field in the backend schema,
+    # but it's defined (and ignored) here for consistency.
+    #
+    # In the backend, it's effectively "$gte" or "$lte", depending on the sign
+    # (i.e. change_dir), though this is not explicitly specified in the
+    # schema.
+    cmp: Annotated[None, Field(frozen=True, exclude=True)] = None
+    """Ignored."""
 
-    threshold: Annotated[Union[StrictInt, StrictFloat], Field(alias="change_amount")]
+    # ------------------------------------------------------------------------------
+    threshold: Annotated[
+        Union[StrictInt, StrictFloat],
+        Gt(0),  # Must be positive
+        Field(alias="change_amount"),
+    ]
 
 
 class BaseMetricOperand(GQLBase, extra="forbid"):
     def gt(self, other: int | float) -> MetricThresholdFilter:
-        """Implements `MetricValueOperand > threshold` -> `MetricThreshold`."""
+        """Implements `(MetricOperand > threshold) -> MetricThresholdFilter`."""
         return MetricThresholdFilter(**dict(self), cmp="$gt", threshold=other)
 
     def lt(self, other: int | float) -> MetricThresholdFilter:
-        """Implements `MetricValueOperand < threshold` -> `MetricThreshold`."""
+        """Implements `(MetricOperand < threshold) -> MetricThresholdFilter`."""
         return MetricThresholdFilter(**dict(self), cmp="$lt", threshold=other)
 
     def gte(self, other: int | float) -> MetricThresholdFilter:
-        """Implements `MetricValueOperand >= threshold` -> `MetricThreshold`."""
+        """Implements `(MetricOperand >= threshold) -> MetricThresholdFilter`."""
         return MetricThresholdFilter(**dict(self), cmp="$gte", threshold=other)
 
     def lte(self, other: int | float) -> MetricThresholdFilter:
-        """Implements `MetricValueOperand <= threshold` -> `MetricThreshold`."""
+        """Implements `(MetricOperand <= threshold) -> MetricThresholdFilter`."""
         return MetricThresholdFilter(**dict(self), cmp="$lte", threshold=other)
 
     __gt__ = gt
@@ -153,9 +204,101 @@ class BaseMetricOperand(GQLBase, extra="forbid"):
     __ge__ = gte
     __le__ = lte
 
+    @overload
+    def changes_by(self, /, diff: PositiveFloat, frac: None) -> MetricChangeFilter: ...
+    @overload
+    def changes_by(self, /, diff: None, frac: PositiveFloat) -> MetricChangeFilter: ...
+    @overload
+    def changes_by(
+        # NOTE: This overload is for internal use only.
+        self,
+        /,
+        diff: PositiveFloat | None,
+        frac: PositiveFloat | None,
+        _sign: ChangeDir,
+    ) -> MetricChangeFilter: ...
+    def changes_by(
+        self,
+        /,
+        diff: PositiveFloat | None = None,
+        frac: PositiveFloat | None = None,
+        _sign: ChangeDir = ChangeDir.ANY,
+    ) -> MetricChangeFilter:
+        """Defines a filter that observes for any change (increase OR decrease) in a run metric.
+
+        Exactly one of the keyword arguments `frac` or `diff` must be provided.
+
+        Args:
+            diff:
+                If given, the arithmetic difference that must be observed
+                in the metric.  Must be a positive number.
+            frac:
+                If given, the fractional (relative) change that must be observed
+                in the metric.  Must be a positive number.  E.g. `frac=0.1`
+                denotes a 10% relative increase OR decrease.
+        """
+        # Enforce mutually exclusive keyword args
+        if (frac is None) is (diff is None):
+            raise ValueError("Must provide exactly one of `frac` or `diff`")
+
+        # Enforce positive values
+        if (frac is not None) and (frac <= 0):
+            raise ValueError(f"`frac` must be positive, got: {frac=}")
+        if (diff is not None) and (diff <= 0):
+            raise ValueError(f"`diff` must be positive, got: {diff=}")
+
+        if frac is not None:
+            return MetricChangeFilter(
+                **dict(self),
+                change_type=ChangeType.REL,
+                change_dir=_sign,
+                threshold=frac,
+            )
+        else:
+            return MetricChangeFilter(
+                **dict(self),
+                change_type=ChangeType.ABS,
+                change_dir=_sign,
+                threshold=diff,
+            )
+
+    @overload
+    def increases_by(
+        self, /, diff: PositiveFloat, frac: None
+    ) -> MetricChangeFilter: ...
+    @overload
+    def increases_by(
+        self, /, diff: None, frac: PositiveFloat
+    ) -> MetricChangeFilter: ...
+    def increases_by(
+        self, /, diff: PositiveFloat | None = None, frac: PositiveFloat | None = None
+    ) -> MetricChangeFilter:
+        """Defines a filter that observes for an increase in the numerical value of a run metric.
+
+        Arguments are the same as for `.changes_by()`.
+        """
+        return self.changes_by(diff=diff, frac=frac, _sign=ChangeDir.INC)
+
+    @overload
+    def decreases_by(
+        self, /, diff: PositiveFloat, frac: None
+    ) -> MetricChangeFilter: ...
+    @overload
+    def decreases_by(
+        self, /, diff: None, frac: PositiveFloat
+    ) -> MetricChangeFilter: ...
+    def decreases_by(
+        self, /, diff: PositiveFloat | None = None, frac: PositiveFloat | None = None
+    ) -> MetricChangeFilter:
+        """Defines a filter that observes for a decrease in the numerical value of a run metric.
+
+        Arguments are the same as for `.changes_by()`.
+        """
+        return self.changes_by(diff=diff, frac=frac, _sign=ChangeDir.DEC)
+
 
 class MetricVal(BaseMetricOperand):
-    """Represents a single metric value when defining a metric filter."""
+    """Represents a single, unaggregated metric value when defining a metric filter."""
 
     name: str
 
@@ -178,5 +321,5 @@ class MetricAgg(BaseMetricOperand):
     """Represents an aggregated metric value when defining a metric filter."""
 
     name: str
-    agg: Optional[Agg] = Field(default=None, alias="agg_op")
-    window: PositiveInt = Field(default=1, alias="window_size")
+    agg: Annotated[Agg, Field(alias="agg_op")]
+    window: Annotated[PositiveInt, Field(alias="window_size")]

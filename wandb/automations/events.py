@@ -131,7 +131,7 @@ class SavedEvent(FilterEventFields):  # from `FilterEventTriggeringCondition`
 # Note: The GQL input for "eventFilter" does NOT wrap the filter in an extra `filter` key, unlike the
 # eventFilter returned in responses for saved automations.
 class _BaseEventInput(GQLBase):
-    event_type: Annotated[EventType, Field(frozen=True)]
+    event_type: EventType
 
     scope: AutomationScope
     """The scope of the event."""
@@ -206,10 +206,31 @@ class _BaseRunEventInput(_BaseEventInput):
 class OnRunMetric(_BaseRunEventInput):
     """A run metric satisfies a user-defined condition."""
 
-    event_type: Literal[EventType.RUN_METRIC_THRESHOLD] = EventType.RUN_METRIC_THRESHOLD
+    event_type: Literal[EventType.RUN_METRIC_THRESHOLD, EventType.RUN_METRIC_CHANGE]
 
     filter: SerializedToJson[RunMetricFilter]
     """Run and/or metric condition(s) that must be satisfied for this event to trigger an automation."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _infer_event_type(cls, v: Any) -> Any:
+        """Infer the event type at validation time from the inner filter.
+
+        This allows this class to accommodate both "threshold" and "change" metric
+        filter types, which are can only be determined after parsing and validating
+        the inner JSON data.
+        """
+        if isinstance(v, dict):
+            if isinstance(raw_filter := v["filter"], (str, bytes)):
+                v_filter = RunMetricFilter.model_validate_json(raw_filter)
+            else:
+                v_filter = RunMetricFilter.model_validate(raw_filter)
+
+            if v_filter.metric.threshold_filter is not None:
+                return {**v, "event_type": EventType.RUN_METRIC_THRESHOLD}
+            if v_filter.metric.change_filter is not None:
+                return {**v, "event_type": EventType.RUN_METRIC_CHANGE}
+        return v
 
 
 # for type annotations

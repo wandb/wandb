@@ -28,6 +28,13 @@ from hypothesis.strategies import (
     sampled_from,
     text,
 )
+from wandb.automations._filters.run_metrics import (
+    Agg,
+    ChangeDir,
+    ChangeType,
+    MetricChangeFilter,
+    MetricThresholdFilter,
+)
 
 
 @composite
@@ -200,14 +207,54 @@ def sample_with_randomcase(
     draw: DrawFn,
     obj: str | type[Enum],
 ) -> SearchStrategy[str | Enum]:
-    """Generate the original string and enum value(s) in addition to random-case variants."""
+    """Generate the original string and enum value(s) in addition to random-case string variants."""
     if isinstance(obj, type) and issubclass(obj, Enum):
-        orig_values = sampled_from(obj)
-        orig_string_values = sampled_from(list(s.value for s in obj))
-    elif isinstance(obj, str):
-        orig_values = just(obj)
-        orig_string_values = just(obj)
-    else:
-        raise ValueError(f"Invalid object type: {type(obj).__name__}")
+        # Sample from the original enum members, the string values, and its
+        # randomly-cased variants
+        orig_enums = sampled_from(obj)
+        orig_values = sampled_from(list(s.value for s in obj))
+        return draw(orig_enums | orig_values | orig_values.map(randomcase))
+    if isinstance(obj, str):
+        orig_strings = just(obj)
+        return draw(orig_strings | orig_strings.map(randomcase))
+    raise ValueError(f"Invalid object type: {type(obj).__name__}")
 
-    return draw(orig_values | orig_string_values | orig_string_values.map(randomcase))
+
+# ----------------------------------------------------------------------------
+# For testing run metric filters
+cmp_op_keys: SearchStrategy[str] = sampled_from(["$gt", "$gte", "$lt", "$lte"])
+"""Generates valid MongoDB comparison operator keys."""
+
+window_sizes: SearchStrategy[int] = integers(min_value=1, max_value=100)
+"""Valid window sizes for run metric filters."""
+
+aggs: SearchStrategy[Agg | str | None] = none() | sample_with_randomcase(Agg)
+change_types: SearchStrategy[ChangeType | str] = sample_with_randomcase(ChangeType)
+change_dirs: SearchStrategy[ChangeDir | str] = sample_with_randomcase(ChangeDir)
+
+
+@composite
+def metric_threshold_filters(
+    draw: DrawFn,
+    name: SearchStrategy[str] = printable_text,
+    window: SearchStrategy[int] = window_sizes,
+    agg: SearchStrategy[Agg | str | None] = aggs,
+    cmp: SearchStrategy[str] = cmp_op_keys,
+    threshold: SearchStrategy[float] = ints_or_floats,
+) -> SearchStrategy[MetricThresholdFilter]:
+    """Generates a `MetricThresholdFilter` instance."""
+    return MetricThresholdFilter(
+        name=draw(name),
+        window=draw(window),
+        agg=draw(agg),
+        cmp=draw(cmp),
+        threshold=draw(threshold),
+    )
+
+
+@composite
+def metric_change_filters(
+    draw: DrawFn, **kwargs: SearchStrategy[Any]
+) -> SearchStrategy[MetricChangeFilter]:
+    """Generates a `MetricChangeFilter` instance."""
+    return MetricChangeFilter(**{name: draw(strat) for name, strat in kwargs.items()})
