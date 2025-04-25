@@ -65,6 +65,7 @@ class SupportsLogicalOpSyntax:
 # Base class for parsed MongoDB filter/query operators, e.g. `{"$and": [...]}`.
 class BaseOp(GQLBase, SupportsLogicalOpSyntax):
     model_config = ConfigDict(
+        extra="forbid",
         frozen=True,  # Make pseudo-immutable for easier comparison and hashing
     )
 
