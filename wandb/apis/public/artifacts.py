@@ -298,8 +298,8 @@ class ArtifactCollection:
         self._attrs = attrs
         if is_sequence is not None:
             self._is_sequence = is_sequence
-        is_loaded_collection = attrs is not None and is_sequence is not None
-        if not is_loaded_collection:
+        is_loaded = attrs is not None and is_sequence is not None
+        if not is_loaded:
             self.load()
         self._aliases = [a["node"]["alias"] for a in self._attrs["aliases"]["edges"]]
         self._description = self._attrs["description"]
