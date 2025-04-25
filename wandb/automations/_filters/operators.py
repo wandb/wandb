@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict, Iterable, Tuple, TypeVar, Union, ov
 from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
 from typing_extensions import TypeAlias, get_args
 
-from wandb._pydantic import Base
+from wandb._pydantic import GQLBase
 
 if TYPE_CHECKING:
     from wandb.automations._filters.run_metrics import MetricThresholdFilter
@@ -63,7 +63,7 @@ class SupportsLogicalOpSyntax:
 
 
 # Base class for parsed MongoDB filter/query operators, e.g. `{"$and": [...]}`.
-class BaseOp(Base, SupportsLogicalOpSyntax):
+class BaseOp(GQLBase, SupportsLogicalOpSyntax):
     model_config = ConfigDict(
         frozen=True,  # Make pseudo-immutable for easier comparison and hashing
     )
