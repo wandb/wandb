@@ -296,7 +296,10 @@ class ArtifactCollection:
         self._type = type
         self._saved_type = type
         self._attrs = attrs
-        if self._attrs is None:
+        if is_sequence is not None:
+            self._is_sequence = is_sequence
+        is_loaded_collection = attrs is not None and is_sequence is not None
+        if not is_loaded_collection:
             self.load()
         self._aliases = [a["node"]["alias"] for a in self._attrs["aliases"]["edges"]]
         self._description = self._attrs["description"]
@@ -304,8 +307,6 @@ class ArtifactCollection:
         self._tags = [a["node"]["name"] for a in self._attrs["tags"]["edges"]]
         self._saved_tags = copy(self._tags)
         self.organization = organization
-        if is_sequence is not None:
-            self._is_sequence = is_sequence
 
     @property
     def id(self) -> str:
