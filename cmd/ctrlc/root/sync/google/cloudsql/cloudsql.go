@@ -59,7 +59,7 @@ func getInstanceHostAndPort(instance *sqladmin.DatabaseInstance) (string, int) {
 
 func NewSyncCloudSQLCmd() *cobra.Command {
 	var project string
-	var name string
+	var providerName string
 
 	cmd := &cobra.Command{
 		Use:   "google-cloudsql",
@@ -181,8 +181,8 @@ func NewSyncCloudSQLCmd() *cobra.Command {
 			}
 
 			// Create or update resource provider
-			if name == "" {
-				name = fmt.Sprintf("google-cloudsql-project-%s", project)
+			if providerName == "" {
+				providerName = fmt.Sprintf("google-cloudsql-%s", project)
 			}
 
 			apiURL := viper.GetString("url")
@@ -193,7 +193,7 @@ func NewSyncCloudSQLCmd() *cobra.Command {
 				return fmt.Errorf("failed to create API client: %w", err)
 			}
 
-			rp, err := api.NewResourceProvider(ctrlplaneClient, workspaceId, name)
+			rp, err := api.NewResourceProvider(ctrlplaneClient, workspaceId, providerName)
 			if err != nil {
 				return fmt.Errorf("failed to create resource provider: %w", err)
 			}
@@ -208,7 +208,7 @@ func NewSyncCloudSQLCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&name, "provider", "p", "", "Name of the resource provider")
+	cmd.Flags().StringVarP(&providerName, "provider", "p", "", "Name of the resource provider")
 	cmd.Flags().StringVarP(&project, "project", "c", "", "Google Cloud Project ID")
 	cmd.MarkFlagRequired("project")
 

@@ -5,6 +5,7 @@ import (
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/aws/ec2"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/clickhouse"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/google/bigtable"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/google/buckets"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/google/cloudsql"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/kubernetes"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/tailscale"
@@ -34,6 +35,7 @@ func NewSyncCmd() *cobra.Command {
 	cmd.AddCommand(cliutil.AddIntervalSupport(ec2.NewSyncEC2Cmd(), ""))
 	cmd.AddCommand(cliutil.AddIntervalSupport(cloudsql.NewSyncCloudSQLCmd(), ""))
 	cmd.AddCommand(cliutil.AddIntervalSupport(bigtable.NewSyncBigtableCmd(), ""))
+	cmd.AddCommand(cliutil.AddIntervalSupport(buckets.NewSyncBucketsCmd(), ""))
 
 	cmd.AddCommand(kubernetes.NewSyncKubernetesCmd())
 	return cmd
