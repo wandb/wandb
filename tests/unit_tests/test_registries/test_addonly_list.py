@@ -152,7 +152,19 @@ def test_setitem(items: list[str], idx: int, value: str) -> None:
 
     frozen_size = len(items)
 
-    if -frozen_size <= idx < frozen_size:  # In bounds
+    if value in items:
+        # Duplicate, no error but nothing should change
+        addonly_list[idx] = value
+        assert addonly_list == items
+        assert len(addonly_list) == frozen_size
+
+    # elif not items:
+    #     # No frozen items, should just add to draft
+    #     addonly_list[idx] = value
+    #     assert addonly_list == [value]
+    #     assert len(addonly_list) == 1
+
+    elif -frozen_size <= idx < frozen_size:  # In bounds
         # Should raise error when trying to modify frozen item
         with raises(ValueError, match="Cannot assign to saved item"):
             addonly_list[idx] = value
@@ -196,8 +208,18 @@ def test_insert(init_items: list[str], index: int, value: str) -> None:
         assert value not in addonly_list._draft
         assert len(addonly_list) == frozen_size
 
+    # In bounds, all items frozen:
     # Should raise error when trying to insert new items between/before frozen ones
     elif -frozen_size <= index < frozen_size:
+        with raises(IndexError, match="Cannot insert into the frozen list"):
+            addonly_list.insert(index, value)
+
+        assert value not in addonly_list._draft
+        assert len(addonly_list) == frozen_size
+
+    # Negative out of bounds, frozen items exist:
+    # Should raise error when trying to insert new items before frozen ones
+    elif (index < -frozen_size) and init_items:
         with raises(IndexError, match="Cannot insert into the frozen list"):
             addonly_list.insert(index, value)
 

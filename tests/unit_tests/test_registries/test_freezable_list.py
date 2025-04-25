@@ -227,7 +227,7 @@ def test_setitem_errors(list_3_frozen_and_2_drafts: FreezableList[str]):
         fl[5] = "error_val"
     with pytest.raises(IndexError):
         fl[-6] = "error_val2"
-    with pytest.raises(TypeError, match="Cannot assign to saved item at index 1"):
+    with pytest.raises(ValueError, match="Cannot assign to saved item at index 1"):
         fl[1] = "frozen_update"
     with pytest.raises(
         TypeError, match="'FreezableList' does not support slice assignment"
