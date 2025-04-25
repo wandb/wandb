@@ -1,7 +1,6 @@
 package clickhouse
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -165,21 +164,6 @@ func (c *ClickHouseClient) GetServices(ctx context.Context) ([]ClickHouseConfigR
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	// Print raw response for debugging
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	// Pretty print the JSON
-	var prettyJSON bytes.Buffer
-	if err := json.Indent(&prettyJSON, body, "", "  "); err != nil {
-		return nil, fmt.Errorf("failed to pretty print JSON: %w", err)
-	}
-	log.Info("Raw response:", "body", prettyJSON.String())
-
-	// Reset the response body for subsequent reading
-	resp.Body = io.NopCloser(bytes.NewBuffer(body))
 	var result ClickHouseListResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
@@ -199,8 +183,8 @@ func NewSyncClickhouseCmd() *cobra.Command {
 		Use:   "clickhouse",
 		Short: "Sync ClickHouse instances into Ctrlplane",
 		Example: heredoc.Doc(`
-				$ ctrlc sync clickhouse
-			`),
+			$ ctrlc sync clickhouse
+		`),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if clickhouseApiSecret == "" {
 				clickhouseApiSecret = os.Getenv("CLICKHOUSE_API_SECRET")
