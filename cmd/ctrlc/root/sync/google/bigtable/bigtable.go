@@ -19,7 +19,7 @@ import (
 // BigtableInstance represents a Google Cloud Bigtable instance
 type BigtableInstance struct {
 	ID               string           `json:"id"`
-	Name             string           `json:"name"` 
+	Name             string           `json:"name"`
 	ConnectionMethod ConnectionMethod `json:"connectionMethod"`
 }
 
@@ -125,7 +125,7 @@ func processInstances(ctx context.Context, adminClient *bigtableadmin.Service, p
 // processInstance handles processing of a single Bigtable instance
 func processInstance(ctx context.Context, adminClient *bigtableadmin.Service, instance *bigtableadmin.Instance, project string) (api.AgentResource, error) {
 	metadata := initInstanceMetadata(instance, project)
-	
+
 	// Process clusters
 	locations, err := processClusters(adminClient, instance, metadata)
 	if err != nil {
@@ -171,10 +171,10 @@ func initInstanceMetadata(instance *bigtableadmin.Instance, project string) map[
 		instance.Name, project)
 
 	return map[string]string{
-		"database/type":       "bigtable",
-		"database/host":       instance.Name,
-		"database/port":       "443",
-		"google/project":      project,
+		"database/type":        "bigtable",
+		"database/host":        instance.Name,
+		"database/port":        "443",
+		"google/project":       project,
 		"google/instance-type": "bigtable",
 		"google/console-url":   consoleUrl,
 		"google/state":         strings.ToLower(instance.State),
@@ -185,7 +185,7 @@ func initInstanceMetadata(instance *bigtableadmin.Instance, project string) map[
 // processClusters handles processing of Bigtable clusters
 func processClusters(adminClient *bigtableadmin.Service, instance *bigtableadmin.Instance, metadata map[string]string) ([]string, error) {
 	log.Info("Listing clusters", "name", instance.Name)
-	
+
 	clusters, err := adminClient.Projects.Instances.Clusters.List(instance.Name).Do()
 	if err != nil {
 		return nil, err
@@ -194,16 +194,16 @@ func processClusters(adminClient *bigtableadmin.Service, instance *bigtableadmin
 	locations := []string{}
 	if clusters != nil {
 		metadata["google/bigtable/cluster-count"] = strconv.FormatInt(int64(len(clusters.Clusters)), 10)
-		
+
 		for _, cluster := range clusters.Clusters {
 			name := strings.ReplaceAll(cluster.Name, instance.Name+"/clusters/", "")
 			location := strings.ReplaceAll(cluster.Location, "projects/"+instance.Name+"/locations/", "")
-			
+
 			metadata[fmt.Sprintf("google/bigtable/cluster/%s", name)] = "true"
 			metadata[fmt.Sprintf("google/bigtable/cluster/%s/location", name)] = location
 			metadata[fmt.Sprintf("google/bigtable/cluster/%s/state", name)] = cluster.State
 			metadata[fmt.Sprintf("google/bigtable/cluster/%s/serve-nodes", name)] = strconv.FormatInt(cluster.ServeNodes, 10)
-			
+
 			if !slices.Contains(locations, location) {
 				locations = append(locations, location)
 			}
@@ -216,7 +216,7 @@ func processClusters(adminClient *bigtableadmin.Service, instance *bigtableadmin
 // processTables handles processing of Bigtable tables
 func processTables(adminClient *bigtableadmin.Service, instance *bigtableadmin.Instance, metadata map[string]string) error {
 	log.Info("Listing tables", "name", instance.Name)
-	
+
 	tables, err := adminClient.Projects.Instances.Tables.List(instance.Name).Do()
 	if err != nil {
 		return err
@@ -225,15 +225,15 @@ func processTables(adminClient *bigtableadmin.Service, instance *bigtableadmin.I
 	if tables != nil {
 		tableNames := []string{}
 		totalSizeBytes := int64(0)
-		
+
 		metadata["google/bigtable/table-count"] = strconv.FormatInt(int64(len(tables.Tables)), 10)
-		
+
 		for _, table := range tables.Tables {
 			name := strings.ReplaceAll(table.Name, instance.Name+"/tables/", "")
 			tableNames = append(tableNames, name)
-			
+
 			metadata[fmt.Sprintf("google/bigtable/table/%s", name)] = "true"
-			
+
 			if table.Stats != nil {
 				totalSizeBytes += table.Stats.LogicalDataBytes
 				metadata[fmt.Sprintf("google/bigtable/table/%s/row-count", name)] = strconv.FormatInt(table.Stats.RowCount, 10)

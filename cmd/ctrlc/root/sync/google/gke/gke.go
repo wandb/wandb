@@ -8,20 +8,13 @@ import (
 	"time"
 
 	"github.com/MakeNowJust/heredoc/v2"
+	"github.com/Masterminds/semver"
 	"github.com/charmbracelet/log"
 	"github.com/ctrlplanedev/cli/internal/api"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/api/container/v1"
 )
-
-// GKECluster represents a Google Kubernetes Engine cluster
-type GKECluster struct {
-	Name        string `json:"name"`
-	Location    string `json:"location"`
-	NodeCount   int    `json:"nodeCount"`
-	K8sVersion  string `json:"k8sVersion"`
-}
 
 // NewSyncGKECmd creates a new cobra command for syncing GKE clusters
 func NewSyncGKECmd() *cobra.Command {
@@ -149,20 +142,20 @@ func processCluster(_ context.Context, gkeClient *container.Service, cluster *co
 		Name:       cluster.Name,
 		Identifier: cluster.SelfLink,
 		Config: map[string]any{
-			"name": cluster.Name,
+			"name":    cluster.Name,
 			"version": cluster.CurrentMasterVersion,
 			"server": map[string]any{
-				"endpoint": cluster.Endpoint,
+				"endpoint":                 cluster.Endpoint,
 				"certificateAuthorityData": certificateAuthorityData,
 			},
 			"googleKubernetesEngine": map[string]any{
-				"project":           project,
-				"location":          cluster.Location,
-				"locationType":      locationType,
-				"networkPolicy":     cluster.NetworkPolicy != nil && cluster.NetworkPolicy.Enabled,
-				"autopilot":         cluster.Autopilot != nil && cluster.Autopilot.Enabled,
-				"status":            cluster.Status,
-				"network":           getResourceName(cluster.Network),
+				"project":       project,
+				"location":      cluster.Location,
+				"locationType":  locationType,
+				"networkPolicy": cluster.NetworkPolicy != nil && cluster.NetworkPolicy.Enabled,
+				"autopilot":     cluster.Autopilot != nil && cluster.Autopilot.Enabled,
+				"status":        cluster.Status,
+				"network":       getResourceName(cluster.Network),
 			},
 		},
 		Metadata: metadata,
@@ -177,27 +170,40 @@ func initClusterMetadata(cluster *container.Cluster, project string) map[string]
 	if isRegional {
 		locationType = "region"
 	}
-	
+
 	consoleUrl := fmt.Sprintf("https://console.cloud.google.com/kubernetes/clusters/details/%s/%s?project=%s",
 		cluster.Location, cluster.Name, project)
 
+	version, err := semver.NewVersion(cluster.CurrentMasterVersion)
+	if err != nil {
+		log.Error("Failed to parse Kubernetes version", "version", cluster.CurrentMasterVersion, "error", err)
+	}
+
+
 	metadata := map[string]string{
-		"kubernetes/type":            "gke",
-		"kubernetes/name":            cluster.Name,
-		"kubernetes/k8s-version":     cluster.CurrentMasterVersion,
+		"kubernetes/type": "gke",
+		"kubernetes/name": cluster.Name,
+
+		"kubernetes/version":            fmt.Sprintf("%d.%d.%d", version.Major(), version.Minor(), version.Patch()),
+		"kubernetes/version/major":      strconv.FormatUint(uint64(version.Major()), 10),
+		"kubernetes/version/minor":      strconv.FormatUint(uint64(version.Minor()), 10),
+		"kubernetes/version/patch":      strconv.FormatUint(uint64(version.Patch()), 10),
+		"kubernetes/version/full":       cluster.CurrentMasterVersion,
+		"kubernetes/version/prerelease": version.Prerelease(),
+
 		"kubernetes/location":        cluster.Location,
 		"kubernetes/location-type":   locationType,
 		"kubernetes/status":          cluster.Status,
 		"kubernetes/endpoint":        cluster.Endpoint,
 		"kubernetes/node-pool-count": strconv.Itoa(len(cluster.NodePools)),
-		
-		"google/project":             project,
-		"google/resource-type":       "container.googleapis.com/Cluster",
-		"google/location":            cluster.Location,
-		"google/location-type":       locationType,
-		"google/status":              cluster.Status,
-		"google/console-url":         consoleUrl,
-		"google/self-link":           cluster.SelfLink,
+
+		"google/project":       project,
+		"google/resource-type": "container.googleapis.com/Cluster",
+		"google/location":      cluster.Location,
+		"google/location-type": locationType,
+		"google/status":        cluster.Status,
+		"google/console-url":   consoleUrl,
+		"google/self-link":     cluster.SelfLink,
 	}
 
 	// Process creation time
@@ -220,43 +226,46 @@ func initClusterMetadata(cluster *container.Cluster, project string) map[string]
 
 	// Handle node config
 	totalNodeCount := 0
-	for i, nodePool := range cluster.NodePools {
-		metadata[fmt.Sprintf("kubernetes/node-pool/%d/name", i)] = nodePool.Name
-		metadata[fmt.Sprintf("kubernetes/node-pool/%d/version", i)] = nodePool.Version
-		metadata[fmt.Sprintf("kubernetes/node-pool/%d/status", i)] = nodePool.Status
-		
+	autoscalingNodePools := 0
+	for _, nodePool := range cluster.NodePools {
+		metadata[fmt.Sprintf("kubernetes/node-pool/%s/name", nodePool.Name)] = nodePool.Name
+		metadata[fmt.Sprintf("kubernetes/node-pool/%s/version", nodePool.Version)] = nodePool.Version
+		metadata[fmt.Sprintf("kubernetes/node-pool/%s/status", nodePool.Status)] = nodePool.Status
+
 		if nodePool.Config != nil {
 			if nodePool.Config.MachineType != "" {
-				metadata[fmt.Sprintf("kubernetes/node-pool/%d/machine-type", i)] = nodePool.Config.MachineType
+				metadata[fmt.Sprintf("kubernetes/node-pool/%s/machine-type", nodePool.Name)] = nodePool.Config.MachineType
 			}
-			
+
 			if len(nodePool.Config.OauthScopes) > 0 {
-				metadata[fmt.Sprintf("kubernetes/node-pool/%d/oauth-scope-count", i)] = strconv.Itoa(len(nodePool.Config.OauthScopes))
+				metadata[fmt.Sprintf("kubernetes/node-pool/%s/oauth-scope-count", nodePool.Name)] = strconv.Itoa(len(nodePool.Config.OauthScopes))
 			}
-			
+
 			// Disk details
 			if nodePool.Config.DiskSizeGb > 0 {
-				metadata[fmt.Sprintf("kubernetes/node-pool/%d/disk-size-gb", i)] = strconv.FormatInt(nodePool.Config.DiskSizeGb, 10)
+				metadata[fmt.Sprintf("kubernetes/node-pool/%s/disk-size-gb", nodePool.Name)] = strconv.FormatInt(nodePool.Config.DiskSizeGb, 10)
 			}
 			if nodePool.Config.DiskType != "" {
-				metadata[fmt.Sprintf("kubernetes/node-pool/%d/disk-type", i)] = nodePool.Config.DiskType
+				metadata[fmt.Sprintf("kubernetes/node-pool/%s/disk-type", nodePool.Name)] = nodePool.Config.DiskType
 			}
 		}
-		
+
 		// Node count
 		if nodePool.Autoscaling != nil && nodePool.Autoscaling.Enabled {
-			metadata[fmt.Sprintf("kubernetes/node-pool/%d/autoscaling", i)] = "enabled"
-			metadata[fmt.Sprintf("kubernetes/node-pool/%d/min-nodes", i)] = strconv.FormatInt(nodePool.Autoscaling.MinNodeCount, 10)
-			metadata[fmt.Sprintf("kubernetes/node-pool/%d/max-nodes", i)] = strconv.FormatInt(nodePool.Autoscaling.MaxNodeCount, 10)
+			autoscalingNodePools++
+			metadata[fmt.Sprintf("kubernetes/node-pool/%s/autoscaling", nodePool.Name)] = "enabled"
+			metadata[fmt.Sprintf("kubernetes/node-pool/%s/min-nodes", nodePool.Name)] = strconv.FormatInt(nodePool.Autoscaling.MinNodeCount, 10)
+			metadata[fmt.Sprintf("kubernetes/node-pool/%s/max-nodes", nodePool.Name)] = strconv.FormatInt(nodePool.Autoscaling.MaxNodeCount, 10)
 			// For autoscaling pools, use current node count
 			totalNodeCount += int(nodePool.InitialNodeCount)
 		} else {
-			metadata[fmt.Sprintf("kubernetes/node-pool/%d/autoscaling", i)] = "disabled"
-			metadata[fmt.Sprintf("kubernetes/node-pool/%d/node-count", i)] = strconv.FormatInt(nodePool.InitialNodeCount, 10)
+			metadata[fmt.Sprintf("kubernetes/node-pool/%s/autoscaling", nodePool.Name)] = "disabled"
+			metadata[fmt.Sprintf("kubernetes/node-pool/%s/node-count", nodePool.Name)] = strconv.FormatInt(nodePool.InitialNodeCount, 10)
 			// For fixed pools, use configured node count
 			totalNodeCount += int(nodePool.InitialNodeCount)
 		}
 	}
+	metadata["kubernetes/autoscaling-node-pool-count"] = strconv.Itoa(autoscalingNodePools)
 	metadata["kubernetes/total-node-count"] = strconv.Itoa(totalNodeCount)
 
 	// Networking details
@@ -276,15 +285,15 @@ func initClusterMetadata(cluster *container.Cluster, project string) map[string]
 	// Add-ons status
 	if cluster.AddonsConfig != nil {
 		if cluster.AddonsConfig.HttpLoadBalancing != nil {
-			metadata["kubernetes/addon/http-load-balancing"] = 
+			metadata["kubernetes/addon/http-load-balancing"] =
 				strconv.FormatBool(!cluster.AddonsConfig.HttpLoadBalancing.Disabled)
 		}
 		if cluster.AddonsConfig.HorizontalPodAutoscaling != nil {
-			metadata["kubernetes/addon/horizontal-pod-autoscaling"] = 
+			metadata["kubernetes/addon/horizontal-pod-autoscaling"] =
 				strconv.FormatBool(!cluster.AddonsConfig.HorizontalPodAutoscaling.Disabled)
 		}
 		if cluster.AddonsConfig.NetworkPolicyConfig != nil {
-			metadata["kubernetes/addon/network-policy"] = 
+			metadata["kubernetes/addon/network-policy"] =
 				strconv.FormatBool(!cluster.AddonsConfig.NetworkPolicyConfig.Disabled)
 		}
 	}

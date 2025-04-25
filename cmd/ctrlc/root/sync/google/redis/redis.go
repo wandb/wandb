@@ -133,12 +133,12 @@ func processInstance(_ context.Context, instance *redis.Instance, project string
 			"host": instance.Host,
 			"port": instance.Port,
 			"googleRedis": map[string]any{
-				"project":        project,
-				"location":       location,
-				"version":        instance.RedisVersion,
-				"tier":           instance.Tier,
+				"project":               project,
+				"location":              location,
+				"version":               instance.RedisVersion,
+				"tier":                  instance.Tier,
 				"transitEncryptionMode": instance.TransitEncryptionMode,
-				"connectMode":    instance.ConnectMode,
+				"connectMode":           instance.ConnectMode,
 			},
 		},
 		Metadata: metadata,
@@ -157,29 +157,29 @@ func initInstanceMetadata(instance *redis.Instance, project string) map[string]s
 			instanceName = nameParts[5]
 		}
 	}
-	
+
 	consoleUrl := fmt.Sprintf("https://console.cloud.google.com/memorystore/redis/locations/%s/instances/%s/details?project=%s",
 		location, instanceName, project)
 
 	metadata := map[string]string{
-		"database/type":             "redis",
-		"database/host":             instance.Host,
-		"database/port":             strconv.FormatInt(instance.Port, 10),
-		"database/version":          instance.RedisVersion,
-		"database/region":           location,
-		"database/tier":             instance.Tier,
-		"database/state":            strings.ToLower(instance.State),
-		"database/memory-size-gb":   strconv.FormatInt(instance.MemorySizeGb, 10),
+		"database/type":           "redis",
+		"database/host":           instance.Host,
+		"database/port":           strconv.FormatInt(instance.Port, 10),
+		"database/version":        instance.RedisVersion,
+		"database/region":         location,
+		"database/tier":           instance.Tier,
+		"database/state":          strings.ToLower(instance.State),
+		"database/memory-size-gb": strconv.FormatInt(instance.MemorySizeGb, 10),
 
-		"google/project":            project,
-		"google/instance-type":      "redis",
-		"google/location":           location,
-		"google/state":              strings.ToLower(instance.State),
-		"google/version":            instance.RedisVersion,
-		"google/tier":               instance.Tier,
-		"google/memory-size-gb":     strconv.FormatInt(instance.MemorySizeGb, 10),
-		"google/console-url":        consoleUrl,
-		"google/connect-mode":       instance.ConnectMode,
+		"google/project":        project,
+		"google/instance-type":  "redis",
+		"google/location":       location,
+		"google/state":          strings.ToLower(instance.State),
+		"google/version":        instance.RedisVersion,
+		"google/tier":           instance.Tier,
+		"google/memory-size-gb": strconv.FormatInt(instance.MemorySizeGb, 10),
+		"google/console-url":    consoleUrl,
+		"google/connect-mode":   instance.ConnectMode,
 	}
 
 	// Add read replicas info if present
@@ -204,7 +204,7 @@ func initInstanceMetadata(instance *redis.Instance, project string) map[string]s
 	if instance.ReservedIpRange != "" {
 		metadata["network/reserved-ip-range"] = instance.ReservedIpRange
 	}
-	
+
 	// Add maintenance info if present
 	if instance.MaintenancePolicy != nil && instance.MaintenancePolicy.WeeklyMaintenanceWindow != nil {
 		for i, window := range instance.MaintenancePolicy.WeeklyMaintenanceWindow {
@@ -212,7 +212,7 @@ func initInstanceMetadata(instance *redis.Instance, project string) map[string]s
 				metadata[fmt.Sprintf("google/maintenance/window/%d/day", i)] = window.Day
 			}
 			if window.StartTime != nil {
-				metadata[fmt.Sprintf("google/maintenance/window/%d/start-time", i)] = fmt.Sprintf("%02d:%02d", 
+				metadata[fmt.Sprintf("google/maintenance/window/%d/start-time", i)] = fmt.Sprintf("%02d:%02d",
 					window.StartTime.Hours, window.StartTime.Minutes)
 			}
 		}

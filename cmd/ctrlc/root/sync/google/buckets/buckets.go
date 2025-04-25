@@ -18,8 +18,8 @@ import (
 
 // StorageBucket represents a Google Cloud Storage bucket
 type StorageBucket struct {
-	Name     string           `json:"name"`
-	Location string           `json:"location"`
+	Name     string `json:"name"`
+	Location string `json:"location"`
 }
 
 // NewSyncBucketsCmd creates a new cobra command for syncing Storage buckets
@@ -117,13 +117,13 @@ func processBuckets(ctx context.Context, storageClient *storage.Service, project
 // processBucket handles processing of a single Storage bucket
 func processBucket(_ context.Context, storageClient *storage.Service, bucket *storage.Bucket, project string) (api.AgentResource, error) {
 	metadata := initBucketMetadata(bucket, project)
-	
+
 	// Process IAM policy if available
 	err := processIamPolicy(storageClient, bucket, metadata)
 	if err != nil {
 		log.Error("Error processing IAM policy", "error", err)
 	}
-	
+
 	// Process bucket details
 	processStorageDetails(bucket, metadata)
 
@@ -143,11 +143,11 @@ func processBucket(_ context.Context, storageClient *storage.Service, bucket *st
 		Config: map[string]any{
 			"name": bucket.Name,
 			"googleStorage": map[string]any{
-				"project":        project,
-				"location":       bucket.Location,
-				"storageClass":   bucket.StorageClass,
+				"project":         project,
+				"location":        bucket.Location,
+				"storageClass":    bucket.StorageClass,
 				"retentionPolicy": bucket.RetentionPolicy != nil,
-				"versioning":     bucket.Versioning != nil && bucket.Versioning.Enabled,
+				"versioning":      bucket.Versioning != nil && bucket.Versioning.Enabled,
 			},
 		},
 		Metadata: metadata,
@@ -180,23 +180,23 @@ func initBucketMetadata(bucket *storage.Bucket, project string) map[string]strin
 
 	metadata := map[string]string{
 		// Storage namespace
-		"storage/type":               "google-bucket",
-		"storage/bucket":             bucket.Name,
-		"storage/location":           bucket.Location,
-		"storage/location-type":      bucket.LocationType,
-		"storage/storage-class":      bucket.StorageClass,
-		"storage/created":            created,
-		"storage/updated":            updated,
-		"storage/versioning":         fmt.Sprintf("%v", bucket.Versioning != nil && bucket.Versioning.Enabled),
-		
+		"storage/type":          "google-bucket",
+		"storage/bucket":        bucket.Name,
+		"storage/location":      bucket.Location,
+		"storage/location-type": bucket.LocationType,
+		"storage/storage-class": bucket.StorageClass,
+		"storage/created":       created,
+		"storage/updated":       updated,
+		"storage/versioning":    fmt.Sprintf("%v", bucket.Versioning != nil && bucket.Versioning.Enabled),
+
 		// Google namespace
-		"google/project":             project,
-		"google/location":            bucket.Location,
-		"google/location-type":       bucket.LocationType,
-		"google/storage-class":       bucket.StorageClass,
-		"google/console-url":         consoleUrl,
-		"google/resource-type":       "storage.googleapis.com/Bucket",
-		"google/metageneration":      strconv.FormatInt(bucket.Metageneration, 10),
+		"google/project":        project,
+		"google/location":       bucket.Location,
+		"google/location-type":  bucket.LocationType,
+		"google/storage-class":  bucket.StorageClass,
+		"google/console-url":    consoleUrl,
+		"google/resource-type":  "storage.googleapis.com/Bucket",
+		"google/metageneration": strconv.FormatInt(bucket.Metageneration, 10),
 	}
 
 	if bucket.Etag != "" {
@@ -232,7 +232,7 @@ func initBucketMetadata(bucket *storage.Bucket, project string) map[string]strin
 	// Add public access prevention information
 	if bucket.IamConfiguration != nil && bucket.IamConfiguration.PublicAccessPrevention != "" {
 		metadata["storage/public-access-prevention"] = bucket.IamConfiguration.PublicAccessPrevention
-		
+
 		// Add uniform bucket-level access information
 		if bucket.IamConfiguration.UniformBucketLevelAccess != nil {
 			metadata["storage/uniform-bucket-access"] = strconv.FormatBool(bucket.IamConfiguration.UniformBucketLevelAccess.Enabled)
@@ -288,7 +288,7 @@ func initBucketMetadata(bucket *storage.Bucket, project string) map[string]strin
 			metadata["storage/cors-methods"] = strings.Join(methodList, ",")
 		}
 	}
-	
+
 	return metadata
 }
 
@@ -301,7 +301,7 @@ func processIamPolicy(storageClient *storage.Service, bucket *storage.Bucket, me
 
 	if policy != nil && policy.Bindings != nil {
 		roleUsers := make(map[string][]string)
-		
+
 		for _, binding := range policy.Bindings {
 			if binding.Members != nil {
 				roleUsers[binding.Role] = append(roleUsers[binding.Role], binding.Members...)
@@ -321,17 +321,17 @@ func processIamPolicy(storageClient *storage.Service, bucket *storage.Bucket, me
 			if roleCount >= 10 {
 				break
 			}
-			
+
 			// Simplify role name for metadata
 			shortRole := role
 			if strings.HasPrefix(role, "roles/") {
 				shortRole = strings.TrimPrefix(role, "roles/")
 			}
-			
+
 			// Sort members for consistent output
 			members := roleUsers[role]
 			sort.Strings(members)
-			
+
 			// Add role and members to metadata
 			metadata[fmt.Sprintf("google/storage/iam/%s", shortRole)] = strings.Join(members, ",")
 			roleCount++
@@ -356,17 +356,17 @@ func processStorageDetails(bucket *storage.Bucket, metadata map[string]string) {
 	// Handle lifecycle rules
 	if bucket.Lifecycle != nil && bucket.Lifecycle.Rule != nil {
 		metadata["storage/lifecycle-rules"] = strconv.Itoa(len(bucket.Lifecycle.Rule))
-		
+
 		// Extract some details about lifecycle rules
 		for i, rule := range bucket.Lifecycle.Rule {
 			if rule.Action != nil && rule.Action.Type != "" {
 				metadata[fmt.Sprintf("storage/lifecycle/%d/action", i)] = rule.Action.Type
-				
+
 				if rule.Action.Type == "SetStorageClass" && rule.Action.StorageClass != "" {
 					metadata[fmt.Sprintf("storage/lifecycle/%d/storage-class", i)] = rule.Action.StorageClass
 				}
 			}
-			
+
 			// Add conditions if present
 			if rule.Condition != nil {
 				if rule.Condition.Age != nil && *rule.Condition.Age > 0 {
@@ -395,12 +395,12 @@ func processStorageDetails(bucket *storage.Bucket, metadata map[string]string) {
 	if bucket.RetentionPolicy != nil {
 		metadata["storage/retention-policy"] = "enabled"
 		metadata["storage/retention-period"] = strconv.FormatInt(bucket.RetentionPolicy.RetentionPeriod, 10)
-		
+
 		retentionDays := bucket.RetentionPolicy.RetentionPeriod / 86400 // Convert seconds to days
 		if retentionDays > 0 {
 			metadata["storage/retention-days"] = strconv.FormatInt(retentionDays, 10)
 		}
-		
+
 		if bucket.RetentionPolicy.EffectiveTime != "" {
 			metadata["storage/retention-effective-time"] = bucket.RetentionPolicy.EffectiveTime
 		}
@@ -421,7 +421,7 @@ func processStorageDetails(bucket *storage.Bucket, metadata map[string]string) {
 		}
 		metadata["google/storage/label-count"] = strconv.Itoa(len(bucket.Labels))
 	}
-	
+
 	// Handle autoclass if set
 	if bucket.Autoclass != nil {
 		metadata["storage/autoclass-enabled"] = strconv.FormatBool(bucket.Autoclass.Enabled)

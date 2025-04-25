@@ -126,7 +126,7 @@ func NewSyncCloudSQLCmd() *cobra.Command {
 					"google/state":             strings.ToLower(instance.State),
 
 					"google/disk-type":                   instance.Settings.DataDiskType,
-					"google/disk-size-gb":                   strconv.FormatInt(instance.Settings.DataDiskSizeGb, 10),
+					"google/disk-size-gb":                strconv.FormatInt(instance.Settings.DataDiskSizeGb, 10),
 					"google/disk-iops":                   strconv.FormatInt(instance.Settings.DataDiskProvisionedIops, 10),
 					"google/disk-provisioned-iops":       strconv.FormatInt(instance.Settings.DataDiskProvisionedIops, 10),
 					"google/disk-provisioned-throughput": strconv.FormatInt(instance.Settings.DataDiskProvisionedThroughput, 10),
