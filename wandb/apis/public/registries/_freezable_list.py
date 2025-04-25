@@ -140,11 +140,6 @@ class FreezableList(MutableSequence[T]):
         len_frozen = len(self._frozen)
         size = len(self)
 
-        # if -len_frozen <= index < len_frozen:
-        #     raise IndexError(
-        #         f"Cannot insert into the frozen list (index < {len_frozen})"
-        #     )
-
         # Follow the behavior of `list.insert()` when the index is out of bounds.
         # - negative out-of-bounds index: prepend.  Will only work if the frozen items are empty.
         if index < -size and not self._frozen:
