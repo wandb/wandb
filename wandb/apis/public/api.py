@@ -1701,6 +1701,7 @@ class Api:
                 }
                 ```
         """
+        from wandb.automations import ActionType
         from wandb.automations._generated import (
             GenericWebhookActionFields,
             NoOpActionFields,
