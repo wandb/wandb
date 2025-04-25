@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Final, Literal, Optional, Union, overload
 from pydantic import Field, PositiveInt, StrictFloat, StrictInt, field_validator
 from typing_extensions import Self, override
 
-from wandb._pydantic.base import Base, GQLBase
+from wandb._pydantic import GQLBase
 
 from .expressions import FilterExpr
 from .operators import BaseOp, RichReprResult
@@ -142,7 +142,7 @@ class MetricChangeFilter(_BaseMetricFilter):  # from `RunMetricChangeFilter`
     threshold: Union[StrictInt, StrictFloat] = Field(alias="change_amount")
 
 
-class MetricOperand(Base):
+class MetricOperand(GQLBase):
     name: str
     agg: Optional[Agg] = Field(default=None, alias="agg_op")
     window: PositiveInt = Field(default=1, alias="window_size")
