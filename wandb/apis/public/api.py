@@ -1985,7 +1985,6 @@ class Api:
         from wandb.automations import ActionType, Automation
         from wandb.automations._generated import (
             UPDATE_FILTER_TRIGGER_GQL,
-            NoOpActionFields,
             UpdateFilterTrigger,
         )
         from wandb.automations._utils import prepare_to_update
@@ -2015,10 +2014,7 @@ class Api:
             )
 
         # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
-        omit_fragments = set()
-        if not self._supports_automation(action=ActionType.NO_OP):
-            omit_fragments.add(NoOpActionFields.__name__)
-
+        omit_fragments = self._omitted_automation_fragments()
         mutation = gql_compat(UPDATE_FILTER_TRIGGER_GQL, omit_fragments=omit_fragments)
         variables = {"params": gql_input.model_dump(exclude_none=True)}
 
