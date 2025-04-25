@@ -16,7 +16,17 @@ import logging
 import os
 import urllib
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Literal, Optional, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterator,
+    List,
+    Literal,
+    Optional,
+    Set,
+    Union,
+)
 
 import requests
 from pydantic import ValidationError
@@ -1667,7 +1677,7 @@ class Api:
             )
         )
 
-    def _omitted_automation_fragments(self) -> set[str]:
+    def _omitted_automation_fragments(self) -> Set[str]:
         """Returns the *names* of automation-related fragments that the server does not support.
 
         Older servers won't recognize newer GraphQL types, so a valid request may
