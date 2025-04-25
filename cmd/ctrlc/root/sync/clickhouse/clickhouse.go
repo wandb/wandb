@@ -266,7 +266,7 @@ func NewSyncClickhouseCmd() *cobra.Command {
 				// Create a sanitized name
 				name := strings.Split(service.Name, ".")[0]
 				resources = append(resources, api.AgentResource{
-					Version:    "https://schema.ctrlplane.dev/database/v1",
+					Version:    "ctrlplane.dev/database/v1",
 					Kind:       "ClickhouseCloud",
 					Name:       name,
 					Identifier: fmt.Sprintf("%s/%s", organizationID, service.ID),

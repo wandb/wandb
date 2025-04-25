@@ -4,6 +4,8 @@ import (
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/aws/ec2"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/clickhouse"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/google/bigtable"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/google/cloudsql"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/kubernetes"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/tailscale"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/terraform"
@@ -30,7 +32,9 @@ func NewSyncCmd() *cobra.Command {
 	cmd.AddCommand(cliutil.AddIntervalSupport(tailscale.NewSyncTailscaleCmd(), ""))
 	cmd.AddCommand(cliutil.AddIntervalSupport(clickhouse.NewSyncClickhouseCmd(), ""))
 	cmd.AddCommand(cliutil.AddIntervalSupport(ec2.NewSyncEC2Cmd(), ""))
-	cmd.AddCommand(kubernetes.NewSyncKubernetesCmd())
+	cmd.AddCommand(cliutil.AddIntervalSupport(cloudsql.NewSyncCloudSQLCmd(), ""))
+	cmd.AddCommand(cliutil.AddIntervalSupport(bigtable.NewSyncBigtableCmd(), ""))
 
+	cmd.AddCommand(kubernetes.NewSyncKubernetesCmd())
 	return cmd
 }
