@@ -291,7 +291,9 @@ func NewSyncClickhouseCmd() *cobra.Command {
 				})
 			}
 			log.Info("Upserting resources", "count", len(resources))
-			providerName := fmt.Sprintf("clickhouse-%s", organizationID)
+			if providerName == "" {
+				providerName = fmt.Sprintf("clickhouse-%s", organizationID)
+			}
 			rp, err := api.NewResourceProvider(ctrlplaneClient, workspaceId, providerName)
 			if err != nil {
 				return fmt.Errorf("failed to create resource provider: %w", err)
