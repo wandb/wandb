@@ -1667,6 +1667,53 @@ class Api:
             )
         )
 
+    def _omitted_automation_fragments(self) -> set[str]:
+        """Returns the *names* of automation-related fragments that the server does not support.
+
+        Older servers won't recognize newer GraphQL types, so a valid request may
+        unnecessarily error out because it won't recognize fragments defined on those types.
+
+        So e.g. if a server does not support `NO_OP` action types, then the following need to be
+        removed from the body of the GraphQL request:
+
+            - Fragment definition:
+                ```
+                fragment NoOpActionFields on NoOpTriggeredAction {
+                    noOp
+                }
+                ```
+
+            - Fragment spread in selection set:
+                ```
+                {
+                    ...NoOpActionFields
+                    # ... other fields ...
+                }
+                ```
+        """
+        from wandb.automations._generated import (
+            GenericWebhookActionFields,
+            NoOpActionFields,
+            NotificationActionFields,
+            QueueJobActionFields,
+        )
+
+        # Note: we can't currently define this as a constant outside the method
+        # and still keep it nearby in this module, because it relies on pydantic v2-only imports
+        fragment_names: dict[ActionType, str] = {
+            ActionType.NO_OP: NoOpActionFields.__name__,
+            ActionType.QUEUE_JOB: QueueJobActionFields.__name__,
+            ActionType.NOTIFICATION: NotificationActionFields.__name__,
+            ActionType.GENERIC_WEBHOOK: GenericWebhookActionFields.__name__,
+        }
+
+        return set(
+            name
+            for action in ActionType
+            if (not self._supports_automation(action=action))
+            and (name := fragment_names.get(action))
+        )
+
     def automation(
         self,
         name: str,
@@ -1739,7 +1786,6 @@ class Api:
         from wandb.automations._generated import (
             GET_TRIGGERS_BY_ENTITY_GQL,
             GET_TRIGGERS_GQL,
-            NoOpActionFields,
         )
 
         # For now, we need to use different queries depending on whether entity is given
@@ -1750,10 +1796,7 @@ class Api:
             gql_str = GET_TRIGGERS_BY_ENTITY_GQL  # Automations for entity
 
         # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
-        omit_fragments = set()
-        if not InternalApi()._server_features().get("AUTOMATION_ACTION_NO_OP"):
-            omit_fragments.add(NoOpActionFields.__name__)
-
+        omit_fragments = self._omitted_automation_fragments()
         query = gql_compat(gql_str, omit_fragments=omit_fragments)
         iterator = Automations(
             client=self.client, variables=variables, per_page=per_page, _query=query
@@ -1821,11 +1864,10 @@ class Api:
             )
             ```
         """
-        from wandb.automations import ActionType, Automation
+        from wandb.automations import Automation
         from wandb.automations._generated import (
             CREATE_FILTER_TRIGGER_GQL,
             CreateFilterTrigger,
-            NoOpActionFields,
         )
         from wandb.automations._utils import prepare_to_create
 
@@ -1843,10 +1885,7 @@ class Api:
             )
 
         # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
-        omit_fragments = set()
-        if not self._supports_automation(action=ActionType.NO_OP):
-            omit_fragments.add(NoOpActionFields.__name__)
-
+        omit_fragments = self._omitted_automation_fragments()
         mutation = gql_compat(CREATE_FILTER_TRIGGER_GQL, omit_fragments=omit_fragments)
         variables = {"params": gql_input.model_dump(exclude_none=True)}
 
