@@ -147,7 +147,8 @@ func processCluster(_ context.Context, gkeClient *container.Service, cluster *co
 			"server": map[string]any{
 				"endpoint":                 cluster.Endpoint,
 				"certificateAuthorityData": certificateAuthorityData,
-			},
+			
+			// Provider-specific implementation details
 			"googleKubernetesEngine": map[string]any{
 				"project":       project,
 				"location":      cluster.Location,
@@ -156,6 +157,7 @@ func processCluster(_ context.Context, gkeClient *container.Service, cluster *co
 				"autopilot":     cluster.Autopilot != nil && cluster.Autopilot.Enabled,
 				"status":        cluster.Status,
 				"network":       getResourceName(cluster.Network),
+				},
 			},
 		},
 		Metadata: metadata,
@@ -178,7 +180,6 @@ func initClusterMetadata(cluster *container.Cluster, project string) map[string]
 	if err != nil {
 		log.Error("Failed to parse Kubernetes version", "version", cluster.CurrentMasterVersion, "error", err)
 	}
-
 
 	metadata := map[string]string{
 		"kubernetes/type": "gke",
