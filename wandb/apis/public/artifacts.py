@@ -286,6 +286,7 @@ class ArtifactCollection:
         type: str,
         organization: Optional[str] = None,
         attrs: Optional[Mapping[str, Any]] = None,
+        is_sequence: Optional[bool] = None,
     ):
         self.client = client
         self.entity = entity
@@ -303,6 +304,8 @@ class ArtifactCollection:
         self._tags = [a["node"]["name"] for a in self._attrs["tags"]["edges"]]
         self._saved_tags = copy(self._tags)
         self.organization = organization
+        if is_sequence is not None:
+            self._is_sequence = is_sequence
 
     @property
     def id(self) -> str:

@@ -383,6 +383,7 @@ class Collections(Paginator):
                 r["node"]["defaultArtifactType"]["name"],
                 self.organization,
                 r["node"],
+                is_sequence=False,
             )
             for r in self.last_response["organization"]["orgEntity"][
                 "artifactCollections"
