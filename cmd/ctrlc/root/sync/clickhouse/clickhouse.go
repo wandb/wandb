@@ -12,7 +12,6 @@ import (
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/charmbracelet/log"
 	"github.com/ctrlplanedev/cli/internal/api"
-	"github.com/ctrlplanedev/cli/internal/cliutil"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -232,10 +231,10 @@ func NewSyncClickhouseCmd() *cobra.Command {
 				}
 				connection := service.GetConnection()
 				metadata := map[string]string{
-					"database/id": service.ID,
+					"database/id":    service.ID,
 					"database/model": "relational",
-					"database/port": fmt.Sprintf("%d", connection.Port),
-					"database/host": connection.Host,
+					"database/port":  fmt.Sprintf("%d", connection.Port),
+					"database/host":  connection.Host,
 
 					"clickhouse/id":                                 service.ID,
 					"clickhouse/name":                               service.Name,
@@ -272,20 +271,20 @@ func NewSyncClickhouseCmd() *cobra.Command {
 					Name:       name,
 					Identifier: fmt.Sprintf("%s/%s", organizationID, service.ID),
 					Config: map[string]any{
-						"host": connection.Host,
-						"port": connection.Port,
+						"host":     connection.Host,
+						"port":     connection.Port,
 						"username": connection.Username,
 
 						"clickhouse": map[string]any{
-							"id":                             service.ID,
-							"name":                           service.Name,
-							"state":                          service.State,
-							"provider":                       service.Provider,
-							"region":                         service.Region,
-							"endpoints":                      service.Endpoints,
-							"iamRole":                        service.IamRole,
-							"isPrimary":                      service.IsPrimary,
-							"isReadonly":                     service.IsReadonly,
+							"id":         service.ID,
+							"name":       service.Name,
+							"state":      service.State,
+							"provider":   service.Provider,
+							"region":     service.Region,
+							"endpoints":  service.Endpoints,
+							"iamRole":    service.IamRole,
+							"isPrimary":  service.IsPrimary,
+							"isReadonly": service.IsReadonly,
 						},
 					},
 					Metadata: metadata,
@@ -300,9 +299,15 @@ func NewSyncClickhouseCmd() *cobra.Command {
 			upsertResp, err := rp.UpsertResource(ctx, resources)
 			log.Info("Response from upserting resources", "status", upsertResp.Status)
 			if err != nil {
+				if upsertResp != nil {
+					log.Error("Failed to upsert resources",
+						"error", err,
+						"status", upsertResp.Status,
+						"body", upsertResp.Body)
+				}
 				return fmt.Errorf("failed to upsert resources: %w", err)
 			}
-			return cliutil.HandleResponseOutput(cmd, upsertResp)
+			return nil
 		},
 	}
 
