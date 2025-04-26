@@ -1,7 +1,8 @@
-from base import BoringModel, RandomDataset
 from lightning import Trainer
 from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader
+
+from .base import BoringModel, RandomDataset
 
 
 def main():
