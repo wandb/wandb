@@ -8,6 +8,7 @@ import (
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/google/gke"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/google/networks"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/google/redis"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/google/secrets"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/google/vms"
 	"github.com/ctrlplanedev/cli/internal/cliutil"
 	"github.com/spf13/cobra"
@@ -44,6 +45,7 @@ func NewGoogleCloudCmd() *cobra.Command {
 	cmd.AddCommand(cliutil.AddIntervalSupport(gke.NewSyncGKECmd(), ""))
 	cmd.AddCommand(cliutil.AddIntervalSupport(networks.NewSyncNetworksCmd(), ""))
 	cmd.AddCommand(cliutil.AddIntervalSupport(vms.NewSyncVMsCmd(), ""))
+	cmd.AddCommand(cliutil.AddIntervalSupport(secrets.NewSyncSecretsCmd(), ""))
 
 	return cmd
 }
