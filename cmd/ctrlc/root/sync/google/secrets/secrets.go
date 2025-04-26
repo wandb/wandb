@@ -12,7 +12,7 @@ import (
 	"github.com/ctrlplanedev/cli/internal/api"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	secretmanager "google.golang.org/api/secretmanager/v1"
+	"google.golang.org/api/secretmanager/v1"
 )
 
 // NewSyncSecretsCmd creates a new cobra command for syncing Google Secret Manager secrets
@@ -138,33 +138,30 @@ func processSecret(_ context.Context, secretClient *secretmanager.Service, secre
 
 	// Get the most recent version
 	mostRecentVersion := ""
-	if len(secret.Topics) > 0 {
-		// List versions
-		versionsResponse, err := secretClient.Projects.Secrets.Versions.List(secret.Name).Do()
-		if err == nil && versionsResponse.Versions != nil && len(versionsResponse.Versions) > 0 {
-			// Find the most recent ENABLED version
-			var latestVersion *secretmanager.SecretVersion
-			for _, version := range versionsResponse.Versions {
-				if version.State == "ENABLED" {
-					if latestVersion == nil || version.CreateTime > latestVersion.CreateTime {
-						latestVersion = version
-					}
+	versionsResponse, err := secretClient.Projects.Secrets.Versions.List(secret.Name).Do()
+	if err == nil && len(versionsResponse.Versions) > 0 {
+		// Find the most recent ENABLED version
+		var latestVersion *secretmanager.SecretVersion
+		for _, version := range versionsResponse.Versions {
+			if version.State == "ENABLED" {
+				if latestVersion == nil || version.CreateTime > latestVersion.CreateTime {
+					latestVersion = version
 				}
 			}
+		}
+		
+		if latestVersion != nil {
+			// Get just the version ID from the full name
+			// Format: projects/{project}/secrets/{secret}/versions/{version}
+			parts := strings.Split(latestVersion.Name, "/")
+			mostRecentVersion = parts[len(parts)-1]
+			metadata["secret/latest-version"] = mostRecentVersion
 			
-			if latestVersion != nil {
-				// Get just the version ID from the full name
-				// Format: projects/{project}/secrets/{secret}/versions/{version}
-				parts := strings.Split(latestVersion.Name, "/")
-				mostRecentVersion = parts[len(parts)-1]
-				metadata["secret/latest-version"] = mostRecentVersion
-				
-				// Add version creation time
-				if latestVersion.CreateTime != "" {
-					creationTime, err := time.Parse(time.RFC3339, latestVersion.CreateTime)
-					if err == nil {
-						metadata["secret/latest-version-created"] = creationTime.Format(time.RFC3339)
-					}
+			// Add version creation time
+			if latestVersion.CreateTime != "" {
+				creationTime, err := time.Parse(time.RFC3339, latestVersion.CreateTime)
+				if err == nil {
+					metadata["secret/latest-version-created"] = creationTime.Format(time.RFC3339)
 				}
 			}
 		}
