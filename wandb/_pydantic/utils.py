@@ -23,8 +23,12 @@ BaseModelType: TypeAlias = Type[BaseModel]
 if IS_PYDANTIC_V2:
     import pydantic_core  # pydantic_core is only installed by pydantic v2
 
+    def from_json(s: str) -> Any:
+        """Quickly deserialize a JSON string to a Python object."""
+        return pydantic_core.from_json(s)
+
     def to_json(v: Any) -> str:
-        """Serialize a Python object to a JSON string."""
+        """Quickly serialize a (possibly Pydantic) object to a JSON string."""
         return pydantic_core.to_json(v, by_alias=True, round_trip=True).decode("utf-8")
 
     def pydantic_isinstance(
@@ -51,6 +55,9 @@ else:
     # compatibility with Pydantic v1 so long as we need to support it.
 
     from pydantic.json import pydantic_encoder  # Only valid in pydantic v1
+
+    def from_json(s: str) -> Any:
+        return json.loads(s)
 
     def to_json(v: Any) -> str:
         return json.dumps(v, default=pydantic_encoder)
