@@ -173,11 +173,11 @@ func processNetwork(network *compute.Network, project string, subnetCount int) (
 		Identifier: network.SelfLink,
 		Config: map[string]any{
 			// Common cross-provider options
-			"name":        network.Name,
-			"type":        "vpc",
-			"id":          strconv.FormatUint(network.Id, 10),
-			"mtu":         network.Mtu,
-			
+			"name": network.Name,
+			"type": "vpc",
+			"id":   strconv.FormatUint(network.Id, 10),
+			"mtu":  network.Mtu,
+
 			// Provider-specific implementation details
 			"googleNetwork": map[string]any{
 				"project":           project,
@@ -296,7 +296,7 @@ func processSubnet(subnet *compute.Subnetwork, project string, region string) (a
 			"id":          strconv.FormatUint(subnet.Id, 10),
 			"gateway":     subnet.GatewayAddress,
 			"networkName": networkName,
-			
+
 			// Provider-specific implementation details
 			"googleSubnet": map[string]any{
 				"project":               project,
@@ -434,7 +434,7 @@ func processFirewall(firewall *compute.Firewall, project string) (api.AgentResou
 			"priority":    firewall.Priority,
 			"enabled":     firewall.Disabled,
 			"networkName": networkName,
-			
+
 			// Core firewall rule information that crosses providers
 			"sourceRanges":      firewall.SourceRanges,
 			"destinationRanges": firewall.DestinationRanges,
@@ -442,7 +442,7 @@ func processFirewall(firewall *compute.Firewall, project string) (api.AgentResou
 				"allowed": firewall.Allowed,
 				"denied":  firewall.Denied,
 			},
-			
+
 			// Provider-specific implementation details
 			"googleFirewall": map[string]any{
 				"project":               project,
@@ -481,7 +481,7 @@ func initFirewallMetadata(firewall *compute.Firewall, project string) map[string
 		"firewall/disabled":  strconv.FormatBool(firewall.Disabled),
 		"firewall/rule-type": ruleType,
 
-		"google/self-link": firewall.SelfLink,
+		"google/self-link":     firewall.SelfLink,
 		"google/project":       project,
 		"google/resource-type": "compute.googleapis.com/Firewall",
 		"google/id":            strconv.FormatUint(firewall.Id, 10),
@@ -618,27 +618,27 @@ func processForwardingRule(rule *compute.ForwardingRule, project string, region 
 		Identifier: rule.SelfLink,
 		Config: map[string]any{
 			// Common cross-provider options
-			"name":        rule.Name,
-			"type":        "loadbalancer",
-			"id":          strconv.FormatUint(rule.Id, 10),
-			"region":      region,
-			"ip":          rule.IPAddress,
-			"protocol":    rule.IPProtocol,
-			"ports":       rule.Ports,
-			"portRange":   rule.PortRange,
-			"networkName": networkName,
+			"name":             rule.Name,
+			"type":             "loadbalancer",
+			"id":               strconv.FormatUint(rule.Id, 10),
+			"region":           region,
+			"ip":               rule.IPAddress,
+			"protocol":         rule.IPProtocol,
+			"ports":            rule.Ports,
+			"portRange":        rule.PortRange,
+			"networkName":      networkName,
 			"loadBalancerType": rule.LoadBalancingScheme,
-			
+
 			// Provider-specific implementation details
 			"googleForwardingRule": map[string]any{
-				"project":             project,
-				"target":              rule.Target,
-				"backendService":      rule.BackendService,
-				"serviceLabel":        rule.ServiceLabel,
-				"serviceName":         rule.ServiceName,
-				"networkTier":         rule.NetworkTier,
-				"subnetwork":          rule.Subnetwork,
-				"network":             rule.Network,
+				"project":        project,
+				"target":         rule.Target,
+				"backendService": rule.BackendService,
+				"serviceLabel":   rule.ServiceLabel,
+				"serviceName":    rule.ServiceName,
+				"networkTier":    rule.NetworkTier,
+				"subnetwork":     rule.Subnetwork,
+				"network":        rule.Network,
 			},
 		},
 		Metadata: metadata,
