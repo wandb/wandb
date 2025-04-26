@@ -35,7 +35,12 @@ def test_agent_create_command_args():
     assert _return["args_no_boolean_flags"] == ["--a", "--c=1", "--d=None"]
     assert _return["args_json"] == ['{"a": true, "b": false, "c": 1, "d": null}']
     assert _return["args_append_hydra"] == ["+a=True", "+b=False", "+c=1", "+d=None"]
-    assert _return["args_override_hydra"] == ["++a=True", "++b=False", "++c=1", "++d=None"]
+    assert _return["args_override_hydra"] == [
+        "++a=True",
+        "++b=False",
+        "++c=1",
+        "++d=None",
+    ]
 
 
 def test_agent_create_command_args_bad_command():
