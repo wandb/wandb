@@ -183,14 +183,11 @@ def unit_tests(session: nox.Session) -> None:
         # TODO: consider relaxing this once the test memory usage is under control.
         opts={
             "n": "8",
-            # Provide better isolation of `hypothesis` tests, which, while useful,
-            # are not guaranteed to be thread-safe.
+            # Provide better isolation of `hypothesis` tests.
             #
-            # See: https://hypothesis.readthedocs.io/en/latest/compatibility.html#thread-safety-policy
-            #
-            # Setting `--dist=loadfile` is predicated on the assumption that in
-            # practice, hypothesis tests tend to be grouped together in the same
-            # file.  Revisit if this proves to be insufficient, or if a better
+            # NOTE: Setting `--dist=loadfile` is predicated on the assumption that
+            # in practice, `hypothesis` tests tend to be grouped together in the
+            # same file.  Revisit if this proves to be insufficient, or if a better
             # alternative emerges.
             "dist": "loadfile",
         },
