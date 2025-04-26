@@ -44,13 +44,13 @@ func NewSyncEC2Cmd() *cobra.Command {
 	var region string
 	var name string
 	cmd := &cobra.Command{
-		Use:   "aws-ec2",
+		Use:   "ec2",
 		Short: "Sync AWS EC2 instances into Ctrlplane",
 		Example: heredoc.Doc(`
 			# Make sure AWS credentials are configured via environment variables or ~/.aws/credentials
 			
 			# Sync all EC2 instances from a region
-			$ ctrlc sync ec2 --region us-west-2 --workspace 2a7c5560-75c9-4dbe-be74-04ee33bf8188
+			$ ctrlc sync aws ec2 --region us-west-2
 		`),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if region == "" {
