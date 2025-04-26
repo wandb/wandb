@@ -36,13 +36,13 @@ func NewSyncBigtableCmd() *cobra.Command {
 	var name string
 
 	cmd := &cobra.Command{
-		Use:   "google-bigtable",
+		Use:   "bigtable",
 		Short: "Sync Google Bigtable instances into Ctrlplane",
 		Example: heredoc.Doc(`
 			# Make sure Google Cloud credentials are configured via environment variables or application default credentials
 			
 			# Sync all Bigtable instances from a project
-			$ ctrlc sync google-bigtable --project my-project
+			$ ctrlc sync google-cloud bigtable --project my-project
 		`),
 		PreRunE: validateFlags(&project),
 		RunE:    runSync(&project, &name),

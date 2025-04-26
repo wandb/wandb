@@ -21,13 +21,13 @@ func NewSyncVMsCmd() *cobra.Command {
 	var name string
 
 	cmd := &cobra.Command{
-		Use:   "google-vms",
+		Use:   "vms",
 		Short: "Sync Google Cloud virtual machines into Ctrlplane",
 		Example: heredoc.Doc(`
 			# Make sure Google Cloud credentials are configured via environment variables or application default credentials
 			
 			# Sync all VM instances from a project
-			$ ctrlc sync google-vms --project my-project
+			$ ctrlc sync google-cloud vms --project my-project
 		`),
 		PreRunE: validateFlags(&project),
 		RunE:    runSync(&project, &name),

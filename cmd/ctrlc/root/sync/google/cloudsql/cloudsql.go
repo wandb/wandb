@@ -62,13 +62,13 @@ func NewSyncCloudSQLCmd() *cobra.Command {
 	var providerName string
 
 	cmd := &cobra.Command{
-		Use:   "google-cloudsql",
+		Use:   "cloudsql",
 		Short: "Sync Google Cloud SQL instances into Ctrlplane",
 		Example: heredoc.Doc(`
 			# Make sure Google Cloud credentials are configured via environment variables or application default credentials
 			
 			# Sync all Cloud SQL instances from a project
-			$ ctrlc sync google-cloudsql --project my-project
+			$ ctrlc sync google-cloud cloudsql --project my-project
 		`),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if project == "" {

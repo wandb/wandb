@@ -20,13 +20,13 @@ func NewSyncRedisCmd() *cobra.Command {
 	var name string
 
 	cmd := &cobra.Command{
-		Use:   "google-redis",
+		Use:   "redis",
 		Short: "Sync Google Memorystore Redis instances into Ctrlplane",
 		Example: heredoc.Doc(`
 			# Make sure Google Cloud credentials are configured via environment variables or application default credentials
 			
 			# Sync all Redis instances from a project
-			$ ctrlc sync google-redis --project my-project
+			$ ctrlc sync google-cloud redis --project my-project
 		`),
 		PreRunE: validateFlags(&project),
 		RunE:    runSync(&project, &name),

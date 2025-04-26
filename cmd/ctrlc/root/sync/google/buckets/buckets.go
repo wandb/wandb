@@ -28,13 +28,13 @@ func NewSyncBucketsCmd() *cobra.Command {
 	var name string
 
 	cmd := &cobra.Command{
-		Use:   "google-buckets",
+		Use:   "buckets",
 		Short: "Sync Google Storage buckets into Ctrlplane",
 		Example: heredoc.Doc(`
 			# Make sure Google Cloud credentials are configured via environment variables or application default credentials
 			
 			# Sync all Storage buckets from a project
-			$ ctrlc sync google-buckets --project my-project
+			$ ctrlc sync google-cloud buckets --project my-project
 		`),
 		PreRunE: validateFlags(&project),
 		RunE:    runSync(&project, &name),

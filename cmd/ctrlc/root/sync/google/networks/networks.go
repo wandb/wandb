@@ -21,13 +21,13 @@ func NewSyncNetworksCmd() *cobra.Command {
 	var name string
 
 	cmd := &cobra.Command{
-		Use:   "google-networks",
+		Use:   "networks",
 		Short: "Sync Google Cloud VPC networks and subnets into Ctrlplane",
 		Example: heredoc.Doc(`
 			# Make sure Google Cloud credentials are configured via environment variables or application default credentials
 			
 			# Sync all VPC networks and subnets from a project
-			$ ctrlc sync google-networks --project my-project
+			$ ctrlc sync google-cloud networks --project my-project
 		`),
 		PreRunE: validateFlags(&project),
 		RunE:    runSync(&project, &name),
