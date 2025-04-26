@@ -115,13 +115,13 @@ class WebhookIntegrations(Paginator["WebhookIntegration"]):
         """Parse the page data into a list of webhook integrations."""
         from wandb.automations import WebhookIntegration
 
-        page = self.last_response
+        typename = "GenericWebhookIntegration"
         return [
-            WebhookIntegration.model_validate(edge.node)
-            for edge in page.edges
-            # Needed because the GQL response still seems to include
-            # other integration types
-            if edge.node.typename__ == "GenericWebhookIntegration"
+            # Filter on typename__ needed because the GQL response still
+            # includes all integration types
+            WebhookIntegration.model_validate(node)
+            for edge in self.last_response.edges
+            if (node := edge.node) and (node.typename__ == typename)
         ]
 
 
@@ -170,11 +170,11 @@ class SlackIntegrations(Paginator["SlackIntegration"]):
         """Parse the page data into a list of Slack integrations."""
         from wandb.automations import SlackIntegration
 
-        page = self.last_response
+        typename = "SlackIntegration"
         return [
-            SlackIntegration.model_validate(edge.node)
-            for edge in page.edges
-            # Needed because the GQL response still seems to include
-            # other integration types
-            if edge.node.typename__ == "SlackIntegration"
+            # Filter on typename__ needed because the GQL response still
+            # includes all integration types
+            SlackIntegration.model_validate(node)
+            for edge in self.last_response.edges
+            if (node := edge.node) and (node.typename__ == typename)
         ]
