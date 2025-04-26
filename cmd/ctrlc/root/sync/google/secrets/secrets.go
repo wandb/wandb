@@ -89,30 +89,46 @@ func processSecrets(ctx context.Context, secretClient *secretmanager.Service, pr
 	// Build the parent name for listing secrets
 	parent := fmt.Sprintf("projects/%s", project)
 
-	// List all secrets in the project
-	response, err := secretClient.Projects.Secrets.List(parent).Do()
-	if err != nil {
-		return nil, fmt.Errorf("failed to list secrets: %w", err)
-	}
-
-	log.Info("Found secrets", "count", len(response.Secrets))
-
 	resources := []api.AgentResource{}
-	for _, secret := range response.Secrets {
-		// Process each secret
-		resource, err := processSecret(ctx, secretClient, secret, project)
-		if err != nil {
-			log.Error("Failed to process secret", "name", secret.Name, "error", err)
-			continue
+	secretCount := 0
+	pageToken := ""
+
+	for {
+		// List secrets with pagination
+		call := secretClient.Projects.Secrets.List(parent)
+		if pageToken != "" {
+			call = call.PageToken(pageToken)
 		}
-		resources = append(resources, resource)
+
+		response, err := call.Do()
+		if err != nil {
+			return nil, fmt.Errorf("failed to list secrets: %w", err)
+		}
+
+		// Process secrets from current page
+		for _, secret := range response.Secrets {
+			resource, err := processSecret(ctx, secretClient, secret, project)
+			if err != nil {
+				log.Error("Failed to process secret", "name", secret.Name, "error", err)
+				continue
+			}
+			resources = append(resources, resource)
+			secretCount++
+		}
+
+		// Check if there are more pages
+		if response.NextPageToken == "" {
+			break
+		}
+		pageToken = response.NextPageToken
 	}
 
+	log.Info("Found secrets", "count", secretCount)
 	return resources, nil
 }
 
 // processSecret handles processing of a single secret
-func processSecret(ctx context.Context, secretClient *secretmanager.Service, secret *secretmanager.Secret, project string) (api.AgentResource, error) {
+func processSecret(_ context.Context, secretClient *secretmanager.Service, secret *secretmanager.Secret, project string) (api.AgentResource, error) {
 	// Extract secret name from full resource name
 	// Format: projects/{project}/secrets/{secret}
 	secretName := getResourceName(secret.Name)
