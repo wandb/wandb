@@ -183,13 +183,12 @@ def unit_tests(session: nox.Session) -> None:
         # TODO: consider relaxing this once the test memory usage is under control.
         opts={
             "n": "8",
-            # Provide better isolation of `hypothesis` tests.
+            # Provide better isolation of tests, particularly `hypothesis` tests.
             #
-            # NOTE: Setting `--dist=loadfile` is predicated on the assumption that
-            # in practice, `hypothesis` tests tend to be grouped together in the
-            # same file.  Revisit if this proves to be insufficient, or if a better
-            # alternative emerges.
-            "dist": "loadfile",
+            # NOTE: Setting `--dist=loadscope` assumes that `hypothesis` tests are
+            # grouped into their own files, as they often are in practice.
+            # Revisit this if necessary, or if a better alternative emerges.
+            "dist": "loadscope",
         },
     )
 
