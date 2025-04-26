@@ -129,7 +129,8 @@ def run_pytest(
 
     # (pytest-xdist) Run tests in parallel.
     pytest_opts.append(f"-n={opts.get('n', 'auto')}")
-    pytest_opts.append(f"--dist={opts.get('dist', 'loadfile')}")
+
+    pytest_opts.append(f"--dist={opts.get('dist', 'loadscope')}")
 
     # Limit the # of workers in CI. Due to heavy tensorflow and pytorch imports,
     # each worker uses up 700MB+ of memory, so with a large number of workers,
