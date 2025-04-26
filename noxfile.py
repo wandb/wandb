@@ -129,8 +129,7 @@ def run_pytest(
 
     # (pytest-xdist) Run tests in parallel.
     pytest_opts.append(f"-n={opts.get('n', 'auto')}")
-
-    pytest_opts.append(f"--dist={opts.get('dist', 'loadscope')}")
+    pytest_opts.append(f"--dist={opts.get('dist', 'load')}")
 
     # Limit the # of workers in CI. Due to heavy tensorflow and pytorch imports,
     # each worker uses up 700MB+ of memory, so with a large number of workers,
@@ -182,7 +181,19 @@ def unit_tests(session: nox.Session) -> None:
         session,
         paths=session.posargs or ["tests/unit_tests"],
         # TODO: consider relaxing this once the test memory usage is under control.
-        opts={"n": "8"},
+        opts={
+            "n": "8",
+            # Provide better isolation of `hypothesis` tests, which, while useful,
+            # are not guaranteed to be thread-safe.
+            #
+            # See: https://hypothesis.readthedocs.io/en/latest/compatibility.html#thread-safety-policy
+            #
+            # Setting `--dist=loadfile` is predicated on the assumption that in
+            # practice, hypothesis tests tend to be grouped together in the same
+            # file.  Revisit if this proves to be insufficient, or if a better
+            # alternative emerges.
+            "dist": "loadfile",
+        },
     )
 
 
