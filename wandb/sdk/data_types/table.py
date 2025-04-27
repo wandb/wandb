@@ -655,7 +655,7 @@ class Table(Media):
 
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             if self.log_mode == "INCREMENTAL":
-                json_dict.update({"prev_parts_paths": self._incr_parts})
+                json_dict.update({"prev_increment_paths": self._incr_parts})
             json_dict.update(
                 {
                     "_type": "incr-table-file" if self.log_mode == "INCREMENTAL" else "table-file",
@@ -667,7 +667,7 @@ class Table(Media):
 
         elif isinstance(run_or_artifact, wandb.Artifact):
             if self.log_mode == "INCREMENTAL":
-                json_dict.update({"prev_parts_paths": self._incr_parts})
+                json_dict.update({"prev_increment_paths": self._incr_parts})
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
