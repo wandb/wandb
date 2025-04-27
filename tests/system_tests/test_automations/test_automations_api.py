@@ -12,14 +12,17 @@ from wandb.apis.public import ArtifactCollection, Project
 from wandb.automations import (
     ActionType,
     Automation,
+    DoNothing,
     EventType,
     OnLinkArtifact,
     OnRunMetric,
     ProjectScope,
+    RunEvent,
     SendWebhook,
     WebhookIntegration,
 )
-from wandb.automations.events import MetricThresholdFilter, RunEvent, RunMetricFilter
+from wandb.automations.actions import SavedNoOpAction, SavedWebhookAction
+from wandb.automations.events import MetricThresholdFilter, RunMetricFilter
 from wandb.automations.scopes import ArtifactCollectionScopeTypes
 
 
@@ -359,6 +362,41 @@ class TestUpdateAutomation:
         new_automation = api.update_automation(old_automation)
 
         assert new_automation.enabled == new_value
+
+    def test_update_action_to_webhook(
+        self, api: wandb.Api, old_automation: Automation, webhook: WebhookIntegration
+    ):
+        # This is deliberately an "input" action, even though saved automations
+        # will have a "saved" action on them.  We want to check that this is still
+        # handled correctly and reliably.
+        webhook_id = webhook.id
+        new_payload = {"new-key": "new-value"}
+        webhook_action = SendWebhook(
+            integration_id=webhook_id,
+            request_payload=new_payload,
+        )
+
+        old_automation.action = webhook_action
+        new_automation = api.update_automation(old_automation)
+
+        new_action = new_automation.action
+        assert isinstance(new_action, SavedWebhookAction)
+        assert new_action.action_type == ActionType.GENERIC_WEBHOOK
+        assert new_action.integration.id == webhook_id
+        assert new_action.request_payload == new_payload
+
+    def test_update_action_to_no_op(self, api: wandb.Api, old_automation: Automation):
+        # This is deliberately an "input" action, even though saved automations
+        # will have a "saved" action on them.  We want to check that this is still
+        # handled correctly and reliably.
+
+        old_automation.action = DoNothing()
+        new_automation = api.update_automation(old_automation)
+
+        new_action = new_automation.action
+        # NO_OP actions don't have meaningful fields besides these
+        assert isinstance(new_action, SavedNoOpAction)
+        assert new_action.action_type == ActionType.NO_OP
 
     # This is only meaningful if the original automation has a webhook action
     @mark.parametrize("action_type", [ActionType.GENERIC_WEBHOOK], indirect=True)
