@@ -131,9 +131,9 @@ class Registry:
 
         Example:
         ```python
-        registry.artifact_types.add("model")
+        registry.artifact_types.append("model")
         registry.save()  # once saved, the artifact type `model` cannot be removed
-        registry.artifact_types.add("accidentally_added")
+        registry.artifact_types.append("accidentally_added")
         registry.artifact_types.remove(
             "accidentally_added"
         )  # Types can only be removed if it has not been saved yet
@@ -195,7 +195,7 @@ class Registry:
         name: str,
         visibility: Literal["organization", "restricted"],
         description: Optional[str] = None,
-        accepted_artifact_types: Optional[List[str]] = None,
+        artifact_types: Optional[List[str]] = None,
     ):
         """Create a new registry. The registry name must be unique within the organization."""
         existing_registry = Registries(client, organization, {"name": name})
@@ -206,9 +206,9 @@ class Registry:
 
         org_entity = _fetch_org_entity_from_organization(client, organization)
         full_name = REGISTRY_PREFIX + name
-        artifact_types = []
-        if accepted_artifact_types:
-            artifact_types = _format_gql_artifact_types_input(accepted_artifact_types)
+        accepted_artifact_types = []
+        if artifact_types:
+            accepted_artifact_types = _format_gql_artifact_types_input(artifact_types)
         visibility_value = _registry_visibility_to_gql(visibility)
         registry_creation_error = (
             """Failed to create registry {name} in organization {organization}."""

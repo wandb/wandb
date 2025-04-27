@@ -63,7 +63,7 @@ class Registries(Paginator):
         super().__init__(client, variables, per_page)
 
     def __bool__(self):
-        return len(self.objects) > 0
+        return bool(self.objects)
 
     def __next__(self):
         # Implement custom next since its possible to load empty pages because of auth

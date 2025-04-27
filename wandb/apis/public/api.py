@@ -1560,7 +1560,7 @@ class Api:
         visibility: Literal["organization", "restricted"],
         organization: Optional[str] = None,
         description: Optional[str] = None,
-        accepted_artifact_types: Optional[List[str]] = None,
+        artifact_types: Optional[List[str]] = None,
     ) -> Registry:
         """Create a new registry.
 
@@ -1572,7 +1572,7 @@ class Api:
             organization: (str, optional) The organization of the registry.
                 If no organization is set in the settings, the organization will be fetched from the entity if the entity only belongs to one organization.
             description: (str, optional) The description of the registry.
-            accepted_artifact_types: (list[str], optional) The accepted artifact types of the registry. A type is no more than 128 characters and do not include characters `/` or `:`.
+            artifact_types: (list[str], optional) The accepted artifact types of the registry. A type is no more than 128 characters and do not include characters `/` or `:`.
                 If not specified, all types are accepted.
                 Note: allowed types added to the registry cannot be removed later.
 
@@ -1589,7 +1589,7 @@ class Api:
                 visibility="restricted",
                 organization="my-org",
                 description="This is a test registry",
-                accepted_artifact_types=["model"],
+                artifact_types=["model"],
             )
             ```
         """
@@ -1610,7 +1610,7 @@ class Api:
             name,
             visibility,
             description,
-            accepted_artifact_types,
+            artifact_types,
         )
 
     def integrations(

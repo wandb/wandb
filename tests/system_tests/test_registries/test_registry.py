@@ -95,7 +95,7 @@ def test_registry_create_edit_artifact_types(user_in_org):
     )
     assert registry
     assert registry.allow_all_artifact_types
-    assert list(registry.artifact_types) == []
+    assert registry.artifact_types == []
 
     # Test restriction: Cannot add types if allow_all is True
     registry.artifact_types.append(artifact_type_1)
@@ -104,16 +104,16 @@ def test_registry_create_edit_artifact_types(user_in_org):
     # Reset for valid save
     registry.allow_all_artifact_types = False
     registry.save()
-    assert list(registry.artifact_types) == [artifact_type_1]
-    assert list(registry.artifact_types.draft) == []
+    assert registry.artifact_types == [artifact_type_1]
+    assert registry.artifact_types.draft == ()
 
     # Add a second type
     registry.artifact_types.append(artifact_type_2)
-    assert list(registry.artifact_types.draft) == [artifact_type_2]
+    assert registry.artifact_types.draft == (artifact_type_2,)
     assert artifact_type_1 in registry.artifact_types
     registry.save()
-    assert list(registry.artifact_types) == [artifact_type_1, artifact_type_2]
-    assert list(registry.artifact_types.draft) == []
+    assert registry.artifact_types == [artifact_type_1, artifact_type_2]
+    assert registry.artifact_types.draft == ()
 
     # try to remove a type that has been saved
     with pytest.raises(ValueError, match="Cannot remove artifact type"):

@@ -1,5 +1,6 @@
+from enum import Enum
 from functools import lru_cache
-from typing import TYPE_CHECKING, List, Literal, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, List, Literal, Mapping, Optional, Sequence
 
 from wandb.sdk.artifacts._validators import (
     REGISTRY_PREFIX,
@@ -11,10 +12,19 @@ if TYPE_CHECKING:
 
 from wandb_gql import gql
 
-VISIBILITY_MAPPING = {
-    "organization": "PRIVATE",
-    "restricted": "RESTRICTED",
-}
+
+class _Visibility(str, Enum):
+    # names are what users see/pass into Python methods
+    # values are what's expected by backend API
+    organization = "PRIVATE"
+    restricted = "RESTRICTED"
+
+    @classmethod
+    def _missing_(cls, value: object) -> Any:
+        return next(
+            (e for e in cls if e.name == value),
+            None,
+        )
 
 
 def _format_gql_artifact_types_input(
@@ -45,17 +55,17 @@ def _gql_to_registry_visibility(
     Returns:
         The registry visibility.
     """
-    reverse_visibility_mapping = {v: k for k, v in VISIBILITY_MAPPING.items()}
-    if visibility not in reverse_visibility_mapping:
-        raise ValueError(f"Invalid visibility: {visibility} from backend")
-    return reverse_visibility_mapping[visibility]
+    try:
+        return _Visibility(visibility).name
+    except ValueError:
+        raise ValueError(f"Invalid visibility: {visibility!r} from backend")
 
 
 def _registry_visibility_to_gql(
     visibility: Literal["organization", "restricted"],
 ) -> str:
     """Convert the registry visibility to the GQL visibility."""
-    return VISIBILITY_MAPPING[visibility]
+    return _Visibility[visibility].value
 
 
 def _ensure_registry_prefix_on_names(query, in_name=False):
