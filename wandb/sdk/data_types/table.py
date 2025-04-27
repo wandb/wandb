@@ -201,10 +201,19 @@ def allow_relogging_after_mutation(method):
 
     return wrapper
 
+def allow_incremental_logging_after_append(method):
+    def wrapper(self, *args, **kwargs):
+        res = method(self, *args, **kwargs)
+        if self.log_mode == "INCREMENTAL":
+            self._run = None
+            artifact_entry_url = self._get_artifact_entry_ref_url()
+            if artifact_entry_url is not None:
+                self._incr_parts.append(artifact_entry_url)
+            self._artifact_target = None
+        return res
+    return wrapper
 
-supported_logging_modes = ["IMMUTABLE", "MUTABLE"]
-
-
+supported_logging_modes = ["IMMUTABLE", "MUTABLE", "INCREMENTAL"]
 class Table(Media):
     """The Table class used to display and analyze tabular data.
 
@@ -262,6 +271,9 @@ class Table(Media):
         super().__init__()
         self._validate_log_mode(log_mode)
         self.log_mode = log_mode
+        if self.log_mode == "INCREMENTAL":
+            self._incr_parts = []
+        self._last_logged_idx = None
         self._pk_col = None
         self._fk_cols: set[str] = set()
         if allow_mixed_types:
@@ -462,6 +474,7 @@ class Table(Media):
         self.add_data(*row)
 
     @allow_relogging_after_mutation
+    @allow_incremental_logging_after_append
     def add_data(self, *data):
         """Adds a new row of data to the table. The maximum amount of rows in a table is determined by `wandb.Table.MAX_ARTIFACT_ROWS`.
 
@@ -538,6 +551,9 @@ class Table(Media):
                     f"this may cause slower queries in the W&B UI."
                 )
             logging.warning(f"Truncating wandb.Table object to {max_rows} rows.")
+        print("last logged", self._last_logged_idx)
+        if self._last_logged_idx is not None:
+            return {"columns": self.columns, "data": self.data[self._last_logged_idx + 1:self._last_logged_idx + 1 + max_rows]}
         return {"columns": self.columns, "data": self.data[:max_rows]}
 
     def bind_to_run(self, *args, **kwargs):
@@ -638,9 +654,11 @@ class Table(Media):
         json_dict = super().to_json(run_or_artifact)
 
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
+            if self.log_mode == "INCREMENTAL":
+                json_dict.update({"prev_parts_paths": self._incr_parts})
             json_dict.update(
                 {
-                    "_type": "table-file",
+                    "_type": "incr-table-file" if self.log_mode == "INCREMENTAL" else "table-file",
                     "ncols": len(self.columns),
                     "nrows": len(self.data),
                     "log_mode": self.log_mode
@@ -648,6 +666,8 @@ class Table(Media):
             )
 
         elif isinstance(run_or_artifact, wandb.Artifact):
+            if self.log_mode == "INCREMENTAL":
+                json_dict.update({"prev_parts_paths": self._incr_parts})
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
@@ -719,6 +739,7 @@ class Table(Media):
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
+        print(json_dict)
         return json_dict
 
     def iterrows(self):
