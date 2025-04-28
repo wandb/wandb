@@ -26,7 +26,7 @@ from wandb import env, util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.registries.registries_search import Registries
+from wandb.apis.public.registries import Registries
 from wandb.apis.public.utils import (
     PathType,
     fetch_org_from_settings_or_entity,
