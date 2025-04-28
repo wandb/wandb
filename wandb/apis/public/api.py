@@ -1983,10 +1983,7 @@ class Api:
             ```
         """
         from wandb.automations import ActionType, Automation
-        from wandb.automations._generated import (
-            UPDATE_FILTER_TRIGGER_GQL,
-            UpdateFilterTrigger,
-        )
+        from wandb.automations._generated import UPDATE_AUTOMATION_GQL, UpdateAutomation
         from wandb.automations._utils import prepare_to_update
 
         # Check if the server even supports updating automations.
@@ -2015,7 +2012,7 @@ class Api:
 
         # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
         omit_fragments = self._omitted_automation_fragments()
-        mutation = gql_compat(UPDATE_FILTER_TRIGGER_GQL, omit_fragments=omit_fragments)
+        mutation = gql_compat(UPDATE_AUTOMATION_GQL, omit_fragments=omit_fragments)
         variables = {"params": gql_input.model_dump(exclude_none=True)}
 
         name = gql_input.name
@@ -2037,7 +2034,7 @@ class Api:
             raise e
 
         try:
-            result = UpdateFilterTrigger.model_validate(data).result
+            result = UpdateAutomation.model_validate(data).result
         except ValidationError as e:
             msg = f"Invalid response while updating automation {name!r}"
             raise RuntimeError(msg) from e

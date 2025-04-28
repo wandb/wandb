@@ -435,7 +435,10 @@ class TestUpdateAutomation:
     @mark.parametrize(
         # Run (metric) events don't support ArtifactCollection scope, so we'll test those separately.
         "event_type",
-        sorted(set(EventType) - {EventType.RUN_METRIC, EventType.RUN_METRIC_CHANGE}),
+        sorted(
+            set(EventType)
+            - {EventType.RUN_METRIC_THRESHOLD, EventType.RUN_METRIC_CHANGE}
+        ),
         indirect=True,
     )
     def test_update_scope_to_artifact_collection(
@@ -458,7 +461,7 @@ class TestUpdateAutomation:
 
     @mark.parametrize(
         "event_type",
-        [EventType.RUN_METRIC, EventType.RUN_METRIC_CHANGE],
+        [EventType.RUN_METRIC_THRESHOLD, EventType.RUN_METRIC_CHANGE],
         indirect=True,
     )
     def test_update_scope_to_artifact_collection_fails_for_incompatible_event(
