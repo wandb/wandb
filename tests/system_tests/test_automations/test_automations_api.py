@@ -121,7 +121,7 @@ def test_create_automation(
     # event to determine if this is a "newer" server.
     assert fetched_a.id == fetched_b.id  # these should at least be the same
 
-    is_older_server = not api._supports_automation(event=EventType.RUN_METRIC)
+    is_older_server = not api._supports_automation(event=EventType.RUN_METRIC_THRESHOLD)
     exclude = {"id"} if is_older_server else None
 
     assert fetched_a.model_dump(exclude=exclude) == created.model_dump(exclude=exclude)
@@ -149,7 +149,7 @@ def test_create_existing_automation_raises_by_default_if_existing(
     # NOTE: On older server versions, the ID returned has an encoded index that's off by 1.
     # This seems fixed on newer servers.  Use RUN_METRIC support as a proxy for identifying
     # newer servers.
-    is_older_server = not api._supports_automation(event=EventType.RUN_METRIC)
+    is_older_server = not api._supports_automation(event=EventType.RUN_METRIC_THRESHOLD)
     exclude = {"id"} if is_older_server else None
 
     assert fetched.model_dump(exclude=exclude) == created.model_dump(exclude=exclude)
@@ -182,7 +182,7 @@ def test_create_existing_automation_fetches_existing_if_requested(
     # NOTE: On older server versions, the ID returned has an encoded index that's off by 1.
     # This seems fixed on newer servers.  Use RUN_METRIC support as a proxy for identifying
     # newer servers.
-    is_older_server = not api._supports_automation(event=EventType.RUN_METRIC)
+    is_older_server = not api._supports_automation(event=EventType.RUN_METRIC_THRESHOLD)
     exclude = {"id"} if is_older_server else None
 
     assert created.model_dump(exclude=exclude) == existing.model_dump(exclude=exclude)

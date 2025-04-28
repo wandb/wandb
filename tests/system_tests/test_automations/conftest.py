@@ -165,7 +165,7 @@ def valid_input_actions() -> list[ActionType]:
 def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     return {
         (EventType.CREATE_ARTIFACT, ScopeType.PROJECT),
-        (EventType.RUN_METRIC, ScopeType.ARTIFACT_COLLECTION),
+        (EventType.RUN_METRIC_THRESHOLD, ScopeType.ARTIFACT_COLLECTION),
     }
 
 
@@ -252,7 +252,7 @@ def event(request: FixtureRequest, event_type: EventType) -> InputEvent:
         EventType.CREATE_ARTIFACT: on_create_artifact.__name__,
         EventType.ADD_ARTIFACT_ALIAS: on_add_artifact_alias.__name__,
         EventType.LINK_ARTIFACT: on_link_artifact.__name__,
-        EventType.RUN_METRIC: on_run_metric.__name__,
+        EventType.RUN_METRIC_THRESHOLD: on_run_metric.__name__,
     }
     return request.getfixturevalue(event2fixture[event_type])
 
