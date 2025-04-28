@@ -32,7 +32,7 @@ func NewSyncCmd() *cobra.Command {
 	cmd.AddCommand(cliutil.AddIntervalSupport(clickhouse.NewSyncClickhouseCmd(), ""))
 	cmd.AddCommand(aws.NewAWSCmd())
 	cmd.AddCommand(google.NewGoogleCloudCmd())
-
 	cmd.AddCommand(kubernetes.NewSyncKubernetesCmd())
+
 	return cmd
 }

@@ -22,6 +22,13 @@ const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
+// Defines values for DeploymentVersionStatus.
+const (
+	DeploymentVersionStatusBuilding DeploymentVersionStatus = "building"
+	DeploymentVersionStatusFailed   DeploymentVersionStatus = "failed"
+	DeploymentVersionStatusReady    DeploymentVersionStatus = "ready"
+)
+
 // Defines values for JobStatus.
 const (
 	JobStatusActionRequired      JobStatus = "action_required"
@@ -92,9 +99,9 @@ const (
 
 // Defines values for UpdateReleaseJSONBodyStatus.
 const (
-	UpdateReleaseJSONBodyStatusBuilding UpdateReleaseJSONBodyStatus = "building"
-	UpdateReleaseJSONBodyStatusFailed   UpdateReleaseJSONBodyStatus = "failed"
-	UpdateReleaseJSONBodyStatusReady    UpdateReleaseJSONBodyStatus = "ready"
+	Building UpdateReleaseJSONBodyStatus = "building"
+	Failed   UpdateReleaseJSONBodyStatus = "failed"
+	Ready    UpdateReleaseJSONBodyStatus = "ready"
 )
 
 // CloudRegionGeoData defines model for CloudRegionGeoData.
@@ -131,21 +138,52 @@ type Deployment struct {
 
 // DeploymentVersion defines model for DeploymentVersion.
 type DeploymentVersion struct {
-	Config         map[string]interface{}  `json:"config"`
-	CreatedAt      time.Time               `json:"createdAt"`
-	DeploymentId   openapi_types.UUID      `json:"deploymentId"`
-	Id             openapi_types.UUID      `json:"id"`
-	JobAgentConfig map[string]interface{}  `json:"jobAgentConfig"`
-	Metadata       *map[string]interface{} `json:"metadata,omitempty"`
-	Name           string                  `json:"name"`
-	Tag            string                  `json:"tag"`
+	Config         map[string]interface{}   `json:"config"`
+	CreatedAt      time.Time                `json:"createdAt"`
+	DeploymentId   openapi_types.UUID       `json:"deploymentId"`
+	Id             openapi_types.UUID       `json:"id"`
+	JobAgentConfig map[string]interface{}   `json:"jobAgentConfig"`
+	Metadata       *map[string]string       `json:"metadata,omitempty"`
+	Name           string                   `json:"name"`
+	Status         *DeploymentVersionStatus `json:"status,omitempty"`
+	Tag            string                   `json:"tag"`
 }
+
+// DeploymentVersionStatus defines model for DeploymentVersion.Status.
+type DeploymentVersionStatus string
 
 // DeploymentVersionSelector defines model for DeploymentVersionSelector.
 type DeploymentVersionSelector struct {
 	DeploymentVersionSelector map[string]interface{} `json:"deploymentVersionSelector"`
 	Description               *string                `json:"description,omitempty"`
 	Name                      string                 `json:"name"`
+}
+
+// DirectVariable defines model for DirectVariable.
+type DirectVariable struct {
+	Key       string               `json:"key"`
+	Sensitive *bool                `json:"sensitive,omitempty"`
+	Value     DirectVariable_Value `json:"value"`
+}
+
+// DirectVariableValue0 defines model for .
+type DirectVariableValue0 = string
+
+// DirectVariableValue1 defines model for .
+type DirectVariableValue1 = float32
+
+// DirectVariableValue2 defines model for .
+type DirectVariableValue2 = bool
+
+// DirectVariableValue3 defines model for .
+type DirectVariableValue3 = map[string]interface{}
+
+// DirectVariableValue4 defines model for .
+type DirectVariableValue4 = []interface{}
+
+// DirectVariable_Value defines model for DirectVariable.Value.
+type DirectVariable_Value struct {
+	union json.RawMessage
 }
 
 // Environment defines model for Environment.
@@ -218,11 +256,14 @@ type JobWithTrigger struct {
 	StartedAt      *time.Time             `json:"startedAt"`
 	Status         JobStatus              `json:"status"`
 	UpdatedAt      time.Time              `json:"updatedAt"`
-	Variables      map[string]interface{} `json:"variables"`
+	Variables      VariableMap            `json:"variables"`
 }
 
 // JobWithTriggerApprovalStatus defines model for JobWithTrigger.Approval.Status.
 type JobWithTriggerApprovalStatus string
+
+// MetadataMap defines model for MetadataMap.
+type MetadataMap map[string]string
 
 // Policy defines model for Policy.
 type Policy struct {
@@ -293,6 +334,34 @@ type PolicyTarget struct {
 	ResourceSelector    *map[string]interface{} `json:"resourceSelector"`
 }
 
+// ReferenceVariable defines model for ReferenceVariable.
+type ReferenceVariable struct {
+	DefaultValue *ReferenceVariable_DefaultValue `json:"defaultValue,omitempty"`
+	Key          string                          `json:"key"`
+	Path         []string                        `json:"path"`
+	Reference    string                          `json:"reference"`
+}
+
+// ReferenceVariableDefaultValue0 defines model for .
+type ReferenceVariableDefaultValue0 = string
+
+// ReferenceVariableDefaultValue1 defines model for .
+type ReferenceVariableDefaultValue1 = float32
+
+// ReferenceVariableDefaultValue2 defines model for .
+type ReferenceVariableDefaultValue2 = bool
+
+// ReferenceVariableDefaultValue3 defines model for .
+type ReferenceVariableDefaultValue3 = map[string]interface{}
+
+// ReferenceVariableDefaultValue4 defines model for .
+type ReferenceVariableDefaultValue4 = []interface{}
+
+// ReferenceVariable_DefaultValue defines model for ReferenceVariable.DefaultValue.
+type ReferenceVariable_DefaultValue struct {
+	union json.RawMessage
+}
+
 // Release defines model for Release.
 type Release struct {
 	Config         map[string]interface{}  `json:"config"`
@@ -305,6 +374,14 @@ type Release struct {
 	Version        string                  `json:"version"`
 }
 
+// ReleaseTarget defines model for ReleaseTarget.
+type ReleaseTarget struct {
+	Deployment  Deployment         `json:"deployment"`
+	Environment Environment        `json:"environment"`
+	Id          openapi_types.UUID `json:"id"`
+	Resource    Resource           `json:"resource"`
+}
+
 // Resource defines model for Resource.
 type Resource struct {
 	Config      map[string]interface{} `json:"config"`
@@ -315,6 +392,50 @@ type Resource struct {
 	Metadata    map[string]interface{} `json:"metadata"`
 	Name        string                 `json:"name"`
 	UpdatedAt   time.Time              `json:"updatedAt"`
+	Version     string                 `json:"version"`
+	WorkspaceId openapi_types.UUID     `json:"workspaceId"`
+}
+
+// ResourceWithMetadata defines model for ResourceWithMetadata.
+type ResourceWithMetadata struct {
+	Config      map[string]interface{} `json:"config"`
+	CreatedAt   time.Time              `json:"createdAt"`
+	Id          openapi_types.UUID     `json:"id"`
+	Identifier  string                 `json:"identifier"`
+	Kind        string                 `json:"kind"`
+	Metadata    MetadataMap            `json:"metadata"`
+	Name        string                 `json:"name"`
+	UpdatedAt   time.Time              `json:"updatedAt"`
+	Version     string                 `json:"version"`
+	WorkspaceId openapi_types.UUID     `json:"workspaceId"`
+}
+
+// ResourceWithVariables defines model for ResourceWithVariables.
+type ResourceWithVariables struct {
+	Config      map[string]interface{} `json:"config"`
+	CreatedAt   time.Time              `json:"createdAt"`
+	Id          openapi_types.UUID     `json:"id"`
+	Identifier  string                 `json:"identifier"`
+	Kind        string                 `json:"kind"`
+	Metadata    map[string]interface{} `json:"metadata"`
+	Name        string                 `json:"name"`
+	UpdatedAt   time.Time              `json:"updatedAt"`
+	Variables   *VariableMap           `json:"variables,omitempty"`
+	Version     string                 `json:"version"`
+	WorkspaceId openapi_types.UUID     `json:"workspaceId"`
+}
+
+// ResourceWithVariablesAndMetadata defines model for ResourceWithVariablesAndMetadata.
+type ResourceWithVariablesAndMetadata struct {
+	Config      map[string]interface{} `json:"config"`
+	CreatedAt   time.Time              `json:"createdAt"`
+	Id          openapi_types.UUID     `json:"id"`
+	Identifier  string                 `json:"identifier"`
+	Kind        string                 `json:"kind"`
+	Metadata    MetadataMap            `json:"metadata"`
+	Name        string                 `json:"name"`
+	UpdatedAt   time.Time              `json:"updatedAt"`
+	Variables   *VariableMap           `json:"variables,omitempty"`
 	Version     string                 `json:"version"`
 	WorkspaceId openapi_types.UUID     `json:"workspaceId"`
 }
@@ -345,38 +466,31 @@ type System struct {
 	WorkspaceId openapi_types.UUID `json:"workspaceId"`
 }
 
-// UpdateDeployment defines model for UpdateDeployment.
-type UpdateDeployment struct {
-	Description          string                 `json:"description"`
-	Id                   openapi_types.UUID     `json:"id"`
-	JobAgentConfig       map[string]interface{} `json:"jobAgentConfig"`
-	JobAgentId           *openapi_types.UUID    `json:"jobAgentId"`
-	Name                 string                 `json:"name"`
-	RetryCount           *int                   `json:"retryCount,omitempty"`
-	Slug                 string                 `json:"slug"`
-	SystemId             openapi_types.UUID     `json:"systemId"`
-	Timeout              *int                   `json:"timeout"`
-	AdditionalProperties map[string]interface{} `json:"-"`
-}
-
 // Variable defines model for Variable.
 type Variable struct {
-	Key       string         `json:"key"`
-	Sensitive *bool          `json:"sensitive,omitempty"`
-	Value     Variable_Value `json:"value"`
+	union json.RawMessage
 }
 
-// VariableValue0 defines model for .
-type VariableValue0 = string
+// VariableMap defines model for VariableMap.
+type VariableMap map[string]*VariableMap_AdditionalProperties
 
-// VariableValue1 defines model for .
-type VariableValue1 = float32
+// VariableMap0 defines model for .
+type VariableMap0 = string
 
-// VariableValue2 defines model for .
-type VariableValue2 = bool
+// VariableMap1 defines model for .
+type VariableMap1 = bool
 
-// Variable_Value defines model for Variable.Value.
-type Variable_Value struct {
+// VariableMap2 defines model for .
+type VariableMap2 = float32
+
+// VariableMap3 defines model for .
+type VariableMap3 = map[string]interface{}
+
+// VariableMap4 defines model for .
+type VariableMap4 = []interface{}
+
+// VariableMap_AdditionalProperties defines model for VariableMap.AdditionalProperties.
+type VariableMap_AdditionalProperties struct {
 	union json.RawMessage
 }
 
@@ -487,6 +601,19 @@ type CreateDeploymentJSONBody struct {
 	Timeout *float32 `json:"timeout,omitempty"`
 }
 
+// UpdateDeploymentJSONBody defines parameters for UpdateDeployment.
+type UpdateDeploymentJSONBody struct {
+	Description      *string                 `json:"description,omitempty"`
+	JobAgentConfig   *map[string]interface{} `json:"jobAgentConfig,omitempty"`
+	JobAgentId       *openapi_types.UUID     `json:"jobAgentId"`
+	Name             *string                 `json:"name,omitempty"`
+	ResourceSelector *map[string]interface{} `json:"resourceSelector"`
+	RetryCount       *int                    `json:"retryCount,omitempty"`
+	Slug             *string                 `json:"slug,omitempty"`
+	SystemId         *openapi_types.UUID     `json:"systemId,omitempty"`
+	Timeout          *int                    `json:"timeout"`
+}
+
 // CreateEnvironmentJSONBody defines parameters for CreateEnvironment.
 type CreateEnvironmentJSONBody struct {
 	DeploymentVersionChannels *[]string `json:"deploymentVersionChannels,omitempty"`
@@ -538,6 +665,30 @@ type UpsertPolicyJSONBody struct {
 	} `json:"versionRoleApprovals,omitempty"`
 	VersionUserApprovals *[]VersionUserApproval `json:"versionUserApprovals,omitempty"`
 	WorkspaceId          string                 `json:"workspaceId"`
+}
+
+// UpdatePolicyJSONBody defines parameters for UpdatePolicy.
+type UpdatePolicyJSONBody struct {
+	DenyWindows *[]struct {
+		Dtend    *time.Time              `json:"dtend,omitempty"`
+		Rrule    *map[string]interface{} `json:"rrule,omitempty"`
+		TimeZone string                  `json:"timeZone"`
+	} `json:"denyWindows,omitempty"`
+	DeploymentVersionSelector *DeploymentVersionSelector `json:"deploymentVersionSelector,omitempty"`
+	Description               *string                    `json:"description,omitempty"`
+	Enabled                   *bool                      `json:"enabled,omitempty"`
+	Name                      *string                    `json:"name,omitempty"`
+	Priority                  *float32                   `json:"priority,omitempty"`
+	Targets                   *[]PolicyTarget            `json:"targets,omitempty"`
+	VersionAnyApprovals       *[]struct {
+		RequiredApprovalsCount *float32 `json:"requiredApprovalsCount,omitempty"`
+	} `json:"versionAnyApprovals,omitempty"`
+	VersionRoleApprovals *[]struct {
+		RequiredApprovalsCount *float32 `json:"requiredApprovalsCount,omitempty"`
+		RoleId                 string   `json:"roleId"`
+	} `json:"versionRoleApprovals,omitempty"`
+	VersionUserApprovals *[]VersionUserApproval `json:"versionUserApprovals,omitempty"`
+	WorkspaceId          *string                `json:"workspaceId,omitempty"`
 }
 
 // CreateJobToResourceRelationshipJSONBody defines parameters for CreateJobToResourceRelationship.
@@ -616,6 +767,21 @@ type SetResourceProvidersResourcesJSONBody struct {
 	} `json:"resources"`
 }
 
+// CreateResourceRelationshipRuleJSONBody defines parameters for CreateResourceRelationshipRule.
+type CreateResourceRelationshipRuleJSONBody struct {
+	DependencyDescription *string   `json:"dependencyDescription,omitempty"`
+	DependencyType        string    `json:"dependencyType"`
+	Description           *string   `json:"description,omitempty"`
+	MetadataKeysMatch     *[]string `json:"metadataKeysMatch,omitempty"`
+	Name                  string    `json:"name"`
+	Reference             string    `json:"reference"`
+	SourceKind            string    `json:"sourceKind"`
+	SourceVersion         string    `json:"sourceVersion"`
+	TargetKind            string    `json:"targetKind"`
+	TargetVersion         string    `json:"targetVersion"`
+	WorkspaceId           string    `json:"workspaceId"`
+}
+
 // CreateResourceSchemaJSONBody defines parameters for CreateResourceSchema.
 type CreateResourceSchemaJSONBody struct {
 	// JsonSchema The JSON schema definition
@@ -645,13 +811,13 @@ type UpsertResourceJSONBody struct {
 
 // UpdateResourceJSONBody defines parameters for UpdateResource.
 type UpdateResourceJSONBody struct {
-	Identifier  *string            `json:"identifier,omitempty"`
-	Kind        *string            `json:"kind,omitempty"`
-	Metadata    *map[string]string `json:"metadata,omitempty"`
-	Name        *string            `json:"name,omitempty"`
-	Variables   *[]Variable        `json:"variables,omitempty"`
-	Version     *string            `json:"version,omitempty"`
-	WorkspaceId *string            `json:"workspaceId,omitempty"`
+	Identifier  *string           `json:"identifier,omitempty"`
+	Kind        *string           `json:"kind,omitempty"`
+	Metadata    *MetadataMap      `json:"metadata,omitempty"`
+	Name        *string           `json:"name,omitempty"`
+	Variables   *[]DirectVariable `json:"variables,omitempty"`
+	Version     *string           `json:"version,omitempty"`
+	WorkspaceId *string           `json:"workspaceId,omitempty"`
 }
 
 // CreateSystemJSONBody defines parameters for CreateSystem.
@@ -684,6 +850,12 @@ type UpdateSystemJSONBody struct {
 	WorkspaceId *openapi_types.UUID `json:"workspaceId,omitempty"`
 }
 
+// GetGroupedCountsJSONBody defines parameters for GetGroupedCounts.
+type GetGroupedCountsJSONBody struct {
+	AllowNullCombinations bool     `json:"allowNullCombinations"`
+	MetadataKeys          []string `json:"metadataKeys"`
+}
+
 // CreateDeploymentVersionChannelJSONRequestBody defines body for CreateDeploymentVersionChannel for application/json ContentType.
 type CreateDeploymentVersionChannelJSONRequestBody CreateDeploymentVersionChannelJSONBody
 
@@ -697,7 +869,7 @@ type UpdateDeploymentVersionJSONRequestBody UpdateDeploymentVersionJSONBody
 type CreateDeploymentJSONRequestBody CreateDeploymentJSONBody
 
 // UpdateDeploymentJSONRequestBody defines body for UpdateDeployment for application/json ContentType.
-type UpdateDeploymentJSONRequestBody = UpdateDeployment
+type UpdateDeploymentJSONRequestBody UpdateDeploymentJSONBody
 
 // CreateEnvironmentJSONRequestBody defines body for CreateEnvironment for application/json ContentType.
 type CreateEnvironmentJSONRequestBody CreateEnvironmentJSONBody
@@ -710,6 +882,9 @@ type UpdateJobJSONRequestBody UpdateJobJSONBody
 
 // UpsertPolicyJSONRequestBody defines body for UpsertPolicy for application/json ContentType.
 type UpsertPolicyJSONRequestBody UpsertPolicyJSONBody
+
+// UpdatePolicyJSONRequestBody defines body for UpdatePolicy for application/json ContentType.
+type UpdatePolicyJSONRequestBody UpdatePolicyJSONBody
 
 // CreateJobToResourceRelationshipJSONRequestBody defines body for CreateJobToResourceRelationship for application/json ContentType.
 type CreateJobToResourceRelationshipJSONRequestBody CreateJobToResourceRelationshipJSONBody
@@ -729,6 +904,9 @@ type UpdateReleaseJSONRequestBody UpdateReleaseJSONBody
 // SetResourceProvidersResourcesJSONRequestBody defines body for SetResourceProvidersResources for application/json ContentType.
 type SetResourceProvidersResourcesJSONRequestBody SetResourceProvidersResourcesJSONBody
 
+// CreateResourceRelationshipRuleJSONRequestBody defines body for CreateResourceRelationshipRule for application/json ContentType.
+type CreateResourceRelationshipRuleJSONRequestBody CreateResourceRelationshipRuleJSONBody
+
 // CreateResourceSchemaJSONRequestBody defines body for CreateResourceSchema for application/json ContentType.
 type CreateResourceSchemaJSONRequestBody CreateResourceSchemaJSONBody
 
@@ -744,198 +922,25 @@ type CreateSystemJSONRequestBody CreateSystemJSONBody
 // UpdateSystemJSONRequestBody defines body for UpdateSystem for application/json ContentType.
 type UpdateSystemJSONRequestBody UpdateSystemJSONBody
 
-// Getter for additional properties for UpdateDeployment. Returns the specified
-// element and whether it was found
-func (a UpdateDeployment) Get(fieldName string) (value interface{}, found bool) {
-	if a.AdditionalProperties != nil {
-		value, found = a.AdditionalProperties[fieldName]
-	}
-	return
-}
+// GetGroupedCountsJSONRequestBody defines body for GetGroupedCounts for application/json ContentType.
+type GetGroupedCountsJSONRequestBody GetGroupedCountsJSONBody
 
-// Setter for additional properties for UpdateDeployment
-func (a *UpdateDeployment) Set(fieldName string, value interface{}) {
-	if a.AdditionalProperties == nil {
-		a.AdditionalProperties = make(map[string]interface{})
-	}
-	a.AdditionalProperties[fieldName] = value
-}
-
-// Override default JSON handling for UpdateDeployment to handle AdditionalProperties
-func (a *UpdateDeployment) UnmarshalJSON(b []byte) error {
-	object := make(map[string]json.RawMessage)
-	err := json.Unmarshal(b, &object)
-	if err != nil {
-		return err
-	}
-
-	if raw, found := object["description"]; found {
-		err = json.Unmarshal(raw, &a.Description)
-		if err != nil {
-			return fmt.Errorf("error reading 'description': %w", err)
-		}
-		delete(object, "description")
-	}
-
-	if raw, found := object["id"]; found {
-		err = json.Unmarshal(raw, &a.Id)
-		if err != nil {
-			return fmt.Errorf("error reading 'id': %w", err)
-		}
-		delete(object, "id")
-	}
-
-	if raw, found := object["jobAgentConfig"]; found {
-		err = json.Unmarshal(raw, &a.JobAgentConfig)
-		if err != nil {
-			return fmt.Errorf("error reading 'jobAgentConfig': %w", err)
-		}
-		delete(object, "jobAgentConfig")
-	}
-
-	if raw, found := object["jobAgentId"]; found {
-		err = json.Unmarshal(raw, &a.JobAgentId)
-		if err != nil {
-			return fmt.Errorf("error reading 'jobAgentId': %w", err)
-		}
-		delete(object, "jobAgentId")
-	}
-
-	if raw, found := object["name"]; found {
-		err = json.Unmarshal(raw, &a.Name)
-		if err != nil {
-			return fmt.Errorf("error reading 'name': %w", err)
-		}
-		delete(object, "name")
-	}
-
-	if raw, found := object["retryCount"]; found {
-		err = json.Unmarshal(raw, &a.RetryCount)
-		if err != nil {
-			return fmt.Errorf("error reading 'retryCount': %w", err)
-		}
-		delete(object, "retryCount")
-	}
-
-	if raw, found := object["slug"]; found {
-		err = json.Unmarshal(raw, &a.Slug)
-		if err != nil {
-			return fmt.Errorf("error reading 'slug': %w", err)
-		}
-		delete(object, "slug")
-	}
-
-	if raw, found := object["systemId"]; found {
-		err = json.Unmarshal(raw, &a.SystemId)
-		if err != nil {
-			return fmt.Errorf("error reading 'systemId': %w", err)
-		}
-		delete(object, "systemId")
-	}
-
-	if raw, found := object["timeout"]; found {
-		err = json.Unmarshal(raw, &a.Timeout)
-		if err != nil {
-			return fmt.Errorf("error reading 'timeout': %w", err)
-		}
-		delete(object, "timeout")
-	}
-
-	if len(object) != 0 {
-		a.AdditionalProperties = make(map[string]interface{})
-		for fieldName, fieldBuf := range object {
-			var fieldVal interface{}
-			err := json.Unmarshal(fieldBuf, &fieldVal)
-			if err != nil {
-				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
-			}
-			a.AdditionalProperties[fieldName] = fieldVal
-		}
-	}
-	return nil
-}
-
-// Override default JSON handling for UpdateDeployment to handle AdditionalProperties
-func (a UpdateDeployment) MarshalJSON() ([]byte, error) {
-	var err error
-	object := make(map[string]json.RawMessage)
-
-	object["description"], err = json.Marshal(a.Description)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'description': %w", err)
-	}
-
-	object["id"], err = json.Marshal(a.Id)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'id': %w", err)
-	}
-
-	object["jobAgentConfig"], err = json.Marshal(a.JobAgentConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'jobAgentConfig': %w", err)
-	}
-
-	if a.JobAgentId != nil {
-		object["jobAgentId"], err = json.Marshal(a.JobAgentId)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'jobAgentId': %w", err)
-		}
-	}
-
-	object["name"], err = json.Marshal(a.Name)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'name': %w", err)
-	}
-
-	if a.RetryCount != nil {
-		object["retryCount"], err = json.Marshal(a.RetryCount)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'retryCount': %w", err)
-		}
-	}
-
-	object["slug"], err = json.Marshal(a.Slug)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'slug': %w", err)
-	}
-
-	object["systemId"], err = json.Marshal(a.SystemId)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'systemId': %w", err)
-	}
-
-	if a.Timeout != nil {
-		object["timeout"], err = json.Marshal(a.Timeout)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'timeout': %w", err)
-		}
-	}
-
-	for fieldName, field := range a.AdditionalProperties {
-		object[fieldName], err = json.Marshal(field)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
-		}
-	}
-	return json.Marshal(object)
-}
-
-// AsVariableValue0 returns the union data inside the Variable_Value as a VariableValue0
-func (t Variable_Value) AsVariableValue0() (VariableValue0, error) {
-	var body VariableValue0
+// AsDirectVariableValue0 returns the union data inside the DirectVariable_Value as a DirectVariableValue0
+func (t DirectVariable_Value) AsDirectVariableValue0() (DirectVariableValue0, error) {
+	var body DirectVariableValue0
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromVariableValue0 overwrites any union data inside the Variable_Value as the provided VariableValue0
-func (t *Variable_Value) FromVariableValue0(v VariableValue0) error {
+// FromDirectVariableValue0 overwrites any union data inside the DirectVariable_Value as the provided DirectVariableValue0
+func (t *DirectVariable_Value) FromDirectVariableValue0(v DirectVariableValue0) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeVariableValue0 performs a merge with any union data inside the Variable_Value, using the provided VariableValue0
-func (t *Variable_Value) MergeVariableValue0(v VariableValue0) error {
+// MergeDirectVariableValue0 performs a merge with any union data inside the DirectVariable_Value, using the provided DirectVariableValue0
+func (t *DirectVariable_Value) MergeDirectVariableValue0(v DirectVariableValue0) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -946,22 +951,22 @@ func (t *Variable_Value) MergeVariableValue0(v VariableValue0) error {
 	return err
 }
 
-// AsVariableValue1 returns the union data inside the Variable_Value as a VariableValue1
-func (t Variable_Value) AsVariableValue1() (VariableValue1, error) {
-	var body VariableValue1
+// AsDirectVariableValue1 returns the union data inside the DirectVariable_Value as a DirectVariableValue1
+func (t DirectVariable_Value) AsDirectVariableValue1() (DirectVariableValue1, error) {
+	var body DirectVariableValue1
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromVariableValue1 overwrites any union data inside the Variable_Value as the provided VariableValue1
-func (t *Variable_Value) FromVariableValue1(v VariableValue1) error {
+// FromDirectVariableValue1 overwrites any union data inside the DirectVariable_Value as the provided DirectVariableValue1
+func (t *DirectVariable_Value) FromDirectVariableValue1(v DirectVariableValue1) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeVariableValue1 performs a merge with any union data inside the Variable_Value, using the provided VariableValue1
-func (t *Variable_Value) MergeVariableValue1(v VariableValue1) error {
+// MergeDirectVariableValue1 performs a merge with any union data inside the DirectVariable_Value, using the provided DirectVariableValue1
+func (t *DirectVariable_Value) MergeDirectVariableValue1(v DirectVariableValue1) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -972,22 +977,22 @@ func (t *Variable_Value) MergeVariableValue1(v VariableValue1) error {
 	return err
 }
 
-// AsVariableValue2 returns the union data inside the Variable_Value as a VariableValue2
-func (t Variable_Value) AsVariableValue2() (VariableValue2, error) {
-	var body VariableValue2
+// AsDirectVariableValue2 returns the union data inside the DirectVariable_Value as a DirectVariableValue2
+func (t DirectVariable_Value) AsDirectVariableValue2() (DirectVariableValue2, error) {
+	var body DirectVariableValue2
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromVariableValue2 overwrites any union data inside the Variable_Value as the provided VariableValue2
-func (t *Variable_Value) FromVariableValue2(v VariableValue2) error {
+// FromDirectVariableValue2 overwrites any union data inside the DirectVariable_Value as the provided DirectVariableValue2
+func (t *DirectVariable_Value) FromDirectVariableValue2(v DirectVariableValue2) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeVariableValue2 performs a merge with any union data inside the Variable_Value, using the provided VariableValue2
-func (t *Variable_Value) MergeVariableValue2(v VariableValue2) error {
+// MergeDirectVariableValue2 performs a merge with any union data inside the DirectVariable_Value, using the provided DirectVariableValue2
+func (t *DirectVariable_Value) MergeDirectVariableValue2(v DirectVariableValue2) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -998,12 +1003,406 @@ func (t *Variable_Value) MergeVariableValue2(v VariableValue2) error {
 	return err
 }
 
-func (t Variable_Value) MarshalJSON() ([]byte, error) {
+// AsDirectVariableValue3 returns the union data inside the DirectVariable_Value as a DirectVariableValue3
+func (t DirectVariable_Value) AsDirectVariableValue3() (DirectVariableValue3, error) {
+	var body DirectVariableValue3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDirectVariableValue3 overwrites any union data inside the DirectVariable_Value as the provided DirectVariableValue3
+func (t *DirectVariable_Value) FromDirectVariableValue3(v DirectVariableValue3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDirectVariableValue3 performs a merge with any union data inside the DirectVariable_Value, using the provided DirectVariableValue3
+func (t *DirectVariable_Value) MergeDirectVariableValue3(v DirectVariableValue3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsDirectVariableValue4 returns the union data inside the DirectVariable_Value as a DirectVariableValue4
+func (t DirectVariable_Value) AsDirectVariableValue4() (DirectVariableValue4, error) {
+	var body DirectVariableValue4
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDirectVariableValue4 overwrites any union data inside the DirectVariable_Value as the provided DirectVariableValue4
+func (t *DirectVariable_Value) FromDirectVariableValue4(v DirectVariableValue4) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDirectVariableValue4 performs a merge with any union data inside the DirectVariable_Value, using the provided DirectVariableValue4
+func (t *DirectVariable_Value) MergeDirectVariableValue4(v DirectVariableValue4) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t DirectVariable_Value) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
 	return b, err
 }
 
-func (t *Variable_Value) UnmarshalJSON(b []byte) error {
+func (t *DirectVariable_Value) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsReferenceVariableDefaultValue0 returns the union data inside the ReferenceVariable_DefaultValue as a ReferenceVariableDefaultValue0
+func (t ReferenceVariable_DefaultValue) AsReferenceVariableDefaultValue0() (ReferenceVariableDefaultValue0, error) {
+	var body ReferenceVariableDefaultValue0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromReferenceVariableDefaultValue0 overwrites any union data inside the ReferenceVariable_DefaultValue as the provided ReferenceVariableDefaultValue0
+func (t *ReferenceVariable_DefaultValue) FromReferenceVariableDefaultValue0(v ReferenceVariableDefaultValue0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeReferenceVariableDefaultValue0 performs a merge with any union data inside the ReferenceVariable_DefaultValue, using the provided ReferenceVariableDefaultValue0
+func (t *ReferenceVariable_DefaultValue) MergeReferenceVariableDefaultValue0(v ReferenceVariableDefaultValue0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsReferenceVariableDefaultValue1 returns the union data inside the ReferenceVariable_DefaultValue as a ReferenceVariableDefaultValue1
+func (t ReferenceVariable_DefaultValue) AsReferenceVariableDefaultValue1() (ReferenceVariableDefaultValue1, error) {
+	var body ReferenceVariableDefaultValue1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromReferenceVariableDefaultValue1 overwrites any union data inside the ReferenceVariable_DefaultValue as the provided ReferenceVariableDefaultValue1
+func (t *ReferenceVariable_DefaultValue) FromReferenceVariableDefaultValue1(v ReferenceVariableDefaultValue1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeReferenceVariableDefaultValue1 performs a merge with any union data inside the ReferenceVariable_DefaultValue, using the provided ReferenceVariableDefaultValue1
+func (t *ReferenceVariable_DefaultValue) MergeReferenceVariableDefaultValue1(v ReferenceVariableDefaultValue1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsReferenceVariableDefaultValue2 returns the union data inside the ReferenceVariable_DefaultValue as a ReferenceVariableDefaultValue2
+func (t ReferenceVariable_DefaultValue) AsReferenceVariableDefaultValue2() (ReferenceVariableDefaultValue2, error) {
+	var body ReferenceVariableDefaultValue2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromReferenceVariableDefaultValue2 overwrites any union data inside the ReferenceVariable_DefaultValue as the provided ReferenceVariableDefaultValue2
+func (t *ReferenceVariable_DefaultValue) FromReferenceVariableDefaultValue2(v ReferenceVariableDefaultValue2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeReferenceVariableDefaultValue2 performs a merge with any union data inside the ReferenceVariable_DefaultValue, using the provided ReferenceVariableDefaultValue2
+func (t *ReferenceVariable_DefaultValue) MergeReferenceVariableDefaultValue2(v ReferenceVariableDefaultValue2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsReferenceVariableDefaultValue3 returns the union data inside the ReferenceVariable_DefaultValue as a ReferenceVariableDefaultValue3
+func (t ReferenceVariable_DefaultValue) AsReferenceVariableDefaultValue3() (ReferenceVariableDefaultValue3, error) {
+	var body ReferenceVariableDefaultValue3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromReferenceVariableDefaultValue3 overwrites any union data inside the ReferenceVariable_DefaultValue as the provided ReferenceVariableDefaultValue3
+func (t *ReferenceVariable_DefaultValue) FromReferenceVariableDefaultValue3(v ReferenceVariableDefaultValue3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeReferenceVariableDefaultValue3 performs a merge with any union data inside the ReferenceVariable_DefaultValue, using the provided ReferenceVariableDefaultValue3
+func (t *ReferenceVariable_DefaultValue) MergeReferenceVariableDefaultValue3(v ReferenceVariableDefaultValue3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsReferenceVariableDefaultValue4 returns the union data inside the ReferenceVariable_DefaultValue as a ReferenceVariableDefaultValue4
+func (t ReferenceVariable_DefaultValue) AsReferenceVariableDefaultValue4() (ReferenceVariableDefaultValue4, error) {
+	var body ReferenceVariableDefaultValue4
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromReferenceVariableDefaultValue4 overwrites any union data inside the ReferenceVariable_DefaultValue as the provided ReferenceVariableDefaultValue4
+func (t *ReferenceVariable_DefaultValue) FromReferenceVariableDefaultValue4(v ReferenceVariableDefaultValue4) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeReferenceVariableDefaultValue4 performs a merge with any union data inside the ReferenceVariable_DefaultValue, using the provided ReferenceVariableDefaultValue4
+func (t *ReferenceVariable_DefaultValue) MergeReferenceVariableDefaultValue4(v ReferenceVariableDefaultValue4) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ReferenceVariable_DefaultValue) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ReferenceVariable_DefaultValue) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsDirectVariable returns the union data inside the Variable as a DirectVariable
+func (t Variable) AsDirectVariable() (DirectVariable, error) {
+	var body DirectVariable
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDirectVariable overwrites any union data inside the Variable as the provided DirectVariable
+func (t *Variable) FromDirectVariable(v DirectVariable) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDirectVariable performs a merge with any union data inside the Variable, using the provided DirectVariable
+func (t *Variable) MergeDirectVariable(v DirectVariable) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsReferenceVariable returns the union data inside the Variable as a ReferenceVariable
+func (t Variable) AsReferenceVariable() (ReferenceVariable, error) {
+	var body ReferenceVariable
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromReferenceVariable overwrites any union data inside the Variable as the provided ReferenceVariable
+func (t *Variable) FromReferenceVariable(v ReferenceVariable) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeReferenceVariable performs a merge with any union data inside the Variable, using the provided ReferenceVariable
+func (t *Variable) MergeReferenceVariable(v ReferenceVariable) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t Variable) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *Variable) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsVariableMap0 returns the union data inside the VariableMap_AdditionalProperties as a VariableMap0
+func (t VariableMap_AdditionalProperties) AsVariableMap0() (VariableMap0, error) {
+	var body VariableMap0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromVariableMap0 overwrites any union data inside the VariableMap_AdditionalProperties as the provided VariableMap0
+func (t *VariableMap_AdditionalProperties) FromVariableMap0(v VariableMap0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeVariableMap0 performs a merge with any union data inside the VariableMap_AdditionalProperties, using the provided VariableMap0
+func (t *VariableMap_AdditionalProperties) MergeVariableMap0(v VariableMap0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsVariableMap1 returns the union data inside the VariableMap_AdditionalProperties as a VariableMap1
+func (t VariableMap_AdditionalProperties) AsVariableMap1() (VariableMap1, error) {
+	var body VariableMap1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromVariableMap1 overwrites any union data inside the VariableMap_AdditionalProperties as the provided VariableMap1
+func (t *VariableMap_AdditionalProperties) FromVariableMap1(v VariableMap1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeVariableMap1 performs a merge with any union data inside the VariableMap_AdditionalProperties, using the provided VariableMap1
+func (t *VariableMap_AdditionalProperties) MergeVariableMap1(v VariableMap1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsVariableMap2 returns the union data inside the VariableMap_AdditionalProperties as a VariableMap2
+func (t VariableMap_AdditionalProperties) AsVariableMap2() (VariableMap2, error) {
+	var body VariableMap2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromVariableMap2 overwrites any union data inside the VariableMap_AdditionalProperties as the provided VariableMap2
+func (t *VariableMap_AdditionalProperties) FromVariableMap2(v VariableMap2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeVariableMap2 performs a merge with any union data inside the VariableMap_AdditionalProperties, using the provided VariableMap2
+func (t *VariableMap_AdditionalProperties) MergeVariableMap2(v VariableMap2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsVariableMap3 returns the union data inside the VariableMap_AdditionalProperties as a VariableMap3
+func (t VariableMap_AdditionalProperties) AsVariableMap3() (VariableMap3, error) {
+	var body VariableMap3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromVariableMap3 overwrites any union data inside the VariableMap_AdditionalProperties as the provided VariableMap3
+func (t *VariableMap_AdditionalProperties) FromVariableMap3(v VariableMap3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeVariableMap3 performs a merge with any union data inside the VariableMap_AdditionalProperties, using the provided VariableMap3
+func (t *VariableMap_AdditionalProperties) MergeVariableMap3(v VariableMap3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsVariableMap4 returns the union data inside the VariableMap_AdditionalProperties as a VariableMap4
+func (t VariableMap_AdditionalProperties) AsVariableMap4() (VariableMap4, error) {
+	var body VariableMap4
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromVariableMap4 overwrites any union data inside the VariableMap_AdditionalProperties as the provided VariableMap4
+func (t *VariableMap_AdditionalProperties) FromVariableMap4(v VariableMap4) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeVariableMap4 performs a merge with any union data inside the VariableMap_AdditionalProperties, using the provided VariableMap4
+func (t *VariableMap_AdditionalProperties) MergeVariableMap4(v VariableMap4) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t VariableMap_AdditionalProperties) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *VariableMap_AdditionalProperties) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -1171,6 +1570,11 @@ type ClientInterface interface {
 	// DeletePolicy request
 	DeletePolicy(ctx context.Context, policyId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// UpdatePolicyWithBody request with any body
+	UpdatePolicyWithBody(ctx context.Context, policyId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdatePolicy(ctx context.Context, policyId openapi_types.UUID, body UpdatePolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetReleaseTargetsForPolicy request
 	GetReleaseTargetsForPolicy(ctx context.Context, policyId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1204,6 +1608,11 @@ type ClientInterface interface {
 
 	SetResourceProvidersResources(ctx context.Context, providerId string, body SetResourceProvidersResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CreateResourceRelationshipRuleWithBody request with any body
+	CreateResourceRelationshipRuleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateResourceRelationshipRule(ctx context.Context, body CreateResourceRelationshipRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreateResourceSchemaWithBody request with any body
 	CreateResourceSchemaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1227,6 +1636,9 @@ type ClientInterface interface {
 	UpdateResourceWithBody(ctx context.Context, resourceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateResource(ctx context.Context, resourceId string, body UpdateResourceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetReleaseTargets request
+	GetReleaseTargets(ctx context.Context, resourceId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateSystemWithBody request with any body
 	CreateSystemWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1273,6 +1685,11 @@ type ClientInterface interface {
 
 	// GetResourceByIdentifier request
 	GetResourceByIdentifier(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetGroupedCountsWithBody request with any body
+	GetGroupedCountsWithBody(ctx context.Context, workspaceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	GetGroupedCounts(ctx context.Context, workspaceId string, body GetGroupedCountsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListSystems request
 	ListSystems(ctx context.Context, workspaceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1674,6 +2091,30 @@ func (c *Client) DeletePolicy(ctx context.Context, policyId openapi_types.UUID, 
 	return c.Client.Do(req)
 }
 
+func (c *Client) UpdatePolicyWithBody(ctx context.Context, policyId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdatePolicyRequestWithBody(c.Server, policyId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdatePolicy(ctx context.Context, policyId openapi_types.UUID, body UpdatePolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdatePolicyRequest(c.Server, policyId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetReleaseTargetsForPolicy(ctx context.Context, policyId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetReleaseTargetsForPolicyRequest(c.Server, policyId)
 	if err != nil {
@@ -1830,6 +2271,30 @@ func (c *Client) SetResourceProvidersResources(ctx context.Context, providerId s
 	return c.Client.Do(req)
 }
 
+func (c *Client) CreateResourceRelationshipRuleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateResourceRelationshipRuleRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateResourceRelationshipRule(ctx context.Context, body CreateResourceRelationshipRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateResourceRelationshipRuleRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) CreateResourceSchemaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateResourceSchemaRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -1928,6 +2393,18 @@ func (c *Client) UpdateResourceWithBody(ctx context.Context, resourceId string, 
 
 func (c *Client) UpdateResource(ctx context.Context, resourceId string, body UpdateResourceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateResourceRequest(c.Server, resourceId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetReleaseTargets(ctx context.Context, resourceId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetReleaseTargetsRequest(c.Server, resourceId)
 	if err != nil {
 		return nil, err
 	}
@@ -2120,6 +2597,30 @@ func (c *Client) DeleteResourceByIdentifier(ctx context.Context, workspaceId str
 
 func (c *Client) GetResourceByIdentifier(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetResourceByIdentifierRequest(c.Server, workspaceId, identifier)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetGroupedCountsWithBody(ctx context.Context, workspaceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetGroupedCountsRequestWithBody(c.Server, workspaceId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetGroupedCounts(ctx context.Context, workspaceId string, body GetGroupedCountsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetGroupedCountsRequest(c.Server, workspaceId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3047,6 +3548,53 @@ func NewDeletePolicyRequest(server string, policyId openapi_types.UUID) (*http.R
 	return req, nil
 }
 
+// NewUpdatePolicyRequest calls the generic UpdatePolicy builder with application/json body
+func NewUpdatePolicyRequest(server string, policyId openapi_types.UUID, body UpdatePolicyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdatePolicyRequestWithBody(server, policyId, "application/json", bodyReader)
+}
+
+// NewUpdatePolicyRequestWithBody generates requests for UpdatePolicy with any type of body
+func NewUpdatePolicyRequestWithBody(server string, policyId openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "policyId", runtime.ParamLocationPath, policyId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/policies/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetReleaseTargetsForPolicyRequest generates requests for GetReleaseTargetsForPolicy
 func NewGetReleaseTargetsForPolicyRequest(server string, policyId string) (*http.Request, error) {
 	var err error
@@ -3335,6 +3883,46 @@ func NewSetResourceProvidersResourcesRequestWithBody(server string, providerId s
 	return req, nil
 }
 
+// NewCreateResourceRelationshipRuleRequest calls the generic CreateResourceRelationshipRule builder with application/json body
+func NewCreateResourceRelationshipRuleRequest(server string, body CreateResourceRelationshipRuleJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateResourceRelationshipRuleRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateResourceRelationshipRuleRequestWithBody generates requests for CreateResourceRelationshipRule with any type of body
+func NewCreateResourceRelationshipRuleRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/resource-relationship-rules")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewCreateResourceSchemaRequest calls the generic CreateResourceSchema builder with application/json body
 func NewCreateResourceSchemaRequest(server string, body CreateResourceSchemaJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -3560,6 +4148,40 @@ func NewUpdateResourceRequestWithBody(server string, resourceId string, contentT
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetReleaseTargetsRequest generates requests for GetReleaseTargets
+func NewGetReleaseTargetsRequest(server string, resourceId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "resourceId", runtime.ParamLocationPath, resourceId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/resources/%s/release-targets", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -4094,6 +4716,53 @@ func NewGetResourceByIdentifierRequest(server string, workspaceId string, identi
 	return req, nil
 }
 
+// NewGetGroupedCountsRequest calls the generic GetGroupedCounts builder with application/json body
+func NewGetGroupedCountsRequest(server string, workspaceId string, body GetGroupedCountsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewGetGroupedCountsRequestWithBody(server, workspaceId, "application/json", bodyReader)
+}
+
+// NewGetGroupedCountsRequestWithBody generates requests for GetGroupedCounts with any type of body
+func NewGetGroupedCountsRequestWithBody(server string, workspaceId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workspaceId", runtime.ParamLocationPath, workspaceId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/workspaces/%s/resources/metadata-grouped-counts", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListSystemsRequest generates requests for ListSystems
 func NewListSystemsRequest(server string, workspaceId string) (*http.Request, error) {
 	var err error
@@ -4261,6 +4930,11 @@ type ClientWithResponsesInterface interface {
 	// DeletePolicyWithResponse request
 	DeletePolicyWithResponse(ctx context.Context, policyId openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeletePolicyResponse, error)
 
+	// UpdatePolicyWithBodyWithResponse request with any body
+	UpdatePolicyWithBodyWithResponse(ctx context.Context, policyId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdatePolicyResponse, error)
+
+	UpdatePolicyWithResponse(ctx context.Context, policyId openapi_types.UUID, body UpdatePolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdatePolicyResponse, error)
+
 	// GetReleaseTargetsForPolicyWithResponse request
 	GetReleaseTargetsForPolicyWithResponse(ctx context.Context, policyId string, reqEditors ...RequestEditorFn) (*GetReleaseTargetsForPolicyResponse, error)
 
@@ -4294,6 +4968,11 @@ type ClientWithResponsesInterface interface {
 
 	SetResourceProvidersResourcesWithResponse(ctx context.Context, providerId string, body SetResourceProvidersResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*SetResourceProvidersResourcesResponse, error)
 
+	// CreateResourceRelationshipRuleWithBodyWithResponse request with any body
+	CreateResourceRelationshipRuleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateResourceRelationshipRuleResponse, error)
+
+	CreateResourceRelationshipRuleWithResponse(ctx context.Context, body CreateResourceRelationshipRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateResourceRelationshipRuleResponse, error)
+
 	// CreateResourceSchemaWithBodyWithResponse request with any body
 	CreateResourceSchemaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateResourceSchemaResponse, error)
 
@@ -4317,6 +4996,9 @@ type ClientWithResponsesInterface interface {
 	UpdateResourceWithBodyWithResponse(ctx context.Context, resourceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateResourceResponse, error)
 
 	UpdateResourceWithResponse(ctx context.Context, resourceId string, body UpdateResourceJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateResourceResponse, error)
+
+	// GetReleaseTargetsWithResponse request
+	GetReleaseTargetsWithResponse(ctx context.Context, resourceId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetReleaseTargetsResponse, error)
 
 	// CreateSystemWithBodyWithResponse request with any body
 	CreateSystemWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSystemResponse, error)
@@ -4363,6 +5045,11 @@ type ClientWithResponsesInterface interface {
 
 	// GetResourceByIdentifierWithResponse request
 	GetResourceByIdentifierWithResponse(ctx context.Context, workspaceId string, identifier string, reqEditors ...RequestEditorFn) (*GetResourceByIdentifierResponse, error)
+
+	// GetGroupedCountsWithBodyWithResponse request with any body
+	GetGroupedCountsWithBodyWithResponse(ctx context.Context, workspaceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GetGroupedCountsResponse, error)
+
+	GetGroupedCountsWithResponse(ctx context.Context, workspaceId string, body GetGroupedCountsJSONRequestBody, reqEditors ...RequestEditorFn) (*GetGroupedCountsResponse, error)
 
 	// ListSystemsWithResponse request
 	ListSystemsWithResponse(ctx context.Context, workspaceId string, reqEditors ...RequestEditorFn) (*ListSystemsResponse, error)
@@ -4438,10 +5125,9 @@ func (r CreateDeploymentVersionChannelResponse) StatusCode() int {
 type UpsertDeploymentVersionResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *DeploymentVersion
-	JSON409      *struct {
+	JSON201      *DeploymentVersion
+	JSON500      *struct {
 		Error *string `json:"error,omitempty"`
-		Id    *string `json:"id,omitempty"`
 	}
 }
 
@@ -4465,6 +5151,12 @@ type UpdateDeploymentVersionResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DeploymentVersion
+	JSON404      *struct {
+		Error *string `json:"error,omitempty"`
+	}
+	JSON500 *struct {
+		Error *string `json:"error,omitempty"`
+	}
 }
 
 // Status returns HTTPResponse.Status
@@ -4663,14 +5355,8 @@ type GetResourcesForDeploymentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Count     *float32 `json:"count,omitempty"`
-		Resources *[]struct {
-			Id         *string `json:"id,omitempty"`
-			Identifier *string `json:"identifier,omitempty"`
-			Kind       *string `json:"kind,omitempty"`
-			Name       *string `json:"name,omitempty"`
-			Version    *string `json:"version,omitempty"`
-		} `json:"resources,omitempty"`
+		Count     *float32    `json:"count,omitempty"`
+		Resources *[]Resource `json:"resources,omitempty"`
 	}
 	JSON500 *struct {
 		Error *string `json:"error,omitempty"`
@@ -4772,14 +5458,8 @@ type GetResourcesForEnvironmentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Count     *float32 `json:"count,omitempty"`
-		Resources *[]struct {
-			Id         *string `json:"id,omitempty"`
-			Identifier *string `json:"identifier,omitempty"`
-			Kind       *string `json:"kind,omitempty"`
-			Name       *string `json:"name,omitempty"`
-			Version    *string `json:"version,omitempty"`
-		} `json:"resources,omitempty"`
+		Count     *float32    `json:"count,omitempty"`
+		Resources *[]Resource `json:"resources,omitempty"`
 	}
 	JSON500 *struct {
 		Error *string `json:"error,omitempty"`
@@ -5011,6 +5691,9 @@ type DeletePolicyResponse struct {
 	JSON200      *struct {
 		Count *float32 `json:"count,omitempty"`
 	}
+	JSON500 *struct {
+		Error *string `json:"error,omitempty"`
+	}
 }
 
 // Status returns HTTPResponse.Status
@@ -5029,33 +5712,40 @@ func (r DeletePolicyResponse) StatusCode() int {
 	return 0
 }
 
+type UpdatePolicyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Policy
+	JSON404      *struct {
+		Error *string `json:"error,omitempty"`
+	}
+	JSON500 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdatePolicyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdatePolicyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetReleaseTargetsForPolicyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Count          *float32 `json:"count,omitempty"`
-		ReleaseTargets *[]struct {
-			Description *string `json:"description,omitempty"`
-			Environment *struct {
-				Id   *string `json:"id,omitempty"`
-				Name *string `json:"name,omitempty"`
-			} `json:"environment,omitempty"`
-			Id           *string `json:"id,omitempty"`
-			Name         *string `json:"name,omitempty"`
-			PolicyTarget *struct {
-				Description *string `json:"description,omitempty"`
-				Id          *string `json:"id,omitempty"`
-				Name        *string `json:"name,omitempty"`
-				PolicyId    *string `json:"policyId,omitempty"`
-			} `json:"policyTarget,omitempty"`
-			Resource *struct {
-				Id         *string `json:"id,omitempty"`
-				Identifier *string `json:"identifier,omitempty"`
-				Kind       *string `json:"kind,omitempty"`
-				Name       *string `json:"name,omitempty"`
-				Version    *string `json:"version,omitempty"`
-			} `json:"resource,omitempty"`
-		} `json:"releaseTargets,omitempty"`
+		Count          *float32         `json:"count,omitempty"`
+		ReleaseTargets *[]ReleaseTarget `json:"releaseTargets,omitempty"`
 	}
 	JSON500 *struct {
 		Error *string `json:"error,omitempty"`
@@ -5243,6 +5933,41 @@ func (r UpdateReleaseResponse) StatusCode() int {
 type SetResourceProvidersResourcesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON200      *struct {
+		Resources *struct {
+			Deleted *[]struct {
+				Config  *map[string]interface{} `json:"config,omitempty"`
+				Id      *string                 `json:"id,omitempty"`
+				Kind    *string                 `json:"kind,omitempty"`
+				Name    *string                 `json:"name,omitempty"`
+				Version *string                 `json:"version,omitempty"`
+			} `json:"deleted,omitempty"`
+			Ignored *[]struct {
+				Identifier  *string `json:"identifier,omitempty"`
+				Kind        *string `json:"kind,omitempty"`
+				Name        *string `json:"name,omitempty"`
+				Version     *string `json:"version,omitempty"`
+				WorkspaceId *string `json:"workspaceId,omitempty"`
+			} `json:"ignored,omitempty"`
+			Inserted *[]struct {
+				Config  *map[string]interface{} `json:"config,omitempty"`
+				Id      *string                 `json:"id,omitempty"`
+				Kind    *string                 `json:"kind,omitempty"`
+				Name    *string                 `json:"name,omitempty"`
+				Version *string                 `json:"version,omitempty"`
+			} `json:"inserted,omitempty"`
+			Updated *[]struct {
+				Config  *map[string]interface{} `json:"config,omitempty"`
+				Id      *string                 `json:"id,omitempty"`
+				Kind    *string                 `json:"kind,omitempty"`
+				Name    *string                 `json:"name,omitempty"`
+				Version *string                 `json:"version,omitempty"`
+			} `json:"updated,omitempty"`
+		} `json:"resources,omitempty"`
+	}
+	JSON404 *struct {
+		Error *string `json:"error,omitempty"`
+	}
 }
 
 // Status returns HTTPResponse.Status
@@ -5255,6 +5980,42 @@ func (r SetResourceProvidersResourcesResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r SetResourceProvidersResourcesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateResourceRelationshipRuleResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Description      *string `json:"description,omitempty"`
+		Id               *string `json:"id,omitempty"`
+		Name             *string `json:"name,omitempty"`
+		Reference        *string `json:"reference,omitempty"`
+		RelationshipType *string `json:"relationshipType,omitempty"`
+		SourceKind       *string `json:"sourceKind,omitempty"`
+		SourceVersion    *string `json:"sourceVersion,omitempty"`
+		TargetKind       *string `json:"targetKind,omitempty"`
+		TargetVersion    *string `json:"targetVersion,omitempty"`
+		WorkspaceId      *string `json:"workspaceId,omitempty"`
+	}
+	JSON400 *struct {
+		Error *string `json:"error,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateResourceRelationshipRuleResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateResourceRelationshipRuleResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -5375,24 +6136,8 @@ func (r DeleteResourceResponse) StatusCode() int {
 type GetResourceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Config     map[string]interface{} `json:"config"`
-		Id         string                 `json:"id"`
-		Identifier string                 `json:"identifier"`
-		Kind       string                 `json:"kind"`
-		LockedAt   *time.Time             `json:"lockedAt"`
-		Metadata   map[string]string      `json:"metadata"`
-		Name       string                 `json:"name"`
-		Provider   *struct {
-			Id   *string `json:"id,omitempty"`
-			Name *string `json:"name,omitempty"`
-		} `json:"provider"`
-		UpdatedAt   time.Time         `json:"updatedAt"`
-		Variable    map[string]string `json:"variable"`
-		Version     string            `json:"version"`
-		WorkspaceId string            `json:"workspaceId"`
-	}
-	JSON404 *struct {
+	JSON200      *ResourceWithVariablesAndMetadata
+	JSON404      *struct {
 		Error string `json:"error"`
 	}
 }
@@ -5416,17 +6161,8 @@ func (r GetResourceResponse) StatusCode() int {
 type UpdateResourceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Config      map[string]interface{} `json:"config"`
-		Id          string                 `json:"id"`
-		Identifier  string                 `json:"identifier"`
-		Kind        string                 `json:"kind"`
-		Metadata    map[string]string      `json:"metadata"`
-		Name        string                 `json:"name"`
-		Version     string                 `json:"version"`
-		WorkspaceId string                 `json:"workspaceId"`
-	}
-	JSON404 *struct {
+	JSON200      *ResourceWithVariablesAndMetadata
+	JSON404      *struct {
 		Error string `json:"error"`
 	}
 }
@@ -5441,6 +6177,28 @@ func (r UpdateResourceResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateResourceResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetReleaseTargetsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]ReleaseTarget
+}
+
+// Status returns HTTPResponse.Status
+func (r GetReleaseTargetsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetReleaseTargetsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -5816,21 +6574,23 @@ type GetResourceByIdentifierResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Id         string             `json:"id"`
-		Identifier string             `json:"identifier"`
-		Metadata   *map[string]string `json:"metadata,omitempty"`
-		Provider   *struct {
-			Id          *string `json:"id,omitempty"`
-			Name        *string `json:"name,omitempty"`
-			WorkspaceId *string `json:"workspaceId,omitempty"`
-		} `json:"provider,omitempty"`
-		ProviderId string `json:"providerId"`
-		Variables  *[]struct {
-			Id    *string `json:"id,omitempty"`
-			Key   *string `json:"key,omitempty"`
-			Value *string `json:"value,omitempty"`
-		} `json:"variables,omitempty"`
-		WorkspaceId string `json:"workspaceId"`
+		Config        map[string]interface{} `json:"config"`
+		CreatedAt     time.Time              `json:"createdAt"`
+		Id            openapi_types.UUID     `json:"id"`
+		Identifier    string                 `json:"identifier"`
+		Kind          string                 `json:"kind"`
+		Metadata      MetadataMap            `json:"metadata"`
+		Name          string                 `json:"name"`
+		Relationships *map[string]struct {
+			Reference string   `json:"reference"`
+			RuleId    string   `json:"ruleId"`
+			Target    Resource `json:"target"`
+			Type      string   `json:"type"`
+		} `json:"relationships,omitempty"`
+		UpdatedAt   time.Time          `json:"updatedAt"`
+		Variables   *VariableMap       `json:"variables,omitempty"`
+		Version     string             `json:"version"`
+		WorkspaceId openapi_types.UUID `json:"workspaceId"`
 	}
 	JSON404 *struct {
 		Error *string `json:"error,omitempty"`
@@ -5847,6 +6607,34 @@ func (r GetResourceByIdentifierResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetResourceByIdentifierResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetGroupedCountsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Combinations []struct {
+			Metadata  map[string]string `json:"metadata"`
+			Resources float32           `json:"resources"`
+		} `json:"combinations"`
+		Keys []string `json:"keys"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetGroupedCountsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetGroupedCountsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -6165,6 +6953,23 @@ func (c *ClientWithResponses) DeletePolicyWithResponse(ctx context.Context, poli
 	return ParseDeletePolicyResponse(rsp)
 }
 
+// UpdatePolicyWithBodyWithResponse request with arbitrary body returning *UpdatePolicyResponse
+func (c *ClientWithResponses) UpdatePolicyWithBodyWithResponse(ctx context.Context, policyId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdatePolicyResponse, error) {
+	rsp, err := c.UpdatePolicyWithBody(ctx, policyId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdatePolicyResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdatePolicyWithResponse(ctx context.Context, policyId openapi_types.UUID, body UpdatePolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdatePolicyResponse, error) {
+	rsp, err := c.UpdatePolicy(ctx, policyId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdatePolicyResponse(rsp)
+}
+
 // GetReleaseTargetsForPolicyWithResponse request returning *GetReleaseTargetsForPolicyResponse
 func (c *ClientWithResponses) GetReleaseTargetsForPolicyWithResponse(ctx context.Context, policyId string, reqEditors ...RequestEditorFn) (*GetReleaseTargetsForPolicyResponse, error) {
 	rsp, err := c.GetReleaseTargetsForPolicy(ctx, policyId, reqEditors...)
@@ -6276,6 +7081,23 @@ func (c *ClientWithResponses) SetResourceProvidersResourcesWithResponse(ctx cont
 	return ParseSetResourceProvidersResourcesResponse(rsp)
 }
 
+// CreateResourceRelationshipRuleWithBodyWithResponse request with arbitrary body returning *CreateResourceRelationshipRuleResponse
+func (c *ClientWithResponses) CreateResourceRelationshipRuleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateResourceRelationshipRuleResponse, error) {
+	rsp, err := c.CreateResourceRelationshipRuleWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateResourceRelationshipRuleResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateResourceRelationshipRuleWithResponse(ctx context.Context, body CreateResourceRelationshipRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateResourceRelationshipRuleResponse, error) {
+	rsp, err := c.CreateResourceRelationshipRule(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateResourceRelationshipRuleResponse(rsp)
+}
+
 // CreateResourceSchemaWithBodyWithResponse request with arbitrary body returning *CreateResourceSchemaResponse
 func (c *ClientWithResponses) CreateResourceSchemaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateResourceSchemaResponse, error) {
 	rsp, err := c.CreateResourceSchemaWithBody(ctx, contentType, body, reqEditors...)
@@ -6352,6 +7174,15 @@ func (c *ClientWithResponses) UpdateResourceWithResponse(ctx context.Context, re
 		return nil, err
 	}
 	return ParseUpdateResourceResponse(rsp)
+}
+
+// GetReleaseTargetsWithResponse request returning *GetReleaseTargetsResponse
+func (c *ClientWithResponses) GetReleaseTargetsWithResponse(ctx context.Context, resourceId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetReleaseTargetsResponse, error) {
+	rsp, err := c.GetReleaseTargets(ctx, resourceId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetReleaseTargetsResponse(rsp)
 }
 
 // CreateSystemWithBodyWithResponse request with arbitrary body returning *CreateSystemResponse
@@ -6496,6 +7327,23 @@ func (c *ClientWithResponses) GetResourceByIdentifierWithResponse(ctx context.Co
 	return ParseGetResourceByIdentifierResponse(rsp)
 }
 
+// GetGroupedCountsWithBodyWithResponse request with arbitrary body returning *GetGroupedCountsResponse
+func (c *ClientWithResponses) GetGroupedCountsWithBodyWithResponse(ctx context.Context, workspaceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GetGroupedCountsResponse, error) {
+	rsp, err := c.GetGroupedCountsWithBody(ctx, workspaceId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetGroupedCountsResponse(rsp)
+}
+
+func (c *ClientWithResponses) GetGroupedCountsWithResponse(ctx context.Context, workspaceId string, body GetGroupedCountsJSONRequestBody, reqEditors ...RequestEditorFn) (*GetGroupedCountsResponse, error) {
+	rsp, err := c.GetGroupedCounts(ctx, workspaceId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetGroupedCountsResponse(rsp)
+}
+
 // ListSystemsWithResponse request returning *ListSystemsResponse
 func (c *ClientWithResponses) ListSystemsWithResponse(ctx context.Context, workspaceId string, reqEditors ...RequestEditorFn) (*ListSystemsResponse, error) {
 	rsp, err := c.ListSystems(ctx, workspaceId, reqEditors...)
@@ -6624,22 +7472,21 @@ func ParseUpsertDeploymentVersionResponse(rsp *http.Response) (*UpsertDeployment
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest DeploymentVersion
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest struct {
 			Error *string `json:"error,omitempty"`
-			Id    *string `json:"id,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON409 = &dest
+		response.JSON500 = &dest
 
 	}
 
@@ -6666,6 +7513,24 @@ func ParseUpdateDeploymentVersionResponse(rsp *http.Response) (*UpdateDeployment
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
@@ -6966,14 +7831,8 @@ func ParseGetResourcesForDeploymentResponse(rsp *http.Response) (*GetResourcesFo
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Count     *float32 `json:"count,omitempty"`
-			Resources *[]struct {
-				Id         *string `json:"id,omitempty"`
-				Identifier *string `json:"identifier,omitempty"`
-				Kind       *string `json:"kind,omitempty"`
-				Name       *string `json:"name,omitempty"`
-				Version    *string `json:"version,omitempty"`
-			} `json:"resources,omitempty"`
+			Count     *float32    `json:"count,omitempty"`
+			Resources *[]Resource `json:"resources,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -7106,14 +7965,8 @@ func ParseGetResourcesForEnvironmentResponse(rsp *http.Response) (*GetResourcesF
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Count     *float32 `json:"count,omitempty"`
-			Resources *[]struct {
-				Id         *string `json:"id,omitempty"`
-				Identifier *string `json:"identifier,omitempty"`
-				Kind       *string `json:"kind,omitempty"`
-				Name       *string `json:"name,omitempty"`
-				Version    *string `json:"version,omitempty"`
-			} `json:"resources,omitempty"`
+			Count     *float32    `json:"count,omitempty"`
+			Resources *[]Resource `json:"resources,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -7422,6 +8275,59 @@ func ParseDeletePolicyResponse(rsp *http.Response) (*DeletePolicyResponse, error
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdatePolicyResponse parses an HTTP response from a UpdatePolicyWithResponse call
+func ParseUpdatePolicyResponse(rsp *http.Response) (*UpdatePolicyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdatePolicyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Policy
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
@@ -7443,29 +8349,8 @@ func ParseGetReleaseTargetsForPolicyResponse(rsp *http.Response) (*GetReleaseTar
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Count          *float32 `json:"count,omitempty"`
-			ReleaseTargets *[]struct {
-				Description *string `json:"description,omitempty"`
-				Environment *struct {
-					Id   *string `json:"id,omitempty"`
-					Name *string `json:"name,omitempty"`
-				} `json:"environment,omitempty"`
-				Id           *string `json:"id,omitempty"`
-				Name         *string `json:"name,omitempty"`
-				PolicyTarget *struct {
-					Description *string `json:"description,omitempty"`
-					Id          *string `json:"id,omitempty"`
-					Name        *string `json:"name,omitempty"`
-					PolicyId    *string `json:"policyId,omitempty"`
-				} `json:"policyTarget,omitempty"`
-				Resource *struct {
-					Id         *string `json:"id,omitempty"`
-					Identifier *string `json:"identifier,omitempty"`
-					Kind       *string `json:"kind,omitempty"`
-					Name       *string `json:"name,omitempty"`
-					Version    *string `json:"version,omitempty"`
-				} `json:"resource,omitempty"`
-			} `json:"releaseTargets,omitempty"`
+			Count          *float32         `json:"count,omitempty"`
+			ReleaseTargets *[]ReleaseTarget `json:"releaseTargets,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -7759,6 +8644,102 @@ func ParseSetResourceProvidersResourcesResponse(rsp *http.Response) (*SetResourc
 		HTTPResponse: rsp,
 	}
 
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Resources *struct {
+				Deleted *[]struct {
+					Config  *map[string]interface{} `json:"config,omitempty"`
+					Id      *string                 `json:"id,omitempty"`
+					Kind    *string                 `json:"kind,omitempty"`
+					Name    *string                 `json:"name,omitempty"`
+					Version *string                 `json:"version,omitempty"`
+				} `json:"deleted,omitempty"`
+				Ignored *[]struct {
+					Identifier  *string `json:"identifier,omitempty"`
+					Kind        *string `json:"kind,omitempty"`
+					Name        *string `json:"name,omitempty"`
+					Version     *string `json:"version,omitempty"`
+					WorkspaceId *string `json:"workspaceId,omitempty"`
+				} `json:"ignored,omitempty"`
+				Inserted *[]struct {
+					Config  *map[string]interface{} `json:"config,omitempty"`
+					Id      *string                 `json:"id,omitempty"`
+					Kind    *string                 `json:"kind,omitempty"`
+					Name    *string                 `json:"name,omitempty"`
+					Version *string                 `json:"version,omitempty"`
+				} `json:"inserted,omitempty"`
+				Updated *[]struct {
+					Config  *map[string]interface{} `json:"config,omitempty"`
+					Id      *string                 `json:"id,omitempty"`
+					Kind    *string                 `json:"kind,omitempty"`
+					Name    *string                 `json:"name,omitempty"`
+					Version *string                 `json:"version,omitempty"`
+				} `json:"updated,omitempty"`
+			} `json:"resources,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateResourceRelationshipRuleResponse parses an HTTP response from a CreateResourceRelationshipRuleWithResponse call
+func ParseCreateResourceRelationshipRuleResponse(rsp *http.Response) (*CreateResourceRelationshipRuleResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateResourceRelationshipRuleResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Description      *string `json:"description,omitempty"`
+			Id               *string `json:"id,omitempty"`
+			Name             *string `json:"name,omitempty"`
+			Reference        *string `json:"reference,omitempty"`
+			RelationshipType *string `json:"relationshipType,omitempty"`
+			SourceKind       *string `json:"sourceKind,omitempty"`
+			SourceVersion    *string `json:"sourceVersion,omitempty"`
+			TargetKind       *string `json:"targetKind,omitempty"`
+			TargetVersion    *string `json:"targetVersion,omitempty"`
+			WorkspaceId      *string `json:"workspaceId,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
 	return response, nil
 }
 
@@ -7928,23 +8909,7 @@ func ParseGetResourceResponse(rsp *http.Response) (*GetResourceResponse, error) 
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Config     map[string]interface{} `json:"config"`
-			Id         string                 `json:"id"`
-			Identifier string                 `json:"identifier"`
-			Kind       string                 `json:"kind"`
-			LockedAt   *time.Time             `json:"lockedAt"`
-			Metadata   map[string]string      `json:"metadata"`
-			Name       string                 `json:"name"`
-			Provider   *struct {
-				Id   *string `json:"id,omitempty"`
-				Name *string `json:"name,omitempty"`
-			} `json:"provider"`
-			UpdatedAt   time.Time         `json:"updatedAt"`
-			Variable    map[string]string `json:"variable"`
-			Version     string            `json:"version"`
-			WorkspaceId string            `json:"workspaceId"`
-		}
+		var dest ResourceWithVariablesAndMetadata
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -7979,16 +8944,7 @@ func ParseUpdateResourceResponse(rsp *http.Response) (*UpdateResourceResponse, e
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Config      map[string]interface{} `json:"config"`
-			Id          string                 `json:"id"`
-			Identifier  string                 `json:"identifier"`
-			Kind        string                 `json:"kind"`
-			Metadata    map[string]string      `json:"metadata"`
-			Name        string                 `json:"name"`
-			Version     string                 `json:"version"`
-			WorkspaceId string                 `json:"workspaceId"`
-		}
+		var dest ResourceWithVariablesAndMetadata
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -8002,6 +8958,32 @@ func ParseUpdateResourceResponse(rsp *http.Response) (*UpdateResourceResponse, e
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetReleaseTargetsResponse parses an HTTP response from a GetReleaseTargetsWithResponse call
+func ParseGetReleaseTargetsResponse(rsp *http.Response) (*GetReleaseTargetsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetReleaseTargetsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []ReleaseTarget
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	}
 
@@ -8498,21 +9480,23 @@ func ParseGetResourceByIdentifierResponse(rsp *http.Response) (*GetResourceByIde
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Id         string             `json:"id"`
-			Identifier string             `json:"identifier"`
-			Metadata   *map[string]string `json:"metadata,omitempty"`
-			Provider   *struct {
-				Id          *string `json:"id,omitempty"`
-				Name        *string `json:"name,omitempty"`
-				WorkspaceId *string `json:"workspaceId,omitempty"`
-			} `json:"provider,omitempty"`
-			ProviderId string `json:"providerId"`
-			Variables  *[]struct {
-				Id    *string `json:"id,omitempty"`
-				Key   *string `json:"key,omitempty"`
-				Value *string `json:"value,omitempty"`
-			} `json:"variables,omitempty"`
-			WorkspaceId string `json:"workspaceId"`
+			Config        map[string]interface{} `json:"config"`
+			CreatedAt     time.Time              `json:"createdAt"`
+			Id            openapi_types.UUID     `json:"id"`
+			Identifier    string                 `json:"identifier"`
+			Kind          string                 `json:"kind"`
+			Metadata      MetadataMap            `json:"metadata"`
+			Name          string                 `json:"name"`
+			Relationships *map[string]struct {
+				Reference string   `json:"reference"`
+				RuleId    string   `json:"ruleId"`
+				Target    Resource `json:"target"`
+				Type      string   `json:"type"`
+			} `json:"relationships,omitempty"`
+			UpdatedAt   time.Time          `json:"updatedAt"`
+			Variables   *VariableMap       `json:"variables,omitempty"`
+			Version     string             `json:"version"`
+			WorkspaceId openapi_types.UUID `json:"workspaceId"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -8527,6 +9511,38 @@ func ParseGetResourceByIdentifierResponse(rsp *http.Response) (*GetResourceByIde
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetGroupedCountsResponse parses an HTTP response from a GetGroupedCountsWithResponse call
+func ParseGetGroupedCountsResponse(rsp *http.Response) (*GetGroupedCountsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetGroupedCountsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Combinations []struct {
+				Metadata  map[string]string `json:"metadata"`
+				Resources float32           `json:"resources"`
+			} `json:"combinations"`
+			Keys []string `json:"keys"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	}
 

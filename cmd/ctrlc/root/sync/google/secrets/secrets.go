@@ -149,14 +149,14 @@ func processSecret(_ context.Context, secretClient *secretmanager.Service, secre
 				}
 			}
 		}
-		
+
 		if latestVersion != nil {
 			// Get just the version ID from the full name
 			// Format: projects/{project}/secrets/{secret}/versions/{version}
 			parts := strings.Split(latestVersion.Name, "/")
 			mostRecentVersion = parts[len(parts)-1]
 			metadata["secret/latest-version"] = mostRecentVersion
-			
+
 			// Add version creation time
 			if latestVersion.CreateTime != "" {
 				creationTime, err := time.Parse(time.RFC3339, latestVersion.CreateTime)
@@ -182,7 +182,7 @@ func processSecret(_ context.Context, secretClient *secretmanager.Service, secre
 			"name":     secretName,
 			"provider": "google",
 			"type":     "secret",
-			
+
 			// Provider-specific implementation details
 			"googleSecretManager": map[string]any{
 				"project": project,
@@ -197,11 +197,11 @@ func mapReplication(replication *secretmanager.Replication) map[string]interface
 	if replication == nil {
 		return nil
 	}
-	
+
 	result := map[string]interface{}{
 		"automatic": replication.Automatic != nil,
 	}
-	
+
 	if replication.UserManaged != nil {
 		replicas := []map[string]interface{}{}
 		for _, replica := range replication.UserManaged.Replicas {
@@ -219,7 +219,7 @@ func mapReplication(replication *secretmanager.Replication) map[string]interface
 			"replicas": replicas,
 		}
 	}
-	
+
 	return result
 }
 
@@ -228,7 +228,7 @@ func mapTopics(topics []*secretmanager.Topic) []map[string]interface{} {
 	if topics == nil {
 		return nil
 	}
-	
+
 	result := []map[string]interface{}{}
 	for _, topic := range topics {
 		topicInfo := map[string]interface{}{
@@ -236,7 +236,7 @@ func mapTopics(topics []*secretmanager.Topic) []map[string]interface{} {
 		}
 		result = append(result, topicInfo)
 	}
-	
+
 	return result
 }
 
@@ -244,7 +244,7 @@ func mapTopics(topics []*secretmanager.Topic) []map[string]interface{} {
 func initSecretMetadata(secret *secretmanager.Secret, project string) map[string]string {
 	// Extract secret name from full resource name
 	secretName := getResourceName(secret.Name)
-	
+
 	consoleUrl := fmt.Sprintf("https://console.cloud.google.com/security/secret-manager/secret/%s/versions?project=%s",
 		secretName, project)
 

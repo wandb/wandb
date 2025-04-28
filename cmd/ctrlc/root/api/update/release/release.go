@@ -16,21 +16,8 @@ func safeConvertToReleaseStatus(stat string) (*api.UpdateReleaseJSONBodyStatus, 
 	if stat == "" {
 		return nil, nil
 	}
-	status := stat
-	statusLower := strings.ToLower(status)
-	if statusLower == "ready" || statusLower == "" {
-		s := api.UpdateReleaseJSONBodyStatusReady
-		return &s, nil
-	}
-	if statusLower == "building" {
-		s := api.UpdateReleaseJSONBodyStatusBuilding
-		return &s, nil
-	}
-	if statusLower == "failed" {
-		s := api.UpdateReleaseJSONBodyStatusFailed
-		return &s, nil
-	}
-	return nil, fmt.Errorf("invalid release status: %s", status)
+	status := api.UpdateReleaseJSONBodyStatus(strings.ToLower(stat))
+	return &status, nil
 }
 
 func NewUpdateReleaseCmd() *cobra.Command {

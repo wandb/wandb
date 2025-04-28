@@ -18,6 +18,11 @@ func NewAPIKeyClientWithResponses(server string, apiKey string) (*ClientWithResp
 	)
 }
 
-func (v *Variable_Value) SetString(value string) {
+func (v *DirectVariable_Value) SetString(value string) {
+	v.union = json.RawMessage("\"" + value + "\"")
+}
+
+
+func (v *ReferenceVariable_DefaultValue) SetBool(value string) {
 	v.union = json.RawMessage("\"" + value + "\"")
 }

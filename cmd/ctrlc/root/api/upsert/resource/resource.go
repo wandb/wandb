@@ -59,14 +59,16 @@ func NewUpsertResourceCmd() *cobra.Command {
 			variablesRequest := &[]api.Variable{}
 			for k, v := range variables {
 				sensitive := false
-				vv := api.Variable_Value{}
-				vv.SetString(v)
-
-				*variablesRequest = append(*variablesRequest, api.Variable{
+				vv := api.Variable{}
+				dvv := api.DirectVariable_Value{}
+				dvv.SetString(v)
+				vv.FromDirectVariable(api.DirectVariable{
 					Key:       k,
 					Sensitive: &sensitive,
-					Value:     vv,
+					Value:     dvv,
 				})
+
+				*variablesRequest = append(*variablesRequest, vv)
 			}
 
 			// Extrat into vars
