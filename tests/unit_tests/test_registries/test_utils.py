@@ -5,7 +5,6 @@ from wandb.apis.public.registries.utils import (
 )
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
-
 @pytest.mark.parametrize(
     "artifact_types, expected_output",
     [
@@ -40,7 +39,7 @@ def test_format_gql_artifact_types_input(artifact_types, expected_output):
         result = _format_gql_artifact_types_input(artifact_types=artifact_types)
         assert result == expected_output
 
-
+        
 def test_simple_name_transform():
     query = {"name": "model"}
     expected = {"name": f"{REGISTRY_PREFIX}model"}
