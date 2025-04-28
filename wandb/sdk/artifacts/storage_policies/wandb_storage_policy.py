@@ -5,17 +5,20 @@ from __future__ import annotations
 import concurrent.futures
 import functools
 import hashlib
+import logging
 import math
 import os
 import queue
 import shutil
 import threading
+from collections import deque
 from typing import IO, TYPE_CHECKING, Any, NamedTuple, Sequence
 from urllib.parse import quote
 
 import requests
 import urllib3
 
+from wandb import env
 from wandb.errors.term import termwarn
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts.artifact_file_cache import (
@@ -65,7 +68,7 @@ S3_MIN_MULTI_UPLOAD_SIZE = 2 * 1024**3
 S3_MAX_MULTI_UPLOAD_SIZE = 5 * 1024**4
 
 
-# Minimual size to switch to multipart download, same as upload, 2GB.
+# Minimum size to switch to multipart download, same as upload, 2GB.
 _MULTIPART_DOWNLOAD_SIZE = S3_MIN_MULTI_UPLOAD_SIZE
 # Multipart download part size is same as multpart upload size, which is hard coded to 100MB.
 # https://github.com/wandb/wandb/blob/7b2a13cb8efcd553317167b823c8e52d8c3f7c4e/core/pkg/artifacts/saver.go#L496
@@ -73,8 +76,12 @@ _MULTIPART_DOWNLOAD_SIZE = S3_MIN_MULTI_UPLOAD_SIZE
 _DOWNLOAD_PART_SIZE_BYTES = 100 * 1024 * 1024
 # Chunk size for reading http response and writing to disk. 1MB.
 _HTTP_RES_CHUNK_SIZE_BYTES = 1 * 1024 * 1024
-# Singal end of _ChunkQueue, consumer (file writer) should stop after getting this item.
-_CUHNK_QUEUE_SENTIENL = object()
+# Signal end of _ChunkQueue, consumer (file writer) should stop after getting this item.
+# NOTE: it should only be used for multithread executor, it does notwork for multiprocess executor.
+# multipart download is using the executor from artifact.download() which is a multithread executor.
+_CHUNK_QUEUE_SENTINEL = object()
+
+logger = logging.getLogger(__name__)
 
 
 class _ChunkContent(NamedTuple):
@@ -168,8 +175,10 @@ class WandbStoragePolicy(StoragePolicy):
 
         if manifest_entry._download_url is not None:
             # Use multipart parallel download for large file
-            if executor is not None and self._should_multipart_download(
-                manifest_entry.size, multipart
+            if (
+                executor is not None
+                and manifest_entry.size is not None
+                and self._should_multipart_download(manifest_entry.size, multipart)
             ):
                 self._multipart_file_download(
                     executor,
@@ -214,11 +223,9 @@ class WandbStoragePolicy(StoragePolicy):
 
     def _should_multipart_download(
         self,
-        file_size: int | None,
+        file_size: int,
         multipart: bool | None,
     ) -> bool:
-        if file_size is None:
-            return False
         if multipart is not None:
             return multipart
         return file_size >= _MULTIPART_DOWNLOAD_SIZE
@@ -231,7 +238,7 @@ class WandbStoragePolicy(StoragePolicy):
     ):
         while not download_has_error.is_set():
             item = q.get()
-            if item is _CUHNK_QUEUE_SENTIENL:
+            if item is _CHUNK_QUEUE_SENTINEL:
                 # Normal shutdown, all the chunks are written
                 return
             elif isinstance(item, _ChunkContent):
@@ -244,6 +251,8 @@ class WandbStoragePolicy(StoragePolicy):
                     f.seek(item.offset)
                     f.write(item.data)
                 except Exception as e:
+                    if env.is_debug():
+                        logger.debug(f"Error writing chunk to file: {e}")
                     download_has_error.set()
                     raise e
             else:
@@ -286,7 +295,7 @@ class WandbStoragePolicy(StoragePolicy):
         Only one thread for writing to file. Each part run one http request in one thread.
         HTTP response chunk of a file part is sent to the writer thread via a queue.
         """
-        q: queue.Queue[_ChunkContent] = queue.Queue(maxsize=500)
+        q: queue.Queue[_ChunkContent | object] = queue.Queue(maxsize=500)
         download_has_error = threading.Event()
 
         # Put cache_open at top so we remove the tmp file when there is network error.
@@ -298,7 +307,7 @@ class WandbStoragePolicy(StoragePolicy):
             write_future = executor.submit(write_handler)
 
             # Start download threads for each part.
-            download_futures = []
+            download_futures: deque[concurrent.futures.Future] = deque()
             part_size = _DOWNLOAD_PART_SIZE_BYTES
             num_parts = int(math.ceil(file_size_bytes / float(part_size)))
             for i in range(num_parts):
@@ -328,11 +337,13 @@ class WandbStoragePolicy(StoragePolicy):
                 for fut in done:
                     fut.result()
             except Exception as e:
+                if env.is_debug():
+                    logger.debug(f"Error downloading file: {e}")
                 download_has_error.set()
                 raise e
             finally:
                 # Always signal the writer to stop
-                q.put(_CUHNK_QUEUE_SENTIENL)
+                q.put(_CHUNK_QUEUE_SENTINEL)
                 write_future.result()
 
     def store_reference(
