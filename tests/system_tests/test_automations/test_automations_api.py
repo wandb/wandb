@@ -117,7 +117,7 @@ def test_create_automation(
     # NOTE: On older server versions, the ID returned returned by create_automation()
     # seems to have an (encoded) index that's off by 1, vs. the ID returned by
     # automation().
-    # This seems fixed on newer servers.  Use server support for the `RUN_METRIC`
+    # This seems fixed on newer servers.  Use server support for the `RUN_METRIC_THRESHOLD`
     # event to determine if this is a "newer" server.
     assert fetched_a.id == fetched_b.id  # these should at least be the same
 
@@ -147,7 +147,7 @@ def test_create_existing_automation_raises_by_default_if_existing(
     fetched = api.automation(name=created.name)
 
     # NOTE: On older server versions, the ID returned has an encoded index that's off by 1.
-    # This seems fixed on newer servers.  Use RUN_METRIC support as a proxy for identifying
+    # This seems fixed on newer servers.  Use RUN_METRIC_THRESHOLD support as a proxy for identifying
     # newer servers.
     is_older_server = not api._supports_automation(event=EventType.RUN_METRIC_THRESHOLD)
     exclude = {"id"} if is_older_server else None
@@ -180,7 +180,7 @@ def test_create_existing_automation_fetches_existing_if_requested(
     fetched = api.automation(name=created.name)
 
     # NOTE: On older server versions, the ID returned has an encoded index that's off by 1.
-    # This seems fixed on newer servers.  Use RUN_METRIC support as a proxy for identifying
+    # This seems fixed on newer servers.  Use RUN_METRIC_THRESHOLD support as a proxy for identifying
     # newer servers.
     is_older_server = not api._supports_automation(event=EventType.RUN_METRIC_THRESHOLD)
     exclude = {"id"} if is_older_server else None
@@ -194,7 +194,7 @@ def test_create_existing_automation_fetches_existing_if_requested(
 
 
 @mark.usefixtures(reset_automations.__name__)
-def test_create_automation_for_run_metric_event(
+def test_create_automation_for_run_metric_threshold_event(
     project,
     webhook,
     api: wandb.Api,
