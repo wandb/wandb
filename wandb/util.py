@@ -1447,9 +1447,12 @@ def are_paths_on_same_drive(path1: str, path2: str) -> bool:
     if platform.system() != "Windows":
         return True
 
-    path1_drive = pathlib.Path(path1).resolve().drive
-    path2_drive = pathlib.Path(path2).resolve().drive
-    return path1_drive == path2_drive
+    try:
+        path1_drive = pathlib.Path(path1).resolve().drive
+        path2_drive = pathlib.Path(path2).resolve().drive
+        return path1_drive == path2_drive
+    except Exception:
+        return False
 
 
 # TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
