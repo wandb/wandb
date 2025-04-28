@@ -1929,7 +1929,7 @@ class Api:
         obj: "Automation",
         *,
         create_missing: bool = False,
-        **kwargs: Unpack["CreateAutomationKwargs"],
+        **kwargs: Unpack["WriteAutomationsKwargs"],
     ) -> "Automation":
         """Update an existing automation.
 
