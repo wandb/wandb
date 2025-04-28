@@ -33,7 +33,7 @@ def _format_gql_artifact_types_input(
     """Format the artifact types for the GQL input.
 
     Args:
-        accepted_artifact_types: The artifact types to add to the registry.
+        artifact_types: The artifact types to add to the registry.
 
     Returns:
         The artifact types for the GQL input.
@@ -65,7 +65,12 @@ def _registry_visibility_to_gql(
     visibility: Literal["organization", "restricted"],
 ) -> str:
     """Convert the registry visibility to the GQL visibility."""
-    return _Visibility[visibility].value
+    try:
+        return _Visibility[visibility].value
+    except KeyError:
+        raise ValueError(
+            f"Invalid visibility: {visibility!r}. Must be one of: {_Visibility.__members__.keys()}"
+        )
 
 
 def _ensure_registry_prefix_on_names(query, in_name=False):

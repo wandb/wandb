@@ -221,8 +221,8 @@ class Registry:
                     "entityName": org_entity,
                     "name": full_name,
                     "access": visibility_value,
-                    "allowAllArtifactTypesInRegistry": accepted_artifact_types is None,
-                    "artifactTypes": artifact_types,
+                    "allowAllArtifactTypesInRegistry": not accepted_artifact_types,
+                    "artifactTypes": accepted_artifact_types,
                 },
             )
         except Exception:

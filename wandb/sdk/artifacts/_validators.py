@@ -86,11 +86,11 @@ def validate_aliases(aliases: Collection[str] | str) -> list[str]:
 def validate_artifact_types_list(artifact_types: list[str]) -> bool:
     """Return True if the artifact types list is valid, False otherwise."""
     artifact_types = always_list(artifact_types)
-
     invalid_chars = ("/", ":")
-    if (
-        any(char in type for type in artifact_types for char in invalid_chars)
-        or len(artifact_types) > 128
+    if any(
+        char in type or len(type) > 128
+        for type in artifact_types
+        for char in invalid_chars
     ):
         raise ValueError(
             f"""Artifact types must not contain any of the following characters: {", ".join(invalid_chars)}

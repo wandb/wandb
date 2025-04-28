@@ -19,7 +19,7 @@ def test_registry_create_edit(user_in_org):
         visibility="organization",
         organization=organization,
         description=initial_description,
-        accepted_artifact_types=None,  # Test default: allow all
+        artifact_types=None,  # Test default: allow all
     )
 
     assert registry is not None
@@ -91,7 +91,7 @@ def test_registry_create_edit_artifact_types(user_in_org):
         organization=organization,
         name=registry_name,
         visibility="organization",
-        accepted_artifact_types=None,  # Test default: allow all
+        artifact_types=None,  # Test default: allow all
     )
     assert registry
     assert registry.allow_all_artifact_types
@@ -210,7 +210,6 @@ def test_user_in_multiple_orgs(user_in_multiple_orgs):
 
 
 def test_invalid_artifact_type_input(user_in_org):
-    """Tests that the organization is inferred from the create and load methods."""
     organization = user_in_org.organization_name
     api = Api()
     registry_name = "test"
@@ -219,16 +218,28 @@ def test_invalid_artifact_type_input(user_in_org):
             organization=organization,
             name=registry_name,
             visibility="organization",
-            accepted_artifact_types=["::///"],
+            artifact_types=["::///"],
         )
 
     registry = api.create_registry(
         organization=organization,
         name=registry_name,
         visibility="organization",
-        accepted_artifact_types=["normal"],
+        artifact_types=["normal"],
     )
 
     registry.artifact_types.append("::///")
     with pytest.raises(ValueError, match="Artifact types must not contain any of the"):
         registry.save()
+
+
+def test_create_registry_invalid_visibility_input(user_in_org):
+    organization = user_in_org.organization_name
+    api = Api()
+    registry_name = "test"
+    with pytest.raises(ValueError, match="Invalid visibility"):
+        api.create_registry(
+            organization=organization,
+            name=registry_name,
+            visibility="invalid",
+        )
