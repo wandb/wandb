@@ -189,11 +189,6 @@ def _match_org_with_fetched_org_entities(
     """
     for org_names in orgs:
         if organization in org_names:
-            wandb.termwarn(
-                "Registries can be linked/fetched using a shorthand form without specifying the organization name. "
-                "Try using shorthand path format: <my_registry_name>/<artifact_name> or "
-                "just <my_registry_name> if fetching just the project."
-            )
             return org_names.entity_name
 
     if len(orgs) == 1:

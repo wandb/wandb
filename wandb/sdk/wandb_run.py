@@ -3129,7 +3129,7 @@ class Run:
 
         organization = ""
         if is_artifact_registry_project(project):
-            organization = entity
+            organization = entity or self.settings.organization
             # In a Registry linking, the entity is used to fetch the organization of the artifact
             # therefore the source artifact's entity is passed to the backend
             entity = artifact._source_entity
@@ -3151,18 +3151,20 @@ class Run:
         response = result.response.link_artifact_response
         if response.error_message:
             wandb.termerror(response.error_message)
-        if response.error_message or response.version_index is None:
+        if response.version_index is None:
+            wandb.termerror(
+                "Error fetching the linked artifact's version index after linking"
+            )
             return None
 
         try:
-            artifact_name = f"{portfolio}:v{response.version_index}"
-            linked_artifact = wandb.Artifact._from_name(
-                entity=entity,
-                project=project,
-                name=artifact_name,
-                client=self._public_api().client,
-                enable_tracking=False,
-            )
+            artifact_name = f"{entity}/{project}/{portfolio}:v{response.version_index}"
+            if is_artifact_registry_project(project):
+                if organization:
+                    artifact_name = f"{organization}/{project}/{portfolio}:v{response.version_index}"
+                else:
+                    artifact_name = f"{project}/{portfolio}:v{response.version_index}"
+            linked_artifact = self._public_api()._artifact(artifact_name)
         except Exception as e:
             wandb.termerror(f"Error fetching link artifact after linking: {e}")
             return None
