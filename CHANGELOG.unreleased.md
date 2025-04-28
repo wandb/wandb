@@ -17,4 +17,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - `run.log_code` correctly sets the run configs `code_path` value. (@jacobromero in https://github.com/wandb/wandb/pull/9753)
 - Correctly use `WANDB_CONFIG_DIR` for determining system settings file path (@jacobromero in https://github.com/wandb/wandb/pull/9711)
+- Prevent invalid `Artifact` and `ArtifactCollection` names (which would make them unloggable), explicitly raising a `ValueError` when attempting to assign an invalid name. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8773)
 - `wandb.init()` no longer raises `Permission denied error when the wandb directory is not writable or readable (@jacobromero in https://github.com/wandb/wandb/pull/9751)

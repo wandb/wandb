@@ -3,12 +3,16 @@ import queue
 import shutil
 import unittest.mock as mock
 from pathlib import Path
+from string import ascii_letters, digits
 from typing import TYPE_CHECKING, Any, Mapping, Optional
 from unittest.mock import Mock
 
 import pytest
 import requests
+from hypothesis import given
+from hypothesis.strategies import from_regex, text
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
+from wandb.sdk.artifacts._validators import ARTIFACT_NAME_MAXLEN
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
@@ -377,6 +381,24 @@ class TestStoreFile:
 def test_invalid_artifact_type(type):
     with pytest.raises(ValueError, match="reserved for internal use"):
         Artifact("foo", type=type)
+
+
+@given(
+    invalid_name=(
+        text(  # Too many characters
+            alphabet={*ascii_letters, *digits, "_", "-", " "},
+            min_size=ARTIFACT_NAME_MAXLEN + 1,
+        )
+        | from_regex(  # Contains invalid characters
+            r"(\w|\d|\s)*(/)(\w|\d|\s)*",
+            fullmatch=True,
+        )
+    )
+)
+def test_invalid_artifact_name(invalid_name):
+    """Prevent users from instantiating an artifact with an invalid name."""
+    with pytest.raises(ValueError):
+        _ = Artifact(invalid_name, type="any")
 
 
 @pytest.mark.parametrize(
