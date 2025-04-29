@@ -1162,7 +1162,7 @@ class Artifact:
                 except CommError as e:
                     raise CommError(
                         "You do not have permission to add"
-                        f" {'at least one of the following aliases' if len(aliases_to_add) > 1  else 'the following alias'}"
+                        f" {'at least one of the following aliases' if len(aliases_to_add) > 1 else 'the following alias'}"
                         f" to this artifact: {aliases_to_add}"
                     ) from e
             if aliases_to_delete:
@@ -1200,7 +1200,7 @@ class Artifact:
                 except CommError as e:
                     raise CommError(
                         f"You do not have permission to delete"
-                        f" {'at least one of the following aliases' if len(aliases_to_delete) > 1  else 'the following alias'}"
+                        f" {'at least one of the following aliases' if len(aliases_to_delete) > 1 else 'the following alias'}"
                         f" from this artifact: {aliases_to_delete}"
                     ) from e
             self._saved_aliases = copy(self._aliases)
@@ -2365,6 +2365,8 @@ class Artifact:
                 settings=wandb.Settings(silent="true"),
             ) as run:
                 return run.link_artifact(self, target_path, aliases)
+
+        return None
 
     @ensure_logged
     def unlink(self) -> None:

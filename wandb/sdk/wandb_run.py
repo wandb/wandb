@@ -3115,7 +3115,7 @@ class Run:
             aliases = []
 
         if not self._backend or not self._backend.interface:
-            return
+            return None
 
         if artifact.is_draft() and not artifact._is_draft_save_started():
             artifact = self._log_artifact(artifact)
@@ -3129,7 +3129,7 @@ class Run:
 
         organization = ""
         if is_artifact_registry_project(project):
-            organization = entity or self.settings.organization
+            organization = entity or self.settings.organization or ""
             # In a Registry linking, the entity is used to fetch the organization of the artifact
             # therefore the source artifact's entity is passed to the backend
             entity = artifact._source_entity
