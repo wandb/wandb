@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from typing import Any, Union
 
 from pydantic import ConfigDict, model_serializer
-from typing_extensions import Self, TypeAlias
+from typing_extensions import Self, TypeAlias, get_args
 
 from wandb._pydantic import CompatBaseModel, model_validator
 
@@ -98,22 +98,22 @@ class FilterableField:
     # Override the default behavior of comparison operators: <, >=, ==, etc
     def __lt__(self, other: Any) -> FilterExpr:
         if isinstance(other, ScalarTypes):
-            return self.lt(other)
+            return self.lt(other)  # type: ignore[arg-type]
         raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
 
     def __gt__(self, other: Any) -> FilterExpr:
         if isinstance(other, ScalarTypes):
-            return self.gt(other)
+            return self.gt(other)  # type: ignore[arg-type]
         raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
 
     def __le__(self, other: Any) -> FilterExpr:
         if isinstance(other, ScalarTypes):
-            return self.lte(other)
+            return self.lte(other)  # type: ignore[arg-type]
         raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
 
     def __ge__(self, other: Any) -> FilterExpr:
         if isinstance(other, ScalarTypes):
-            return self.gte(other)
+            return self.gte(other)  # type: ignore[arg-type]
         raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
 
     # Operator behavior is intentionally overridden to allow defining
@@ -124,12 +124,12 @@ class FilterableField:
     # https://github.com/sqlalchemy/sqlalchemy/blob/f21ae633486380a26dc0b67b70ae1c0efc6b4dc4/lib/sqlalchemy/orm/descriptor_props.py#L808-L812
     def __eq__(self, other: Any) -> FilterExpr:
         if isinstance(other, ScalarTypes):
-            return self.eq(other)
+            return self.eq(other)  # type: ignore[arg-type]
         raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
 
     def __ne__(self, other: Any) -> FilterExpr:
         if isinstance(other, ScalarTypes):
-            return self.ne(other)
+            return self.ne(other)  # type: ignore[arg-type]
         raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
 
 
@@ -145,7 +145,7 @@ class FilterExpr(CompatBaseModel, SupportsLogicalOpSyntax):
     op: Op
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({self.field!s}={self.op!r})"
+        return f"{type(self).__name__}({self.field!s}: {self.op!r})"
 
     def __rich_repr__(self) -> RichReprResult:  # type: ignore[override]
         # https://rich.readthedocs.io/en/stable/pretty.html
@@ -172,8 +172,10 @@ class FilterExpr(CompatBaseModel, SupportsLogicalOpSyntax):
         """Return a MongoDB dict representation of the expression."""
         from pydantic_core import to_jsonable_python  # Only valid in pydantic v2
 
-        op_dict = to_jsonable_python(self.op, by_alias=True, round_trip=True)
-        return {self.field: op_dict}
+        return {self.field: to_jsonable_python(self.op, by_alias=True, round_trip=True)}
 
 
+# for type annotations
 MongoLikeFilter: TypeAlias = Union[Op, FilterExpr]
+# for runtime type checks
+MongoLikeFilterTypes: tuple[type, ...] = get_args(MongoLikeFilter)

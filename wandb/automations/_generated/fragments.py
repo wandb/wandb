@@ -95,12 +95,6 @@ class GenericWebhookIntegrationFields(GQLBase):
     id: GQLId
     name: str
     url_endpoint: str = Field(alias="urlEndpoint")
-    created_at: datetime = Field(alias="createdAt")
-
-
-class GithubIntegrationFields(GQLBase):
-    typename__: Typename[Literal["GitHubOAuthIntegration"]] = "GitHubOAuthIntegration"
-    id: GQLId
 
 
 class IntegrationConnectionFields(GQLBase):
@@ -179,12 +173,11 @@ class ProjectScopeFields(GQLBase):
 
 class QueueJobActionFields(GQLBase):
     typename__: Typename[Literal["QueueJobTriggeredAction"]] = "QueueJobTriggeredAction"
-    queue: Optional[RunQueueFields]
+    queue: Optional[QueueJobActionFieldsQueue]
     template: str
 
 
-class RunQueueFields(GQLBase):
-    typename__: Typename[Literal["RunQueue"]] = "RunQueue"
+class QueueJobActionFieldsQueue(GQLBase):
     id: GQLId
     name: str
 
@@ -225,7 +218,6 @@ class TriggerFields(GQLBase):
     typename__: Typename[Literal["Trigger"]] = "Trigger"
     id: GQLId
     created_at: datetime = Field(alias="createdAt")
-    created_by: UserFields = Field(alias="createdBy")
     updated_at: Optional[datetime] = Field(alias="updatedAt")
     name: str
     description: Optional[str]
@@ -249,12 +241,6 @@ class UpdateFilterTriggerResult(GQLBase):
         "UpdateFilterTriggerPayload"
     )
     trigger: Optional[TriggerFields]
-
-
-class UserFields(GQLBase):
-    typename__: Typename[Literal["User"]] = "User"
-    id: GQLId
-    username: Optional[str]
 
 
 class TriggerFieldsScopeArtifactPortfolio(ArtifactPortfolioScopeFields):
@@ -327,7 +313,6 @@ FilterEventFields.model_rebuild()
 GenericWebhookActionFields.model_rebuild()
 GenericWebhookIntegrationConnectionFields.model_rebuild()
 GenericWebhookIntegrationFields.model_rebuild()
-GithubIntegrationFields.model_rebuild()
 IntegrationConnectionFields.model_rebuild()
 NoOpActionFields.model_rebuild()
 NotificationActionFields.model_rebuild()
@@ -335,9 +320,7 @@ PageInfoFields.model_rebuild()
 ProjectConnectionFields.model_rebuild()
 ProjectScopeFields.model_rebuild()
 QueueJobActionFields.model_rebuild()
-RunQueueFields.model_rebuild()
 SlackIntegrationConnectionFields.model_rebuild()
 SlackIntegrationFields.model_rebuild()
 TriggerFields.model_rebuild()
 UpdateFilterTriggerResult.model_rebuild()
-UserFields.model_rebuild()
