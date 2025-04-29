@@ -264,7 +264,7 @@ class Table(Media):
         self._validate_log_mode(log_mode)
         self.log_mode = log_mode
         self._pk_col = None
-        self._fk_cols = set()
+        self._fk_cols: set[str] = set()
         if allow_mixed_types:
             dtype = _dtypes.AnyType
 
