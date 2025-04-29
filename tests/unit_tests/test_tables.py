@@ -282,7 +282,7 @@ def test_table_logging_mode_immutable_decorator():
     does not get reset after mutable table operations
     """
     t = wandb.Table(columns=["a", "b"], log_mode="IMMUTABLE")
-    t._run = "dummy_run" 
+    t._run = "dummy_run"
     t._artifact_target = "dummy_target"
     t.add_data(1, 2)
     assert t._run == "dummy_run"

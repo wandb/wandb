@@ -123,12 +123,10 @@ def test_reference_table_artifacts(user, test_settings, wandb_backend_spy):
 
     run.finish()
 
+
 def test_table_mutation_logging(user, test_settings, wandb_backend_spy):
     run = wandb.init(settings=test_settings())
-    t = wandb.Table(
-        columns=["expected", "actual", "img"],
-        log_mode="MUTABLE"
-    )
+    t = wandb.Table(columns=["expected", "actual", "img"], log_mode="MUTABLE")
     t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
     run.log({"table": t})
     t.add_data("Yes", "Yes", wandb.Image(np.ones(shape=(32, 32))))

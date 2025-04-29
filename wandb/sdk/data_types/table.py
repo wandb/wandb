@@ -179,13 +179,14 @@ class _ForeignIndexType(_dtypes.Type):
             raise AssertionError("Unable to deserialize referenced table")
 
         return cls(table)
-    
+
+
 def allow_relogging_after_mutation(method):
     def wrapper(self, *args, **kwargs):
         res = method(self, *args, **kwargs)
 
         has_been_logged = self._run is not None or self._artifact_target is not None
-        
+
         if self.log_mode == "MUTABLE":
             self._run = None
             self._artifact_target = None
@@ -197,9 +198,13 @@ def allow_relogging_after_mutation(method):
             )
 
         return res
+
     return wrapper
 
+
 supported_logging_modes = ["IMMUTABLE", "MUTABLE"]
+
+
 class Table(Media):
     """The Table class used to display and analyze tabular data.
 
@@ -247,7 +252,7 @@ class Table(Media):
         dtype=None,
         optional=True,
         allow_mixed_types=False,
-        log_mode: Optional[Literal["IMMUTABLE", "MUTABLE"]]="IMMUTABLE",
+        log_mode: Optional[Literal["IMMUTABLE", "MUTABLE"]] = "IMMUTABLE",
     ):
         """Initializes a Table object.
 
@@ -289,8 +294,10 @@ class Table(Media):
                 self._init_from_list([], columns, optional, dtype)
 
     def _validate_log_mode(self, log_mode):
-        assert log_mode in supported_logging_modes, f"Invalid log_mode: {log_mode}. Must be one of {supported_logging_modes}"
-    
+        assert (
+            log_mode in supported_logging_modes
+        ), f"Invalid log_mode: {log_mode}. Must be one of {supported_logging_modes}"
+
     @staticmethod
     def _assert_valid_columns(columns):
         valid_col_types = [str, int]
