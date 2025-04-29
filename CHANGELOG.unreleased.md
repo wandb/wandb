@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - `is_link` property to artifacts to determine if an artifact is a link artifact (such as in the Registry) or source artifact. (@estellazx in https://github.com/wandb/wandb/pull/9764)
+- `link_artifact`, `link`, and `link_model` all return the linked artifact upon linking (@estellazx in https://github.com/wandb/wandb/pull/9763)
 
 ### Fixed
 
