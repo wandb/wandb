@@ -46,7 +46,7 @@ def gql_ids(
 
 
 def jsonables() -> SearchStrategy[Any]:
-    """Helper function to describe JSON objects, with optional inf and nan."""
+    """JSON-serializable objects."""
     jsonable_scalars = none() | booleans() | ints_or_floats | text()
     return recursive(
         jsonable_scalars,
