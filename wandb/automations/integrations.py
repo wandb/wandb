@@ -1,6 +1,7 @@
 from typing import Union
 
 from pydantic import Field
+from typing_extensions import Annotated
 
 from wandb._pydantic import GQLBase
 from wandb.automations._generated import (
@@ -17,10 +18,20 @@ class WebhookIntegration(GenericWebhookIntegrationFields):
     pass
 
 
-Integration = Union[SlackIntegration, WebhookIntegration]
+Integration = Annotated[
+    Union[SlackIntegration, WebhookIntegration],
+    Field(discriminator="typename__"),
+]
 
 
 # For parsing integration instances from paginated responses
 class _IntegrationEdge(GQLBase):
     cursor: str
-    node: Integration = Field(discriminator="typename__")
+    node: Integration
+
+
+__all__ = [
+    "Integration",
+    "SlackIntegration",
+    "WebhookIntegration",
+]
