@@ -17,6 +17,7 @@ from wandb.automations.events import (
     OnAddArtifactAlias,
     OnCreateArtifact,
     OnLinkArtifact,
+    OnRunMetric,
     RunEvent,
 )
 
