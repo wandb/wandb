@@ -32,6 +32,67 @@ const DCGM_FT_TIMESTAMP: u32 = 3;
 const DCGM_FT_BINARY: u32 = 4;
 const DCGM_FT_DOUBLE_BLANK: u32 = 100;
 
+// Profiling metrics field IDs
+
+// Percentage of time at least one warp was active on an SM.
+//
+// A much better indicator of GPU compute saturation than raw utilization.
+const DCGM_FI_PROF_SM_ACTIVE: u16 = 1002;
+
+// Ratio of resident warps on SMs to max possible.
+//
+// It reflects how many threads are loaded on the SM relative to capacity.
+// Very useful in conjunction with DRAM Active in determining memory bottlenecks.
+const DCGM_FI_PROF_SM_OCCUPANCY: u16 = 1003;
+
+// Ratio of cycles tensor cores are active (FP16/BF16 matrix ops).
+//
+// Essential for monitoring tensor core utilization in mixed-precision workloads.
+const DCGM_FI_PROF_PIPE_TENSOR_ACTIVE: u16 = 1004;
+
+// Ratio of cycles the device memory interface is active sending or receiving data.
+//
+// Values are useful in context with others in determining causes of bottlenecks or idling.
+const DCGM_FI_PROF_DRAM_ACTIVE: u16 = 1005;
+
+// Ratio of cycles the fp64 (double-precision) arithmetic pipeline is active.
+const DCGM_FI_PROF_PIPE_FP64_ACTIVE: u16 = 1006;
+
+// Ratio of cycles the FP32 arithmetic pipeline is active.
+//
+// Indicates how much standard precision floating-point math is being used.
+const DCGM_FI_PROF_PIPE_FP32_ACTIVE: u16 = 1007;
+
+// Ratio of cycles the fp16 arithmetic pipeline is active (excluding tensor cores).
+//
+// Helps determine if mixed precision (without tensor cores) is being utilized.
+const DCGM_FI_PROF_PIPE_FP16_ACTIVE: u16 = 1008;
+
+// More granular metrics separating integer matrix ops vs. half-precision matrix ops.
+//
+// It measures the utilization of half-precision tensor core math units.
+const DCGM_FI_PROF_PIPE_TENSOR_HMMA_ACTIVE: u16 = 1014;
+
+// The number of bytes of active PCIe tx (transmit) data including both header and payload.
+//
+// Note that this is from the perspective of the GPU, so copying data from device to host (DtoH)
+// would be reflected in this metric.
+// Helps identify bottlenecks in CPU-GPU data movement for non NVLink configurations.
+const DCGM_FI_PROF_PCIE_TX_BYTES: u16 = 1009;
+
+// The number of bytes of active PCIe rx (read) data including both header and payload.
+//
+// Note that this is from the perspective of the GPU, so copying data from host to device (HtoD)
+// would be reflected in this metric.
+// Helps identify bottlenecks in CPU-GPU data movement for non NVLink configurations.
+const DCGM_FI_PROF_PCIE_RX_BYTES: u16 = 1010;
+
+// The total number of bytes of active NvLink tx (transmit) data including both header and payload.
+const DCGM_FI_PROF_NVLINK_TX_BYTES: u16 = 1011;
+
+// The total number of bytes of active NvLink rx (read) data including both header and payload.
+const DCGM_FI_PROF_NVLINK_RX_BYTES: u16 = 1012;
+
 // Constants for special DCGM groups
 const DCGM_GROUP_ALL_GPUS: u32 = 0x7fffffff;
 const DCGM_GROUP_ALL_NVSWITCHES: u32 = 0x7ffffffe;
@@ -440,7 +501,20 @@ impl DcgmClient {
     pub fn new() -> Result<Self, String> {
         let lib_path = "libdcgm.so.4".to_string();
         let host_address = "localhost:5555".to_string();
-        let field_ids = vec![1002_u16, 1003, 1004];
+        let field_ids = vec![
+            DCGM_FI_PROF_SM_ACTIVE,
+            DCGM_FI_PROF_SM_OCCUPANCY,
+            DCGM_FI_PROF_PIPE_TENSOR_ACTIVE,
+            DCGM_FI_PROF_DRAM_ACTIVE,
+            DCGM_FI_PROF_PIPE_FP64_ACTIVE,
+            DCGM_FI_PROF_PIPE_FP32_ACTIVE,
+            DCGM_FI_PROF_PIPE_FP16_ACTIVE,
+            DCGM_FI_PROF_PIPE_TENSOR_HMMA_ACTIVE,
+            DCGM_FI_PROF_PCIE_TX_BYTES,
+            DCGM_FI_PROF_PCIE_RX_BYTES,
+            DCGM_FI_PROF_NVLINK_TX_BYTES,
+            DCGM_FI_PROF_NVLINK_RX_BYTES,
+        ];
 
         // --- CHANGE MPSC CHANNEL TYPE ---
         let (sender, receiver) = mpsc::channel();
@@ -556,7 +630,7 @@ extern "C" fn field_value_callback(
 
     let entity_type = match entity_group_id {
         DCGM_FE_GPU => "gpu",
-        DCGM_FE_VGPU => "vgpu", // Or handle other types if necessary
+        DCGM_FE_VGPU => "gpu", // TODO: Handle VGPU differently if needed.
         _ => "unknown",
     };
 
@@ -602,20 +676,27 @@ extern "C" fn field_value_callback(
                         None
                     }
                 }
-                // DCGM_FT_BINARY => None, // Decide how to handle binary if needed
+                // DCGM_FT_BINARY => None, // TODO: Decide how to handle binary if needed
                 _ => None, // Unknown type
             };
 
             if let Some(metric_value) = metric_value_opt {
-                // Map field ID to known field names (adjust as needed)
                 let base_name = match field_id {
-                    1002 => "dcgm.sm_active_percent",
-                    1003 => "dcgm.sm_occupancy_percent",
-                    1004 => "dcgm.tensor_active_percent",
-                    // Add more mappings here
-                    _ => &format!("dcgm.field_{}", field_id),
+                    DCGM_FI_PROF_SM_ACTIVE => "smActive",
+                    DCGM_FI_PROF_SM_OCCUPANCY => "smOccupancy",
+                    DCGM_FI_PROF_PIPE_TENSOR_ACTIVE => "pipeTensorActive",
+                    DCGM_FI_PROF_DRAM_ACTIVE => "dramActive",
+                    DCGM_FI_PROF_PIPE_FP64_ACTIVE => "pipeFp64Active",
+                    DCGM_FI_PROF_PIPE_FP32_ACTIVE => "pipeFp32Active",
+                    DCGM_FI_PROF_PIPE_FP16_ACTIVE => "pipeFp16Active",
+                    DCGM_FI_PROF_PIPE_TENSOR_HMMA_ACTIVE => "pipeTensorHmmaActive",
+                    DCGM_FI_PROF_PCIE_TX_BYTES => "pcieTxBytes",
+                    DCGM_FI_PROF_PCIE_RX_BYTES => "pcieRxBytes",
+                    DCGM_FI_PROF_NVLINK_TX_BYTES => "nvlinkTxBytes",
+                    DCGM_FI_PROF_NVLINK_RX_BYTES => "nvlinkRxBytes",
+                    _ => &format!("dcgm_field_{}", field_id),
                 };
-                // Create unique key per GPU: e.g., "gpu_0.dcgm.sm_active_percent"
+                // Create unique key per GPU: e.g., "gpu.0.smActive"
                 let metric_key = format!("{}_{}.{}", entity_type, entity_id, base_name);
                 metrics_vec.push((metric_key, metric_value));
             }
@@ -639,7 +720,6 @@ impl DcgmWorker {
         field_ids: Vec<u16>,
         group_id: u32,
         field_group_id: u32,
-        // --- CHANGE RECEIVER TYPE ---
         receiver: mpsc::Receiver<DcgmCommand>,
     ) -> Self {
         DcgmWorker {
@@ -651,7 +731,6 @@ impl DcgmWorker {
         }
     }
 
-    // --- CHANGE: run is now SYNC, not async ---
     fn run(&mut self) {
         log::info!("DCGM worker SYNC run loop started.");
 
@@ -677,9 +756,10 @@ impl DcgmWorker {
         // DcgmLib's Drop implementation will handle cleanup here when worker goes out of scope
     }
 
-    // This performs the actual DCGM interaction (remains synchronous)
+    // This performs the actual DCGM interaction
     fn collect_metrics(&self) -> DcgmMetricsResult {
-        // ... (implementation remains the same - calls FFI, uses callback) ...
+        // Call update_all_fields to refresh the metrics using FFI
+        // This is a blocking call, so it should be done in the worker thread.
         if let Err(e) = self.dcgm.update_all_fields(0) {
             log::warn!("DCGM update_all_fields failed: {}", e);
         }

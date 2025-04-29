@@ -15,6 +15,7 @@ mod gpu_apple;
 mod gpu_apple_sources;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod gpu_nvidia;
+// #[cfg(any(target_os = "linux"))]
 mod gpu_nvidia_dcgm;
 mod metrics;
 mod wandb_internal;
@@ -39,6 +40,7 @@ use gpu_amd::GpuAmd;
 use gpu_apple::ThreadSafeSampler;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use gpu_nvidia::NvidiaGpu;
+// #[cfg(any(target_os = "linux"))]
 use gpu_nvidia_dcgm::DcgmClient;
 use prost_types::Timestamp;
 use wandb_internal::{
