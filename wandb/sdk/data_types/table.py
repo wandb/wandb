@@ -192,9 +192,9 @@ def allow_relogging_after_mutation(method):
             self._artifact_target = None
         elif self.log_mode == "IMMUTABLE" and has_been_logged:
             logging.warning(
-                f"You are mutating a Table with log_mode='IMMUTABLE' that has been"
-                f"logged already. Subsequent log() calls will have no effect."
-                f"Set log_mode='MUTABLE' to enable re-logging after mutations"
+                "You are mutating a Table with log_mode='IMMUTABLE' that has been"
+                "logged already. Subsequent log() calls will have no effect."
+                "Set log_mode='MUTABLE' to enable re-logging after mutations"
             )
 
         return res
