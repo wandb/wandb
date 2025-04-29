@@ -3,29 +3,31 @@ from __future__ import annotations
 import secrets
 from base64 import b64encode
 from functools import lru_cache
-from typing import TYPE_CHECKING, Union
+from typing import Union
+from unittest.mock import Mock
 
 from hypothesis import settings
 from pytest import FixtureRequest, fixture, skip, xfail
 from pytest_mock import MockerFixture
 from typing_extensions import TypeAlias
 from wandb.apis.public import ArtifactCollection, Project
-
-if TYPE_CHECKING:
-    from wandb.automations import (
-        ActionType,
-        DoNothing,
-        DoNotification,
-        DoWebhook,
-        EventType,
-        OnAddArtifactAlias,
-        OnCreateArtifact,
-        OnLinkArtifact,
-        OnRunMetric,
-        ScopeType,
-    )
-    from wandb.automations.actions import InputAction
-    from wandb.automations.events import InputEvent
+from wandb.automations import (
+    ActionType,
+    ArtifactEvent,
+    DoNothing,
+    EventType,
+    OnAddArtifactAlias,
+    OnCreateArtifact,
+    OnLinkArtifact,
+    OnRunMetric,
+    RunEvent,
+    ScopeType,
+    SendNotification,
+    SendWebhook,
+)
+from wandb.automations._utils import EXCLUDED_INPUT_ACTIONS, EXCLUDED_INPUT_EVENTS
+from wandb.automations.actions import InputAction, SavedAction, SavedNoOpAction
+from wandb.automations.events import InputEvent, SavedEvent
 
 # default Hypothesis settings
 settings.register_profile("default", max_examples=100)
@@ -61,8 +63,22 @@ def integration_id() -> str:
     return make_graphql_id(prefix="Integration")
 
 
+@fixture
+def automation_id() -> str:
+    """Generate a random automation ID for use in tests."""
+    return make_graphql_id(prefix="Trigger")
+
+
 @fixture(scope="session")
-def artifact_collection(session_mocker: MockerFixture) -> ArtifactCollection:
+def mock_client(session_mocker: MockerFixture) -> Mock:
+    """A mocked wandb client to prevent real API calls."""
+    from wandb.apis.public import RetryingClient
+
+    return session_mocker.Mock(spec=RetryingClient)
+
+
+@fixture(scope="session")
+def artifact_collection(mock_client: Mock) -> ArtifactCollection:
     """A simulated `ArtifactCollection` that could be returned by `wandb.Api`.
 
     This might be typically fetched via `Api.artifact_collection()`,
@@ -71,23 +87,30 @@ def artifact_collection(session_mocker: MockerFixture) -> ArtifactCollection:
     For unit-testing purposes, this has been heavily mocked.
     Tests relying on real `wandb.Api` calls should live in system tests.
     """
-    mock_collection = session_mocker.Mock(spec=ArtifactCollection)
-    mock_collection.configure_mock(
-        **{
+    collection = ArtifactCollection(
+        client=mock_client,
+        entity="test-entity",
+        project="test-project",
+        name="test-collection",
+        type="dataset",
+        attrs={
             "id": make_graphql_id(prefix="ArtifactCollection"),
-            "name": "test-collection",
             "type": "dataset",
             "description": "This is a fake artifact collection.",
-            "entity": "test-entity",
-            "project": "test-project",
-            "is_sequence.return_value": False,
-        }
+            "aliases": {"edges": []},
+            "createdAt": "2021-01-01T00:00:00Z",
+            "tags": {"edges": []},
+        },
     )
-    return mock_collection
+
+    # Patch the private _is_sequence attribute to False, to simulate a non-sequence artifact collection.
+    collection._is_sequence = False
+
+    return collection
 
 
 @fixture(scope="session")
-def project(session_mocker: MockerFixture) -> Project:
+def project(mock_client: Mock) -> Project:
     """A simulated `Project` that could be returned by `wandb.Api`.
 
     This might be typically fetched via `Api.project()`, `Api.projects()`, etc.
@@ -95,42 +118,35 @@ def project(session_mocker: MockerFixture) -> Project:
     For unit-testing purposes, this has been heavily mocked.
     Tests relying on real `wandb.Api` calls should live in system tests.
     """
-    mock_project = session_mocker.Mock(spec=Project)
-
-    mock_project.id = make_graphql_id(prefix="Project")
-    mock_project.entity = "test-entity"
-    mock_project.name = "test-project"
-
-    return mock_project
+    return Project(
+        client=mock_client,
+        entity="test-entity",
+        project="test-project",
+        attrs={
+            "id": make_graphql_id(prefix="Project"),
+        },
+    )
 
 
 # Exclude deprecated scope/event/action types from those expected to be exposed for valid behavior
 def valid_scopes() -> list[ScopeType]:
-    from wandb.automations import ScopeType
-
-    return sorted(ScopeType)
+    return sorted(set(ScopeType))
 
 
-def valid_events() -> list[EventType]:
-    from wandb.automations import EventType
-
-    return sorted(set(EventType) - {EventType.UPDATE_ARTIFACT_ALIAS})
+def valid_input_events() -> list[EventType]:
+    return sorted(set(EventType) - EXCLUDED_INPUT_EVENTS)
 
 
-def valid_actions() -> list[ActionType]:
-    from wandb.automations import ActionType
-
-    return sorted(set(ActionType) - {ActionType.QUEUE_JOB})
+def valid_input_actions() -> list[ActionType]:
+    return sorted(set(ActionType) - EXCLUDED_INPUT_ACTIONS)
 
 
 # Invalid (event, scope) combinations that should be skipped
 @lru_cache(maxsize=None)
 def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
-    from wandb.automations import EventType, ScopeType
-
     return {
         (EventType.CREATE_ARTIFACT, ScopeType.PROJECT),
-        (EventType.RUN_METRIC, ScopeType.ARTIFACT_COLLECTION),
+        (EventType.RUN_METRIC_THRESHOLD, ScopeType.ARTIFACT_COLLECTION),
     }
 
 
@@ -140,23 +156,21 @@ def scope_type(request: FixtureRequest) -> ScopeType:
     return request.param
 
 
-@fixture(params=valid_events(), ids=lambda x: x.value)
+@fixture(params=valid_input_events(), ids=lambda x: x.value)
 def event_type(request: FixtureRequest, scope_type: ScopeType) -> EventType:
     """An automation event type."""
-    from wandb.automations import EventType
-
     event_type = request.param
 
     if (event_type, scope_type) in invalid_events_and_scopes():
         skip(f"Event {event_type.value!r} doesn't support scope {scope_type.value!r}")
 
     if event_type is EventType.RUN_METRIC_CHANGE:
-        xfail(f"Event {event_type.value!r} is not yet supported in the SDK")
+        xfail(f"Event {event_type.value!r} not yet supported")
 
     return event_type
 
 
-@fixture(params=valid_actions(), ids=lambda x: x.value)
+@fixture(params=valid_input_actions(), ids=lambda x: x.value)
 def action_type(request: type[FixtureRequest]) -> ActionType:
     """An automation action type."""
     return request.param
@@ -167,8 +181,6 @@ def action_type(request: type[FixtureRequest]) -> ActionType:
 @fixture
 def scope(request: FixtureRequest, scope_type: ScopeType) -> ScopableWandbType:
     """A (mocked) wandb object to use as the scope for an automation."""
-    from wandb.automations import ScopeType
-
     scope2fixture: dict[ScopeType, str] = {
         ScopeType.ARTIFACT_COLLECTION: artifact_collection.__name__,
         ScopeType.PROJECT: project.__name__,
@@ -181,17 +193,15 @@ def scope(request: FixtureRequest, scope_type: ScopeType) -> ScopableWandbType:
 @fixture
 def on_create_artifact(scope: ScopableWandbType) -> OnCreateArtifact:
     """An event object for defining a **new** automation."""
-    from wandb.automations import OnCreateArtifact
 
     return OnCreateArtifact(
         scope=scope,
+        filter=ArtifactEvent.alias.matches_regex("^prod-.*"),
     )
 
 
 @fixture
 def on_add_artifact_alias(scope: ScopableWandbType) -> OnAddArtifactAlias:
-    from wandb.automations import ArtifactEvent, OnAddArtifactAlias
-
     return OnAddArtifactAlias(
         scope=scope,
         filter=ArtifactEvent.alias.matches_regex("^prod-.*"),
@@ -200,8 +210,6 @@ def on_add_artifact_alias(scope: ScopableWandbType) -> OnAddArtifactAlias:
 
 @fixture
 def on_link_artifact(scope: ScopableWandbType) -> OnLinkArtifact:
-    from wandb.automations import ArtifactEvent, OnLinkArtifact
-
     return OnLinkArtifact(
         scope=scope,
         filter=ArtifactEvent.alias.matches_regex("^prod-.*"),
@@ -210,8 +218,6 @@ def on_link_artifact(scope: ScopableWandbType) -> OnLinkArtifact:
 
 @fixture
 def on_run_metric(scope: ScopableWandbType) -> OnRunMetric:
-    from wandb.automations import OnRunMetric, RunEvent
-
     return OnRunMetric(
         scope=scope,
         filter=RunEvent.metric("my-metric").average(window=5).gt(123.45),
@@ -219,26 +225,32 @@ def on_run_metric(scope: ScopableWandbType) -> OnRunMetric:
 
 
 @fixture
-def event(request: FixtureRequest, event_type: EventType) -> InputEvent:
+def input_event(request: FixtureRequest, event_type: EventType) -> InputEvent:
     """An event object for defining a **new** automation."""
-    from wandb.automations import EventType
 
     event2fixture: dict[EventType, str] = {
         EventType.CREATE_ARTIFACT: on_create_artifact.__name__,
         EventType.ADD_ARTIFACT_ALIAS: on_add_artifact_alias.__name__,
-        EventType.LINK_MODEL: on_link_artifact.__name__,
-        EventType.RUN_METRIC: on_run_metric.__name__,
+        EventType.LINK_ARTIFACT: on_link_artifact.__name__,
+        EventType.RUN_METRIC_THRESHOLD: on_run_metric.__name__,
     }
     return request.getfixturevalue(event2fixture[event_type])
+
+
+@fixture
+def saved_event() -> SavedEvent:
+    # PLACEHOLDER
+    return SavedEvent(
+        event_type=EventType.LINK_ARTIFACT,
+        filter={"filter": {"$or": [{"$and": []}]}},
+    )
 
 
 # ------------------------------------------------------------------------------
 # Actions
 @fixture
-def do_notification(integration_id: str) -> DoNotification:
-    from wandb.automations import DoNotification
-
-    return DoNotification(
+def send_notification(integration_id: str) -> SendNotification:
+    return SendNotification(
         integration_id=integration_id,
         title="Test title",
         text="Test message content",
@@ -247,30 +259,29 @@ def do_notification(integration_id: str) -> DoNotification:
 
 
 @fixture
-def do_webhook(integration_id: str) -> DoWebhook:
-    from wandb.automations import DoWebhook
-
-    return DoWebhook(
-        integration_id=integration_id,
-        request_payload={"my-key": "my-value"},
+def send_webhook(integration_id: str) -> SendWebhook:
+    return SendWebhook(
+        integration_id=integration_id, request_payload={"my-key": "my-value"}
     )
 
 
 @fixture
 def do_nothing() -> DoNothing:
-    from wandb.automations import DoNothing
-
     return DoNothing()
 
 
 @fixture
-def action(request: FixtureRequest, action_type: ActionType) -> InputAction:
+def input_action(request: FixtureRequest, action_type: ActionType) -> InputAction:
     """An action object for defining a **new** automation."""
-    from wandb.automations import ActionType
-
     action2fixture: dict[ActionType, str] = {
-        ActionType.NOTIFICATION: do_notification.__name__,
-        ActionType.GENERIC_WEBHOOK: do_webhook.__name__,
+        ActionType.NOTIFICATION: send_notification.__name__,
+        ActionType.GENERIC_WEBHOOK: send_webhook.__name__,
         ActionType.NO_OP: do_nothing.__name__,
     }
     return request.getfixturevalue(action2fixture[action_type])
+
+
+@fixture
+def saved_action() -> SavedAction:
+    # PLACEHOLDER
+    return SavedNoOpAction()
