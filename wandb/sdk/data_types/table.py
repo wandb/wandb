@@ -551,7 +551,7 @@ class Table(Media):
                     f"this may cause slower queries in the W&B UI."
                 )
             logging.warning(f"Truncating wandb.Table object to {max_rows} rows.")
-        print("last logged", self._last_logged_idx)
+
         if self._last_logged_idx is not None:
             return {"columns": self.columns, "data": self.data[self._last_logged_idx + 1:self._last_logged_idx + 1 + max_rows]}
         return {"columns": self.columns, "data": self.data[:max_rows]}
@@ -739,7 +739,6 @@ class Table(Media):
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
-        print(json_dict)
         return json_dict
 
     def iterrows(self):
