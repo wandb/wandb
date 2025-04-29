@@ -818,3 +818,48 @@ def test_used_artifacts_preserve_original_project(user, api, logged_artifact):
 
     assert run_from_api.project == new_project
     assert art_from_run.project == orig_project
+
+
+def test_artifact_is_link(user, api):
+    run = wandb.init()
+    artifact_type = "model"
+    collection_name = "sequence_name"
+
+    # test is_link upon logging/linking
+    artifact = wandb.Artifact(collection_name, artifact_type)
+    run.log_artifact(artifact)
+    artifact.wait()
+    assert not artifact.is_link
+
+    link_collection = "test_link_collection"
+    run.link_artifact(artifact=artifact, target_path=link_collection)
+
+    link_name = f"{artifact.entity}/{artifact.project}/{link_collection}:latest"
+    artifact = run.use_artifact(artifact.qualified_name)
+    assert not artifact.is_link
+
+    linked_model_art = run.use_artifact(link_name)
+    assert linked_model_art.is_link
+
+    # test api
+    api_artifact = api.artifact(artifact.qualified_name)
+    assert not api_artifact.is_link
+
+    api_artifact = api.artifact(link_name)
+    assert api_artifact.is_link
+
+    # test collection api
+    source_col = api.artifact_collection(
+        artifact_type,
+        f"{artifact.entity}/{artifact.project}/{artifact.collection.name}",
+    )
+    versions = source_col.artifacts()
+    assert len(versions) == 1
+    assert not versions[0].is_link
+
+    link_col = api.artifact_collection(
+        artifact_type, f"{artifact.entity}/{artifact.project}/{link_collection}"
+    )
+    versions = link_col.artifacts()
+    assert len(versions) == 1
+    assert versions[0].is_link
