@@ -150,8 +150,12 @@ def val_to_json(
             ]:
                 # Sanitize the key to meet the constraints of artifact names.
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
-                art_type = "incremental_run_table" if val.log_mode == "INCREMENTAL" else "run_table"
-                art_name = f"run-{run.id}-{sanitized_key}" if val.log_mode != "INCREMENTAL" else f"run-{run.id}-incr-{sanitized_key}"
+                art_type = "run_table"
+                art_name = f"run-{run.id}-{sanitized_key}"
+                if val.log_mode == "INCREMENTAL":
+                    art_type = "incremental_run_table"
+                    art_name = f"run-{run.id}-incr-{sanitized_key}"
+                
                 art = wandb.Artifact(art_name, art_type)
                 res = art.add(val, key)
                 run.log_artifact(art)
@@ -164,6 +168,7 @@ def val_to_json(
                 val.bind_to_run(run, key, namespace)
 
         res = val.to_json(run)
+
         if isinstance(val, Media) and hasattr(val, "_log_type") and val._log_type == "table":
             if val.log_mode == "INCREMENTAL":
                 val._last_logged_idx = len(val.data) - 1
