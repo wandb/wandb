@@ -3,9 +3,17 @@ from wandb import Api
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
 
-def test_registry_create_edit(user_in_org):
+@pytest.fixture
+def default_organization(user_in_orgs):
+    """Provides the name of the single default organization."""
+    assert (
+        len(user_in_orgs.organization_names) == 1
+    ), "This fixture requires user_in_orgs with exactly one organization"
+    yield user_in_orgs.organization_names[0]
+
+
+def test_registry_create_edit(default_organization):
     """Tests the basic CRUD operations for a registry."""
-    organization = user_in_org.organization_name
     api = Api()
     registry_name = "test"
     initial_description = "Initial registry description."
@@ -17,7 +25,7 @@ def test_registry_create_edit(user_in_org):
     registry = api.create_registry(
         name=registry_name,
         visibility="organization",
-        organization=organization,
+        organization=default_organization,
         description=initial_description,
         artifact_types=None,  # Test default: allow all
     )
@@ -25,7 +33,7 @@ def test_registry_create_edit(user_in_org):
     assert registry is not None
     assert registry.name == registry_name
     assert registry.full_name == f"{REGISTRY_PREFIX}{registry_name}"
-    assert registry.organization == organization
+    assert registry.organization == default_organization
     assert registry.description == initial_description
     assert registry.visibility == "organization"
     assert registry.allow_all_artifact_types
@@ -45,26 +53,25 @@ def test_registry_create_edit(user_in_org):
     registry.artifact_types.append(artifact_type_1)
     registry.save()
 
-    fetched_registry = api.registry(registry_name, organization)
+    fetched_registry = api.registry(registry_name, default_organization)
     assert fetched_registry
     assert fetched_registry.description == updated_description
     assert fetched_registry.allow_all_artifact_types is False
     assert artifact_type_1 in fetched_registry.artifact_types
 
 
-def test_delete_registry(user_in_org):
+def test_delete_registry(default_organization):
     """Tests the ability to delete a registry."""
     api = Api()
-    organization = user_in_org.organization_name
     registry_name = "test"
 
     api.create_registry(
-        organization=organization,
+        organization=default_organization,
         name=registry_name,
         visibility="organization",
         description="Test registry",
     )
-    registry = api.registry(registry_name, organization)
+    registry = api.registry(registry_name, default_organization)
     assert registry
 
     registry.delete()
@@ -80,15 +87,14 @@ def test_delete_registry(user_in_org):
         registry.delete()
 
 
-def test_registry_create_edit_artifact_types(user_in_org):
+def test_registry_create_edit_artifact_types(default_organization):
     """Tests the ability to create, edit, and delete artifact types in a registry."""
-    organization = user_in_org.organization_name
     api = Api()
     artifact_type_1 = "model-1"
     artifact_type_2 = "model-2"
     registry_name = "test"
     registry = api.create_registry(
-        organization=organization,
+        organization=default_organization,
         name=registry_name,
         visibility="organization",
         artifact_types=None,  # Test default: allow all
@@ -112,7 +118,8 @@ def test_registry_create_edit_artifact_types(user_in_org):
     assert registry.artifact_types.draft == (artifact_type_2,)
     assert artifact_type_1 in registry.artifact_types
     registry.save()
-    assert registry.artifact_types == [artifact_type_1, artifact_type_2]
+    # After saving the types returned back might be in a different order
+    assert set(registry.artifact_types) == {artifact_type_1, artifact_type_2}
     assert registry.artifact_types.draft == ()
 
     # try to remove a type that has been saved
@@ -120,15 +127,14 @@ def test_registry_create_edit_artifact_types(user_in_org):
         registry.artifact_types.remove(artifact_type_1)
 
 
-def test_registry_create_duplicate_name(user_in_org):
+def test_registry_create_duplicate_name(default_organization):
     """Tests that creating a registry with a duplicate name fails."""
-    organization = user_in_org.organization_name
     api = Api()
     registry_name = "test"
 
     # Create the first registry
     registry = api.create_registry(
-        organization=organization,
+        organization=default_organization,
         name=registry_name,
         visibility="organization",
         description="First registry",
@@ -139,17 +145,16 @@ def test_registry_create_duplicate_name(user_in_org):
     # Note error is generic to avoid leaking permission information
     with pytest.raises(ValueError, match="Failed to create registry"):
         api.create_registry(
-            organization=organization,
+            organization=default_organization,
             name=registry_name,
             visibility="organization",
             description="Duplicate registry",
         )
 
 
-def test_infer_organization_from_create_load(user_in_org):
+def test_infer_organization_from_create_load(default_organization):
     """Tests that the organization is inferred from the create and load methods."""
     # This user only belongs to one organization, so we can test that the organization is inferred
-    organization = user_in_org.organization_name
     api = Api()
     registry_name = "test"
     registry = api.create_registry(
@@ -160,28 +165,30 @@ def test_infer_organization_from_create_load(user_in_org):
 
     fetched_registry = api.registry(registry_name)
     assert fetched_registry
-    assert fetched_registry.organization == organization
+    assert fetched_registry.organization == default_organization
 
 
-def test_input_invalid_organizations(user_in_org):
-    """Tests that the organization is inferred from the create and load methods."""
-    organization = user_in_org.organization_name
+def test_input_invalid_organizations(default_organization):
+    """Tests that invalid organization inputs raise errors."""
     api = Api()
     registry_name = "test"
     with pytest.raises(ValueError, match="Error fetching org entity for organization"):
         api.create_registry(
             name=registry_name,
             visibility="organization",
-            organization=organization + "wrong_organization",
+            organization=f"{default_organization}_wrong_organization",
         )
 
     with pytest.raises(ValueError, match="Error fetching org entity for organization"):
-        api.registry(registry_name, organization + "wrong_organization")
+        api.registry(registry_name, f"{default_organization}_wrong_organization")
 
 
-def test_user_in_multiple_orgs(user_in_multiple_orgs):
+@pytest.mark.parametrize("user_in_orgs", [2], indirect=True, scope="function")
+def test_user_in_multiple_orgs(user_in_orgs):
     """Tests that the organization is inferred from the create and load methods."""
-    user_org1, user_org2 = user_in_multiple_orgs
+    organizations = user_in_orgs.organization_names
+    assert len(organizations) == 2
+
     api = Api()
     registry_name = "test"
 
@@ -195,34 +202,33 @@ def test_user_in_multiple_orgs(user_in_multiple_orgs):
     registry_org1 = api.create_registry(
         name=registry_name,
         visibility="organization",
-        organization=user_org1.organization_name,
+        organization=organizations[0],
     )
     assert registry_org1
-    assert registry_org1.organization == user_org1.organization_name
+    assert registry_org1.organization == organizations[0]
 
     registry_org2 = api.create_registry(
         name=registry_name,
         visibility="organization",
-        organization=user_org2.organization_name,
+        organization=organizations[1],
     )
     assert registry_org2
-    assert registry_org2.organization == user_org2.organization_name
+    assert registry_org2.organization == organizations[1]
 
 
-def test_invalid_artifact_type_input(user_in_org):
-    organization = user_in_org.organization_name
+def test_invalid_artifact_type_input(default_organization):
     api = Api()
     registry_name = "test"
     with pytest.raises(ValueError, match="Artifact types must not contain any of the"):
         api.create_registry(
-            organization=organization,
+            organization=default_organization,
             name=registry_name,
             visibility="organization",
             artifact_types=["::///"],
         )
 
     registry = api.create_registry(
-        organization=organization,
+        organization=default_organization,
         name=registry_name,
         visibility="organization",
         artifact_types=["normal"],
@@ -233,13 +239,12 @@ def test_invalid_artifact_type_input(user_in_org):
         registry.save()
 
 
-def test_create_registry_invalid_visibility_input(user_in_org):
-    organization = user_in_org.organization_name
+def test_create_registry_invalid_visibility_input(default_organization):
     api = Api()
     registry_name = "test"
     with pytest.raises(ValueError, match="Invalid visibility"):
         api.create_registry(
-            organization=organization,
+            organization=default_organization,
             name=registry_name,
             visibility="invalid",
         )

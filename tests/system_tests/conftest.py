@@ -102,37 +102,25 @@ def user(mocker, backend_fixture_factory) -> Iterator[str]:
 @dataclass
 class UserOrg:
     username: str
-    organization_name: str
+    organization_names: list[str]
 
 
 @pytest.fixture
-def user_in_org(mocker, backend_fixture_factory) -> Iterator[UserOrg]:
+def user_in_orgs(mocker, backend_fixture_factory, request) -> Iterator[UserOrg]:
+    number_of_orgs = getattr(request, "param", 1)
+
     username = backend_fixture_factory.make_user()
     envvars = {
         "WANDB_API_KEY": username,
         "WANDB_ENTITY": username,
         "WANDB_USERNAME": username,
     }
-    org = backend_fixture_factory.make_org(username=username)
+    orgs = [
+        backend_fixture_factory.make_org(username=username)
+        for _ in range(number_of_orgs)
+    ]
     mocker.patch.dict(os.environ, envvars)
-    yield UserOrg(username=username, organization_name=org)
-
-
-@pytest.fixture
-def user_in_multiple_orgs(mocker, backend_fixture_factory) -> Iterator[UserOrg]:
-    username = backend_fixture_factory.make_user()
-    envvars = {
-        "WANDB_API_KEY": username,
-        "WANDB_ENTITY": username,
-        "WANDB_USERNAME": username,
-    }
-    org1 = backend_fixture_factory.make_org(username=username)
-    org2 = backend_fixture_factory.make_org(username=username)
-    mocker.patch.dict(os.environ, envvars)
-    yield (
-        UserOrg(username=username, organization_name=org1),
-        UserOrg(username=username, organization_name=org2),
-    )
+    yield UserOrg(username=username, organization_names=orgs)
 
 
 @pytest.fixture(scope="session")

@@ -83,7 +83,7 @@ def validate_aliases(aliases: Collection[str] | str) -> list[str]:
     return aliases_list
 
 
-def validate_artifact_types_list(artifact_types: list[str]) -> bool:
+def validate_artifact_types_list(artifact_types: list[str]) -> list[str]:
     """Return True if the artifact types list is valid, False otherwise."""
     artifact_types = always_list(artifact_types)
     invalid_chars = ("/", ":")
