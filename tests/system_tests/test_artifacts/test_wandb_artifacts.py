@@ -17,6 +17,7 @@ import wandb
 import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
 from wandb import Artifact, util
+from wandb.sdk.artifacts._validators import ARTIFACT_NAME_MAXLEN
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
@@ -1632,7 +1633,30 @@ def test_change_artifact_collection_type(user):
         assert artifact.type == "lucas_type"
 
 
-def test_save_artifact_sequence(user, api):
+@pytest.mark.parametrize(
+    "invalid_name",
+    [
+        "a" * (ARTIFACT_NAME_MAXLEN + 1),  # Name too long
+        "my/artifact",  # Invalid character(s)
+    ],
+)
+def test_setting_invalid_artifact_collection_name(user, api, invalid_name):
+    """Setting an invalid name on an existing ArtifactCollection should fail and raise an error."""
+    orig_name = "valid-name"
+
+    with wandb.init() as run:
+        artifact = Artifact(orig_name, "data")
+        run.log_artifact(artifact)
+
+    collection = api.artifact_collection(type_name="data", name=orig_name)
+
+    with pytest.raises(ValueError):
+        collection.name = invalid_name
+
+    assert collection.name == orig_name
+
+
+def test_save_artifact_sequence(monkeypatch, user, api):
     with wandb.init() as run:
         artifact = Artifact("sequence_name", "data")
         run.log_artifact(artifact)

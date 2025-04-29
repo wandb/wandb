@@ -29,6 +29,7 @@ from wandb import data_types, env, util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
+from wandb.errors import CommError
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_deprecated import Deprecated
@@ -39,6 +40,7 @@ from wandb.sdk.artifacts._validators import (
     ensure_not_finalized,
     is_artifact_registry_project,
     validate_aliases,
+    validate_artifact_name,
     validate_tags,
 )
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
@@ -112,7 +114,7 @@ class Artifact:
         incremental: Use `Artifact.new_draft()` method instead to modify an
             existing artifact.
         use_as: W&B Launch specific parameter. Not recommended for general use.
-        is_link: A boolean flag of if the artifact is a source artifact or a linked artifact.
+        is_link: Boolean indication of if the artifact is a linked artifact(`True`) or source artifact(`False`).
 
     Returns:
         An `Artifact` object.
@@ -164,7 +166,7 @@ class Artifact:
         self._sequence_client_id: str = runid.generate_id(128)
         self._entity: str | None = None
         self._project: str | None = None
-        self._name: str = name  # includes version after saving
+        self._name: str = validate_artifact_name(name)  # includes version after saving
         self._version: str | None = None
         self._source_entity: str | None = None
         self._source_project: str | None = None
@@ -406,7 +408,7 @@ class Artifact:
         self._saved_tags = copy(tags)
 
         metadata_str = attrs["metadata"]
-        self.metadata = self._normalize_metadata(
+        self._metadata = self._normalize_metadata(
             json.loads(metadata_str) if metadata_str else {}
         )
 
@@ -480,7 +482,7 @@ class Artifact:
     @property
     @ensure_logged
     def entity(self) -> str:
-        """The name of the entity of the artifact collection.
+        """The name of the entity that the artifact collection belongs to.
 
         If the artifact is a link, the entity will be the entity of the linked artifact.
         """
@@ -490,7 +492,7 @@ class Artifact:
     @property
     @ensure_logged
     def project(self) -> str:
-        """The name of the project of the artifact.
+        """The name of the project that the artifact collection belongs to.
 
         If the artifact is a link, the project will be the project of the linked artifact.
         """
@@ -582,7 +584,10 @@ class Artifact:
     @property
     @ensure_logged
     def source_collection(self) -> ArtifactCollection:
-        """The artifact's original collection."""
+        """The artifact's source collection.
+
+        The source collection is the collection that the artifact was logged from.
+        """
         base_name = self.source_name.split(":")[0]
         return ArtifactCollection(
             self._client, self.source_entity, self.source_project, base_name, self.type
@@ -700,7 +705,7 @@ class Artifact:
         standardized team model or dataset card. In the W&B UI the
         description is rendered as markdown.
 
-        Editing description will apply the changes to the source artifact and all linked artifacts associated with it.
+        Editing the description will apply the changes to the source artifact and all linked artifacts associated with it.
 
         Args:
             description: Free text that offers a description of the artifact.
@@ -727,7 +732,7 @@ class Artifact:
         the class distribution of a dataset.
 
         Note: There is currently a limit of 100 total keys.
-        Editing metadata will apply the changes to the source artifact and all linked artifacts associated with it.
+        Editing the metadata will apply the changes to the source artifact and all linked artifacts associated with it.
 
         Args:
             metadata: Structured data associated with the artifact.
@@ -778,8 +783,8 @@ class Artifact:
 
         if self.is_link:
             raise ValueError(
-                "Cannot set TTL for link artifact."
-                " Please unlink the artifact first then set the TTL for the source artifact"
+                "Cannot set TTL for link artifact. "
+                "Unlink the artifact first then set the TTL for the source artifact"
             )
 
         self._ttl_changed = True
@@ -1138,21 +1143,28 @@ class Artifact:
                     """
                 )
                 assert self._client is not None
-                self._client.execute(
-                    add_mutation,
-                    variable_values={
-                        "artifactID": self.id,
-                        "aliases": [
-                            {
-                                "entityName": self._entity,
-                                "projectName": self._project,
-                                "artifactCollectionName": self._name.split(":")[0],
-                                "alias": alias,
-                            }
-                            for alias in aliases_to_add
-                        ],
-                    },
-                )
+                try:
+                    self._client.execute(
+                        add_mutation,
+                        variable_values={
+                            "artifactID": self.id,
+                            "aliases": [
+                                {
+                                    "entityName": self._entity,
+                                    "projectName": self._project,
+                                    "artifactCollectionName": self._name.split(":")[0],
+                                    "alias": alias,
+                                }
+                                for alias in aliases_to_add
+                            ],
+                        },
+                    )
+                except CommError as e:
+                    raise CommError(
+                        "You do not have permission to add"
+                        f" {'at least one of the following aliases' if len(aliases_to_add) > 1  else 'the following alias'}"
+                        f" to this artifact: {aliases_to_add}"
+                    ) from e
             if aliases_to_delete:
                 delete_mutation = gql(
                     """
@@ -1169,21 +1181,28 @@ class Artifact:
                     """
                 )
                 assert self._client is not None
-                self._client.execute(
-                    delete_mutation,
-                    variable_values={
-                        "artifactID": self.id,
-                        "aliases": [
-                            {
-                                "entityName": self._entity,
-                                "projectName": self._project,
-                                "artifactCollectionName": self._name.split(":")[0],
-                                "alias": alias,
-                            }
-                            for alias in aliases_to_delete
-                        ],
-                    },
-                )
+                try:
+                    self._client.execute(
+                        delete_mutation,
+                        variable_values={
+                            "artifactID": self.id,
+                            "aliases": [
+                                {
+                                    "entityName": self._entity,
+                                    "projectName": self._project,
+                                    "artifactCollectionName": self._name.split(":")[0],
+                                    "alias": alias,
+                                }
+                                for alias in aliases_to_delete
+                            ],
+                        },
+                    )
+                except CommError as e:
+                    raise CommError(
+                        f"You do not have permission to delete"
+                        f" {'at least one of the following aliases' if len(aliases_to_delete) > 1  else 'the following alias'}"
+                        f" from this artifact: {aliases_to_delete}"
+                    ) from e
             self._saved_aliases = copy(self._aliases)
         else:  # wandb backend version < 0.13.0
             aliases = [
@@ -2259,7 +2278,7 @@ class Artifact:
         If called on a linked artifact (i.e. a member of a portfolio collection): only the link is deleted, and the
         source artifact is unaffected.
 
-        Note: Use `artifact.unlink()` to unlink a link artifact from the source artifact instead of calling `artifact.delete()`.
+        Use `artifact.unlink()` instead of `artifact.delete()` to remove a link between a source artifact and a linked artifact.
 
         Args:
             delete_aliases: If set to `True`, deletes all aliases associated with the artifact.
@@ -2380,13 +2399,18 @@ class Artifact:
             """
         )
         assert self._client is not None
-        self._client.execute(
-            mutation,
-            variable_values={
-                "artifactID": self.id,
-                "artifactPortfolioID": self.collection.id,
-            },
-        )
+        try:
+            self._client.execute(
+                mutation,
+                variable_values={
+                    "artifactID": self.id,
+                    "artifactPortfolioID": self.collection.id,
+                },
+            )
+        except CommError as e:
+            raise CommError(
+                f"You do not have permission to unlink the artifact {self.qualified_name}"
+            ) from e
 
     @ensure_logged
     def used_by(self) -> list[Run]:

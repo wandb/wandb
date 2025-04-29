@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import Base, GQLId
+from wandb._pydantic import GQLBase, GQLId
 
 from ._generated import TriggerFields, UserFields
 from .actions import InputAction, SavedAction
@@ -67,7 +67,7 @@ class Automation(TriggerFields):
     #     return (api or Api()).delete_automation(self)
 
 
-class NewAutomation(Base):
+class NewAutomation(GQLBase):
     """An automation which can hold any of the fields of a NewAutomation, but may not be complete yet."""
 
     name: Optional[str] = None
