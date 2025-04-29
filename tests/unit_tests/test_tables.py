@@ -262,7 +262,7 @@ def test_datetime_conversion():
 
 def test_table_logging_mode_validation():
     with pytest.raises(AssertionError):
-        wandb.Table(log_mode="INVALID_MODE")
+        t = wandb.Table(log_mode="INVALID_MODE")
 
 
 def test_table_logging_mode_mutable():
