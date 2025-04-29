@@ -29,6 +29,7 @@ from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries.registries_search import Registries
 from wandb.apis.public.registries.registry import Registry
 from wandb.apis.public.registries.utils import _fetch_org_entity_from_organization
+
 from wandb.apis.public.utils import (
     PathType,
     fetch_org_from_settings_or_entity,

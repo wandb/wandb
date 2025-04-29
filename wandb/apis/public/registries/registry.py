@@ -21,7 +21,6 @@ from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 if TYPE_CHECKING:
     from wandb_gql import Client
 
-
 class Registry:
     """A single registry in the Registry."""
 
@@ -62,6 +61,7 @@ class Registry:
         self._id = attrs.get("id", "")
         if self._id is None:
             raise ValueError(f"Registry {self.name}'s id is not found")
+
         self._description = attrs.get("description", "")
         self._allow_all_artifact_types = attrs.get(
             "allowAllArtifactTypesInRegistry", False
