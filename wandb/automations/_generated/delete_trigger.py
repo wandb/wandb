@@ -5,15 +5,13 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field
-
 from wandb._pydantic import GQLBase
 
 from .fragments import DeleteTriggerResult
 
 
 class DeleteTrigger(GQLBase):
-    delete_trigger: Optional[DeleteTriggerResult] = Field(alias="deleteTrigger")
+    result: Optional[DeleteTriggerResult]
 
 
 DeleteTrigger.model_rebuild()

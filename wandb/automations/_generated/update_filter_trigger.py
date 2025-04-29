@@ -5,17 +5,13 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field
-
 from wandb._pydantic import GQLBase
 
 from .fragments import UpdateFilterTriggerResult
 
 
 class UpdateFilterTrigger(GQLBase):
-    update_filter_trigger: Optional[UpdateFilterTriggerResult] = Field(
-        alias="updateFilterTrigger"
-    )
+    result: Optional[UpdateFilterTriggerResult]
 
 
 UpdateFilterTrigger.model_rebuild()
