@@ -15,6 +15,7 @@ mod gpu_apple;
 mod gpu_apple_sources;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod gpu_nvidia;
+mod gpu_nvidia_dcgm;
 mod metrics;
 mod wandb_internal;
 
@@ -38,6 +39,7 @@ use gpu_amd::GpuAmd;
 use gpu_apple::ThreadSafeSampler;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use gpu_nvidia::NvidiaGpu;
+use gpu_nvidia_dcgm::DcgmClient;
 use prost_types::Timestamp;
 use wandb_internal::{
     record::RecordType,
@@ -97,9 +99,11 @@ pub struct SystemMonitorServiceImpl {
     /// Apple GPU sampler (ARM Mac only).
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     apple_sampler: Option<ThreadSafeSampler>,
-    /// Nvidia GPU monitor (Linux and Windows only).
+    /// Nvidia GPU monitor, NVML-based (Linux and Windows only).
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     nvidia_gpu: Option<tokio::sync::Mutex<NvidiaGpu>>,
+    /// Nvidia GPU monitor, performance metrics, DCGM-based (Linux only).
+    dcgm_client: Option<DcgmClient>,
     /// AMD GPU monitor (Linux only).
     #[cfg(target_os = "linux")]
     amd_gpu: Option<GpuAmd>,
@@ -123,7 +127,22 @@ impl SystemMonitorServiceImpl {
             }
         };
 
-        // Initialize the Nvidia GPU monitor (Linux and Windows only)
+        // Initialize the Nvidia GPU DCGM-based monitor (Linux only)
+        // #[cfg(target_os = "linux")]
+        let dcgm_client = match DcgmClient::new() {
+            // This calls the new sync-worker version
+            Ok(client) => {
+                debug!("Successfully initialized NVIDIA GPU DCGM monitoring client.");
+                Some(client)
+            }
+            Err(e) => {
+                // Using debug as DCGM might not be installed/running is reasonable
+                debug!("Failed to initialize NVIDIA GPU DCGM monitoring: {}", e);
+                None
+            }
+        };
+
+        // Initialize the Nvidia GPU NVML-based monitor (Linux and Windows only)
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         let nvidia_gpu = match NvidiaGpu::new() {
             Ok(gpu) => {
@@ -156,6 +175,8 @@ impl SystemMonitorServiceImpl {
             apple_sampler,
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             nvidia_gpu,
+            // #[cfg(target_os = "linux")]
+            dcgm_client,
             #[cfg(target_os = "linux")]
             amd_gpu,
         };
@@ -215,7 +236,7 @@ impl SystemMonitorServiceImpl {
             }
         }
 
-        // Nvidia GPU metrics (Linux and Windows only)
+        // Nvidia GPU metrics from NVML (Linux and Windows only)
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         if let Some(nvidia_gpu) = &self.nvidia_gpu {
             match nvidia_gpu.lock().await.get_metrics(pid, gpu_device_ids) {
@@ -224,6 +245,20 @@ impl SystemMonitorServiceImpl {
                 }
                 Err(e) => {
                     warn!("Failed to get Nvidia metrics: {}", e);
+                }
+            }
+        }
+
+        // Nvidia GPU perf metrics from DCGM (Linux only)
+        // #[cfg(any(target_os = "linux"))]
+        if let Some(client) = &self.dcgm_client {
+            match client.get_metrics().await {
+                // Still await the async function
+                Ok(dcgm_metrics) => {
+                    all_metrics.extend(dcgm_metrics);
+                }
+                Err(e) => {
+                    warn!("Failed to get DCGM metrics: {}", e);
                 }
             }
         }

@@ -564,6 +564,7 @@ dependencies = [
  "core-foundation",
  "env_logger",
  "libc",
+ "libloading",
  "log",
  "nix",
  "nvml-wrapper",
