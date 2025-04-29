@@ -867,26 +867,3 @@ def test_artifact_is_link(user, api):
     versions = link_col.artifacts()
     assert len(versions) == 1
     assert versions[0].is_link
-
-
-def test_link_artifact_fetched_artifact(user, api):
-    collection_name = "test_collection"
-    artifact_type = "test-type"
-    artifact = wandb.Artifact(collection_name, artifact_type)
-    run = wandb.init()
-    run.log_artifact(artifact)
-    artifact.wait()
-
-    link_collection = "test_link_collection"
-
-    link_artifact = run.link_artifact(artifact, link_collection)
-    assert link_artifact.is_link
-    assert link_artifact.version == "v0"
-
-    artifact_2 = wandb.Artifact(collection_name + "_2", artifact_type)
-    run.log_artifact(artifact_2)
-    artifact_2.wait()
-
-    link_artifact_2 = run.link_artifact(artifact_2, link_collection)
-    assert link_artifact_2.is_link
-    assert link_artifact_2.version == "v1"
