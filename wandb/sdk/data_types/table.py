@@ -260,7 +260,6 @@ class Table(Media):
         The Table class uses data to mimic the Pandas API.
         """
         super().__init__()
-        # Convert string to enum if needed
         self._validate_log_mode(log_mode)
         self.log_mode = log_mode
         self._pk_col = None
