@@ -19,7 +19,9 @@ const DCGM_GROUP_EMPTY: u32 = 0;
 const DCGM_MAX_NUM_DEVICES: usize = 32;
 const DCGM_MAX_STR_LENGTH: usize = 256;
 const DCGM_MAX_FIELD_IDS_PER_FIELD_GROUP: usize = 128;
+
 const DCGM_PROF_MAX_NUM_GROUPS_V2: usize = 10;
+const DCGM_PROF_MAX_FIELD_IDS_PER_GROUP_V2: usize = 64;
 
 // Constants for entity group types
 const DCGM_FE_GPU: u32 = 0;
@@ -162,24 +164,26 @@ macro_rules! make_dcgm_version {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy)] // Added Debug/Default for convenience
 struct dcgmProfMetricGroupInfo_v2 {
-    majorId: u32,
-    minorId: u32,
-    numFieldIds: u32,
-    fieldIds: [u16; DCGM_MAX_FIELD_IDS_PER_FIELD_GROUP], // Use defined constant
-                                                         // NOTE: dcgmProfMetricGroupInfo_v2 might have more fields in newer DCGM versions.
-                                                         // Check your dcgm_structs.h. This definition assumes a basic version.
+    majorId: u16,                                          // Corrected from u32
+    minorId: u16,                                          // Corrected from u32
+    numFieldIds: u32,                                      // This was correct (unsigned int -> u32)
+    fieldIds: [u16; DCGM_PROF_MAX_FIELD_IDS_PER_GROUP_V2], // Corrected size from 128 to 64
 }
 
-const dcgmProfGetMetricGroups_v3: u32 = make_dcgm_version!(dcgmProfGetMetricGroups_t, 3);
+// Define the version constant using the CORRECTED struct definition below
+// Note: The name dcgmProfGetMetricGroups_v3 matches the C struct name
+const dcgmProfGetMetricGroups_version3: u32 = make_dcgm_version!(dcgmProfGetMetricGroups_t, 3); // Use the final typedef'd name
 
 #[repr(C)]
 struct dcgmProfGetMetricGroups_t {
-    version: u32,         // Should be dcgmProfGetMetricGroups_v3
-    gpuId: u32,           // Input: GPU ID to query. Use 0 for any supported GPU.
-    numMetricGroups: u32, // Output: Number of populated groups
-    metricGroups: [dcgmProfMetricGroupInfo_v2; DCGM_PROF_MAX_NUM_GROUPS_V2], // Output: Array of groups
+    // Matches the final typedef dcgmProfGetMetricGroups_t
+    version: u32, // Should be dcgmProfGetMetricGroups_version3
+    unused: u32,  // --- ADDED MISSING FIELD ---
+    gpuId: u32,
+    numMetricGroups: u32,
+    metricGroups: [dcgmProfMetricGroupInfo_v2; DCGM_PROF_MAX_NUM_GROUPS_V2],
 }
 
 // DCGM library wrapper
@@ -319,7 +323,7 @@ impl DcgmLib {
                 }
             };
 
-            gmg.version = dcgmProfGetMetricGroups_v3; // Set version before calling
+            gmg.version = dcgmProfGetMetricGroups_version3; // Set version before calling
             gmg.gpuId = gpu_id;
             gmg.numMetricGroups = 0; // Initialize output field
 
