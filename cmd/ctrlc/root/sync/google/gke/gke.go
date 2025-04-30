@@ -97,7 +97,7 @@ func processClusters(ctx context.Context, gkeClient *container.Service, project 
 
 	resources := []api.AgentResource{}
 	for _, cluster := range resp.Clusters {
-		resource, err := processCluster(ctx, gkeClient, cluster, project)
+		resource, err := processCluster(ctx, cluster, project)
 		if err != nil {
 			log.Error("Failed to process GKE cluster", "name", cluster.Name, "error", err)
 			continue
@@ -109,7 +109,7 @@ func processClusters(ctx context.Context, gkeClient *container.Service, project 
 }
 
 // processCluster handles processing of a single GKE cluster
-func processCluster(_ context.Context, gkeClient *container.Service, cluster *container.Cluster, project string) (api.AgentResource, error) {
+func processCluster(_ context.Context, cluster *container.Cluster, project string) (api.AgentResource, error) {
 	metadata := initClusterMetadata(cluster, project)
 
 	// Extract location info
@@ -138,7 +138,7 @@ func processCluster(_ context.Context, gkeClient *container.Service, cluster *co
 	}
 	return api.AgentResource{
 		Version:    "ctrlplane.dev/kubernetes/cluster/v1",
-		Kind:       "GoogleGKE",
+		Kind:       "GoogleKubernetesEngine",
 		Name:       cluster.Name,
 		Identifier: cluster.SelfLink,
 		Config: map[string]any{
@@ -182,6 +182,9 @@ func initClusterMetadata(cluster *container.Cluster, project string) map[string]
 	}
 
 	metadata := map[string]string{
+		"network/type": "vpc",
+		"network/name": cluster.Network,
+
 		"kubernetes/type": "gke",
 		"kubernetes/name": cluster.Name,
 
@@ -356,6 +359,21 @@ func getResourceName(fullPath string) string {
 	return parts[len(parts)-1]
 }
 
+var relationshipRules = []api.CreateResourceRelationshipRule{
+	{
+		Reference:      "network",
+		Name:           "Google Cloud Cluster Network",
+		DependencyType: api.ProvisionedIn,
+
+		SourceKind:    "ctrlplane.dev/kubernetes/cluster/v1",
+		SourceVersion: "GoogleKubernetesEngine",
+		TargetKind:    "ctrlplane.dev/network/v1",
+		TargetVersion: "GoogleNetwork",
+
+		MetadataKeysMatch: []string{"google/project", "network/name"},
+	},
+}
+
 // upsertToCtrlplane handles upserting resources to Ctrlplane
 func upsertToCtrlplane(ctx context.Context, resources []api.AgentResource, project, name *string) error {
 	if *name == "" {
@@ -374,6 +392,11 @@ func upsertToCtrlplane(ctx context.Context, resources []api.AgentResource, proje
 	rp, err := api.NewResourceProvider(ctrlplaneClient, workspaceId, *name)
 	if err != nil {
 		return fmt.Errorf("failed to create resource provider: %w", err)
+	}
+
+	err = rp.AddResourceRelationshipRule(ctx, relationshipRules)
+	if err != nil {
+		log.Error("Failed to add resource relationship rule", "name", *name, "error", err)
 	}
 
 	upsertResp, err := rp.UpsertResource(ctx, resources)

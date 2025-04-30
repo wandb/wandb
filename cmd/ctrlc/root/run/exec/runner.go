@@ -25,6 +25,10 @@ type ExecConfig struct {
 }
 
 func (r *ExecRunner) Status(job api.Job) (api.JobStatus, string) {
+	if job.ExternalId == nil {
+		return api.JobStatusInProgress, "no external id"
+	}
+
 	externalId, err := strconv.Atoi(*job.ExternalId)
 	if err != nil {
 		return api.JobStatusExternalRunNotFound, fmt.Sprintf("invalid process id: %v", err)
@@ -45,7 +49,7 @@ func (r *ExecRunner) Status(job api.Job) (api.JobStatus, string) {
 	return api.JobStatusInProgress, fmt.Sprintf("process running with pid %d", externalId)
 }
 
-func (r *ExecRunner) Start(job api.Job) (string, error) {
+func (r *ExecRunner) Start(job api.JobWithTrigger) (string, error) {
 	// Create temp script file
 	ext := ".sh"
 	if runtime.GOOS == "windows" {
@@ -102,8 +106,15 @@ func (r *ExecRunner) Start(job api.Job) (string, error) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("failed to execute script: %w", err)
+	// Start the command without waiting for it to complete
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("failed to start script: %w", err)
+	}
+
+	// Detach from the process group to prevent child processes from being
+	// killed
+	if runtime.GOOS != "windows" {
+		cmd.Process.Release()
 	}
 
 	return strconv.Itoa(cmd.Process.Pid), nil

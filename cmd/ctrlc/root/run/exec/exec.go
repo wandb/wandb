@@ -24,8 +24,9 @@ func NewRunExecCmd() *cobra.Command {
 			ja, err := jobagent.NewJobAgent(
 				client,
 				api.UpsertJobAgentJSONRequestBody{
-					Name: "exec",
-					Type: "exec",
+					WorkspaceId: viper.GetString("workspace"),
+					Name:        "exec",
+					Type:        "exec",
 				},
 				&ExecRunner{},
 			)

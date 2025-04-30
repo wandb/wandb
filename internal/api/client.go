@@ -22,7 +22,6 @@ func (v *DirectVariable_Value) SetString(value string) {
 	v.union = json.RawMessage("\"" + value + "\"")
 }
 
-
 func (v *ReferenceVariable_DefaultValue) SetBool(value string) {
 	v.union = json.RawMessage("\"" + value + "\"")
 }

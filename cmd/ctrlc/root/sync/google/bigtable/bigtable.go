@@ -123,7 +123,7 @@ func processInstances(ctx context.Context, adminClient *bigtableadmin.Service, p
 }
 
 // processInstance handles processing of a single Bigtable instance
-func processInstance(ctx context.Context, adminClient *bigtableadmin.Service, instance *bigtableadmin.Instance, project string) (api.AgentResource, error) {
+func processInstance(_ context.Context, adminClient *bigtableadmin.Service, instance *bigtableadmin.Instance, project string) (api.AgentResource, error) {
 	metadata := initInstanceMetadata(instance, project)
 
 	// Process clusters

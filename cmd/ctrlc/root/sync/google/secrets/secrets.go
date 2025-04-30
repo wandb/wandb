@@ -100,6 +100,8 @@ func processSecrets(ctx context.Context, secretClient *secretmanager.Service, pr
 			call = call.PageToken(pageToken)
 		}
 
+		log.Info("Listing secrets", "parent", parent, "pageToken", pageToken, "secretCount", secretCount)
+
 		response, err := call.Do()
 		if err != nil {
 			return nil, fmt.Errorf("failed to list secrets: %w", err)

@@ -194,6 +194,7 @@ func NewSyncEC2Cmd() *cobra.Command {
 
 					if instance.VpcId != nil {
 						metadata["aws/vpc-id"] = *instance.VpcId
+						metadata["network/id"] = *instance.VpcId
 					}
 					if instance.PlatformDetails != nil {
 						metadata["aws/platform-details"] = string(*instance.PlatformDetails)
@@ -223,6 +224,7 @@ func NewSyncEC2Cmd() *cobra.Command {
 
 					if instance.SubnetId != nil {
 						metadata["aws/subnet-id"] = *instance.SubnetId
+						metadata["network/subnet-id"] = *instance.SubnetId
 					}
 
 					metadata["ctrlplane/links"] = fmt.Sprintf("{ \"AWS Console\": \"%s\" }", consoleUrl)

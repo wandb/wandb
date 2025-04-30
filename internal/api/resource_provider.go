@@ -101,3 +101,17 @@ func (r *ResourceProvider) UpsertResource(ctx context.Context, resources []Agent
 
 	return resp, err
 }
+
+func (r *ResourceProvider) AddResourceRelationshipRule(ctx context.Context, rules []CreateResourceRelationshipRule) error {
+	for _, rule := range rules {
+		rule.WorkspaceId = r.ID
+		resp, err := r.client.UpsertResourceRelationshipRuleWithResponse(ctx, rule)
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode() != http.StatusOK {
+			return fmt.Errorf("failed to upsert resource relationship rule: %s", string(resp.Body))
+		}
+	}
+	return nil
+}
