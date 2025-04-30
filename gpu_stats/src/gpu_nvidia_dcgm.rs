@@ -1,5 +1,6 @@
 use libloading::{Library, Symbol};
 use std::{
+    collections::HashSet,
     ffi::{c_char, c_int, c_uint, c_void, CStr, CString},
     ptr,
     sync::mpsc,
@@ -18,6 +19,7 @@ const DCGM_GROUP_EMPTY: u32 = 0;
 const DCGM_MAX_NUM_DEVICES: usize = 32;
 const DCGM_MAX_STR_LENGTH: usize = 256;
 const DCGM_MAX_FIELD_IDS_PER_FIELD_GROUP: usize = 128;
+const DCGM_PROF_MAX_NUM_GROUPS_V2: usize = 10;
 
 // Constants for entity group types
 const DCGM_FE_GPU: u32 = 0;
@@ -108,6 +110,8 @@ type dcgmFieldGrp_t = u32;
 type dcgm_field_entity_group_t = u32;
 type dcgm_field_eid_t = u32;
 
+/// FFI types for DCGM
+
 #[repr(C)]
 struct dcgmGroupInfo_t {
     version: u32,
@@ -149,6 +153,34 @@ type DcgmFieldValueEnumeration = extern "C" fn(
     values_count: c_int,
     user_data: *mut c_void,
 ) -> c_int;
+
+#[macro_export]
+macro_rules! make_dcgm_version {
+    ($struct_type:ty, $version:expr) => {
+        (std::mem::size_of::<$struct_type>() as u32) | (($version as u32) << 24)
+    };
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct dcgmProfMetricGroupInfo_v2 {
+    majorId: u32,
+    minorId: u32,
+    numFieldIds: u32,
+    fieldIds: [u16; DCGM_MAX_FIELD_IDS_PER_FIELD_GROUP], // Use defined constant
+                                                         // NOTE: dcgmProfMetricGroupInfo_v2 might have more fields in newer DCGM versions.
+                                                         // Check your dcgm_structs.h. This definition assumes a basic version.
+}
+
+const dcgmProfGetMetricGroups_version1: u32 = make_dcgm_version!(dcgmProfGetMetricGroups_t, 1);
+
+#[repr(C)]
+struct dcgmProfGetMetricGroups_t {
+    version: u32,         // Should be dcgmProfGetMetricGroups_version1
+    gpuId: u32,           // Input: GPU ID to query. Use 0 for any supported GPU.
+    numMetricGroups: u32, // Output: Number of populated groups
+    metricGroups: [dcgmProfMetricGroupInfo_v2; DCGM_PROF_MAX_NUM_GROUPS_V2], // Output: Array of groups
+}
 
 // DCGM library wrapper
 struct DcgmLib {
@@ -267,6 +299,74 @@ impl DcgmLib {
 
             Ok(())
         }
+    }
+
+    fn get_supported_metric_groups(
+        &self,
+        gpu_id: u32,
+        gmg: &mut dcgmProfGetMetricGroups_t,
+    ) -> Result<(), String> {
+        unsafe {
+            let func: Symbol<
+                unsafe extern "C" fn(dcgmHandle_t, &mut dcgmProfGetMetricGroups_t) -> dcgmReturn_t,
+            > = match self.lib.get(b"dcgmProfGetSupportedMetricGroups") {
+                Ok(f) => f,
+                Err(e) => {
+                    return Err(format!(
+                        "Failed to get dcgmProfGetSupportedMetricGroups symbol: {}",
+                        e
+                    ))
+                }
+            };
+
+            gmg.version = dcgmProfGetMetricGroups_version1; // Set version before calling
+            gmg.gpuId = gpu_id;
+            gmg.numMetricGroups = 0; // Initialize output field
+
+            let result = func(self.handle, gmg);
+
+            if result != DCGM_ST_OK {
+                return Err(format!(
+                    "dcgmProfGetSupportedMetricGroups failed: {}: {}",
+                    result,
+                    self.error_string(result)
+                ));
+            }
+            Ok(())
+        }
+    }
+
+    pub fn get_supported_prof_metric_ids(&self) -> Result<HashSet<u16>, String> {
+        log::info!("Querying DCGM for supported profiling metric field IDs...");
+        let mut supported_ids: HashSet<u16> = HashSet::new();
+        let mut gmg: dcgmProfGetMetricGroups_t = unsafe { std::mem::zeroed() };
+
+        // Call the FFI wrapper
+        self.get_supported_metric_groups(0, &mut gmg)?; // Use gpuId = 0
+
+        log::debug!("Found {} metric groups.", gmg.numMetricGroups);
+
+        // Iterate through groups and field IDs
+        for i in 0..gmg.numMetricGroups as usize {
+            if i >= DCGM_PROF_MAX_NUM_GROUPS_V2 {
+                break;
+            } // Bounds check
+            let mg_info = &gmg.metricGroups[i];
+
+            for j in 0..mg_info.numFieldIds as usize {
+                if j >= DCGM_MAX_FIELD_IDS_PER_FIELD_GROUP {
+                    break;
+                } // Bounds check
+                let field_id = mg_info.fieldIds[j];
+                supported_ids.insert(field_id);
+            }
+        }
+
+        log::info!(
+            "Found {} unique supported profiling field IDs.",
+            supported_ids.len()
+        );
+        Ok(supported_ids)
     }
 
     fn create_field_group(&self, field_ids: &[u16]) -> Result<dcgmFieldGrp_t, String> {
@@ -501,7 +601,23 @@ impl DcgmClient {
     pub fn new() -> Result<Self, String> {
         let lib_path = "libdcgm.so.4".to_string();
         let host_address = "localhost:5555".to_string();
-        let field_ids = vec![
+        // let field_ids = vec![
+        //     DCGM_FI_PROF_SM_ACTIVE,
+        //     DCGM_FI_PROF_SM_OCCUPANCY,
+        //     DCGM_FI_PROF_PIPE_TENSOR_ACTIVE,
+        //     DCGM_FI_PROF_DRAM_ACTIVE,
+        //     DCGM_FI_PROF_PIPE_FP64_ACTIVE,
+        //     DCGM_FI_PROF_PIPE_FP32_ACTIVE,
+        //     DCGM_FI_PROF_PIPE_FP16_ACTIVE,
+        //     DCGM_FI_PROF_PIPE_TENSOR_HMMA_ACTIVE,
+        //     DCGM_FI_PROF_PCIE_TX_BYTES,
+        //     DCGM_FI_PROF_PCIE_RX_BYTES,
+        //     DCGM_FI_PROF_NVLINK_TX_BYTES,
+        //     DCGM_FI_PROF_NVLINK_RX_BYTES,
+        // ];
+
+        // Define the list of metrics we *want* to monitor
+        let desired_field_ids = vec![
             DCGM_FI_PROF_SM_ACTIVE,
             DCGM_FI_PROF_SM_OCCUPANCY,
             DCGM_FI_PROF_PIPE_TENSOR_ACTIVE,
@@ -516,10 +632,9 @@ impl DcgmClient {
             DCGM_FI_PROF_NVLINK_RX_BYTES,
         ];
 
-        // --- CHANGE MPSC CHANNEL TYPE ---
         let (sender, receiver) = mpsc::channel();
 
-        let thread_field_ids = field_ids.clone();
+        let thread_desired_field_ids = desired_field_ids.clone();
 
         // --- Spawn Dedicated OS Thread ---
         thread::Builder::new()
@@ -538,8 +653,40 @@ impl DcgmClient {
                         return;
                     }
                 };
+
+                // Get supported metric IDs
+                // --- Get Supported IDs and Filter ---
+                let actual_field_ids = match dcgm.get_supported_prof_metric_ids() {
+                    Ok(supported_set) => {
+                        // Filter desired IDs against the supported set
+                        let filtered: Vec<u16> = thread_desired_field_ids
+                            .into_iter()
+                            .filter(|id| supported_set.contains(id))
+                            .collect();
+                        if filtered.is_empty() {
+                            log::warn!("No desired DCGM profiling metrics are supported by the hardware/driver. DCGM profiling inactive.");
+                        } else {
+                            log::debug!("Filtered DCGM fields. Will monitor: {:?}", filtered);
+                        }
+                        filtered
+                    }
+                    Err(e) => {
+                        log::error!("Failed to get supported DCGM fields: {}. Monitoring requested fields without filtering.", e);
+                        // Fallback: Monitor all desired fields, hoping they work or fail gracefully later
+                        thread_desired_field_ids
+                    }
+                };
+                // --- End Filtering ---
+
+
+                // Proceed only if we have fields to monitor
+                if actual_field_ids.is_empty() {
+                    log::warn!("No DCGM profiling fields to monitor after filtering. DCGM worker thread exiting.");
+                    return; // Exit the thread if no fields can be monitored
+                }
+
                 let group_id = DCGM_GROUP_ALL_GPUS;
-                let field_group_id = match dcgm.create_field_group(&thread_field_ids) {
+                let field_group_id = match dcgm.create_field_group(&actual_field_ids) {
                     /* ... error handling ... */
                     Ok(id) => id,
                     Err(e) => {
@@ -561,7 +708,7 @@ impl DcgmClient {
                 // Takes ownership of the thread-local dcgm instance and sync receiver
                 let mut worker = DcgmWorker::new(
                     dcgm,
-                    thread_field_ids,
+                    actual_field_ids,
                     group_id,
                     field_group_id,
                     receiver, // Move the sync receiver
