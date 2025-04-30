@@ -172,11 +172,11 @@ struct dcgmProfMetricGroupInfo_v2 {
                                                          // Check your dcgm_structs.h. This definition assumes a basic version.
 }
 
-const dcgmProfGetMetricGroups_version1: u32 = make_dcgm_version!(dcgmProfGetMetricGroups_t, 1);
+const dcgmProfGetMetricGroups_v3: u32 = make_dcgm_version!(dcgmProfGetMetricGroups_t, 3);
 
 #[repr(C)]
 struct dcgmProfGetMetricGroups_t {
-    version: u32,         // Should be dcgmProfGetMetricGroups_version1
+    version: u32,         // Should be dcgmProfGetMetricGroups_v3
     gpuId: u32,           // Input: GPU ID to query. Use 0 for any supported GPU.
     numMetricGroups: u32, // Output: Number of populated groups
     metricGroups: [dcgmProfMetricGroupInfo_v2; DCGM_PROF_MAX_NUM_GROUPS_V2], // Output: Array of groups
@@ -319,7 +319,7 @@ impl DcgmLib {
                 }
             };
 
-            gmg.version = dcgmProfGetMetricGroups_version1; // Set version before calling
+            gmg.version = dcgmProfGetMetricGroups_v3; // Set version before calling
             gmg.gpuId = gpu_id;
             gmg.numMetricGroups = 0; // Initialize output field
 
