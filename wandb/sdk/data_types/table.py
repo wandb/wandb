@@ -563,6 +563,9 @@ class Table(Media):
         column_types = None
         np_deserialized_columns = {}
         timestamp_column_indices = set()
+        log_mode = "IMMUTABLE" # default
+        if json_obj.get("log_mode") is not None:
+            log_mode = json_obj["log_mode"]
         if json_obj.get("column_types") is not None:
             column_types = _dtypes.TypeRegistry.type_from_dict(
                 json_obj["column_types"], source_artifact
@@ -625,7 +628,7 @@ class Table(Media):
                 column_types.params["type_map"][str(col)] for col in json_obj["columns"]
             ]
 
-        new_obj = cls(columns=json_obj["columns"], data=data, dtype=dtypes)
+        new_obj = cls(columns=json_obj["columns"], data=data, dtype=dtypes, log_mode=log_mode)
 
         if column_types is not None:
             new_obj._column_types = column_types
@@ -642,6 +645,7 @@ class Table(Media):
                     "_type": "table-file",
                     "ncols": len(self.columns),
                     "nrows": len(self.data),
+                    "log_mode": self.log_mode
                 }
             )
 
@@ -711,6 +715,7 @@ class Table(Media):
                     "ncols": len(self.columns),
                     "nrows": len(mapped_data),
                     "column_types": self._column_types.to_json(artifact),
+                    "log_mode": self.log_mode
                 }
             )
         else:
