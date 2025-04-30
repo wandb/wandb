@@ -28,14 +28,19 @@ import wandb
 from wandb import data_types, env, util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
+from wandb.apis.public.utils import gql_compat
 from wandb.data_types import WBValue
 from wandb.errors import CommError
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk import wandb_setup
+from wandb.sdk.artifacts._generated.fetch_linked_artifacts import FetchLinkedArtifacts
+from wandb.sdk.artifacts._generated.operations import FETCH_LINKED_ARTIFACTS_GQL
 from wandb.sdk.artifacts._graphql_fragments import _gql_artifact_fragment
 from wandb.sdk.artifacts._validators import (
+    LINKED_ARTIFACT_COLLECTION_TYPE,
+    _LinkArtifactFields,
     ensure_logged,
     ensure_not_finalized,
     is_artifact_registry_project,
@@ -172,6 +177,7 @@ class Artifact:
         self._source_project: str | None = None
         self._source_name: str = name  # includes version after saving
         self._source_version: str | None = None
+        self._source_artifact: Artifact | None = None
         self._is_link: bool = False
         self._type: str = type
         self._description: str | None = description
@@ -196,6 +202,7 @@ class Artifact:
         self._updated_at: str | None = None
         self._final: bool = False
         self._history_step: int | None = None
+        self._linked_artifacts: list[Artifact] = []
 
         # Cache.
         artifact_instance_cache[self._client_id] = self
@@ -601,6 +608,37 @@ class Artifact:
         False: The artifact is a source artifact.
         """
         return self._is_link
+
+    @property
+    @ensure_logged
+    def linked_artifacts(self) -> list[Artifact]:
+        """Returns a list of all the linked artifacts of a source artifact. Limited to 500 results."""
+        if not (self._linked_artifacts or self.is_link):
+            self._linked_artifacts = self._fetch_linked_artifacts()
+        return self._linked_artifacts
+
+    @property
+    @ensure_logged
+    def source_artifact(self) -> Artifact:
+        """Returns the source artifact. The source artifact is the original logged artifact.
+
+        If the artifact itself is a source artifact, it will return itself."""
+        if not self.is_link:
+            return self
+        if self._source_artifact is None:
+            try:
+                artifact = self._from_name(
+                    entity=self.source_entity,
+                    project=self.source_project,
+                    name=self.source_name,
+                    client=self._client,
+                )
+                self._source_artifact = artifact
+            except Exception as e:
+                raise ValueError(
+                    f"Unable to fetch source artifact for linked artifact {self.name}"
+                ) from e
+        return self._source_artifact
 
     @property
     def type(self) -> str:
@@ -1162,7 +1200,7 @@ class Artifact:
                 except CommError as e:
                     raise CommError(
                         "You do not have permission to add"
-                        f" {'at least one of the following aliases' if len(aliases_to_add) > 1  else 'the following alias'}"
+                        f" {'at least one of the following aliases' if len(aliases_to_add) > 1 else 'the following alias'}"
                         f" to this artifact: {aliases_to_add}"
                     ) from e
             if aliases_to_delete:
@@ -1200,7 +1238,7 @@ class Artifact:
                 except CommError as e:
                     raise CommError(
                         f"You do not have permission to delete"
-                        f" {'at least one of the following aliases' if len(aliases_to_delete) > 1  else 'the following alias'}"
+                        f" {'at least one of the following aliases' if len(aliases_to_delete) > 1 else 'the following alias'}"
                         f" from this artifact: {aliases_to_delete}"
                     ) from e
             self._saved_aliases = copy(self._aliases)
@@ -2570,6 +2608,56 @@ class Artifact:
         if self._ttl_is_inherited:
             return INHERIT
         return self._ttl_duration_seconds or DISABLED
+
+    def _fetch_linked_artifacts(self) -> list[Artifact]:
+        """Fetches all linked artifacts from the server."""
+        if self.id is None:
+            raise ValueError(
+                "Unable to find any artifact memberships for artifact without an ID"
+            )
+        response = self._client.execute(
+            gql_compat(FETCH_LINKED_ARTIFACTS_GQL),
+            variable_values={"artifactID": self.id},
+        )
+        result = FetchLinkedArtifacts.model_validate(response)
+
+        membership_edges = result.artifact.artifact_memberships.edges
+        if not membership_edges:
+            raise ValueError("Unable to find any artifact memberships for artifact")
+        linked_artifacts = []
+        for node in (edge.node for edge in membership_edges):
+            if node.artifact_collection.typename__ == LINKED_ARTIFACT_COLLECTION_TYPE:
+                aliases = [a.alias for a in node.aliases]
+                version_index = f"v{node.version_index}"
+                if version_index not in aliases:
+                    aliases.append(version_index)
+                link_fields = _LinkArtifactFields(
+                    entity_name=node.artifact_collection.project.entity_name,
+                    project_name=node.artifact_collection.project.name,
+                    name=f"{node.artifact_collection.name}:{version_index}",
+                    version_index=version_index,
+                    aliases=aliases,
+                )
+                link = self._create_linked_artifact_using_source_artifact(link_fields)
+                linked_artifacts.append(link)
+
+        return linked_artifacts
+
+    def _create_linked_artifact_using_source_artifact(
+        self,
+        link_fields: _LinkArtifactFields,
+    ) -> Artifact:
+        """Copies the source artifact to a linked artifact."""
+        linked_artifact = copy(self)
+        linked_artifact._version = link_fields.version_index
+        linked_artifact._aliases = link_fields.aliases
+        linked_artifact._saved_aliases = copy(link_fields.aliases)
+        linked_artifact._name = link_fields.name
+        linked_artifact._entity = link_fields.entity_name
+        linked_artifact._project = link_fields.project_name
+        linked_artifact._is_link = link_fields.is_link
+        linked_artifact._linked_artifacts = link_fields.linked_artifacts
+        return linked_artifact
 
 
 def _ttl_duration_seconds_from_gql(gql_ttl_duration_seconds: int | None) -> int | None:
