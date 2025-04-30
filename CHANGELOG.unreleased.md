@@ -13,7 +13,6 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
-<<<<<<< HEAD
 ### Changed
 
 - `Artifact.download()` no longer raises an error when using `WANDB_MODE=offline` or when an offline run exists (@timoffex in https://github.com/wandb/wandb/pull/9695)
@@ -32,11 +31,9 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - The property `Artifact.use_as` and parameter `use_as` for `run.use_artifact()` are deprecated since these have not been in use for W&B Launch (@ibindlish in https://github.com/wandb/wandb/pull/9760)
 
-=======
 ### Added
 
 - `is_link` property to artifacts to determine if an artifact is a link artifact (such as in the Registry) or source artifact. (@estellazx in https://github.com/wandb/wandb/pull/9764)
->>>>>>> main
 
 ### Fixed
 
