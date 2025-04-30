@@ -4,17 +4,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
-from pydantic import Field
-from typing_extensions import Self, TypeAlias, get_args
+from pydantic import BeforeValidator, Field
+from typing_extensions import Annotated, Self, get_args
 
-from wandb._pydantic import (
-    SerializedToJson,
-    field_validator,
-    model_validator,
-    pydantic_isinstance,
-)
+from wandb._pydantic import GQLBase, GQLId, SerializedToJson, Typename
 
 from ._generated import (
     AlertSeverity,
@@ -25,26 +20,25 @@ from ._generated import (
     NotificationActionFields,
     NotificationActionInput,
     QueueJobActionFields,
-    TriggeredActionType,
+)
+from ._validators import (
+    LenientStrEnum,
+    default_if_none,
+    to_input_action,
+    to_saved_action,
+    upper_if_str,
 )
 from .integrations import SlackIntegration, WebhookIntegration
 
-# Note: Pydantic doesn't like `list['JsonValue']` or `dict[str, 'JsonValue']`,
-# which causes a RecursionError.
-JsonValue: TypeAlias = Union[
-    List[Any],
-    Dict[str, Any],
-    # NOTE: For now, we're not expecting any doubly-serialized strings, as this makes validation logic easier, but revisit and revise if needed.
-    # str,
-    bool,
-    int,
-    float,
-    None,
-]
 
 # NOTE: Name shortened for readability and defined publicly for easier access
-ActionType = TriggeredActionType
-"""The type of action triggered by an automation."""
+class ActionType(LenientStrEnum):
+    """The type of action triggered by an automation."""
+
+    QUEUE_JOB = "QUEUE_JOB"  # NOTE: Deprecated for creation
+    NOTIFICATION = "NOTIFICATION"
+    GENERIC_WEBHOOK = "GENERIC_WEBHOOK"
+    NO_OP = "NO_OP"
 
 
 # ------------------------------------------------------------------------------
@@ -58,69 +52,99 @@ class SavedLaunchJobAction(QueueJobActionFields):
     action_type: Literal[ActionType.QUEUE_JOB] = ActionType.QUEUE_JOB
 
 
+# FIXME: Find a better place to put these OR a better way to handle the
+#   conversion from `InputAction` -> `SavedAction`.
+#
+# Necessary placeholder class defs for converting:
+# - `SendNotification -> SavedNotificationAction`
+# - `SendWebhook -> SavedWebhookAction`
+#
+# The "input" types (`Send{Notification,Webhook}`) will only have an `integration_id`,
+# and we don't want/need to fetch the other `{Slack,Webhook}Integration` fields if
+# we can avoid it.
+class _SavedActionSlackIntegration(GQLBase, extra="allow"):
+    typename__: Typename[Literal["SlackIntegration"]] = "SlackIntegration"
+    id: GQLId
+
+
+class _SavedActionWebhookIntegration(GQLBase, extra="allow"):
+    typename__: Typename[Literal["GenericWebhookIntegration"]] = (
+        "GenericWebhookIntegration"
+    )
+    id: GQLId
+
+
 class SavedNotificationAction(NotificationActionFields):
     action_type: Literal[ActionType.NOTIFICATION] = ActionType.NOTIFICATION
+    integration: _SavedActionSlackIntegration
 
 
 class SavedWebhookAction(GenericWebhookActionFields):
     action_type: Literal[ActionType.GENERIC_WEBHOOK] = ActionType.GENERIC_WEBHOOK
+    integration: _SavedActionWebhookIntegration
 
     # We override the type of the `requestPayload` field since the original GraphQL
     # schema (and generated class) effectively defines it as a string, when we know
     # and need to anticipate the expected structure of the JSON-serialized data.
-    request_payload: Optional[SerializedToJson[JsonValue]] = Field(  # type: ignore[assignment]
-        default=None, alias="requestPayload"
-    )
+    request_payload: Annotated[
+        Optional[SerializedToJson[dict[str, Any]]],
+        Field(alias="requestPayload"),
+    ] = None  # type: ignore[assignment]
 
 
-class SavedNoOpAction(NoOpActionFields):
+class SavedNoOpAction(NoOpActionFields, frozen=True):
     action_type: Literal[ActionType.NO_OP] = ActionType.NO_OP
+
+    no_op: Annotated[bool, BeforeValidator(default_if_none)] = True
+    """Placeholder field, only needed to conform to schema requirements.
+
+    There should never be a need to set this field explicitly, as its value is ignored.
+    """
 
 
 # for type annotations
-SavedAction = Union[
-    SavedLaunchJobAction,
-    SavedNotificationAction,
-    SavedWebhookAction,
-    SavedNoOpAction,
+SavedAction = Annotated[
+    Union[
+        SavedLaunchJobAction,
+        SavedNotificationAction,
+        SavedWebhookAction,
+        SavedNoOpAction,
+    ],
+    BeforeValidator(to_saved_action),
+    Field(discriminator="typename__"),
 ]
 # for runtime type checks
-SavedActionTypes: tuple[type, ...] = get_args(SavedAction)
+SavedActionTypes: tuple[type, ...] = get_args(SavedAction.__origin__)  # type: ignore[attr-defined]
 
 
 # ------------------------------------------------------------------------------
 # Input types: for creating or updating automations
-class DoNotification(NotificationActionInput):
-    """Schema for defining a triggered notification action."""
+class _BaseActionInput(GQLBase):
+    action_type: Annotated[ActionType, Field(frozen=True)]
+    """The kind of action to be triggered."""
+
+
+class SendNotification(_BaseActionInput, NotificationActionInput):
+    """Defines an automation action that sends a (Slack) notification."""
 
     action_type: Literal[ActionType.NOTIFICATION] = ActionType.NOTIFICATION
 
-    # Note: Validation aliases match arg names from `wandb.alert()` to allow
-    # continuity with previous API.
-    title: str = Field(default="", validation_alias="title")
-    message: str = Field(default="", validation_alias="text")
-    severity: AlertSeverity = Field(
-        default=AlertSeverity.INFO, validation_alias="level"
-    )
+    integration_id: GQLId
+    """The ID of the Slack integration that will be used to send the notification."""
 
-    @field_validator("severity", mode="before")
-    @classmethod
-    def _validate_severity(cls, v: Any) -> Any:
-        # Be helpful by accepting case-insensitive strings
-        return v.upper() if isinstance(v, str) else v
+    # Note: Validation aliases are meant to provide continuity with prior `wandb.alert()` API.
+    title: str = ""
+    """The title of the sent notification."""
 
-    @model_validator(mode="before")
-    @classmethod
-    def _from_saved(cls, v: Any) -> Any:
-        """Convert an action on a saved automation to a new/input action."""
-        if pydantic_isinstance(v, SavedNotificationAction):
-            return cls(
-                integration_id=v.integration.id,
-                title=v.title,
-                message=v.message,
-                severity=v.severity,
-            )
-        return v
+    message: Annotated[str, Field(validation_alias="text")] = ""
+    """The message body of the sent notification."""
+
+    severity: Annotated[
+        AlertSeverity,
+        BeforeValidator(upper_if_str),  # Be helpful by ensuring uppercase strings
+        Field(validation_alias="level"),
+    ] = AlertSeverity.INFO
+    """The severity (`INFO`, `WARN`, `ERROR`) of the sent notification."""
 
     @classmethod
     def from_integration(
@@ -132,7 +156,6 @@ class DoNotification(NotificationActionInput):
         level: AlertSeverity = AlertSeverity.INFO,
     ) -> Self:
         """Define a notification action that sends to the given (Slack) integration."""
-        integration = SlackIntegration.model_validate(integration)
         return cls(
             integration_id=integration.id,
             title=title,
@@ -141,65 +164,57 @@ class DoNotification(NotificationActionInput):
         )
 
 
-class DoWebhook(GenericWebhookActionInput):
-    """Schema for defining a triggered webhook action."""
+class SendWebhook(_BaseActionInput, GenericWebhookActionInput):
+    """Defines an automation action that sends a webhook request."""
 
     action_type: Literal[ActionType.GENERIC_WEBHOOK] = ActionType.GENERIC_WEBHOOK
 
+    integration_id: GQLId
+    """The ID of the webhook integration that will be used to send the request."""
+
     # overrides the generated field type to parse/serialize JSON strings
-    request_payload: Optional[SerializedToJson[JsonValue]] = Field(  # type: ignore[assignment]
+    request_payload: Optional[SerializedToJson[dict[str, Any]]] = Field(  # type: ignore[assignment]
         default=None, alias="requestPayload"
     )
-
-    @model_validator(mode="before")
-    @classmethod
-    def _from_saved(cls, v: Any) -> Any:
-        """Convert an action on a saved automation to a new/input action."""
-        if pydantic_isinstance(v, SavedWebhookAction):
-            return cls(
-                integration_id=v.integration.id,
-                request_payload=v.request_payload,
-            )
-        return v
+    """The payload, possibly with template variables, to send in the webhook request."""
 
     @classmethod
     def from_integration(
         cls,
         integration: WebhookIntegration,
         *,
-        request_payload: Optional[SerializedToJson[JsonValue]] = None,
+        payload: Optional[SerializedToJson[dict[str, Any]]] = None,
     ) -> Self:
         """Define a webhook action that sends to the given (webhook) integration."""
-        integration = WebhookIntegration.model_validate(integration)
-        return cls(integration_id=integration.id, request_payload=request_payload)
+        return cls(integration_id=integration.id, request_payload=payload)
 
 
-class DoNothing(NoOpTriggeredActionInput):
-    """Schema for defining a triggered no-op action."""
+class DoNothing(_BaseActionInput, NoOpTriggeredActionInput, frozen=True):
+    """Defines an automation action that intentionally does nothing."""
 
     action_type: Literal[ActionType.NO_OP] = ActionType.NO_OP
 
-    no_op: bool = True  # prevent exclusion on `.model_dump(exclude_none=True)`
+    no_op: Annotated[bool, BeforeValidator(default_if_none)] = True
+    """Placeholder field which exists only to satisfy backend schema requirements.
 
-    @field_validator("no_op", mode="before")
-    @classmethod
-    def _ensure_nonnull(cls, v: Any) -> Any:
-        # Ensuring the value isn't None complies with validation and
-        # prevents the field (and action data) from getting excluded on
-        # `.model_dump(exclude_none=True)`
-        return True if (v is None) else v
-
-
-DoNotification.model_rebuild()
-DoWebhook.model_rebuild()
-DoNothing.model_rebuild()
+    There should never be a need to set this field explicitly, as its value is ignored.
+    """
 
 
 # for type annotations
-InputAction = Union[
-    DoNotification,
-    DoWebhook,
-    DoNothing,
+InputAction = Annotated[
+    Union[
+        SendNotification,
+        SendWebhook,
+        DoNothing,
+    ],
+    BeforeValidator(to_input_action),
+    Field(discriminator="action_type"),
 ]
 # for runtime type checks
-InputActionTypes: tuple[type, ...] = get_args(InputAction)
+InputActionTypes: tuple[type, ...] = get_args(InputAction.__origin__)  # type: ignore[attr-defined]
+
+__all__ = [
+    "ActionType",
+    *(cls.__name__ for cls in InputActionTypes),
+]

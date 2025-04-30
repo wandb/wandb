@@ -101,7 +101,7 @@ class V1MixinMetaclass(PydanticModelMetaclass):
 
     @property
     def model_fields(self) -> dict[str, Any]:
-        return self.__fields__
+        return self.__fields__  # type: ignore[deprecated]
 
 
 # Mixin to ensure compatibility of Pydantic models if Pydantic v1 is detected.
@@ -117,7 +117,7 @@ class V1Mixin(metaclass=V1MixinMetaclass):
         """Reserialize values from `Json`-typed fields after dumping the model to dict."""
         # Get the expected keys (after `.model_dump()`) for `Json`-typed fields.
         # Note: In v1, `Json` fields have `ModelField.parse_json == True`
-        json_fields = (f for f in cls.__fields__.values() if f.parse_json)
+        json_fields = (f for f in cls.__fields__.values() if f.parse_json)  # type: ignore[deprecated]
         get_key = attrgetter("alias" if by_alias else "name")
         json_field_keys = set(map(get_key, json_fields))
 
@@ -213,7 +213,7 @@ else:
         check_fields: bool | None = None,
         **_: Any,
     ) -> Callable:
-        return pydantic.validator(
+        return pydantic.validator(  # type: ignore[deprecated]
             field,
             *fields,
             pre=(mode == "before"),

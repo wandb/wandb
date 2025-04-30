@@ -1,5 +1,5 @@
 import pytest
-from wandb.apis.public.registries import _ensure_registry_prefix_on_names
+from wandb.apis.public.registries.utils import _ensure_registry_prefix_on_names
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
 

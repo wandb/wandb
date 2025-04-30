@@ -29,6 +29,7 @@ from wandb import data_types, env, util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
+from wandb.errors import CommError
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_deprecated import Deprecated
@@ -39,6 +40,7 @@ from wandb.sdk.artifacts._validators import (
     ensure_not_finalized,
     is_artifact_registry_project,
     validate_aliases,
+    validate_artifact_name,
     validate_tags,
 )
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
@@ -112,6 +114,7 @@ class Artifact:
         incremental: Use `Artifact.new_draft()` method instead to modify an
             existing artifact.
         use_as: Deprecated.
+        is_link: Boolean indication of if the artifact is a linked artifact(`True`) or source artifact(`False`).
 
     Returns:
         An `Artifact` object.
@@ -163,12 +166,13 @@ class Artifact:
         self._sequence_client_id: str = runid.generate_id(128)
         self._entity: str | None = None
         self._project: str | None = None
-        self._name: str = name  # includes version after saving
+        self._name: str = validate_artifact_name(name)  # includes version after saving
         self._version: str | None = None
         self._source_entity: str | None = None
         self._source_project: str | None = None
         self._source_name: str = name  # includes version after saving
         self._source_version: str | None = None
+        self._is_link: bool = False
         self._type: str = type
         self._description: str | None = description
         self._metadata: dict = self._normalize_metadata(metadata)
@@ -318,8 +322,13 @@ class Artifact:
         artifact_instance_cache[artifact.id] = artifact
         return artifact
 
+    # TODO: Eventually factor out is_link. Have to currently use it since some forms of fetching the artifact
+    # doesn't make it clear if the artifact is a link or not and have to manually set it.
     def _assign_attrs(
-        self, attrs: dict[str, Any], aliases: list[str] | None = None
+        self,
+        attrs: dict[str, Any],
+        aliases: list[str] | None = None,
+        is_link: bool | None = None,
     ) -> None:
         """Update this Artifact's attributes using the server response."""
         self._id = attrs["id"]
@@ -340,6 +349,17 @@ class Artifact:
 
         if self._name is None:
             self._name = self._source_name
+
+        # TODO: Refactor artifact query to fetch artifact via membership instead
+        # and get the collection type
+        if is_link is None:
+            self._is_link = (
+                self._entity != self._source_entity
+                or self._project != self._source_project
+                or self._name != self._source_name
+            )
+        else:
+            self._is_link = is_link
 
         self._type = attrs["artifactType"]["name"]
         self._description = attrs["description"]
@@ -395,7 +415,7 @@ class Artifact:
         self._saved_tags = copy(tags)
 
         metadata_str = attrs["metadata"]
-        self.metadata = self._normalize_metadata(
+        self._metadata = self._normalize_metadata(
             json.loads(metadata_str) if metadata_str else {}
         )
 
@@ -469,35 +489,48 @@ class Artifact:
     @property
     @ensure_logged
     def entity(self) -> str:
-        """The name of the entity of the secondary (portfolio) artifact collection."""
+        """The name of the entity that the artifact collection belongs to.
+
+        If the artifact is a link, the entity will be the entity of the linked artifact.
+        """
         assert self._entity is not None
         return self._entity
 
     @property
     @ensure_logged
     def project(self) -> str:
-        """The name of the project of the secondary (portfolio) artifact collection."""
+        """The name of the project that the artifact collection belongs to.
+
+        If the artifact is a link, the project will be the project of the linked artifact.
+        """
         assert self._project is not None
         return self._project
 
     @property
     def name(self) -> str:
-        """The artifact name and version in its secondary (portfolio) collection.
+        """The artifact name and version of the artifact.
 
-        A string with the format `{collection}:{alias}`. Before the artifact is saved,
-        contains only the name since the version is not yet known.
+        A string with the format `{collection}:{alias}`. If fetched before an artifact is logged/saved, the name won't contain the alias.
+        If the artifact is a link, the name will be the name of the linked artifact.
         """
         return self._name
 
     @property
     def qualified_name(self) -> str:
-        """The entity/project/name of the secondary (portfolio) collection."""
+        """The entity/project/name of the artifact.
+
+        If the artifact is a link, the qualified name will be the qualified name of the linked artifact path.
+        """
         return f"{self.entity}/{self.project}/{self.name}"
 
     @property
     @ensure_logged
     def version(self) -> str:
-        """The artifact's version in its secondary (portfolio) collection."""
+        """The artifact's version.
+
+        A string with the format `v{number}`.
+        If the artifact is a link artifact, the version will be from the linked collection.
+        """
         assert self._version is not None
         return self._version
 
@@ -520,35 +553,35 @@ class Artifact:
     @property
     @ensure_logged
     def source_entity(self) -> str:
-        """The name of the entity of the primary (sequence) artifact collection."""
+        """The name of the entity of the source artifact."""
         assert self._source_entity is not None
         return self._source_entity
 
     @property
     @ensure_logged
     def source_project(self) -> str:
-        """The name of the project of the primary (sequence) artifact collection."""
+        """The name of the project of the source artifact."""
         assert self._source_project is not None
         return self._source_project
 
     @property
     def source_name(self) -> str:
-        """The artifact name and version in its primary (sequence) collection.
+        """The artifact name and version of the source artifact.
 
-        A string with the format `{collection}:{alias}`. Before the artifact is saved,
+        A string with the format `{source_collection}:{alias}`. Before the artifact is saved,
         contains only the name since the version is not yet known.
         """
         return self._source_name
 
     @property
     def source_qualified_name(self) -> str:
-        """The entity/project/name of the primary (sequence) collection."""
+        """The source_entity/source_project/source_name of the source artifact."""
         return f"{self.source_entity}/{self.source_project}/{self.source_name}"
 
     @property
     @ensure_logged
     def source_version(self) -> str:
-        """The artifact's version in its primary (sequence) collection.
+        """The source artifact's version.
 
         A string with the format `v{number}`.
         """
@@ -558,11 +591,23 @@ class Artifact:
     @property
     @ensure_logged
     def source_collection(self) -> ArtifactCollection:
-        """The artifact's primary (sequence) collection."""
+        """The artifact's source collection.
+
+        The source collection is the collection that the artifact was logged from.
+        """
         base_name = self.source_name.split(":")[0]
         return ArtifactCollection(
             self._client, self.source_entity, self.source_project, base_name, self.type
         )
+
+    @property
+    def is_link(self) -> bool:
+        """Boolean flag indicating if the artifact is a link artifact.
+
+        True: The artifact is a link artifact to a source artifact.
+        False: The artifact is a source artifact.
+        """
+        return self._is_link
 
     @property
     def type(self) -> str:
@@ -583,7 +628,7 @@ class Artifact:
         except AttributeError:
             return ""
 
-        if self.collection.is_sequence():
+        if not self.is_link:
             return self._construct_standard_url(base_url)
         if is_artifact_registry_project(self.project):
             return self._construct_registry_url(base_url)
@@ -667,9 +712,15 @@ class Artifact:
         standardized team model or dataset card. In the W&B UI the
         description is rendered as markdown.
 
+        Editing the description will apply the changes to the source artifact and all linked artifacts associated with it.
+
         Args:
             description: Free text that offers a description of the artifact.
         """
+        if self.is_link:
+            wandb.termwarn(
+                "Editing the description of this linked artifact will edit the description for the source artifact and it's linked artifacts as well."
+            )
         self._description = description
 
     @property
@@ -688,10 +739,15 @@ class Artifact:
         the class distribution of a dataset.
 
         Note: There is currently a limit of 100 total keys.
+        Editing the metadata will apply the changes to the source artifact and all linked artifacts associated with it.
 
         Args:
             metadata: Structured data associated with the artifact.
         """
+        if self.is_link:
+            wandb.termwarn(
+                "Editing the metadata of this linked artifact will edit the metadata for the source artifact and it's linked artifacts as well."
+            )
         self._metadata = self._normalize_metadata(metadata)
 
     @property
@@ -731,6 +787,12 @@ class Artifact:
         """
         if self.type == "wandb-history":
             raise ValueError("Cannot set artifact TTL for type wandb-history")
+
+        if self.is_link:
+            raise ValueError(
+                "Cannot set TTL for link artifact. "
+                "Unlink the artifact first then set the TTL for the source artifact"
+            )
 
         self._ttl_changed = True
         if isinstance(ttl, ArtifactTTL):
@@ -776,7 +838,14 @@ class Artifact:
     @tags.setter
     @ensure_logged
     def tags(self, tags: list[str]) -> None:
-        """Set the tags associated with this artifact."""
+        """Set the tags associated with this artifact.
+
+        Editing tags will apply the changes to the source artifact and all linked artifacts associated with it.
+        """
+        if self.is_link:
+            wandb.termwarn(
+                "Editing tags will apply the changes to the source artifact and all linked artifacts associated with it."
+            )
         self._tags = validate_tags(tags)
 
     @property
@@ -1044,7 +1113,10 @@ class Artifact:
         except LookupError:
             raise ValueError(f"Unable to fetch artifact with id: {artifact_id!r}")
         else:
-            self._assign_attrs(attrs)
+            # _populate_after_save is only called on source artifacts, not linked artifacts
+            # We have to manually set is_link because we aren't fetching the collection the artifact.
+            # That requires greater refactoring for commitArtifact to return the artifact collection type.
+            self._assign_attrs(attrs, is_link=False)
 
     @normalize_exceptions
     def _update(self) -> None:
@@ -1083,21 +1155,28 @@ class Artifact:
                     """
                 )
                 assert self._client is not None
-                self._client.execute(
-                    add_mutation,
-                    variable_values={
-                        "artifactID": self.id,
-                        "aliases": [
-                            {
-                                "entityName": self._entity,
-                                "projectName": self._project,
-                                "artifactCollectionName": self._name.split(":")[0],
-                                "alias": alias,
-                            }
-                            for alias in aliases_to_add
-                        ],
-                    },
-                )
+                try:
+                    self._client.execute(
+                        add_mutation,
+                        variable_values={
+                            "artifactID": self.id,
+                            "aliases": [
+                                {
+                                    "entityName": self._entity,
+                                    "projectName": self._project,
+                                    "artifactCollectionName": self._name.split(":")[0],
+                                    "alias": alias,
+                                }
+                                for alias in aliases_to_add
+                            ],
+                        },
+                    )
+                except CommError as e:
+                    raise CommError(
+                        "You do not have permission to add"
+                        f" {'at least one of the following aliases' if len(aliases_to_add) > 1  else 'the following alias'}"
+                        f" to this artifact: {aliases_to_add}"
+                    ) from e
             if aliases_to_delete:
                 delete_mutation = gql(
                     """
@@ -1114,21 +1193,28 @@ class Artifact:
                     """
                 )
                 assert self._client is not None
-                self._client.execute(
-                    delete_mutation,
-                    variable_values={
-                        "artifactID": self.id,
-                        "aliases": [
-                            {
-                                "entityName": self._entity,
-                                "projectName": self._project,
-                                "artifactCollectionName": self._name.split(":")[0],
-                                "alias": alias,
-                            }
-                            for alias in aliases_to_delete
-                        ],
-                    },
-                )
+                try:
+                    self._client.execute(
+                        delete_mutation,
+                        variable_values={
+                            "artifactID": self.id,
+                            "aliases": [
+                                {
+                                    "entityName": self._entity,
+                                    "projectName": self._project,
+                                    "artifactCollectionName": self._name.split(":")[0],
+                                    "alias": alias,
+                                }
+                                for alias in aliases_to_delete
+                            ],
+                        },
+                    )
+                except CommError as e:
+                    raise CommError(
+                        f"You do not have permission to delete"
+                        f" {'at least one of the following aliases' if len(aliases_to_delete) > 1  else 'the following alias'}"
+                        f" from this artifact: {aliases_to_delete}"
+                    ) from e
             self._saved_aliases = copy(self._aliases)
         else:  # wandb backend version < 0.13.0
             aliases = [
@@ -2204,6 +2290,8 @@ class Artifact:
         If called on a linked artifact (i.e. a member of a portfolio collection): only the link is deleted, and the
         source artifact is unaffected.
 
+        Use `artifact.unlink()` instead of `artifact.delete()` to remove a link between a source artifact and a linked artifact.
+
         Args:
             delete_aliases: If set to `True`, deletes all aliases associated with the artifact.
                 Otherwise, this raises an exception if the artifact has existing
@@ -2213,10 +2301,13 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        if self.collection.is_sequence():
-            self._delete(delete_aliases)
-        else:
+        if self.is_link:
+            wandb.termwarn(
+                "Deleting a link artifact will only unlink the artifact from the source artifact and not delete the source artifact and the data of the source artifact."
+            )
             self._unlink()
+        else:
+            self._delete(delete_aliases)
 
     @normalize_exceptions
     def _delete(self, delete_aliases: bool = False) -> None:
@@ -2262,6 +2353,11 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
+        if self.is_link:
+            wandb.termwarn(
+                "Linking to a link artifact will result in directly linking to the source artifact of that link artifact."
+            )
+
         singleton = wandb_setup._setup(start_service=False)
 
         if run := singleton.most_recent_active_run:
@@ -2286,7 +2382,7 @@ class Artifact:
             ValueError: If the artifact is not linked, i.e. it is not a member of a portfolio collection.
         """
         # Fail early if this isn't a linked artifact to begin with
-        if self.collection.is_sequence():
+        if not self.is_link:
             raise ValueError(
                 f"Artifact {self.qualified_name!r} is not a linked artifact and cannot be unlinked.  "
                 f"To delete it, use {self.delete.__qualname__!r} instead."
@@ -2310,17 +2406,22 @@ class Artifact:
             """
         )
         assert self._client is not None
-        self._client.execute(
-            mutation,
-            variable_values={
-                "artifactID": self.id,
-                "artifactPortfolioID": self.collection.id,
-            },
-        )
+        try:
+            self._client.execute(
+                mutation,
+                variable_values={
+                    "artifactID": self.id,
+                    "artifactPortfolioID": self.collection.id,
+                },
+            )
+        except CommError as e:
+            raise CommError(
+                f"You do not have permission to unlink the artifact {self.qualified_name}"
+            ) from e
 
     @ensure_logged
     def used_by(self) -> list[Run]:
-        """Get a list of the runs that have used this artifact.
+        """Get a list of the runs that have used this artifact and its linked artifacts.
 
         Returns:
             A list of `Run` objects.

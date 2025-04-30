@@ -9,11 +9,6 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
     id
     name
     urlEndpoint
-    createdAt
-}
-fragment GithubIntegrationFields on GitHubOAuthIntegration {
-    __typename
-    id
 }
 
 # ------------------------------------------------------------------------------
@@ -41,14 +36,12 @@ fragment FilterEventFields on FilterEventTriggeringCondition {
 }
 
 # ------------------------------------------------------------------------------
-fragment RunQueueFields on RunQueue {
-    __typename
-    id
-    name
-}
 fragment QueueJobActionFields on QueueJobTriggeredAction {
     __typename
-    queue {...RunQueueFields}
+    queue {
+        id
+        name
+    }
     template
 }
 fragment NotificationActionFields on NotificationTriggeredAction {
@@ -75,18 +68,11 @@ fragment NoOpActionFields on NoOpTriggeredAction {
 }
 
 # ------------------------------------------------------------------------------
-fragment UserFields on User {
-    __typename
-    id
-    username
-}
-
 fragment TriggerFields on Trigger {
     __typename
 
     id
     createdAt
-    createdBy {...UserFields}
     updatedAt
 
     name
@@ -163,7 +149,7 @@ fragment CreateFilterTriggerResult on CreateFilterTriggerPayload {
     trigger {...TriggerFields}
 }
 mutation CreateFilterTrigger($params: CreateFilterTriggerInput!) {
-    createFilterTrigger(input: $params) {
+    result: createFilterTrigger(input: $params) {
         ...CreateFilterTriggerResult
     }
 }
@@ -173,7 +159,7 @@ fragment UpdateFilterTriggerResult on UpdateFilterTriggerPayload {
     trigger {...TriggerFields}
 }
 mutation UpdateFilterTrigger($params: UpdateFilterTriggerInput!) {
-    updateFilterTrigger(input: $params) {
+    result: updateFilterTrigger(input: $params) {
         ...UpdateFilterTriggerResult
     }
 }
@@ -183,7 +169,7 @@ fragment DeleteTriggerResult on DeleteTriggerPayload {
     success
 }
 mutation DeleteTrigger($id: ID!) {
-    deleteTrigger(input: {triggerID: $id}) {
+    result: deleteTrigger(input: {triggerID: $id}) {
         ...DeleteTriggerResult
     }
 }
@@ -196,8 +182,8 @@ fragment IntegrationConnectionFields on IntegrationConnection {
         cursor
         node {
             __typename
-            ...SlackIntegrationFields @include(if: $includeSlack)
-            ...GenericWebhookIntegrationFields @include(if: $includeWebhook)
+            ...SlackIntegrationFields
+            ...GenericWebhookIntegrationFields
         }
     }
 }
@@ -228,8 +214,6 @@ query IntegrationsByEntity(
     $entityName: String!,
     $cursor: String,
     $perPage: Int,
-    $includeSlack: Boolean = false,
-    $includeWebhook: Boolean = false,
 ) {
     entity(name: $entityName) {
         integrations(after: $cursor, first: $perPage) {
