@@ -1731,7 +1731,7 @@ class Api:
         *,
         entity: Optional[str] = None,
     ) -> "Automation":
-        """Returns the Automation that matches the given parameters, if exactly one match is found.
+        """Returns the only Automation matching the parameters.
 
         Args:
             name: The name of the automation to fetch.
