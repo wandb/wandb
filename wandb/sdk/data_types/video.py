@@ -69,10 +69,9 @@ class Video(BatchableMedia):
                 Video can be initialized with a path to a file or an io object.
                 Video can be initialized with a numpy tensor.
                 The numpy tensor must be either 4 dimensional or 5 dimensional.
-                Channels should be (number of frames, channel, height, width) or
+                The dimensions should be (number of frames, channel, height, width) or
                 (batch, number of frames, channel, height, width)
-                Supported formats are "gif", "mp4", "webm" or "ogg".
-                The format must be specified with the format argument
+                The format parameter must be specified with the format argument
                 when initializing with a numpy array
                 or io object.
             caption: Caption associated with the video for display.
@@ -81,9 +80,10 @@ class Video(BatchableMedia):
                 Default value is 4.
                 This parameter has no effect when data_or_path is a string, or bytes.
             format:
-                Format of video, necessary if initializing with a numpy array or io object.
-                This parameter will be used to determine the format to use when encoding the video data.
-                Accepted values are "gif", "mp4", "webm", or "ogg".
+                Format of video, necessary if initializing with a numpy array
+                or io object. This parameter will be used to determine the format
+                to use when encoding the video data. Accepted values are "gif",
+                "mp4", "webm", or "ogg".
 
         Examples:
             ### Log a numpy array as a video
@@ -91,12 +91,12 @@ class Video(BatchableMedia):
             import numpy as np
             import wandb
 
-            run = wandb.init()
-            # axes are (number of frames, channel, height, width)
-            frames = np.random.randint(
-                low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8
-            )
-            run.log({"video": wandb.Video(frames, format="mp4", fps=4)})
+            with wandb.init() as run:
+                # axes are (number of frames, channel, height, width)
+                frames = np.random.randint(
+                    low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8
+                )
+                run.log({"video": wandb.Video(frames, format="mp4", fps=4)})
             ```
         """
         super().__init__(caption=caption)
