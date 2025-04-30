@@ -605,20 +605,6 @@ impl DcgmClient {
     pub fn new() -> Result<Self, String> {
         let lib_path = "libdcgm.so.4".to_string();
         let host_address = "localhost:5555".to_string();
-        // let field_ids = vec![
-        //     DCGM_FI_PROF_SM_ACTIVE,
-        //     DCGM_FI_PROF_SM_OCCUPANCY,
-        //     DCGM_FI_PROF_PIPE_TENSOR_ACTIVE,
-        //     DCGM_FI_PROF_DRAM_ACTIVE,
-        //     DCGM_FI_PROF_PIPE_FP64_ACTIVE,
-        //     DCGM_FI_PROF_PIPE_FP32_ACTIVE,
-        //     DCGM_FI_PROF_PIPE_FP16_ACTIVE,
-        //     DCGM_FI_PROF_PIPE_TENSOR_HMMA_ACTIVE,
-        //     DCGM_FI_PROF_PCIE_TX_BYTES,
-        //     DCGM_FI_PROF_PCIE_RX_BYTES,
-        //     DCGM_FI_PROF_NVLINK_TX_BYTES,
-        //     DCGM_FI_PROF_NVLINK_RX_BYTES,
-        // ];
 
         // Define the list of metrics we *want* to monitor
         let desired_field_ids = vec![
@@ -848,7 +834,7 @@ extern "C" fn field_value_callback(
                     _ => &format!("dcgm_field_{}", field_id),
                 };
                 // Create unique key per GPU: e.g., "gpu.0.smActive"
-                let metric_key = format!("{}_{}.{}", entity_type, entity_id, base_name);
+                let metric_key = format!("{}.{}.{}", entity_type, entity_id, base_name);
                 metrics_vec.push((metric_key, metric_value));
             }
         }
