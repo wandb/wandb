@@ -687,11 +687,14 @@ impl DcgmClient {
                         return;
                     }
                 };
-                if let Err(e) = dcgm.watch_fields(group_id, field_group_id, 1_000_000, 0.0, 2) {
-                    /* ... error handling ... */
-                    log::error!("Failed to set DCGM watches: {}. Worker thread exiting.", e);
-                    return;
-                }
+
+                // Continuously watch the fields.
+                // if let Err(e) = dcgm.watch_fields(group_id, field_group_id, 1_000_000, 0.0, 2) {
+                //     /* ... error handling ... */
+                //     log::error!("Failed to set DCGM watches: {}. Worker thread exiting.", e);
+                //     return;
+                // }
+
                 log::debug!("DCGM setup complete in sync worker thread.");
 
                 // --- STEP 2: Create the Worker Struct ---
@@ -897,7 +900,7 @@ impl DcgmWorker {
     fn collect_metrics(&self) -> DcgmMetricsResult {
         // Call update_all_fields to refresh the metrics using FFI
         // This is a blocking call, so it should be done in the worker thread.
-        if let Err(e) = self.dcgm.update_all_fields(0) {
+        if let Err(e) = self.dcgm.update_all_fields(1) {
             log::warn!("DCGM update_all_fields failed: {}", e);
         }
 
