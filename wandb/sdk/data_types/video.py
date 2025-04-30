@@ -2,7 +2,7 @@ import functools
 import logging
 import os
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, Optional, Sequence, Type, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Type, Union
 
 import wandb
 from wandb import util
@@ -48,36 +48,7 @@ def write_gif_with_image_io(
 
 
 class Video(BatchableMedia):
-    """Format a video for logging to W&B.
-
-    Args:
-        data_or_path: (numpy array, string, io)
-            Video can be initialized with a path to a file or an io object.
-            The format must be "gif", "mp4", "webm" or "ogg".
-            The format must be specified with the format argument.
-            Video can be initialized with a numpy tensor.
-            The numpy tensor must be either 4 dimensional or 5 dimensional.
-            Channels should be (time, channel, height, width) or
-            (batch, time, channel, height width)
-        caption: (string) caption associated with the video for display
-        fps: (int)
-            The frame rate to use when encoding raw video frames. Default value is 4.
-            This parameter has no effect when data_or_path is a string, or bytes.
-        format: (string) format of video, necessary if initializing with path or io object.
-
-    Examples:
-        ### Log a numpy array as a video
-        <!--yeadoc-test:log-video-numpy-->
-        ```python
-        import numpy as np
-        import wandb
-
-        run = wandb.init()
-        # axes are (time, channel, height, width)
-        frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
-        run.log({"video": wandb.Video(frames, fps=4)})
-        ```
-    """
+    """A class for logging videos to W&B."""
 
     _log_type = "video-file"
     EXTS = ("gif", "mp4", "webm", "ogg")
@@ -89,10 +60,53 @@ class Video(BatchableMedia):
         data_or_path: Union["np.ndarray", str, "TextIO", "BytesIO"],
         caption: Optional[str] = None,
         fps: Optional[int] = None,
-        format: Optional[str] = None,
+        format: Optional[Literal["gif", "mp4", "webm", "ogg"]] = None,
     ):
+        """Initialize a W&B Video object.
+
+        Args:
+            data_or_path:
+                Video can be initialized with a path to a file or an io object.
+                Video can be initialized with a numpy tensor.
+                The numpy tensor must be either 4 dimensional or 5 dimensional.
+                The dimensions should be (number of frames, channel, height, width) or
+                (batch, number of frames, channel, height, width)
+                The format parameter must be specified with the format argument
+                when initializing with a numpy array
+                or io object.
+            caption: Caption associated with the video for display.
+            fps:
+                The frame rate to use when encoding raw video frames.
+                Default value is 4.
+                This parameter has no effect when data_or_path is a string, or bytes.
+            format:
+                Format of video, necessary if initializing with a numpy array
+                or io object. This parameter will be used to determine the format
+                to use when encoding the video data. Accepted values are "gif",
+                "mp4", "webm", or "ogg".
+
+        Examples:
+            ### Log a numpy array as a video
+            ```python
+            import numpy as np
+            import wandb
+
+            with wandb.init() as run:
+                # axes are (number of frames, channel, height, width)
+                frames = np.random.randint(
+                    low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8
+                )
+                run.log({"video": wandb.Video(frames, format="mp4", fps=4)})
+            ```
+        """
         super().__init__(caption=caption)
 
+        if format is None:
+            wandb.termwarn(
+                "`format` argument was not provided, defaulting to `gif`. "
+                "This parameter will be required in v0.20.0, "
+                "please specify the format explicitly."
+            )
         self._format = format or "gif"
         self._width = None
         self._height = None
