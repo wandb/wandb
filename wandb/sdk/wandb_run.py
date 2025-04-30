@@ -1450,7 +1450,7 @@ class Run:
             artifact = Artifact._from_id(val["id"], public_api.client)
 
             assert artifact
-            return self.use_artifact(artifact, use_as=key)
+            return self.use_artifact(artifact)
         elif _is_artifact_string(val):
             # this will never fail, but is required to make mypy happy
             assert isinstance(val, str)
@@ -1469,9 +1469,9 @@ class Run:
             # different instances of wandb.
 
             assert artifact
-            return self.use_artifact(artifact, use_as=key)
+            return self.use_artifact(artifact)
         elif _is_artifact_object(val):
-            return self.use_artifact(val, use_as=key)
+            return self.use_artifact(val)
         else:
             raise ValueError(
                 f"Cannot call _config_artifact_callback on type {type(val)}"
