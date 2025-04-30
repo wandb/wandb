@@ -99,38 +99,18 @@ const DCGM_FI_PROF_NVLINK_RX_BYTES: u16 = 1012;
 
 // Constants for special DCGM groups
 const DCGM_GROUP_ALL_GPUS: u32 = 0x7fffffff;
-const DCGM_GROUP_ALL_NVSWITCHES: u32 = 0x7ffffffe;
-const DCGM_GROUP_ALL_INSTANCES: u32 = 0x7ffffffd;
-const DCGM_GROUP_ALL_COMPUTE_INSTANCES: u32 = 0x7ffffffc;
-const DCGM_GROUP_ALL_ENTITIES: u32 = 0x7ffffffb;
-const DCGM_GROUP_NULL: u32 = 0x7ffffffa;
 
-type dcgmReturn_t = i32;
-type dcgmHandle_t = *mut c_void;
-type dcgmGpuGrp_t = u32;
-type dcgmFieldGrp_t = u32;
-type dcgm_field_entity_group_t = u32;
-type dcgm_field_eid_t = u32;
+type DcgmReturnT = i32;
+type DcgmHandleT = *mut c_void;
+type DcgmGpuGrpT = u32;
+type DcgmFieldGrpT = u32;
+type DcgmFieldEntityGroupT = u32;
+type DcgmFieldEidT = u32;
 
 /// FFI types for DCGM
-
-#[repr(C)]
-struct dcgmGroupInfo_t {
-    version: u32,
-    count: u32,
-    name: [c_char; DCGM_MAX_STR_LENGTH],
-    entity_list: [dcgmGroupEntityPair_t; DCGM_MAX_NUM_DEVICES],
-}
-
-#[repr(C)]
-struct dcgmGroupEntityPair_t {
-    entity_group_id: dcgm_field_entity_group_t,
-    entity_id: dcgm_field_eid_t,
-}
-
 #[repr(C)]
 #[derive(Clone)]
-struct dcgmFieldValue_v1 {
+struct DcgmFieldValueV1 {
     version: u32,
     field_id: u16,
     field_type: u16,
@@ -149,9 +129,9 @@ union dcgmFieldValue_v1_value {
 
 // Callback function type for dcgmGetLatestValues_v2
 type DcgmFieldValueEnumeration = extern "C" fn(
-    entity_group_id: dcgm_field_entity_group_t,
-    entity_id: dcgm_field_eid_t,
-    values: *mut dcgmFieldValue_v1,
+    entity_group_id: DcgmFieldEntityGroupT,
+    entity_id: DcgmFieldEidT,
+    values: *mut DcgmFieldValueV1,
     values_count: c_int,
     user_data: *mut c_void,
 ) -> c_int;
@@ -165,38 +145,38 @@ macro_rules! make_dcgm_version {
 
 #[repr(C)]
 #[derive(Clone, Copy)] // Added Debug/Default for convenience
-struct dcgmProfMetricGroupInfo_v2 {
-    majorId: u16,
-    minorId: u16,
-    numFieldIds: u32,
-    fieldIds: [u16; DCGM_PROF_MAX_FIELD_IDS_PER_GROUP_V2],
+struct DcgmProfMetricGroupInfoV2 {
+    major_id: u16,
+    minor_id: u16,
+    num_field_ids: u32,
+    field_ids: [u16; DCGM_PROF_MAX_FIELD_IDS_PER_GROUP_V2],
 }
 
 // Define the version constant using the CORRECTED struct definition below
 // Note: The name dcgmProfGetMetricGroups_v3 matches the C struct name
-const dcgmProfGetMetricGroups_version3: u32 = make_dcgm_version!(dcgmProfGetMetricGroups_t, 3);
+const DCGM_PROF_GET_METRIC_GROUPS_VERSION3: u32 = make_dcgm_version!(DcgmProfGetMetricGroupsT, 3);
 
 #[repr(C)]
-struct dcgmProfGetMetricGroups_t {
+struct DcgmProfGetMetricGroupsT {
     // Matches the final typedef dcgmProfGetMetricGroups_t
     version: u32, // Should be dcgmProfGetMetricGroups_version3
     unused: u32,  // --- ADDED MISSING FIELD ---
-    gpuId: u32,
-    numMetricGroups: u32,
-    metricGroups: [dcgmProfMetricGroupInfo_v2; DCGM_PROF_MAX_NUM_GROUPS_V2],
+    gpu_id: u32,
+    num_metric_groups: u32,
+    metric_groups: [DcgmProfMetricGroupInfoV2; DCGM_PROF_MAX_NUM_GROUPS_V2],
 }
 
 // DCGM library wrapper
 struct DcgmLib {
     lib: Library,
-    handle: dcgmHandle_t,
+    handle: DcgmHandleT,
 }
 
 impl Drop for DcgmLib {
     fn drop(&mut self) {
         unsafe {
             if !self.handle.is_null() {
-                let disconnect: Symbol<unsafe extern "C" fn(dcgmHandle_t) -> dcgmReturn_t> =
+                let disconnect: Symbol<unsafe extern "C" fn(DcgmHandleT) -> DcgmReturnT> =
                     self.lib.get(b"dcgmDisconnect").unwrap();
                 disconnect(self.handle);
             }
@@ -213,7 +193,7 @@ impl DcgmLib {
             };
 
             // Initialize DCGM
-            let init: Symbol<unsafe extern "C" fn() -> dcgmReturn_t> = match lib.get(b"dcgmInit") {
+            let init: Symbol<unsafe extern "C" fn() -> DcgmReturnT> = match lib.get(b"dcgmInit") {
                 Ok(f) => f,
                 Err(e) => return Err(format!("Failed to get dcgmInit symbol: {}", e)),
             };
@@ -225,14 +205,14 @@ impl DcgmLib {
 
             // Connect to DCGM
             let connect: Symbol<
-                unsafe extern "C" fn(*const c_char, *mut dcgmHandle_t) -> dcgmReturn_t,
+                unsafe extern "C" fn(*const c_char, *mut DcgmHandleT) -> DcgmReturnT,
             > = match lib.get(b"dcgmConnect") {
                 Ok(f) => f,
                 Err(e) => return Err(format!("Failed to get dcgmConnect symbol: {}", e)),
             };
 
             let c_addr = CString::new(host_address).unwrap();
-            let mut handle: dcgmHandle_t = ptr::null_mut();
+            let mut handle: DcgmHandleT = ptr::null_mut();
 
             let result = connect(c_addr.as_ptr(), &mut handle);
             if result != DCGM_ST_OK {
@@ -244,9 +224,9 @@ impl DcgmLib {
     }
 
     // Helper function to get error string
-    fn error_string(&self, error_code: dcgmReturn_t) -> String {
+    fn error_string(&self, error_code: DcgmReturnT) -> String {
         unsafe {
-            let error_string: Symbol<unsafe extern "C" fn(dcgmReturn_t) -> *const c_char> =
+            let error_string: Symbol<unsafe extern "C" fn(DcgmReturnT) -> *const c_char> =
                 match self.lib.get(b"dcgmErrorString") {
                     Ok(f) => f,
                     Err(_) => return format!("Unknown error code: {}", error_code),
@@ -261,58 +241,14 @@ impl DcgmLib {
         }
     }
 
-    // Get specific GPU group information
-    fn get_device_info(&self) -> Result<(), String> {
-        unsafe {
-            println!("DEBUG: Getting GPU device information");
-
-            let get_all_devices: Symbol<
-                unsafe extern "C" fn(
-                    dcgmHandle_t,
-                    *mut c_uint,
-                    *mut c_uint,
-                    c_uint,
-                ) -> dcgmReturn_t,
-            > = match self.lib.get(b"dcgmGetAllDevices") {
-                Ok(f) => f,
-                Err(e) => return Err(format!("Failed to get dcgmGetAllDevices symbol: {}", e)),
-            };
-
-            let mut gpu_ids: Vec<c_uint> = vec![0; DCGM_MAX_NUM_DEVICES as usize];
-            let mut count: c_uint = 0;
-
-            let result = get_all_devices(
-                self.handle,
-                &mut count,
-                gpu_ids.as_mut_ptr(),
-                DCGM_MAX_NUM_DEVICES as c_uint,
-            );
-
-            if result != DCGM_ST_OK {
-                return Err(format!(
-                    "Failed to get all devices: {}: {}",
-                    result,
-                    self.error_string(result)
-                ));
-            }
-
-            println!("Found {} GPUs:", count);
-            for i in 0..count as usize {
-                println!("  GPU {}: ID {}", i, gpu_ids[i]);
-            }
-
-            Ok(())
-        }
-    }
-
     fn get_supported_metric_groups(
         &self,
         gpu_id: u32,
-        gmg: &mut dcgmProfGetMetricGroups_t,
+        gmg: &mut DcgmProfGetMetricGroupsT,
     ) -> Result<(), String> {
         unsafe {
             let func: Symbol<
-                unsafe extern "C" fn(dcgmHandle_t, &mut dcgmProfGetMetricGroups_t) -> dcgmReturn_t,
+                unsafe extern "C" fn(DcgmHandleT, &mut DcgmProfGetMetricGroupsT) -> DcgmReturnT,
             > = match self.lib.get(b"dcgmProfGetSupportedMetricGroups") {
                 Ok(f) => f,
                 Err(e) => {
@@ -323,9 +259,9 @@ impl DcgmLib {
                 }
             };
 
-            gmg.version = dcgmProfGetMetricGroups_version3; // Set version before calling
-            gmg.gpuId = gpu_id;
-            gmg.numMetricGroups = 0; // Initialize output field
+            gmg.version = DCGM_PROF_GET_METRIC_GROUPS_VERSION3; // Set version before calling
+            gmg.gpu_id = gpu_id;
+            gmg.num_metric_groups = 0; // Initialize output field
 
             let result = func(self.handle, gmg);
 
@@ -343,25 +279,25 @@ impl DcgmLib {
     pub fn get_supported_prof_metric_ids(&self) -> Result<HashSet<u16>, String> {
         log::info!("Querying DCGM for supported profiling metric field IDs...");
         let mut supported_ids: HashSet<u16> = HashSet::new();
-        let mut gmg: dcgmProfGetMetricGroups_t = unsafe { std::mem::zeroed() };
+        let mut gmg: DcgmProfGetMetricGroupsT = unsafe { std::mem::zeroed() };
 
         // Call the FFI wrapper
         self.get_supported_metric_groups(0, &mut gmg)?; // Use gpuId = 0
 
-        log::debug!("Found {} metric groups.", gmg.numMetricGroups);
+        log::debug!("Found {} metric groups.", gmg.num_metric_groups);
 
         // Iterate through groups and field IDs
-        for i in 0..gmg.numMetricGroups as usize {
+        for i in 0..gmg.num_metric_groups as usize {
             if i >= DCGM_PROF_MAX_NUM_GROUPS_V2 {
                 break;
             } // Bounds check
-            let mg_info = &gmg.metricGroups[i];
+            let mg_info = &gmg.metric_groups[i];
 
-            for j in 0..mg_info.numFieldIds as usize {
+            for j in 0..mg_info.num_field_ids as usize {
                 if j >= DCGM_MAX_FIELD_IDS_PER_FIELD_GROUP {
                     break;
                 } // Bounds check
-                let field_id = mg_info.fieldIds[j];
+                let field_id = mg_info.field_ids[j];
                 supported_ids.insert(field_id);
             }
         }
@@ -373,7 +309,7 @@ impl DcgmLib {
         Ok(supported_ids)
     }
 
-    fn create_field_group(&self, field_ids: &[u16]) -> Result<dcgmFieldGrp_t, String> {
+    fn create_field_group(&self, field_ids: &[u16]) -> Result<DcgmFieldGrpT, String> {
         unsafe {
             println!(
                 "DEBUG: Creating field group with field_ids: {:?}",
@@ -382,12 +318,12 @@ impl DcgmLib {
 
             let create_field_group: Symbol<
                 unsafe extern "C" fn(
-                    dcgmHandle_t,
+                    DcgmHandleT,
                     c_int,
                     *const u16,
                     *const c_char,
-                    *mut dcgmFieldGrp_t,
-                ) -> dcgmReturn_t,
+                    *mut DcgmFieldGrpT,
+                ) -> DcgmReturnT,
             > = match self.lib.get(b"dcgmFieldGroupCreate") {
                 Ok(f) => {
                     println!("DEBUG: Found dcgmFieldGroupCreate symbol");
@@ -397,7 +333,7 @@ impl DcgmLib {
             };
 
             let group_name = CString::new("rust_dcgm_field_group").unwrap();
-            let mut field_group_id: dcgmFieldGrp_t = 0;
+            let mut field_group_id: DcgmFieldGrpT = 0;
 
             println!(
                 "DEBUG: Calling dcgmFieldGroupCreate with {} fields",
@@ -429,8 +365,8 @@ impl DcgmLib {
 
     fn watch_fields(
         &self,
-        group_id: dcgmGpuGrp_t,
-        field_group_id: dcgmFieldGrp_t,
+        group_id: DcgmGpuGrpT,
+        field_group_id: DcgmFieldGrpT,
         update_freq_us: i64,
         max_keep_age: f64,
         max_keep_samples: i32,
@@ -442,13 +378,13 @@ impl DcgmLib {
 
             let watch_fields: Symbol<
                 unsafe extern "C" fn(
-                    dcgmHandle_t,
-                    dcgmGpuGrp_t,
-                    dcgmFieldGrp_t,
+                    DcgmHandleT,
+                    DcgmGpuGrpT,
+                    DcgmFieldGrpT,
                     i64,
                     f64,
                     i32,
-                ) -> dcgmReturn_t,
+                ) -> DcgmReturnT,
             > = match self.lib.get(b"dcgmWatchFields") {
                 Ok(f) => {
                     println!("DEBUG: Found dcgmWatchFields symbol");
@@ -487,7 +423,7 @@ impl DcgmLib {
                 wait_for_update
             );
 
-            let update_all_fields: Symbol<unsafe extern "C" fn(dcgmHandle_t, i32) -> dcgmReturn_t> =
+            let update_all_fields: Symbol<unsafe extern "C" fn(DcgmHandleT, i32) -> DcgmReturnT> =
                 match self.lib.get(b"dcgmUpdateAllFields") {
                     Ok(f) => {
                         println!("DEBUG: Found dcgmUpdateAllFields symbol");
@@ -516,8 +452,8 @@ impl DcgmLib {
 
     fn get_latest_values(
         &self,
-        group_id: dcgmGpuGrp_t,
-        field_group_id: dcgmFieldGrp_t,
+        group_id: DcgmGpuGrpT,
+        field_group_id: DcgmFieldGrpT,
         callback: DcgmFieldValueEnumeration,
         user_data: *mut c_void,
     ) -> Result<(), String> {
@@ -530,12 +466,12 @@ impl DcgmLib {
 
             let get_latest_values: Symbol<
                 unsafe extern "C" fn(
-                    dcgmHandle_t,
-                    dcgmGpuGrp_t,
-                    dcgmFieldGrp_t,
+                    DcgmHandleT,
+                    DcgmGpuGrpT,
+                    DcgmFieldGrpT,
                     DcgmFieldValueEnumeration,
                     *mut c_void,
-                ) -> dcgmReturn_t,
+                ) -> DcgmReturnT,
             > = match self.lib.get(b"dcgmGetLatestValues_v2") {
                 Ok(f) => {
                     println!("DEBUG: Found dcgmGetLatestValues_v2 symbol");
@@ -689,7 +625,7 @@ impl DcgmClient {
                 };
 
                 // Continuously watch the fields.
-                if let Err(e) = dcgm.watch_fields(group_id, field_group_id, 5_000_000, 0.0, 2) {
+                if let Err(e) = dcgm.watch_fields(group_id, field_group_id, 2_000_000, 0.0, 2) {
                     /* ... error handling ... */
                     log::error!("Failed to set DCGM watches: {}. Worker thread exiting.", e);
                     return;
@@ -750,9 +686,9 @@ impl Drop for DcgmClient {
 // Callback function that will be called for each value received from DCGM.
 // It needs access to a place to store results *within the worker's context*
 extern "C" fn field_value_callback(
-    entity_group_id: dcgm_field_entity_group_t,
-    entity_id: dcgm_field_eid_t,
-    values: *mut dcgmFieldValue_v1,
+    entity_group_id: DcgmFieldEntityGroupT,
+    entity_id: DcgmFieldEidT,
+    values: *mut DcgmFieldValueV1,
     values_count: c_int,
     user_data: *mut c_void, // This will point to a `&mut Vec<(String, MetricValue)>`
 ) -> c_int {
