@@ -10,7 +10,7 @@ use tokio::sync::oneshot;
 
 use crate::metrics::MetricValue;
 
-// Define DCGM constants, types and structures needed
+/// DCGM constants, types and structures.
 const DCGM_ST_OK: i32 = 0;
 const DCGM_ST_NO_DATA: i32 = -35;
 const DCGM_ST_NOT_SUPPORTED: i32 = -14;
@@ -21,80 +21,79 @@ const DCGM_MAX_FIELD_IDS_PER_FIELD_GROUP: usize = 128;
 const DCGM_PROF_MAX_NUM_GROUPS_V2: usize = 10;
 const DCGM_PROF_MAX_FIELD_IDS_PER_GROUP_V2: usize = 64;
 
-// Constants for entity group types
+/// Constants for entity group types.
 const DCGM_FE_GPU: u32 = 0;
 const DCGM_FE_VGPU: u32 = 1;
 
-// Field type constants
+/// Field type constants.
 const DCGM_FT_DOUBLE: u32 = 0;
 const DCGM_FT_INT64: u32 = 1;
 const DCGM_FT_STRING: u32 = 2;
 const DCGM_FT_TIMESTAMP: u32 = 3;
-// const DCGM_FT_BINARY: u32 = 4;
 const DCGM_FT_DOUBLE_BLANK: u32 = 100;
 
-// Profiling metrics field IDs
+// Profiling metric field IDs.
 
-// Percentage of time at least one warp was active on an SM.
-//
-// A much better indicator of GPU compute saturation than raw utilization.
+/// Percentage of time at least one warp was active on an SM.
+///
+/// A much better indicator of GPU compute saturation than raw utilization.
 const DCGM_FI_PROF_SM_ACTIVE: u16 = 1002;
 
-// Ratio of resident warps on SMs to max possible.
-//
-// It reflects how many threads are loaded on the SM relative to capacity.
-// Very useful in conjunction with DRAM Active in determining memory bottlenecks.
+/// Ratio of resident warps on SMs to max possible.
+///
+/// It reflects how many threads are loaded on the SM relative to capacity.
+/// Very useful in conjunction with DRAM Active in determining memory bottlenecks.
 const DCGM_FI_PROF_SM_OCCUPANCY: u16 = 1003;
 
-// Ratio of cycles tensor cores are active (FP16/BF16 matrix ops).
-//
-// Essential for monitoring tensor core utilization in mixed-precision workloads.
+/// Ratio of cycles tensor cores are active (FP16/BF16 matrix ops).
+///
+/// Essential for monitoring tensor core utilization in mixed-precision workloads.
 const DCGM_FI_PROF_PIPE_TENSOR_ACTIVE: u16 = 1004;
 
-// Ratio of cycles the device memory interface is active sending or receiving data.
-//
-// Values are useful in context with others in determining causes of bottlenecks or idling.
+/// Ratio of cycles the device memory interface is active sending or receiving data.
+///
+/// Values are useful in context with others in determining causes of bottlenecks or idling.
 const DCGM_FI_PROF_DRAM_ACTIVE: u16 = 1005;
 
-// Ratio of cycles the fp64 (double-precision) arithmetic pipeline is active.
+/// Ratio of cycles the fp64 (double-precision) arithmetic pipeline is active.
 const DCGM_FI_PROF_PIPE_FP64_ACTIVE: u16 = 1006;
 
-// Ratio of cycles the FP32 arithmetic pipeline is active.
-//
-// Indicates how much standard precision floating-point math is being used.
+/// Ratio of cycles the FP32 arithmetic pipeline is active.
+///
+/// Indicates how much standard precision floating-point math is being used.
 const DCGM_FI_PROF_PIPE_FP32_ACTIVE: u16 = 1007;
 
-// Ratio of cycles the fp16 arithmetic pipeline is active (excluding tensor cores).
-//
-// Helps determine if mixed precision (without tensor cores) is being utilized.
+/// Ratio of cycles the fp16 arithmetic pipeline is active (excluding tensor cores).
+///
+/// Helps determine if mixed precision (without tensor cores) is being utilized.
 const DCGM_FI_PROF_PIPE_FP16_ACTIVE: u16 = 1008;
 
-// More granular metrics separating integer matrix ops vs. half-precision matrix ops.
-//
-// It measures the utilization of half-precision tensor core math units.
+/// More granular metrics separating integer matrix ops vs. half-precision matrix ops.
+///
+/// It measures the utilization of half-precision tensor core math units.
 const DCGM_FI_PROF_PIPE_TENSOR_HMMA_ACTIVE: u16 = 1014;
 
-// The number of bytes of active PCIe tx (transmit) data including both header and payload.
-//
-// Note that this is from the perspective of the GPU, so copying data from device to host (DtoH)
-// would be reflected in this metric.
-// Helps identify bottlenecks in CPU-GPU data movement for non NVLink configurations.
+/// The number of bytes of active PCIe tx (transmit) data including both header and payload.
+///
+/// Note that this is from the perspective of the GPU, so copying data from device to host (DtoH)
+/// would be reflected in this metric.
+/// Helps identify bottlenecks in CPU-GPU data movement for non NVLink configurations.
 const DCGM_FI_PROF_PCIE_TX_BYTES: u16 = 1009;
 
-// The number of bytes of active PCIe rx (read) data including both header and payload.
-//
-// Note that this is from the perspective of the GPU, so copying data from host to device (HtoD)
-// would be reflected in this metric.
-// Helps identify bottlenecks in CPU-GPU data movement for non NVLink configurations.
+/// The number of bytes of active PCIe rx (read) data including both header and payload.
+///
+/// Note that this is from the perspective of the GPU, so copying data from host to device (HtoD)
+/// would be reflected in this metric.
+/// Helps identify bottlenecks in CPU-GPU data movement for non NVLink configurations.
 const DCGM_FI_PROF_PCIE_RX_BYTES: u16 = 1010;
 
-// The total number of bytes of active NvLink tx (transmit) data including both header and payload.
+/// The total number of bytes of active NvLink tx (transmit) data including both header and payload.
 const DCGM_FI_PROF_NVLINK_TX_BYTES: u16 = 1011;
 
-// The total number of bytes of active NvLink rx (read) data including both header and payload.
+/// The total number of bytes of active NvLink rx (read) data including both header and payload.
 const DCGM_FI_PROF_NVLINK_RX_BYTES: u16 = 1012;
 
-// Constants for special DCGM groups
+/// Constants for special DCGM groups.
 const DCGM_GROUP_ALL_GPUS: u32 = 0x7fffffff;
 
 type DcgmReturnT = i32;
@@ -104,7 +103,11 @@ type DcgmFieldGrpT = u32;
 type DcgmFieldEntityGroupT = u32;
 type DcgmFieldEidT = u32;
 
-/// FFI types for DCGM
+/// FFI types to match DCGM C API.
+///
+/// These are used to call the DCGM library functions.
+/// Refer to https://github.com/nvidia/dcgm for the C API documentation.
+
 #[repr(C)]
 #[derive(Clone)]
 struct DcgmFieldValueV1 {
@@ -124,7 +127,7 @@ union dcgmFieldValue_v1_value {
     str: [c_char; DCGM_MAX_STR_LENGTH],
 }
 
-// Callback function type for dcgmGetLatestValues_v2
+/// Callback function type for dcgmGetLatestValues_v2
 type DcgmFieldValueEnumeration = extern "C" fn(
     entity_group_id: DcgmFieldEntityGroupT,
     entity_id: DcgmFieldEidT,
@@ -160,12 +163,15 @@ struct DcgmProfGetMetricGroupsT {
     metric_groups: [DcgmProfMetricGroupInfoV2; DCGM_PROF_MAX_NUM_GROUPS_V2],
 }
 
-// DCGM library wrapper
+/// DCGM library wrapper.
 struct DcgmLib {
     lib: Library,
     handle: DcgmHandleT,
 }
 
+/// Disconnect DCGM on drop.
+///
+/// This is important to avoid memory leaks and ensure proper cleanup.
 impl Drop for DcgmLib {
     fn drop(&mut self) {
         unsafe {
@@ -217,7 +223,7 @@ impl DcgmLib {
         }
     }
 
-    // Helper function to get error string
+    /// Get a human-readable error string from DCGM error code.
     fn error_string(&self, error_code: DcgmReturnT) -> String {
         unsafe {
             let error_string: Symbol<unsafe extern "C" fn(DcgmReturnT) -> *const c_char> =
@@ -235,6 +241,7 @@ impl DcgmLib {
         }
     }
 
+    /// Get supported metric groups from DCGM for the given GPU ID.
     fn get_supported_metric_groups(
         &self,
         gpu_id: u32,
@@ -253,7 +260,7 @@ impl DcgmLib {
                 }
             };
 
-            gmg.version = DCGM_PROF_GET_METRIC_GROUPS_VERSION3; // Set version before calling
+            gmg.version = DCGM_PROF_GET_METRIC_GROUPS_VERSION3;
             gmg.gpu_id = gpu_id;
             gmg.num_metric_groups = 0; // Initialize output field
 
@@ -270,6 +277,7 @@ impl DcgmLib {
         }
     }
 
+    /// Get the supported profiling metric field IDs.
     pub fn get_supported_prof_metric_ids(&self) -> Result<HashSet<u16>, String> {
         log::info!("Querying DCGM for supported profiling metric field IDs...");
         let mut supported_ids: HashSet<u16> = HashSet::new();
@@ -303,6 +311,10 @@ impl DcgmLib {
         Ok(supported_ids)
     }
 
+    /// Create a field group with the specified field IDs.
+    ///
+    /// This function creates a field group in DCGM using the provided field IDs.
+    /// This is necessary to monitor specific metrics.
     fn create_field_group(&self, field_ids: &[u16]) -> Result<DcgmFieldGrpT, String> {
         unsafe {
             println!(
@@ -357,6 +369,11 @@ impl DcgmLib {
         }
     }
 
+    /// Watch fields in the specified field group.
+    ///
+    /// This function sets up watches for the specified field group in DCGM.
+    /// It allows monitoring of the specified fields with the given update
+    /// frequency and retention settings.
     fn watch_fields(
         &self,
         group_id: DcgmGpuGrpT,
@@ -410,6 +427,7 @@ impl DcgmLib {
         }
     }
 
+    /// Update all watched fields.
     fn update_all_fields(&self, wait_for_update: i32) -> Result<(), String> {
         unsafe {
             println!(
@@ -444,6 +462,7 @@ impl DcgmLib {
         }
     }
 
+    /// Get the latest values for the metrics in the specified field group.
     fn get_latest_values(
         &self,
         group_id: DcgmGpuGrpT,
@@ -515,7 +534,6 @@ impl DcgmLib {
     }
 }
 
-// --- Define messages for communication ---
 type DcgmMetricsResult = Result<Vec<(String, MetricValue)>, String>;
 
 enum DcgmCommand {
@@ -525,7 +543,13 @@ enum DcgmCommand {
     Shutdown,
 }
 
-// --- The client struct (thread-safe) ---
+/// DCGM client for monitoring GPU metrics.
+///
+/// This client interacts with the DCGM library to retrieve GPU metrics.
+/// It is used by the main grpc system monitor server to provide GPU statistics to clients.
+/// Runs a worker loop in a separate thread to handle DCGM interactions.
+/// The worker thread is responsible for initializing DCGM, creating field groups,
+/// and watching fields for updates.
 #[derive(Clone)]
 pub struct DcgmClient {
     sender: mpsc::Sender<DcgmCommand>,
@@ -533,10 +557,13 @@ pub struct DcgmClient {
 
 impl DcgmClient {
     pub fn new() -> Result<Self, String> {
+        // This code only supports v4 of the DCGM library.
         let lib_path = "libdcgm.so.4".to_string();
+        // The default DCGM host address.
         let host_address = "localhost:5555".to_string();
 
-        // Define the list of metrics we *want* to monitor
+        // Define the list of metrics we *want* to monitor.
+        // Not all of these may be supported by the hardware/driver.
         let desired_field_ids = vec![
             DCGM_FI_PROF_SM_ACTIVE,
             DCGM_FI_PROF_SM_OCCUPANCY,
@@ -552,15 +579,16 @@ impl DcgmClient {
             DCGM_FI_PROF_NVLINK_RX_BYTES,
         ];
 
+        // A channel for communication between the main thread and the worker thread.
         let (sender, receiver) = mpsc::channel();
 
         let thread_desired_field_ids = desired_field_ids.clone();
 
-        // --- Spawn Dedicated OS Thread ---
+        // Spawn a dedicated OS thread to handle DCGM interactions.
         thread::Builder::new()
             .name("dcgm-worker-sync".to_string())
             .spawn(move || {
-                // --- STEP 1: Initialize DCGM *Inside* the Thread (same as before) ---
+                // Initialize DCGM.
                 log::info!("Initializing DCGM library in dedicated sync worker thread...");
                 let dcgm = match DcgmLib::new(&lib_path, &host_address) {
                     /* ... error handling ... */
@@ -574,8 +602,8 @@ impl DcgmClient {
                     }
                 };
 
-                // Get supported metric IDs
-                // --- Get Supported IDs and Filter ---
+                // Get supported metric IDs and filter the desired ones.
+                log::info!("Querying DCGM for supported profiling metric field IDs...");
                 let actual_field_ids = match dcgm.get_supported_prof_metric_ids() {
                     Ok(supported_set) => {
                         // Filter desired IDs against the supported set
@@ -596,15 +624,15 @@ impl DcgmClient {
                         thread_desired_field_ids
                     }
                 };
-                // --- End Filtering ---
 
-
-                // Proceed only if we have fields to monitor
+                // Proceed only if we have fields to monitor.
                 if actual_field_ids.is_empty() {
                     log::warn!("No DCGM profiling fields to monitor after filtering. DCGM worker thread exiting.");
                     return; // Exit the thread if no fields can be monitored
                 }
 
+                // Create a field group with the filtered field IDs.
+                log::info!("Creating DCGM field group with IDs: {:?}", actual_field_ids);
                 let group_id = DCGM_GROUP_ALL_GPUS;
                 let field_group_id = match dcgm.create_field_group(&actual_field_ids) {
                     /* ... error handling ... */
@@ -618,24 +646,22 @@ impl DcgmClient {
                     }
                 };
 
-                // Continuously watch the fields.
+                // Set up watches for the field group.
+                log::info!("Setting up DCGM watches for field group ID: {}", field_group_id);
                 if let Err(e) = dcgm.watch_fields(group_id, field_group_id, 2_000_000, 0.0, 2) {
                     /* ... error handling ... */
                     log::error!("Failed to set DCGM watches: {}. Worker thread exiting.", e);
                     return;
                 }
-                log::debug!("DCGM setup complete in sync worker thread.");
 
-                // --- STEP 2: Create the Worker Struct ---
                 // Takes ownership of the thread-local dcgm instance and sync receiver
+                log::debug!("DCGM setup complete in sync worker thread.");
                 let mut worker = DcgmWorker::new(
                     dcgm,
                     group_id,
                     field_group_id,
                     receiver, // Move the sync receiver
                 );
-
-                // --- STEP 3: Run the SYNC worker loop directly ---
                 worker.run();
 
                 log::info!("DCGM sync worker thread shutting down.");
@@ -645,10 +671,11 @@ impl DcgmClient {
 
         log::info!("DCGM sync worker OS thread spawned successfully.");
 
-        // Return the client (sender end of the sync channel)
+        // Return the client (sender end of the sync channel).
         Ok(Self { sender })
     }
 
+    /// Get metrics from the DCGM worker thread.
     pub async fn get_metrics(&self) -> DcgmMetricsResult {
         let (tx, rx) = oneshot::channel();
         let command = DcgmCommand::GetMetrics { responder: tx };
@@ -656,7 +683,7 @@ impl DcgmClient {
         // Use blocking send (sender.send(...)) - should be okay if worker is responsive
         // Use try_send or send_timeout if blocking is a concern, but usually fine here.
         if self.sender.send(command).is_err() {
-            // Error means the receiving end (worker thread) has hung up (likely panicked or shut down)
+            // Error means the receiving end (worker thread) has hung up (likely panicked or shut down).
             return Err("DCGM worker task has shutdown".to_string());
         }
 
@@ -676,8 +703,9 @@ impl Drop for DcgmClient {
     }
 }
 
-// Callback function that will be called for each value received from DCGM.
-// It needs access to a place to store results *within the worker's context*
+/// Callback function that will be called for each value received from DCGM.
+///
+/// It needs access to a place to store results *within the worker's context*
 extern "C" fn field_value_callback(
     entity_group_id: DcgmFieldEntityGroupT,
     entity_id: DcgmFieldEidT,
@@ -685,20 +713,20 @@ extern "C" fn field_value_callback(
     values_count: c_int,
     user_data: *mut c_void, // This will point to a `&mut Vec<(String, MetricValue)>`
 ) -> c_int {
-    // Basic safety checks
+    // Basic safety checks.
     if user_data.is_null() || values.is_null() || values_count <= 0 {
         // Maybe log an error here if possible, but avoid panicking in C callback
         return if user_data.is_null() { 1 } else { 0 }; // Indicate error if user_data is null
     }
 
-    // Cast user_data back to the mutable vector reference
+    // Cast user_data back to the mutable vector reference.
     // This is unsafe, relying on the caller (`collect_metrics`) providing the correct pointer
     let metrics_vec: &mut Vec<(String, MetricValue)> =
         unsafe { &mut *(user_data as *mut Vec<(String, MetricValue)>) };
 
     let entity_type = match entity_group_id {
         DCGM_FE_GPU => "gpu",
-        DCGM_FE_VGPU => "gpu", // TODO: Handle VGPU differently if needed.
+        DCGM_FE_VGPU => "gpu", // TODO: Handle the distinction if needed.
         _ => "unknown",
     };
 
@@ -707,7 +735,7 @@ extern "C" fn field_value_callback(
 
         for value in values_slice {
             if value.status != DCGM_ST_OK {
-                // Skip unavailable/error values, or handle differently
+                // Skip unavailable/error values.
                 continue;
             }
 
@@ -717,23 +745,23 @@ extern "C" fn field_value_callback(
             let metric_value_opt: Option<MetricValue> = match field_type as u32 {
                 DCGM_FT_DOUBLE | DCGM_FT_DOUBLE_BLANK => {
                     let dbl = value.value.dbl;
-                    // DCGM often uses large negative numbers or specific patterns for N/A
-                    // Adjust this condition based on observed DCGM behavior for blank values
+                    // DCGM often uses large negative numbers or specific patterns for N/A.
+                    // Adjust this condition based on observed DCGM behavior for blank values.
                     if value.status == DCGM_ST_OK && !dbl.is_nan() && dbl.abs() < 1e19 {
-                        // Check status and avoid huge numbers
+                        // Check status and avoid huge numbers.
                         Some(MetricValue::Float(dbl))
                     } else {
-                        None // Treat as unavailable
+                        None // Treat as unavailable.
                     }
                 }
                 DCGM_FT_INT64 | DCGM_FT_TIMESTAMP => {
                     let i64_val = value.value.i64;
-                    // DCGM often uses large negative numbers or specific patterns for N/A
+                    // DCGM often uses large negative numbers or specific patterns for N/A.
                     if value.status == DCGM_ST_OK && i64_val > -1_000_000_000_000 {
-                        // Check status and avoid specific large negative numbers
+                        // Check status and avoid specific large negative numbers.
                         Some(MetricValue::Int(i64_val))
                     } else {
-                        None // Treat as unavailable
+                        None // Treat as unavailable.
                     }
                 }
                 DCGM_FT_STRING => {
@@ -744,8 +772,7 @@ extern "C" fn field_value_callback(
                         None
                     }
                 }
-                // DCGM_FT_BINARY => None, // TODO: Decide how to handle binary if needed
-                _ => None, // Unknown type
+                _ => None, // Unknown type.
             };
 
             if let Some(metric_value) = metric_value_opt {
@@ -764,16 +791,18 @@ extern "C" fn field_value_callback(
                     DCGM_FI_PROF_NVLINK_RX_BYTES => "nvlinkRxBytes",
                     _ => &format!("dcgm_field_{}", field_id),
                 };
-                // Create unique key per GPU: e.g., "gpu.0.smActive"
+                // Create a unique key per GPU per metric: e.g., "gpu.0.smActive".
                 let metric_key = format!("{}.{}.{}", entity_type, entity_id, base_name);
                 metrics_vec.push((metric_key, metric_value));
             }
         }
     }
-    0 // Indicate success
+    0 // Indicate success.
 }
 
-// --- The worker task logic ---
+/// DCGM worker thread for handling DCGM interactions.
+///
+/// Listens for commands from the main thread and performs the requested actions.
 struct DcgmWorker {
     dcgm: DcgmLib,
     group_id: u32,
@@ -799,9 +828,9 @@ impl DcgmWorker {
     fn run(&mut self) {
         log::info!("DCGM worker SYNC run loop started.");
 
-        // Loop over the blocking receiver
+        // Loop over the blocking receiver.
         for command in &self.receiver {
-            // Iterating blocks until a message or channel closes
+            // Iterating blocks until a message or channel closes.
             match command {
                 DcgmCommand::GetMetrics { responder } => {
                     // collect_metrics is already synchronous
