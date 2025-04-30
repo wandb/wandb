@@ -2,6 +2,8 @@ package exec
 
 import (
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/ctrlplanedev/cli/internal/api"
@@ -33,12 +35,30 @@ func NewRunExecCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("failed to create job agent: %w", err)
 			}
-			if err := ja.RunQueuedJobs(); err != nil {
-				log.Error("failed to run queued jobs", "error", err)
-			}
-			if err := ja.UpdateRunningJobs(); err != nil {
-				log.Error("failed to check for jobs", "error", err)
-			}
+			var wg sync.WaitGroup
+			wg.Add(2)
+
+			go func() {
+				defer wg.Done()
+				for {
+					if err := ja.RunQueuedJobs(); err != nil {
+						log.Error("failed to run queued jobs", "error", err)
+					}
+					time.Sleep(1 * time.Second)
+				}
+			}()
+
+			go func() {
+				defer wg.Done()
+				for {
+					if err := ja.UpdateRunningJobs(); err != nil {
+						log.Error("failed to check for jobs", "error", err)
+					}
+					time.Sleep(1 * time.Second)
+				}
+			}()
+
+			wg.Wait()
 			return nil
 		},
 	}

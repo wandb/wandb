@@ -2,7 +2,6 @@ package run
 
 import (
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/run/exec"
-	"github.com/ctrlplanedev/cli/internal/cliutil"
 	"github.com/spf13/cobra"
 )
 
@@ -15,7 +14,7 @@ func NewRunCmd() *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(cliutil.AddIntervalSupport(exec.NewRunExecCmd(), ""))
+	cmd.AddCommand(exec.NewRunExecCmd())
 
 	return cmd
 }

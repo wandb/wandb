@@ -10,7 +10,7 @@ import (
 )
 
 type Runner interface {
-	Start(job api.JobWithTrigger) (string, error)
+	Start(client *api.ClientWithResponses, job api.JobWithTrigger) (string, error)
 	Status(job api.Job) (api.JobStatus, string)
 }
 
@@ -90,7 +90,7 @@ func (a *JobAgent) RunQueuedJobs() error {
 			}
 
 			data := resolvedJob.JSON200
-			externalId, err := a.runner.Start(*data)
+			externalId, err := a.runner.Start(a.client, *data)
 			if err != nil {
 				status := api.JobStatusFailure
 				message := fmt.Sprintf("Failed to start job: %s", err.Error())

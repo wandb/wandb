@@ -2,15 +2,18 @@ package exec
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
+
 	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
 	"syscall"
 
+	"github.com/charmbracelet/log"
 	"github.com/ctrlplanedev/cli/internal/api"
 	"github.com/ctrlplanedev/cli/pkg/jobagent"
 )
@@ -49,7 +52,7 @@ func (r *ExecRunner) Status(job api.Job) (api.JobStatus, string) {
 	return api.JobStatusInProgress, fmt.Sprintf("process running with pid %d", externalId)
 }
 
-func (r *ExecRunner) Start(job api.JobWithTrigger) (string, error) {
+func (r *ExecRunner) Start(client *api.ClientWithResponses, job api.JobWithTrigger) (string, error) {
 	// Create temp script file
 	ext := ".sh"
 	if runtime.GOOS == "windows" {
@@ -60,7 +63,6 @@ func (r *ExecRunner) Start(job api.JobWithTrigger) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp script file: %w", err)
 	}
-	defer os.Remove(tmpFile.Name())
 
 	config := ExecConfig{}
 	jsonBytes, err := json.Marshal(job.JobAgentConfig)
@@ -71,33 +73,31 @@ func (r *ExecRunner) Start(job api.JobWithTrigger) (string, error) {
 		return "", fmt.Errorf("failed to unmarshal job agent config: %w", err)
 	}
 
-	templatedScript, err := template.New("script").Parse(config.Script)
+	tmpl, err := template.New("script").Parse(config.Script)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse script template: %w", err)
 	}
 
-	buf := new(bytes.Buffer)
-	if err := templatedScript.Execute(buf, job); err != nil {
+	var script bytes.Buffer
+	if err := tmpl.Execute(&script, job); err != nil {
 		return "", fmt.Errorf("failed to execute script template: %w", err)
 	}
-	script := buf.String()
 
-	// Write script contents
-	if _, err := tmpFile.WriteString(script); err != nil {
+	if _, err := tmpFile.Write(script.Bytes()); err != nil {
 		return "", fmt.Errorf("failed to write script file: %w", err)
 	}
+
 	if err := tmpFile.Close(); err != nil {
 		return "", fmt.Errorf("failed to close script file: %w", err)
 	}
 
-	// Make executable on Unix systems
 	if runtime.GOOS != "windows" {
 		if err := os.Chmod(tmpFile.Name(), 0700); err != nil {
 			return "", fmt.Errorf("failed to make script executable: %w", err)
 		}
 	}
 
-	cmd := exec.Command("bash", "-c", tmpFile.Name())
+	cmd := exec.Command("bash", tmpFile.Name())
 	if runtime.GOOS == "windows" {
 		cmd = exec.Command("powershell", "-File", tmpFile.Name())
 	}
@@ -108,14 +108,41 @@ func (r *ExecRunner) Start(job api.JobWithTrigger) (string, error) {
 
 	// Start the command without waiting for it to complete
 	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("failed to start script: %w", err)
+		log.Error("Failed to start script", "error", err)
+		if cmd.Process == nil {
+			return "", fmt.Errorf("failed to start script: %w", err)
+		}
+		return strconv.Itoa(cmd.Process.Pid), fmt.Errorf("failed to start script: %w", err)
 	}
 
-	// Detach from the process group to prevent child processes from being
-	// killed
-	if runtime.GOOS != "windows" {
-		cmd.Process.Release()
-	}
+	// Start a goroutine to monitor the process
+	go func() {
+		defer os.Remove(tmpFile.Name())
+
+		// Wait for the process to complete
+		err := cmd.Wait()
+
+		status := api.JobStatusSuccessful
+		message := "Process completed successfully"
+		if err != nil {
+			status = api.JobStatusFailure
+			message = fmt.Sprintf("Process failed: %v", err)
+		}
+
+		_, err = client.UpdateJobWithResponse(
+			context.Background(),
+			job.Id.String(),
+			api.UpdateJobJSONRequestBody{
+				Status:  &status,
+				Message: &message,
+			},
+		)
+		if err != nil {
+			log.Info("Failed to update job status", "error", err)
+		}
+
+		log.Info("Job completed", "jobId", job.Id, "status", status, "message", message)
+	}()
 
 	return strconv.Itoa(cmd.Process.Pid), nil
 }
