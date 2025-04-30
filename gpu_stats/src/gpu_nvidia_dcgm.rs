@@ -1,7 +1,7 @@
 use libloading::{Library, Symbol};
 use std::{
     collections::HashSet,
-    ffi::{c_char, c_int, c_uint, c_void, CStr, CString},
+    ffi::{c_char, c_int, c_void, CStr, CString},
     ptr,
     sync::mpsc,
     thread,
@@ -15,8 +15,6 @@ const DCGM_ST_OK: i32 = 0;
 const DCGM_ST_NO_DATA: i32 = -35;
 const DCGM_ST_NOT_SUPPORTED: i32 = -14;
 const DCGM_ST_NOT_CONFIGURED: i32 = -8;
-const DCGM_GROUP_EMPTY: u32 = 0;
-const DCGM_MAX_NUM_DEVICES: usize = 32;
 const DCGM_MAX_STR_LENGTH: usize = 256;
 const DCGM_MAX_FIELD_IDS_PER_FIELD_GROUP: usize = 128;
 
@@ -26,14 +24,13 @@ const DCGM_PROF_MAX_FIELD_IDS_PER_GROUP_V2: usize = 64;
 // Constants for entity group types
 const DCGM_FE_GPU: u32 = 0;
 const DCGM_FE_VGPU: u32 = 1;
-const DCGM_GROUP_DEFAULT: u32 = 0; // All GPUs on the node
 
 // Field type constants
 const DCGM_FT_DOUBLE: u32 = 0;
 const DCGM_FT_INT64: u32 = 1;
 const DCGM_FT_STRING: u32 = 2;
 const DCGM_FT_TIMESTAMP: u32 = 3;
-const DCGM_FT_BINARY: u32 = 4;
+// const DCGM_FT_BINARY: u32 = 4;
 const DCGM_FT_DOUBLE_BLANK: u32 = 100;
 
 // Profiling metrics field IDs
@@ -144,7 +141,7 @@ macro_rules! make_dcgm_version {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)] // Added Debug/Default for convenience
+#[derive(Clone, Copy)]
 struct DcgmProfMetricGroupInfoV2 {
     major_id: u16,
     minor_id: u16,
@@ -152,15 +149,12 @@ struct DcgmProfMetricGroupInfoV2 {
     field_ids: [u16; DCGM_PROF_MAX_FIELD_IDS_PER_GROUP_V2],
 }
 
-// Define the version constant using the CORRECTED struct definition below
-// Note: The name dcgmProfGetMetricGroups_v3 matches the C struct name
 const DCGM_PROF_GET_METRIC_GROUPS_VERSION3: u32 = make_dcgm_version!(DcgmProfGetMetricGroupsT, 3);
 
 #[repr(C)]
 struct DcgmProfGetMetricGroupsT {
-    // Matches the final typedef dcgmProfGetMetricGroups_t
-    version: u32, // Should be dcgmProfGetMetricGroups_version3
-    unused: u32,  // --- ADDED MISSING FIELD ---
+    version: u32, // DCGM_PROF_GET_METRIC_GROUPS_VERSION3
+    unused: u32,  // unused empty field
     gpu_id: u32,
     num_metric_groups: u32,
     metric_groups: [DcgmProfMetricGroupInfoV2; DCGM_PROF_MAX_NUM_GROUPS_V2],
@@ -636,7 +630,6 @@ impl DcgmClient {
                 // Takes ownership of the thread-local dcgm instance and sync receiver
                 let mut worker = DcgmWorker::new(
                     dcgm,
-                    actual_field_ids,
                     group_id,
                     field_group_id,
                     receiver, // Move the sync receiver
@@ -783,7 +776,6 @@ extern "C" fn field_value_callback(
 // --- The worker task logic ---
 struct DcgmWorker {
     dcgm: DcgmLib,
-    field_ids: Vec<u16>,
     group_id: u32,
     field_group_id: u32,
     receiver: mpsc::Receiver<DcgmCommand>,
@@ -792,14 +784,12 @@ struct DcgmWorker {
 impl DcgmWorker {
     fn new(
         dcgm: DcgmLib,
-        field_ids: Vec<u16>,
         group_id: u32,
         field_group_id: u32,
         receiver: mpsc::Receiver<DcgmCommand>,
     ) -> Self {
         DcgmWorker {
             dcgm,
-            field_ids,
             group_id,
             field_group_id,
             receiver,
