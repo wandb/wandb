@@ -166,15 +166,15 @@ macro_rules! make_dcgm_version {
 #[repr(C)]
 #[derive(Clone, Copy)] // Added Debug/Default for convenience
 struct dcgmProfMetricGroupInfo_v2 {
-    majorId: u16,                                          // Corrected from u32
-    minorId: u16,                                          // Corrected from u32
-    numFieldIds: u32,                                      // This was correct (unsigned int -> u32)
-    fieldIds: [u16; DCGM_PROF_MAX_FIELD_IDS_PER_GROUP_V2], // Corrected size from 128 to 64
+    majorId: u16,
+    minorId: u16,
+    numFieldIds: u32,
+    fieldIds: [u16; DCGM_PROF_MAX_FIELD_IDS_PER_GROUP_V2],
 }
 
 // Define the version constant using the CORRECTED struct definition below
 // Note: The name dcgmProfGetMetricGroups_v3 matches the C struct name
-const dcgmProfGetMetricGroups_version3: u32 = make_dcgm_version!(dcgmProfGetMetricGroups_t, 3); // Use the final typedef'd name
+const dcgmProfGetMetricGroups_version3: u32 = make_dcgm_version!(dcgmProfGetMetricGroups_t, 3);
 
 #[repr(C)]
 struct dcgmProfGetMetricGroups_t {
@@ -687,7 +687,7 @@ impl DcgmClient {
                         return;
                     }
                 };
-                if let Err(e) = dcgm.watch_fields(group_id, field_group_id, 500_000, 0.0, 2) {
+                if let Err(e) = dcgm.watch_fields(group_id, field_group_id, 1_000_000, 0.0, 2) {
                     /* ... error handling ... */
                     log::error!("Failed to set DCGM watches: {}. Worker thread exiting.", e);
                     return;
