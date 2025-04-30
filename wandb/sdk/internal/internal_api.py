@@ -875,7 +875,7 @@ class Api:
         return "updateRunQueueItemWarning" in mutations
 
     def _server_features(self) -> Mapping[str, bool]:
-        """Return a cached, read-only lookup of current server feature flags."""
+        """Returns a cached, read-only lookup of current server feature flags."""
         if self._server_features_cache is None:
             query = gql(SERVER_FEATURES_QUERY_GQL)
 
@@ -886,7 +886,7 @@ class Api:
                 if 'Cannot query field "features" on type "ServerInfo".' in str(e):
                     self._server_features_cache = {}
                 else:
-                    raise e
+                    raise
             else:
                 info = ServerFeaturesQuery.model_validate(response).server_info
                 if info and (feats := info.features):

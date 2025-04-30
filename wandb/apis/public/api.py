@@ -1502,7 +1502,9 @@ class Api:
 
             Find all collections in the registries with the name "my_collection" and the tag "my_tag"
             ```python
-            api.registries().collections(filter={"name": "my_collection", "tag": "my_tag"})
+            api.registries().collections(
+                filter={"name": "my_collection", "tag": "my_tag"}
+            )
             ```
 
             Find all artifact versions in the registries with a collection name that contains "my_collection" and a version that has the alias "best"
@@ -1678,7 +1680,7 @@ class Api:
         )
 
     def _omitted_automation_fragments(self) -> Set[str]:
-        """Returns the *names* of automation-related fragments that the server does not support.
+        """Returns the names of unsupported automation-related fragments.
 
         Older servers won't recognize newer GraphQL types, so a valid request may
         unnecessarily error out because it won't recognize fragments defined on those types.
@@ -1731,11 +1733,11 @@ class Api:
         *,
         entity: Optional[str] = None,
     ) -> "Automation":
-        """Return the Automation that matches the given parameters, if exactly one match is found.
+        """Returns the Automation that matches the given parameters, if exactly one match is found.
 
         Args:
-            name (str): The name of the automation to fetch.
-            entity (str, optional): The entity to fetch the automation for.
+            name: The name of the automation to fetch.
+            entity: The entity to fetch the automation for.
 
         Raises:
             ValueError: If zero or multiple Automations match the search criteria.
@@ -1769,15 +1771,15 @@ class Api:
         name: Optional[str] = None,
         per_page: int = 50,
     ) -> Iterator["Automation"]:
-        """Return an iterator over all Automations that match the given parameters.
+        """Returns an iterator over all Automations that match the given parameters.
 
         If no parameters are provided, the returned iterator will contain all
         Automations that the user has access to.
 
         Args:
-            entity (str, optional): The entity to fetch the automations for.
-            name (str, optional): The name of the automation to fetch.
-            per_page (int, optional): The number of automations to fetch per page.
+            entity: The entity to fetch the automations for.
+            name: The name of the automation to fetch.
+            per_page: The number of automations to fetch per page.
                 Defaults to 50.  Usually there is no reason to change this.
 
         Returns:
@@ -1912,8 +1914,8 @@ class Api:
 
                 raise ValueError(
                     f"Automation {name!r} exists. Unable to create another with the same name."
-                )
-            raise e
+                ) from None
+            raise
 
         try:
             result = CreateFilterTrigger.model_validate(data).result
