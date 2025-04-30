@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import json
+
 from hypothesis import given
-from hypothesis.strategies import integers, sampled_from
-from pytest import raises
-from wandb.apis.public import ArtifactCollection, Project
+from hypothesis.strategies import SearchStrategy, integers, none, sampled_from
+from pytest import mark, raises
+from wandb.apis.public import Project
+from wandb.automations import EventType, ScopeType
+from wandb.automations._filters.run_metrics import Agg
+from wandb.automations._generated import EventTriggeringConditionType
 from wandb.automations.events import (
-    Agg,
     ArtifactEvent,
     MetricThresholdFilter,
     OnAddArtifactAlias,
@@ -17,124 +21,238 @@ from wandb.automations.events import (
     RunEvent,
 )
 
-from ._strategies import ints_or_floats, printable_text
+from ._strategies import ints_or_floats, printable_text, sample_with_randomcase
+
+cmp_vals: SearchStrategy[str] = sampled_from(["$gt", "$gte", "$lt", "$lte"])
 
 
-def test_declarative_run_filter():
-    run_filter = RunEvent.name.contains("my-run")
-    assert run_filter.model_dump() == {"display_name": {"$contains": "my-run"}}
+def test_public_event_type_enum_matches_generated():
+    """Check that the public `EventType` enum matches the schema-generated enum.
+
+    This is a safeguard in case we've had to make any extra customizations
+    (e.g. renaming members) to the public API definition.
+    """
+    public_enum_values = {e.value for e in EventType}
+    generated_enum_values = {e.value for e in EventTriggeringConditionType}
+    assert public_enum_values == generated_enum_values
 
 
-def test_declarative_artifact_filter():
-    artifact_filter = ArtifactEvent.alias.matches_regex("prod-.*")
-    assert artifact_filter.model_dump() == {"alias": {"$regex": "prod-.*"}}
+@mark.parametrize(
+    ("expr", "expected"),
+    (
+        (RunEvent.name.contains("my-run"), {"display_name": {"$contains": "my-run"}}),
+        (RunEvent.name == "my-run", {"display_name": {"$eq": "my-run"}}),
+        (RunEvent.name.eq("my-run"), {"display_name": {"$eq": "my-run"}}),
+        (RunEvent.name != "my-run", {"display_name": {"$ne": "my-run"}}),
+        (RunEvent.name.ne("my-run"), {"display_name": {"$ne": "my-run"}}),
+        (RunEvent.name >= "my-run", {"display_name": {"$gte": "my-run"}}),
+        (RunEvent.name.gte("my-run"), {"display_name": {"$gte": "my-run"}}),
+        (RunEvent.name <= "my-run", {"display_name": {"$lte": "my-run"}}),
+        (RunEvent.name.lte("my-run"), {"display_name": {"$lte": "my-run"}}),
+        (RunEvent.name > "my-run", {"display_name": {"$gt": "my-run"}}),
+        (RunEvent.name.gt("my-run"), {"display_name": {"$gt": "my-run"}}),
+        (RunEvent.name < "my-run", {"display_name": {"$lt": "my-run"}}),
+        (RunEvent.name.lt("my-run"), {"display_name": {"$lt": "my-run"}}),
+    ),
+)
+def test_declarative_run_filter(expr, expected):
+    assert expr.model_dump() == expected
+
+
+@mark.parametrize(
+    ("expr", "expected"),
+    ((ArtifactEvent.alias.matches_regex("prod-.*"), {"alias": {"$regex": "prod-.*"}}),),
+)
+def test_declarative_artifact_filter(expr, expected):
+    assert expr.model_dump() == expected
 
 
 @given(
+    name=printable_text,
     window=integers(1, 100),
-    agg=sampled_from([*Agg, *(e.value for e in Agg)]),
-    threshold=ints_or_floats(),
+    agg=none() | sampled_from([*Agg, *(e.value for e in Agg)]),
+    cmp=cmp_vals,
+    threshold=ints_or_floats,
 )
-def test_run_metric_events_without_run_filter(
-    project: Project, window: int, agg: str, threshold: float
+def test_metric_threshold_filter_serialization(
+    name: str, window: int, agg: str | None, cmp: str, threshold: float
 ):
-    name = "my-metric"
-    cmp = "$gt"
+    """Check that a normally-instantiated `MetricThresholdFilter` produces the expected JSON-serializable dict."""
+    threshold_filter = MetricThresholdFilter(
+        name=name,
+        window=window,
+        agg=agg,
+        cmp=cmp,
+        threshold=threshold,
+    )
+    expected_dict = {
+        "name": name,
+        "window_size": window,
+        "agg_op": agg,
+        "cmp_op": cmp,
+        "threshold": threshold,
+    }
 
-    agg_enum = Agg(agg)
-    if agg_enum is Agg.AVERAGE:
-        threshold_filter = RunEvent.metric(name).average(window).gt(threshold)
-    elif agg_enum is Agg.MIN:
-        threshold_filter = RunEvent.metric(name).min(window).gt(threshold)
-    elif agg_enum is Agg.MAX:
-        threshold_filter = RunEvent.metric(name).max(window).gt(threshold)
-    else:
-        raise ValueError(f"Unhandled parameter: {agg=}")
+    assert threshold_filter.model_dump() == expected_dict
+    assert json.loads(threshold_filter.model_dump_json()) == expected_dict
 
-    event = OnRunMetric(scope=project, filter=threshold_filter)
 
-    # Check that
+@given(
+    name=printable_text,
+    window=integers(1, 100),
+    agg=sample_with_randomcase(Agg),  # check case-insensitivity
+    cmp=cmp_vals,
+    threshold=ints_or_floats,
+)
+def test_run_metric_agg_threshold_filter_without_run_filter(
+    project: Project, name: str, window: int, agg: str | Agg, cmp: str, threshold: float
+):
+    # Chain the method calls: the steps below parameterize over all possible combos of
+    # chained method calls that would normally be written as, e.g.:
+    #     RunEvent.metric(name).average(window).gt(threshold)
+    #     RunEvent.metric(name).max(window).lte(threshold)
+    run_metric = RunEvent.metric(name)
+
+    # Chain the first method calls to declare the (maybe aggregated) metric expression
+    agg_methodcallers = {
+        Agg.AVERAGE: lambda: run_metric.average(window),
+        Agg.MIN: lambda: run_metric.min(window),
+        Agg.MAX: lambda: run_metric.max(window),
+    }
+    metric_expr = agg_methodcallers[Agg(agg)]()
+
+    # Chain the next method call(s) to declare the evaluated threshold condition
+    cmp_methodcallers = {
+        "$gt": lambda: metric_expr.gt(threshold),
+        "$gte": lambda: metric_expr.gte(threshold),
+        "$lt": lambda: metric_expr.lt(threshold),
+        "$lte": lambda: metric_expr.lte(threshold),
+    }
+    declared_metric_filter = cmp_methodcallers[cmp]()
+
+    # ----------------------------------------------------------------------------
+    event = OnRunMetric(scope=project, filter=declared_metric_filter)
+
+    expected_metric_filter = MetricThresholdFilter(
+        name=name, window=window, agg=agg, cmp=cmp, threshold=threshold
+    )
+    expected_metric_filter_dict = {
+        "name": name,
+        "window_size": window,
+        "agg_op": Agg(agg).value,  # Expect the string value
+        "cmp_op": cmp,
+        "threshold": threshold,
+    }
+
+    # Check that...
     # - the metric filter has the expected contents
-    # - the run+metric filter is parsed/validated correctly by pydantic
+    assert expected_metric_filter == declared_metric_filter
+    assert expected_metric_filter_dict == declared_metric_filter.model_dump()
+
+    # - the metric filter is parsed/validated correctly by pydantic
+    actual_metric_filter = event.filter.metric.threshold_filter
+    assert expected_metric_filter == actual_metric_filter
+    assert expected_metric_filter_dict == actual_metric_filter.model_dump()
+
+    # - the accompanying run filter here is as expected
     expected_run_filter_dict = {"$and": []}
-    expected_threshold_filter = MetricThresholdFilter(
-        name=name, window_size=window, agg_op=agg, cmp_op=cmp, threshold=threshold
-    )
-
-    assert expected_threshold_filter == threshold_filter
-
-    assert expected_run_filter_dict == event.filter.run_filter.model_dump()
-    assert expected_threshold_filter == event.filter.run_metric_filter.threshold_filter
+    assert expected_run_filter_dict == event.filter.run.model_dump()
 
 
 @given(
+    name=printable_text,
     window=integers(1, 100),
     agg=sampled_from([*Agg, *(e.value for e in Agg)]),
-    threshold=ints_or_floats(),
+    cmp=cmp_vals,
+    threshold=ints_or_floats,
 )
-def test_run_metric_events(
-    project: Project, window: int, agg: Agg | str, threshold: float
+def test_run_metric_threshold_events(
+    project: Project, name: str, window: int, agg: Agg | str, cmp: str, threshold: float
 ):
-    name = "my-metric"
-    cmp = "$gt"
+    # Chain the method calls: the steps below parameterize over all possible combos of
+    # chained method calls that would normally be written as, e.g.:
+    #     RunEvent.metric(name).average(window).gt(threshold)
+    #     RunEvent.metric(name).max(window).lte(threshold)
+    run_metric = RunEvent.metric(name)
 
-    agg_enum = Agg(agg)
-    if agg_enum is Agg.AVERAGE:
-        threshold_filter = RunEvent.metric(name).average(window).gt(threshold)
-    elif agg_enum is Agg.MIN:
-        threshold_filter = RunEvent.metric(name).min(window).gt(threshold)
-    elif agg_enum is Agg.MAX:
-        threshold_filter = RunEvent.metric(name).max(window).gt(threshold)
-    else:
-        raise ValueError(f"Unhandled parameter: {agg=}")
+    # Chain the first method calls to declare the (maybe aggregated) metric expression
+    agg_methodcallers = {
+        Agg.AVERAGE: lambda: run_metric.average(window),
+        Agg.MIN: lambda: run_metric.min(window),
+        Agg.MAX: lambda: run_metric.max(window),
+    }
+    metric_expr = agg_methodcallers[Agg(agg)]()
 
-    run_filter = RunEvent.name.contains("my-run")
+    # Chain the next method call(s) to declare the evaluated threshold condition
+    cmp_methodcallers = {
+        "$gt": lambda: metric_expr.gt(threshold),
+        "$gte": lambda: metric_expr.gte(threshold),
+        "$lt": lambda: metric_expr.lt(threshold),
+        "$lte": lambda: metric_expr.lte(threshold),
+    }
+    declared_metric_filter = cmp_methodcallers[cmp]()
 
-    event = OnRunMetric(scope=project, filter=run_filter & threshold_filter)
+    # ----------------------------------------------------------------------------
+    declared_run_filter = RunEvent.name.contains("my-run")
 
-    # Check that
+    # ----------------------------------------------------------------------------
+    event = OnRunMetric(
+        scope=project, filter=declared_run_filter & declared_metric_filter
+    )
+
+    expected_metric_filter = MetricThresholdFilter(
+        name=name, window=window, agg=agg, cmp=cmp, threshold=threshold
+    )
+    expected_metric_filter_dict = {
+        "name": name,
+        "window_size": window,
+        "agg_op": Agg(agg).value,  # Expect the string value
+        "cmp_op": cmp,
+        "threshold": threshold,
+    }
+
+    # Check that...
     # - the metric filter has the expected contents
-    # - the run+metric filter is parsed/validated correctly by pydantic
+    assert expected_metric_filter == declared_metric_filter
+    assert expected_metric_filter_dict == declared_metric_filter.model_dump()
+
+    # - the metric filter is parsed/validated correctly by pydantic
+    actual_metric_filter = event.filter.metric.threshold_filter
+    assert expected_metric_filter == actual_metric_filter
+    assert expected_metric_filter_dict == actual_metric_filter.model_dump()
+
+    # - the accompanying run filter here is as expected
     expected_run_filter_dict = {"$and": [{"display_name": {"$contains": "my-run"}}]}
-    expected_threshold_filter = MetricThresholdFilter(
-        name=name, window_size=window, agg_op=agg, cmp_op=cmp, threshold=threshold
-    )
-
-    assert expected_run_filter_dict == event.filter.run_filter.model_dump()
-    assert expected_threshold_filter == event.filter.run_metric_filter.threshold_filter
+    assert expected_run_filter_dict == event.filter.run.model_dump()
 
 
-def test_link_artifact_events(project: Project):
+def test_link_artifact_events(scope):
     alias_regex = "prod-.*"
+    declared_filter = ArtifactEvent.alias.matches_regex(alias_regex)
 
-    event = OnLinkArtifact(
-        scope=project,
-        filter=ArtifactEvent.alias.matches_regex(alias_regex),
-    )
+    event = OnLinkArtifact(scope=scope, filter=declared_filter)
 
     expected_filter_dict = {"$or": [{"$and": [{"alias": {"$regex": alias_regex}}]}]}
     assert expected_filter_dict == event.filter.model_dump()
 
 
-def test_create_artifact_events(artifact_collection: ArtifactCollection):
+# Only ArtifactCollection scopes are supported for CREATE_ARTIFACT events
+@mark.parametrize("scope_type", [ScopeType.ARTIFACT_COLLECTION], indirect=True)
+def test_create_artifact_events(scope):
     alias_regex = "prod-.*"
+    declared_filter = ArtifactEvent.alias.matches_regex(alias_regex)
 
-    event = OnCreateArtifact(
-        scope=artifact_collection,
-        filter=ArtifactEvent.alias.matches_regex(alias_regex),
-    )
+    event = OnCreateArtifact(scope=scope, filter=declared_filter)
 
     expected_filter_dict = {"$or": [{"$and": [{"alias": {"$regex": alias_regex}}]}]}
     assert expected_filter_dict == event.filter.model_dump()
 
 
-def test_add_artifact_alias_events(project: Project):
+def test_add_artifact_alias_events(scope):
     alias_regex = "prod-.*"
+    declared_filter = ArtifactEvent.alias.matches_regex(alias_regex)
 
-    event = OnAddArtifactAlias(
-        scope=project,
-        filter=ArtifactEvent.alias.matches_regex(alias_regex),
-    )
+    event = OnAddArtifactAlias(scope=scope, filter=declared_filter)
 
     expected_filter_dict = {"$or": [{"$and": [{"alias": {"$regex": alias_regex}}]}]}
     assert expected_filter_dict == event.filter.model_dump()
@@ -142,9 +260,9 @@ def test_add_artifact_alias_events(project: Project):
 
 # Checks on self-consistency of syntactic sugar and other quality-of-life features
 @given(
-    name=printable_text(),
+    name=printable_text,
     window=integers(1, 100),
-    threshold=ints_or_floats(),
+    threshold=ints_or_floats,
 )
 def test_run_metric_operator_vs_method_syntax_is_equivalent(
     name: str,
@@ -169,63 +287,58 @@ def test_run_metric_operator_vs_method_syntax_is_equivalent(
 
 def test_run_metric_threshold_cannot_be_aggregated_twice():
     """Check that run metric thresholds forbid multiple aggregations."""
-    with raises(ValueError):
+    with raises(AttributeError):
         RunEvent.metric("my-metric").average(5).average(10)
-    with raises(ValueError):
+    with raises(AttributeError):
         RunEvent.metric("my-metric").average(10).max(5)
 
 
 @given(
-    name=printable_text(),
-    threshold=ints_or_floats(),
-    op=sampled_from([">", ">=", "<", "<="]),
-)
-def test_metric_filter_repr_without_agg(name: str, threshold: float, op: str):
-    """Check that the filter on a single-value metric has the expected human-readable representation."""
-    metric_expr = RunEvent.metric(name)
-
-    if op == ">":
-        threshold_filter = metric_expr.gt(threshold)
-    elif op == ">=":
-        threshold_filter = metric_expr.gte(threshold)
-    elif op == "<":
-        threshold_filter = metric_expr.lt(threshold)
-    elif op == "<=":
-        threshold_filter = metric_expr.lte(threshold)
-
-    assert repr(f"{name} {op} {threshold}") in repr(threshold_filter)
-
-
-@given(
-    name=printable_text(),
+    name=printable_text,
     window=integers(1, 100),
-    threshold=ints_or_floats(),
-    op=sampled_from([">", ">=", "<", "<="]),
-    agg=sampled_from(list(Agg)),
+    threshold=ints_or_floats,
 )
-def test_metric_filter_repr_with_agg(
-    name: str, window: int, threshold: float, op: str, agg: Agg
-):
-    """Check that the filter on an aggregated metric has the expected human-readable representation."""
+def test_metric_threshold_filter_repr(name: str, window: int, threshold: float):
+    """Check that a metric threshold filter has the expected human-readable representation."""
+    metric_value_expr = RunEvent.metric(name)  # Single value
 
-    if agg is Agg.AVERAGE:
-        metric_expr = RunEvent.metric(name).average(window)
-    elif agg is Agg.MIN:
-        metric_expr = RunEvent.metric(name).min(window)
-    elif agg is Agg.MAX:
-        metric_expr = RunEvent.metric(name).max(window)
-    else:
-        raise ValueError(f"Unhandled aggregation: {agg!r}")
+    # Expected left- and right-hand sides of the comparison
+    lhs = f"{name}"
+    rhs = f"{threshold}"
 
-    if op == ">":
-        threshold_filter = metric_expr.gt(threshold)
-    elif op == ">=":
-        threshold_filter = metric_expr.gte(threshold)
-    elif op == "<":
-        threshold_filter = metric_expr.lt(threshold)
-    elif op == "<=":
-        threshold_filter = metric_expr.lte(threshold)
-    else:
-        raise ValueError(f"Unhandled comparison operator: {op!r}")
+    assert repr(metric_value_expr.gt(threshold)) == repr(f"{lhs} > {rhs}")
+    assert repr(metric_value_expr > threshold) == repr(f"{lhs} > {rhs}")
 
-    assert repr(f"{agg.value}({name}) {op} {threshold}") in repr(threshold_filter)
+    assert repr(metric_value_expr.gte(threshold)) == repr(f"{lhs} >= {rhs}")
+    assert repr(metric_value_expr >= threshold) == repr(f"{lhs} >= {rhs}")
+
+    assert repr(metric_value_expr.lt(threshold)) == repr(f"{lhs} < {rhs}")
+    assert repr(metric_value_expr < threshold) == repr(f"{lhs} < {rhs}")
+
+    assert repr(metric_value_expr.lte(threshold)) == repr(f"{lhs} <= {rhs}")
+    assert repr(metric_value_expr <= threshold) == repr(f"{lhs} <= {rhs}")
+
+    # Aggregate expressions
+    metric_agg_expressions = {
+        Agg.AVERAGE: RunEvent.metric(name).average(window),
+        Agg.AVERAGE: RunEvent.metric(name).mean(window),
+        Agg.MIN: RunEvent.metric(name).min(window),
+        Agg.MAX: RunEvent.metric(name).max(window),
+    }
+
+    for agg, metric_agg_expr in metric_agg_expressions.items():
+        # Expected left- and right-hand sides of the comparison
+        lhs = f"{agg.value}({name})"
+        rhs = f"{threshold}"
+
+        assert repr(metric_agg_expr.gt(threshold)) == repr(f"{lhs} > {rhs}")
+        assert repr(metric_agg_expr > threshold) == repr(f"{lhs} > {rhs}")
+
+        assert repr(metric_agg_expr.gte(threshold)) == repr(f"{lhs} >= {rhs}")
+        assert repr(metric_agg_expr >= threshold) == repr(f"{lhs} >= {rhs}")
+
+        assert repr(metric_agg_expr.lt(threshold)) == repr(f"{lhs} < {rhs}")
+        assert repr(metric_agg_expr < threshold) == repr(f"{lhs} < {rhs}")
+
+        assert repr(metric_agg_expr.lte(threshold)) == repr(f"{lhs} <= {rhs}")
+        assert repr(metric_agg_expr <= threshold) == repr(f"{lhs} <= {rhs}")

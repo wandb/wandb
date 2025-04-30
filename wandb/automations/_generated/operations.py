@@ -54,7 +54,6 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
   id
   name
   urlEndpoint
-  createdAt
 }
 
 fragment NoOpActionFields on NoOpTriggeredAction {
@@ -102,15 +101,10 @@ fragment ProjectScopeFields on Project {
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
-    ...RunQueueFields
+    id
+    name
   }
   template
-}
-
-fragment RunQueueFields on RunQueue {
-  __typename
-  id
-  name
 }
 
 fragment SlackIntegrationFields on SlackIntegration {
@@ -124,9 +118,6 @@ fragment TriggerFields on Trigger {
   __typename
   id
   createdAt
-  createdBy {
-    ...UserFields
-  }
   updatedAt
   name
   description
@@ -148,12 +139,6 @@ fragment TriggerFields on Trigger {
     ...GenericWebhookActionFields
     ...NoOpActionFields
   }
-}
-
-fragment UserFields on User {
-  __typename
-  id
-  username
 }
 """
 
@@ -198,7 +183,6 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
   id
   name
   urlEndpoint
-  createdAt
 }
 
 fragment NoOpActionFields on NoOpTriggeredAction {
@@ -246,15 +230,10 @@ fragment ProjectScopeFields on Project {
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
-    ...RunQueueFields
+    id
+    name
   }
   template
-}
-
-fragment RunQueueFields on RunQueue {
-  __typename
-  id
-  name
 }
 
 fragment SlackIntegrationFields on SlackIntegration {
@@ -268,9 +247,6 @@ fragment TriggerFields on Trigger {
   __typename
   id
   createdAt
-  createdBy {
-    ...UserFields
-  }
   updatedAt
   name
   description
@@ -293,17 +269,11 @@ fragment TriggerFields on Trigger {
     ...NoOpActionFields
   }
 }
-
-fragment UserFields on User {
-  __typename
-  id
-  username
-}
 """
 
 CREATE_FILTER_TRIGGER_GQL = """
 mutation CreateFilterTrigger($params: CreateFilterTriggerInput!) {
-  createFilterTrigger(input: $params) {
+  result: createFilterTrigger(input: $params) {
     ...CreateFilterTriggerResult
   }
 }
@@ -347,7 +317,6 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
   id
   name
   urlEndpoint
-  createdAt
 }
 
 fragment NoOpActionFields on NoOpTriggeredAction {
@@ -375,15 +344,10 @@ fragment ProjectScopeFields on Project {
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
-    ...RunQueueFields
+    id
+    name
   }
   template
-}
-
-fragment RunQueueFields on RunQueue {
-  __typename
-  id
-  name
 }
 
 fragment SlackIntegrationFields on SlackIntegration {
@@ -397,9 +361,6 @@ fragment TriggerFields on Trigger {
   __typename
   id
   createdAt
-  createdBy {
-    ...UserFields
-  }
   updatedAt
   name
   description
@@ -422,17 +383,11 @@ fragment TriggerFields on Trigger {
     ...NoOpActionFields
   }
 }
-
-fragment UserFields on User {
-  __typename
-  id
-  username
-}
 """
 
 UPDATE_FILTER_TRIGGER_GQL = """
 mutation UpdateFilterTrigger($params: UpdateFilterTriggerInput!) {
-  updateFilterTrigger(input: $params) {
+  result: updateFilterTrigger(input: $params) {
     ...UpdateFilterTriggerResult
   }
 }
@@ -469,7 +424,6 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
   id
   name
   urlEndpoint
-  createdAt
 }
 
 fragment NoOpActionFields on NoOpTriggeredAction {
@@ -497,15 +451,10 @@ fragment ProjectScopeFields on Project {
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
-    ...RunQueueFields
+    id
+    name
   }
   template
-}
-
-fragment RunQueueFields on RunQueue {
-  __typename
-  id
-  name
 }
 
 fragment SlackIntegrationFields on SlackIntegration {
@@ -519,9 +468,6 @@ fragment TriggerFields on Trigger {
   __typename
   id
   createdAt
-  createdBy {
-    ...UserFields
-  }
   updatedAt
   name
   description
@@ -551,17 +497,11 @@ fragment UpdateFilterTriggerResult on UpdateFilterTriggerPayload {
     ...TriggerFields
   }
 }
-
-fragment UserFields on User {
-  __typename
-  id
-  username
-}
 """
 
 DELETE_TRIGGER_GQL = """
 mutation DeleteTrigger($id: ID!) {
-  deleteTrigger(input: {triggerID: $id}) {
+  result: deleteTrigger(input: {triggerID: $id}) {
     ...DeleteTriggerResult
   }
 }
@@ -573,7 +513,7 @@ fragment DeleteTriggerResult on DeleteTriggerPayload {
 """
 
 INTEGRATIONS_BY_ENTITY_GQL = """
-query IntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int, $includeSlack: Boolean = false, $includeWebhook: Boolean = false) {
+query IntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
   entity(name: $entityName) {
     integrations(after: $cursor, first: $perPage) {
       ...IntegrationConnectionFields
@@ -586,7 +526,6 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
   id
   name
   urlEndpoint
-  createdAt
 }
 
 fragment IntegrationConnectionFields on IntegrationConnection {
@@ -598,8 +537,8 @@ fragment IntegrationConnectionFields on IntegrationConnection {
     cursor
     node {
       __typename
-      ...SlackIntegrationFields @include(if: $includeSlack)
-      ...GenericWebhookIntegrationFields @include(if: $includeWebhook)
+      ...SlackIntegrationFields
+      ...GenericWebhookIntegrationFields
     }
   }
 }
@@ -681,7 +620,6 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
   id
   name
   urlEndpoint
-  createdAt
 }
 
 fragment PageInfoFields on PageInfo {
@@ -705,6 +643,5 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
   id
   name
   urlEndpoint
-  createdAt
 }
 """
