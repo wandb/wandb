@@ -1555,10 +1555,10 @@ class Api:
         """Return an iterator of all integrations for an entity.
 
         Args:
-            entity (str, optional): The entity (e.g. team name) for which to
+            entity: The entity (e.g. team name) for which to
                 fetch integrations.  If not provided, the user's default entity
                 will be used.
-            per_page (int, optional): Number of integrations to fetch per page.
+            per_page: Number of integrations to fetch per page.
                 Defaults to 50.  Usually there is no reason to change this.
 
         Yields:
@@ -1572,13 +1572,13 @@ class Api:
     def webhook_integrations(
         self, entity: Optional[str] = None, *, per_page: int = 50
     ) -> Iterator["WebhookIntegration"]:
-        """Return an iterator of webhook integrations for an entity.
+        """Returns an iterator of webhook integrations for an entity.
 
         Args:
-            entity (str, optional): The entity (e.g. team name) for which to
+            entity: The entity (e.g. team name) for which to
                 fetch integrations.  If not provided, the user's default entity
                 will be used.
-            per_page (int, optional): Number of integrations to fetch per page.
+            per_page: Number of integrations to fetch per page.
                 Defaults to 50.  Usually there is no reason to change this.
 
         Yields:
@@ -1613,13 +1613,13 @@ class Api:
     def slack_integrations(
         self, *, entity: Optional[str] = None, per_page: int = 50
     ) -> Iterator["SlackIntegration"]:
-        """Return an iterator of Slack integrations for an entity.
+        """Returns an iterator of Slack integrations for an entity.
 
         Args:
-            entity (str, optional): The entity (e.g. team name) for which to
+            entity: The entity (e.g. team name) for which to
                 fetch integrations.  If not provided, the user's default entity
                 will be used.
-            per_page (int, optional): Number of integrations to fetch per page.
+            per_page: Number of integrations to fetch per page.
                 Defaults to 50.  Usually there is no reason to change this.
 
         Yields:
@@ -1830,7 +1830,7 @@ class Api:
         Args:
             obj:
                 The automation to create.
-            fetch_existing (bool):
+            fetch_existing:
                 If True, and a conflicting automation already exists, attempt
                 to fetch the existing automation instead of raising an error.
             **kwargs:
@@ -1931,7 +1931,7 @@ class Api:
         """Delete an automation.
 
         Args:
-            obj (Automation | str): The automation to delete, or its ID.
+            obj: The automation to delete, or its ID.
 
         Returns:
             True if the automation was deleted successfully.
