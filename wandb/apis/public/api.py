@@ -1795,16 +1795,16 @@ class Api:
         """
         from wandb.apis.public.automations import Automations
         from wandb.automations._generated import (
-            GET_TRIGGERS_BY_ENTITY_GQL,
-            GET_TRIGGERS_GQL,
+            GET_AUTOMATIONS_BY_ENTITY_GQL,
+            GET_AUTOMATIONS_GQL,
         )
 
         # For now, we need to use different queries depending on whether entity is given
         variables = {"entityName": entity}
         if entity is None:
-            gql_str = GET_TRIGGERS_GQL  # Automations for viewer
+            gql_str = GET_AUTOMATIONS_GQL  # Automations for viewer
         else:
-            gql_str = GET_TRIGGERS_BY_ENTITY_GQL  # Automations for entity
+            gql_str = GET_AUTOMATIONS_BY_ENTITY_GQL  # Automations for entity
 
         # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
         omit_fragments = self._omitted_automation_fragments()
@@ -1876,10 +1876,7 @@ class Api:
             ```
         """
         from wandb.automations import Automation
-        from wandb.automations._generated import (
-            CREATE_FILTER_TRIGGER_GQL,
-            CreateFilterTrigger,
-        )
+        from wandb.automations._generated import CREATE_AUTOMATION_GQL, CreateAutomation
         from wandb.automations._utils import prepare_to_create
 
         gql_input = prepare_to_create(obj, **kwargs)
@@ -1897,7 +1894,7 @@ class Api:
 
         # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
         omit_fragments = self._omitted_automation_fragments()
-        mutation = gql_compat(CREATE_FILTER_TRIGGER_GQL, omit_fragments=omit_fragments)
+        mutation = gql_compat(CREATE_AUTOMATION_GQL, omit_fragments=omit_fragments)
         variables = {"params": gql_input.model_dump(exclude_none=True)}
 
         name = gql_input.name
@@ -1916,7 +1913,7 @@ class Api:
             raise
 
         try:
-            result = CreateFilterTrigger.model_validate(data).result
+            result = CreateAutomation.model_validate(data).result
         except ValidationError as e:
             msg = f"Invalid response while creating automation {name!r}"
             raise RuntimeError(msg) from e
@@ -1936,17 +1933,17 @@ class Api:
         Returns:
             True if the automation was deleted successfully.
         """
-        from wandb.automations._generated import DELETE_TRIGGER_GQL, DeleteTrigger
+        from wandb.automations._generated import DELETE_AUTOMATION_GQL, DeleteAutomation
         from wandb.automations._utils import extract_id
 
         id_ = extract_id(obj)
-        mutation = gql(DELETE_TRIGGER_GQL)
+        mutation = gql(DELETE_AUTOMATION_GQL)
         variables = {"id": id_}
 
         data = self.client.execute(mutation, variable_values=variables)
 
         try:
-            result = DeleteTrigger.model_validate(data).result
+            result = DeleteAutomation.model_validate(data).result
         except ValidationError as e:
             msg = f"Invalid response while deleting automation {id_!r}"
             raise RuntimeError(msg) from e
