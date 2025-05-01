@@ -81,6 +81,13 @@ struct Args {
     /// If set, the program will log debug messages.
     #[arg(short, long, default_value_t = false)]
     verbose: bool,
+
+    /// Enable DCGM profiling.
+    ///
+    /// If set, the program will attempt to use DCGM for
+    /// collection Nvidia GPU performance metrics.
+    #[arg(long, default_value_t = false)]
+    enable_dcgm_profiling: bool,
 }
 
 /// System monitor service implementation.
@@ -115,9 +122,10 @@ pub struct SystemMonitorServiceImpl {
 impl SystemMonitorServiceImpl {
     fn new(
         ppid: i32,
+        enable_dcgm_profiling: bool,
         shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     ) -> Self {
-        // Initialize the Apple GPU sampler (ARM Mac only)
+        // Initialize the Apple GPU sampler (ARM Mac only).
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         let apple_sampler = match ThreadSafeSampler::new() {
             Ok(sampler) => {
@@ -130,22 +138,26 @@ impl SystemMonitorServiceImpl {
             }
         };
 
-        // Initialize the Nvidia GPU DCGM-based monitor (Linux only)
+        // Initialize the Nvidia GPU DCGM-based monitor, if requested (Linux only).
         #[cfg(target_os = "linux")]
-        let dcgm_client = match DcgmClient::new() {
-            // This calls the new sync-worker version
-            Ok(client) => {
-                debug!("Successfully initialized NVIDIA GPU DCGM monitoring client.");
-                Some(client)
+        let dcgm_client = if enable_dcgm_profiling {
+            match DcgmClient::new() {
+                // This calls the new sync-worker version
+                Ok(client) => {
+                    debug!("Successfully initialized NVIDIA GPU DCGM monitoring client.");
+                    Some(client)
+                }
+                Err(e) => {
+                    // Using debug as DCGM might not be installed/running is reasonable
+                    debug!("Failed to initialize NVIDIA GPU DCGM monitoring: {}", e);
+                    None
+                }
             }
-            Err(e) => {
-                // Using debug as DCGM might not be installed/running is reasonable
-                debug!("Failed to initialize NVIDIA GPU DCGM monitoring: {}", e);
-                None
-            }
+        } else {
+            None
         };
 
-        // Initialize the Nvidia GPU NVML-based monitor (Linux and Windows only)
+        // Initialize the Nvidia GPU NVML-based monitor (Linux and Windows only).
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         let nvidia_gpu = match NvidiaGpu::new() {
             Ok(gpu) => {
@@ -158,7 +170,7 @@ impl SystemMonitorServiceImpl {
             }
         };
 
-        // Initialize the AMD GPU monitor (Linux only)
+        // Initialize the AMD GPU monitor (Linux only).
         #[cfg(target_os = "linux")]
         let amd_gpu = match GpuAmd::new() {
             Some(gpu) => {
@@ -291,7 +303,7 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         &self,
         request: Request<TearDownRequest>,
     ) -> Result<Response<TearDownResponse>, Status> {
-        debug!("Received a request to shutdown: {:?}", request);
+        debug!("Received a request to ShutdownShutdown: {:?}", request);
 
         #[cfg(any(target_os = "linux"))]
         if let Some(client) = &self.dcgm_client {
@@ -464,7 +476,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel::<()>();
     let shutdown_sender = Arc::new(tokio::sync::Mutex::new(Some(shutdown_sender)));
 
-    let system_monitor_service = SystemMonitorServiceImpl::new(args.ppid, shutdown_sender.clone());
+    let system_monitor_service = SystemMonitorServiceImpl::new(
+        args.ppid,
+        args.enable_dcgm_profiling,
+        shutdown_sender.clone(),
+    );
 
     // Write the server port to the portfile
     let local_addr = listener.local_addr()?;

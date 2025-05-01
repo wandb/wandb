@@ -15,7 +15,12 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb import _sentry
-from wandb.env import core_debug, error_reporting_enabled, is_require_legacy_service
+from wandb.env import (
+    core_debug,
+    dcgm_profiling_enabled,
+    error_reporting_enabled,
+    is_require_legacy_service,
+)
 from wandb.errors import Error, WandbCoreNotAvailableError
 from wandb.errors.term import termlog, termwarn
 from wandb.util import get_core_path, get_module
@@ -161,6 +166,9 @@ class _Service:
 
                 if core_debug(default="False"):
                     service_args.extend(["--log-level", "-4"])
+
+                if dcgm_profiling_enabled():
+                    service_args.append("--enable-dcgm-profiling")
 
                 exec_cmd_list = []
             else:
