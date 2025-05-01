@@ -576,18 +576,69 @@ class Table(Media):
 
     @classmethod
     def _get_incremental_data(cls, prev_increment_paths: list[str], source_art):
+        """Load data from previous table increments.
+        
+        Args:
+            prev_increment_paths: List of paths to previous table increments
+            source_art: Source artifact containing the incremental table
+            
+        Returns:
+            List of tuples containing (data, source_artifact) for each increment
+        """
         import json
+        from wandb.errors.term import termwarn
+        
         increments = []
         for incr_path in prev_increment_paths:
-            client_id = host_from_path(incr_path)
-            prev_incr = InternalApi()._resolve_client_id(client_id)
-            increment_art = source_art._from_id(prev_incr, source_art._client)
-            # Instead of using get() which would trigger Table.from_json, directly load the JSON
-            table_entry = increment_art.get_entry("table.table.json")
-            with open(table_entry.download()) as f:
-                table_data = json.load(f)
-                increments.append((table_data["data"], increment_art))
+            try:
+                import urllib
+                client_id = host_from_path(incr_path)
+                url = urllib.parse.urlparse(incr_path)
+                path = str(url.path)
+                prev_incr = InternalApi()._resolve_client_id(client_id)
+                if prev_incr is None:
+                    termwarn(f"Could not resolve client ID {client_id} for increment {incr_path}")
+                    continue
+                    
+                increment_art = source_art._from_id(prev_incr, source_art._client)
+                if increment_art is None:
+                    termwarn(f"Could not load artifact for increment {incr_path}")
+                    continue
+                
+                # Load the table data directly from JSON to avoid recursion
+                try:
+                    table_entry = increment_art.get_entry(f".{path}") 
+                    with open(table_entry.download()) as f:
+                        table_data = json.load(f)
+                    increments.append((table_data["data"], increment_art))
+                except (KeyError, json.JSONDecodeError) as e:
+                    termwarn(f"Failed to load table data from increment {incr_path}: {str(e)}")
+                    continue
+                    
+            except Exception as e:
+                termwarn(f"Error processing increment {incr_path}: {str(e)}")
+                continue
+                
         return increments
+
+    @classmethod
+    def _process_table_row(cls, row, timestamp_column_indices, np_deserialized_columns, source_artifact, row_idx):
+        """Process a single row of table data."""
+        row_data = []
+        for c_ndx, item in enumerate(row):
+            cell = item
+            if c_ndx in timestamp_column_indices and isinstance(item, (int, float)):
+                cell = datetime.datetime.fromtimestamp(
+                    item / 1000, tz=datetime.timezone.utc
+                )
+            elif c_ndx in np_deserialized_columns:
+                cell = np_deserialized_columns[c_ndx][row_idx]
+            elif isinstance(item, dict) and "_type" in item:
+                obj = WBValue.init_from_json(item, source_artifact)
+                if obj is not None:
+                    cell = obj
+            row_data.append(cell)
+        return row_data
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
@@ -613,7 +664,6 @@ class Table(Media):
                             timestamp_column_indices.add(
                                 json_obj["columns"].index(col_name)
                             )
-
                 elif isinstance(col_type, _dtypes.TimestampType):
                     timestamp_column_indices.add(json_obj["columns"].index(col_name))
 
@@ -634,44 +684,33 @@ class Table(Media):
                     )
                     ndarray_type._clear_serialization_path()
 
-        for table_data, source_art in incr_data:
-            for r_ndx, row in enumerate(table_data):
-                row_data = []
-                for c_ndx, item in enumerate(row):
-                    cell = item
-                    if c_ndx in timestamp_column_indices and isinstance(item, (int, float)):
-                        cell = datetime.datetime.fromtimestamp(
-                            item / 1000, tz=datetime.timezone.utc
-                        )
-                    elif c_ndx in np_deserialized_columns:
-                        cell = np_deserialized_columns[c_ndx][r_ndx]
-                    elif isinstance(item, dict) and "_type" in item:
-                        print(r_ndx, item)
-                        obj = WBValue.init_from_json(item, source_art)
-                        print(obj)
-                        if obj is not None:
-                            cell = obj
-                    row_data.append(cell)
-                data.append(row_data)
-
-        for r_ndx, row in enumerate(json_obj["data"]):
-            row_data = []
-            for c_ndx, item in enumerate(row):
-                cell = item
-                if c_ndx in timestamp_column_indices and isinstance(item, (int, float)):
-                    cell = datetime.datetime.fromtimestamp(
-                        item / 1000, tz=datetime.timezone.utc
+        # Process incremental data if present
+        row_idx = 0
+        if log_mode == "INCREMENTAL":
+            incremental_data = cls._get_incremental_data(json_obj["prev_increment_paths"], source_artifact)
+            for table_data, increment_source in incremental_data:
+                for row in table_data:
+                    processed_row = cls._process_table_row(
+                        row, 
+                        timestamp_column_indices,
+                        np_deserialized_columns,
+                        increment_source,
+                        row_idx
                     )
-                elif c_ndx in np_deserialized_columns:
-                    cell = np_deserialized_columns[c_ndx][r_ndx]
-                elif isinstance(item, dict) and "_type" in item:
-                    print(r_ndx, item)
-                    obj = WBValue.init_from_json(item, source_artifact)
-                    print(obj)
-                    if obj is not None:
-                        cell = obj
-                row_data.append(cell)
-            data.append(row_data)
+                    data.append(processed_row)
+                    row_idx += 1
+
+        # Process current table data
+        for row in json_obj["data"]:
+            processed_row = cls._process_table_row(
+                row,
+                timestamp_column_indices,
+                np_deserialized_columns,
+                source_artifact,
+                row_idx
+            )
+            data.append(processed_row)
+            row_idx += 1
 
         # construct Table with dtypes for each column if type information exists
         dtypes = None
@@ -777,7 +816,6 @@ class Table(Media):
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
-        print(json_dict)
         return json_dict
 
     def iterrows(self):
