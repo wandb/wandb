@@ -7,11 +7,11 @@ from typing import Optional
 
 from wandb._pydantic import GQLBase
 
-from .fragments import UpdateFilterTriggerResult
+from .fragments import CreateAutomationResult
 
 
-class UpdateFilterTrigger(GQLBase):
-    result: Optional[UpdateFilterTriggerResult]
+class CreateAutomation(GQLBase):
+    result: Optional[CreateAutomationResult]
 
 
-UpdateFilterTrigger.model_rebuild()
+CreateAutomation.model_rebuild()

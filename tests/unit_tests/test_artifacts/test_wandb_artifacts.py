@@ -2,9 +2,11 @@ import functools
 import queue
 import shutil
 import unittest.mock as mock
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 from string import ascii_letters, digits
-from typing import TYPE_CHECKING, Any, Mapping, Optional
+from typing import IO, TYPE_CHECKING, Any, AnyStr, ContextManager, Mapping, Optional
 from unittest.mock import Mock
 
 import pytest
@@ -502,3 +504,99 @@ def test_download_with_pathlib_root(monkeypatch):
     root = list(artifact._download_roots)[0]
     path_parts = custom_path.parts
     assert Path(root).parts[-len(path_parts) :] == path_parts
+
+
+def test_artifact_multipart_download_threshold():
+    policy = WandbStoragePolicy()
+    mb = 1024 * 1024
+    assert policy._should_multipart_download(100 * mb, True)
+    assert not policy._should_multipart_download(100 * mb, None)
+    assert not policy._should_multipart_download(2080 * mb, False)
+    assert policy._should_multipart_download(5070 * mb, None)
+
+
+class MockOpener:
+    """Wrap a file as a Opener."""
+
+    def __init__(self, file: IO):
+        self.file = file
+
+    def __call__(self, mode: str = "r") -> ContextManager[IO]:
+        @contextmanager
+        def _fake_context():
+            yield self.file
+
+        return _fake_context()
+
+
+def test_artifact_multipart_download_network_error():
+    policy = WandbStoragePolicy()
+    # Disable retries and backoff to avoid timeout in test
+    session = requests.Session()
+    adapter = requests.adapters.HTTPAdapter(max_retries=0)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    policy._session = session
+
+    class CountOnlyFile(IO):
+        def __init__(self):
+            self.write_count = 0
+            self.seek_count = 0
+
+        def seek(self, offset: int, whence: int = 0) -> int:
+            self.seek_count += 1
+            return offset
+
+        def write(self, s: AnyStr) -> int:
+            self.write_count += 1
+            return len(s)
+
+    file = CountOnlyFile()
+    opener = MockOpener(file)
+    with pytest.raises(requests.exceptions.ConnectionError):
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            policy._multipart_file_download(
+                executor, "https://invalid.com", 4 * 1024 * 1024 * 1024, opener
+            )
+    assert file.seek_count == 0
+    assert file.write_count == 0
+
+
+def test_artifact_multipart_download_disk_error():
+    policy = WandbStoragePolicy()
+
+    class ThrowFile(IO):
+        def seek(self, offset: int, whence: int = 0) -> int:
+            raise ValueError("I/O operation on closed file")
+
+    class MockResponse:
+        def raise_for_status(self):
+            pass
+
+        def iter_content(self, chunk_size: int = 1024):
+            return [b"test"]
+
+    class MockSession:
+        def __init__(self):
+            self.get_count = 0
+
+        def get(self, url: str, stream: bool = False, headers: dict = None):
+            self.get_count += 1
+            return MockResponse()
+
+    session = MockSession()
+    policy._session = session
+
+    file = ThrowFile()
+    opener = MockOpener(file)
+    with pytest.raises(ValueError):
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            policy._multipart_file_download(
+                executor,
+                "https://mocked.com",
+                500 * 1024 * 1024,  # 500MB should have 5 parts
+                opener,
+            )
+    # After first get call has errors, reamining get call should return without making the call.
+    # It can be 5 depends on underlying environment,e.g. it fails on winodws from time to time.
+    assert session.get_count <= 5

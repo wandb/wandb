@@ -10,6 +10,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/runbranch"
+	"github.com/wandb/wandb/core/internal/runconfig"
 )
 
 type ResumeResponse struct {
@@ -42,8 +43,7 @@ func TestNeverResumeEmptyResponse(t *testing.T) {
 		context.Background(),
 		mockGQL,
 		"never")
-	params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
-	assert.Nil(t, params, "GetUpdates should return nil when response is empty")
+	err := resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
 
@@ -57,8 +57,7 @@ func TestAllowResumeEmptyResponse(t *testing.T) {
 		context.Background(),
 		mockGQL,
 		"allow")
-	params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
-	assert.Nil(t, params, "GetUpdates should return nil when response is empty")
+	err := resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
 
@@ -72,8 +71,7 @@ func TestMustResumeEmptyResponse(t *testing.T) {
 		context.Background(),
 		mockGQL,
 		"must")
-	updates, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
-	assert.Nil(t, updates, "GetUpdates should return nil when response is invalid")
+	err := resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.NotNil(t, err, "GetUpdates should return an error")
 	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
 	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
@@ -90,8 +88,7 @@ func TestMustResumeNilResponse(t *testing.T) {
 		context.Background(),
 		mockGQL,
 		"must")
-	updates, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
-	assert.Nil(t, updates, "GetUpdates should return nil when response is invalid")
+	err := resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.NotNil(t, err, "GetUpdates should return an error")
 	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
 	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
@@ -125,8 +122,7 @@ func TestNeverResumeNoneEmptyResponse(t *testing.T) {
 		context.Background(),
 		mockGQL,
 		"never")
-	params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
-	assert.Nil(t, params, "GetUpdates should return nil when response is empty")
+	err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.NotNil(t, err, "GetUpdates should return an error")
 	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
 	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
@@ -160,8 +156,7 @@ func TestMustResumeNoTelemetryInConfig(t *testing.T) {
 		context.Background(),
 		mockGQL,
 		"must")
-	params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
-	assert.Nil(t, params, "GetUpdates should return nil when response is empty")
+	err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.NotNil(t, err, "GetUpdates should return an error")
 	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
 }
@@ -202,8 +197,7 @@ func TestAllowResumeNoneEmptyResponse(t *testing.T) {
 		context.Background(),
 		mockGQL,
 		"allow")
-	params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
-	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
+	err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
 
@@ -242,8 +236,7 @@ func TestMustResumeNoneEmptyResponse(t *testing.T) {
 		context.Background(),
 		mockGQL,
 		"must")
-	params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
-	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
+	err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
 
@@ -283,8 +276,8 @@ func TestMustResumeValidHistory(t *testing.T) {
 		context.Background(),
 		mockGQL,
 		"must")
-	params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
-	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
+	params := &runbranch.RunParams{}
+	err = resumeState.UpdateForResume(params, runconfig.New())
 	assert.Equal(t, int64(2), params.StartingStep, "GetUpdates should return correct starting step")
 	assert.Equal(t, int32(50), params.Runtime, "GetUpdates should return correct runtime")
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
@@ -327,8 +320,8 @@ func TestMustResumeZeroHisotry(t *testing.T) {
 		context.Background(),
 		mockGQL,
 		"must")
-	params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
-	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
+	params := &runbranch.RunParams{}
+	err = resumeState.UpdateForResume(params, runconfig.New())
 	assert.Equal(t, int64(0), params.StartingStep, "GetUpdates should return correct starting step")
 	assert.Equal(t, int32(0), params.Runtime, "GetUpdates should return correct runtime")
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
@@ -372,8 +365,8 @@ func TestMustResumeHistoryTailStepZero(t *testing.T) {
 		mockGQL,
 		"must")
 
-	params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
-	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
+	params := &runbranch.RunParams{}
+	err = resumeState.UpdateForResume(params, runconfig.New())
 	assert.Equal(t, int64(1), params.StartingStep, "GetUpdates should return correct starting step")
 	assert.Equal(t, int32(0), params.Runtime, "GetUpdates should return correct runtime")
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
@@ -417,8 +410,8 @@ func TestMustResumeValidSummary(t *testing.T) {
 		mockGQL,
 		"must")
 
-	params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
-	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
+	params := &runbranch.RunParams{}
+	err = resumeState.UpdateForResume(params, runconfig.New())
 	assert.Equal(t, int64(2), params.StartingStep, "GetUpdates should return correct starting step")
 	assert.Equal(t, int32(40), params.Runtime, "GetUpdates should return correct runtime")
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
@@ -440,7 +433,7 @@ func TestMustResumeValidConfig(t *testing.T) {
 	eventsLineCount := 0
 	logLineCount := 0
 	history := "[]"
-	config := `{"lr": {"value": 0.001}}`
+	configStr := `{"lr": {"value": 0.001}}`
 	summary := "{}"
 	rr := ResumeResponse{
 		Model: Model{
@@ -451,7 +444,7 @@ func TestMustResumeValidConfig(t *testing.T) {
 				LogLineCount:     &logLineCount,
 				HistoryTail:      &history,
 				SummaryMetrics:   &summary,
-				Config:           &config,
+				Config:           &configStr,
 				EventsTail:       "[]",
 				WandbConfig:      `{"t": 1}`,
 			},
@@ -470,14 +463,15 @@ func TestMustResumeValidConfig(t *testing.T) {
 		mockGQL,
 		"must")
 
-	params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
+	params := &runbranch.RunParams{}
+	config := runconfig.New()
+	err = resumeState.UpdateForResume(params, config)
 	assert.Nil(t, err, "GetUpdates should not return an error")
-	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
 	assert.Equal(t, int64(0), params.StartingStep, "GetUpdates should return correct starting step")
 	assert.Equal(t, int32(0), params.Runtime, "GetUpdates should return correct runtime")
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
-	assert.Len(t, params.Config, 1, "GetUpdates should return correct config")
-	assert.Equal(t, 0.001, params.Config["lr"], "GetUpdates should return correct config")
+	assert.Len(t, config.CloneTree(), 1, "GetUpdates should return correct config")
+	assert.Equal(t, 0.001, config.CloneTree()["lr"], "GetUpdates should return correct config")
 }
 
 func TestMustResumeValidTags(t *testing.T) {
@@ -518,9 +512,9 @@ func TestMustResumeValidTags(t *testing.T) {
 		mockGQL,
 		"must")
 
-	params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
+	params := &runbranch.RunParams{}
+	err = resumeState.UpdateForResume(params, runconfig.New())
 	assert.Nil(t, err, "GetUpdates should not return an error")
-	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
 	assert.Equal(t, int64(0), params.StartingStep, "GetUpdates should return correct starting step")
 	assert.Equal(t, int32(0), params.Runtime, "GetUpdates should return correct runtime")
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
@@ -567,9 +561,9 @@ func TestMustResumeValidStorageId(t *testing.T) {
 		mockGQL,
 		"must")
 
-	params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
+	params := &runbranch.RunParams{}
+	err = resumeState.UpdateForResume(params, runconfig.New())
 	assert.Nil(t, err, "GetUpdates should not return an error")
-	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
 	assert.Equal(t, int64(0), params.StartingStep, "GetUpdates should return correct starting step")
 	assert.Equal(t, int32(0), params.Runtime, "GetUpdates should return correct runtime")
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
@@ -615,9 +609,9 @@ func TestMustResumeValidEvents(t *testing.T) {
 		mockGQL,
 		"must")
 
-	params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
+	params := &runbranch.RunParams{}
+	err = resumeState.UpdateForResume(params, runconfig.New())
 	assert.Nil(t, err, "GetUpdates should not return an error")
-	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
 	assert.Equal(t, int64(0), params.StartingStep, "GetUpdates should return correct starting step")
 	assert.Equal(t, int32(50), params.Runtime, "GetUpdates should return correct runtime")
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
@@ -705,11 +699,10 @@ func TestMustResumeNullValue(t *testing.T) {
 				mockGQL,
 				"must")
 
-			params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
+			err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 			assert.NotNil(t, err, "GetUpdates should return an error")
 			assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
 			assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
-			assert.Nil(t, params, "GetUpdates should return nil when response is empty")
 		})
 	}
 }
@@ -782,13 +775,11 @@ func TestAllowResumeNullValue(t *testing.T) {
 				mockGQL,
 				"allow")
 
-			params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
+			err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 			assert.NotNil(t, err, "GetUpdates should return an error")
 			if _, ok := err.(*runbranch.BranchError); ok {
 				t.Errorf("expected a BranchError but got %T", err)
 			}
-
-			assert.Nil(t, params, "GetUpdates should return nil when response is empty")
 		})
 	}
 }
@@ -845,11 +836,10 @@ func TestMustResumeInvalidHistory(t *testing.T) {
 				mockGQL,
 				"must")
 
-			params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
+			err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 			assert.NotNil(t, err, "GetUpdates should return an error")
 			assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
 			assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
-			assert.Nil(t, params, "GetUpdates should return nil when response is empty")
 		})
 	}
 }
@@ -892,11 +882,11 @@ func TestMustResumeInvalidSummary(t *testing.T) {
 		mockGQL,
 		"must")
 
-	params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
+	err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.NotNil(t, err, "GetUpdates should return an error")
 	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
 	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
-	assert.Nil(t, params, "GetUpdates should return nil when response is empty")
+	assert.Nil(t, nil, "GetUpdates should return nil when response is empty")
 }
 
 func TestMustResumeInvalidConfig(t *testing.T) {
@@ -954,11 +944,10 @@ func TestMustResumeInvalidConfig(t *testing.T) {
 				mockGQL,
 				"must")
 
-			params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
+			err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 			assert.NotNil(t, err, "GetUpdates should return an error")
 			assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
 			assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
-			assert.Nil(t, params, "GetUpdates should return nil when response is empty")
 		})
 	}
 }
@@ -1015,9 +1004,9 @@ func TestNotNeverResumeFileStreamOffset(t *testing.T) {
 				context.Background(),
 				mockGQL,
 				tc.value)
-			params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
+			params := &runbranch.RunParams{}
+			err = resumeState.UpdateForResume(params, runconfig.New())
 			assert.Nil(t, err, "GetUpdates should not return an error")
-			assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
 			assert.Len(t, params.FileStreamOffset, 3, "GetUpdates should return correct file stream offset")
 			assert.Equal(t, 10, params.FileStreamOffset[filestream.HistoryChunk], "GetUpdates should return correct file stream offset")
 			assert.Equal(t, 13, params.FileStreamOffset[filestream.EventsChunk], "GetUpdates should return correct file stream offset")
@@ -1034,7 +1023,7 @@ func TestExtractRunState(t *testing.T) {
 	logLineCount := 15
 	history := `["{\"_step\":4,\"_runtime\":100}"]`
 	summary := `{"loss": 0.5, "_runtime": 120, "_wandb": {"runtime": 130}, "_step": 4}`
-	config := `{"lr": {"value": 0.001}, "batch_size": {"value": 32}}`
+	configStr := `{"lr": {"value": 0.001}, "batch_size": {"value": 32}}`
 	eventsTail := `["{\"_runtime\":110}", "{\"_runtime\":120}"]`
 	storageId := "test_storage_id"
 
@@ -1047,7 +1036,7 @@ func TestExtractRunState(t *testing.T) {
 				LogLineCount:     &logLineCount,
 				HistoryTail:      &history,
 				SummaryMetrics:   &summary,
-				Config:           &config,
+				Config:           &configStr,
 				EventsTail:       eventsTail,
 				Tags:             []string{"test", "extract"},
 				WandbConfig:      `{"t": 1}`,
@@ -1069,16 +1058,15 @@ func TestExtractRunState(t *testing.T) {
 		mockGQL,
 		"allow")
 
-	runPath := runbranch.RunPath{
+	params := &runbranch.RunParams{
 		Entity:  "test-entity",
 		Project: "test-project",
 		RunID:   "test-run-id",
 	}
-
-	params, err := resumeState.GetUpdates(nil, runPath)
+	config := runconfig.New()
+	err = resumeState.UpdateForResume(params, config)
 
 	assert.Nil(t, err, "GetUpdates should not return an error")
-	assert.NotNil(t, params, "GetUpdates should return params")
 
 	// Test FileStreamOffset
 	assert.Equal(t, historyLineCount, params.FileStreamOffset[filestream.HistoryChunk], "Incorrect history line count")
@@ -1102,8 +1090,9 @@ func TestExtractRunState(t *testing.T) {
 	assert.Equal(t, int64(130), wandbRuntime, "Incorrect wandb runtime in summary")
 
 	// Test Config
-	assert.Equal(t, 0.001, params.Config["lr"], "Incorrect learning rate in config")
-	assert.Equal(t, int64(32), params.Config["batch_size"], "Incorrect batch size in config")
+	configTree := config.CloneTree()
+	assert.Equal(t, 0.001, configTree["lr"], "Incorrect learning rate in config")
+	assert.Equal(t, int64(32), configTree["batch_size"], "Incorrect batch size in config")
 
 	// Test Tags
 	assert.Equal(t, []string{"test", "extract"}, params.Tags, "Incorrect tags")
@@ -1258,21 +1247,18 @@ func TestExtractRunStateNilCases(t *testing.T) {
 				mockGQL,
 				"must") // Use "must" to ensure errors are returned
 
-			runPath := runbranch.RunPath{
+			params := &runbranch.RunParams{
 				Entity:  "test-entity",
 				Project: "test-project",
 				RunID:   "test-run-id",
 			}
-
-			params, err := resumeState.GetUpdates(nil, runPath)
+			err = resumeState.UpdateForResume(params, runconfig.New())
 
 			if tc.expectError {
 				assert.NotNil(t, err, "GetUpdates should return an error")
-				assert.Nil(t, params, "GetUpdates should return nil params when there's an error")
 				assert.Contains(t, err.Error(), tc.errorContains, "Error message should contain expected text")
 			} else {
 				assert.Nil(t, err, "GetUpdates should not return an error")
-				assert.NotNil(t, params, "GetUpdates should return params")
 			}
 		})
 	}
@@ -1318,22 +1304,17 @@ func TestExtractRunStateAdjustsStartTime(t *testing.T) {
 		mockGQL,
 		"must")
 
-	runPath := runbranch.RunPath{
-		Entity:  "test-entity",
-		Project: "test-project",
-		RunID:   "test-run-id",
-	}
-
 	// Set a non-zero StartTime in the input RunParams
 	initialStartTime := time.Now()
-	initialParams := &runbranch.RunParams{
+	params := &runbranch.RunParams{
 		StartTime: initialStartTime,
+		Entity:    "test-entity",
+		Project:   "test-project",
+		RunID:     "test-run-id",
 	}
-
-	params, err := resumeState.GetUpdates(initialParams, runPath)
+	err = resumeState.UpdateForResume(params, runconfig.New())
 
 	assert.Nil(t, err, "GetUpdates should not return an error")
-	assert.NotNil(t, params, "GetUpdates should return params")
 
 	// Check that StartTime was adjusted correctly
 	expectedStartTime := initialStartTime.Add(time.Duration(-130) * time.Second)

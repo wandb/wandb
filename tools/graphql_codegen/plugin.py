@@ -28,6 +28,7 @@ from .plugin_utils import (
     is_redundant_subclass_def,
     make_all_assignment,
     make_import_from,
+    make_model_rebuild,
     remove_module_files,
 )
 
@@ -81,11 +82,22 @@ class FixFragmentOrder(Plugin):
 
         imports = grouped_stmts.pop(ast.ImportFrom)
         class_defs = grouped_stmts.pop(ast.ClassDef)
-        model_rebuilds = grouped_stmts.pop(ast.Expr)
+
+        # Drop the `.model_rebuild()` statements (we'll regenerate them)
+        _ = grouped_stmts.pop(ast.Expr)
 
         # Since we've popped all the expected statement groups, verify there's nothing left
         if grouped_stmts:
             raise ValueError(f"Unexpected statements in module: {list(grouped_stmts)}")
+
+        # For safety, we're going to apply `.model_rebuild()` to all generated fragment types
+        # This'll prevent errors that pop up in pydantic v1 like:
+        #
+        #   pydantic.errors.ConfigError: field "node" not yet prepared so type is still a
+        #   ForwardRef, you might need to call FilesFragmentEdges.update_forward_refs().
+        model_rebuilds = [
+            make_model_rebuild(class_def.name) for class_def in class_defs
+        ]
 
         # Deterministically reorder the class definitions/model_rebuild() statements,
         # ensuring parent classes are defined first
