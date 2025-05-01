@@ -4,10 +4,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Literal, Optional, Union
+from typing import List, Optional, Union
 
 from pydantic import Field
-from typing_extensions import Annotated
+from typing_extensions import Annotated, Literal
 
 from wandb._pydantic import GQLBase, GQLId, Typename
 
@@ -15,46 +15,40 @@ from .enums import AlertSeverity, EventTriggeringConditionType
 
 
 class ArtifactPortfolioScopeFields(GQLBase):
-    typename__: Typename[Literal["ArtifactPortfolio"]] = "ArtifactPortfolio"
+    typename__: Typename[str] = "ArtifactPortfolio"
     id: GQLId
     name: str
 
 
 class ArtifactSequenceScopeFields(GQLBase):
-    typename__: Typename[Literal["ArtifactSequence"]] = "ArtifactSequence"
+    typename__: Typename[str] = "ArtifactSequence"
     id: GQLId
     name: str
 
 
 class CreateAutomationResult(GQLBase):
-    typename__: Typename[Literal["CreateFilterTriggerPayload"]] = (
-        "CreateFilterTriggerPayload"
-    )
+    typename__: Typename[str] = "CreateFilterTriggerPayload"
     trigger: Optional[TriggerFields]
 
 
 class DeleteAutomationResult(GQLBase):
-    typename__: Typename[Literal["DeleteTriggerPayload"]] = "DeleteTriggerPayload"
+    typename__: Typename[str] = "DeleteTriggerPayload"
     success: bool
 
 
 class FilterEventFields(GQLBase):
-    typename__: Typename[Literal["FilterEventTriggeringCondition"]] = (
-        "FilterEventTriggeringCondition"
-    )
-    event_type: EventTriggeringConditionType = Field(alias="eventType")
+    typename__: Typename[str] = "FilterEventTriggeringCondition"
+    event_type: EventTriggeringConditionType
     filter: str
 
 
 class GenericWebhookActionFields(GQLBase):
-    typename__: Typename[Literal["GenericWebhookTriggeredAction"]] = (
-        "GenericWebhookTriggeredAction"
-    )
+    typename__: Typename[str] = "GenericWebhookTriggeredAction"
     integration: Union[
         GenericWebhookActionFieldsIntegrationIntegration,
         GenericWebhookActionFieldsIntegrationGenericWebhookIntegration,
     ] = Field(discriminator="typename__")
-    request_payload: Optional[str] = Field(alias="requestPayload")
+    request_payload: Optional[str]
 
 
 class GenericWebhookActionFieldsIntegrationIntegration(GQLBase):
@@ -64,8 +58,8 @@ class GenericWebhookActionFieldsIntegrationIntegration(GQLBase):
 
 
 class GenericWebhookIntegrationConnectionFields(GQLBase):
-    typename__: Typename[Literal["IntegrationConnection"]] = "IntegrationConnection"
-    page_info: PageInfoFields = Field(alias="pageInfo")
+    typename__: Typename[str] = "IntegrationConnection"
+    page_info: PageInfoFields
     edges: List[GenericWebhookIntegrationConnectionFieldsEdges]
 
 
@@ -89,17 +83,15 @@ class GenericWebhookIntegrationConnectionFieldsEdgesNodeIntegration(GQLBase):
 
 
 class GenericWebhookIntegrationFields(GQLBase):
-    typename__: Typename[Literal["GenericWebhookIntegration"]] = (
-        "GenericWebhookIntegration"
-    )
+    typename__: Typename[str] = "GenericWebhookIntegration"
     id: GQLId
     name: str
-    url_endpoint: str = Field(alias="urlEndpoint")
+    url_endpoint: str
 
 
 class IntegrationConnectionFields(GQLBase):
-    typename__: Typename[Literal["IntegrationConnection"]] = "IntegrationConnection"
-    page_info: PageInfoFields = Field(alias="pageInfo")
+    typename__: Typename[str] = "IntegrationConnection"
+    page_info: PageInfoFields
     edges: List[IntegrationConnectionFieldsEdges]
 
 
@@ -122,14 +114,12 @@ class IntegrationConnectionFieldsEdgesNodeIntegration(GQLBase):
 
 
 class NoOpActionFields(GQLBase):
-    typename__: Typename[Literal["NoOpTriggeredAction"]] = "NoOpTriggeredAction"
-    no_op: Optional[bool] = Field(alias="noOp")
+    typename__: Typename[str] = "NoOpTriggeredAction"
+    no_op: Optional[bool]
 
 
 class NotificationActionFields(GQLBase):
-    typename__: Typename[Literal["NotificationTriggeredAction"]] = (
-        "NotificationTriggeredAction"
-    )
+    typename__: Typename[str] = "NotificationTriggeredAction"
     integration: Union[
         NotificationActionFieldsIntegrationIntegration,
         NotificationActionFieldsIntegrationSlackIntegration,
@@ -146,13 +136,13 @@ class NotificationActionFieldsIntegrationIntegration(GQLBase):
 
 
 class PageInfoFields(GQLBase):
-    end_cursor: Optional[str] = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
+    end_cursor: Optional[str]
+    has_next_page: bool
 
 
 class ProjectConnectionFields(GQLBase):
-    typename__: Typename[Literal["ProjectConnection"]] = "ProjectConnection"
-    page_info: PageInfoFields = Field(alias="pageInfo")
+    typename__: Typename[str] = "ProjectConnection"
+    page_info: PageInfoFields
     edges: List[ProjectConnectionFieldsEdges]
 
 
@@ -166,13 +156,13 @@ class ProjectConnectionFieldsEdgesNode(GQLBase):
 
 
 class ProjectScopeFields(GQLBase):
-    typename__: Typename[Literal["Project"]] = "Project"
+    typename__: Typename[str] = "Project"
     id: GQLId
     name: str
 
 
 class QueueJobActionFields(GQLBase):
-    typename__: Typename[Literal["QueueJobTriggeredAction"]] = "QueueJobTriggeredAction"
+    typename__: Typename[str] = "QueueJobTriggeredAction"
     queue: Optional[QueueJobActionFieldsQueue]
     template: str
 
@@ -183,8 +173,8 @@ class QueueJobActionFieldsQueue(GQLBase):
 
 
 class SlackIntegrationConnectionFields(GQLBase):
-    typename__: Typename[Literal["IntegrationConnection"]] = "IntegrationConnection"
-    page_info: PageInfoFields = Field(alias="pageInfo")
+    typename__: Typename[str] = "IntegrationConnection"
+    page_info: PageInfoFields
     edges: List[SlackIntegrationConnectionFieldsEdges]
 
 
@@ -208,17 +198,17 @@ class SlackIntegrationConnectionFieldsEdgesNodeIntegration(GQLBase):
 
 
 class SlackIntegrationFields(GQLBase):
-    typename__: Typename[Literal["SlackIntegration"]] = "SlackIntegration"
+    typename__: Typename[str] = "SlackIntegration"
     id: GQLId
-    team_name: str = Field(alias="teamName")
-    channel_name: str = Field(alias="channelName")
+    team_name: str
+    channel_name: str
 
 
 class TriggerFields(GQLBase):
-    typename__: Typename[Literal["Trigger"]] = "Trigger"
+    typename__: Typename[str] = "Trigger"
     id: GQLId
-    created_at: datetime = Field(alias="createdAt")
-    updated_at: Optional[datetime] = Field(alias="updatedAt")
+    created_at: datetime
+    updated_at: Optional[datetime]
     name: str
     description: Optional[str]
     enabled: bool
@@ -227,7 +217,7 @@ class TriggerFields(GQLBase):
         TriggerFieldsScopeArtifactSequence,
         TriggerFieldsScopeArtifactPortfolio,
     ] = Field(discriminator="typename__")
-    event: TriggerFieldsEventFilterEventTriggeringCondition
+    event: Union[TriggerFieldsEventFilterEventTriggeringCondition,]
     action: Union[
         TriggerFieldsActionQueueJobTriggeredAction,
         TriggerFieldsActionNotificationTriggeredAction,
@@ -237,9 +227,7 @@ class TriggerFields(GQLBase):
 
 
 class UpdateAutomationResult(GQLBase):
-    typename__: Typename[Literal["UpdateFilterTriggerPayload"]] = (
-        "UpdateFilterTriggerPayload"
-    )
+    typename__: Typename[str] = "UpdateFilterTriggerPayload"
     trigger: Optional[TriggerFields]
 
 

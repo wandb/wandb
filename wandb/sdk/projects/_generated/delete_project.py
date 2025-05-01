@@ -3,15 +3,15 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Optional
 
-from pydantic import Field
+from typing_extensions import Literal
 
 from wandb._pydantic import GQLBase, Typename
 
 
 class DeleteProject(GQLBase):
-    delete_model: Optional[DeleteProjectDeleteModel] = Field(alias="deleteModel")
+    delete_model: Optional[DeleteProjectDeleteModel]
 
 
 class DeleteProjectDeleteModel(GQLBase):

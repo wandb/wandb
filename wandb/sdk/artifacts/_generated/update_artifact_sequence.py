@@ -3,23 +3,19 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Optional
 
-from pydantic import Field
+from typing_extensions import Literal
 
 from wandb._pydantic import GQLBase, GQLId, Typename
 
 
 class UpdateArtifactSequence(GQLBase):
-    update_artifact_sequence: Optional[UpdateArtifactSequenceUpdateArtifactSequence] = (
-        Field(alias="updateArtifactSequence")
-    )
+    update_artifact_sequence: Optional[UpdateArtifactSequenceUpdateArtifactSequence]
 
 
 class UpdateArtifactSequenceUpdateArtifactSequence(GQLBase):
-    artifact_collection: UpdateArtifactSequenceUpdateArtifactSequenceArtifactCollection = Field(
-        alias="artifactCollection"
-    )
+    artifact_collection: UpdateArtifactSequenceUpdateArtifactSequenceArtifactCollection
 
 
 class UpdateArtifactSequenceUpdateArtifactSequenceArtifactCollection(GQLBase):

@@ -5,8 +5,6 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field
-
 from wandb._pydantic import GQLBase
 
 from .fragments import FilesFragment
@@ -17,9 +15,7 @@ class ArtifactVersionFiles(GQLBase):
 
 
 class ArtifactVersionFilesProject(GQLBase):
-    artifact_type: Optional[ArtifactVersionFilesProjectArtifactType] = Field(
-        alias="artifactType"
-    )
+    artifact_type: Optional[ArtifactVersionFilesProjectArtifactType]
 
 
 class ArtifactVersionFilesProjectArtifactType(GQLBase):

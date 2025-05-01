@@ -48,6 +48,7 @@ class EventType(LenientStrEnum):
     # Events triggered by Run conditions
     RUN_METRIC_THRESHOLD = "RUN_METRIC"
     RUN_METRIC_CHANGE = "RUN_METRIC_CHANGE"
+    RUN_STATE = "RUN_STATE"
 
 
 # ------------------------------------------------------------------------------

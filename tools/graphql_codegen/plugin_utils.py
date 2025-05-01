@@ -44,8 +44,6 @@ def is_redundant_subclass_def(stmt: ast.ClassDef) -> TypeGuard[ast.ClassDef]:
     A redundant subclass will look like:
         class MyClass(ParentClass):
             pass
-
-    is redundant if it has only one base class, and
     """
     return (
         is_class_def(stmt)
@@ -99,6 +97,15 @@ def is_model_rebuild(node: ast.stmt) -> TypeGuard[ast.Expr]:
         and isinstance(node.value, ast.Call)
         and isinstance(node.value.func, ast.Attribute)
         and (node.value.func.attr == "model_rebuild")
+    )
+
+
+def is_pydantic_field(node: ast.stmt) -> TypeGuard[ast.Call]:
+    """Return True if this node is a pydantic `Field(...)` call."""
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and (node.func.id == "Field")
     )
 
 

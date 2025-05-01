@@ -13,6 +13,7 @@ class EventTriggeringConditionType(str, Enum):
     LINK_MODEL = "LINK_MODEL"
     RUN_METRIC = "RUN_METRIC"
     RUN_METRIC_CHANGE = "RUN_METRIC_CHANGE"
+    RUN_STATE = "RUN_STATE"
 
 
 class TriggerScopeType(str, Enum):

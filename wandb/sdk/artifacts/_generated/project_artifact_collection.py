@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import List, Optional
 
-from pydantic import Field
+from typing_extensions import Literal
 
 from wandb._pydantic import GQLBase, GQLId, Typename
 
@@ -15,18 +15,16 @@ class ProjectArtifactCollection(GQLBase):
 
 
 class ProjectArtifactCollectionProject(GQLBase):
-    artifact_type: Optional[ProjectArtifactCollectionProjectArtifactType] = Field(
-        alias="artifactType"
-    )
+    artifact_type: Optional[ProjectArtifactCollectionProjectArtifactType]
 
 
 class ProjectArtifactCollectionProjectArtifactType(GQLBase):
     artifact_collection: Optional[
         ProjectArtifactCollectionProjectArtifactTypeArtifactCollection
-    ] = Field(alias="artifactCollection")
+    ]
     artifact_sequence: Optional[
         ProjectArtifactCollectionProjectArtifactTypeArtifactSequence
-    ] = Field(alias="artifactSequence")
+    ]
 
 
 class ProjectArtifactCollectionProjectArtifactTypeArtifactCollection(GQLBase):
@@ -36,7 +34,7 @@ class ProjectArtifactCollectionProjectArtifactTypeArtifactCollection(GQLBase):
     id: GQLId
     name: str
     description: Optional[str]
-    created_at: str = Field(alias="createdAt")
+    created_at: str
     tags: ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTags
     aliases: ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliases
 
@@ -60,8 +58,8 @@ class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliases(GQLB
     edges: List[
         ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesEdges
     ]
-    page_info: ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesPageInfo = Field(
-        alias="pageInfo"
+    page_info: (
+        ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesPageInfo
     )
 
 
@@ -83,8 +81,8 @@ class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesEdges
 class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesPageInfo(
     GQLBase
 ):
-    end_cursor: Optional[str] = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
+    end_cursor: Optional[str]
+    has_next_page: bool
 
 
 class ProjectArtifactCollectionProjectArtifactTypeArtifactSequence(GQLBase):
