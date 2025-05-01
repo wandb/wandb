@@ -612,7 +612,10 @@ class Artifact:
     @property
     @ensure_logged
     def linked_artifacts(self) -> list[Artifact]:
-        """Returns a list of all the linked artifacts of a source artifact. Limited to 500 results."""
+        """Returns a list of all the linked artifacts of a source artifact.
+
+        If the artifact is a link artifact (`artifact.is_link == True`), it will return an empty list.
+        Limited to 500 results."""
         if not (self._linked_artifacts or self.is_link):
             self._linked_artifacts = self._fetch_linked_artifacts()
         return self._linked_artifacts
@@ -622,7 +625,7 @@ class Artifact:
     def source_artifact(self) -> Artifact:
         """Returns the source artifact. The source artifact is the original logged artifact.
 
-        If the artifact itself is a source artifact, it will return itself."""
+        If the artifact itself is a source artifact (`artifact.is_link == False`), it will return itself."""
         if not self.is_link:
             return self
         if self._source_artifact is None:
