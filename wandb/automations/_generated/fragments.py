@@ -26,14 +26,14 @@ class ArtifactSequenceScopeFields(GQLBase):
     name: str
 
 
-class CreateFilterTriggerResult(GQLBase):
+class CreateAutomationResult(GQLBase):
     typename__: Typename[Literal["CreateFilterTriggerPayload"]] = (
         "CreateFilterTriggerPayload"
     )
     trigger: Optional[TriggerFields]
 
 
-class DeleteTriggerResult(GQLBase):
+class DeleteAutomationResult(GQLBase):
     typename__: Typename[Literal["DeleteTriggerPayload"]] = "DeleteTriggerPayload"
     success: bool
 
@@ -236,7 +236,7 @@ class TriggerFields(GQLBase):
     ] = Field(discriminator="typename__")
 
 
-class UpdateFilterTriggerResult(GQLBase):
+class UpdateAutomationResult(GQLBase):
     typename__: Typename[Literal["UpdateFilterTriggerPayload"]] = (
         "UpdateFilterTriggerPayload"
     )
@@ -307,8 +307,8 @@ class SlackIntegrationConnectionFieldsEdgesNodeSlackIntegration(SlackIntegration
 
 ArtifactPortfolioScopeFields.model_rebuild()
 ArtifactSequenceScopeFields.model_rebuild()
-CreateFilterTriggerResult.model_rebuild()
-DeleteTriggerResult.model_rebuild()
+CreateAutomationResult.model_rebuild()
+DeleteAutomationResult.model_rebuild()
 FilterEventFields.model_rebuild()
 GenericWebhookActionFields.model_rebuild()
 GenericWebhookActionFieldsIntegrationIntegration.model_rebuild()
@@ -334,7 +334,7 @@ SlackIntegrationConnectionFieldsEdges.model_rebuild()
 SlackIntegrationConnectionFieldsEdgesNodeIntegration.model_rebuild()
 SlackIntegrationFields.model_rebuild()
 TriggerFields.model_rebuild()
-UpdateFilterTriggerResult.model_rebuild()
+UpdateAutomationResult.model_rebuild()
 TriggerFieldsScopeArtifactPortfolio.model_rebuild()
 TriggerFieldsScopeArtifactSequence.model_rebuild()
 TriggerFieldsEventFilterEventTriggeringCondition.model_rebuild()
