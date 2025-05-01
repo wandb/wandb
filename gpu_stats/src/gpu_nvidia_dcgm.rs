@@ -13,7 +13,7 @@ use std::{
     collections::HashSet,
     ffi::{c_char, c_int, c_void, CStr, CString},
     ptr,
-    sync::mpsc,
+    sync::mpsc::{self, Receiver as SyncReceiver, SyncSender},
     thread,
 };
 use tokio::sync::oneshot;
@@ -693,6 +693,9 @@ enum DcgmCommand {
     Shutdown,
 }
 
+/// Result type for the one-time initialization handshake.
+type InitResult = Result<(), String>; // Ok signals success, Err contains error message
+
 /// Thread-safe client for interacting with the DCGM monitoring worker thread.
 ///
 /// Creates and manages a background thread that handles all blocking DCGM FFI calls.
@@ -755,100 +758,133 @@ impl DcgmClient {
         ];
 
         // Use a standard MPSC channel for commands to the synchronous worker thread.
-        let (sender, receiver) = mpsc::channel();
+        let (cmd_sender, cmd_receiver) = mpsc::channel();
+
+        // sync_channel(0) creates a rendezvous channel for the handshake.
+        let (init_sender, init_receiver): (SyncSender<InitResult>, SyncReceiver<InitResult>) =
+            mpsc::sync_channel(0);
 
         let thread_desired_field_ids = desired_field_ids.clone();
 
         // Spawn a dedicated OS thread to handle blocking DCGM interactions.
         // This avoids blocking the async runtime of the main application.
-        thread::Builder::new()
+        let spawn_result = thread::Builder::new()
             .name("dcgm-worker-sync".to_string())
-            .spawn(move || {
-                // Initialize DCGM.
-                log::debug!("Initializing DCGM library in dedicated sync worker thread...");
-                let dcgm = match DcgmLib::new(&lib_path, &host_address) {
-                    /* ... error handling ... */
+            .spawn(move || { // Closure takes ownership
+                // --- Worker Thread Initialization ---
+                log::info!("DCGM worker: Initializing DCGM library...");
+                let dcgm_result = DcgmLib::new(&lib_path, &host_address);
+
+                let dcgm = match dcgm_result {
                     Ok(lib) => lib,
                     Err(e) => {
-                        log::debug!(
-                            "Failed to initialize DCGM library: {}. Worker thread exiting.",
-                            e
-                        );
-                        return;
+                        log::error!("DCGM worker: Failed to initialize DCGM library: {}. Thread exiting.", e);
+                        // --- Send failure back via handshake ---
+                        let _ = init_sender.send(Err(e)); // Ignore send error if main thread already gave up
+                        return; // Exit thread
                     }
                 };
+                log::info!("DCGM worker: Library initialized.");
 
-                // Get supported metric IDs and filter the desired ones.
-                log::debug!("Querying DCGM for supported profiling metric field IDs...");
-                let actual_field_ids = match dcgm.get_supported_prof_metric_ids() {
-                    Ok(supported_set) => {
-                        // Filter desired IDs against the supported set
-                        let filtered: Vec<u16> = thread_desired_field_ids
-                            .into_iter()
-                            .filter(|id| supported_set.contains(id))
-                            .collect();
-                        if filtered.is_empty() {
-                            log::warn!("No desired DCGM profiling metrics are supported by the hardware/driver. DCGM profiling inactive.");
-                        } else {
-                            log::debug!("Filtered DCGM fields. Will monitor: {:?}", filtered);
-                        }
-                        filtered
-                    }
-                    Err(e) => {
-                        log::error!("Failed to get supported DCGM fields: {}. Monitoring requested fields without filtering.", e);
-                        // Fallback: Monitor all desired fields, hoping they work or fail gracefully later
-                        thread_desired_field_ids
-                    }
-                };
+                let supported_ids_result = dcgm.get_supported_prof_metric_ids();
+                let actual_field_ids = match supported_ids_result {
+                     Ok(supported_set) => {
+                         // Filter logic...
+                         let filtered: Vec<u16> = thread_desired_field_ids
+                             .into_iter()
+                             .filter(|id| supported_set.contains(id))
+                             .collect();
+                         if filtered.is_empty() {
+                                log::warn!("DCGM worker: No supported fields found after filtering. Exiting thread.");
+                                // Send success as DCGM init itself worked, but monitoring won't start.
+                                let _ = init_sender.send(Ok(()));
+                                return;
+                         }
+                         filtered
+                     }
+                     Err(e) => {
+                         log::error!("DCGM worker: Failed to get supported fields: {}. Treating as non-critical init state.", e);
+                         // Or potentially send Err if this *is* critical:
+                         // let _ = init_sender.send(Err(format!("Failed to get supported DCGM fields: {}", e)));
+                         // return;
+                         thread_desired_field_ids // Fallback
+                     }
+                 };
 
-                // Proceed only if we have fields to monitor.
-                if actual_field_ids.is_empty() {
-                    log::warn!("No DCGM profiling fields to monitor after filtering. DCGM worker thread exiting.");
-                    return; // Exit the thread if no fields can be monitored
-                }
-
-                // Create a field group with the filtered field IDs.
-                log::debug!("Creating DCGM field group with IDs: {:?}", actual_field_ids);
-                let group_id = DCGM_GROUP_ALL_GPUS;
-                let field_group_id = match dcgm.create_field_group(&actual_field_ids) {
-                    /* ... error handling ... */
-                    Ok(id) => id,
-                    Err(e) => {
-                        log::error!(
-                            "Failed to create DCGM field group: {}. Worker thread exiting.",
-                            e
-                        );
-                        return;
-                    }
-                };
-
-                // Set up watches for the field group.
-                log::debug!("Setting up DCGM watches for field group ID: {}", field_group_id);
-                if let Err(e) = dcgm.watch_fields(group_id, field_group_id, 2_000_000, 0.0, 2) {
-                    /* ... error handling ... */
-                    log::error!("Failed to set DCGM watches: {}. Worker thread exiting.", e);
+                 // If filtering resulted in no fields, maybe exit? (depends on requirements)
+                 if actual_field_ids.is_empty() {
+                    log::warn!("DCGM worker: No supported fields found after filtering. Exiting thread.");
+                    // Send success as DCGM init itself worked, but monitoring won't start.
+                    let _ = init_sender.send(Ok(()));
                     return;
-                }
+                 }
 
-                // Takes ownership of the thread-local dcgm instance and sync receiver
-                log::debug!("DCGM setup complete in sync worker thread.");
+                 // --- Continue with setup ONLY if dcgm init succeeded ---
+                 log::debug!("DCGM worker: Creating field group...");
+                 let group_id = DCGM_GROUP_ALL_GPUS;
+                 let field_group_result = dcgm.create_field_group(&actual_field_ids);
+                 let field_group_id = match field_group_result {
+                      Ok(id) => id,
+                      Err(e) => {
+                           log::error!("DCGM worker: Failed to create field group: {}. Thread exiting.", e);
+                           let _ = init_sender.send(Err(format!("Failed to create field group: {}", e)));
+                           return;
+                      }
+                 };
+
+                 log::debug!("DCGM worker: Setting watches...");
+                 let watch_result = dcgm.watch_fields(group_id, field_group_id, 15_000_000, 0.0, 2);
+                 if let Err(e) = watch_result {
+                     log::error!("DCGM worker: Failed to set watches: {}. Thread exiting.", e);
+                      let _ = init_sender.send(Err(format!("Failed to set watches: {}", e)));
+                     return;
+                 }
+
+                // --- Initialization successful - Send confirmation ---
+                log::info!("DCGM worker: Initial setup successful.");
+                if init_sender.send(Ok(())).is_err() {
+                    log::warn!("DCGM worker: Failed to send init success signal; main thread may have exited.");
+                     // Don't start the worker loop if we couldn't confirm with main thread
+                     return;
+                 }
+
+                // --- Create and Run Worker Loop ---
+                log::debug!("DCGM worker: Starting command loop.");
                 let mut worker = DcgmWorker::new(
                     dcgm,
                     group_id,
                     field_group_id,
-                    receiver, // Move the sync receiver
+                    cmd_receiver, // Use the command receiver
                 );
                 worker.run();
 
-                log::debug!("DCGM sync worker thread shutting down.");
-                // Drop(dcgm) happens here
-            })
-            .map_err(|e| format!("Failed to spawn DCGM worker OS thread: {}", e))?;
+                log::info!("DCGM worker: Command loop finished.");
+            }); // End of thread closure
 
-        log::debug!("DCGM sync worker OS thread spawned successfully.");
+        // --- Check thread spawn result ---
+        if let Err(e) = spawn_result {
+            return Err(format!("Failed to spawn DCGM worker OS thread: {}", e));
+        }
+        log::info!("DCGM worker OS thread spawned. Waiting for init confirmation...");
 
-        // Return the client (sender end of the sync channel).
-        Ok(Self { sender })
+        // --- Wait for Handshake Result ---
+        match init_receiver.recv() {
+            Ok(Ok(())) => {
+                // Worker signaled successful initialization
+                log::info!("DCGM worker thread initialized successfully.");
+                Ok(Self { sender: cmd_sender }) // Return the command sender
+            }
+            Ok(Err(e)) => {
+                // Worker signaled failure during initialization
+                log::error!("DCGM worker thread failed initialization: {}", e);
+                Err(format!("DCGM worker thread failed initialization: {}", e))
+            }
+            Err(_) => {
+                // Channel disconnected - worker thread likely panicked or exited before sending handshake
+                log::error!("DCGM worker thread disconnected unexpectedly during initialization.");
+                Err("DCGM worker thread exited prematurely during initialization".to_string())
+            }
+        }
     }
 
     /// Asynchronously requests the latest collected DCGM metrics.
