@@ -46,6 +46,8 @@ type RunParams struct {
 	Config  map[string]any
 	Summary map[string]any
 
+	Notes string
+
 	Resumed bool
 	Forked  bool
 
@@ -151,6 +153,10 @@ func (r *RunParams) Proto() *spb.RunRecord {
 	// 	proto.Tags = r.Tags
 	// }
 
+	if r.Notes != "" {
+		proto.Notes = r.Notes
+	}
+
 	return proto
 }
 
@@ -246,6 +252,10 @@ func (r *RunParams) Merge(other *RunParams) {
 
 	if other.Forked {
 		r.Forked = true
+	}
+
+	if other.Notes != "" {
+		r.Notes = other.Notes
 	}
 
 }

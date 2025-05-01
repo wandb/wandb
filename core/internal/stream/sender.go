@@ -1099,6 +1099,7 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 			StorageID:   runClone.GetStorageId(),
 			SweepID:     runClone.GetSweepId(),
 			StartTime:   runClone.GetStartTime().AsTime(),
+			Notes:       runClone.Notes,
 		})
 
 		isResume := s.settings.GetResume()
