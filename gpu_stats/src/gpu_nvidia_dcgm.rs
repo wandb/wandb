@@ -1089,6 +1089,16 @@ extern "C" fn field_value_callback(
                     };
                     // Create a unique key per GPU per metric: e.g., "gpu.0.smActive".
                     let metric_key = format!("{}.{}.{}", entity_type, entity_id, base_name);
+                    // Convert values from ratios [0, 1] to percentage [0, 100%].
+                    let metric_value = if base_name.ends_with("Bytes") {
+                        metric_value
+                    } else {
+                        match metric_value {
+                            MetricValue::Float(f) => MetricValue::Float(f * 100.0),
+                            MetricValue::Int(i) => MetricValue::Int(i * 100),
+                            _ => metric_value,
+                        }
+                    };
                     metrics_vec.push((metric_key, metric_value));
                 }
             }
