@@ -1146,25 +1146,25 @@ class Artifact:
 
         data = self._client.execute(introspect_query)
         if data.get("AddAliasesInputInfoType"):  # wandb backend version >= 0.13.0
-            alias_kws = {
+            alias_props = {
                 "entity_name": entity,
                 "project_name": project,
                 "artifact_collection_name": collection,
             }
             if aliases_to_add := (set(self.aliases) - set(self._saved_aliases)):
                 add_mutation = gql(ADD_ALIASES_GQL)
-                gql_vars = {
-                    "artifactID": self.id,
-                    "aliases": [
-                        ArtifactCollectionAliasInput(
-                            **alias_kws, alias=alias
-                        ).model_dump()
-                        for alias in aliases_to_add
-                    ],
-                }
-
+                add_alias_inputs = [
+                    ArtifactCollectionAliasInput(**alias_props, alias=alias)
+                    for alias in aliases_to_add
+                ]
                 try:
-                    self._client.execute(add_mutation, variable_values=gql_vars)
+                    self._client.execute(
+                        add_mutation,
+                        variable_values={
+                            "artifactID": self.id,
+                            "aliases": [a.model_dump() for a in add_alias_inputs],
+                        },
+                    )
                 except CommError as e:
                     raise CommError(
                         "You do not have permission to add"
@@ -1174,18 +1174,18 @@ class Artifact:
 
             if aliases_to_delete := (set(self._saved_aliases) - set(self.aliases)):
                 delete_mutation = gql(DELETE_ALIASES_GQL)
-                gql_vars = {
-                    "artifactID": self.id,
-                    "aliases": [
-                        ArtifactCollectionAliasInput(
-                            **alias_kws, alias=alias
-                        ).model_dump()
-                        for alias in aliases_to_delete
-                    ],
-                }
-
+                delete_alias_inputs = [
+                    ArtifactCollectionAliasInput(**alias_props, alias=alias)
+                    for alias in aliases_to_delete
+                ]
                 try:
-                    self._client.execute(delete_mutation, variable_values=gql_vars)
+                    self._client.execute(
+                        delete_mutation,
+                        variable_values={
+                            "artifactID": self.id,
+                            "aliases": [a.model_dump() for a in delete_alias_inputs],
+                        },
+                    )
                 except CommError as e:
                     raise CommError(
                         f"You do not have permission to delete"
@@ -1214,8 +1214,8 @@ class Artifact:
 
             omit_variables |= {"ttlDurationSeconds"}
 
-        tags_to_add = validate_tags(set(self._tags) - set(self._saved_tags))
-        tags_to_del = validate_tags(set(self._saved_tags) - set(self._tags))
+        tags_to_add = validate_tags(set(self.tags) - set(self._saved_tags))
+        tags_to_del = validate_tags(set(self._saved_tags) - set(self.tags))
 
         if {"tags"} & omit_fields:
             if tags_to_add or tags_to_del:
@@ -1242,8 +1242,10 @@ class Artifact:
 
         data = self._client.execute(mutation, variable_values=gql_vars)
 
-        validated = UpdateArtifact.model_validate(data).update_artifact.artifact
-        self._assign_attrs(validated.model_dump())
+        result = UpdateArtifact.model_validate(data).update_artifact
+        if not (result and (artifact := result.artifact)):
+            raise ValueError("Unable to parse updateArtifact response")
+        self._assign_attrs(artifact.model_dump())
 
         self._ttl_changed = False  # Reset after updating artifact
 
