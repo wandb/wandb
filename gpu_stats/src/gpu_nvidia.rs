@@ -253,6 +253,9 @@ impl NvidiaGpu {
     /// gpu.{i}.powerPercent: The percentage of power limit being used by the GPU at index i.
     /// gpu.{i}.graphicsClock: The current graphics clock speed of the GPU at index i (in MHz).
     /// gpu.{i}.memoryClock: The current memory clock speed of the GPU at index i (in MHz).
+    /// gpu.{i}.smClock: The current SM clock speed of the GPU at index i (in MHz).
+    /// gpu.{i}.correctedMemoryErrors: The number of corrected memory errors on the GPU at index i.
+    /// gpu.{i}.uncorrectedMemoryErrors: The number of uncorrected memory errors on the GPU at index i.
     /// gpu.{i}.pcieLinkGen: The current PCIe link generation of the GPU at index i.
     /// gpu.{i}.pcieLinkSpeed: The current PCIe link speed of the GPU at index i (in bits per second).
     /// gpu.{i}.pcieLinkWidth: The current PCIe link width of the GPU at index i.

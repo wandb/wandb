@@ -478,6 +478,9 @@ pub struct Feature {
     /// User set the x_label value
     #[prost(bool, tag = "69")]
     pub user_provided_label: bool,
+    /// DCGM profiling was enabled
+    #[prost(bool, tag = "70")]
+    pub dcgm_profiling_enabled: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Env {
