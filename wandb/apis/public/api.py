@@ -1924,6 +1924,127 @@ class Api:
 
         return Automation.model_validate(result.trigger)
 
+    def update_automation(
+        self,
+        obj: "Automation",
+        *,
+        create_missing: bool = False,
+        **kwargs: Unpack["WriteAutomationsKwargs"],
+    ) -> "Automation":
+        """Update an existing automation.
+
+        Args:
+            obj: The automation to update.  Must be an existing automation.
+            create_missing (bool):
+                If True, and the automation does not exist, create it.
+            **kwargs:
+                Any additional values to assign to the automation before
+                updating it.  If given, these will override any values that may
+                already be set on the automation:
+                - `name`: The name of the automation.
+                - `description`: The description of the automation.
+                - `enabled`: Whether the automation is enabled.
+                - `scope`: The scope of the automation.
+                - `event`: The event that triggers the automation.
+                - `action`: The action that is triggered by the automation.
+
+        Returns:
+            The updated automation.
+
+        Examples:
+            Disable and edit the description of an existing automation ("my-automation"):
+
+            ```python
+            import wandb
+
+            api = wandb.Api()
+
+            automation = api.automation(name="my-automation")
+            automation.enabled = False
+            automation.description = "Kept for reference, but no longer used."
+
+            updated_automation = api.update_automation(automation)
+            ```
+
+            OR:
+
+            ```python
+            import wandb
+
+            api = wandb.Api()
+
+            automation = api.automation(name="my-automation")
+
+            updated_automation = api.update_automation(
+                automation,
+                enabled=False,
+                description="Kept for reference, but no longer used.",
+            )
+            ```
+        """
+        from wandb.automations import ActionType, Automation
+        from wandb.automations._generated import UPDATE_AUTOMATION_GQL, UpdateAutomation
+        from wandb.automations._utils import prepare_to_update
+
+        # Check if the server even supports updating automations.
+        #
+        # NOTE: Unfortunately, there is no current server feature flag for this.  As a workaround,
+        # we check whether the server supports the NO_OP action, which is a reasonably safe proxy
+        # for whether it supports updating automations.
+        if not self._supports_automation(action=ActionType.NO_OP):
+            raise RuntimeError(
+                "Updating existing automations is not enabled on this wandb server version. "
+                "Please upgrade your server version, or contact support at support@wandb.com."
+            )
+
+        gql_input = prepare_to_update(obj, **kwargs)
+
+        if not self._supports_automation(
+            event=(event := gql_input.triggering_event_type),
+            action=(action := gql_input.triggered_action_type),
+        ):
+            raise ValueError(
+                f"Automation event or action ({event.value} -> {action.value}) "
+                "is not supported on this wandb server version. "
+                "Please upgrade your server version, or contact support at "
+                "support@wandb.com."
+            )
+
+        # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
+        omit_fragments = self._omitted_automation_fragments()
+        mutation = gql_compat(UPDATE_AUTOMATION_GQL, omit_fragments=omit_fragments)
+        variables = {"params": gql_input.model_dump(exclude_none=True)}
+
+        name = gql_input.name
+        try:
+            data = self.client.execute(mutation, variable_values=variables)
+        except requests.HTTPError as e:
+            status = HTTPStatus(e.response.status_code)
+            if status is HTTPStatus.NOT_FOUND:  # 404
+                if create_missing:
+                    wandb.termlog(f"Automation {name!r} not found. Creating it.")
+                    return self.create_automation(obj)
+
+                raise ValueError(
+                    f"Automation {name!r} not found. Unable to edit it."
+                ) from e
+
+            # Not a (known) recoverable HTTP error
+            wandb.termerror(f"Got response status {status!r}: {e.response.text!r}")
+            raise e
+
+        try:
+            result = UpdateAutomation.model_validate(data).result
+        except ValidationError as e:
+            msg = f"Invalid response while updating automation {name!r}"
+            raise RuntimeError(msg) from e
+
+        if (result is None) or (result.trigger is None):
+            msg = f"Empty response while updating automation {name!r}"
+            raise RuntimeError(msg)
+
+        return Automation.model_validate(result.trigger)
+
     def delete_automation(self, obj: Union["Automation", str]) -> Literal[True]:
         """Delete an automation.
 
