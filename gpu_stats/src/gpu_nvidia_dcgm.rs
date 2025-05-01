@@ -203,6 +203,35 @@ struct DcgmProfGetMetricGroupsT {
     metric_groups: [DcgmProfMetricGroupInfoV2; DCGM_PROF_MAX_NUM_GROUPS_V2],
 }
 
+// --- Trait Definition ---
+
+/// Defines the interface for interacting with the DCGM library.
+///
+/// This trait allows for mocking the DCGM library during unit testing.
+trait DcgmLibrary: Send + Sync + 'static {
+    // Methods needed during initialization/setup
+    fn get_supported_prof_metric_ids(&self) -> Result<HashSet<u16>, String>;
+    fn create_field_group(&self, field_ids: &[u16]) -> Result<DcgmFieldGrpT, String>;
+    fn watch_fields(
+        &self,
+        group_id: DcgmGpuGrpT,
+        field_group_id: DcgmFieldGrpT,
+        update_freq_us: i64,
+        max_keep_age: f64,
+        max_keep_samples: i32,
+    ) -> Result<(), String>;
+
+    // Methods needed during metric collection by the worker
+    fn update_all_fields(&self, wait_for_update: i32) -> Result<(), String>;
+    fn get_latest_values(
+        &self,
+        group_id: DcgmGpuGrpT,
+        field_group_id: DcgmFieldGrpT,
+        callback: DcgmFieldValueEnumeration,
+        user_data: *mut c_void,
+    ) -> Result<(), String>;
+}
+
 /// Manages the loaded DCGM dynamic library and the connection handle.
 ///
 /// Provides safe wrappers around DCGM C API FFI calls.
@@ -233,140 +262,28 @@ impl Drop for DcgmLib {
     }
 }
 
-impl DcgmLib {
-    /// Loads the DCGM library, initializes the connection, and connects to the host engine.
-    ///
-    /// # Parameters
-    /// * `lib_path`: Path to the DCGM shared library (e.g., "libdcgm.so.4").
-    /// * `host_address`: Address of the DCGM host engine (e.g., "localhost:5555").
-    ///
-    /// # Returns
-    /// * `Ok(DcgmLib)` on success.
-    /// * `Err(String)` if library loading, initialization, or connection fails.
-    ///
-    /// # Safety
-    /// This function involves loading a dynamic library and calling C functions via FFI,
-    /// which is inherently unsafe. It assumes the provided `lib_path` points to a valid
-    /// DCGM library compatible with the FFI definitions used here.
-    fn new(lib_path: &str, host_address: &str) -> Result<Self, String> {
-        log::debug!("Loading DCGM library from path: {}", lib_path);
-        unsafe {
-            let lib = match Library::new(lib_path) {
-                Ok(lib) => lib,
-                Err(e) => return Err(format!("Failed to load DCGM library: {}", e)),
-            };
+/// # Safety
+/// This `unsafe impl` is justified because the application architecture guarantees
+/// that any `DcgmLib` instance is created within the dedicated worker thread closure
+/// (or moved into it immediately after creation) and is NEVER shared or accessed
+/// concurrently from any other thread. All method calls happen sequentially within
+/// the single worker thread managed by `DcgmWorker`. This eliminates the potential
+/// data races that normally make raw pointers (`DcgmHandleT`) non-Send.
+unsafe impl Send for DcgmLib {}
+// We also technically need Sync because the trait object might require it implicitly
+// depending on usage, even though we removed it from the trait bound. Let's add it
+// with similar justification. If &DcgmLib was ever sent across threads (which it isn't here),
+// it would NOT be safe.
+/// # Safety
+/// See safety justification for `unsafe impl Send for DcgmLib`. As the `DcgmLib` instance
+/// is confined to a single thread, immutable references (`&DcgmLib`) cannot be accessed
+/// concurrently from multiple threads, making it technically fulfill the Sync contract
+/// *within this specific architecture*. This impl is needed primarily to satisfy bounds
+/// potentially required by the trait object system, even if `Sync` is removed from the
+/// direct trait definition bounds.
+unsafe impl Sync for DcgmLib {}
 
-            // Initialize DCGM.
-            let init: Symbol<unsafe extern "C" fn() -> DcgmReturnT> = match lib.get(b"dcgmInit") {
-                Ok(f) => f,
-                Err(e) => return Err(format!("Failed to get dcgmInit symbol: {}", e)),
-            };
-
-            let result = init();
-            if result != DCGM_ST_OK {
-                return Err(format!("Failed to initialize DCGM: {}", result));
-            }
-
-            // Connect to DCGM host engine.
-            let connect: Symbol<
-                unsafe extern "C" fn(*const c_char, *mut DcgmHandleT) -> DcgmReturnT,
-            > = match lib.get(b"dcgmConnect") {
-                Ok(f) => f,
-                Err(e) => return Err(format!("Failed to get dcgmConnect symbol: {}", e)),
-            };
-
-            let c_addr = CString::new(host_address).unwrap();
-            let mut handle: DcgmHandleT = ptr::null_mut();
-
-            let result = connect(c_addr.as_ptr(), &mut handle);
-            if result != DCGM_ST_OK {
-                return Err(format!("Failed to connect to DCGM: {}", result));
-            }
-
-            log::debug!(
-                "Connected to DCGM host engine successfully. Handle: {:?}",
-                handle
-            );
-
-            Ok(DcgmLib { lib, handle })
-        }
-    }
-
-    /// Gets a human-readable error string for a DCGM error code using the instance's library handle.
-    ///
-    /// # Parameters
-    /// * `error_code`: The `DcgmReturnT` error code from a DCGM function call.
-    ///
-    /// # Returns
-    /// * A `String` describing the error. Returns a generic message if the code is unknown
-    ///   or the `dcgmErrorString` symbol cannot be found.
-    fn error_string(&self, error_code: DcgmReturnT) -> String {
-        unsafe {
-            let error_string: Symbol<unsafe extern "C" fn(DcgmReturnT) -> *const c_char> =
-                match self.lib.get(b"dcgmErrorString") {
-                    Ok(f) => f,
-                    Err(_) => return format!("Unknown error code: {}", error_code),
-                };
-
-            let c_str = error_string(error_code);
-            if c_str.is_null() {
-                return format!("Unknown error code: {}", error_code);
-            }
-
-            CStr::from_ptr(c_str).to_string_lossy().to_string()
-        }
-    }
-
-    /// Gets the supported profiling metric groups for a given GPU.
-    /// Wraps `dcgmProfGetSupportedMetricGroups`.
-    ///
-    /// # Parameters
-    /// * `gpu_id`: The ID of the GPU to query (use 0 for any GPU supporting profiling).
-    /// * `gmg`: A mutable reference to a [`DcgmProfGetMetricGroupsT`] struct to be populated.
-    ///
-    /// # Returns
-    /// * `Ok(())` on success.
-    /// * `Err(String)` on failure to find the symbol or if the FFI call returns an error.
-    ///
-    /// # Safety
-    /// Calls an `unsafe extern "C"` function. Assumes `self.handle` is valid and `gmg`
-    /// points to valid memory for the struct. The caller must ensure `gmg` is initialized
-    /// correctly (e.g., zeroed) before calling, although this wrapper sets the version.
-    fn get_supported_metric_groups(
-        &self,
-        gpu_id: u32,
-        gmg: &mut DcgmProfGetMetricGroupsT,
-    ) -> Result<(), String> {
-        unsafe {
-            let func: Symbol<
-                unsafe extern "C" fn(DcgmHandleT, &mut DcgmProfGetMetricGroupsT) -> DcgmReturnT,
-            > = match self.lib.get(b"dcgmProfGetSupportedMetricGroups") {
-                Ok(f) => f,
-                Err(e) => {
-                    return Err(format!(
-                        "Failed to get dcgmProfGetSupportedMetricGroups symbol: {}",
-                        e
-                    ))
-                }
-            };
-
-            gmg.version = DCGM_PROF_GET_METRIC_GROUPS_VERSION3;
-            gmg.gpu_id = gpu_id;
-            gmg.num_metric_groups = 0; // Initialize output field
-
-            let result = func(self.handle, gmg);
-
-            if result != DCGM_ST_OK {
-                return Err(format!(
-                    "dcgmProfGetSupportedMetricGroups failed: {}: {}",
-                    result,
-                    self.error_string(result)
-                ));
-            }
-            Ok(())
-        }
-    }
-
+impl DcgmLibrary for DcgmLib {
     /// Queries DCGM for all supported profiling metric field IDs.
     ///
     /// This iterates through the metric groups reported by `dcgmProfGetSupportedMetricGroups`
@@ -375,7 +292,7 @@ impl DcgmLib {
     /// # Returns
     /// * `Ok(HashSet<u16>)` containing the unique IDs of supported profiling fields.
     /// * `Err(String)` if querying the metric groups fails.
-    pub fn get_supported_prof_metric_ids(&self) -> Result<HashSet<u16>, String> {
+    fn get_supported_prof_metric_ids(&self) -> Result<HashSet<u16>, String> {
         log::debug!("Querying DCGM for supported profiling metric field IDs...");
         let mut supported_ids: HashSet<u16> = HashSet::new();
         let mut gmg: DcgmProfGetMetricGroupsT = unsafe { std::mem::zeroed() };
@@ -679,6 +596,141 @@ impl DcgmLib {
     }
 }
 
+impl DcgmLib {
+    /// Loads the DCGM library, initializes the connection, and connects to the host engine.
+    ///
+    /// # Parameters
+    /// * `lib_path`: Path to the DCGM shared library (e.g., "libdcgm.so.4").
+    /// * `host_address`: Address of the DCGM host engine (e.g., "localhost:5555").
+    ///
+    /// # Returns
+    /// * `Ok(DcgmLib)` on success.
+    /// * `Err(String)` if library loading, initialization, or connection fails.
+    ///
+    /// # Safety
+    /// This function involves loading a dynamic library and calling C functions via FFI,
+    /// which is inherently unsafe. It assumes the provided `lib_path` points to a valid
+    /// DCGM library compatible with the FFI definitions used here.
+    fn new(lib_path: &str, host_address: &str) -> Result<Self, String> {
+        log::debug!("Loading DCGM library from path: {}", lib_path);
+        unsafe {
+            let lib = match Library::new(lib_path) {
+                Ok(lib) => lib,
+                Err(e) => return Err(format!("Failed to load DCGM library: {}", e)),
+            };
+
+            // Initialize DCGM.
+            let init: Symbol<unsafe extern "C" fn() -> DcgmReturnT> = match lib.get(b"dcgmInit") {
+                Ok(f) => f,
+                Err(e) => return Err(format!("Failed to get dcgmInit symbol: {}", e)),
+            };
+
+            let result = init();
+            if result != DCGM_ST_OK {
+                return Err(format!("Failed to initialize DCGM: {}", result));
+            }
+
+            // Connect to DCGM host engine.
+            let connect: Symbol<
+                unsafe extern "C" fn(*const c_char, *mut DcgmHandleT) -> DcgmReturnT,
+            > = match lib.get(b"dcgmConnect") {
+                Ok(f) => f,
+                Err(e) => return Err(format!("Failed to get dcgmConnect symbol: {}", e)),
+            };
+
+            let c_addr = CString::new(host_address).unwrap();
+            let mut handle: DcgmHandleT = ptr::null_mut();
+
+            let result = connect(c_addr.as_ptr(), &mut handle);
+            if result != DCGM_ST_OK {
+                return Err(format!("Failed to connect to DCGM: {}", result));
+            }
+
+            log::debug!(
+                "Connected to DCGM host engine successfully. Handle: {:?}",
+                handle
+            );
+
+            Ok(DcgmLib { lib, handle })
+        }
+    }
+
+    /// Gets the supported profiling metric groups for a given GPU.
+    /// Wraps `dcgmProfGetSupportedMetricGroups`.
+    ///
+    /// # Parameters
+    /// * `gpu_id`: The ID of the GPU to query (use 0 for any GPU supporting profiling).
+    /// * `gmg`: A mutable reference to a [`DcgmProfGetMetricGroupsT`] struct to be populated.
+    ///
+    /// # Returns
+    /// * `Ok(())` on success.
+    /// * `Err(String)` on failure to find the symbol or if the FFI call returns an error.
+    ///
+    /// # Safety
+    /// Calls an `unsafe extern "C"` function. Assumes `self.handle` is valid and `gmg`
+    /// points to valid memory for the struct. The caller must ensure `gmg` is initialized
+    /// correctly (e.g., zeroed) before calling, although this wrapper sets the version.
+    fn get_supported_metric_groups(
+        &self,
+        gpu_id: u32,
+        gmg: &mut DcgmProfGetMetricGroupsT,
+    ) -> Result<(), String> {
+        unsafe {
+            let func: Symbol<
+                unsafe extern "C" fn(DcgmHandleT, &mut DcgmProfGetMetricGroupsT) -> DcgmReturnT,
+            > = match self.lib.get(b"dcgmProfGetSupportedMetricGroups") {
+                Ok(f) => f,
+                Err(e) => {
+                    return Err(format!(
+                        "Failed to get dcgmProfGetSupportedMetricGroups symbol: {}",
+                        e
+                    ))
+                }
+            };
+
+            gmg.version = DCGM_PROF_GET_METRIC_GROUPS_VERSION3;
+            gmg.gpu_id = gpu_id;
+            gmg.num_metric_groups = 0; // Initialize output field
+
+            let result = func(self.handle, gmg);
+
+            if result != DCGM_ST_OK {
+                return Err(format!(
+                    "dcgmProfGetSupportedMetricGroups failed: {}: {}",
+                    result,
+                    self.error_string(result)
+                ));
+            }
+            Ok(())
+        }
+    }
+
+    /// Gets a human-readable error string for a DCGM error code using the instance's library handle.
+    ///
+    /// # Parameters
+    /// * `error_code`: The `DcgmReturnT` error code from a DCGM function call.
+    ///
+    /// # Returns
+    /// * A `String` describing the error. Returns a generic message if the code is unknown
+    ///   or the `dcgmErrorString` symbol cannot be found.
+    fn error_string(&self, error_code: DcgmReturnT) -> String {
+        unsafe {
+            let error_string: Symbol<unsafe extern "C" fn(DcgmReturnT) -> *const c_char> =
+                match self.lib.get(b"dcgmErrorString") {
+                    Ok(f) => f,
+                    Err(_) => return format!("Unknown error code: {}", error_code),
+                };
+
+            let c_str = error_string(error_code);
+            if c_str.is_null() {
+                return format!("Unknown error code: {}", error_code);
+            }
+
+            CStr::from_ptr(c_str).to_string_lossy().to_string()
+        }
+    }
+}
+
 /// Alias for the result type of getting metrics.
 type DcgmMetricsResult = Result<Vec<(String, MetricValue)>, String>;
 
@@ -860,7 +912,7 @@ impl DcgmClient {
                 // --- Create and Run Worker Loop ---
                 log::debug!("DCGM worker: Starting command loop.");
                 let mut worker = DcgmWorker::new(
-                    dcgm,
+                    Box::new(dcgm),
                     group_id,
                     field_group_id,
                     cmd_receiver, // Use the command receiver
@@ -1062,7 +1114,7 @@ extern "C" fn field_value_callback(
 /// [`DcgmCommand`] messages and performs the requested DCGM operations (e.g.,
 /// collecting metrics).
 struct DcgmWorker {
-    dcgm: DcgmLib,
+    dcgm: Box<dyn DcgmLibrary>,
     group_id: u32,
     field_group_id: u32,
     receiver: mpsc::Receiver<DcgmCommand>,
@@ -1074,7 +1126,7 @@ impl DcgmWorker {
     /// Typically called only within the dedicated worker thread spawned by [`DcgmClient::new`].
     /// Takes ownership of the [`DcgmLib`] instance and the MPSC receiver.
     fn new(
-        dcgm: DcgmLib,
+        dcgm: Box<dyn DcgmLibrary>,
         group_id: u32,
         field_group_id: u32,
         receiver: mpsc::Receiver<DcgmCommand>,
@@ -1152,5 +1204,203 @@ impl DcgmWorker {
                 Err(format!("DCGM get_latest_values failed: {}", e))
             }
         }
+    }
+}
+
+// --- Unit Tests ---
+
+#[cfg(test)]
+mod tests {
+    use super::*; // Import items from outer module
+    use std::collections::HashSet;
+    use std::sync::{Arc, Mutex}; // Use Mutex for interior mutability in mock
+
+    // --- MockDcgmLib Implementation ---
+
+    #[derive(Default, Clone)] // Add Clone
+    struct MockDcgmLib {
+        // Store expected results or behaviors using Mutex for thread safety if tests parallelize
+        supported_ids: Option<Result<HashSet<u16>, String>>,
+        latest_values_result: Option<Result<(), String>>,
+        // Store captured values if needed, e.g., metrics passed to callback
+        collected_metrics_output: Arc<Mutex<Vec<(String, MetricValue)>>>,
+        update_all_fields_result: Option<Result<(), String>>,
+        // Add fields for other trait methods if needed for specific tests
+        create_field_group_result: Option<Result<DcgmFieldGrpT, String>>,
+        watch_fields_result: Option<Result<(), String>>,
+    }
+
+    impl MockDcgmLib {
+        // Helper methods to configure the mock
+        fn expect_get_latest_values(&mut self, result: Result<(), String>) {
+            self.latest_values_result = Some(result);
+        }
+
+        // Simulate callback populating the vector
+        fn set_collected_metrics_output(&mut self, metrics: Vec<(String, MetricValue)>) {
+            let mut lock = self.collected_metrics_output.lock().unwrap();
+            *lock = metrics;
+        }
+
+        fn expect_update_all_fields(&mut self, result: Result<(), String>) {
+            self.update_all_fields_result = Some(result);
+        }
+    }
+
+    impl DcgmLibrary for MockDcgmLib {
+        fn get_supported_prof_metric_ids(&self) -> Result<HashSet<u16>, String> {
+            // Clone the result to return ownership
+            self.supported_ids.clone().unwrap_or_else(|| {
+                // Default behavior if not set
+                Ok(HashSet::new())
+            })
+        }
+
+        fn create_field_group(&self, _field_ids: &[u16]) -> Result<DcgmFieldGrpT, String> {
+            self.create_field_group_result.clone().unwrap_or_else(|| {
+                // Default success with dummy ID
+                Ok(123)
+            })
+        }
+
+        fn watch_fields(
+            &self,
+            _group_id: DcgmGpuGrpT, // Added actual params from trait, prefixed with _
+            _field_group_id: DcgmFieldGrpT,
+            _update_freq_us: i64,
+            _max_keep_age: f64,
+            _max_keep_samples: i32,
+        ) -> Result<(), String> {
+            // The body remains the same
+            self.watch_fields_result.clone().unwrap_or(Ok(())) // Default Ok
+        }
+
+        fn update_all_fields(&self, _wait_for_update: i32) -> Result<(), String> {
+            self.update_all_fields_result.clone().unwrap_or(Ok(())) // Default Ok
+        }
+
+        // Simulate calling the callback
+        fn get_latest_values(
+            &self,
+            _group_id: DcgmGpuGrpT,
+            _field_group_id: DcgmFieldGrpT,
+            _callback: DcgmFieldValueEnumeration,
+            user_data: *mut c_void,
+        ) -> Result<(), String> {
+            // Return the pre-programmed result for the FFI call itself
+            match self.latest_values_result.clone() {
+                Some(Ok(())) | None => {
+                    // Default to Ok or if Ok(()) was programmed
+                    // Simulate the callback populating the user_data vector
+                    if !user_data.is_null() {
+                        let expected_output = self.collected_metrics_output.lock().unwrap();
+                        let metrics_vec: &mut Vec<(String, MetricValue)> =
+                            unsafe { &mut *(user_data as *mut Vec<(String, MetricValue)>) };
+                        metrics_vec.extend(expected_output.clone()); // Populate with mock data
+                    }
+                    Ok(())
+                }
+                Some(Err(e)) => Err(e), // Return programmed error
+            }
+        }
+    }
+
+    // --- Test Cases ---
+
+    #[test]
+    fn test_worker_collect_metrics_success() {
+        // Arrange
+        let mut mock_lib = MockDcgmLib::default();
+        let expected_metrics = vec![
+            ("gpu.0.smActive".to_string(), MetricValue::Float(55.5)),
+            ("gpu.0.dramActive".to_string(), MetricValue::Float(30.1)),
+        ];
+        mock_lib.expect_update_all_fields(Ok(())); // Assume update_all_fields is called and succeeds
+        mock_lib.expect_get_latest_values(Ok(())); // Simulate get_latest_values succeeding
+        mock_lib.set_collected_metrics_output(expected_metrics.clone()); // Set what callback "produces"
+
+        let (_tx, rx) = mpsc::channel(); // Mock receiver, won't be used directly here
+        let worker = DcgmWorker::new(
+            Box::new(mock_lib),
+            DCGM_GROUP_ALL_GPUS, // Dummy group ID
+            123,                 // Dummy field group ID
+            rx,                  // Pass the receiver
+        );
+
+        // Act
+        let result = worker.collect_metrics();
+
+        // Assert
+        assert!(result.is_ok());
+        let collected = result.unwrap();
+        assert_eq!(collected.len(), 2);
+        assert_eq!(collected, expected_metrics);
+    }
+
+    #[test]
+    fn test_worker_collect_metrics_no_data() {
+        // Arrange
+        let mut mock_lib = MockDcgmLib::default();
+        mock_lib.expect_update_all_fields(Ok(()));
+        // Simulate get_latest_values returning DCGM_ST_NO_DATA (which wrapper turns into Ok)
+        mock_lib.expect_get_latest_values(Ok(()));
+        mock_lib.set_collected_metrics_output(vec![]); // Ensure callback produces nothing
+
+        let (_tx, rx) = mpsc::channel();
+        let worker = DcgmWorker::new(Box::new(mock_lib), DCGM_GROUP_ALL_GPUS, 123, rx);
+
+        // Act
+        let result = worker.collect_metrics();
+
+        // Assert
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty()); // Expect empty vector on NO_DATA
+    }
+
+    #[test]
+    fn test_worker_collect_metrics_ffi_error() {
+        // Arrange
+        let mut mock_lib = MockDcgmLib::default();
+        // This is the error the *mock* is programmed to return
+        let base_error_msg = "DCGM FFI call failed".to_string();
+        mock_lib.expect_update_all_fields(Ok(())); // Assume update succeeds
+                                                   // Program the mock to return the base error
+        mock_lib.expect_get_latest_values(Err(base_error_msg.clone()));
+
+        let (_tx, rx) = mpsc::channel();
+        let worker = DcgmWorker::new(Box::new(mock_lib), DCGM_GROUP_ALL_GPUS, 123, rx);
+
+        // Act
+        let result = worker.collect_metrics();
+
+        // Assert
+        assert!(result.is_err());
+        // Construct the error message we expect `collect_metrics` to actually return
+        let expected_error_message = format!("DCGM get_latest_values failed: {}", base_error_msg);
+        // Compare against the fully formatted error message
+        assert_eq!(result.unwrap_err(), expected_error_message);
+    }
+
+    #[test]
+    fn test_worker_collect_metrics_update_error() {
+        // Arrange
+        let mut mock_lib = MockDcgmLib::default();
+        let error_msg = "Update Failed".to_string();
+        // Simulate update_all_fields failing
+        mock_lib.expect_update_all_fields(Err(error_msg.clone()));
+        // We likely wouldn't even call get_latest_values if update failed, but let's mock it anyway
+        mock_lib.expect_get_latest_values(Ok(()));
+        mock_lib.set_collected_metrics_output(vec![]);
+
+        let (_tx, rx) = mpsc::channel();
+        let worker = DcgmWorker::new(Box::new(mock_lib), DCGM_GROUP_ALL_GPUS, 123, rx);
+
+        // Act
+        let result = worker.collect_metrics();
+
+        // Assert - Current implementation only WARNS on update failure, so it should still proceed
+        // If we changed collect_metrics to return Err on update failure, this assert would change.
+        assert!(result.is_ok()); // Currently, update failure doesn't stop collection
+        assert!(result.unwrap().is_empty());
     }
 }
