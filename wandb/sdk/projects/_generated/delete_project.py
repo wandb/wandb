@@ -6,12 +6,15 @@ from __future__ import annotations
 from typing import Literal, Optional
 
 from pydantic import Field
+from typing_extensions import Annotated
 
 from wandb._pydantic import GQLBase, Typename
 
 
 class DeleteProject(GQLBase):
-    delete_model: Optional[DeleteProjectDeleteModel] = Field(alias="deleteModel")
+    delete_model: Annotated[
+        Optional[DeleteProjectDeleteModel], Field(alias="deleteModel")
+    ]
 
 
 class DeleteProjectDeleteModel(GQLBase):

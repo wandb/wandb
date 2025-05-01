@@ -3,26 +3,27 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Optional
 
 from pydantic import Field
+from typing_extensions import Annotated
 
 from wandb._pydantic import GQLBase
 
 
 class ArtifactAliasInput(GQLBase):
-    artifact_collection_name: str = Field(alias="artifactCollectionName")
+    artifact_collection_name: Annotated[str, Field(alias="artifactCollectionName")]
     alias: str
 
 
 class ArtifactCollectionAliasInput(GQLBase):
     alias: str
-    entity_name: str = Field(alias="entityName")
-    project_name: str = Field(alias="projectName")
-    artifact_collection_name: str = Field(alias="artifactCollectionName")
+    entity_name: Annotated[str, Field(alias="entityName")]
+    project_name: Annotated[str, Field(alias="projectName")]
+    artifact_collection_name: Annotated[str, Field(alias="artifactCollectionName")]
 
 
 class TagInput(GQLBase):
-    tag_category_name: Optional[str] = Field(alias="tagCategoryName", default=None)
-    tag_name: str = Field(alias="tagName")
-    attributes: Optional[Any] = None
+    tag_category_name: Annotated[Optional[str], Field(alias="tagCategoryName")] = None
+    tag_name: Annotated[str, Field(alias="tagName")]
+    attributes: Optional[str] = None

@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Literal, Optional
 
 from pydantic import Field
+from typing_extensions import Annotated
 
 from wandb._pydantic import GQLBase, Typename
 
@@ -17,15 +18,16 @@ class ProjectArtifacts(GQLBase):
 
 
 class ProjectArtifactsProject(GQLBase):
-    artifact_type: Optional[ProjectArtifactsProjectArtifactType] = Field(
-        alias="artifactType"
-    )
+    artifact_type: Annotated[
+        Optional[ProjectArtifactsProjectArtifactType], Field(alias="artifactType")
+    ]
 
 
 class ProjectArtifactsProjectArtifactType(GQLBase):
-    artifact_collection: Optional[
-        ProjectArtifactsProjectArtifactTypeArtifactCollection
-    ] = Field(alias="artifactCollection")
+    artifact_collection: Annotated[
+        Optional[ProjectArtifactsProjectArtifactTypeArtifactCollection],
+        Field(alias="artifactCollection"),
+    ]
 
 
 class ProjectArtifactsProjectArtifactTypeArtifactCollection(GQLBase):

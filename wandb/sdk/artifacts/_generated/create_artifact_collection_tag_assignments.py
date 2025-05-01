@@ -6,14 +6,18 @@ from __future__ import annotations
 from typing import List, Optional
 
 from pydantic import Field
+from typing_extensions import Annotated
 
 from wandb._pydantic import GQLBase, GQLId
 
 
 class CreateArtifactCollectionTagAssignments(GQLBase):
-    create_artifact_collection_tag_assignments: Optional[
-        CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignments
-    ] = Field(alias="createArtifactCollectionTagAssignments")
+    create_artifact_collection_tag_assignments: Annotated[
+        Optional[
+            CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignments
+        ],
+        Field(alias="createArtifactCollectionTagAssignments"),
+    ]
 
 
 class CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignments(
@@ -29,7 +33,7 @@ class CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignmen
 ):
     id: GQLId
     name: str
-    tag_category_name: str = Field(alias="tagCategoryName")
+    tag_category_name: Annotated[str, Field(alias="tagCategoryName")]
 
 
 CreateArtifactCollectionTagAssignments.model_rebuild()

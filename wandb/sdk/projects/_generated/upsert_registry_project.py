@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Optional
 
 from pydantic import Field
+from typing_extensions import Annotated
 
 from wandb._pydantic import GQLBase
 
@@ -13,9 +14,9 @@ from .fragments import RegistryFragment
 
 
 class UpsertRegistryProject(GQLBase):
-    upsert_model: Optional[UpsertRegistryProjectUpsertModel] = Field(
-        alias="upsertModel"
-    )
+    upsert_model: Annotated[
+        Optional[UpsertRegistryProjectUpsertModel], Field(alias="upsertModel")
+    ]
 
 
 class UpsertRegistryProjectUpsertModel(GQLBase):

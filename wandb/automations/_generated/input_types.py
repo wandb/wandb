@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Optional
 
 from pydantic import Field
+from typing_extensions import Annotated
 
 from wandb._pydantic import GQLBase, GQLId
 
@@ -18,85 +19,87 @@ from .enums import (
 
 
 class CreateGenericWebhookIntegrationInput(GQLBase):
-    entity_name: str = Field(alias="entityName")
-    url_endpoint: str = Field(alias="urlEndpoint")
+    entity_name: Annotated[str, Field(alias="entityName")]
+    url_endpoint: Annotated[str, Field(alias="urlEndpoint")]
     name: str
-    secret_ref: Optional[str] = Field(alias="secretRef", default=None)
-    access_token_ref: Optional[str] = Field(alias="accessTokenRef", default=None)
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    secret_ref: Annotated[Optional[str], Field(alias="secretRef")] = None
+    access_token_ref: Annotated[Optional[str], Field(alias="accessTokenRef")] = None
+    client_mutation_id: Annotated[Optional[str], Field(alias="clientMutationId")] = None
 
 
 class QueueJobActionInput(GQLBase):
-    queue_id: GQLId = Field(alias="queueID")
+    queue_id: Annotated[GQLId, Field(alias="queueID")]
     template: str
 
 
 class NotificationActionInput(GQLBase):
-    integration_id: GQLId = Field(alias="integrationID")
+    integration_id: Annotated[GQLId, Field(alias="integrationID")]
     title: Optional[str] = None
     message: Optional[str] = None
     severity: Optional[AlertSeverity] = None
 
 
 class GenericWebhookActionInput(GQLBase):
-    integration_id: GQLId = Field(alias="integrationID")
-    request_payload: Optional[str] = Field(alias="requestPayload", default=None)
+    integration_id: Annotated[GQLId, Field(alias="integrationID")]
+    request_payload: Annotated[Optional[str], Field(alias="requestPayload")] = None
 
 
 class NoOpTriggeredActionInput(GQLBase):
-    no_op: Optional[bool] = Field(alias="noOp", default=None)
+    no_op: Annotated[Optional[bool], Field(alias="noOp")] = None
 
 
 class TriggeredActionConfig(GQLBase):
-    queue_job_action_input: Optional[QueueJobActionInput] = Field(
-        alias="queueJobActionInput", default=None
-    )
-    notification_action_input: Optional[NotificationActionInput] = Field(
-        alias="notificationActionInput", default=None
-    )
-    generic_webhook_action_input: Optional[GenericWebhookActionInput] = Field(
-        alias="genericWebhookActionInput", default=None
-    )
-    no_op_action_input: Optional[NoOpTriggeredActionInput] = Field(
-        alias="noOpActionInput", default=None
-    )
+    queue_job_action_input: Annotated[
+        Optional[QueueJobActionInput], Field(alias="queueJobActionInput")
+    ] = None
+    notification_action_input: Annotated[
+        Optional[NotificationActionInput], Field(alias="notificationActionInput")
+    ] = None
+    generic_webhook_action_input: Annotated[
+        Optional[GenericWebhookActionInput], Field(alias="genericWebhookActionInput")
+    ] = None
+    no_op_action_input: Annotated[
+        Optional[NoOpTriggeredActionInput], Field(alias="noOpActionInput")
+    ] = None
 
 
 class CreateFilterTriggerInput(GQLBase):
     name: str
     description: Optional[str] = None
-    triggering_event_type: EventTriggeringConditionType = Field(
-        alias="triggeringEventType"
-    )
-    scope_type: TriggerScopeType = Field(alias="scopeType")
-    scope_id: GQLId = Field(alias="scopeID")
-    event_filter: str = Field(alias="eventFilter")
-    triggered_action_type: TriggeredActionType = Field(alias="triggeredActionType")
-    triggered_action_config: TriggeredActionConfig = Field(
-        alias="triggeredActionConfig"
-    )
+    triggering_event_type: Annotated[
+        EventTriggeringConditionType, Field(alias="triggeringEventType")
+    ]
+    scope_type: Annotated[TriggerScopeType, Field(alias="scopeType")]
+    scope_id: Annotated[GQLId, Field(alias="scopeID")]
+    event_filter: Annotated[str, Field(alias="eventFilter")]
+    triggered_action_type: Annotated[
+        TriggeredActionType, Field(alias="triggeredActionType")
+    ]
+    triggered_action_config: Annotated[
+        TriggeredActionConfig, Field(alias="triggeredActionConfig")
+    ]
     enabled: bool
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    client_mutation_id: Annotated[Optional[str], Field(alias="clientMutationId")] = None
 
 
 class UpdateFilterTriggerInput(GQLBase):
     id: GQLId
     name: Optional[str] = None
     description: Optional[str] = None
-    triggering_event_type: Optional[EventTriggeringConditionType] = Field(
-        alias="triggeringEventType", default=None
-    )
-    scope_type: Optional[TriggerScopeType] = Field(alias="scopeType", default=None)
-    scope_id: Optional[GQLId] = Field(alias="scopeID", default=None)
-    event_filter: Optional[str] = Field(alias="eventFilter", default=None)
-    triggered_action_type: Optional[TriggeredActionType] = Field(
-        alias="triggeredActionType", default=None
-    )
-    triggered_action_config: Optional[TriggeredActionConfig] = Field(
-        alias="triggeredActionConfig", default=None
-    )
+    triggering_event_type: Annotated[
+        Optional[EventTriggeringConditionType], Field(alias="triggeringEventType")
+    ] = None
+    scope_type: Annotated[Optional[TriggerScopeType], Field(alias="scopeType")] = None
+    scope_id: Annotated[Optional[GQLId], Field(alias="scopeID")] = None
+    event_filter: Annotated[Optional[str], Field(alias="eventFilter")] = None
+    triggered_action_type: Annotated[
+        Optional[TriggeredActionType], Field(alias="triggeredActionType")
+    ] = None
+    triggered_action_config: Annotated[
+        Optional[TriggeredActionConfig], Field(alias="triggeredActionConfig")
+    ] = None
     enabled: Optional[bool] = None
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    client_mutation_id: Annotated[Optional[str], Field(alias="clientMutationId")] = None
 
 
 TriggeredActionConfig.model_rebuild()

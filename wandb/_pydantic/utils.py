@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sys
 from contextlib import suppress
-from typing import Any, Type
+from typing import Any, Callable, Type
 
 import pydantic
 from pydantic import BaseModel, ValidationError
@@ -20,8 +20,14 @@ IS_PYDANTIC_V2: bool = int(pydantic_major) >= 2
 BaseModelType: TypeAlias = Type[BaseModel]
 
 
+to_camel: Callable[[str], str]
 if IS_PYDANTIC_V2:
-    import pydantic_core  # pydantic_core is only installed by pydantic v2
+    # These imports are only valid in Pydantic v2.
+    import pydantic_core
+    from pydantic import alias_generators
+
+    to_camel = alias_generators.to_camel
+    """Convert a snake_case string to lowerCamelCase."""
 
     def from_json(s: str) -> Any:
         """Quickly deserialize a JSON string to a Python object."""
@@ -54,7 +60,11 @@ else:
     # These may be noticeably slower, but their primary goal is to ensure
     # compatibility with Pydantic v1 so long as we need to support it.
 
-    from pydantic.json import pydantic_encoder  # Only valid in pydantic v1
+    # These imports are only valid in Pydantic v1.
+    from pydantic.json import pydantic_encoder
+    from pydantic.utils import to_lower_camel
+
+    to_camel = to_lower_camel
 
     def from_json(s: str) -> Any:
         return json.loads(s)

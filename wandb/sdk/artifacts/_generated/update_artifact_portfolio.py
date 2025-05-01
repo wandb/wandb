@@ -6,20 +6,23 @@ from __future__ import annotations
 from typing import Literal, Optional
 
 from pydantic import Field
+from typing_extensions import Annotated
 
 from wandb._pydantic import GQLBase, GQLId, Typename
 
 
 class UpdateArtifactPortfolio(GQLBase):
-    update_artifact_portfolio: Optional[
-        UpdateArtifactPortfolioUpdateArtifactPortfolio
-    ] = Field(alias="updateArtifactPortfolio")
+    update_artifact_portfolio: Annotated[
+        Optional[UpdateArtifactPortfolioUpdateArtifactPortfolio],
+        Field(alias="updateArtifactPortfolio"),
+    ]
 
 
 class UpdateArtifactPortfolioUpdateArtifactPortfolio(GQLBase):
-    artifact_collection: UpdateArtifactPortfolioUpdateArtifactPortfolioArtifactCollection = Field(
-        alias="artifactCollection"
-    )
+    artifact_collection: Annotated[
+        UpdateArtifactPortfolioUpdateArtifactPortfolioArtifactCollection,
+        Field(alias="artifactCollection"),
+    ]
 
 
 class UpdateArtifactPortfolioUpdateArtifactPortfolioArtifactCollection(GQLBase):

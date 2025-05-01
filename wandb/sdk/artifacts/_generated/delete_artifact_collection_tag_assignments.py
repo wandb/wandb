@@ -6,14 +6,18 @@ from __future__ import annotations
 from typing import Optional
 
 from pydantic import Field
+from typing_extensions import Annotated
 
 from wandb._pydantic import GQLBase
 
 
 class DeleteArtifactCollectionTagAssignments(GQLBase):
-    delete_artifact_collection_tag_assignments: Optional[
-        DeleteArtifactCollectionTagAssignmentsDeleteArtifactCollectionTagAssignments
-    ] = Field(alias="deleteArtifactCollectionTagAssignments")
+    delete_artifact_collection_tag_assignments: Annotated[
+        Optional[
+            DeleteArtifactCollectionTagAssignmentsDeleteArtifactCollectionTagAssignments
+        ],
+        Field(alias="deleteArtifactCollectionTagAssignments"),
+    ]
 
 
 class DeleteArtifactCollectionTagAssignmentsDeleteArtifactCollectionTagAssignments(
