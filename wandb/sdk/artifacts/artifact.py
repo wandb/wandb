@@ -417,7 +417,7 @@ class Artifact:
         self._aliases = other_aliases
         self._saved_aliases = copy(other_aliases)
 
-        tags = [obj["name"] for obj in attrs.get("tags", [])]
+        tags = [obj["name"] for obj in (attrs.get("tags") or [])]
         self._tags = tags
         self._saved_tags = copy(tags)
 
