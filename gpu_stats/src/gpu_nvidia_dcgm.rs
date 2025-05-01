@@ -219,28 +219,28 @@ struct DcgmLib {
 impl Drop for DcgmLib {
     fn drop(&mut self) {
         log::debug!("Disconnecting from DCGM host engine.");
-        unsafe {
-            if !self.handle.is_null() {
-                // Use match or if let instead of unwrap
-                match self
-                    .lib
-                    .get::<unsafe extern "C" fn(DcgmHandleT) -> DcgmReturnT>(b"dcgmDisconnect")
-                {
-                    Ok(disconnect) => {
-                        let result = disconnect(self.handle);
-                        if result != DCGM_ST_OK {
-                            // Cannot reliably call self.error_string here as lib might be partially invalid.
-                            log::error!("dcgmDisconnect failed during drop with code: {}", result);
-                        }
-                    }
-                    Err(e) => {
-                        // Log that the symbol couldn't be found, but don't panic.
-                        log::error!("Failed to find dcgmDisconnect symbol during drop: {}", e);
-                    }
-                }
-                self.handle = ptr::null_mut(); // Ensure handle isn't used again
-            }
-        }
+        // unsafe {
+        //     if !self.handle.is_null() {
+        //         // Use match or if let instead of unwrap
+        //         match self
+        //             .lib
+        //             .get::<unsafe extern "C" fn(DcgmHandleT) -> DcgmReturnT>(b"dcgmDisconnect")
+        //         {
+        //             Ok(disconnect) => {
+        //                 let result = disconnect(self.handle);
+        //                 if result != DCGM_ST_OK {
+        //                     // Cannot reliably call self.error_string here as lib might be partially invalid.
+        //                     log::error!("dcgmDisconnect failed during drop with code: {}", result);
+        //                 }
+        //             }
+        //             Err(e) => {
+        //                 // Log that the symbol couldn't be found, but don't panic.
+        //                 log::error!("Failed to find dcgmDisconnect symbol during drop: {}", e);
+        //             }
+        //         }
+        //         self.handle = ptr::null_mut(); // Ensure handle isn't used again
+        //     }
+        // }
     }
 }
 
@@ -888,7 +888,7 @@ impl DcgmClient {
     }
 
     pub fn shutdown(&self) {
-        log::info!("Sending Shutdown command to DCGM worker thread.");
+        log::debug!("Sending Shutdown command to DCGM worker thread.");
         // Ignore error if receiver has already dropped (thread already exited).
         let _ = self.sender.send(DcgmCommand::Shutdown);
     }
