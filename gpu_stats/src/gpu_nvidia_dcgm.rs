@@ -213,34 +213,23 @@ struct DcgmLib {
     handle: DcgmHandleT,
 }
 
-/// Ensures `dcgmDisconnect` is called when `DcgmLib` goes out of scope.
-///
-/// This cleans up the DCGM connection and associated resources.
+/// Drops the DcgmLib wrapper.
+/// NOTE: Explicitly *does not* call dcgmDisconnect.
 impl Drop for DcgmLib {
     fn drop(&mut self) {
-        log::debug!("Disconnecting from DCGM host engine.");
-        // unsafe {
-        //     if !self.handle.is_null() {
-        //         // Use match or if let instead of unwrap
-        //         match self
-        //             .lib
-        //             .get::<unsafe extern "C" fn(DcgmHandleT) -> DcgmReturnT>(b"dcgmDisconnect")
-        //         {
-        //             Ok(disconnect) => {
-        //                 let result = disconnect(self.handle);
-        //                 if result != DCGM_ST_OK {
-        //                     // Cannot reliably call self.error_string here as lib might be partially invalid.
-        //                     log::error!("dcgmDisconnect failed during drop with code: {}", result);
-        //                 }
-        //             }
-        //             Err(e) => {
-        //                 // Log that the symbol couldn't be found, but don't panic.
-        //                 log::error!("Failed to find dcgmDisconnect symbol during drop: {}", e);
-        //             }
-        //         }
-        //         self.handle = ptr::null_mut(); // Ensure handle isn't used again
-        //     }
-        // }
+        log::debug!("Dropping DcgmLib wrapper (handle: {:?}).", self.handle);
+
+        // --- DO NOT CALL dcgmDisconnect ---
+        // Calling dcgmDisconnect here during worker thread termination was found
+        // to cause segmentation faults during application shutdown.
+        // The DCGM host engine is expected to handle the client disappearance,
+        // and OS cleanup will close the connection upon process exit.
+        // ----------------------------------
+
+        // Null the handle conceptually. The Library object (`self.lib`)
+        // will be dropped automatically after this, unloading the .so file.
+        self.handle = ptr::null_mut();
+        log::debug!("DcgmLib drop finished (dcgmDisconnect NOT called).");
     }
 }
 
