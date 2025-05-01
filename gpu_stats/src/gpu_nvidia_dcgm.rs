@@ -925,91 +925,105 @@ extern "C" fn field_value_callback(
     values_count: c_int,
     user_data: *mut c_void, // This will point to a `&mut Vec<(String, MetricValue)>`
 ) -> c_int {
-    // Basic safety checks.
-    if user_data.is_null() || values.is_null() || values_count <= 0 {
-        // Maybe log an error here if possible, but avoid panicking in C callback
-        return if user_data.is_null() { 1 } else { 0 }; // Indicate error if user_data is null
-    }
+    // Wrap the entire body to catch potential panics
+    let result = std::panic::catch_unwind(|| {
+        // Basic safety checks.
+        if user_data.is_null() || values.is_null() || values_count <= 0 {
+            // Maybe log an error here if possible, but avoid panicking in C callback
+            return if user_data.is_null() { 1 } else { 0 }; // Indicate error if user_data is null
+        }
 
-    // Cast user_data back to the mutable vector reference.
-    // This is unsafe, relying on the caller (`collect_metrics`) providing the correct pointer
-    let metrics_vec: &mut Vec<(String, MetricValue)> =
-        unsafe { &mut *(user_data as *mut Vec<(String, MetricValue)>) };
+        // Cast user_data back to the mutable vector reference.
+        // This is unsafe, relying on the caller (`collect_metrics`) providing the correct pointer
+        let metrics_vec: &mut Vec<(String, MetricValue)> =
+            unsafe { &mut *(user_data as *mut Vec<(String, MetricValue)>) };
 
-    let entity_type = match entity_group_id {
-        DCGM_FE_GPU => "gpu",
-        DCGM_FE_VGPU => "gpu", // TODO: Handle the distinction if needed.
-        _ => "unknown",
-    };
+        let entity_type = match entity_group_id {
+            DCGM_FE_GPU => "gpu",
+            DCGM_FE_VGPU => "gpu", // TODO: Handle the distinction if needed.
+            _ => "unknown",
+        };
 
-    unsafe {
-        let values_slice = std::slice::from_raw_parts(values, values_count as usize);
+        unsafe {
+            let values_slice = std::slice::from_raw_parts(values, values_count as usize);
 
-        for value in values_slice {
-            if value.status != DCGM_ST_OK {
-                // Skip unavailable/error values.
-                continue;
-            }
-
-            let field_id = value.field_id;
-            let field_type = value.field_type;
-
-            let metric_value_opt: Option<MetricValue> = match field_type as u32 {
-                DCGM_FT_DOUBLE | DCGM_FT_DOUBLE_BLANK => {
-                    let dbl = value.value.dbl;
-                    // DCGM often uses large negative numbers or specific patterns for N/A.
-                    // Adjust this condition based on observed DCGM behavior for blank values.
-                    if value.status == DCGM_ST_OK && !dbl.is_nan() && dbl.abs() < 1e19 {
-                        // Check status and avoid huge numbers.
-                        Some(MetricValue::Float(dbl))
-                    } else {
-                        None // Treat as unavailable.
-                    }
+            for value in values_slice {
+                if value.status != DCGM_ST_OK {
+                    // Skip unavailable/error values.
+                    continue;
                 }
-                DCGM_FT_INT64 | DCGM_FT_TIMESTAMP => {
-                    let i64_val = value.value.i64;
-                    // DCGM often uses large negative numbers or specific patterns for N/A.
-                    if value.status == DCGM_ST_OK && i64_val > -1_000_000_000_000 {
-                        // Check status and avoid specific large negative numbers.
-                        Some(MetricValue::Int(i64_val))
-                    } else {
-                        None // Treat as unavailable.
-                    }
-                }
-                DCGM_FT_STRING => {
-                    if value.status == DCGM_ST_OK && value.value.str[0] != 0 {
-                        let c_str = CStr::from_ptr(value.value.str.as_ptr());
-                        Some(MetricValue::String(c_str.to_string_lossy().into_owned()))
-                    } else {
-                        None
-                    }
-                }
-                _ => None, // Unknown type.
-            };
 
-            if let Some(metric_value) = metric_value_opt {
-                let base_name = match field_id {
-                    DCGM_FI_PROF_SM_ACTIVE => "smActive",
-                    DCGM_FI_PROF_SM_OCCUPANCY => "smOccupancy",
-                    DCGM_FI_PROF_PIPE_TENSOR_ACTIVE => "pipeTensorActive",
-                    DCGM_FI_PROF_DRAM_ACTIVE => "dramActive",
-                    DCGM_FI_PROF_PIPE_FP64_ACTIVE => "pipeFp64Active",
-                    DCGM_FI_PROF_PIPE_FP32_ACTIVE => "pipeFp32Active",
-                    DCGM_FI_PROF_PIPE_FP16_ACTIVE => "pipeFp16Active",
-                    DCGM_FI_PROF_PIPE_TENSOR_HMMA_ACTIVE => "pipeTensorHmmaActive",
-                    DCGM_FI_PROF_PCIE_TX_BYTES => "pcieTxBytes",
-                    DCGM_FI_PROF_PCIE_RX_BYTES => "pcieRxBytes",
-                    DCGM_FI_PROF_NVLINK_TX_BYTES => "nvlinkTxBytes",
-                    DCGM_FI_PROF_NVLINK_RX_BYTES => "nvlinkRxBytes",
-                    _ => &format!("dcgm_field_{}", field_id),
+                let field_id = value.field_id;
+                let field_type = value.field_type;
+
+                let metric_value_opt: Option<MetricValue> = match field_type as u32 {
+                    DCGM_FT_DOUBLE | DCGM_FT_DOUBLE_BLANK => {
+                        let dbl = value.value.dbl;
+                        // DCGM often uses large negative numbers or specific patterns for N/A.
+                        // Adjust this condition based on observed DCGM behavior for blank values.
+                        if value.status == DCGM_ST_OK && !dbl.is_nan() && dbl.abs() < 1e19 {
+                            // Check status and avoid huge numbers.
+                            Some(MetricValue::Float(dbl))
+                        } else {
+                            None // Treat as unavailable.
+                        }
+                    }
+                    DCGM_FT_INT64 | DCGM_FT_TIMESTAMP => {
+                        let i64_val = value.value.i64;
+                        // DCGM often uses large negative numbers or specific patterns for N/A.
+                        if value.status == DCGM_ST_OK && i64_val > -1_000_000_000_000 {
+                            // Check status and avoid specific large negative numbers.
+                            Some(MetricValue::Int(i64_val))
+                        } else {
+                            None // Treat as unavailable.
+                        }
+                    }
+                    DCGM_FT_STRING => {
+                        if value.status == DCGM_ST_OK && value.value.str[0] != 0 {
+                            let c_str = CStr::from_ptr(value.value.str.as_ptr());
+                            Some(MetricValue::String(c_str.to_string_lossy().into_owned()))
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None, // Unknown type.
                 };
-                // Create a unique key per GPU per metric: e.g., "gpu.0.smActive".
-                let metric_key = format!("{}.{}.{}", entity_type, entity_id, base_name);
-                metrics_vec.push((metric_key, metric_value));
+
+                if let Some(metric_value) = metric_value_opt {
+                    let base_name = match field_id {
+                        DCGM_FI_PROF_SM_ACTIVE => "smActive",
+                        DCGM_FI_PROF_SM_OCCUPANCY => "smOccupancy",
+                        DCGM_FI_PROF_PIPE_TENSOR_ACTIVE => "pipeTensorActive",
+                        DCGM_FI_PROF_DRAM_ACTIVE => "dramActive",
+                        DCGM_FI_PROF_PIPE_FP64_ACTIVE => "pipeFp64Active",
+                        DCGM_FI_PROF_PIPE_FP32_ACTIVE => "pipeFp32Active",
+                        DCGM_FI_PROF_PIPE_FP16_ACTIVE => "pipeFp16Active",
+                        DCGM_FI_PROF_PIPE_TENSOR_HMMA_ACTIVE => "pipeTensorHmmaActive",
+                        DCGM_FI_PROF_PCIE_TX_BYTES => "pcieTxBytes",
+                        DCGM_FI_PROF_PCIE_RX_BYTES => "pcieRxBytes",
+                        DCGM_FI_PROF_NVLINK_TX_BYTES => "nvlinkTxBytes",
+                        DCGM_FI_PROF_NVLINK_RX_BYTES => "nvlinkRxBytes",
+                        _ => &format!("dcgm_field_{}", field_id),
+                    };
+                    // Create a unique key per GPU per metric: e.g., "gpu.0.smActive".
+                    let metric_key = format!("{}.{}.{}", entity_type, entity_id, base_name);
+                    metrics_vec.push((metric_key, metric_value));
+                }
             }
         }
+        0 // Indicate success.
+    }); // End catch_unwind closure
+
+    // Check the result of catch_unwind
+    match result {
+        Ok(return_code) => return_code, // Return 0 if Ok, or 1 if user_data was null
+        Err(_) => {
+            // A panic occurred within the closure
+            log::error!("Panic caught within DCGM field_value_callback! Returning error to DCGM.");
+            // Return a non-zero value to signal an error to DCGM
+            1 // Or another distinct error code if needed
+        }
     }
-    0 // Indicate success.
 }
 
 /// Owns the [`DcgmLib`] instance and processes commands received over MPSC channel.
