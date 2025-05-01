@@ -15,7 +15,8 @@ from ._private import MEDIA_TMP
 from .base_types.media import Media, _numpy_arrays_to_lists
 from .base_types.wb_value import WBValue
 from .utils import _json_helper
-
+from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.util import host_from_path
 
 class _TableLinkMixin:
     def set_table(self, table):
@@ -574,6 +575,21 @@ class Table(Media):
         return os.path.join("media", "table")
 
     @classmethod
+    def _get_incremental_data(cls, prev_increment_paths: list[str], source_art):
+        import json
+        increments = []
+        for incr_path in prev_increment_paths:
+            client_id = host_from_path(incr_path)
+            prev_incr = InternalApi()._resolve_client_id(client_id)
+            increment_art = source_art._from_id(prev_incr, source_art._client)
+            # Instead of using get() which would trigger Table.from_json, directly load the JSON
+            table_entry = increment_art.get_entry("table.table.json")
+            with open(table_entry.download()) as f:
+                table_data = json.load(f)
+                increments.append((table_data["data"], increment_art))
+        return increments
+
+    @classmethod
     def from_json(cls, json_obj, source_artifact):
         data = []
         column_types = None
@@ -618,6 +634,26 @@ class Table(Media):
                     )
                     ndarray_type._clear_serialization_path()
 
+        for table_data, source_art in incr_data:
+            for r_ndx, row in enumerate(table_data):
+                row_data = []
+                for c_ndx, item in enumerate(row):
+                    cell = item
+                    if c_ndx in timestamp_column_indices and isinstance(item, (int, float)):
+                        cell = datetime.datetime.fromtimestamp(
+                            item / 1000, tz=datetime.timezone.utc
+                        )
+                    elif c_ndx in np_deserialized_columns:
+                        cell = np_deserialized_columns[c_ndx][r_ndx]
+                    elif isinstance(item, dict) and "_type" in item:
+                        print(r_ndx, item)
+                        obj = WBValue.init_from_json(item, source_art)
+                        print(obj)
+                        if obj is not None:
+                            cell = obj
+                    row_data.append(cell)
+                data.append(row_data)
+
         for r_ndx, row in enumerate(json_obj["data"]):
             row_data = []
             for c_ndx, item in enumerate(row):
@@ -629,7 +665,9 @@ class Table(Media):
                 elif c_ndx in np_deserialized_columns:
                     cell = np_deserialized_columns[c_ndx][r_ndx]
                 elif isinstance(item, dict) and "_type" in item:
+                    print(r_ndx, item)
                     obj = WBValue.init_from_json(item, source_artifact)
+                    print(obj)
                     if obj is not None:
                         cell = obj
                 row_data.append(cell)
