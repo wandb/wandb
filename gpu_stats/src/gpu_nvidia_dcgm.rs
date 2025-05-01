@@ -418,10 +418,7 @@ impl DcgmLib {
     /// Calls an `unsafe extern "C"` function. Assumes `self.handle` is valid.
     fn create_field_group(&self, field_ids: &[u16]) -> Result<DcgmFieldGrpT, String> {
         unsafe {
-            println!(
-                "DEBUG: Creating field group with field_ids: {:?}",
-                field_ids
-            );
+            log::debug!("Creating field group with field_ids: {:?}", field_ids);
 
             let create_field_group: Symbol<
                 unsafe extern "C" fn(
@@ -433,7 +430,7 @@ impl DcgmLib {
                 ) -> DcgmReturnT,
             > = match self.lib.get(b"dcgmFieldGroupCreate") {
                 Ok(f) => {
-                    println!("DEBUG: Found dcgmFieldGroupCreate symbol");
+                    log::debug!("Found dcgmFieldGroupCreate symbol");
                     f
                 }
                 Err(e) => return Err(format!("Failed to get dcgmFieldGroupCreate symbol: {}", e)),
@@ -442,8 +439,8 @@ impl DcgmLib {
             let group_name = CString::new("rust_dcgm_field_group").unwrap();
             let mut field_group_id: DcgmFieldGrpT = 0;
 
-            println!(
-                "DEBUG: Calling dcgmFieldGroupCreate with {} fields",
+            log::debug!(
+                "Calling dcgmFieldGroupCreate with {} fields",
                 field_ids.len()
             );
             let result = create_field_group(
@@ -453,9 +450,10 @@ impl DcgmLib {
                 group_name.as_ptr(),
                 &mut field_group_id,
             );
-            println!(
-                "DEBUG: dcgmFieldGroupCreate returned {} with field_group_id={}",
-                result, field_group_id
+            log::debug!(
+                "dcgmFieldGroupCreate returned {} with field_group_id={}",
+                result,
+                field_group_id
             );
 
             if result != DCGM_ST_OK {
@@ -495,8 +493,8 @@ impl DcgmLib {
         max_keep_samples: i32,
     ) -> Result<(), String> {
         unsafe {
-            println!("DEBUG: Setting up field watches");
-            println!("DEBUG: group_id={}, field_group_id={}, update_freq_us={}, max_keep_age={}, max_keep_samples={}",
+            log::debug!("Setting up field watches");
+            log::debug!("group_id={}, field_group_id={}, update_freq_us={}, max_keep_age={}, max_keep_samples={}",
                      group_id, field_group_id, update_freq_us, max_keep_age, max_keep_samples);
 
             let watch_fields: Symbol<
@@ -510,13 +508,13 @@ impl DcgmLib {
                 ) -> DcgmReturnT,
             > = match self.lib.get(b"dcgmWatchFields") {
                 Ok(f) => {
-                    println!("DEBUG: Found dcgmWatchFields symbol");
+                    log::debug!("Found dcgmWatchFields symbol");
                     f
                 }
                 Err(e) => return Err(format!("Failed to get dcgmWatchFields symbol: {}", e)),
             };
 
-            println!("DEBUG: Calling dcgmWatchFields");
+            log::debug!("Calling dcgmWatchFields");
             let result = watch_fields(
                 self.handle,
                 group_id,
@@ -525,7 +523,7 @@ impl DcgmLib {
                 max_keep_age,
                 max_keep_samples,
             );
-            println!("DEBUG: dcgmWatchFields returned {}", result);
+            log::debug!("dcgmWatchFields returned {}", result);
 
             if result != DCGM_ST_OK {
                 return Err(format!(
@@ -554,15 +552,15 @@ impl DcgmLib {
     /// Calls an `unsafe extern "C"` function. Assumes `self.handle` is valid.
     fn update_all_fields(&self, wait_for_update: i32) -> Result<(), String> {
         unsafe {
-            println!(
-                "DEBUG: Updating all fields with wait_for_update={}",
+            log::debug!(
+                "Updating all fields with wait_for_update={}",
                 wait_for_update
             );
 
             let update_all_fields: Symbol<unsafe extern "C" fn(DcgmHandleT, i32) -> DcgmReturnT> =
                 match self.lib.get(b"dcgmUpdateAllFields") {
                     Ok(f) => {
-                        println!("DEBUG: Found dcgmUpdateAllFields symbol");
+                        log::debug!("Found dcgmUpdateAllFields symbol");
                         f
                     }
                     Err(e) => {
@@ -570,9 +568,9 @@ impl DcgmLib {
                     }
                 };
 
-            println!("DEBUG: Calling dcgmUpdateAllFields");
+            log::debug!("Calling dcgmUpdateAllFields");
             let result = update_all_fields(self.handle, wait_for_update);
-            println!("DEBUG: dcgmUpdateAllFields returned {}", result);
+            log::debug!("dcgmUpdateAllFields returned {}", result);
 
             if result != DCGM_ST_OK {
                 return Err(format!(
@@ -613,11 +611,11 @@ impl DcgmLib {
         user_data: *mut c_void,
     ) -> Result<(), String> {
         unsafe {
-            println!(
-                "DEBUG: Calling get_latest_values with group_id={}, field_group_id={}",
+            log::debug!(
+                "Calling get_latest_values with group_id={}, field_group_id={}",
                 group_id, field_group_id
             );
-            println!("DEBUG: user_data pointer: {:?}", user_data);
+            log::debug!("user_data pointer: {:?}", user_data);
 
             let get_latest_values: Symbol<
                 unsafe extern "C" fn(
@@ -629,7 +627,7 @@ impl DcgmLib {
                 ) -> DcgmReturnT,
             > = match self.lib.get(b"dcgmGetLatestValues_v2") {
                 Ok(f) => {
-                    println!("DEBUG: Found dcgmGetLatestValues_v2 symbol");
+                    log::debug!("Found dcgmGetLatestValues_v2 symbol");
                     f
                 }
                 Err(e) => {
@@ -640,14 +638,14 @@ impl DcgmLib {
                 }
             };
 
-            println!("DEBUG: About to call dcgmGetLatestValues_v2");
+            log::debug!("About to call dcgmGetLatestValues_v2");
             let result =
                 get_latest_values(self.handle, group_id, field_group_id, callback, user_data);
-            println!("DEBUG: dcgmGetLatestValues_v2 returned {}", result);
+            log::debug!("dcgmGetLatestValues_v2 returned {}", result);
 
             // Handle different error cases
             if result == DCGM_ST_NO_DATA {
-                println!("No data available yet (DCGM_ST_NO_DATA). The profiling metrics might need time to be collected.");
+                log::debug!("No data available yet (DCGM_ST_NO_DATA). The profiling metrics might need time to be collected.");
                 return Ok(());
             } else if result == DCGM_ST_NOT_SUPPORTED {
                 return Err(format!(
@@ -668,7 +666,7 @@ impl DcgmLib {
                     self.error_string(result)
                 ));
             } else {
-                println!("DEBUG: Successfully got latest values");
+                log::debug!("Successfully got latest values");
             }
 
             Ok(())
