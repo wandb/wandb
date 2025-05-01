@@ -15,7 +15,7 @@ mod gpu_apple;
 mod gpu_apple_sources;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod gpu_nvidia;
-// #[cfg(any(target_os = "linux"))]
+#[cfg(any(target_os = "linux"))]
 mod gpu_nvidia_dcgm;
 mod metrics;
 mod wandb_internal;
@@ -40,7 +40,7 @@ use gpu_amd::GpuAmd;
 use gpu_apple::ThreadSafeSampler;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use gpu_nvidia::NvidiaGpu;
-// #[cfg(any(target_os = "linux"))]
+#[cfg(any(target_os = "linux"))]
 use gpu_nvidia_dcgm::DcgmClient;
 use prost_types::Timestamp;
 use wandb_internal::{
@@ -105,6 +105,7 @@ pub struct SystemMonitorServiceImpl {
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     nvidia_gpu: Option<tokio::sync::Mutex<NvidiaGpu>>,
     /// Nvidia GPU monitor, performance metrics, DCGM-based (Linux only).
+    #[cfg(any(target_os = "linux"))]
     dcgm_client: Option<DcgmClient>,
     /// AMD GPU monitor (Linux only).
     #[cfg(target_os = "linux")]
@@ -130,7 +131,7 @@ impl SystemMonitorServiceImpl {
         };
 
         // Initialize the Nvidia GPU DCGM-based monitor (Linux only)
-        // #[cfg(target_os = "linux")]
+        #[cfg(target_os = "linux")]
         let dcgm_client = match DcgmClient::new() {
             // This calls the new sync-worker version
             Ok(client) => {
@@ -177,7 +178,7 @@ impl SystemMonitorServiceImpl {
             apple_sampler,
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             nvidia_gpu,
-            // #[cfg(target_os = "linux")]
+            #[cfg(target_os = "linux")]
             dcgm_client,
             #[cfg(target_os = "linux")]
             amd_gpu,
@@ -252,7 +253,7 @@ impl SystemMonitorServiceImpl {
         }
 
         // Nvidia GPU perf metrics from DCGM (Linux only)
-        // #[cfg(any(target_os = "linux"))]
+        #[cfg(any(target_os = "linux"))]
         if let Some(client) = &self.dcgm_client {
             match client.get_metrics().await {
                 // Still await the async function
@@ -292,6 +293,7 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
     ) -> Result<Response<TearDownResponse>, Status> {
         debug!("Received a request to shutdown: {:?}", request);
 
+        #[cfg(any(target_os = "linux"))]
         if let Some(client) = &self.dcgm_client {
             log::debug!("Signaling DCGM worker thread to shut down.");
             client.shutdown();
