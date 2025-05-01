@@ -125,3 +125,47 @@ query RunInputArtifacts(
         }
     }
 }
+
+# ---------------------------------------------------------------------------
+mutation AddAliases(
+    $artifactID: ID!,
+    $aliases: [ArtifactCollectionAliasInput!]!,
+) {
+    addAliases(input: {artifactID: $artifactID, aliases: $aliases}) {
+        success
+    }
+}
+mutation DeleteAliases(
+    $artifactID: ID!,
+    $aliases: [ArtifactCollectionAliasInput!]!,
+) {
+    deleteAliases(input: {artifactID: $artifactID, aliases: $aliases}) {
+        success
+    }
+}
+
+mutation UpdateArtifact(
+    $artifactID: ID!
+    $description: String
+    $metadata: JSONString
+    $ttlDurationSeconds: Int64
+    $tagsToAdd: [TagInput!]
+    $tagsToDelete: [TagInput!]
+    $aliases: [ArtifactAliasInput!]
+) {
+    updateArtifact(
+        input: {
+            artifactID: $artifactID,
+            description: $description,
+            metadata: $metadata,
+            ttlDurationSeconds: $ttlDurationSeconds,
+            tagsToAdd: $tagsToAdd,
+            tagsToDelete: $tagsToDelete,
+            aliases: $aliases
+        }
+    ) {
+        artifact {
+            ...ArtifactFragment
+        }
+    }
+}
