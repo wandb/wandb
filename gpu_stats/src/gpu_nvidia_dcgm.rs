@@ -778,7 +778,7 @@ impl DcgmClient {
                 let dcgm = match dcgm_result {
                     Ok(lib) => lib,
                     Err(e) => {
-                        log::error!("DCGM worker: Failed to initialize DCGM library: {}. Thread exiting.", e);
+                        log::debug!("DCGM worker: Failed to initialize DCGM library: {}. Thread exiting.", e);
                         // --- Send failure back via handshake ---
                         let _ = init_sender.send(Err(e)); // Ignore send error if main thread already gave up
                         return; // Exit thread
@@ -885,7 +885,6 @@ impl DcgmClient {
             }
             Ok(Err(e)) => {
                 // Worker signaled failure during initialization
-                log::error!("DCGM worker thread failed initialization: {}", e);
                 Err(format!("DCGM worker thread failed initialization: {}", e))
             }
             Err(_) => {
