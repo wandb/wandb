@@ -833,7 +833,16 @@ impl DcgmClient {
                  };
 
                  log::debug!("DCGM worker: Setting watches...");
-                 let watch_result = dcgm.watch_fields(group_id, field_group_id, 15_000_000, 0.0, 2);
+                 let update_freq_us = 5_000_000; // 5 seconds
+                 let max_keep_age = 0.0; // Unlimited
+                 let max_keep_samples = 2; // Keep the latest 2 samples
+                 let watch_result = dcgm.watch_fields(
+                    group_id,
+                    field_group_id,
+                    update_freq_us,
+                    max_keep_age,
+                    max_keep_samples,
+                );
                  if let Err(e) = watch_result {
                      log::error!("DCGM worker: Failed to set watches: {}. Thread exiting.", e);
                       let _ = init_sender.send(Err(format!("Failed to set watches: {}", e)));
