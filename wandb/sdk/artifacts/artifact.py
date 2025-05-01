@@ -76,9 +76,11 @@ from wandb.sdk.mailbox import MailboxHandle
 from ._generated import (
     ADD_ALIASES_GQL,
     DELETE_ALIASES_GQL,
+    LINK_ARTIFACT_GQL,
     UPDATE_ARTIFACT_GQL,
     ArtifactAliasInput,
     ArtifactCollectionAliasInput,
+    LinkArtifactInput,
     TagInput,
     UpdateArtifact,
 )
@@ -2296,20 +2298,43 @@ class Artifact:
                 "Linking to a link artifact will result in directly linking to the source artifact of that link artifact."
             )
 
-        singleton = wandb_setup._setup(start_service=False)
+        portfolio, project, entity = util._parse_entity_project_item(target_path)
 
-        if run := singleton.most_recent_active_run:
-            # TODO: Deprecate and encourage explicit link_artifact().
-            run.link_artifact(self, target_path, aliases)
+        # Save the artifact first if necessary
+        if self.is_draft() and not self._is_draft_save_started():
+            self.save(project=self.source_project)
+        self.wait()
 
+        # Parse the entity appropriately, depending on whether we're linking to a registry
+        if is_artifact_registry_project(project):
+            # In a Registry linking, the entity is used to fetch the organization of the artifact
+            # therefore the source artifact's entity is passed to the backend
+            organization = entity
+            org_entity = InternalApi()._resolve_org_entity_name(
+                entity=self.source_entity, organization=organization
+            )
+            portfolio_entity = org_entity
         else:
-            with wandb.init(
-                entity=self._source_entity,
-                project=self._source_project,
-                job_type="auto",
-                settings=wandb.Settings(silent="true"),
-            ) as run:
-                run.link_artifact(self, target_path, aliases)
+            portfolio_entity = self.source_entity
+
+        # Prepare and validate the GraphQL input
+        gql_input = LinkArtifactInput(
+            artifact_id=self.id,
+            artifact_portfolio_name=portfolio,
+            entity_name=portfolio_entity,
+            project_name=project,
+            aliases=[
+                ArtifactAliasInput(artifact_collection_name=portfolio, alias=alias)
+                for alias in (aliases or [])
+            ],
+        )
+
+        # Send it
+        client = cast(RetryingClient, self._client)
+        client.execute(
+            gql(LINK_ARTIFACT_GQL),
+            variable_values={"input": gql_input.model_dump(exclude_none=True)},
+        )
 
     @ensure_logged
     def unlink(self) -> None:

@@ -169,3 +169,12 @@ mutation UpdateArtifact(
         }
     }
 }
+
+# ---------------------------------------------------------------------------
+mutation LinkArtifact(
+    $input: LinkArtifactInput!
+) {
+    linkArtifact(input: $input) {
+        versionIndex
+    }
+}
