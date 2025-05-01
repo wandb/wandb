@@ -292,6 +292,11 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
     ) -> Result<Response<TearDownResponse>, Status> {
         debug!("Received a request to shutdown: {:?}", request);
 
+        if let Some(client) = &self.dcgm_client {
+            log::debug!("Signaling DCGM worker thread to shut down.");
+            client.shutdown();
+        }
+
         // Signal the gRPC server to shutdown
         let mut sender = self.shutdown_sender.lock().await;
         if let Some(sender) = sender.take() {

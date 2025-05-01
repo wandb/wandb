@@ -886,13 +886,10 @@ impl DcgmClient {
             Err(_) => Err("Failed to receive response from DCGM worker".to_string()),
         }
     }
-}
 
-/// Sends the `Shutdown` command when the `DcgmClient` is dropped.
-impl Drop for DcgmClient {
-    fn drop(&mut self) {
-        // Send shutdown command to the worker thread
-        // Ignore error if receiver already dropped
+    pub fn shutdown(&self) {
+        log::info!("Sending Shutdown command to DCGM worker thread.");
+        // Ignore error if receiver has already dropped (thread already exited).
         let _ = self.sender.send(DcgmCommand::Shutdown);
     }
 }
