@@ -563,9 +563,7 @@ class Table(Media):
         column_types = None
         np_deserialized_columns = {}
         timestamp_column_indices = set()
-        log_mode = "IMMUTABLE" # default
-        if json_obj.get("log_mode") is not None:
-            log_mode = json_obj["log_mode"]
+        log_mode = json_obj.get("log_mode", "IMMUTABLE")
         if json_obj.get("column_types") is not None:
             column_types = _dtypes.TypeRegistry.type_from_dict(
                 json_obj["column_types"], source_artifact
