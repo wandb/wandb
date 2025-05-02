@@ -658,7 +658,7 @@ class Table(Media):
                 json_dict.update({"prev_increment_paths": self._incr_parts})
             json_dict.update(
                 {
-                    "_type": "incr-table-file" if self.log_mode == "INCREMENTAL" else "table-file",
+                    "_type": "incremental-table-file" if self.log_mode == "INCREMENTAL" else "table-file",
                     "ncols": len(self.columns),
                     "nrows": len(self.data),
                     "log_mode": self.log_mode
