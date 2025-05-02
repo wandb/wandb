@@ -21,19 +21,34 @@ from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 if TYPE_CHECKING:
     from wandb_gql import Client
 
+
 class Registry:
     """A single registry in the Registry."""
 
     UPSERT_REGISTRY_PROJECT = gql(
         """
-            mutation UpsertRegistryProject($description: String, $entityName: String, $name: String, $access: String, $allowAllArtifactTypesInRegistry: Boolean, $artifactTypes: [ArtifactTypeInput!]) {
-            upsertModel(
-                input: {description: $description, entityName: $entityName, name: $name, access: $access, allowAllArtifactTypesInRegistry: $allowAllArtifactTypesInRegistry, artifactTypes: $artifactTypes}
+            mutation UpsertRegistryProject(
+                $description: String,
+                $entityName: String,
+                $name: String,
+                $access: String,
+                $allowAllArtifactTypesInRegistry: Boolean,
+                $artifactTypes: [ArtifactTypeInput!]
             ) {
-                project {
-                    ...RegistryFragment
-                }
-                inserted
+                upsertModel(
+                    input: {
+                        description: $description,
+                        entityName: $entityName,
+                        name: $name, access: $access,
+                        allowAllArtifactTypesInRegistry:
+                        $allowAllArtifactTypesInRegistry,
+                        artifactTypes: $artifactTypes
+                    }
+                ) {
+                    project {
+                        ...RegistryFragment
+                    }
+                    inserted
                 }
             }
         """
@@ -75,7 +90,7 @@ class Registry:
 
     @property
     def full_name(self) -> str:
-        """Full name of the registry which contains the internally set `wandb-registry-` prefix."""
+        """Full name of the registry including the `wandb-registry-` prefix."""
         return self._full_name
 
     @property
@@ -109,8 +124,8 @@ class Registry:
 
     @property
     def allow_all_artifact_types(self):
-        """
-        Returns whether all artifact types are allowed in the registry.
+        """Returns whether all artifact types are allowed in the registry.
+
         If `True` then artifacts of any type can be added to this registry.
         If `False` then artifacts are restricted to the types in `artifact_types` for this registry.
         """
@@ -123,21 +138,25 @@ class Registry:
 
     @property
     def artifact_types(self) -> AddOnlyArtifactTypesList:
-        """
-        Returns the artifact types allowed in the registry. If `allow_all_artifact_types` is `True` then
-        `artifact_types` are the types that are previously saved or currently used in the registry.
-        If `allow_all_artifact_types` is `False` then artifacts are restricted to the types in `artifact_types` for this registry.
-        Note previously saved artifact types cannot be removed.
+        """Returns the artifact types allowed in the registry.
+
+        If `allow_all_artifact_types` is `True` then `artifact_types` reflects the
+        types previously saved or currently used in the registry.
+        If `allow_all_artifact_types` is `False` then artifacts are restricted to the
+        types in `artifact_types`.
+
+        Note:
+            Previously saved artifact types cannot be removed.
 
         Example:
-        ```python
-        registry.artifact_types.append("model")
-        registry.save()  # once saved, the artifact type `model` cannot be removed
-        registry.artifact_types.append("accidentally_added")
-        registry.artifact_types.remove(
-            "accidentally_added"
-        )  # Types can only be removed if it has not been saved yet
-        ```
+            ```python
+            registry.artifact_types.append("model")
+            registry.save()  # once saved, the artifact type `model` cannot be removed
+            registry.artifact_types.append("accidentally_added")
+            registry.artifact_types.remove(
+                "accidentally_added"
+            )  # Types can only be removed if it has not been saved yet
+            ```
         """
         return self._artifact_types
 
@@ -157,10 +176,14 @@ class Registry:
 
     @property
     def visibility(self) -> Literal["organization", "restricted"]:
-        """
-        Returns the visibility of the registry.
-        organization: Anyone in the organization can view this registry. You can edit their roles later from the settings in the UI.
-        restricted: Only invited members via the UI can access this registry. Public sharing is disabled.
+        """Visibility of the registry.
+
+        Returns:
+            Literal["organization", "restricted"]: The visibility level.
+                - "organization": Anyone in the organization can view this registry.
+                  You can edit their roles later from the settings in the UI.
+                - "restricted": Only invited members via the UI can access this registry.
+                  Public sharing is disabled.
         """
         return self._visibility
 
@@ -168,8 +191,12 @@ class Registry:
     def visibility(self, value: Literal["organization", "restricted"]):
         """Set the visibility of the registry.
 
-        organization: Anyone in the organization can view this registry. You can edit their roles later from the settings in the UI.
-        restricted: Only invited members via the UI can access this registry. Public sharing is disabled.
+        Args:
+            value: The visibility level. Options are:
+                - "organization": Anyone in the organization can view this registry.
+                  You can edit their roles later from the settings in the UI.
+                - "restricted": Only invited members via the UI can access this registry.
+                  Public sharing is disabled.
         """
         self._visibility = value
 
@@ -197,11 +224,31 @@ class Registry:
         description: Optional[str] = None,
         artifact_types: Optional[List[str]] = None,
     ):
-        """Create a new registry. The registry name must be unique within the organization."""
+        """Create a new registry.
+
+        The registry name must be unique within the organization.
+        This function should be called using `api.create_registry()`
+
+        Args:
+            client: The GraphQL client.
+            organization: The name of the organization.
+            name: The name of the registry (without the `wandb-registry-` prefix).
+            visibility: The visibility level ('organization' or 'restricted').
+            description: An optional description for the registry.
+            artifact_types: An optional list of allowed artifact types.
+
+        Returns:
+            Registry: The newly created Registry object.
+
+        Raises:
+            ValueError: If a registry with the same name already exists in the
+                organization or if the creation fails.
+        """
         existing_registry = Registries(client, organization, {"name": name})
         if existing_registry:
             raise ValueError(
-                f"Registry {name} already exists in organization {organization}, please use a different name."
+                f"Registry {name} already exists in organization {organization},"
+                " please use a different name."
             )
 
         org_entity = _fetch_org_entity_from_organization(client, organization)
@@ -211,7 +258,7 @@ class Registry:
             accepted_artifact_types = _format_gql_artifact_types_input(artifact_types)
         visibility_value = _registry_visibility_to_gql(visibility)
         registry_creation_error = (
-            """Failed to create registry {name} in organization {organization}."""
+            f"Failed to create registry {name} in organization {organization}."
         )
         try:
             response = client.execute(
@@ -259,7 +306,10 @@ class Registry:
 
     def load(self) -> None:
         """Load the registry attributes from the backend to reflect the latest saved state."""
-        load_failure_message = f"Failed to load registry '{self.name}' in organization '{self.organization}'."
+        load_failure_message = (
+            f"Failed to load registry '{self.name}' "
+            f"in organization '{self.organization}'."
+        )
         try:
             response = self.client.execute(
                 gql(

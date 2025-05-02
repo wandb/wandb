@@ -29,7 +29,6 @@ from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries.registries_search import Registries
 from wandb.apis.public.registries.registry import Registry
 from wandb.apis.public.registries.utils import _fetch_org_entity_from_organization
-
 from wandb.apis.public.utils import (
     PathType,
     fetch_org_from_settings_or_entity,
@@ -1529,9 +1528,12 @@ class Api:
         """Return a registry given a registry name.
 
         Args:
-            name: (str) The name of the registry. This is without the `wandb-registry-` prefix.
-            organization: (str, optional) The organization of the registry.
-                If no organization is set in the settings, the organization will be fetched from the entity if the entity only belongs to one organization.
+            name: The name of the registry. This is without the `wandb-registry-`
+                prefix.
+            organization: The organization of the registry.
+                If no organization is set in the settings, the organization will be
+                fetched from the entity if the entity only belongs to one
+                organization.
 
         Returns:
             A registry object.
@@ -1566,16 +1568,20 @@ class Api:
         """Create a new registry.
 
         Args:
-            name: (str) The name of the registry. Name must be unique within the organization.
-            visibility: (str) The visibility of the registry.
-                organization: Anyone in the organization can view this registry. You can edit their roles later from the settings in the UI.
-                restricted: Only invited members via the UI can access this registry. Public sharing is disabled.
-            organization: (str, optional) The organization of the registry.
-                If no organization is set in the settings, the organization will be fetched from the entity if the entity only belongs to one organization.
-            description: (str, optional) The description of the registry.
-            artifact_types: (list[str], optional) The accepted artifact types of the registry. A type is no more than 128 characters and do not include characters `/` or `:`.
-                If not specified, all types are accepted.
-                Note: allowed types added to the registry cannot be removed later.
+            name: The name of the registry. Name must be unique within the organization.
+            visibility: The visibility of the registry.
+                organization: Anyone in the organization can view this registry. You can
+                    edit their roles later from the settings in the UI.
+                restricted: Only invited members via the UI can access this registry.
+                    Public sharing is disabled.
+            organization: The organization of the registry.
+                If no organization is set in the settings, the organization will be
+                fetched from the entity if the entity only belongs to one organization.
+            description: The description of the registry.
+            artifact_types: The accepted artifact types of the registry. A type is no
+                more than 128 characters and do not include characters `/` or `:`. If
+                not specified, all types are accepted.
+                Allowed types added to the registry cannot be removed later.
 
         Returns:
             A registry object.

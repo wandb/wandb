@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Generator, Iterator
+from typing import Callable, Generator, Iterator
 
 import pytest
 
@@ -106,21 +106,38 @@ class UserOrg:
 
 
 @pytest.fixture
-def user_in_orgs(mocker, backend_fixture_factory, request) -> Iterator[UserOrg]:
-    number_of_orgs = getattr(request, "param", 1)
+def user_in_orgs_factory(
+    mocker: pytest.MonkeyPatch, backend_fixture_factory: BackendFixtureFactory
+) -> Iterator[Callable[[int], UserOrg]]:
+    """Fixture that provides a factory function to create a user and associated orgs.
 
+    Usage in a test:
+        def test_something(user_in_orgs_factory):
+            # Get a user with 2 organizations
+            user_org_data = user_in_orgs_factory(number_of_orgs=2)
+
+            # Get a user with the default (1) organization
+            user_org_data_default = user_in_orgs_factory()
+    """
     username = backend_fixture_factory.make_user()
     envvars = {
         "WANDB_API_KEY": username,
         "WANDB_ENTITY": username,
         "WANDB_USERNAME": username,
     }
-    orgs = [
-        backend_fixture_factory.make_org(username=username)
-        for _ in range(number_of_orgs)
-    ]
     mocker.patch.dict(os.environ, envvars)
-    yield UserOrg(username=username, organization_names=orgs)
+
+    def _factory(number_of_orgs: int = 1) -> UserOrg:
+        """Creates organizations for the pre-defined user."""
+        if number_of_orgs <= 0:
+            raise ValueError("Number of organizations have to be positive.")
+        orgs = [
+            backend_fixture_factory.make_org(username=username)
+            for _ in range(number_of_orgs)
+        ]
+        return UserOrg(username=username, organization_names=orgs)
+
+    yield _factory
 
 
 @pytest.fixture(scope="session")

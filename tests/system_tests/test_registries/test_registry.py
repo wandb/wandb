@@ -4,11 +4,9 @@ from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
 
 @pytest.fixture
-def default_organization(user_in_orgs):
+def default_organization(user_in_orgs_factory):
     """Provides the name of the single default organization."""
-    assert (
-        len(user_in_orgs.organization_names) == 1
-    ), "This fixture requires user_in_orgs with exactly one organization"
+    user_in_orgs = user_in_orgs_factory()
     yield user_in_orgs.organization_names[0]
 
 
@@ -183,11 +181,10 @@ def test_input_invalid_organizations(default_organization):
         api.registry(registry_name, f"{default_organization}_wrong_organization")
 
 
-@pytest.mark.parametrize("user_in_orgs", [2], indirect=True, scope="function")
-def test_user_in_multiple_orgs(user_in_orgs):
+def test_user_in_multiple_orgs(user_in_orgs_factory):
     """Tests that the organization is inferred from the create and load methods."""
+    user_in_orgs = user_in_orgs_factory(number_of_orgs=2)
     organizations = user_in_orgs.organization_names
-    assert len(organizations) == 2
 
     api = Api()
     registry_name = "test"
