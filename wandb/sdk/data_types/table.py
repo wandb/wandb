@@ -215,27 +215,6 @@ class Table(Media):
 
     This class is the primary class used to generate the Table Visualizer
     in the UI: https://docs.wandb.ai/guides/data-vis/tables.
-
-    Args:
-        columns: (List[str]) Names of the columns in the table.
-            Defaults to ["Input", "Output", "Expected"].
-        data: (List[List[any]]) 2D row-oriented array of values.
-        dataframe: (pandas.DataFrame) DataFrame object used to create the table.
-            When set, `data` and `columns` arguments are ignored.
-        optional: (Union[bool,List[bool]]) Determines if `None` values are allowed. Default to True
-            - If a singular bool value, then the optionality is enforced for all
-            columns specified at construction time
-            - If a list of bool values, then the optionality is applied to each
-            column - should be the same length as `columns`
-            applies to all columns. A list of bool values applies to each respective column.
-        allow_mixed_types: (bool) Determines if columns are allowed to have mixed types
-            (disables type validation). Defaults to False
-        log_mode: (Optional[Literal["IMMUTABLE", "MUTABLE"]]) Controls how the Table is logged when mutations occur.
-            Options:
-            - "IMMUTABLE" (default): Table can only be logged once; subsequent
-              logging attempts after the table has been mutated will be no-ops.
-            - "MUTABLE": Table can be re-logged after mutations, creating
-              a new artifact version each time it's logged.
     """
 
     MAX_ROWS = 10000
@@ -258,6 +237,27 @@ class Table(Media):
 
         The rows is available for legacy reasons and should not be used.
         The Table class uses data to mimic the Pandas API.
+
+        Args:
+            columns: (List[str]) Names of the columns in the table.
+                Defaults to ["Input", "Output", "Expected"].
+            data: (List[List[any]]) 2D row-oriented array of values.
+            dataframe: (pandas.DataFrame) DataFrame object used to create the table.
+                When set, `data` and `columns` arguments are ignored.
+            optional: (Union[bool,List[bool]]) Determines if `None` values are allowed. Default to True
+                - If a singular bool value, then the optionality is enforced for all
+                columns specified at construction time
+                - If a list of bool values, then the optionality is applied to each
+                column - should be the same length as `columns`
+                applies to all columns. A list of bool values applies to each respective column.
+            allow_mixed_types: (bool) Determines if columns are allowed to have mixed types
+                (disables type validation). Defaults to False
+            log_mode: (Optional[Literal["IMMUTABLE", "MUTABLE"]]) Controls how the Table is logged when mutations occur.
+                Options:
+                - "IMMUTABLE" (default): Table can only be logged once; subsequent
+                logging attempts after the table has been mutated will be no-ops.
+                - "MUTABLE": Table can be re-logged after mutations, creating
+                a new artifact version each time it's logged.
         """
         super().__init__()
         self._validate_log_mode(log_mode)
