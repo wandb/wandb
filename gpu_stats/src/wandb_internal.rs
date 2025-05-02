@@ -2881,6 +2881,8 @@ pub enum ServerFeature {
     AutomationEventRunMetricChange = 10,
     /// Indicates that the server supports automation action NO_OP.
     AutomationActionNoOp = 11,
+    /// Indicates that the server supports including artifact types in registry creation.
+    IncludeArtifactTypesInRegistryCreation = 12,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2907,6 +2909,9 @@ impl ServerFeature {
             Self::AutomationEventRunMetric => "AUTOMATION_EVENT_RUN_METRIC",
             Self::AutomationEventRunMetricChange => "AUTOMATION_EVENT_RUN_METRIC_CHANGE",
             Self::AutomationActionNoOp => "AUTOMATION_ACTION_NO_OP",
+            Self::IncludeArtifactTypesInRegistryCreation => {
+                "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2932,6 +2937,9 @@ impl ServerFeature {
                 Some(Self::AutomationEventRunMetricChange)
             }
             "AUTOMATION_ACTION_NO_OP" => Some(Self::AutomationActionNoOp),
+            "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION" => {
+                Some(Self::IncludeArtifactTypesInRegistryCreation)
+            }
             _ => None,
         }
     }

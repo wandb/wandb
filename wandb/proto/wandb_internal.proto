@@ -1422,6 +1422,9 @@ enum ServerFeature {
 
   // Indicates that the server supports automation action NO_OP.
   AUTOMATION_ACTION_NO_OP = 11;
+
+  // Indicates that the server supports including artifact types in registry creation.
+  INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION = 12;
 }
 
 /**
