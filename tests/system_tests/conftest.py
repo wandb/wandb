@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Callable, Generator, Iterator
 
 import pytest
-from httpx import HTTPStatusError
 
 from .backend_fixtures import (
     BackendFixtureFactory,
