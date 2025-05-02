@@ -365,13 +365,11 @@ var relationshipRules = []api.CreateResourceRelationshipRule{
 		Name:           "Google Cloud Cluster Network",
 		DependencyType: api.ProvisionedIn,
 
-				// Source (the Cluster)
-				SourceKind:    "GoogleKubernetesEngine",             // Matches Resource Kind
-				SourceVersion: "ctrlplane.dev/kubernetes/cluster/v1", // Matches Resource Version
-		
-				// Target (the Network)
-				TargetKind:    "GoogleNetwork",                  // Matches Target Resource Kind
-				TargetVersion: "ctrlplane.dev/network/v1",       // Matches Target Resource Version
+		SourceKind:    "GoogleKubernetesEngine",
+		SourceVersion: "ctrlplane.dev/kubernetes/cluster/v1",
+
+		TargetKind:    "GoogleNetwork",
+		TargetVersion: "ctrlplane.dev/network/v1",
 
 		MetadataKeysMatch: []string{"google/project", "network/name"},
 	},
