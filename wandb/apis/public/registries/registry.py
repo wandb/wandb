@@ -342,8 +342,7 @@ class Registry:
         """Save registry attributes to the backend."""
         if self._no_updating_registry_types():
             raise ValueError(
-                "Cannot update registry artifact types if registry `allows_all_artifact_types` is `true`, please set `allow_all_artifact_types` to `false`. "
-                "If you want to update registry artifact types, please set `allow_all_artifact_types` to `false`."
+                "Cannot update artifact types when `allows_all_artifact_types` is `true`. Set it to `false` first."
             )
         visibility_value = _registry_visibility_to_gql(self.visibility)
         newly_added_types = _format_gql_artifact_types_input(self.artifact_types.draft)
