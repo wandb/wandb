@@ -147,7 +147,7 @@ def test_registry_create_duplicate_name(default_organization):
 
     # Attempt to create another registry with the same name
     # Note error is generic to avoid leaking permission information
-    with pytest.raises(ValueError, match="Failed to create registry"):
+    with pytest.raises(ValueError, match="please use a different name"):
         api.create_registry(
             organization=default_organization,
             name=registry_name,

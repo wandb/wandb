@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Callable, Generator, Iterator
 
 import pytest
+from httpx import HTTPStatusError
 
 from .backend_fixtures import (
     BackendFixtureFactory,
@@ -131,10 +132,19 @@ def user_in_orgs_factory(
         """Creates organizations for the pre-defined user."""
         if number_of_orgs <= 0:
             raise ValueError("Number of organizations have to be positive.")
-        orgs = [
-            backend_fixture_factory.make_org(username=username)
-            for _ in range(number_of_orgs)
-        ]
+        try:
+            orgs = [
+                backend_fixture_factory.make_org(username=username)
+                for _ in range(number_of_orgs)
+            ]
+        except HTTPStatusError as e:
+            if e.status_code == 404 and e.request.path.endswith("db/organization"):
+                pytest.skip(
+                    "Organization fixture not supported in earlier wandb server versions."
+                )
+            else:
+                raise
+
         return UserOrg(username=username, organization_names=orgs)
 
     yield _factory

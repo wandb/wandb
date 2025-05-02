@@ -1642,6 +1642,17 @@ class Api:
         organization = organization or fetch_org_from_settings_or_entity(
             self.settings, self.default_entity
         )
+
+        try:
+            existing_registry = self.registry(name=name, organization=organization)
+        except ValueError:
+            existing_registry = None
+        if existing_registry:
+            raise ValueError(
+                f"Registry {name!r} already exists in organization {organization!r},"
+                " please use a different name."
+            )
+
         return Registry.create(
             self.client,
             organization,

@@ -4,11 +4,7 @@ from wandb_gql import gql
 
 import wandb
 from wandb.apis.public.registries._freezable_list import AddOnlyArtifactTypesList
-from wandb.apis.public.registries.registries_search import (
-    Collections,
-    Registries,
-    Versions,
-)
+from wandb.apis.public.registries.registries_search import Collections, Versions
 from wandb.apis.public.registries.utils import (
     _fetch_org_entity_from_organization,
     _format_gql_artifact_types_input,
@@ -243,13 +239,6 @@ class Registry:
             ValueError: If a registry with the same name already exists in the
                 organization or if the creation fails.
         """
-        existing_registry = Registries(client, organization, {"name": name})
-        if existing_registry:
-            raise ValueError(
-                f"Registry {name} already exists in organization {organization},"
-                " please use a different name."
-            )
-
         org_entity = _fetch_org_entity_from_organization(client, organization)
         full_name = REGISTRY_PREFIX + name
         accepted_artifact_types = []
