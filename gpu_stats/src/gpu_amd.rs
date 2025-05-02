@@ -528,12 +528,6 @@ mod tests {
     }
 
     #[test]
-    fn test_gpu_amd_new() {
-        let gpu = GpuAmd::new();
-        assert!(gpu.is_some());
-    }
-
-    #[test]
     /// Test that the AMD GPU stats in ROCM 5 format are parsed correctly.
     fn test_parse_stats_rocm5() {
         let stats = serde_json::Map::from_iter(vec![

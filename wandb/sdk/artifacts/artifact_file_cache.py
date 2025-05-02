@@ -11,7 +11,7 @@ import subprocess
 import sys
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import IO, TYPE_CHECKING, ContextManager, Iterator
+from typing import IO, ContextManager, Iterator, Protocol
 
 import wandb
 from wandb import env, util
@@ -19,12 +19,10 @@ from wandb.sdk.lib.filesystem import files_in
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
-if TYPE_CHECKING:
-    from typing import Protocol
 
-    class Opener(Protocol):
-        def __call__(self, mode: str = ...) -> ContextManager[IO]:
-            pass
+class Opener(Protocol):
+    def __call__(self, mode: str = ...) -> ContextManager[IO]:
+        pass
 
 
 def _get_sys_umask_threadsafe() -> int:

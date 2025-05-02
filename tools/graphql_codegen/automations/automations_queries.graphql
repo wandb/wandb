@@ -121,7 +121,7 @@ fragment ProjectConnectionFields on ProjectConnection {
 # top-level `triggers(...)` query.  The fact that triggers can only be searched under
 # an individual project or collection is a bit awkward, but has historically been
 # needed to support the UI alone.
-query GetTriggers (
+query GetAutomations (
     $cursor: String,
     $perPage: Int,
 ) {
@@ -131,7 +131,7 @@ query GetTriggers (
         }
     }
 }
-query GetTriggersByEntity (
+query GetAutomationsByEntity (
     $entityName: String!,
     $cursor: String,
     $perPage: Int,
@@ -144,33 +144,33 @@ query GetTriggersByEntity (
 }
 
 # ------------------------------------------------------------------------------
-fragment CreateFilterTriggerResult on CreateFilterTriggerPayload {
+fragment CreateAutomationResult on CreateFilterTriggerPayload {
     __typename
     trigger {...TriggerFields}
 }
-mutation CreateFilterTrigger($params: CreateFilterTriggerInput!) {
+mutation CreateAutomation($params: CreateFilterTriggerInput!) {
     result: createFilterTrigger(input: $params) {
-        ...CreateFilterTriggerResult
+        ...CreateAutomationResult
     }
 }
 
-fragment UpdateFilterTriggerResult on UpdateFilterTriggerPayload {
+fragment UpdateAutomationResult on UpdateFilterTriggerPayload {
     __typename
     trigger {...TriggerFields}
 }
-mutation UpdateFilterTrigger($params: UpdateFilterTriggerInput!) {
+mutation UpdateAutomation($params: UpdateFilterTriggerInput!) {
     result: updateFilterTrigger(input: $params) {
-        ...UpdateFilterTriggerResult
+        ...UpdateAutomationResult
     }
 }
 
-fragment DeleteTriggerResult on DeleteTriggerPayload {
+fragment DeleteAutomationResult on DeleteTriggerPayload {
     __typename
     success
 }
-mutation DeleteTrigger($id: ID!) {
+mutation DeleteAutomation($id: ID!) {
     result: deleteTrigger(input: {triggerID: $id}) {
-        ...DeleteTriggerResult
+        ...DeleteAutomationResult
     }
 }
 
