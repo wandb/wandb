@@ -34,6 +34,16 @@ from .delete_artifact_sequence import (
     DeleteArtifactSequenceDeleteArtifactSequenceArtifactCollection,
 )
 from .enums import ArtifactCollectionState, ArtifactState
+from .fetch_linked_artifacts import (
+    FetchLinkedArtifacts,
+    FetchLinkedArtifactsArtifact,
+    FetchLinkedArtifactsArtifactArtifactMemberships,
+    FetchLinkedArtifactsArtifactArtifactMembershipsEdges,
+    FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNode,
+    FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeAliases,
+    FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollection,
+    FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollectionProject,
+)
 from .fragments import (
     ArtifactCollectionsFragment,
     ArtifactCollectionsFragmentEdges,
@@ -76,6 +86,7 @@ from .operations import (
     DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL,
     DELETE_ARTIFACT_PORTFOLIO_GQL,
     DELETE_ARTIFACT_SEQUENCE_GQL,
+    FETCH_LINKED_ARTIFACTS_GQL,
     MOVE_ARTIFACT_COLLECTION_GQL,
     PROJECT_ARTIFACT_COLLECTION_GQL,
     PROJECT_ARTIFACT_COLLECTIONS_GQL,
@@ -152,6 +163,7 @@ __all__ = [
     "DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
     "DELETE_ARTIFACT_PORTFOLIO_GQL",
     "DELETE_ARTIFACT_SEQUENCE_GQL",
+    "FETCH_LINKED_ARTIFACTS_GQL",
     "MOVE_ARTIFACT_COLLECTION_GQL",
     "PROJECT_ARTIFACTS_GQL",
     "PROJECT_ARTIFACT_COLLECTIONS_GQL",
@@ -232,6 +244,14 @@ __all__ = [
     "DeleteAliasesDeleteAliases",
     "UpdateArtifact",
     "UpdateArtifactUpdateArtifact",
+    "FetchLinkedArtifacts",
+    "FetchLinkedArtifactsArtifact",
+    "FetchLinkedArtifactsArtifactArtifactMemberships",
+    "FetchLinkedArtifactsArtifactArtifactMembershipsEdges",
+    "FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNode",
+    "FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeAliases",
+    "FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollection",
+    "FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollectionProject",
     "ArtifactAliasInput",
     "ArtifactCollectionAliasInput",
     "TagInput",

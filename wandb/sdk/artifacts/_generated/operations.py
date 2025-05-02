@@ -10,6 +10,7 @@ __all__ = [
     "DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
     "DELETE_ARTIFACT_PORTFOLIO_GQL",
     "DELETE_ARTIFACT_SEQUENCE_GQL",
+    "FETCH_LINKED_ARTIFACTS_GQL",
     "MOVE_ARTIFACT_COLLECTION_GQL",
     "PROJECT_ARTIFACTS_GQL",
     "PROJECT_ARTIFACT_COLLECTIONS_GQL",
@@ -581,5 +582,30 @@ fragment ArtifactFragment on Artifact {
   fileCount
   createdAt
   updatedAt
+}
+"""
+
+FETCH_LINKED_ARTIFACTS_GQL = """
+query FetchLinkedArtifacts($artifactID: ID!) {
+  artifact(id: $artifactID) {
+    artifactMemberships {
+      edges {
+        node {
+          aliases {
+            alias
+          }
+          versionIndex
+          artifactCollection {
+            project {
+              entityName
+              name
+            }
+            name
+            __typename
+          }
+        }
+      }
+    }
+  }
 }
 """

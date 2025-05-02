@@ -169,3 +169,26 @@ mutation UpdateArtifact(
         }
     }
 }
+
+query FetchLinkedArtifacts($artifactID: ID!) {
+    artifact(id: $artifactID) {
+        artifactMemberships {
+            edges {
+                node {
+                    aliases {
+                        alias
+                    }
+                    versionIndex
+                    artifactCollection {
+                        project {
+                            entityName
+                            name
+                        }
+                        name
+                        __typename
+                    }
+                }
+            }
+        }
+    }
+}
