@@ -54,6 +54,8 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """Indicates that the server supports automation event RUN_METRIC_CHANGE."""
     AUTOMATION_ACTION_NO_OP: _ServerFeature.ValueType  # 11
     """Indicates that the server supports automation action NO_OP."""
+    INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION: _ServerFeature.ValueType  # 12
+    """Indicates that the server supports including artifact types in registry creation."""
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
     """*
@@ -87,6 +89,8 @@ AUTOMATION_EVENT_RUN_METRIC_CHANGE: ServerFeature.ValueType  # 10
 """Indicates that the server supports automation event RUN_METRIC_CHANGE."""
 AUTOMATION_ACTION_NO_OP: ServerFeature.ValueType  # 11
 """Indicates that the server supports automation action NO_OP."""
+INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION: ServerFeature.ValueType  # 12
+"""Indicates that the server supports including artifact types in registry creation."""
 global___ServerFeature = ServerFeature
 
 class Record(google.protobuf.message.Message):

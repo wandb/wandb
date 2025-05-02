@@ -1,6 +1,46 @@
 import pytest
-from wandb.apis.public.registries.utils import _ensure_registry_prefix_on_names
+from wandb.apis.public.registries.utils import (
+    _ensure_registry_prefix_on_names,
+    _format_gql_artifact_types_input,
+)
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
+
+
+@pytest.mark.parametrize(
+    "artifact_types, expected_output",
+    [
+        # Valid case
+        (["my-valid-type_123"], [{"name": "my-valid-type_123"}]),
+        (
+            ["apple", "banana", "cherry"],
+            [{"name": "apple"}, {"name": "banana"}, {"name": "cherry"}],
+        ),
+        # None/empty input
+        (None, []),
+        ([], []),
+    ],
+)
+def test_format_gql_artifact_types_input_valid(artifact_types, expected_output):
+    """Test artifact type name validation and formatting for valid inputs."""
+    result = _format_gql_artifact_types_input(artifact_types=artifact_types)
+    assert result == expected_output
+
+
+@pytest.mark.parametrize(
+    "artifact_types",
+    [
+        # Invalid characters
+        (["valid_type", "invalid:::"]),
+        (["invalid/type"]),
+        (["invalid:type"]),
+        # Too long
+        (["a" * 129]),
+    ],
+)
+def test_format_gql_artifact_types_input_error(artifact_types):
+    """Test artifact type name validation raises errors for invalid inputs."""
+    with pytest.raises(ValueError):
+        _format_gql_artifact_types_input(artifact_types=artifact_types)
 
 
 def test_simple_name_transform():

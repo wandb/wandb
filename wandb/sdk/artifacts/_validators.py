@@ -83,6 +83,22 @@ def validate_aliases(aliases: Collection[str] | str) -> list[str]:
     return aliases_list
 
 
+def validate_artifact_types_list(artifact_types: list[str]) -> list[str]:
+    """Return True if the artifact types list is valid, False otherwise."""
+    artifact_types = always_list(artifact_types)
+    invalid_chars = ("/", ":")
+    if any(
+        char in type or len(type) > 128
+        for type in artifact_types
+        for char in invalid_chars
+    ):
+        raise ValueError(
+            f"""Artifact types must not contain any of the following characters: {", ".join(invalid_chars)}
+              and must be less than equal to 128 characters"""
+        )
+    return artifact_types
+
+
 _VALID_TAG_PATTERN: re.Pattern[str] = re.compile(r"^[-\w]+( +[-\w]+)*$")
 
 
