@@ -64,7 +64,6 @@ class Registry:
         attrs: Optional[Dict[str, Any]] = None,
     ):
         self.client = client
-        self._full_name = f"wandb-registry-{name}"
         self._name = name
         self._entity = entity
         self._organization = organization
@@ -91,7 +90,7 @@ class Registry:
     @property
     def full_name(self) -> str:
         """Full name of the registry including the `wandb-registry-` prefix."""
-        return self._full_name
+        return f"wandb-registry-{self.name}"
 
     @property
     def name(self) -> str:
