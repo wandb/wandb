@@ -37,7 +37,10 @@ from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk import wandb_setup
 from wandb.sdk.artifacts._generated.fetch_linked_artifacts import FetchLinkedArtifacts
 from wandb.sdk.artifacts._generated.operations import FETCH_LINKED_ARTIFACTS_GQL
-from wandb.sdk.artifacts._graphql_fragments import _gql_artifact_fragment
+from wandb.sdk.artifacts._graphql_fragments import (
+    _gql_artifact_fragment,
+    omit_artifact_fields,
+)
 from wandb.sdk.artifacts._validators import (
     LINKED_ARTIFACT_COLLECTION_TYPE,
     _LinkArtifactFields,
