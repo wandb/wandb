@@ -147,17 +147,17 @@ func processCluster(_ context.Context, cluster *container.Cluster, project strin
 			"server": map[string]any{
 				"endpoint":                 cluster.Endpoint,
 				"certificateAuthorityData": certificateAuthorityData,
+			},
 
-				// Provider-specific implementation details
-				"googleKubernetesEngine": map[string]any{
-					"project":       project,
-					"location":      cluster.Location,
-					"locationType":  locationType,
-					"networkPolicy": cluster.NetworkPolicy != nil && cluster.NetworkPolicy.Enabled,
-					"autopilot":     cluster.Autopilot != nil && cluster.Autopilot.Enabled,
-					"status":        cluster.Status,
-					"network":       getResourceName(cluster.Network),
-				},
+			// Provider-specific implementation details
+			"googleKubernetesEngine": map[string]any{
+				"project":       project,
+				"location":      cluster.Location,
+				"locationType":  locationType,
+				"networkPolicy": cluster.NetworkPolicy != nil && cluster.NetworkPolicy.Enabled,
+				"autopilot":     cluster.Autopilot != nil && cluster.Autopilot.Enabled,
+				"status":        cluster.Status,
+				"network":       getResourceName(cluster.Network),
 			},
 		},
 		Metadata: metadata,
