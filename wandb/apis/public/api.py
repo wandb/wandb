@@ -1573,6 +1573,13 @@ class Api:
             registry.save()
             ```
         """
+        if not InternalApi()._check_server_feature_with_fallback(
+            ServerFeature.ARTIFACT_REGISTRY_SEARCH
+        ):
+            raise RuntimeError(
+                "api.registry() is not enabled on this wandb server version. "
+                "Please upgrade your server version or contact support at support@wandb.com."
+            )
         organization = organization or fetch_org_from_settings_or_entity(
             self.settings, self.default_entity
         )
