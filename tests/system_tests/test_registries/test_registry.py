@@ -103,7 +103,10 @@ def test_registry_create_edit_artifact_types(default_organization):
 
     # Test restriction: Cannot add types if allow_all is True
     registry.artifact_types.append(artifact_type_1)
-    with pytest.raises(ValueError, match="Cannot update registry artifact types"):
+    with pytest.raises(
+        ValueError,
+        match="Cannot update artifact types when `allows_all_artifact_types` is `true`. Set it to `false` first.",
+    ):
         registry.save()
     # Reset for valid save
     registry.allow_all_artifact_types = False
@@ -121,7 +124,10 @@ def test_registry_create_edit_artifact_types(default_organization):
     assert registry.artifact_types.draft == ()
 
     # try to remove a type that has been saved
-    with pytest.raises(ValueError, match="Cannot remove artifact type"):
+    with pytest.raises(
+        ValueError,
+        match="Cannot remove artifact type",
+    ):
         registry.artifact_types.remove(artifact_type_1)
 
 
