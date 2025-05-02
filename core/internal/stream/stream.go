@@ -17,6 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/pfxout"
 	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runmetadata"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
@@ -41,6 +42,20 @@ const BufferSize = 32
 type Stream struct {
 	// runWork is a channel of records to process.
 	runWork runwork.RunWork
+
+	// run is the state of the run controlled by this stream.
+	run *StreamRun
+
+	// operations tracks the status of asynchronous work.
+	operations *wboperation.WandbOperations
+
+	// featureProvider checks server capabilities.
+	featureProvider *featurechecker.ServerFeaturesCache
+
+	// graphqlClientOrNil is used for GraphQL operations to the W&B backend.
+	//
+	// It is nil for offline runs.
+	graphqlClientOrNil graphql.Client
 
 	// logger is the logger for the stream
 	logger *observability.CoreLogger
@@ -151,8 +166,6 @@ type StreamParams struct {
 func NewStream(
 	params StreamParams,
 ) *Stream {
-	operations := wboperation.NewOperations()
-
 	logger := streamLogger(
 		params.Settings,
 		params.Sentry,
@@ -161,6 +174,8 @@ func NewStream(
 	)
 	s := &Stream{
 		runWork:      runwork.New(BufferSize, logger),
+		run:          NewStreamRun(),
+		operations:   wboperation.NewOperations(),
 		logger:       logger,
 		settings:     params.Settings,
 		sentryClient: params.Sentry,
@@ -179,12 +194,11 @@ func NewStream(
 		Logger:    s.logger,
 		Settings:  s.settings,
 	})
-	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
 	var runfilesUploaderOrNil runfiles.Uploader
 	if backendOrNil != nil {
-		graphqlClientOrNil = NewGraphQLClient(
+		s.graphqlClientOrNil = NewGraphQLClient(
 			backendOrNil,
 			params.Settings,
 			peeker,
@@ -193,7 +207,7 @@ func NewStream(
 		fileStreamOrNil = NewFileStream(
 			backendOrNil,
 			s.logger,
-			operations,
+			s.operations,
 			terminalPrinter,
 			params.Settings,
 			peeker,
@@ -207,18 +221,18 @@ func NewStream(
 		runfilesUploaderOrNil = NewRunfilesUploader(
 			s.runWork,
 			s.logger,
-			operations,
+			s.operations,
 			params.Settings,
 			fileStreamOrNil,
 			fileTransferManagerOrNil,
 			fileWatcher,
-			graphqlClientOrNil,
+			s.graphqlClientOrNil,
 		)
 	}
 
-	featureProvider := featurechecker.NewServerFeaturesCache(
+	s.featureProvider = featurechecker.NewServerFeaturesCache(
 		s.runWork.BeforeEndCtx(),
-		graphqlClientOrNil,
+		s.graphqlClientOrNil,
 		s.logger,
 	)
 
@@ -244,7 +258,7 @@ func NewStream(
 			FwdChan:           make(chan runwork.Work, BufferSize),
 			Logger:            s.logger,
 			Mailbox:           mailbox,
-			Operations:        operations,
+			Operations:        s.operations,
 			OutChan:           make(chan *spb.Result, BufferSize),
 			Settings:          s.settings,
 			SystemMonitor: monitor.NewSystemMonitor(
@@ -261,7 +275,7 @@ func NewStream(
 	s.sender = NewSender(
 		SenderParams{
 			Logger:              s.logger,
-			Operations:          operations,
+			Operations:          s.operations,
 			Settings:            s.settings,
 			Backend:             backendOrNil,
 			FileStream:          fileStreamOrNil,
@@ -271,12 +285,13 @@ func NewStream(
 			RunfilesUploader:    runfilesUploaderOrNil,
 			TBHandler:           tbHandler,
 			Peeker:              peeker,
+			StreamRun:           s.run,
 			RunSummary:          runsummary.New(),
-			GraphqlClient:       graphqlClientOrNil,
+			GraphqlClient:       s.graphqlClientOrNil,
 			OutChan:             make(chan *spb.Result, BufferSize),
 			Mailbox:             mailbox,
 			RunWork:             s.runWork,
-			FeatureProvider:     featureProvider,
+			FeatureProvider:     s.featureProvider,
 		},
 	)
 
@@ -368,7 +383,40 @@ func (s *Stream) Start() {
 // HandleRecord handles the given record by sending it to the stream's handler.
 func (s *Stream) HandleRecord(record *spb.Record) {
 	s.logger.Debug("handling record", "record", record.GetRecordType())
-	s.runWork.AddWork(runwork.WorkFromRecord(record))
+
+	var work runwork.Work
+
+	if record.GetRun() != nil {
+		work = &runmetadata.RunUpdateWork{
+			Record: record,
+
+			StreamRunMetadata: s.run,
+			Respond: func(record *spb.Record, result *spb.RunUpdateResult) {
+				// Write to the sender's output channel because this is called
+				// in the Sender goroutine.
+				s.sender.outChan <- &spb.Result{
+					ResultType: &spb.Result_RunResult{
+						RunResult: result,
+					},
+					Control: record.Control,
+					Uuid:    record.Uuid,
+				}
+			},
+
+			Settings:           s.settings,
+			BeforeRunEndCtx:    s.runWork.BeforeEndCtx(),
+			Operations:         s.operations,
+			FeatureProvider:    s.featureProvider,
+			GraphqlClientOrNil: s.graphqlClientOrNil,
+			Logger:             s.logger,
+		}
+	} else {
+		// Legacy style for handling records where the code to process them
+		// lives in handler.go and sender.go directly.
+		work = runwork.WorkFromRecord(record)
+	}
+
+	s.runWork.AddWork(work)
 }
 
 // Close waits for all run messages to be fully processed.
