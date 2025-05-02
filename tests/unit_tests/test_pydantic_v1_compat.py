@@ -30,6 +30,7 @@ from wandb._pydantic import (
     field_validator,
     model_validator,
 )
+from wandb.sdk.artifacts._generated import ArtifactVersionFiles
 
 
 def test_field_validator_before():
@@ -251,3 +252,48 @@ def test_model_dump_methods_with_json_fields():
     # Check that `.model_dump_json(round_trip=True)` behavior is consistent.
     rt_json = obj.model_dump_json(round_trip=True)
     assert json.loads(rt_json) == obj.model_dump(round_trip=True)
+
+
+# ------------------------------------------------------------------------------
+def test_generated_pydantic_fragment_validates_response_data():
+    """Check that the generated fragment validates the response data.
+
+    In Pydantic v1 environments, this partly guards against regressions of:
+    - https://github.com/wandb/wandb/pull/9795
+    """
+    response_data = {
+        "project": {
+            "artifactType": {
+                "artifact": {
+                    "files": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "id": "QXJ0aWZhY3RGaWxlOjE2OTgzNjI1MDc6cmFuZG9tX2ltYWdlLnBuZw==",
+                                    "name": "random_image.png",
+                                    "url": "https://api.wandb.fake/artifactsV2/gcp-us/wandb/abcdef",
+                                    "sizeBytes": 30168,
+                                    "storagePath": "wandb_artifacts/626357751/1698362507/7e8ff39b55a1a62101758a6dc7a69f70",
+                                    "mimetype": None,
+                                    "updatedAt": None,
+                                    "digest": "fo/zm1WhpiEBdYptx6afcA==",
+                                    "md5": "fo/zm1WhpiEBdYptx6afcA==",
+                                    "directUrl": "https://fake-url.com",
+                                },
+                                "cursor": "YXJyYXljb25uZWN0aW9uOjA=",
+                            }
+                        ],
+                        "pageInfo": {
+                            "endCursor": "YXJyYXljb25uZWN0aW9uOjA=",
+                            "hasNextPage": False,
+                        },
+                    }
+                }
+            }
+        }
+    }
+    validated = ArtifactVersionFiles.model_validate(response_data)
+    assert (
+        validated.project.artifact_type.artifact.files.edges[0].node.name
+        == "random_image.png"
+    )

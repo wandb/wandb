@@ -26,14 +26,14 @@ class ArtifactSequenceScopeFields(GQLBase):
     name: str
 
 
-class CreateFilterTriggerResult(GQLBase):
+class CreateAutomationResult(GQLBase):
     typename__: Typename[Literal["CreateFilterTriggerPayload"]] = (
         "CreateFilterTriggerPayload"
     )
     trigger: Optional[TriggerFields]
 
 
-class DeleteTriggerResult(GQLBase):
+class DeleteAutomationResult(GQLBase):
     typename__: Typename[Literal["DeleteTriggerPayload"]] = "DeleteTriggerPayload"
     success: bool
 
@@ -236,7 +236,7 @@ class TriggerFields(GQLBase):
     ] = Field(discriminator="typename__")
 
 
-class UpdateFilterTriggerResult(GQLBase):
+class UpdateAutomationResult(GQLBase):
     typename__: Typename[Literal["UpdateFilterTriggerPayload"]] = (
         "UpdateFilterTriggerPayload"
     )
@@ -307,20 +307,52 @@ class SlackIntegrationConnectionFieldsEdgesNodeSlackIntegration(SlackIntegration
 
 ArtifactPortfolioScopeFields.model_rebuild()
 ArtifactSequenceScopeFields.model_rebuild()
-CreateFilterTriggerResult.model_rebuild()
-DeleteTriggerResult.model_rebuild()
+CreateAutomationResult.model_rebuild()
+DeleteAutomationResult.model_rebuild()
 FilterEventFields.model_rebuild()
 GenericWebhookActionFields.model_rebuild()
+GenericWebhookActionFieldsIntegrationIntegration.model_rebuild()
 GenericWebhookIntegrationConnectionFields.model_rebuild()
+GenericWebhookIntegrationConnectionFieldsEdges.model_rebuild()
+GenericWebhookIntegrationConnectionFieldsEdgesNodeIntegration.model_rebuild()
 GenericWebhookIntegrationFields.model_rebuild()
 IntegrationConnectionFields.model_rebuild()
+IntegrationConnectionFieldsEdges.model_rebuild()
+IntegrationConnectionFieldsEdgesNodeIntegration.model_rebuild()
 NoOpActionFields.model_rebuild()
 NotificationActionFields.model_rebuild()
+NotificationActionFieldsIntegrationIntegration.model_rebuild()
 PageInfoFields.model_rebuild()
 ProjectConnectionFields.model_rebuild()
+ProjectConnectionFieldsEdges.model_rebuild()
+ProjectConnectionFieldsEdgesNode.model_rebuild()
 ProjectScopeFields.model_rebuild()
 QueueJobActionFields.model_rebuild()
+QueueJobActionFieldsQueue.model_rebuild()
 SlackIntegrationConnectionFields.model_rebuild()
+SlackIntegrationConnectionFieldsEdges.model_rebuild()
+SlackIntegrationConnectionFieldsEdgesNodeIntegration.model_rebuild()
 SlackIntegrationFields.model_rebuild()
 TriggerFields.model_rebuild()
-UpdateFilterTriggerResult.model_rebuild()
+UpdateAutomationResult.model_rebuild()
+TriggerFieldsScopeArtifactPortfolio.model_rebuild()
+TriggerFieldsScopeArtifactSequence.model_rebuild()
+TriggerFieldsEventFilterEventTriggeringCondition.model_rebuild()
+TriggerFieldsActionGenericWebhookTriggeredAction.model_rebuild()
+GenericWebhookActionFieldsIntegrationGenericWebhookIntegration.model_rebuild()
+GenericWebhookIntegrationConnectionFieldsEdgesNodeGenericWebhookIntegration.model_rebuild()
+IntegrationConnectionFieldsEdgesNodeGenericWebhookIntegration.model_rebuild()
+TriggerFieldsActionNoOpTriggeredAction.model_rebuild()
+TriggerFieldsActionNotificationTriggeredAction.model_rebuild()
+PageInfoFields.model_rebuild()
+PageInfoFields.model_rebuild()
+PageInfoFields.model_rebuild()
+PageInfoFields.model_rebuild()
+TriggerFieldsScopeProject.model_rebuild()
+TriggerFieldsActionQueueJobTriggeredAction.model_rebuild()
+IntegrationConnectionFieldsEdgesNodeSlackIntegration.model_rebuild()
+NotificationActionFieldsIntegrationSlackIntegration.model_rebuild()
+SlackIntegrationConnectionFieldsEdgesNodeSlackIntegration.model_rebuild()
+TriggerFields.model_rebuild()
+TriggerFields.model_rebuild()
+TriggerFields.model_rebuild()

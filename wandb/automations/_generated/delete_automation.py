@@ -7,11 +7,11 @@ from typing import Optional
 
 from wandb._pydantic import GQLBase
 
-from .fragments import DeleteTriggerResult
+from .fragments import DeleteAutomationResult
 
 
-class DeleteTrigger(GQLBase):
-    result: Optional[DeleteTriggerResult]
+class DeleteAutomation(GQLBase):
+    result: Optional[DeleteAutomationResult]
 
 
-DeleteTrigger.model_rebuild()
+DeleteAutomation.model_rebuild()
