@@ -1078,7 +1078,7 @@ def link_model(
     registered_model_name: str,
     name: str | None = None,
     aliases: list[str] | None = None,
-) -> None:
+) -> Artifact | None:
     """Log a model artifact version and link it to a registered model in the model registry.
 
     The linked model version will be visible in the UI for the specified registered model.
