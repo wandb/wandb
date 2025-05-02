@@ -120,6 +120,7 @@ def user_in_orgs_factory(
             # Get a user with the default (1) organization
             user_org_data_default = user_in_orgs_factory()
     """
+    pytest.skip("Fixture not supported in earlier wandb server versions.")
     username = backend_fixture_factory.make_user()
     envvars = {
         "WANDB_API_KEY": username,
