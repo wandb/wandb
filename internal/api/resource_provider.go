@@ -45,13 +45,15 @@ func NewResourceProvider(client *ClientWithResponses, workspaceId string, name s
 		Name:   provider.Name,
 		ID:     provider.Id,
 		client: client,
+		workspaceId: workspaceId,
 	}, nil
 }
 
 type ResourceProvider struct {
-	ID     string
-	Name   string
-	client *ClientWithResponses
+	ID          string
+	Name        string
+	client      *ClientWithResponses
+	workspaceId string
 }
 
 type AgentResource struct {
@@ -104,7 +106,7 @@ func (r *ResourceProvider) UpsertResource(ctx context.Context, resources []Agent
 
 func (r *ResourceProvider) AddResourceRelationshipRule(ctx context.Context, rules []CreateResourceRelationshipRule) error {
 	for _, rule := range rules {
-		rule.WorkspaceId = r.ID
+		rule.WorkspaceId = r.workspaceId
 		resp, err := r.client.UpsertResourceRelationshipRuleWithResponse(ctx, rule)
 		if err != nil {
 			return err
