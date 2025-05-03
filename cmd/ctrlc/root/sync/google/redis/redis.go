@@ -7,8 +7,10 @@ import (
 	"strings"
 
 	"github.com/MakeNowJust/heredoc/v2"
+	"github.com/Masterminds/semver"
 	"github.com/charmbracelet/log"
 	"github.com/ctrlplanedev/cli/internal/api"
+	"github.com/ctrlplanedev/cli/internal/kinds"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/api/redis/v1"
@@ -145,6 +147,37 @@ func processInstance(_ context.Context, instance *redis.Instance, project string
 	}, nil
 }
 
+// parseRedisVersion extracts the semantic version from the Redis version string
+func parseRedisVersion(redisVersion string) *semver.Version {
+	// Default version
+	defaultVersion, _ := semver.NewVersion("0.0.0")
+
+	// Try to parse other formats
+	if strings.HasPrefix(redisVersion, "REDIS_") {
+		parts := strings.Split(strings.TrimPrefix(redisVersion, "REDIS_"), "_")
+		if len(parts) >= 1 {
+			versionStr := parts[0]
+			if len(parts) >= 2 {
+				versionStr += "." + parts[1]
+			} else {
+				versionStr += ".0" // Add minor version for semver compatibility
+			}
+			if len(parts) >= 3 {
+				versionStr += "." + parts[2]
+			} else {
+				versionStr += ".0" // Add patch version for semver compatibility
+			}
+
+			version, err := semver.NewVersion(versionStr)
+			if err == nil {
+				return version
+			}
+		}
+	}
+
+	return defaultVersion
+}
+
 // initInstanceMetadata initializes the base metadata for an instance
 func initInstanceMetadata(instance *redis.Instance, project string) map[string]string {
 	// Extract location from name
@@ -161,21 +194,26 @@ func initInstanceMetadata(instance *redis.Instance, project string) map[string]s
 	consoleUrl := fmt.Sprintf("https://console.cloud.google.com/memorystore/redis/locations/%s/instances/%s/details?project=%s",
 		location, instanceName, project)
 
+	version := parseRedisVersion(instance.RedisVersion)
 	metadata := map[string]string{
-		"database/type":           "redis",
-		"database/host":           instance.Host,
-		"database/port":           strconv.FormatInt(instance.Port, 10),
-		"database/version":        instance.RedisVersion,
-		"database/region":         location,
-		"database/tier":           instance.Tier,
-		"database/state":          strings.ToLower(instance.State),
-		"database/memory-size-gb": strconv.FormatInt(instance.MemorySizeGb, 10),
+		"database/type":                   "redis",
+		"database/host":                   instance.Host,
+		"database/port":                   strconv.FormatInt(instance.Port, 10),
+		kinds.DBMetadataVersion:           version.String(),
+		kinds.DBMetadataVersionMajor:      strconv.FormatUint(uint64(version.Major()), 10),
+		kinds.DBMetadataVersionMinor:      strconv.FormatUint(uint64(version.Minor()), 10),
+		kinds.DBMetadataVersionPatch:      strconv.FormatUint(uint64(version.Patch()), 10),
+		kinds.DBMetadataVersionPrerelease: version.Prerelease(),
+		"database/region":                 location,
+		"database/tier":                   instance.Tier,
+		"database/state":                  strings.ToLower(instance.State),
+		"database/memory-size-gb":         strconv.FormatInt(instance.MemorySizeGb, 10),
 
 		"google/project":        project,
 		"google/instance-type":  "redis",
 		"google/location":       location,
 		"google/state":          strings.ToLower(instance.State),
-		"google/version":        instance.RedisVersion,
+		"google/version":        version.String(),
 		"google/tier":           instance.Tier,
 		"google/memory-size-gb": strconv.FormatInt(instance.MemorySizeGb, 10),
 		"google/console-url":    consoleUrl,

@@ -269,6 +269,7 @@ func getNormalizedDBType(engine string) string {
 		return engineLower
 	}
 }
+
 // parseEngineVersion parses the RDS engine version into semver components
 func parseEngineVersion(engineVersion string) (major, minor, patch string, prerelease string) {
 	// Handle special case for Aurora MySQL which has format like "8.0.mysql_aurora.3.07.1"
@@ -278,20 +279,20 @@ func parseEngineVersion(engineVersion string) (major, minor, patch string, prere
 			// For Aurora, use the MySQL/PostgreSQL compatibility version as the primary version
 			major = parts[0]
 			minor = parts[1]
-			
+
 			// Set Aurora version as prerelease to preserve it but prioritize DB version
 			if len(parts) >= 4 {
 				auroraVersion := strings.Join(parts[3:], ".")
 				prerelease = "aurora_" + auroraVersion
 			}
-			
+
 			// Default patch to 0 if not available
 			patch = "0"
-			
+
 			return
 		}
 	}
-	
+
 	// For standard version strings, try to parse with semver library
 	cleanVersion := engineVersion
 	// Remove any non-semver compatible parts
@@ -299,7 +300,7 @@ func parseEngineVersion(engineVersion string) (major, minor, patch string, prere
 		prerelease = cleanVersion[idx+1:]
 		cleanVersion = cleanVersion[:idx]
 	}
-	
+
 	// Try to parse with semver
 	v, err := semver.NewVersion(cleanVersion)
 	if err == nil {
@@ -311,31 +312,30 @@ func parseEngineVersion(engineVersion string) (major, minor, patch string, prere
 		}
 		return
 	}
-	
+
 	// Fallback to manual parsing if semver fails
 	versionParts := strings.Split(engineVersion, ".")
-	
+
 	if len(versionParts) >= 1 {
 		major = versionParts[0]
 	}
-	
+
 	if len(versionParts) >= 2 {
 		minor = versionParts[1]
 	}
-	
+
 	if len(versionParts) >= 3 {
 		// Check if there's a prerelease part (e.g., "28-R1")
 		patchParts := strings.Split(versionParts[2], "-")
 		patch = patchParts[0]
-		
+
 		if len(patchParts) > 1 && prerelease == "" {
 			prerelease = strings.Join(patchParts[1:], "-")
 		}
 	}
-	
+
 	return
 }
-
 
 // buildInstanceMetadata builds the metadata map for an RDS instance
 func buildInstanceMetadata(instance *types.DBInstance, region, host string, port int, consoleUrl string) map[string]string {
