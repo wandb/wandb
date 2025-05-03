@@ -11,10 +11,13 @@ import (
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/Masterminds/semver"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/eks/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
+
 	"github.com/charmbracelet/log"
 	"github.com/ctrlplanedev/cli/internal/api"
 	"github.com/spf13/cobra"
@@ -104,6 +107,16 @@ func getRegions(ctx context.Context, regions []string) ([]string, error) {
 	return discoveredRegions, nil
 }
 
+// getAccountID retrieves the AWS account ID using the STS service
+func getAccountID(ctx context.Context, cfg aws.Config) (string, error) {
+	stsClient := sts.NewFromConfig(cfg)
+	result, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	if err != nil {
+		return "", fmt.Errorf("failed to get AWS account ID: %w", err)
+	}
+	return *result.Account, nil
+}
+
 func runSync(regions *[]string, name *string) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
@@ -172,6 +185,26 @@ func runSync(regions *[]string, name *string) func(cmd *cobra.Command, args []st
 		if regions != nil && len(*regions) > 0 {
 			providerRegion = strings.Join(*regions, "-")
 		}
+		
+		// If name is not provided, try to get account ID to include in the provider name
+		if *name == "" {
+			// Get AWS account ID for provider name
+			cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(regionsToSync[0]))
+			if err != nil {
+				log.Warn("Failed to load AWS config for account ID retrieval", "error", err)
+				*name = fmt.Sprintf("aws-eks-%s", providerRegion)
+			} else {
+				accountID, err := getAccountID(ctx, cfg)
+				if err == nil {
+					log.Info("Retrieved AWS account ID", "account_id", accountID)
+					*name = fmt.Sprintf("aws-eks-%s-%s", accountID, providerRegion)
+				} else {
+					log.Warn("Failed to get AWS account ID", "error", err)
+					*name = fmt.Sprintf("aws-eks-%s", providerRegion)
+				}
+			}
+		}
+		
 		// Upsert resources to Ctrlplane
 		return upsertToCtrlplane(ctx, allResources, &providerRegion, name)
 	}
