@@ -158,11 +158,19 @@ func parseRedisVersion(redisVersion string) *semver.Version {
 		if len(parts) >= 1 {
 			versionStr := parts[0]
 			if len(parts) >= 2 {
+				// Handle REDIS_5_X format by setting X to 0
+				if parts[1] == "X" {
+					parts[1] = "0"
+				}
 				versionStr += "." + parts[1]
 			} else {
 				versionStr += ".0" // Add minor version for semver compatibility
 			}
 			if len(parts) >= 3 {
+				// Handle REDIS_5_X_X format by setting X to 0
+				if parts[2] == "X" {
+					parts[2] = "0"
+				}
 				versionStr += "." + parts[2]
 			} else {
 				versionStr += ".0" // Add patch version for semver compatibility
