@@ -94,7 +94,7 @@ def test_run_metric_agg_threshold_filter_without_run_filter(
 
     # Chain the first method calls to declare the (maybe aggregated) metric expression
     agg_methodcallers = {
-        Agg.AVERAGE: methodcaller("average", window),
+        Agg.AVG: methodcaller("average", window),
         Agg.MIN: methodcaller("min", window),
         Agg.MAX: methodcaller("max", window),
         None: lambda x: x,  # Pass through, no aggregation
@@ -258,54 +258,3 @@ def test_run_metric_threshold_cannot_be_aggregated_twice():
         RunEvent.metric("my-metric").average(5).average(10)
     with raises(AttributeError):
         RunEvent.metric("my-metric").average(10).max(5)
-
-
-@given(
-    name=printable_text,
-    window=integers(1, 100),
-    threshold=ints_or_floats,
-)
-def test_metric_threshold_filter_repr(name: str, window: int, threshold: float):
-    """Check that a metric threshold filter has the expected human-readable representation."""
-    metric_value_expr = RunEvent.metric(name)  # Single value
-
-    # Expected left- and right-hand sides of the comparison
-    lhs = f"{name}"
-    rhs = f"{threshold}"
-
-    assert repr(metric_value_expr.gt(threshold)) == repr(f"{lhs} > {rhs}")
-    assert repr(metric_value_expr > threshold) == repr(f"{lhs} > {rhs}")
-
-    assert repr(metric_value_expr.gte(threshold)) == repr(f"{lhs} >= {rhs}")
-    assert repr(metric_value_expr >= threshold) == repr(f"{lhs} >= {rhs}")
-
-    assert repr(metric_value_expr.lt(threshold)) == repr(f"{lhs} < {rhs}")
-    assert repr(metric_value_expr < threshold) == repr(f"{lhs} < {rhs}")
-
-    assert repr(metric_value_expr.lte(threshold)) == repr(f"{lhs} <= {rhs}")
-    assert repr(metric_value_expr <= threshold) == repr(f"{lhs} <= {rhs}")
-
-    # Aggregate expressions
-    metric_agg_expressions = {
-        Agg.AVERAGE: RunEvent.metric(name).average(window),
-        Agg.AVERAGE: RunEvent.metric(name).mean(window),
-        Agg.MIN: RunEvent.metric(name).min(window),
-        Agg.MAX: RunEvent.metric(name).max(window),
-    }
-
-    for agg, metric_agg_expr in metric_agg_expressions.items():
-        # Expected left- and right-hand sides of the comparison
-        lhs = f"{agg.value}({name})"
-        rhs = f"{threshold}"
-
-        assert repr(metric_agg_expr.gt(threshold)) == repr(f"{lhs} > {rhs}")
-        assert repr(metric_agg_expr > threshold) == repr(f"{lhs} > {rhs}")
-
-        assert repr(metric_agg_expr.gte(threshold)) == repr(f"{lhs} >= {rhs}")
-        assert repr(metric_agg_expr >= threshold) == repr(f"{lhs} >= {rhs}")
-
-        assert repr(metric_agg_expr.lt(threshold)) == repr(f"{lhs} < {rhs}")
-        assert repr(metric_agg_expr < threshold) == repr(f"{lhs} < {rhs}")
-
-        assert repr(metric_agg_expr.lte(threshold)) == repr(f"{lhs} <= {rhs}")
-        assert repr(metric_agg_expr <= threshold) == repr(f"{lhs} <= {rhs}")

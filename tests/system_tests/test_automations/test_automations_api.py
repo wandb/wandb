@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 from collections import deque
-from contextlib import nullcontext
 from typing import Any, Callable
 
 import requests
@@ -238,22 +237,27 @@ def test_create_automation_for_run_metric_threshold_event(
 
     server_supports_event = api._supports_automation(event=event.event_type)
 
-    expectation = nullcontext() if server_supports_event else raises(ValueError)
+    if not server_supports_event:
+        with raises(ValueError):
+            api.create_automation(
+                (event >> action),
+                name=automation_name,
+                description="longer description here",
+            )
 
-    with expectation as exc_info:
+    else:
+        # The server supports the event, so there should be an automation to check
         created = api.create_automation(
             (event >> action),
             name=automation_name,
             description="longer description here",
         )
-
-    if exc_info is None:
-        # The server supports the event, so there should be an automation to check
         assert isinstance(created, Automation)
         assert created.event.filter == expected_filter
 
         # Refetch it to be sure
         refetched = api.automation(name=automation_name)
+        assert isinstance(refetched, Automation)
         assert refetched.event.filter == expected_filter
 
 
@@ -296,22 +300,26 @@ def test_create_automation_for_run_metric_change_event(
 
     server_supports_event = api._supports_automation(event=event.event_type)
 
-    expectation = nullcontext() if server_supports_event else raises(ValueError)
-
-    with expectation as exc_info:
+    if not server_supports_event:
+        with raises(ValueError):
+            api.create_automation(
+                (event >> action),
+                name=automation_name,
+                description="longer description here",
+            )
+    else:
+        # The server supports the event, so there should be an automation to check
         created = api.create_automation(
             (event >> action),
             name=automation_name,
             description="longer description here",
         )
-
-    if exc_info is None:
-        # The server supports the event, so there should be an automation to check
         assert isinstance(created, Automation)
         assert created.event.filter == expected_filter
 
         # Refetch it to be sure
         refetched = api.automation(name=automation_name)
+        assert isinstance(refetched, Automation)
         assert refetched.event.filter == expected_filter
 
 

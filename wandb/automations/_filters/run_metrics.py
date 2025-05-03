@@ -37,7 +37,7 @@ MONGO2PY_OPS: Final[dict[str, str]] = {
 PY2MONGO_OPS: Final[dict[str, str]] = {v: k for k, v in MONGO2PY_OPS.items()}
 
 
-class Agg(LenientStrEnum):  # wandb/core: `Aggregation`
+class Agg(LenientStrEnum):  # from: Aggregation
     """Supported run metric aggregation operations."""
 
     MAX = "MAX"
@@ -48,7 +48,7 @@ class Agg(LenientStrEnum):  # wandb/core: `Aggregation`
     AVG = AVERAGE
 
 
-class ChangeType(LenientStrEnum):  # wandb/core: `RunMetricChangeType`
+class ChangeType(LenientStrEnum):  # from: RunMetricChangeType
     """Describes the metric change as absolute (arithmetic difference) or relative (decimal percentage)."""
 
     ABSOLUTE = "ABSOLUTE"
@@ -59,7 +59,7 @@ class ChangeType(LenientStrEnum):  # wandb/core: `RunMetricChangeType`
     REL = RELATIVE
 
 
-class ChangeDir(LenientStrEnum):  # wandb/core: `RunMetricChangeDirection`
+class ChangeDir(LenientStrEnum):  # from: RunMetricChangeDirection
     """Describes the direction of the metric change."""
 
     INCREASE = "INCREASE"
@@ -106,7 +106,7 @@ class BaseMetricFilter(GQLBase, extra="forbid"):
         return self.__and__(other)
 
 
-class MetricThresholdFilter(BaseMetricFilter):  # wandb/core: `RunMetricThresholdFilter`
+class MetricThresholdFilter(BaseMetricFilter):  # from: RunMetricThresholdFilter
     """Defines a filter that compares a run metric against a user-defined threshold value."""
 
     name: str
@@ -133,7 +133,7 @@ class MetricThresholdFilter(BaseMetricFilter):  # wandb/core: `RunMetricThreshol
         yield None, repr(self)
 
 
-class MetricChangeFilter(BaseMetricFilter):  # wandb/core: `RunMetricChangeFilter`
+class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
     """Defines a filter that compares a change in a run metric against a user-defined threshold.
 
     The change is calculated over "tumbling" windows, i.e. the difference
@@ -165,12 +165,11 @@ class MetricChangeFilter(BaseMetricFilter):  # wandb/core: `RunMetricChangeFilte
     """
 
     # ------------------------------------------------------------------------------
-    # NOTE: the "comparison" operator isn't actually a field in the backend schema,
-    # but it's defined (and ignored) here for consistency.
-    #
-    # In the backend, it's effectively "$gte" or "$lte", depending on the sign
-    # (i.e. change_dir), though this is not explicitly specified in the
-    # schema.
+    # NOTE:
+    # - The "comparison" operator isn't actually part of the backend schema,
+    #   but it's defined here for consistency -- and ignored otherwise.
+    # - In the backend, it's effectively "$gte" or "$lte", depending on the sign
+    #   (change_dir), though again, this is not explicit in the schema.
     cmp: Annotated[None, Field(frozen=True, exclude=True)] = None
     """Ignored."""
 
@@ -205,21 +204,21 @@ class BaseMetricOperand(GQLBase, extra="forbid"):
     __le__ = lte
 
     @overload
-    def changes_by(self, /, diff: PositiveFloat, frac: None) -> MetricChangeFilter: ...
+    def changes_by(self, *, diff: PositiveFloat, frac: None) -> MetricChangeFilter: ...
     @overload
-    def changes_by(self, /, diff: None, frac: PositiveFloat) -> MetricChangeFilter: ...
+    def changes_by(self, *, diff: None, frac: PositiveFloat) -> MetricChangeFilter: ...
     @overload
     def changes_by(
         # NOTE: This overload is for internal use only.
         self,
-        /,
+        *,
         diff: PositiveFloat | None,
         frac: PositiveFloat | None,
         _sign: ChangeDir,
     ) -> MetricChangeFilter: ...
     def changes_by(
         self,
-        /,
+        *,
         diff: PositiveFloat | None = None,
         frac: PositiveFloat | None = None,
         _sign: ChangeDir = ChangeDir.ANY,
@@ -243,35 +242,27 @@ class BaseMetricOperand(GQLBase, extra="forbid"):
 
         # Enforce positive values
         if (frac is not None) and (frac <= 0):
-            raise ValueError(f"`frac` must be positive, got: {frac=}")
+            raise ValueError(f"Expected positive quantity, got: {frac=}")
         if (diff is not None) and (diff <= 0):
-            raise ValueError(f"`diff` must be positive, got: {diff=}")
+            raise ValueError(f"Expected positive quantity, got: {diff=}")
 
-        if frac is not None:
-            return MetricChangeFilter(
-                **dict(self),
-                change_type=ChangeType.REL,
-                change_dir=_sign,
-                threshold=frac,
-            )
+        if diff is None:
+            change_kws = dict(change_type=ChangeType.REL, threshold=frac)
+            return MetricChangeFilter(**dict(self), change_dir=_sign, **change_kws)
         else:
-            return MetricChangeFilter(
-                **dict(self),
-                change_type=ChangeType.ABS,
-                change_dir=_sign,
-                threshold=diff,
-            )
+            change_kws = dict(change_type=ChangeType.ABS, threshold=diff)
+            return MetricChangeFilter(**dict(self), change_dir=_sign, **change_kws)
 
     @overload
     def increases_by(
-        self, /, diff: PositiveFloat, frac: None
+        self, *, diff: PositiveFloat, frac: None
     ) -> MetricChangeFilter: ...
     @overload
     def increases_by(
-        self, /, diff: None, frac: PositiveFloat
+        self, *, diff: None, frac: PositiveFloat
     ) -> MetricChangeFilter: ...
     def increases_by(
-        self, /, diff: PositiveFloat | None = None, frac: PositiveFloat | None = None
+        self, *, diff: PositiveFloat | None = None, frac: PositiveFloat | None = None
     ) -> MetricChangeFilter:
         """Defines a filter that observes for an increase in the numerical value of a run metric.
 
@@ -281,14 +272,14 @@ class BaseMetricOperand(GQLBase, extra="forbid"):
 
     @overload
     def decreases_by(
-        self, /, diff: PositiveFloat, frac: None
+        self, *, diff: PositiveFloat, frac: None
     ) -> MetricChangeFilter: ...
     @overload
     def decreases_by(
-        self, /, diff: None, frac: PositiveFloat
+        self, *, diff: None, frac: PositiveFloat
     ) -> MetricChangeFilter: ...
     def decreases_by(
-        self, /, diff: PositiveFloat | None = None, frac: PositiveFloat | None = None
+        self, *, diff: PositiveFloat | None = None, frac: PositiveFloat | None = None
     ) -> MetricChangeFilter:
         """Defines a filter that observes for a decrease in the numerical value of a run metric.
 
@@ -310,7 +301,7 @@ class MetricVal(BaseMetricOperand):
         return MetricAgg(name=self.name, agg=Agg.MIN, window=window)
 
     def average(self, window: int) -> MetricAgg:
-        return MetricAgg(name=self.name, agg=Agg.AVERAGE, window=window)
+        return MetricAgg(name=self.name, agg=Agg.AVG, window=window)
 
     # Aliased method for users familiar with e.g. torch/tf/numpy/pandas/polars/etc.
     def mean(self, window: int) -> MetricAgg:

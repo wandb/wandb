@@ -54,11 +54,11 @@ class EventType(LenientStrEnum):
 
 
 # Note: In GQL responses containing saved automation data, the filter is wrapped in an extra `filter` key.
-class SavedEventFilter(GQLBase):  # in wandb/core: `TriggeringFilterEvent`
+class SavedEventFilter(GQLBase):  # from: TriggeringFilterEvent
     filter: SerializedToJson[MongoLikeFilter] = Field(default_factory=And)
 
 
-class _WrappedMetricFilter(GQLBase):  # in wandb/core: `RunMetricFilter`
+class _WrappedMetricFilter(GQLBase):  # from: RunMetricFilter
     threshold_filter: Optional[MetricThresholdFilter] = None
     change_filter: Optional[MetricChangeFilter] = None
 
@@ -86,7 +86,7 @@ class _WrappedMetricFilter(GQLBase):  # in wandb/core: `RunMetricFilter`
         return self
 
 
-class RunMetricFilter(GQLBase):  # in wandb/core: `TriggeringRunMetricEvent`
+class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
     run: Annotated[SerializedToJson[MongoLikeFilter], Field(alias="run_filter")] = And()
     metric: Annotated[_WrappedMetricFilter, Field(alias="run_metric_filter")]
 
@@ -112,7 +112,7 @@ class RunMetricFilter(GQLBase):  # in wandb/core: `TriggeringRunMetricEvent`
         return v_new if pydantic_isinstance(v_new, And) else And(and_=[v_new])
 
 
-class SavedEvent(FilterEventFields):  # from `FilterEventTriggeringCondition`
+class SavedEvent(FilterEventFields):  # from: FilterEventTriggeringCondition
     """A triggering event from a saved automation."""
 
     event_type: Annotated[EventType, Field(frozen=True)]  # type: ignore[assignment]
