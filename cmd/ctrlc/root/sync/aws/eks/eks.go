@@ -10,6 +10,7 @@ import (
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/Masterminds/semver"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/charmbracelet/log"
@@ -72,7 +73,7 @@ func runSync(regions *[]string, name *string) func(cmd *cobra.Command, args []st
 				defer wg.Done()
 
 				// Initialize AWS client for this region
-				eksClient, err := initEKSClient(ctx, regionName)
+				eksClient, cfg, err := initEKSClient(ctx, regionName)
 				if err != nil {
 					log.Error("Failed to initialize EKS client", "region", regionName, "error", err)
 					mu.Lock()
@@ -82,7 +83,7 @@ func runSync(regions *[]string, name *string) func(cmd *cobra.Command, args []st
 				}
 
 				// List and process clusters for this region
-				resources, err := processClusters(ctx, eksClient, regionName)
+				resources, err := processClusters(ctx, eksClient, regionName, cfg)
 				if err != nil {
 					log.Error("Failed to process clusters", "region", regionName, "error", err)
 					mu.Lock()
@@ -141,19 +142,25 @@ func runSync(regions *[]string, name *string) func(cmd *cobra.Command, args []st
 	}
 }
 
-func initEKSClient(ctx context.Context, region string) (*eks.Client, error) {
+func initEKSClient(ctx context.Context, region string) (*eks.Client, aws.Config, error) {
 	// Use common package to initialize AWS config
 	cfg, err := common.InitAWSConfig(ctx, region)
 	if err != nil {
-		return nil, err
+		return nil, aws.Config{}, err
 	}
 
-	return eks.NewFromConfig(cfg), nil
+	return eks.NewFromConfig(cfg), cfg, nil
 }
 
-func processClusters(ctx context.Context, eksClient *eks.Client, region string) ([]api.AgentResource, error) {
+func processClusters(ctx context.Context, eksClient *eks.Client, region string, cfg aws.Config) ([]api.AgentResource, error) {
 	var resources []api.AgentResource
 	var nextToken *string
+
+	// Get account ID using the passed config
+	accountID, err := common.GetAccountID(ctx, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get AWS account ID: %w", err)
+	}
 
 	for {
 		resp, err := eksClient.ListClusters(ctx, &eks.ListClustersInput{
@@ -172,7 +179,7 @@ func processClusters(ctx context.Context, eksClient *eks.Client, region string) 
 				continue
 			}
 
-			resource, err := processCluster(ctx, cluster.Cluster, region)
+			resource, err := processCluster(ctx, cluster.Cluster, region, accountID)
 			if err != nil {
 				log.Error("Failed to process EKS cluster", "name", clusterName, "error", err)
 				continue
@@ -190,17 +197,14 @@ func processClusters(ctx context.Context, eksClient *eks.Client, region string) 
 	return resources, nil
 }
 
-func processCluster(_ context.Context, cluster *types.Cluster, region string) (api.AgentResource, error) {
+func processCluster(_ context.Context, cluster *types.Cluster, region string, accountID string) (api.AgentResource, error) {
 	metadata := initClusterMetadata(cluster, region)
 	
-	arnParts := strings.Split(*cluster.Arn, ":")
-	accountId := arnParts[4]
-	metadata["aws/account"] = accountId
+	metadata["aws/account"] = accountID
 
 	consoleUrl := fmt.Sprintf("https://%s.console.aws.amazon.com/eks/home?region=%s#/clusters/%s",
 		region, region, *cluster.Name)
 	metadata["ctrlplane/links"] = fmt.Sprintf("{ \"AWS Console\": \"%s\" }", consoleUrl)
-
 
 	return api.AgentResource{
 		Version:    "ctrlplane.dev/kubernetes/cluster/v1",
@@ -217,7 +221,7 @@ func processCluster(_ context.Context, cluster *types.Cluster, region string) (a
 
 			// Provider-specific implementation details
 			"awsElasticKubernetesService": map[string]any{
-				"accountId":       accountId,
+				"accountId":       accountID,
 				"arn":             *cluster.Arn,
 				"region":          region,
 				"status":          string(cluster.Status),
