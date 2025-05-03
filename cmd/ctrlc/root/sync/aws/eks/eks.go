@@ -283,6 +283,9 @@ func processCluster(_ context.Context, cluster *types.Cluster, region string) (a
 		region, region, *cluster.Name)
 	metadata["ctrlplane/links"] = fmt.Sprintf("{ \"AWS Console\": \"%s\" }", consoleUrl)
 
+	arnParts := strings.Split(*cluster.Arn, ":")
+	accountId := arnParts[4]
+
 	return api.AgentResource{
 		Version:    "ctrlplane.dev/kubernetes/cluster/v1",
 		Kind:       "AWSElasticKubernetesService",
@@ -298,6 +301,7 @@ func processCluster(_ context.Context, cluster *types.Cluster, region string) (a
 
 			// Provider-specific implementation details
 			"awsElasticKubernetesService": map[string]any{
+				"accountId":       accountId,
 				"arn":             *cluster.Arn,
 				"region":          region,
 				"status":          string(cluster.Status),
