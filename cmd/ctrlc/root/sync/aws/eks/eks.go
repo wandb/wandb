@@ -261,15 +261,15 @@ func processCluster(_ context.Context, cluster *types.Cluster, region string) (a
 			"server": map[string]any{
 				"endpoint":                 *cluster.Endpoint,
 				"certificateAuthorityData": *cluster.CertificateAuthority.Data,
+			},
 
-				// Provider-specific implementation details
-				"elasticKubernetesService": map[string]any{
-					"arn":             *cluster.Arn,
-					"region":          region,
-					"status":          string(cluster.Status),
-					"platformVersion": *cluster.PlatformVersion,
-					"vpc":             *cluster.ResourcesVpcConfig.VpcId,
-				},
+			// Provider-specific implementation details
+			"awsElasticKubernetesService": map[string]any{
+				"arn":             *cluster.Arn,
+				"region":          region,
+				"status":          string(cluster.Status),
+				"platformVersion": *cluster.PlatformVersion,
+				"vpc":             *cluster.ResourcesVpcConfig.VpcId,
 			},
 		},
 		Metadata: metadata,
