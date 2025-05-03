@@ -156,7 +156,6 @@ func processClusters(ctx context.Context, eksClient *eks.Client, region string, 
 	var resources []api.AgentResource
 	var nextToken *string
 
-	// Get account ID using the passed config
 	accountID, err := common.GetAccountID(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get AWS account ID: %w", err)
