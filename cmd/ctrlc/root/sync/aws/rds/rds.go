@@ -164,7 +164,7 @@ func processInstances(ctx context.Context, rdsClient *rds.Client, region string)
 		}
 
 		for _, instance := range resp.DBInstances {
-			resource, err := processInstance(ctx, rdsClient, &instance, region)
+			resource, err := processInstance(ctx, &instance, region)
 			if err != nil {
 				log.Error("Failed to process RDS instance", "identifier", *instance.DBInstanceIdentifier, "error", err)
 				continue
@@ -182,7 +182,7 @@ func processInstances(ctx context.Context, rdsClient *rds.Client, region string)
 	return resources, nil
 }
 
-func processInstance(ctx context.Context, rdsClient *rds.Client, instance *types.DBInstance, region string) (api.AgentResource, error) {
+func processInstance(_ context.Context, instance *types.DBInstance, region string) (api.AgentResource, error) {
 	// Get default port based on engine
 	port := int32(5432) // Default to PostgreSQL port
 	if instance.Endpoint != nil && instance.Endpoint.Port != nil && *instance.Endpoint.Port != 0 {
@@ -207,7 +207,7 @@ func processInstance(ctx context.Context, rdsClient *rds.Client, instance *types
 	consoleUrl := fmt.Sprintf("https://%s.console.aws.amazon.com/rds/home?region=%s#database:id=%s;is-cluster=false",
 		region, region, *instance.DBInstanceIdentifier)
 
-	metadata := buildInstanceMetadata(ctx, rdsClient, instance, region, host, int(port), consoleUrl)
+	metadata := buildInstanceMetadata(instance, region, host, int(port), consoleUrl)
 
 	return api.AgentResource{
 		Version:    "ctrlplane.dev/database/v1",
@@ -338,7 +338,7 @@ func parseEngineVersion(engineVersion string) (major, minor, patch string, prere
 
 
 // buildInstanceMetadata builds the metadata map for an RDS instance
-func buildInstanceMetadata(ctx context.Context, rdsClient *rds.Client, instance *types.DBInstance, region, host string, port int, consoleUrl string) map[string]string {
+func buildInstanceMetadata(instance *types.DBInstance, region, host string, port int, consoleUrl string) map[string]string {
 	// Get normalized database type
 	dbType := getNormalizedDBType(*instance.Engine)
 
@@ -436,34 +436,6 @@ func buildInstanceMetadata(ctx context.Context, rdsClient *rds.Client, instance 
 		}
 	} else {
 		metadata["aws/is-aurora"] = "false"
-	}
-
-	// Add parameter group information
-	if instance.DBParameterGroups != nil {
-		for i, paramGroup := range instance.DBParameterGroups {
-			if paramGroup.DBParameterGroupName != nil {
-				metadata[fmt.Sprintf("database/parameter/group-%d", i)] = *paramGroup.DBParameterGroupName
-				
-				// Fetch the parameters for this parameter group
-				if rdsClient != nil && paramGroup.DBParameterGroupName != nil {
-					params, err := rdsClient.DescribeDBParameters(ctx, &rds.DescribeDBParametersInput{
-						DBParameterGroupName: paramGroup.DBParameterGroupName,
-					})
-					if err == nil {
-						for _, param := range params.Parameters {
-							if param.ParameterName != nil && param.ParameterValue != nil {
-								paramKey := fmt.Sprintf("database/parameter/%s", *param.ParameterName)
-								metadata[paramKey] = *param.ParameterValue
-							}
-						}
-					} else {
-						log.Warn("Failed to fetch parameters for parameter group", 
-							"group", *paramGroup.DBParameterGroupName, 
-							"error", err)
-					}
-				}
-			}
-		}
 	}
 
 	return metadata

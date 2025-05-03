@@ -21,7 +21,7 @@ import (
 func getDatabaseTypeAndVersion(databaseVersion string) (string, *semver.Version) {
 	// Default values
 	dbType := "unknown"
-	var versionObj *semver.Version
+	versionObj, _ := semver.NewVersion("0.0.0")
 
 	// Handle MySQL versions
 	if strings.Contains(databaseVersion, "MYSQL") {
@@ -74,8 +74,13 @@ func getDatabaseTypeAndVersion(databaseVersion string) (string, *semver.Version)
 
 		if strings.HasPrefix(databaseVersion, "POSTGRES_") {
 			parts := strings.Split(strings.TrimPrefix(databaseVersion, "POSTGRES_"), "_")
-			if len(parts) >= 2 {
-				versionStr := parts[0] + "." + parts[1]
+			if len(parts) >= 1 {
+				versionStr := parts[0]
+				if len(parts) >= 2 {
+					versionStr += "." + parts[1]
+				} else {
+					versionStr += ".0" // Add minor version for semver compatibility
+				}
 				if len(parts) >= 3 {
 					versionStr += "." + parts[2]
 				} else {
@@ -287,6 +292,7 @@ func processInstance(instance *sqladmin.DatabaseInstance, project string) api.Ag
 func buildInstanceMetadata(instance *sqladmin.DatabaseInstance, project, region, host string, port int, consoleUrl string) map[string]string {
 	dbType, versionObj := getDatabaseTypeAndVersion(instance.DatabaseVersion)
 
+	log.Info("Database type and version", "dbType", dbType, "version", versionObj)
 	metadata := map[string]string{
 		kinds.DBMetadataType:         dbType,
 		kinds.DBMetadataRegion:       region,
@@ -391,6 +397,7 @@ func upsertToCtrlplane(ctx context.Context, resources []api.AgentResource, proje
 		return fmt.Errorf("failed to create API client: %w", err)
 	}
 
+	log.Info("Upserting resource provider", "name", *providerName)
 	rp, err := api.NewResourceProvider(ctrlplaneClient, workspaceId, *providerName)
 	if err != nil {
 		return fmt.Errorf("failed to create resource provider: %w", err)
