@@ -3,9 +3,11 @@ package common
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/charmbracelet/log"
@@ -79,18 +81,33 @@ func GetAccountID(ctx context.Context, cfg aws.Config) (string, error) {
 func InitAWSConfig(ctx context.Context, region string) (aws.Config, error) {
 	// Try to load AWS config with explicit credentials
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
-	if err != nil {
-		log.Warn("Failed to load AWS config with default credentials, checking environment", "error", err)
+    if err != nil {
+        log.Warn("LoadDefaultConfig failed, falling back to shared profile", "error", err)
+        cfg, err = config.LoadDefaultConfig(ctx,
+            config.WithRegion(region),
+            config.WithSharedConfigProfile("default"),
+        )
+        if err != nil {
+            return aws.Config{}, fmt.Errorf("failed to load AWS config: %w", err)
+        }
+    }
+	
+    if roleArn := os.Getenv("AWS_ROLE_ARN"); roleArn != "" {
+        stsClient := sts.NewFromConfig(cfg)
+        sessName := os.Getenv("AWS_ROLE_SESSION_NAME")
+        if sessName == "" {
+            sessName = "aws-sdk-go-session"
+        }
 
-		// If default config fails, try to get credentials from environment or other sources
-		cfg, err = config.LoadDefaultConfig(ctx,
-			config.WithRegion(region),
-			config.WithSharedConfigProfile("default"))
+        cfg.Credentials = aws.NewCredentialsCache(
+            stscreds.NewAssumeRoleProvider(stsClient, roleArn, func(o *stscreds.AssumeRoleOptions) {
+                o.RoleSessionName = sessName
+                // o.Duration can be tweaked here if you need longer-lived tokens
+            }),
+        )
+        log.Info("Configured STS AssumeRole", "role_arn", roleArn, "session", sessName)
+    }
 
-		if err != nil {
-			return aws.Config{}, fmt.Errorf("failed to load AWS config: %w", err)
-		}
-	}
 
 	// Verify credentials are valid before proceeding
 	credentials, err := cfg.Credentials.Retrieve(ctx)
