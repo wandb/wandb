@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/Masterminds/semver"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/charmbracelet/log"
@@ -19,9 +21,18 @@ import (
 	"github.com/spf13/viper"
 )
 
+// A list of all AWS regions as fallback
+var allRegions = []string{
+	"us-east-1", "us-east-2", "us-west-1", "us-west-2",
+	"ap-south-1", "ap-northeast-1", "ap-northeast-2", "ap-northeast-3",
+	"ap-southeast-1", "ap-southeast-2", "ap-southeast-3", "ap-east-1",
+	"ca-central-1", "eu-central-1", "eu-west-1", "eu-west-2", "eu-west-3",
+	"eu-north-1", "eu-south-1", "sa-east-1", "me-south-1", "af-south-1",
+}
+
 // NewSyncEKSCmd creates a new cobra command for syncing EKS clusters
 func NewSyncEKSCmd() *cobra.Command {
-	var region string
+	var regions []string
 	var name string
 
 	cmd := &cobra.Command{
@@ -32,56 +43,164 @@ func NewSyncEKSCmd() *cobra.Command {
 			
 			# Sync all EKS clusters from a region
 			$ ctrlc sync aws eks --region us-west-2
+			
+			# Sync all EKS clusters from multiple regions
+			$ ctrlc sync aws eks --region us-west-2 --region us-east-1
+			
+			# Sync all EKS clusters from all regions
+			$ ctrlc sync aws eks
 		`),
-		PreRunE: validateFlags(&region),
-		RunE:    runSync(&region, &name),
+		RunE:    runSync(&regions, &name),
 	}
 
 	cmd.Flags().StringVarP(&name, "provider", "p", "", "Name of the resource provider")
-	cmd.Flags().StringVarP(&region, "region", "r", "", "AWS Region")
-	cmd.MarkFlagRequired("region")
-
+	cmd.Flags().StringSliceVarP(&regions, "region", "r", []string{}, "AWS Region(s)")
+	
 	return cmd
 }
 
-func validateFlags(region *string) func(cmd *cobra.Command, args []string) error {
-	return func(cmd *cobra.Command, args []string) error {
-		if *region == "" {
-			return fmt.Errorf("region is required")
-		}
-		return nil
+// getRegions returns a list of regions to use based on the provided flags
+func getRegions(ctx context.Context, regions []string) ([]string, error) {
+	if len(regions) > 0 {
+		return regions, nil
 	}
+	
+	// Dynamically discover available regions using EC2 API
+	log.Info("No regions specified, discovering available regions...")
+	
+	// Load AWS config with default region to use for discovery
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion("us-east-1"))
+	if err != nil {
+		log.Warn("Failed to load AWS config for region discovery, using hardcoded list", "error", err)
+		return allRegions, nil
+	}
+	
+	// Create EC2 client for region discovery
+	ec2Client := ec2.NewFromConfig(cfg)
+	
+	// Call DescribeRegions to get all available regions
+	resp, err := ec2Client.DescribeRegions(ctx, &ec2.DescribeRegionsInput{
+		AllRegions: nil, // Set to true to include disabled regions
+	})
+	if err != nil {
+		log.Warn("Failed to discover regions, using hardcoded list", "error", err)
+		return allRegions, nil
+	}
+	
+	// Extract region names from response
+	discoveredRegions := make([]string, 0, len(resp.Regions))
+	for _, region := range resp.Regions {
+		if region.RegionName != nil {
+			discoveredRegions = append(discoveredRegions, *region.RegionName)
+		}
+	}
+	
+	if len(discoveredRegions) == 0 {
+		log.Warn("No regions discovered, using hardcoded list")
+		return allRegions, nil
+	}
+	
+	log.Info("Discovered AWS regions", "count", len(discoveredRegions))
+	return discoveredRegions, nil
 }
 
-func runSync(region, name *string) func(cmd *cobra.Command, args []string) error {
+func runSync(regions *[]string, name *string) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		log.Info("Syncing EKS clusters into Ctrlplane", "region", *region)
-
 		ctx := context.Background()
-
-		// Initialize AWS client
-		eksClient, err := initEKSClient(ctx, *region)
+		
+		// Get the regions to sync from
+		regionsToSync, err := getRegions(ctx, *regions)
 		if err != nil {
 			return err
 		}
+		
+		log.Info("Syncing EKS clusters", "regions", regionsToSync)
+		
+		// Process each region
+		var allResources []api.AgentResource
+		var mu sync.Mutex
+		var wg sync.WaitGroup
+		var syncErrors []error
+		
+		for _, r := range regionsToSync {
+			wg.Add(1)
+			go func(regionName string) {
+				defer wg.Done()
+				
+				// Initialize AWS client for this region
+				eksClient, err := initEKSClient(ctx, regionName)
+				if err != nil {
+					log.Error("Failed to initialize EKS client", "region", regionName, "error", err)
+					mu.Lock()
+					syncErrors = append(syncErrors, fmt.Errorf("region %s: %w", regionName, err))
+					mu.Unlock()
+					return
+				}
 
-		// List and process clusters
-		resources, err := processClusters(ctx, eksClient, *region)
-		if err != nil {
-			return err
+				// List and process clusters for this region
+				resources, err := processClusters(ctx, eksClient, regionName)
+				if err != nil {
+					log.Error("Failed to process clusters", "region", regionName, "error", err)
+					mu.Lock()
+					syncErrors = append(syncErrors, fmt.Errorf("region %s: %w", regionName, err))
+					mu.Unlock()
+					return
+				}
+				
+				if len(resources) > 0 {
+					mu.Lock()
+					allResources = append(allResources, resources...)
+					mu.Unlock()
+				}
+			}(r)
 		}
-
+		
+		wg.Wait()
+		
+		if len(syncErrors) > 0 {
+			log.Warn("Some regions failed to sync", "errors", len(syncErrors))
+			// Continue with the regions that succeeded
+		}
+		
+		if len(allResources) == 0 {
+			log.Info("No EKS clusters found in the specified regions")
+			return nil
+		}
+		
+		// Use regions for name if none provided
+		providerRegion := "all-regions"
+		if regions != nil && len(*regions) > 0 {
+			providerRegion = strings.Join(*regions, "-")
+		}
 		// Upsert resources to Ctrlplane
-		return upsertToCtrlplane(ctx, resources, region, name)
+		return upsertToCtrlplane(ctx, allResources, &providerRegion, name)
 	}
 }
 
 func initEKSClient(ctx context.Context, region string) (*eks.Client, error) {
+	// Try to load AWS config with explicit credentials
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
-		return nil, fmt.Errorf("failed to load AWS config: %w", err)
+		log.Warn("Failed to load AWS config with default credentials, checking environment", "error", err)
+		
+		// If default config fails, try to get credentials from environment or other sources
+		// This can help when AWS CLI works but the SDK has issues with credential discovery
+		cfg, err = config.LoadDefaultConfig(ctx, 
+			config.WithRegion(region),
+			config.WithSharedConfigProfile("default"))
+		
+		if err != nil {
+			return nil, fmt.Errorf("failed to load AWS config: %w", err)
+		}
+	}
+	
+	// Verify credentials are valid before proceeding
+	credentials, err := cfg.Credentials.Retrieve(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve AWS credentials: %w", err)
 	}
 
+	log.Info("Successfully loaded AWS credentials", "region", region, "accessKeyId", credentials.AccessKeyID[:4]+"***")
 	return eks.NewFromConfig(cfg), nil
 }
 
@@ -120,7 +239,7 @@ func processClusters(ctx context.Context, eksClient *eks.Client, region string) 
 		nextToken = resp.NextToken
 	}
 
-	log.Info("Found EKS clusters", "count", len(resources))
+	log.Info("Found EKS clusters", "region", region, "count", len(resources))
 	return resources, nil
 }
 
@@ -133,7 +252,7 @@ func processCluster(_ context.Context, cluster *types.Cluster, region string) (a
 
 	return api.AgentResource{
 		Version:    "ctrlplane.dev/kubernetes/cluster/v1",
-		Kind:       "ElasticKubernetesService",
+		Kind:       "AWSElasticKubernetesService",
 		Name:       *cluster.Name,
 		Identifier: *cluster.Arn,
 		Config: map[string]any{
@@ -145,6 +264,7 @@ func processCluster(_ context.Context, cluster *types.Cluster, region string) (a
 
 				// Provider-specific implementation details
 				"elasticKubernetesService": map[string]any{
+					"arn":             *cluster.Arn,
 					"region":          region,
 					"status":          string(cluster.Status),
 					"platformVersion": *cluster.PlatformVersion,
@@ -217,7 +337,7 @@ var relationshipRules = []api.CreateResourceRelationshipRule{
 		DependencyType: api.ProvisionedIn,
 
 		SourceKind:    "ctrlplane.dev/kubernetes/cluster/v1",
-		SourceVersion: "ElasticKubernetesService",
+		SourceVersion: "AWSElasticKubernetesService",
 		TargetKind:    "ctrlplane.dev/network/v1",
 		TargetVersion: "AWSNetwork",
 
@@ -227,7 +347,7 @@ var relationshipRules = []api.CreateResourceRelationshipRule{
 
 func upsertToCtrlplane(ctx context.Context, resources []api.AgentResource, region, name *string) error {
 	if *name == "" {
-		*name = fmt.Sprintf("aws-eks-region-%s", *region)
+		*name = fmt.Sprintf("aws-eks-%s", *region)
 	}
 
 	apiURL := viper.GetString("url")

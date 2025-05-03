@@ -3,6 +3,7 @@ package aws
 import (
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/aws/ec2"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/aws/eks"
 	"github.com/ctrlplanedev/cli/internal/cliutil"
 	"github.com/spf13/cobra"
 )
@@ -29,6 +30,6 @@ func NewAWSCmd() *cobra.Command {
 
 	// Add all AWS sync subcommands
 	cmd.AddCommand(cliutil.AddIntervalSupport(ec2.NewSyncEC2Cmd(), ""))
-
+	cmd.AddCommand(cliutil.AddIntervalSupport(eks.NewSyncEKSCmd(), ""))
 	return cmd
 }
