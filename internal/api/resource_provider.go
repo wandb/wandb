@@ -42,9 +42,9 @@ func NewResourceProvider(client *ClientWithResponses, workspaceId string, name s
 		"name", provider.Name)
 
 	return &ResourceProvider{
-		Name:   provider.Name,
-		ID:     provider.Id,
-		client: client,
+		Name:        provider.Name,
+		ID:          provider.Id,
+		client:      client,
 		workspaceId: workspaceId,
 	}, nil
 }

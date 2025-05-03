@@ -11,6 +11,7 @@ import (
 	"github.com/Masterminds/semver"
 	"github.com/charmbracelet/log"
 	"github.com/ctrlplanedev/cli/internal/api"
+	"github.com/ctrlplanedev/cli/internal/kinds"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/api/container/v1"
@@ -130,7 +131,7 @@ func processCluster(_ context.Context, cluster *container.Cluster, project strin
 	// Build console URL
 	consoleUrl := fmt.Sprintf("https://console.cloud.google.com/kubernetes/clusters/details/%s/%s?project=%s",
 		cluster.Location, cluster.Name, project)
-	metadata["ctrlplane/links"] = fmt.Sprintf("{ \"Google Cloud Console\": \"%s\" }", consoleUrl)
+	metadata[kinds.CtrlplaneMetadataLinks] = fmt.Sprintf("{ \"Google Cloud Console\": \"%s\" }", consoleUrl)
 
 	certificateAuthorityData := ""
 	if cluster.MasterAuth != nil && cluster.MasterAuth.ClusterCaCertificate != "" {
@@ -185,19 +186,18 @@ func initClusterMetadata(cluster *container.Cluster, project string) map[string]
 		"network/type": "vpc",
 		"network/name": cluster.Network,
 
-		"kubernetes/type": "gke",
-		"kubernetes/name": cluster.Name,
+		kinds.K8SMetadataType:   "gke",
+		kinds.K8SMetadataName:   cluster.Name,
+		kinds.K8SMetadataStatus: cluster.Status,
 
-		"kubernetes/version":            fmt.Sprintf("%d.%d.%d", version.Major(), version.Minor(), version.Patch()),
-		"kubernetes/version/major":      strconv.FormatUint(uint64(version.Major()), 10),
-		"kubernetes/version/minor":      strconv.FormatUint(uint64(version.Minor()), 10),
-		"kubernetes/version/patch":      strconv.FormatUint(uint64(version.Patch()), 10),
-		"kubernetes/version/full":       cluster.CurrentMasterVersion,
-		"kubernetes/version/prerelease": version.Prerelease(),
+		kinds.K8SMetadataVersion:           fmt.Sprintf("%d.%d.%d", version.Major(), version.Minor(), version.Patch()),
+		kinds.K8SMetadataVersionMajor:      strconv.FormatUint(uint64(version.Major()), 10),
+		kinds.K8SMetadataVersionMinor:      strconv.FormatUint(uint64(version.Minor()), 10),
+		kinds.K8SMetadataVersionPatch:      strconv.FormatUint(uint64(version.Patch()), 10),
+		kinds.K8SMetadataVersionPrerelease: version.Prerelease(),
 
 		"kubernetes/location":        cluster.Location,
 		"kubernetes/location-type":   locationType,
-		"kubernetes/status":          cluster.Status,
 		"kubernetes/endpoint":        cluster.Endpoint,
 		"kubernetes/node-pool-count": strconv.Itoa(len(cluster.NodePools)),
 
@@ -213,9 +213,9 @@ func initClusterMetadata(cluster *container.Cluster, project string) map[string]
 	// Process creation time
 	if cluster.CreateTime != "" {
 		if t, err := time.Parse(time.RFC3339, cluster.CreateTime); err == nil {
-			metadata["kubernetes/created"] = t.Format(time.RFC3339)
+			metadata[kinds.K8SMetadataCreated] = t.Format(time.RFC3339)
 		} else {
-			metadata["kubernetes/created"] = cluster.CreateTime
+			metadata[kinds.K8SMetadataCreated] = cluster.CreateTime
 		}
 	}
 

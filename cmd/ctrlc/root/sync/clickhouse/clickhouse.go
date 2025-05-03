@@ -12,6 +12,7 @@ import (
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/charmbracelet/log"
 	"github.com/ctrlplanedev/cli/internal/api"
+	"github.com/ctrlplanedev/cli/internal/kinds"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -231,10 +232,16 @@ func NewSyncClickhouseCmd() *cobra.Command {
 				}
 				connection := service.GetConnection()
 				metadata := map[string]string{
+					kinds.DBMetadataType:   "clickhouse",
+					kinds.DBMetadataName:   service.Name,
+					kinds.DBMetadataRegion: service.Region,
+					kinds.DBMetadataState:  service.State,
+					kinds.DBMetadataPort:   fmt.Sprintf("%d", connection.Port),
+					kinds.DBMetadataHost:   connection.Host,
+					kinds.DBMetadataSSL:    "true",
+
 					"database/id":    service.ID,
 					"database/model": "relational",
-					"database/port":  fmt.Sprintf("%d", connection.Port),
-					"database/host":  connection.Host,
 
 					"clickhouse/id":                                 service.ID,
 					"clickhouse/name":                               service.Name,

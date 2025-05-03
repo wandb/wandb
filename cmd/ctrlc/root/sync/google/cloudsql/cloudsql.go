@@ -7,12 +7,116 @@ import (
 	"strings"
 
 	"github.com/MakeNowJust/heredoc/v2"
+	"github.com/Masterminds/semver"
 	"github.com/charmbracelet/log"
 	"github.com/ctrlplanedev/cli/internal/api"
+	"github.com/ctrlplanedev/cli/internal/kinds"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/api/sqladmin/v1"
 )
+
+// getDatabaseTypeAndVersion extracts the database type and version from the
+// Cloud SQL database version string
+func getDatabaseTypeAndVersion(databaseVersion string) (string, *semver.Version) {
+	// Default values
+	dbType := "unknown"
+	var versionObj *semver.Version
+
+	// Handle MySQL versions
+	if strings.Contains(databaseVersion, "MYSQL") {
+		dbType = "mysql"
+
+		// Handle common MySQL versions directly
+		switch databaseVersion {
+		case "MYSQL_5_1":
+			versionObj, _ = semver.NewVersion("5.1.0")
+			return dbType, versionObj
+		case "MYSQL_5_5":
+			versionObj, _ = semver.NewVersion("5.5.0")
+			return dbType, versionObj
+		case "MYSQL_5_6":
+			versionObj, _ = semver.NewVersion("5.6.0")
+			return dbType, versionObj
+		case "MYSQL_5_7":
+			versionObj, _ = semver.NewVersion("5.7.0")
+			return dbType, versionObj
+		case "MYSQL_8_0":
+			versionObj, _ = semver.NewVersion("8.0.0")
+			return dbType, versionObj
+		case "MYSQL_8_0_18":
+			versionObj, _ = semver.NewVersion("8.0.18")
+			return dbType, versionObj
+		}
+
+		// Parse other MySQL versions
+		if strings.HasPrefix(databaseVersion, "MYSQL_") {
+			parts := strings.Split(strings.TrimPrefix(databaseVersion, "MYSQL_"), "_")
+			if len(parts) >= 2 {
+				versionStr := parts[0] + "." + parts[1]
+				if len(parts) >= 3 {
+					versionStr += "." + parts[2]
+				} else {
+					versionStr += ".0" // Add patch version for semver compatibility
+				}
+
+				versionObj, _ = semver.NewVersion(versionStr)
+				return dbType, versionObj
+			}
+		}
+
+		return dbType, versionObj
+	}
+
+	// Handle PostgreSQL versions
+	if strings.Contains(databaseVersion, "POSTGRES") {
+		dbType = "postgres"
+
+		if strings.HasPrefix(databaseVersion, "POSTGRES_") {
+			parts := strings.Split(strings.TrimPrefix(databaseVersion, "POSTGRES_"), "_")
+			if len(parts) >= 2 {
+				versionStr := parts[0] + "." + parts[1]
+				if len(parts) >= 3 {
+					versionStr += "." + parts[2]
+				} else {
+					versionStr += ".0" // Add patch version for semver compatibility
+				}
+
+				versionObj, _ = semver.NewVersion(versionStr)
+				return dbType, versionObj
+			}
+		}
+
+		return dbType, versionObj
+	}
+
+	// Handle SQL Server versions
+	if strings.Contains(databaseVersion, "SQLSERVER") {
+		dbType = "sqlserver"
+
+		if strings.HasPrefix(databaseVersion, "SQLSERVER_") {
+			parts := strings.Split(strings.TrimPrefix(databaseVersion, "SQLSERVER_"), "_")
+			if len(parts) >= 1 {
+				versionStr := parts[0]
+				if len(parts) >= 2 {
+					versionStr += "." + parts[1]
+				} else {
+					versionStr += ".0" // Add minor version for semver compatibility
+				}
+				if len(parts) >= 3 {
+					versionStr += "." + parts[2]
+				} else {
+					versionStr += ".0" // Add patch version for semver compatibility
+				}
+
+				versionObj, _ = semver.NewVersion(versionStr)
+				return dbType, versionObj
+			}
+		}
+	}
+
+	return dbType, versionObj
+}
 
 func getInstanceHostAndPort(instance *sqladmin.DatabaseInstance) (string, int) {
 	// Default port based on database type
@@ -125,7 +229,7 @@ func initSQLAdminClient(ctx context.Context) (*sqladmin.Service, error) {
 }
 
 // processInstances lists and processes all Cloud SQL instances
-func processInstances(ctx context.Context, sqlService *sqladmin.Service, project string) ([]api.AgentResource, error) {
+func processInstances(_ context.Context, sqlService *sqladmin.Service, project string) ([]api.AgentResource, error) {
 	instances, err := sqlService.Instances.List(project).Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list instances: %w", err)
@@ -181,14 +285,19 @@ func processInstance(instance *sqladmin.DatabaseInstance, project string) api.Ag
 
 // buildInstanceMetadata builds the metadata map for a Cloud SQL instance
 func buildInstanceMetadata(instance *sqladmin.DatabaseInstance, project, region, host string, port int, consoleUrl string) map[string]string {
+	dbType, versionObj := getDatabaseTypeAndVersion(instance.DatabaseVersion)
+
 	metadata := map[string]string{
-		"database/type":    instance.DatabaseVersion,
-		"database/region":  region,
-		"database/state":   instance.State,
-		"database/tier":    instance.Settings.Tier,
-		"database/version": instance.DatabaseVersion,
-		"database/host":    host,
-		"database/port":    strconv.Itoa(port),
+		kinds.DBMetadataType:         dbType,
+		kinds.DBMetadataRegion:       region,
+		kinds.DBMetadataState:        instance.State,
+		kinds.DBMetadataTier:         instance.Settings.Tier,
+		kinds.DBMetadataVersion:      versionObj.Original(),
+		kinds.DBMetadataVersionMajor: strconv.FormatInt(versionObj.Major(), 10),
+		kinds.DBMetadataVersionMinor: strconv.FormatInt(versionObj.Minor(), 10),
+		kinds.DBMetadataVersionPatch: strconv.FormatInt(versionObj.Patch(), 10),
+		kinds.DBMetadataHost:         host,
+		kinds.DBMetadataPort:         strconv.Itoa(port),
 
 		"google/connection-name":   instance.ConnectionName,
 		"google/availability-type": strings.ToLower(instance.Settings.AvailabilityType),
@@ -227,9 +336,9 @@ func buildInstanceMetadata(instance *sqladmin.DatabaseInstance, project, region,
 		}
 
 		if ipConfig.RequireSsl {
-			metadata["database/ssl"] = "true"
+			metadata[kinds.DBMetadataSSL] = "true"
 		} else {
-			metadata["database/ssl"] = "false"
+			metadata[kinds.DBMetadataSSL] = "false"
 		}
 	}
 

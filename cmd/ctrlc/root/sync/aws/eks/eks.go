@@ -3,7 +3,6 @@ package eks
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -11,27 +10,14 @@ import (
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/Masterminds/semver"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/eks/types"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
-
 	"github.com/charmbracelet/log"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/aws/common"
 	"github.com/ctrlplanedev/cli/internal/api"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
-
-// A list of all AWS regions as fallback
-var allRegions = []string{
-	"us-east-1", "us-east-2", "us-west-1", "us-west-2",
-	"ap-south-1", "ap-northeast-1", "ap-northeast-2", "ap-northeast-3",
-	"ap-southeast-1", "ap-southeast-2", "ap-southeast-3", "ap-east-1",
-	"ca-central-1", "eu-central-1", "eu-west-1", "eu-west-2", "eu-west-3",
-	"eu-north-1", "eu-south-1", "sa-east-1", "me-south-1", "af-south-1",
-}
 
 // NewSyncEKSCmd creates a new cobra command for syncing EKS clusters
 func NewSyncEKSCmd() *cobra.Command {
@@ -53,93 +39,38 @@ func NewSyncEKSCmd() *cobra.Command {
 			# Sync all EKS clusters from all regions
 			$ ctrlc sync aws eks
 		`),
-		RunE:    runSync(&regions, &name),
+		RunE: runSync(&regions, &name),
 	}
 
 	cmd.Flags().StringVarP(&name, "provider", "p", "", "Name of the resource provider")
 	cmd.Flags().StringSliceVarP(&regions, "region", "r", []string{}, "AWS Region(s)")
-	
+
 	return cmd
-}
-
-// getRegions returns a list of regions to use based on the provided flags
-func getRegions(ctx context.Context, regions []string) ([]string, error) {
-	if len(regions) > 0 {
-		return regions, nil
-	}
-	
-	// Dynamically discover available regions using EC2 API
-	log.Info("No regions specified, discovering available regions...")
-	
-	// Load AWS config with default region to use for discovery
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion("us-east-1"))
-	if err != nil {
-		log.Warn("Failed to load AWS config for region discovery, using hardcoded list", "error", err)
-		return allRegions, nil
-	}
-	
-	// Create EC2 client for region discovery
-	ec2Client := ec2.NewFromConfig(cfg)
-	
-	// Call DescribeRegions to get all available regions
-	resp, err := ec2Client.DescribeRegions(ctx, &ec2.DescribeRegionsInput{
-		AllRegions: nil, // Set to true to include disabled regions
-	})
-	if err != nil {
-		log.Warn("Failed to discover regions, using hardcoded list", "error", err)
-		return allRegions, nil
-	}
-	
-	// Extract region names from response
-	discoveredRegions := make([]string, 0, len(resp.Regions))
-	for _, region := range resp.Regions {
-		if region.RegionName != nil {
-			discoveredRegions = append(discoveredRegions, *region.RegionName)
-		}
-	}
-	
-	if len(discoveredRegions) == 0 {
-		log.Warn("No regions discovered, using hardcoded list")
-		return allRegions, nil
-	}
-	
-	log.Info("Discovered AWS regions", "count", len(discoveredRegions))
-	return discoveredRegions, nil
-}
-
-// getAccountID retrieves the AWS account ID using the STS service
-func getAccountID(ctx context.Context, cfg aws.Config) (string, error) {
-	stsClient := sts.NewFromConfig(cfg)
-	result, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-	if err != nil {
-		return "", fmt.Errorf("failed to get AWS account ID: %w", err)
-	}
-	return *result.Account, nil
 }
 
 func runSync(regions *[]string, name *string) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
-		
-		// Get the regions to sync from
-		regionsToSync, err := getRegions(ctx, *regions)
+
+		// Get the regions to sync from using common package
+		regionsToSync, err := common.GetRegions(ctx, *regions)
 		if err != nil {
 			return err
 		}
-		
+
 		log.Info("Syncing EKS clusters", "regions", regionsToSync)
-		
+
 		// Process each region
 		var allResources []api.AgentResource
 		var mu sync.Mutex
 		var wg sync.WaitGroup
 		var syncErrors []error
-		
+
 		for _, r := range regionsToSync {
 			wg.Add(1)
 			go func(regionName string) {
 				defer wg.Done()
-				
+
 				// Initialize AWS client for this region
 				eksClient, err := initEKSClient(ctx, regionName)
 				if err != nil {
@@ -159,7 +90,7 @@ func runSync(regions *[]string, name *string) func(cmd *cobra.Command, args []st
 					mu.Unlock()
 					return
 				}
-				
+
 				if len(resources) > 0 {
 					mu.Lock()
 					allResources = append(allResources, resources...)
@@ -167,34 +98,34 @@ func runSync(regions *[]string, name *string) func(cmd *cobra.Command, args []st
 				}
 			}(r)
 		}
-		
+
 		wg.Wait()
-		
+
 		if len(syncErrors) > 0 {
 			log.Warn("Some regions failed to sync", "errors", len(syncErrors))
 			// Continue with the regions that succeeded
 		}
-		
+
 		if len(allResources) == 0 {
 			log.Info("No EKS clusters found in the specified regions")
 			return nil
 		}
-		
+
 		// Use regions for name if none provided
 		providerRegion := "all-regions"
 		if regions != nil && len(*regions) > 0 {
 			providerRegion = strings.Join(*regions, "-")
 		}
-		
+
 		// If name is not provided, try to get account ID to include in the provider name
 		if *name == "" {
-			// Get AWS account ID for provider name
-			cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(regionsToSync[0]))
+			// Get AWS account ID for provider name using common package
+			cfg, err := common.InitAWSConfig(ctx, regionsToSync[0])
 			if err != nil {
 				log.Warn("Failed to load AWS config for account ID retrieval", "error", err)
 				*name = fmt.Sprintf("aws-eks-%s", providerRegion)
 			} else {
-				accountID, err := getAccountID(ctx, cfg)
+				accountID, err := common.GetAccountID(ctx, cfg)
 				if err == nil {
 					log.Info("Retrieved AWS account ID", "account_id", accountID)
 					*name = fmt.Sprintf("aws-eks-%s-%s", accountID, providerRegion)
@@ -204,36 +135,19 @@ func runSync(regions *[]string, name *string) func(cmd *cobra.Command, args []st
 				}
 			}
 		}
-		
+
 		// Upsert resources to Ctrlplane
 		return upsertToCtrlplane(ctx, allResources, &providerRegion, name)
 	}
 }
 
 func initEKSClient(ctx context.Context, region string) (*eks.Client, error) {
-	// Try to load AWS config with explicit credentials
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	// Use common package to initialize AWS config
+	cfg, err := common.InitAWSConfig(ctx, region)
 	if err != nil {
-		log.Warn("Failed to load AWS config with default credentials, checking environment", "error", err)
-		
-		// If default config fails, try to get credentials from environment or other sources
-		// This can help when AWS CLI works but the SDK has issues with credential discovery
-		cfg, err = config.LoadDefaultConfig(ctx, 
-			config.WithRegion(region),
-			config.WithSharedConfigProfile("default"))
-		
-		if err != nil {
-			return nil, fmt.Errorf("failed to load AWS config: %w", err)
-		}
-	}
-	
-	// Verify credentials are valid before proceeding
-	credentials, err := cfg.Credentials.Retrieve(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve AWS credentials: %w", err)
+		return nil, err
 	}
 
-	log.Info("Successfully loaded AWS credentials", "region", region, "accessKeyId", credentials.AccessKeyID[:4]+"***")
 	return eks.NewFromConfig(cfg), nil
 }
 
@@ -396,20 +310,14 @@ func upsertToCtrlplane(ctx context.Context, resources []api.AgentResource, regio
 		return fmt.Errorf("failed to create API client: %w", err)
 	}
 
-	for _, rule := range relationshipRules {
-		rule.WorkspaceId = workspaceId
-		resp, err := ctrlplaneClient.UpsertResourceRelationshipRuleWithResponse(ctx, rule)
-		if err != nil {
-			log.Error("Failed to upsert resource relationship rule", "name", *name, "error", err)
-		}
-		if resp.StatusCode() != http.StatusOK {
-			log.Error("Failed to upsert resource relationship rule", "name", *name, "status", resp.StatusCode(), "rule", rule)
-		}
-	}
-
 	rp, err := api.NewResourceProvider(ctrlplaneClient, workspaceId, *name)
 	if err != nil {
 		return fmt.Errorf("failed to create resource provider: %w", err)
+	}
+
+	err = rp.AddResourceRelationshipRule(ctx, relationshipRules)
+	if err != nil {
+		log.Error("Failed to add resource relationship rule", "name", *name, "error", err)
 	}
 
 	upsertResp, err := rp.UpsertResource(ctx, resources)

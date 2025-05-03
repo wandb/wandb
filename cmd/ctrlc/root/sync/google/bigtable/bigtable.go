@@ -11,6 +11,7 @@ import (
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/charmbracelet/log"
 	"github.com/ctrlplanedev/cli/internal/api"
+	"github.com/ctrlplanedev/cli/internal/kinds"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/api/bigtableadmin/v2"
@@ -170,10 +171,45 @@ func initInstanceMetadata(instance *bigtableadmin.Instance, project string) map[
 	consoleUrl := fmt.Sprintf("https://console.cloud.google.com/bigtable/instances/%s/overview?project=%s",
 		instance.Name, project)
 
+	// Get Bigtable version Bigtable doesn't have a traditional version number
+	// like other databases We'll use the instance type (PRODUCTION or
+	// DEVELOPMENT) as a proxy for version and add additional metadata about the
+	// instance
+	bigtableVersion := "unknown"
+	switch instance.Type {
+	case "PRODUCTION":
+		bigtableVersion = "production"
+	case "DEVELOPMENT":
+		bigtableVersion = "development"
+	default:
+		bigtableVersion = strings.ToLower(instance.Type)
+	}
+
+	// For version metadata fields, we'll use the instance type Since Bigtable
+	// doesn't have semantic versioning, we'll use 1.0.0 for production and
+	// 0.1.0 for development instances to maintain compatibility with version
+	// fields
+	versionMajor, versionMinor, versionPatch := "0", "0", "0"
+	if bigtableVersion == "production" {
+		versionMajor, versionMinor, versionPatch = "1", "0", "0"
+	}
+	if bigtableVersion == "development" {
+		versionMajor, versionMinor, versionPatch = "0", "1", "0"
+	}
+
 	return map[string]string{
-		"database/type":        "bigtable",
-		"database/host":        instance.Name,
-		"database/port":        "443",
+		kinds.DBMetadataType:  "bigtable",
+		kinds.DBMetadataHost:  instance.Name,
+		kinds.DBMetadataName:  instance.Name,
+		kinds.DBMetadataPort:  "443",
+		kinds.DBMetadataState: strings.ToLower(instance.State),
+		kinds.DBMetadataSSL:   "true",
+
+		kinds.DBMetadataVersion:      bigtableVersion,
+		kinds.DBMetadataVersionMajor: versionMajor,
+		kinds.DBMetadataVersionMinor: versionMinor,
+		kinds.DBMetadataVersionPatch: versionPatch,
+
 		"google/project":       project,
 		"google/instance-type": "bigtable",
 		"google/console-url":   consoleUrl,
