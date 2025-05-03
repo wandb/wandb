@@ -192,13 +192,15 @@ func processClusters(ctx context.Context, eksClient *eks.Client, region string) 
 
 func processCluster(_ context.Context, cluster *types.Cluster, region string) (api.AgentResource, error) {
 	metadata := initClusterMetadata(cluster, region)
+	
+	arnParts := strings.Split(*cluster.Arn, ":")
+	accountId := arnParts[4]
+	metadata["aws/account"] = accountId
 
 	consoleUrl := fmt.Sprintf("https://%s.console.aws.amazon.com/eks/home?region=%s#/clusters/%s",
 		region, region, *cluster.Name)
 	metadata["ctrlplane/links"] = fmt.Sprintf("{ \"AWS Console\": \"%s\" }", consoleUrl)
 
-	arnParts := strings.Split(*cluster.Arn, ":")
-	accountId := arnParts[4]
 
 	return api.AgentResource{
 		Version:    "ctrlplane.dev/kubernetes/cluster/v1",
