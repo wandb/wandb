@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Final, Literal, Optional, Union, overload
 
-from annotated_types import Gt
 from pydantic import (
     Field,
     PositiveFloat,
@@ -71,18 +71,16 @@ class ChangeDir(LenientStrEnum):  # from: RunMetricChangeDirection
     DEC = DECREASE
 
 
-class BaseMetricFilter(GQLBase, extra="forbid"):
+class BaseMetricFilter(GQLBase, ABC, extra="forbid"):
     name: str
     """Name of the observed metric."""
 
     agg: Optional[Agg]
-    """Aggregation operation, if any, to apply over the window size."""
+    """Aggregate operation, if any, to apply over the window size."""
 
     window: PositiveInt
-    """Size of the window over which the metric is aggregated.
+    """Size of the window over which the metric is aggregated (ignored if `agg is None`)."""
 
-    Ignored if `agg` is None.
-    """
     # ------------------------------------------------------------------------------
     cmp: Optional[str]
     """Comparison between the metric expression (left) vs. the threshold or target value (right)."""
@@ -104,6 +102,17 @@ class BaseMetricFilter(GQLBase, extra="forbid"):
     def __rand__(self, other: BaseOp | FilterExpr) -> RunMetricFilter:
         """Ensures `&` is commutative: `(run_filter & metric_filter) == (metric_filter & run_filter)`."""
         return self.__and__(other)
+
+    @abstractmethod
+    def __repr__(self) -> str:
+        """The text representation of the metric filter."""
+        raise NotImplementedError
+
+    @override
+    def __rich_repr__(self) -> RichReprResult:  # type: ignore[override]
+        """The representation of the metric filter when using `rich` for pretty-printing."""
+        # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
+        yield None, repr(self)
 
 
 class MetricThresholdFilter(BaseMetricFilter):  # from: RunMetricThresholdFilter
@@ -128,10 +137,6 @@ class MetricThresholdFilter(BaseMetricFilter):  # from: RunMetricThresholdFilter
         op = MONGO2PY_OPS.get(self.cmp, self.cmp)
         return repr(rf"{metric} {op} {self.threshold}")
 
-    @override
-    def __rich_repr__(self) -> RichReprResult:  # type: ignore[override]
-        yield None, repr(self)
-
 
 class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
     """Defines a filter that compares a change in a run metric against a user-defined threshold.
@@ -140,15 +145,6 @@ class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
     between the current window and the non-overlapping prior window.
     """
 
-    # ------------------------------------------------------------------------------
-    change_type: Annotated[ChangeType, Field(alias="change_type")]
-    change_dir: Annotated[ChangeDir, Field(alias="change_dir")]
-
-    # FIXME:
-    # - implement declarative syntax for `MetricChangeFilter` similar to `MetricThresholdFilter`.
-    # - split this into tagged union of relative/absolute change filters.
-
-    # ------------------------------------------------------------------------------
     name: str
     agg: Annotated[Optional[Agg], Field(alias="agg_op")] = None
     window: Annotated[PositiveInt, Field(alias="current_window_size")] = 1
@@ -159,9 +155,9 @@ class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
         # By default, set `window -> prior_window` if the latter wasn't provided.
         Field(alias="prior_window_size", default_factory=lambda data: data["window"]),
     ]
-    """Size of the preceding window over which the metric is aggregated.
+    """Size of the prior window over which the metric is aggregated (ignored if `agg is None`).
 
-    Ignored if `agg` is None. If omitted, defaults to the size of the current window.
+    If omitted, defaults to the size of the current window.
     """
 
     # ------------------------------------------------------------------------------
@@ -170,15 +166,27 @@ class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
     #   but it's defined here for consistency -- and ignored otherwise.
     # - In the backend, it's effectively "$gte" or "$lte", depending on the sign
     #   (change_dir), though again, this is not explicit in the schema.
-    cmp: Annotated[None, Field(frozen=True, exclude=True)] = None
+    cmp: Annotated[None, Field(frozen=True, exclude=True, repr=False)] = None
     """Ignored."""
 
     # ------------------------------------------------------------------------------
+    change_type: Annotated[ChangeType, Field(alias="change_type")]
+    change_dir: Annotated[ChangeDir, Field(alias="change_dir")]
     threshold: Annotated[
-        Union[StrictInt, StrictFloat],
-        Gt(0),  # Must be positive
-        Field(alias="change_amount"),
+        Union[PositiveInt, PositiveFloat], Field(alias="change_amount")
     ]
+
+    def __repr__(self) -> str:
+        metric = f"{self.agg.value}({self.name})" if self.agg else self.name
+        verb = (
+            "changes by"
+            if (self.change_dir is ChangeDir.ANY)
+            else f"{self.change_dir.value.lower()}s by"
+        )
+        amt = (
+            f"{self.threshold:{'.2%' if (self.change_type is ChangeType.REL) else ''}}"
+        )
+        return repr(rf"{metric} {verb} {amt}")
 
 
 class BaseMetricOperand(GQLBase, extra="forbid"):

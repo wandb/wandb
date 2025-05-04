@@ -12,6 +12,7 @@ from typing_extensions import Annotated, Self, get_args
 from wandb._pydantic import (
     GQLBase,
     SerializedToJson,
+    ensure_json,
     field_validator,
     model_validator,
     pydantic_isinstance,
@@ -55,7 +56,7 @@ class EventType(LenientStrEnum):
 
 # Note: In GQL responses containing saved automation data, the filter is wrapped in an extra `filter` key.
 class SavedEventFilter(GQLBase):  # from: TriggeringFilterEvent
-    filter: SerializedToJson[MongoLikeFilter] = Field(default_factory=And)
+    filter: SerializedToJson[MongoLikeFilter] = And()
 
 
 class _WrappedMetricFilter(GQLBase):  # from: RunMetricFilter
@@ -90,19 +91,23 @@ class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
     run: Annotated[SerializedToJson[MongoLikeFilter], Field(alias="run_filter")] = And()
     metric: Annotated[_WrappedMetricFilter, Field(alias="run_metric_filter")]
 
-    #: Legacy field to define triggers on run metrics from absolute thresholds.  For new automations, use `run_metric_filter` instead.
-    metric_filter: Optional[SerializedToJson[MetricThresholdFilter]] = Field(
-        default=None,
-        deprecated="The `metric_filter` field is deprecated: use `metric/run_metric_filter` instead.",
-    )
+    # ------------------------------------------------------------------------------
+    metric_filter: Annotated[
+        Optional[SerializedToJson[MetricThresholdFilter]],
+        Field(deprecated="`metric_filter` is deprecated. Use `metric` instead."),
+    ] = None
+    """Deprecated legacy field that was previously used to define run metric threshold events.
+
+    For new automations, use `metric` instead.
+    """
 
     @model_validator(mode="before")
     @classmethod
     def _wrap_metric_filter(cls, v: Any) -> Any:
-        if pydantic_isinstance(v, MetricThresholdFilter):
-            # If we're only given an (unwrapped) metric filter, automatically wrap/nest it
-            # following the structure expected by the backend.  Delegate to inner validator(s)
-            # for additional wrapping, if needed.
+        if pydantic_isinstance(v, (MetricThresholdFilter, MetricChangeFilter)):
+            # If only an (unnested) metric filter is given, automatically wrap/nest it
+            # to conform to the expected backend schema.
+            # Delegate to inner validator(s) for further wrapping/nesting, if needed.
             return cls(metric=v)
         return v
 
@@ -117,9 +122,8 @@ class SavedEvent(FilterEventFields):  # from: FilterEventTriggeringCondition
 
     event_type: Annotated[EventType, Field(frozen=True)]  # type: ignore[assignment]
 
-    # We override the type of the `filter` field to enforce more specific
-    # expectations for the structure of the JSON data (and parse/serialize
-    # accordingly).
+    # We override the type of the `filter` field in order to enforce the expected
+    # structure for the JSON data when validating and serializing.
     filter: SerializedToJson[Union[SavedEventFilter, RunMetricFilter]]
     """The condition(s) under which this event triggers an automation."""
 
@@ -213,24 +217,24 @@ class OnRunMetric(_BaseRunEventInput):
 
     @model_validator(mode="before")
     @classmethod
-    def _infer_event_type(cls, v: Any) -> Any:
+    def _infer_event_type(cls, data: Any) -> Any:
         """Infer the event type at validation time from the inner filter.
 
         This allows this class to accommodate both "threshold" and "change" metric
         filter types, which are can only be determined after parsing and validating
         the inner JSON data.
         """
-        if isinstance(v, dict):
-            if isinstance(raw_filter := v["filter"], (str, bytes)):
-                v_filter = RunMetricFilter.model_validate_json(raw_filter)
-            else:
-                v_filter = RunMetricFilter.model_validate(raw_filter)
+        if isinstance(data, dict) and (raw_filter := data.get("filter")):
+            # At this point, `raw_filter` may or may not be JSON-serialized
+            filter_ = RunMetricFilter.model_validate_json(ensure_json(raw_filter))
 
-            if v_filter.metric.threshold_filter is not None:
-                return {**v, "event_type": EventType.RUN_METRIC_THRESHOLD}
-            if v_filter.metric.change_filter is not None:
-                return {**v, "event_type": EventType.RUN_METRIC_CHANGE}
-        return v
+            if filter_.metric.threshold_filter is not None:
+                event_type = EventType.RUN_METRIC_THRESHOLD
+            elif filter_.metric.change_filter is not None:
+                event_type = EventType.RUN_METRIC_CHANGE
+            return {**data, "event_type": event_type}
+
+        return data
 
 
 # for type annotations
@@ -280,4 +284,6 @@ __all__ = [
     *(cls.__name__ for cls in InputEventTypes),
     "RunEvent",
     "ArtifactEvent",
+    "MetricThresholdFilter",
+    "MetricChangeFilter",
 ]

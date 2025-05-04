@@ -6,10 +6,10 @@ from operator import methodcaller
 
 from hypothesis import given
 from hypothesis.strategies import integers, none
-from pytest import mark, raises
+from pytest import mark
 from wandb.apis.public import Project
 from wandb.automations import EventType, ScopeType
-from wandb.automations._filters.run_metrics import Agg
+from wandb.automations._filters.run_metrics import Agg, MetricChangeFilter
 from wandb.automations._generated import EventTriggeringConditionType
 from wandb.automations.events import (
     ArtifactEvent,
@@ -22,8 +22,9 @@ from wandb.automations.events import (
 )
 
 from ._strategies import (
-    cmp_op_keys,
+    cmp_keys,
     ints_or_floats,
+    metric_change_filters,
     metric_threshold_filters,
     printable_text,
     sample_with_randomcase,
@@ -75,7 +76,7 @@ def test_declarative_artifact_filter(expr, expected):
     name=printable_text,
     window=integers(1, 100),
     agg=none() | sample_with_randomcase(Agg),  # check case-insensitivity
-    cmp=cmp_op_keys,
+    cmp=cmp_keys,
     threshold=ints_or_floats,
 )
 def test_run_metric_agg_threshold_filter_without_run_filter(
@@ -154,17 +155,16 @@ def test_run_metric_agg_threshold_filter_without_run_filter(
     assert expected_run_filter_dict == event.filter.run.model_dump()
 
 
-@given(
-    metric_filter=metric_threshold_filters(),
-)
+@given(metric_filter=metric_threshold_filters())
 def test_run_metric_threshold_events(
     project: Project, metric_filter: MetricThresholdFilter
 ):
+    """Check that we can fully instantiate an `OnRunMetric` event with a metric THRESHOLD filter, and that the event's filter is validated/serialized correctly."""
     run_filter = RunEvent.name.contains("my-run")
 
-    # ----------------------------------------------------------------------------
     event = OnRunMetric(scope=project, filter=run_filter & metric_filter)
 
+    # ----------------------------------------------------------------------------
     expected_metric_filter_dict = {
         "name": metric_filter.name,
         "window_size": metric_filter.window,
@@ -178,6 +178,7 @@ def test_run_metric_threshold_events(
         ]
     }
 
+    # ----------------------------------------------------------------------------
     # Check that...
     # - the event has the expected event_type
     assert event.event_type is EventType.RUN_METRIC_THRESHOLD
@@ -187,6 +188,42 @@ def test_run_metric_threshold_events(
 
     # - the metric filter is parsed/validated correctly by pydantic
     inner_metric_filter = event.filter.metric.threshold_filter
+    assert expected_metric_filter_dict == inner_metric_filter.model_dump()
+
+    # - the accompanying run filter here is as expected
+    assert expected_run_filter_dict == event.filter.run.model_dump()
+
+
+@given(metric_filter=metric_change_filters())
+def test_run_metric_change_events(project: Project, metric_filter: MetricChangeFilter):
+    """Check that we can fully instantiate an `OnRunMetric` event with a metric CHANGE filter, and that the event's filter is validated/serialized correctly."""
+    run_filter = RunEvent.name.contains("my-run")
+    event = OnRunMetric(scope=project, filter=run_filter & metric_filter)
+
+    expected_metric_filter_dict = {
+        "name": metric_filter.name,
+        "agg_op": None if (metric_filter.agg is None) else metric_filter.agg.value,
+        "current_window_size": metric_filter.window,
+        "prior_window_size": metric_filter.prior_window,
+        "change_dir": metric_filter.change_dir,
+        "change_type": metric_filter.change_type,
+        "change_amount": metric_filter.threshold,
+    }
+    expected_run_filter_dict = {
+        "$and": [
+            {"display_name": {"$contains": "my-run"}},
+        ]
+    }
+
+    # Check that...
+    # - the event has the expected event_type
+    assert event.event_type is EventType.RUN_METRIC_CHANGE
+
+    # - the metric filter has the expected JSON-serializable contents
+    assert expected_metric_filter_dict == metric_filter.model_dump()
+
+    # - the metric filter is parsed/validated correctly by pydantic
+    inner_metric_filter = event.filter.metric.change_filter
     assert expected_metric_filter_dict == inner_metric_filter.model_dump()
 
     # - the accompanying run filter here is as expected
@@ -223,38 +260,3 @@ def test_add_artifact_alias_events(scope):
 
     expected_filter_dict = {"$or": [{"$and": [{"alias": {"$regex": alias_regex}}]}]}
     assert expected_filter_dict == event.filter.model_dump()
-
-
-# Checks on self-consistency of syntactic sugar and other quality-of-life features
-@given(
-    name=printable_text,
-    window=integers(1, 100),
-    threshold=ints_or_floats,
-)
-def test_run_metric_operator_vs_method_syntax_is_equivalent(
-    name: str,
-    window: int,
-    threshold: float,
-):
-    """Check that metric thresholds defined via comparison operators vs method-call syntax are equivalent."""
-    metric_expressions = [
-        RunEvent.metric(name).average(window),  # Aggregate
-        RunEvent.metric(name).mean(window),  # Aggregate
-        RunEvent.metric(name).min(window),  # Aggregate
-        RunEvent.metric(name).max(window),  # Aggregate
-        RunEvent.metric(name),  # Single value
-    ]
-
-    for metric_expr in metric_expressions:
-        assert (metric_expr > threshold) == metric_expr.gt(threshold)
-        assert (metric_expr >= threshold) == metric_expr.gte(threshold)
-        assert (metric_expr < threshold) == metric_expr.lt(threshold)
-        assert (metric_expr <= threshold) == metric_expr.lte(threshold)
-
-
-def test_run_metric_threshold_cannot_be_aggregated_twice():
-    """Check that run metric thresholds forbid multiple aggregations."""
-    with raises(AttributeError):
-        RunEvent.metric("my-metric").average(5).average(10)
-    with raises(AttributeError):
-        RunEvent.metric("my-metric").average(10).max(5)

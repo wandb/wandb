@@ -222,8 +222,11 @@ def sample_with_randomcase(
 
 # ----------------------------------------------------------------------------
 # For testing run metric filters
-cmp_op_keys: SearchStrategy[str] = sampled_from(["$gt", "$gte", "$lt", "$lte"])
-"""Generates valid MongoDB comparison operator keys."""
+metric_names: SearchStrategy[str] = text(PRINTABLE_CHARS, min_size=1, max_size=100)
+"""Valid metric names for run metric filters."""
+
+cmp_keys: SearchStrategy[str] = sampled_from(["$gt", "$gte", "$lt", "$lte"])
+"""Valid keys for MongoDB comparison operators."""
 
 window_sizes: SearchStrategy[int] = integers(min_value=1, max_value=100)
 """Valid window sizes for run metric filters."""
@@ -233,28 +236,75 @@ change_types: SearchStrategy[ChangeType | str] = sample_with_randomcase(ChangeTy
 change_dirs: SearchStrategy[ChangeDir | str] = sample_with_randomcase(ChangeDir)
 
 
+pos_numbers: SearchStrategy[int | float] = one_of(
+    integers(min_value=1),
+    floats(
+        min_value=0,
+        exclude_min=True,
+        width=32,
+        allow_nan=False,
+        allow_infinity=False,
+        allow_subnormal=False,
+    ),
+)
+"""Valid "change_amount" values (i.e. `frac` or `diff`)."""
+
+nonpos_numbers: SearchStrategy[int | float] = one_of(
+    integers(max_value=0),
+    floats(
+        max_value=0,
+        width=32,
+        allow_nan=False,
+        allow_infinity=False,
+        allow_subnormal=False,
+    ),
+)
+"""Invalid "change_amount" values (i.e. `frac` or `diff`)."""
+
+
 @composite
 def metric_threshold_filters(
     draw: DrawFn,
-    name: SearchStrategy[str] = printable_text,
-    window: SearchStrategy[int] = window_sizes,
-    agg: SearchStrategy[Agg | str | None] = aggs,
-    cmp: SearchStrategy[str] = cmp_op_keys,
-    threshold: SearchStrategy[float] = ints_or_floats,
+    name: SearchStrategy[str] | None = metric_names,
+    agg: SearchStrategy[Agg | str | None] | None = aggs,
+    window: SearchStrategy[int] | None = window_sizes,
+    cmp: SearchStrategy[str] | None = cmp_keys,
+    threshold: SearchStrategy[float] | None = ints_or_floats,
 ) -> SearchStrategy[MetricThresholdFilter]:
     """Generates a `MetricThresholdFilter` instance."""
-    return MetricThresholdFilter(
-        name=draw(name),
-        window=draw(window),
-        agg=draw(agg),
-        cmp=draw(cmp),
-        threshold=draw(threshold),
+    kw_strategies = dict(
+        name=name,
+        window=window,
+        agg=agg,
+        cmp=cmp,
+        threshold=threshold,
     )
+    kwargs = {k: draw(st) for k, st in kw_strategies.items() if (st is not None)}
+    return MetricThresholdFilter(**kwargs)
 
 
 @composite
 def metric_change_filters(
-    draw: DrawFn, **kwargs: SearchStrategy[Any]
+    draw: DrawFn,
+    name: SearchStrategy[str] | None = metric_names,
+    agg: SearchStrategy[Agg | str | None] | None = aggs,
+    window: SearchStrategy[int] | None = window_sizes,
+    prior_window: SearchStrategy[int] | None = window_sizes,
+    change_type: SearchStrategy[ChangeType | str] | None = change_types,
+    change_dir: SearchStrategy[ChangeDir | str] | None = change_dirs,
+    threshold: SearchStrategy[float] | None = pos_numbers,
+    # **kwargs: SearchStrategy[Any],
 ) -> SearchStrategy[MetricChangeFilter]:
     """Generates a `MetricChangeFilter` instance."""
-    return MetricChangeFilter(**{name: draw(strat) for name, strat in kwargs.items()})
+    kw_strategies = dict(
+        name=name,
+        agg=agg,
+        window=window,
+        prior_window=prior_window,
+        change_type=change_type,
+        change_dir=change_dir,
+        threshold=threshold,
+    )
+    # Any arg strategies `None` excluded from instantiation
+    kwargs = {k: draw(st) for k, st in kw_strategies.items() if (st is not None)}
+    return MetricChangeFilter(**kwargs)

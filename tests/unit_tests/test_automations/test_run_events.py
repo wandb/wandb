@@ -1,62 +1,59 @@
 from __future__ import annotations
 
 import json
-from typing import Iterable
 
 from hypothesis import given
-from hypothesis.strategies import SearchStrategy, floats, integers, none, one_of
+from hypothesis.strategies import DrawFn, SearchStrategy, composite, sampled_from
 from pytest import raises
-from wandb.apis.public.projects import Project
-from wandb.automations import EventType, OnRunMetric, RunEvent
+from wandb.automations import RunEvent
 from wandb.automations._filters.run_metrics import (
     Agg,
     BaseMetricOperand,
-    ChangeDir,
-    ChangeType,
+    MetricAgg,
     MetricChangeFilter,
     MetricThresholdFilter,
+    MetricVal,
 )
 
 from ._strategies import (
-    cmp_op_keys,
+    aggs,
+    cmp_keys,
     ints_or_floats,
     metric_change_filters,
-    printable_text,
-    sample_with_randomcase,
+    metric_names,
+    nonpos_numbers,
+    pos_numbers,
     window_sizes,
 )
 
-# Valid "change_amount" values (i.e. `frac` or `diff`)
-positive_amounts: SearchStrategy[int | float] = one_of(
-    integers(min_value=1),
-    floats(
-        min_value=0,
-        exclude_min=True,
-        width=32,
-        allow_nan=False,
-        allow_infinity=False,
-        allow_subnormal=False,
-    ),
-)
 
-# Invalid "change_amount" values (i.e. `frac` or `diff`)
-nonpositive_amounts: SearchStrategy[int | float] = one_of(
-    integers(max_value=0),
-    floats(
-        max_value=0,
-        width=32,
-        allow_nan=False,
-        allow_infinity=False,
-        allow_subnormal=False,
-    ),
-)
+@composite
+def metric_operands(
+    draw: DrawFn,
+    names: SearchStrategy[str] = metric_names,
+    windows: SearchStrategy[int] = window_sizes,
+) -> SearchStrategy[MetricVal | MetricAgg]:
+    """Generate single-value and/or aggregated metric operands.
+
+    Think of this as the "left-hand side" of a metric threshold filtering condition.
+    """
+    name, window = draw(names), draw(windows)
+
+    all_metric_operands = (
+        RunEvent.metric(name),
+        RunEvent.metric(name).average(window),
+        RunEvent.metric(name).mean(window),
+        RunEvent.metric(name).min(window),
+        RunEvent.metric(name).max(window),
+    )
+    return draw(sampled_from(all_metric_operands))
 
 
 @given(
-    name=printable_text,
+    name=metric_names,
     window=window_sizes,
-    agg=none() | sample_with_randomcase(Agg),
-    cmp=cmp_op_keys,
+    agg=aggs,
+    cmp=cmp_keys,
     threshold=ints_or_floats,
 )
 def test_metric_threshold_filter_serialization(
@@ -81,67 +78,65 @@ def test_metric_threshold_filter_serialization(
 
 
 @given(
-    name=printable_text,
-    window=window_sizes,
+    metric=metric_operands(),
     threshold=ints_or_floats,
 )
-def test_metric_threshold_filter_repr(name: str, window: int, threshold: float):
-    """Check that a metric threshold filter has the expected human-readable representation."""
-    metric_value_expr = RunEvent.metric(name)  # Single value
+def test_metric_threshold_binop_vs_method_is_equivalent(
+    metric: BaseMetricOperand, threshold: float
+):
+    """Metric filters declared via (a) binary comparison operators vs (b) chained method calls are equivalent.
 
-    # Expected left- and right-hand sides of the comparison
-    lhs = f"{name}"
-    rhs = f"{threshold}"
+    E.g. `metric > threshold` should do the same thing as `metric.gt(threshold)`.
+    """
+    assert isinstance(metric, (MetricVal, MetricAgg))
 
-    assert repr(metric_value_expr.gt(threshold)) == repr(f"{lhs} > {rhs}")
-    assert repr(metric_value_expr > threshold) == repr(f"{lhs} > {rhs}")
+    # Check that the (serializable) data is equivalent
+    assert (metric > threshold).model_dump() == metric.gt(threshold).model_dump()
+    assert (metric >= threshold).model_dump() == metric.gte(threshold).model_dump()
+    assert (metric < threshold).model_dump() == metric.lt(threshold).model_dump()
+    assert (metric <= threshold).model_dump() == metric.lte(threshold).model_dump()
 
-    assert repr(metric_value_expr.gte(threshold)) == repr(f"{lhs} >= {rhs}")
-    assert repr(metric_value_expr >= threshold) == repr(f"{lhs} >= {rhs}")
+    # Check string representations are identical
+    assert repr(metric > threshold) == repr(metric.gt(threshold))
+    assert repr(metric >= threshold) == repr(metric.gte(threshold))
+    assert repr(metric < threshold) == repr(metric.lt(threshold))
+    assert repr(metric <= threshold) == repr(metric.lte(threshold))
 
-    assert repr(metric_value_expr.lt(threshold)) == repr(f"{lhs} < {rhs}")
-    assert repr(metric_value_expr < threshold) == repr(f"{lhs} < {rhs}")
 
-    assert repr(metric_value_expr.lte(threshold)) == repr(f"{lhs} <= {rhs}")
-    assert repr(metric_value_expr <= threshold) == repr(f"{lhs} <= {rhs}")
-
-    # Aggregate expressions
-    metric_agg_expressions = [
-        (Agg.AVG, RunEvent.metric(name).average(window)),
-        (Agg.AVG, RunEvent.metric(name).mean(window)),
-        (Agg.MIN, RunEvent.metric(name).min(window)),
-        (Agg.MAX, RunEvent.metric(name).max(window)),
-    ]
-
-    for agg, metric_agg_expr in metric_agg_expressions:
-        # Expected left- and right-hand sides of the comparison
-        lhs = f"{agg.value}({name})"
-        rhs = f"{threshold}"
-
-        assert repr(metric_agg_expr.gt(threshold)) == repr(f"{lhs} > {rhs}")
-        assert repr(metric_agg_expr > threshold) == repr(f"{lhs} > {rhs}")
-
-        assert repr(metric_agg_expr.gte(threshold)) == repr(f"{lhs} >= {rhs}")
-        assert repr(metric_agg_expr >= threshold) == repr(f"{lhs} >= {rhs}")
-
-        assert repr(metric_agg_expr.lt(threshold)) == repr(f"{lhs} < {rhs}")
-        assert repr(metric_agg_expr < threshold) == repr(f"{lhs} < {rhs}")
-
-        assert repr(metric_agg_expr.lte(threshold)) == repr(f"{lhs} <= {rhs}")
-        assert repr(metric_agg_expr <= threshold) == repr(f"{lhs} <= {rhs}")
+def test_run_metric_threshold_cannot_be_aggregated_twice():
+    """Check that run metric thresholds forbid multiple aggregations."""
+    with raises(AttributeError):
+        RunEvent.metric("my-metric").average(5).average(10)
+    with raises(AttributeError):
+        RunEvent.metric("my-metric").average(10).max(5)
 
 
 @given(
-    metric_filter=metric_change_filters(
-        name=printable_text,
-        agg=none() | sample_with_randomcase(Agg),
-        window=window_sizes,
-        prior_window=window_sizes,
-        threshold=positive_amounts,
-        change_type=sample_with_randomcase(ChangeType),
-        change_dir=sample_with_randomcase(ChangeDir),
-    ),
+    metric=metric_operands(),
+    threshold=ints_or_floats,
 )
+def test_metric_threshold_filter_repr(metric: MetricVal | MetricAgg, threshold: float):
+    """Check that a metric threshold filter has the expected human-readable representation."""
+    # Determine the expected left- and right-hand sides of the inequality
+    if isinstance(metric, MetricVal):
+        # Single-value metric operand (i.e. no aggregation)
+        expected_lhs = metric.name
+        expected_rhs = f"{threshold}"
+    elif isinstance(metric, MetricAgg):
+        # Aggregated metric operand
+        expected_lhs = f"{metric.agg.value}({metric.name})"
+        expected_rhs = f"{threshold}"
+    else:
+        raise ValueError(f"Unhandled metric operand type: {type(metric)}")
+
+    # Check that the string representations are equivalent
+    assert repr(metric.gt(threshold)) == repr(f"{expected_lhs} > {expected_rhs}")
+    assert repr(metric.gte(threshold)) == repr(f"{expected_lhs} >= {expected_rhs}")
+    assert repr(metric.lt(threshold)) == repr(f"{expected_lhs} < {expected_rhs}")
+    assert repr(metric.lte(threshold)) == repr(f"{expected_lhs} <= {expected_rhs}")
+
+
+@given(metric_filter=metric_change_filters())
 def test_metric_change_filter_serialization(metric_filter: MetricChangeFilter):
     """Check that a normally-instantiated `MetricChangeFilter` produces the expected JSON-serializable dict."""
     expected_dict = {
@@ -160,13 +155,7 @@ def test_metric_change_filter_serialization(metric_filter: MetricChangeFilter):
 
 @given(
     metric_filter=metric_change_filters(
-        name=printable_text,
-        agg=none() | sample_with_randomcase(Agg),
-        window=window_sizes,
-        # NOTE: prior_window deliberately omitted
-        threshold=positive_amounts,
-        change_type=sample_with_randomcase(ChangeType),
-        change_dir=sample_with_randomcase(ChangeDir),
+        prior_window=None,  # NOTE: `prior_window` deliberately omitted
     ),
 )
 def test_metric_change_filter_defaults_prior_window_to_current_window(
@@ -184,9 +173,9 @@ def test_metric_change_filter_defaults_prior_window_to_current_window(
 
 
 @given(
-    name=printable_text,
+    name=metric_names,
     window=window_sizes,
-    delta=positive_amounts,
+    delta=pos_numbers,
 )
 def test_declarative_metric_change_filter_with_agg(
     name: str, window: int, delta: int | float
@@ -262,8 +251,8 @@ def test_declarative_metric_change_filter_with_agg(
 
 
 @given(
-    name=printable_text,
-    delta=positive_amounts,
+    name=metric_names,
+    delta=pos_numbers,
 )
 def test_declarative_metric_change_filter_without_agg(name: str, delta: int | float):
     """Check that the declarative syntax for `MetricChangeFilter` produces the expected `MetricChangeFilter`."""
@@ -332,119 +321,55 @@ def test_declarative_metric_change_filter_without_agg(name: str, delta: int | fl
 
 
 @given(
-    name=printable_text,
-    window=window_sizes,
-    delta=positive_amounts,
+    metric=metric_operands(),
+    delta=pos_numbers,
 )
 def test_declarative_metric_change_filter_requires_exaclty_one_delta_keyword_arg(
-    name: str, window: int, delta: int | float
+    metric: MetricVal | MetricAgg, delta: int | float
 ):
     """Check that a `MetricChangeFilter` requires exactly one of `frac` or `diff`."""
-    metric_operands: Iterable[BaseMetricOperand] = [
-        RunEvent.metric(name),  # Single value
-        RunEvent.metric(name).average(window),  # Aggregated
-        RunEvent.metric(name).min(window),  # Aggregated
-        RunEvent.metric(name).max(window),  # Aggregated
-    ]
+    # Both keyword args at once is forbidden
+    with raises(ValueError):
+        metric.changes_by(frac=delta, diff=delta)
+    with raises(ValueError):
+        metric.increases_by(frac=delta, diff=delta)
+    with raises(ValueError):
+        metric.decreases_by(frac=delta, diff=delta)
 
-    for metric in metric_operands:
-        # Both keyword args at once is forbidden
-        with raises(ValueError):
-            metric.changes_by(frac=delta, diff=delta)
-        with raises(ValueError):
-            metric.increases_by(frac=delta, diff=delta)
-        with raises(ValueError):
-            metric.decreases_by(frac=delta, diff=delta)
+    # ...so is 0 args
+    with raises(ValueError):
+        metric.changes_by()
+    with raises(ValueError):
+        metric.increases_by()
+    with raises(ValueError):
+        metric.decreases_by()
 
-        # ...so is 0 args
-        with raises(ValueError):
-            metric.changes_by()
-        with raises(ValueError):
-            metric.increases_by()
-        with raises(ValueError):
-            metric.decreases_by()
-
-        # ... so is a positional arg, as it's too ambiguous
-        with raises(TypeError):
-            metric.changes_by(delta)
-        with raises(TypeError):
-            metric.increases_by(delta)
-        with raises(TypeError):
-            metric.decreases_by(delta)
+    # ... so is a positional arg, as it's too ambiguous
+    with raises(TypeError):
+        metric.changes_by(delta)
+    with raises(TypeError):
+        metric.increases_by(delta)
+    with raises(TypeError):
+        metric.decreases_by(delta)
 
 
 @given(
-    name=printable_text,
-    window=window_sizes,
-    nonpositive_amount=nonpositive_amounts,
+    metric=metric_operands(),
+    invalid_delta=nonpos_numbers,
 )
 def test_declarative_metric_change_filter_requires_positive_delta(
-    name: str, window: int, nonpositive_amount: int | float
+    metric: MetricVal | MetricAgg, invalid_delta: int | float
 ):
-    """Check that a `MetricChangeFilter` only accepts a positive quantity for `frac` or `diff`."""
-    metric_operands = [
-        RunEvent.metric(name),  # Single value
-        RunEvent.metric(name).average(window),  # Aggregated
-        RunEvent.metric(name).min(window),  # Aggregated
-        RunEvent.metric(name).max(window),  # Aggregated
-    ]
-
-    for metric in metric_operands:
-        with raises(ValueError):
-            metric.changes_by(frac=nonpositive_amount)
-        with raises(ValueError):
-            metric.changes_by(diff=nonpositive_amount)
-        with raises(ValueError):
-            metric.increases_by(frac=nonpositive_amount)
-        with raises(ValueError):
-            metric.increases_by(diff=nonpositive_amount)
-        with raises(ValueError):
-            metric.decreases_by(frac=nonpositive_amount)
-        with raises(ValueError):
-            metric.decreases_by(diff=nonpositive_amount)
-
-
-@given(
-    metric_filter=metric_change_filters(
-        name=printable_text,
-        agg=none() | sample_with_randomcase(Agg),
-        window=window_sizes,
-        prior_window=window_sizes,
-        threshold=positive_amounts,
-        change_type=sample_with_randomcase(ChangeType),
-        change_dir=sample_with_randomcase(ChangeDir),
-    ),
-)
-def test_run_metric_change_events(project: Project, metric_filter: MetricChangeFilter):
-    """Check that we can fully instantiate an `OnRunMetric` automation event, and that the event's filter is validated/serialized correctly."""
-    run_filter = RunEvent.name.contains("my-run")
-    event = OnRunMetric(scope=project, filter=run_filter & metric_filter)
-
-    expected_metric_filter_dict = {
-        "name": metric_filter.name,
-        "agg_op": None if (metric_filter.agg is None) else metric_filter.agg.value,
-        "current_window_size": metric_filter.window,
-        "prior_window_size": metric_filter.prior_window,
-        "change_dir": metric_filter.change_dir,
-        "change_type": metric_filter.change_type,
-        "change_amount": metric_filter.threshold,
-    }
-    expected_run_filter_dict = {
-        "$and": [
-            {"display_name": {"$contains": "my-run"}},
-        ]
-    }
-
-    # Check that...
-    # - the event has the expected event_type
-    assert event.event_type is EventType.RUN_METRIC_CHANGE
-
-    # - the metric filter has the expected JSON-serializable contents
-    assert expected_metric_filter_dict == metric_filter.model_dump()
-
-    # - the metric filter is parsed/validated correctly by pydantic
-    inner_metric_filter = event.filter.metric.change_filter
-    assert expected_metric_filter_dict == inner_metric_filter.model_dump()
-
-    # - the accompanying run filter here is as expected
-    assert expected_run_filter_dict == event.filter.run.model_dump()
+    """Check that a `MetricChangeFilter` only accepts a POSITIVE quantity for `frac` or `diff`."""
+    with raises(ValueError):
+        metric.changes_by(frac=invalid_delta)
+    with raises(ValueError):
+        metric.changes_by(diff=invalid_delta)
+    with raises(ValueError):
+        metric.increases_by(frac=invalid_delta)
+    with raises(ValueError):
+        metric.increases_by(diff=invalid_delta)
+    with raises(ValueError):
+        metric.decreases_by(frac=invalid_delta)
+    with raises(ValueError):
+        metric.decreases_by(diff=invalid_delta)
