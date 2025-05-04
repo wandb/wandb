@@ -3,6 +3,7 @@ package sync
 import (
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/aws"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/azure"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/clickhouse"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/google"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/kubernetes"
@@ -32,6 +33,7 @@ func NewSyncCmd() *cobra.Command {
 	cmd.AddCommand(cliutil.AddIntervalSupport(clickhouse.NewSyncClickhouseCmd(), ""))
 	cmd.AddCommand(aws.NewAWSCmd())
 	cmd.AddCommand(google.NewGoogleCloudCmd())
+	cmd.AddCommand(azure.NewAzureCmd())
 	cmd.AddCommand(kubernetes.NewSyncKubernetesCmd())
 
 	return cmd
