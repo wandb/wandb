@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/aws/common"
 	"github.com/ctrlplanedev/cli/internal/api"
+	"github.com/ctrlplanedev/cli/internal/kinds"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -198,7 +199,7 @@ func processClusters(ctx context.Context, eksClient *eks.Client, region string, 
 
 func processCluster(_ context.Context, cluster *types.Cluster, region string, accountID string) (api.AgentResource, error) {
 	metadata := initClusterMetadata(cluster, region)
-	
+
 	metadata["aws/account"] = accountID
 
 	consoleUrl := fmt.Sprintf("https://%s.console.aws.amazon.com/eks/home?region=%s#/clusters/%s",
@@ -238,19 +239,32 @@ func initClusterMetadata(cluster *types.Cluster, region string) map[string]strin
 		log.Error("Failed to parse Kubernetes version", "version", *cluster.Version, "error", err)
 	}
 
+	noramlizedStatus := "unknown"
+	switch cluster.Status {
+	case types.ClusterStatusActive:
+		noramlizedStatus = "running"
+	case types.ClusterStatusUpdating:
+		noramlizedStatus = "updating"
+	case types.ClusterStatusCreating:
+		noramlizedStatus = "creating"
+	case types.ClusterStatusDeleting:
+		noramlizedStatus = "deleting"
+	case types.ClusterStatusFailed:
+		noramlizedStatus = "failed"
+	}
+
 	metadata := map[string]string{
 		"network/type": "vpc",
 		"network/name": *cluster.ResourcesVpcConfig.VpcId,
 
-		"kubernetes/type":          "eks",
-		"kubernetes/name":          *cluster.Name,
-		"kubernetes/version":       fmt.Sprintf("%d.%d.%d", version.Major(), version.Minor(), version.Patch()),
-		"kubernetes/version/major": strconv.FormatUint(uint64(version.Major()), 10),
-		"kubernetes/version/minor": strconv.FormatUint(uint64(version.Minor()), 10),
-		"kubernetes/version/patch": strconv.FormatUint(uint64(version.Patch()), 10),
-		"kubernetes/version/full":  *cluster.Version,
-		"kubernetes/status":        string(cluster.Status),
-		"kubernetes/endpoint":      *cluster.Endpoint,
+		kinds.K8SMetadataType:              "eks",
+		kinds.K8SMetadataName:              *cluster.Name,
+		kinds.K8SMetadataVersion:           version.String(),
+		kinds.K8SMetadataVersionMajor:      strconv.FormatUint(uint64(version.Major()), 10),
+		kinds.K8SMetadataVersionMinor:      strconv.FormatUint(uint64(version.Minor()), 10),
+		kinds.K8SMetadataVersionPatch:      strconv.FormatUint(uint64(version.Patch()), 10),
+		kinds.K8SMetadataVersionPrerelease: version.Prerelease(),
+		kinds.K8SMetadataStatus:            noramlizedStatus,
 
 		"aws/region":           region,
 		"aws/resource-type":    "eks:cluster",
@@ -260,7 +274,7 @@ func initClusterMetadata(cluster *types.Cluster, region string) map[string]strin
 	}
 
 	if cluster.CreatedAt != nil {
-		metadata["kubernetes/created"] = cluster.CreatedAt.Format(time.RFC3339)
+		metadata[kinds.K8SMetadataCreated] = cluster.CreatedAt.Format(time.RFC3339)
 	}
 
 	// Network configuration

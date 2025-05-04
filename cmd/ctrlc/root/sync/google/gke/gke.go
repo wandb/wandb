@@ -182,13 +182,28 @@ func initClusterMetadata(cluster *container.Cluster, project string) map[string]
 		log.Error("Failed to parse Kubernetes version", "version", cluster.CurrentMasterVersion, "error", err)
 	}
 
+	noramlizedStatus := "unknown"
+	switch cluster.Status {
+	case "PROVISIONING":
+		noramlizedStatus = "creating"
+	case "RUNNING":
+		noramlizedStatus = "running"
+	case "RECONCILING":
+		noramlizedStatus = "updating"
+	case "DELETING":
+		noramlizedStatus = "deleting"
+	case "ERROR":
+		noramlizedStatus = "failed"
+	}
+
+
 	metadata := map[string]string{
 		"network/type": "vpc",
 		"network/name": cluster.Network,
 
 		kinds.K8SMetadataType:   "gke",
 		kinds.K8SMetadataName:   cluster.Name,
-		kinds.K8SMetadataStatus: cluster.Status,
+		kinds.K8SMetadataStatus: noramlizedStatus,
 
 		kinds.K8SMetadataVersion:           fmt.Sprintf("%d.%d.%d", version.Major(), version.Minor(), version.Patch()),
 		kinds.K8SMetadataVersionMajor:      strconv.FormatUint(uint64(version.Major()), 10),
