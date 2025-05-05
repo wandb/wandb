@@ -381,7 +381,7 @@ func TestLinkRegistryArtifact(t *testing.T) {
 			)
 
 			linker := newLinker(req)
-			err := linker.Link()
+			_, err := linker.Link()
 			if err != nil {
 				assert.NotEmpty(t, tc.errorMessage)
 				assert.ErrorContainsf(t, err, tc.errorMessage,
