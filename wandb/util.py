@@ -1451,7 +1451,7 @@ def are_paths_on_same_drive(path1: str, path2: str) -> bool:
         path1_drive = pathlib.Path(path1).resolve().drive
         path2_drive = pathlib.Path(path2).resolve().drive
         return path1_drive == path2_drive
-    except Exception:
+    except OSError:
         return False
 
 
