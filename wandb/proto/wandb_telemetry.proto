@@ -208,6 +208,7 @@ message Feature {
   bool shared_mode = 67;                  // shared mode was added in wandb.Settings
   bool server_side_derived_summary = 68;  // server-side derived summary computation was enabled
   bool user_provided_label = 69;          // User set the x_label value
+  bool dcgm_profiling_enabled = 70;       // DCGM profiling was enabled
 }
 
 message Env {
