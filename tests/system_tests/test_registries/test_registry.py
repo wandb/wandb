@@ -255,6 +255,27 @@ def test_create_registry_invalid_visibility_input(default_organization):
         )
 
 
+def test_create_registry_invalid_registry_name(default_organization):
+    api = Api()
+    registry_name = "::::????"
+    with pytest.raises(ValueError, match="Invalid project/registry name"):
+        api.create_registry(
+            organization=default_organization,
+            name=registry_name,
+            visibility="invalid",
+        )
+
+    registry = api.create_registry(
+        organization=default_organization,
+        name="test",
+        visibility="organization",
+    )
+    assert registry
+    registry.name = "p" * 200
+    with pytest.raises(ValueError, match="must be 113 characters or less"):
+        registry.save()
+
+
 @patch("wandb.apis.public.registries.registry.wandb.termlog")
 def test_edit_registry_name(mock_termlog, default_organization):
     api = Api()

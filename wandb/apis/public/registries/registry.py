@@ -12,7 +12,7 @@ from wandb.apis.public.registries.utils import (
     _registry_visibility_to_gql,
 )
 from wandb.proto.wandb_internal_pb2 import ServerFeature
-from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
+from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_project_name
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.projects._generated.delete_project import DeleteProject
 from wandb.sdk.projects._generated.operations import (
@@ -222,6 +222,7 @@ class Registry:
         """
         org_entity = _fetch_org_entity_from_organization(client, organization)
         full_name = REGISTRY_PREFIX + name
+        validate_project_name(full_name)
         accepted_artifact_types = []
         if artifact_types:
             accepted_artifact_types = _format_gql_artifact_types_input(artifact_types)
@@ -308,6 +309,7 @@ class Registry:
                 "Cannot update artifact types when `allows_all_artifact_types` is `True`. Set it to `False` first."
             )
 
+        validate_project_name(self.full_name)
         visibility_value = _registry_visibility_to_gql(self.visibility)
         newly_added_types = _format_gql_artifact_types_input(self.artifact_types.draft)
         registry_save_error = f"Failed to save and update registry: {self.name} in organization: {self.organization}"
