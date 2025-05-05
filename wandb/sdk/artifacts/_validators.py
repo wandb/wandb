@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar, cast, overload
-
-from pydantic import Field
-from pydantic.dataclasses import dataclass
 
 from wandb.sdk.artifacts._generated.fragments import (
     ArtifactPortfolioTypeFields,
@@ -54,8 +52,17 @@ class _LinkArtifactFields:
 
     # These fields shouldn't be set as they should always be
     # these values for a linked artifact
-    is_link: Literal[True] = Field(init=False, frozen=True, default=True)
-    linked_artifacts: list = Field(init=False, frozen=True, default_factory=list)
+    # These fields shouldn't be set by the user as they should always be these values for a linked artifact
+    _is_link: Literal[True] = field(init=False, default=True)
+    _linked_artifacts: list[Artifact] = field(init=False, default_factory=list)
+
+    @property
+    def is_link(self) -> bool:
+        return self._is_link
+
+    @property
+    def linked_artifacts(self) -> list[Artifact]:
+        return self._linked_artifacts
 
 
 # For mypy checks
