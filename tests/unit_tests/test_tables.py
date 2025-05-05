@@ -260,30 +260,46 @@ def test_datetime_conversion():
     ]
 
 
-def test_table_logging_mode_validation():
-    with pytest.raises(AssertionError):
-        t = wandb.Table(log_mode="INVALID_MODE")
+class TestTableLoggingModes:
+    """Tests for different table logging modes."""
+    
+    def test_table_logging_mode_validation(self):
+        """Test that invalid logging modes raise an error."""
+        with pytest.raises(AssertionError):
+            wandb.Table(log_mode="INVALID_MODE")
 
+    def test_table_logging_mode_mutable(self):
+        """Test that MUTABLE mode allows re-logging after mutations."""
+        t = wandb.Table(columns=["a", "b"], log_mode="MUTABLE")
+        t._run = "dummy_run"
+        t._artifact_target = "dummy_target"
+        t.add_data(1, 2)
+        assert t._run is None
+        assert t._artifact_target is None
 
-def test_table_logging_mode_mutable():
-    """Assert that in MUTABLE log_mode the run is unbounded and artifact target is reset after
-    mutable table operations
-    """
-    t = wandb.Table(columns=["a", "b"], log_mode="MUTABLE")
-    t._run = "dummy_run"
-    t._artifact_target = "dummy_target"
-    t.add_data(1, 2)
-    assert t._run is None
-    assert t._artifact_target is None
+    def test_table_logging_mode_immutable(self):
+        """Test that IMMUTABLE mode preserves state after mutations."""
+        t = wandb.Table(columns=["a", "b"], log_mode="IMMUTABLE")
+        t._run = "dummy_run"
+        t._artifact_target = "dummy_target"
+        t.add_data(1, 2)
+        assert t._run == "dummy_run"
+        assert t._artifact_target == "dummy_target"
 
+    def test_table_logging_mode_incremental(self):
+        """Test that INCREMENTAL mode handles partial logging correctly."""
+        t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
+        assert hasattr(t, "_increment_num")
+        assert t._increment_num == 0
 
-def test_table_logging_mode_immutable_decorator():
-    """Assert that in IMMUTABLE log_mode the run does not get unbounded and artifact target
-    does not get reset after mutable table operations
-    """
-    t = wandb.Table(columns=["a", "b"], log_mode="IMMUTABLE")
-    t._run = "dummy_run"
-    t._artifact_target = "dummy_target"
-    t.add_data(1, 2)
-    assert t._run == "dummy_run"
-    assert t._artifact_target == "dummy_target"
+        t.add_data("Yes", "No")
+
+        assert t._increment_num == 0
+
+        # simulate logging
+        t._artifact_target = "dummy target"
+        t._increment_num = 1
+
+        t.add_data("Yes", "No")
+        assert t._increment_num == 2
+        assert t._artifact_target is None

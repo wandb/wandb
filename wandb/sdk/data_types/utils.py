@@ -152,12 +152,17 @@ def val_to_json(
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
                 art_type = "run_table"
                 art_name = f"run-{run.id}-{sanitized_key}"
-                if val.log_mode == "INCREMENTAL":
+                use_incremental = False
+                entry_name = key
+                if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
                     art_type = "incremental_run_table"
                     art_name = f"run-{run.id}-incr-{sanitized_key}"
+                    use_incremental = True
+                    incr_index = val._increment_num
+                    entry_name = f"{incr_index}.{key}"
                 
-                art = wandb.Artifact(art_name, art_type)
-                res = art.add(val, key)
+                art = wandb.Artifact(art_name, art_type, incremental=use_incremental)
+                art.add(val, entry_name)
                 run.log_artifact(art)
 
             # Partitioned tables and joined tables do not support being bound to runs.
@@ -169,9 +174,10 @@ def val_to_json(
 
         res = val.to_json(run)
 
-        if isinstance(val, Media) and hasattr(val, "_log_type") and val._log_type == "table":
-            if val.log_mode == "INCREMENTAL":
-                val._last_logged_idx = len(val.data) - 1
+        if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
+            # Set the _last_logged_idx after the Table has been logged and
+            # bound to the run.
+            val._last_logged_idx = len(val.data) - 1
         return res
 
     return converted  # type: ignore

@@ -139,3 +139,19 @@ def test_table_mutation_logging(user, test_settings, wandb_backend_spy):
 
     run = wandb.Api().run(f"uncategorized/{run.id}")
     assert len(run.logged_artifacts()) == 3
+
+def test_table_incremental_logging(user, test_settings, wandb_backend_spy):
+    run = wandb.init(settings=test_settings())
+    t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
+    t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
+    run.log({"table": t})
+    assert t._last_logged_idx == 0
+    assert t._increment_num == 1
+    t.add_data("Yes", "Yes", wandb.Image(np.ones(shape=(32, 32))))
+    t.add_data("No", "Yes", wandb.Image(np.ones(shape=(32, 32))))
+    run.log({"table": t})
+    assert t._last_logged_idx == 2
+    assert t._increment_num == 2
+    run.finish()
+    run = wandb.Api().run(f"uncategorized/{run.id}")
+    assert len(run.logged_artifacts()) == 2
