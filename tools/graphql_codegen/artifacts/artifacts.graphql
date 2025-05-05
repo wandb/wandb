@@ -126,6 +126,29 @@ query RunInputArtifacts(
     }
 }
 
+query FetchLinkedArtifacts($artifactID: ID!) {
+    artifact(id: $artifactID) {
+        artifactMemberships {
+            edges {
+                node {
+                    aliases {
+                        alias
+                    }
+                    versionIndex
+                    artifactCollection {
+                        project {
+                            entityName
+                            name
+                        }
+                        name
+                        __typename
+                    }
+                }
+            }
+        }
+    }
+}
+
 # ---------------------------------------------------------------------------
 mutation AddAliases(
     $artifactID: ID!,

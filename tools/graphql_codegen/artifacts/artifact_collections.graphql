@@ -197,3 +197,15 @@ query ProjectArtifactCollection(
         }
     }
 }
+
+fragment ArtifactPortfolioTypeFields on ArtifactPortfolio {
+    __typename
+    id
+    name
+}
+
+fragment ArtifactSequenceTypeFields on ArtifactSequence {
+    __typename
+    id
+    name
+}

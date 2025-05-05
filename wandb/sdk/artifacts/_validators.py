@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar, cast, overload
 
+from wandb.sdk.artifacts._generated.fragments import (
+    ArtifactPortfolioTypeFields,
+    ArtifactSequenceTypeFields,
+)
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
@@ -26,6 +31,38 @@ MAX_ARTIFACT_METADATA_KEYS: Final[int] = 100
 
 ARTIFACT_NAME_MAXLEN: Final[int] = 128
 ARTIFACT_NAME_INVALID_CHARS: Final[frozenset[str]] = frozenset({"/"})
+
+LINKED_ARTIFACT_COLLECTION_TYPE: Final[str] = ArtifactPortfolioTypeFields.model_fields[
+    "typename__"
+].default
+SOURCE_ARTIFACT_COLLECTION_TYPE: Final[str] = ArtifactSequenceTypeFields.model_fields[
+    "typename__"
+].default
+
+
+@dataclass
+class _LinkArtifactFields:
+    """Keep this list updated with fields where the linked artifact and the source artifact differ."""
+
+    entity_name: str
+    project_name: str
+    name: str
+    version: str
+    aliases: list[str]
+
+    # These fields shouldn't be set as they should always be
+    # these values for a linked artifact
+    # These fields shouldn't be set by the user as they should always be these values for a linked artifact
+    _is_link: Literal[True] = field(init=False, default=True)
+    _linked_artifacts: list[Artifact] = field(init=False, default_factory=list)
+
+    @property
+    def is_link(self) -> bool:
+        return self._is_link
+
+    @property
+    def linked_artifacts(self) -> list[Artifact]:
+        return self._linked_artifacts
 
 
 # For mypy checks
