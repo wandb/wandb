@@ -9,9 +9,9 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar, cast, overloa
 from pydantic import Field
 from pydantic.dataclasses import dataclass
 
-from wandb.automations._generated.fragments import (
-    ArtifactPortfolioScopeFields,
-    ArtifactSequenceScopeFields,
+from wandb.sdk.artifacts._generated.fragments import (
+    ArtifactPortfolioTypeFields,
+    ArtifactSequenceTypeFields,
 )
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
@@ -34,10 +34,10 @@ MAX_ARTIFACT_METADATA_KEYS: Final[int] = 100
 ARTIFACT_NAME_MAXLEN: Final[int] = 128
 ARTIFACT_NAME_INVALID_CHARS: Final[frozenset[str]] = frozenset({"/"})
 
-LINKED_ARTIFACT_COLLECTION_TYPE: Final[str] = ArtifactPortfolioScopeFields.model_fields[
+LINKED_ARTIFACT_COLLECTION_TYPE: Final[str] = ArtifactPortfolioTypeFields.model_fields[
     "typename__"
 ].default
-SOURCE_ARTIFACT_COLLECTION_TYPE: Final[str] = ArtifactSequenceScopeFields.model_fields[
+SOURCE_ARTIFACT_COLLECTION_TYPE: Final[str] = ArtifactSequenceTypeFields.model_fields[
     "typename__"
 ].default
 
