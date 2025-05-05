@@ -852,12 +852,18 @@ func (s *Sender) sendLinkArtifact(record *spb.Record, msg *spb.LinkArtifactReque
 		LinkArtifact:  msg,
 		GraphqlClient: s.graphqlClient,
 	}
-	err := linker.Link()
+	linkResponse, err := linker.Link()
 	if err != nil {
 		response.ErrorMessage = err.Error()
 		s.logger.Error("sender: linkArtifact:", "error", err.Error())
 	}
 
+	if linkResponse != nil && linkResponse.LinkArtifact.VersionIndex != nil {
+		v := int32(*linkResponse.LinkArtifact.VersionIndex)
+		response.VersionIndex = &v
+	} else {
+		response.VersionIndex = nil
+	}
 	result := &spb.Result{
 		ResultType: &spb.Result_Response{
 			Response: &spb.Response{

@@ -2316,7 +2316,9 @@ class Artifact:
         )
 
     @normalize_exceptions
-    def link(self, target_path: str, aliases: list[str] | None = None) -> None:
+    def link(
+        self, target_path: str, aliases: list[str] | None = None
+    ) -> Artifact | None:
         """Link this artifact to a portfolio (a promoted collection of artifacts).
 
         Args:
@@ -2333,6 +2335,9 @@ class Artifact:
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
+
+        Returns:
+            The linked artifact if linking was successful, otherwise None.
         """
         if self.is_link:
             wandb.termwarn(
@@ -2343,7 +2348,7 @@ class Artifact:
 
         if run := singleton.most_recent_active_run:
             # TODO: Deprecate and encourage explicit link_artifact().
-            run.link_artifact(self, target_path, aliases)
+            return run.link_artifact(self, target_path, aliases)
 
         else:
             with wandb.init(
@@ -2352,7 +2357,9 @@ class Artifact:
                 job_type="auto",
                 settings=wandb.Settings(silent="true"),
             ) as run:
-                run.link_artifact(self, target_path, aliases)
+                return run.link_artifact(self, target_path, aliases)
+
+        return None
 
     @ensure_logged
     def unlink(self) -> None:

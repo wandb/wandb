@@ -6,6 +6,8 @@ from .automations import Automation, NewAutomation
 from .events import (
     ArtifactEvent,
     EventType,
+    MetricChangeFilter,
+    MetricThresholdFilter,
     OnAddArtifactAlias,
     OnCreateArtifact,
     OnLinkArtifact,
@@ -54,6 +56,8 @@ __all__ = [
     "OnRunMetric",
     "ArtifactEvent",
     "RunEvent",
+    "MetricThresholdFilter",
+    "MetricChangeFilter",
     # Actions
     "ActionType",
     "SendNotification",

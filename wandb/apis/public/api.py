@@ -1294,7 +1294,11 @@ class Api:
 
         # If its an Registry artifact, the entity is an org instead
         if is_artifact_registry_project(project):
-            organization = name.split("/")[0] if name.count("/") == 2 else ""
+            organization = (
+                name.split("/")[0]
+                if name.count("/") == 2
+                else self.settings["organization"]
+            )
             # set entity to match the settings since in above code it was potentially set to an org
             settings_entity = self.settings["entity"] or self.default_entity
             # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
