@@ -537,6 +537,7 @@ query FetchLinkedArtifacts($artifactID: ID!) {
   }
 }
 """
+
 ADD_ALIASES_GQL = """
 mutation AddAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
   addAliases(input: {artifactID: $artifactID, aliases: $aliases}) {
