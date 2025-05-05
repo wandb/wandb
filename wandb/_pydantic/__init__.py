@@ -1,7 +1,6 @@
 """Internal utilities for working with pydantic."""
 
 from .base import (
-    Base,
     CompatBaseModel,
     GQLBase,
     GQLId,
@@ -9,13 +8,12 @@ from .base import (
     Typename,
     ensure_json,
 )
-from .utils import IS_PYDANTIC_V2, pydantic_isinstance, to_json
+from .utils import IS_PYDANTIC_V2, from_json, pydantic_isinstance, to_json
 from .v1_compat import AliasChoices, computed_field, field_validator, model_validator
 
 __all__ = [
     "IS_PYDANTIC_V2",
     "CompatBaseModel",
-    "Base",
     "GQLBase",
     "Typename",
     "GQLId",
@@ -26,5 +24,6 @@ __all__ = [
     "model_validator",
     "pydantic_isinstance",
     "to_json",
+    "from_json",
     "ensure_json",
 ]

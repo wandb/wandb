@@ -9,55 +9,42 @@ import (
 
 // Test that forked run id must be different from the current run id
 func TestForkSameRunIDs(t *testing.T) {
-
-	params, err := runbranch.NewForkBranch(
+	err := runbranch.NewForkBranch(
 		"runid",
 		"_step",
 		0,
-	).ApplyChanges(
-		&runbranch.RunParams{},
-		runbranch.RunPath{RunID: "runid"},
-	)
+	).UpdateForFork(&runbranch.RunParams{RunID: "runid"})
 
-	assert.Nil(t, params, "GetUpdates should return nil params")
-	assert.NotNil(t, err, "GetUpdates should return an error")
-	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
-	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
+	assert.NotNil(t, err)
+	assert.IsType(t, &runbranch.BranchError{}, err)
+	assert.NotNil(t, err.(*runbranch.BranchError).Response)
 }
 
 // Test that forked metric name must be "_step", which is the only supported
 // metric name currently
 func TestForkUnsupportedMetricName(t *testing.T) {
 
-	params, err := runbranch.NewForkBranch(
+	err := runbranch.NewForkBranch(
 		"runid",
 		"other",
 		0,
-	).ApplyChanges(
-		&runbranch.RunParams{},
-		runbranch.RunPath{RunID: "other"},
-	)
+	).UpdateForFork(&runbranch.RunParams{RunID: "other"})
 
-	assert.Nil(t, params, "GetUpdates should return nil params")
-	assert.NotNil(t, err, "GetUpdates should return an error")
-	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
-	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
+	assert.NotNil(t, err)
+	assert.IsType(t, &runbranch.BranchError{}, err)
+	assert.NotNil(t, err.(*runbranch.BranchError).Response)
 }
 
 // Test that GetUpdates correctly applies the changes to the run params
 func TestForkGetUpdatesValid(t *testing.T) {
-
-	params, err := runbranch.NewForkBranch(
+	params := &runbranch.RunParams{RunID: "other"}
+	err := runbranch.NewForkBranch(
 		"runid",
 		"_step",
 		10,
-	).ApplyChanges(
-		&runbranch.RunParams{},
-		runbranch.RunPath{RunID: "other"},
-	)
+	).UpdateForFork(params)
 
-	assert.Nil(t, err, "GetUpdates should not return an error")
-	assert.NotNil(t, params, "GetUpdates should return params")
-	assert.True(t, params.Forked, "GetUpdates should set Forked to true")
-	assert.Equal(t, int64(11), params.StartingStep, "GetUpdates should set StartingStep")
+	assert.Nil(t, err)
+	assert.True(t, params.Forked)
+	assert.Equal(t, int64(11), params.StartingStep)
 }

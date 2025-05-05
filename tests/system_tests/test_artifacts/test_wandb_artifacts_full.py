@@ -11,6 +11,7 @@ import wandb
 from wandb import Api, Artifact
 from wandb.errors import CommError
 from wandb.sdk.artifacts import artifact_file_cache
+from wandb.sdk.artifacts._validators import ARTIFACT_NAME_MAXLEN
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib.hashutil import md5_string
@@ -72,6 +73,29 @@ def test_artifact_error_for_invalid_aliases(user):
         run.log_artifact(artifact, aliases=aliases)
 
     run.finish()
+
+
+@pytest.mark.parametrize(
+    "invalid_name",
+    [
+        "a" * (ARTIFACT_NAME_MAXLEN + 1),  # Name too long
+        "my/artifact",  # Invalid character(s)
+    ],
+)
+def test_artifact_error_for_invalid_name(tmp_path, user, api, invalid_name):
+    """When logging a *file*, passing an invalid artifact name to `Run.log_artifact()` should raise an error."""
+    file_path = tmp_path / "test.txt"
+    file_path.write_text("test data")
+
+    # It should not be possible to log the artifact
+    with pytest.raises(ValueError):
+        with wandb.init() as run:
+            logged = run.log_artifact(file_path, name=invalid_name)
+            logged.wait()
+
+    # It should not be possible to retrieve the artifact either
+    with pytest.raises(CommError):
+        _ = api.artifact(f"{invalid_name}:latest")
 
 
 def test_artifact_upsert_no_id(user):
@@ -794,3 +818,76 @@ def test_used_artifacts_preserve_original_project(user, api, logged_artifact):
 
     assert run_from_api.project == new_project
     assert art_from_run.project == orig_project
+
+
+def test_artifact_is_link(user, api):
+    run = wandb.init()
+    artifact_type = "model"
+    collection_name = "sequence_name"
+
+    # test is_link upon logging/linking
+    artifact = wandb.Artifact(collection_name, artifact_type)
+    run.log_artifact(artifact)
+    artifact.wait()
+    assert not artifact.is_link
+
+    link_collection = "test_link_collection"
+    direct_link_artifact = run.link_artifact(
+        artifact=artifact, target_path=link_collection
+    )
+    assert direct_link_artifact.is_link
+    link_name = direct_link_artifact.qualified_name
+
+    # test use_artifact
+    artifact = run.use_artifact(artifact.qualified_name)
+    assert not artifact.is_link
+
+    linked_model_art = run.use_artifact(link_name)
+    assert linked_model_art.is_link
+
+    # test api
+    api_artifact = api.artifact(artifact.qualified_name)
+    assert not api_artifact.is_link
+
+    api_artifact = api.artifact(link_name)
+    assert api_artifact.is_link
+
+    # test collection api
+    source_col = api.artifact_collection(
+        artifact_type,
+        f"{artifact.entity}/{artifact.project}/{artifact.collection.name}",
+    )
+    versions = source_col.artifacts()
+    assert len(versions) == 1
+    assert not versions[0].is_link
+
+    link_col = api.artifact_collection(
+        artifact_type, f"{artifact.entity}/{artifact.project}/{link_collection}"
+    )
+    versions = link_col.artifacts()
+    assert len(versions) == 1
+    assert versions[0].is_link
+
+
+def test_link_artifact_fetched_artifact(user):
+    run = wandb.init()
+    collection_name = "test_collection"
+    artifact_type = "test-type"
+    artifact = wandb.Artifact(collection_name, artifact_type)
+    run.log_artifact(artifact).wait()
+    artifact_2 = wandb.Artifact(collection_name + "_2", artifact_type)
+    run.log_artifact(artifact_2).wait()
+
+    link_collection = "test_link_collection"
+
+    link_artifact = run.link_artifact(
+        artifact, f"{artifact.entity}/{artifact.project}/{link_collection}"
+    )
+    assert link_artifact.is_link
+    assert link_artifact.version == "v0"
+
+    link_artifact_2 = run.link_artifact(
+        artifact_2, f"{artifact.entity}/{artifact.project}/{link_collection}"
+    )
+    assert link_artifact_2.is_link
+    assert link_artifact_2.version == "v1"

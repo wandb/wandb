@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 from typing import TYPE_CHECKING, Sequence
 
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -40,6 +41,8 @@ class StoragePolicy:
         artifact: Artifact,
         manifest_entry: ArtifactManifestEntry,
         dest_path: str | None = None,
+        executor: concurrent.futures.Executor | None = None,
+        multipart: bool | None = None,
     ) -> FilePathStr:
         raise NotImplementedError
 

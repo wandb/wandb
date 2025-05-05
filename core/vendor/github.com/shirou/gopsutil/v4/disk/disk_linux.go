@@ -100,6 +100,7 @@ const (
 	AFS_SUPER_MAGIC             = 0x5346414F
 	AUFS_SUPER_MAGIC            = 0x61756673
 	ANON_INODE_FS_SUPER_MAGIC   = 0x09041934
+	BCACHEFS_SUPER_MAGIC        = 0xCA451A4E
 	BPF_FS_MAGIC                = 0xCAFE4A11
 	CEPH_SUPER_MAGIC            = 0x00C36400
 	CGROUP2_SUPER_MAGIC         = 0x63677270
@@ -139,6 +140,7 @@ var fsTypeMap = map[int64]string{
 	ANON_INODE_FS_SUPER_MAGIC: "anon-inode FS", /* 0x09041934 local */
 	AUFS_SUPER_MAGIC:          "aufs",          /* 0x61756673 remote */
 	//	AUTOFS_SUPER_MAGIC:          "autofs",              /* 0x0187 local */
+	BCACHEFS_SUPER_MAGIC:        "bcachefs",            /* 0xCA451A4E local */
 	BEFS_SUPER_MAGIC:            "befs",                /* 0x42465331 local */
 	BDEVFS_MAGIC:                "bdevfs",              /* 0x62646576 local */
 	BFS_MAGIC:                   "bfs",                 /* 0x1BADFACE local */
@@ -528,10 +530,10 @@ func SerialNumberWithContext(ctx context.Context, name string) (string, error) {
 
 func LabelWithContext(ctx context.Context, name string) (string, error) {
 	// Try label based on devicemapper name
-	dmname_filename := common.HostSysWithContext(ctx, fmt.Sprintf("block/%s/dm/name", name))
+	dmnameFilename := common.HostSysWithContext(ctx, fmt.Sprintf("block/%s/dm/name", name))
 	// Could errors.Join errs with Go >= 1.20
-	if common.PathExists(dmname_filename) {
-		dmname, err := os.ReadFile(dmname_filename)
+	if common.PathExists(dmnameFilename) {
+		dmname, err := os.ReadFile(dmnameFilename)
 		if err == nil {
 			return strings.TrimSpace(string(dmname)), nil
 		}

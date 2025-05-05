@@ -478,6 +478,9 @@ pub struct Feature {
     /// User set the x_label value
     #[prost(bool, tag = "69")]
     pub user_provided_label: bool,
+    /// DCGM profiling was enabled
+    #[prost(bool, tag = "70")]
+    pub dcgm_profiling_enabled: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Env {
@@ -1545,6 +1548,8 @@ pub struct LinkArtifactRequest {
 pub struct LinkArtifactResponse {
     #[prost(string, tag = "1")]
     pub error_message: ::prost::alloc::string::String,
+    #[prost(int32, optional, tag = "2")]
+    pub version_index: ::core::option::Option<i32>,
 }
 /// Indicates a directory of TensorBoard tfevents files to sync with the run.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2870,6 +2875,14 @@ pub enum ServerFeature {
     UseArtifactWithEntityAndProjectInformation = 7,
     /// Indicates that the server supports expanding defined metric globs on the server side.
     ExpandDefinedMetricGlobs = 8,
+    /// Indicates that the server supports automation event RUN_METRIC.
+    AutomationEventRunMetric = 9,
+    /// Indicates that the server supports automation event RUN_METRIC_CHANGE.
+    AutomationEventRunMetricChange = 10,
+    /// Indicates that the server supports automation action NO_OP.
+    AutomationActionNoOp = 11,
+    /// Indicates that the server supports including artifact types in registry creation.
+    IncludeArtifactTypesInRegistryCreation = 12,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2893,6 +2906,12 @@ impl ServerFeature {
                 "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION"
             }
             Self::ExpandDefinedMetricGlobs => "EXPAND_DEFINED_METRIC_GLOBS",
+            Self::AutomationEventRunMetric => "AUTOMATION_EVENT_RUN_METRIC",
+            Self::AutomationEventRunMetricChange => "AUTOMATION_EVENT_RUN_METRIC_CHANGE",
+            Self::AutomationActionNoOp => "AUTOMATION_ACTION_NO_OP",
+            Self::IncludeArtifactTypesInRegistryCreation => {
+                "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2913,6 +2932,14 @@ impl ServerFeature {
                 Some(Self::UseArtifactWithEntityAndProjectInformation)
             }
             "EXPAND_DEFINED_METRIC_GLOBS" => Some(Self::ExpandDefinedMetricGlobs),
+            "AUTOMATION_EVENT_RUN_METRIC" => Some(Self::AutomationEventRunMetric),
+            "AUTOMATION_EVENT_RUN_METRIC_CHANGE" => {
+                Some(Self::AutomationEventRunMetricChange)
+            }
+            "AUTOMATION_ACTION_NO_OP" => Some(Self::AutomationActionNoOp),
+            "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION" => {
+                Some(Self::IncludeArtifactTypesInRegistryCreation)
+            }
             _ => None,
         }
     }

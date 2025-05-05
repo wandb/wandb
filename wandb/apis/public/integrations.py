@@ -59,7 +59,7 @@ class Integrations(Paginator["Integration"]):
             raise ValueError("Unexpected response data") from e
 
     def convert_objects(self) -> Iterable[Integration]:
-        """Parse the page data into a list of Integrations."""
+        """Parse the page data into a list of integrations."""
         from wandb.automations.integrations import _IntegrationEdge
 
         page = self.last_response
@@ -81,7 +81,7 @@ class WebhookIntegrations(Paginator["WebhookIntegration"]):
 
     @property
     def more(self) -> bool:
-        """Whether there are more Integrations to fetch."""
+        """Whether there are more webhook integrations to fetch."""
         if self.last_response is None:
             return True
         return self.last_response.page_info.has_next_page
@@ -112,11 +112,17 @@ class WebhookIntegrations(Paginator["WebhookIntegration"]):
             raise ValueError("Unexpected response data") from e
 
     def convert_objects(self) -> Iterable[WebhookIntegration]:
-        """Parse the page data into a list of Integrations."""
+        """Parse the page data into a list of webhook integrations."""
         from wandb.automations import WebhookIntegration
 
-        page = self.last_response
-        return [WebhookIntegration.model_validate(edge.node) for edge in page.edges]
+        typename = "GenericWebhookIntegration"
+        return [
+            # Filter on typename__ needed because the GQL response still
+            # includes all integration types
+            WebhookIntegration.model_validate(node)
+            for edge in self.last_response.edges
+            if (node := edge.node) and (node.typename__ == typename)
+        ]
 
 
 class SlackIntegrations(Paginator["SlackIntegration"]):
@@ -132,7 +138,7 @@ class SlackIntegrations(Paginator["SlackIntegration"]):
 
     @property
     def more(self) -> bool:
-        """Whether there are more Integrations to fetch."""
+        """Whether there are more Slack integrations to fetch."""
         if self.last_response is None:
             return True
         return self.last_response.page_info.has_next_page
@@ -160,9 +166,15 @@ class SlackIntegrations(Paginator["SlackIntegration"]):
         except (LookupError, AttributeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
 
-    def convert_objects(self) -> list[SlackIntegration]:
-        """Parse the page data into a list of Integrations."""
+    def convert_objects(self) -> Iterable[SlackIntegration]:
+        """Parse the page data into a list of Slack integrations."""
         from wandb.automations import SlackIntegration
 
-        page = self.last_response
-        return [SlackIntegration.model_validate(edge.node) for edge in page.edges]
+        typename = "SlackIntegration"
+        return [
+            # Filter on typename__ needed because the GQL response still
+            # includes all integration types
+            SlackIntegration.model_validate(node)
+            for edge in self.last_response.edges
+            if (node := edge.node) and (node.typename__ == typename)
+        ]

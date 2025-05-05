@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from pydantic import Field
+from typing_extensions import Annotated
 
-from wandb._pydantic import Base, GQLId
+from wandb._pydantic import GQLBase, GQLId
 
-from ._generated import TriggerFields, UserFields
+from ._generated import TriggerFields
 from .actions import InputAction, SavedAction
 from .events import InputEvent, SavedEvent
-from .scopes import InputScope, SavedScope
-
-if TYPE_CHECKING:
-    pass
+from .scopes import AutomationScope
 
 
 # ------------------------------------------------------------------------------
@@ -25,85 +23,65 @@ class Automation(TriggerFields):
 
     id: GQLId
 
-    created_by: UserFields = Field(repr=False, frozen=True, alias="createdBy")
-    created_at: datetime = Field(repr=False, frozen=True, alias="createdAt")
-    updated_at: Optional[datetime] = Field(repr=False, frozen=True, alias="updatedAt")
+    created_at: Annotated[datetime, Field(repr=False, frozen=True, alias="createdAt")]
+    """The date and time when this automation was created."""
+
+    updated_at: Annotated[
+        Optional[datetime], Field(repr=False, frozen=True, alias="updatedAt")
+    ] = None
+    """The date and time when this automation was last updated, if applicable."""
 
     name: str
-    description: Optional[str]
+    """The name of this automation."""
 
-    scope: SavedScope = Field(discriminator="typename__")
-    event: SavedEvent
-    action: SavedAction = Field(discriminator="typename__", alias="triggeredAction")
+    description: Optional[str]
+    """An optional description of this automation."""
 
     enabled: bool
+    """Whether this automation is enabled.  Only enabled automations will trigger."""
 
-    # def save(
-    #     self, api: Api | None = None, **updates: Unpack[AutomationParams]
-    # ) -> Automation:
-    #     """Save this existing automation to the server, applying any local changes.
+    event: SavedEvent
+    """The event that will trigger this automation."""
 
-    #     Args:
-    #         api: The API instance to use.  If not provided, the default API instance is used.
-    #         updates:
-    #             Any final updates to apply to the automation before
-    #             saving it.  These override previously-set values, if any.
+    scope: AutomationScope
+    """The scope in which the triggering event must occur."""
 
-    #     Returns:
-    #         The updated automation.
-    #     """
-    #     from wandb import Api
-
-    #     return (api or Api()).update_automation(self, **updates)
-
-    # def delete(self, api: Api | None = None) -> DeleteTriggerResult:
-    #     """Delete this automation from the server.
-
-    #     Args:
-    #         api: The API instance to use.  If not provided, the default API instance is used.
-    #     """
-    #     from wandb import Api
-
-    #     return (api or Api()).delete_automation(self)
+    action: SavedAction
+    """The action that will execute when this automation is triggered."""
 
 
-class NewAutomation(Base):
-    """An automation which can hold any of the fields of a NewAutomation, but may not be complete yet."""
+class NewAutomation(GQLBase, extra="forbid", validate_default=False):
+    """A new automation to be created."""
 
     name: Optional[str] = None
+    """The name of this automation."""
+
     description: Optional[str] = None
-    enabled: bool = True
+    """An optional description of this automation."""
 
-    scope: Optional[InputScope] = Field(discriminator="typename__", default=None)
-    event: Optional[InputEvent] = Field(discriminator="event_type", default=None)
-    action: Optional[InputAction] = Field(discriminator="action_type", default=None)
+    enabled: Optional[bool] = None
+    """Whether this automation is enabled.  Only enabled automations will trigger."""
 
-    # def save(
-    #     self, api: Api | None = None, **updates: Unpack[AutomationParams]
-    # ) -> Automation:
-    #     """Create this automation by saving it to the server.
+    event: Optional[InputEvent] = None
+    """The event that will trigger this automation."""
 
-    #     Args:
-    #         api: The API instance to use.  If not provided, the default API instance is used.
-    #         updates:
-    #             Any final updates to apply to the automation before
-    #             saving it.  These override previously-set values, if any.
+    # Ensure that the event and its scope are always consistent, if the event is set.
+    @property
+    def scope(self) -> Optional[AutomationScope]:
+        """The scope in which the triggering event must occur."""
+        return self.event.scope if self.event else None
 
-    #     Returns:
-    #         The created automation.
-    #     """
-    #     from wandb import Api
+    @scope.setter
+    def scope(self, value: AutomationScope) -> None:
+        if self.event is None:
+            raise ValueError("Cannot set `scope` for an automation with no `event`")
+        self.event.scope = value
 
-    #     return (api or Api()).create_automation(self, **updates)
+    action: Optional[InputAction] = None
+    """The action that will execute when this automation is triggered."""
 
 
-class PreparedAutomation(NewAutomation):
-    """A fully defined automation, ready to be sent to the server to create or update it."""
-
-    name: str
-    description: Optional[str] = None
-    enabled: bool = True
-
-    scope: InputScope
-    event: InputEvent
-    action: InputAction
+__all__ = [
+    "Automation",
+    "NewAutomation",
+]

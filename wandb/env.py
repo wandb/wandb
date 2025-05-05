@@ -88,6 +88,7 @@ LAUNCH_QUEUE_NAME = "WANDB_LAUNCH_QUEUE_NAME"
 LAUNCH_QUEUE_ENTITY = "WANDB_LAUNCH_QUEUE_ENTITY"
 LAUNCH_TRACE_ID = "WANDB_LAUNCH_TRACE_ID"
 _REQUIRE_LEGACY_SERVICE = "WANDB_X_REQUIRE_LEGACY_SERVICE"
+ENABLE_DCGM_PROFILING = "WANDB_ENABLE_DCGM_PROFILING"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -175,6 +176,16 @@ def core_debug(default: str | None = None) -> bool:
 
 def ssl_disabled() -> bool:
     return _env_as_bool(DISABLE_SSL, default="False")
+
+
+def dcgm_profiling_enabled() -> bool:
+    """Checks whether collecting profiling metrics for Nvidia GPUs using DCGM is requested.
+
+    Note: Enabling this feature can lead to increased resource usage
+          compared to standard monitoring.
+          Requires the `nvidia-dcgm` service to be running on the machine.
+    """
+    return _env_as_bool(ENABLE_DCGM_PROFILING, default="False")
 
 
 def get_error_reporting(

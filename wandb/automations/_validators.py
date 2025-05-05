@@ -1,16 +1,53 @@
 from __future__ import annotations
 
+from enum import Enum
 from functools import singledispatch
 from itertools import chain
 from typing import Any, TypeVar
+
+from pydantic_core import PydanticUseDefault
 
 from ._filters import And, FilterExpr, In, Nor, Not, NotIn, Op, Or
 
 T = TypeVar("T")
 
 
-def validate_scope(v: Any) -> Any:
-    """Convert a familiar wandb `Project` or `ArtifactCollection` object to an automation scope."""
+class LenientStrEnum(str, Enum):
+    """A string enum allowing for case-insensitive lookups by value.
+
+    May include other internal customizations if needed.
+
+    Note: This is a bespoke, internal implementation and NOT intended as a
+    backport of `enum.StrEnum` from Python 3.11+.
+    """
+
+    def __repr__(self) -> str:
+        return self.name
+
+    @classmethod
+    def _missing_(cls, value: object) -> Any:
+        # Accept case-insensitive enum values
+        if isinstance(value, str):
+            v = value.lower()
+            return next((e for e in cls if e.value.lower() == v), None)
+        return None
+
+
+def default_if_none(v: Any) -> Any:
+    """A before-validator validator that coerces `None` to the default field value instead."""
+    # https://docs.pydantic.dev/2.11/api/pydantic_core/#pydantic_core.PydanticUseDefault
+    if v is None:
+        raise PydanticUseDefault
+    return v
+
+
+def upper_if_str(v: Any) -> Any:
+    return v.strip().upper() if isinstance(v, str) else v
+
+
+# ----------------------------------------------------------------------------
+def to_scope(v: Any) -> Any:
+    """Convert eligible objects, including pre-existing `wandb` types, to an automation scope."""
     from wandb.apis.public import ArtifactCollection, Project
 
     from .scopes import ProjectScope, _ArtifactPortfolioScope, _ArtifactSequenceScope
@@ -23,6 +60,61 @@ def validate_scope(v: Any) -> Any:
     return v
 
 
+def to_saved_action(v: Any) -> Any:
+    """If necessary (and possible), convert the object to a saved action."""
+    from .actions import (
+        DoNothing,
+        SavedNoOpAction,
+        SavedNotificationAction,
+        SavedWebhookAction,
+        SendNotification,
+        SendWebhook,
+    )
+
+    if isinstance(v, SendNotification):
+        return SavedNotificationAction(
+            integration={"id": v.integration_id},
+            **v.model_dump(exclude={"integration_id"}),
+        )
+    if isinstance(v, SendWebhook):
+        return SavedWebhookAction(
+            integration={"id": v.integration_id},
+            **v.model_dump(exclude={"integration_id"}),
+        )
+    if isinstance(v, DoNothing):
+        return SavedNoOpAction.model_validate(v)
+
+    return v
+
+
+def to_input_action(v: Any) -> Any:
+    """If necessary (and possible), convert the object to an input action."""
+    from .actions import (
+        DoNothing,
+        SavedNoOpAction,
+        SavedNotificationAction,
+        SavedWebhookAction,
+        SendNotification,
+        SendWebhook,
+    )
+
+    if isinstance(v, SavedNotificationAction):
+        return SendNotification(
+            integration_id=v.integration.id,
+            **v.model_dump(exclude={"integration"}),
+        )
+    if isinstance(v, SavedWebhookAction):
+        return SendWebhook(
+            integration_id=v.integration.id,
+            **v.model_dump(exclude={"integration"}),
+        )
+    if isinstance(v, SavedNoOpAction):
+        return DoNothing.model_validate(v)
+
+    return v
+
+
+# ----------------------------------------------------------------------------
 @singledispatch
 def simplify_op(op: Op | FilterExpr) -> Op | FilterExpr:
     """Simplify a MongoDB filter by removing and unnesting redundant operators."""

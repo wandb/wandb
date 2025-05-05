@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/nullify"
+	"github.com/wandb/wandb/core/internal/runconfig"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -26,28 +28,34 @@ func NewResumeBranch(ctx context.Context, client graphql.Client, mode string) *R
 	return &ResumeBranch{ctx: ctx, client: client, mode: mode}
 }
 
-// GetUpdates updates the state based on the resume mode
-// and the Run resume status we get from the server
-func (rb *ResumeBranch) GetUpdates(
+// UpdateForResume modifies run metadata for resuming.
+//
+// The metadata should be initialized as if creating a fresh run,
+// specifically with Entity, Project and RunID fields set.
+//
+// On error, the metadata may have been partially modified
+// and must be discarded.
+func (rb *ResumeBranch) UpdateForResume(
 	params *RunParams,
-	runpath RunPath,
-) (*RunParams, error) {
-
+	config *runconfig.RunConfig,
+) error {
 	response, err := gql.RunResumeStatus(
 		rb.ctx,
 		rb.client,
-		&runpath.Project,
-		nullify.NilIfZero(runpath.Entity),
-		runpath.RunID,
+		&params.Project,
+		nullify.NilIfZero(params.Entity),
+		params.RunID,
 	)
 
 	// if we get an error we are in an unknown state and we should raise an error
 	if err != nil {
 		info := &spb.ErrorInfo{
-			Code:    spb.ErrorInfo_COMMUNICATION,
-			Message: fmt.Sprintf("Failed to get resume status for run %s: %s", runpath.RunID, err),
+			Code: spb.ErrorInfo_COMMUNICATION,
+			Message: fmt.Sprintf(
+				"Failed to get resume status for run %s: %s",
+				params.RunID, err),
 		}
-		return nil, &BranchError{Err: err, Response: info}
+		return &BranchError{Err: err, Response: info}
 	}
 
 	var data *gql.RunResumeStatusModelProjectBucketRun
@@ -58,7 +66,7 @@ func (rb *ResumeBranch) GetUpdates(
 	// if we are not in the resume mode MUST and we didn't get data, we can just
 	// return without error
 	if data == nil && rb.mode != "must" {
-		return nil, nil
+		return nil
 	}
 
 	// if we are in the resume mode MUST and we don't have data (the run is not initialized),
@@ -70,10 +78,10 @@ func (rb *ResumeBranch) GetUpdates(
 				" The value 'must' is not a valid option for resuming the run (%s) that has not been initialized."+
 				" Please check your inputs and try again with a valid run ID."+
 				" If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`.",
-				runpath.RunID),
+				params.RunID),
 		}
 		err = errors.New("no data but must resume")
-		return nil, &BranchError{Err: err, Response: info}
+		return &BranchError{Err: err, Response: info}
 	}
 
 	// if we have data and we are in a never resume mode we need to return an
@@ -84,30 +92,30 @@ func (rb *ResumeBranch) GetUpdates(
 			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
 				"  The value 'never' is not a valid option for resuming a run (%s) that already exists."+
 				"  Please check your inputs and try again with a valid value for the `resume` argument.",
-				runpath.RunID),
+				params.RunID),
 		}
 		err = errors.New("data but cannot resume")
-		return nil, &BranchError{Err: err, Response: info}
+		return &BranchError{Err: err, Response: info}
 	}
 
 	// if we have data and we are in the MUST or ALLOW resume mode, we can resume the run
 	if data != nil && rb.mode != "never" {
-		update, err := processResponse(params, data)
+		err := processResponse(params, config, data)
+
 		if err != nil && rb.mode == "must" {
 			info := &spb.ErrorInfo{
 				Code: spb.ErrorInfo_USAGE,
 				Message: fmt.Sprintf("The run (%s) failed to resume, and the `resume` argument is set to 'must'.",
-					runpath.RunID),
+					params.RunID),
 			}
 			err = fmt.Errorf("could not resume run: %s", err)
-			return nil, &BranchError{Err: err, Response: info}
-		} else if err != nil {
-			return nil, err
+			return &BranchError{Err: err, Response: info}
 		}
-		return update, nil
+
+		return err
 	}
 
-	return nil, nil
+	return nil
 }
 
 // runExists checks if the run exists based on the response we get from the server
@@ -139,17 +147,19 @@ func runExists(response *gql.RunResumeStatusResponse) bool {
 	return true
 }
 
-// processResponse extracts the run state from the data we get from the server
+// processResponse updates run metadata based on the server response.
 //
 //gocyclo:ignore
-func processResponse(params *RunParams, data *gql.RunResumeStatusModelProjectBucketRun) (*RunParams, error) {
-	r := params.Clone()
-
+func processResponse(
+	params *RunParams,
+	config *runconfig.RunConfig,
+	data *gql.RunResumeStatusModelProjectBucketRun,
+) error {
 	// Get Config information
-	if config, err := processConfigResume(data.GetConfig()); err != nil {
-		return nil, err
-	} else if config != nil {
-		r.Config = config
+	if oldConfig, err := processConfigResume(data.GetConfig()); err != nil {
+		return err
+	} else if oldConfig != nil {
+		config.MergeResumedConfig(oldConfig)
 	}
 
 	if filestreamOffset, err := processAllOffsets(
@@ -157,45 +167,61 @@ func processResponse(params *RunParams, data *gql.RunResumeStatusModelProjectBuc
 		data.GetEventsLineCount(),
 		data.GetLogLineCount(),
 	); err != nil {
-		return nil, err
-	} else if filestreamOffset != nil {
-		r.Merge(&RunParams{FileStreamOffset: filestreamOffset})
+		return err
+	} else {
+		params.FileStreamOffset = filestreamOffset
 	}
 
 	// extract runtime from the events tail if it exists we will use the maximal
 	// value of runtime that we find
 	if events, err := processEventsTail(data.GetEventsTail()); err != nil {
-		return nil, err
+		return err
 	} else if events != nil {
 		if runtime, ok := events["_runtime"]; ok {
-			r.Runtime = int32(math.Max(extractRuntime(runtime), float64(r.Runtime)))
+			params.Runtime = int32(
+				math.Max(
+					extractRuntime(runtime),
+					float64(params.Runtime),
+				))
 		}
 	}
 
 	// Get Summary information
 	if summary, err := processSummary(data.GetSummaryMetrics()); err != nil {
-		return nil, err
+		return err
 	} else if summary != nil {
-		r.Summary = summary
+		if params.Summary == nil {
+			params.Summary = summary
+		} else {
+			maps.Copy(params.Summary, summary)
+		}
 
 		if step, ok := summary["_step"]; ok {
 			// if we are resuming, we need to update the starting step
 			// to be the next step after the last step we ran
 			if x, ok := step.(int64); ok {
-				r.StartingStep = x
+				params.StartingStep = x
 			}
 		}
 
 		// if summary["_wandb"]["runtime"] exists it takes precedence over
 		// summary["_runtime"] for the runtime value
-		switch x := r.Summary["_wandb"].(type) {
+		switch x := params.Summary["_wandb"].(type) {
 		case map[string]any:
 			if runtime, ok := x["runtime"]; ok {
-				r.Runtime = int32(math.Max(extractRuntime(runtime), float64(r.Runtime)))
+				params.Runtime = int32(
+					math.Max(
+						extractRuntime(runtime),
+						float64(params.Runtime),
+					))
 			}
 		default:
-			if runtime, ok := r.Summary["_runtime"]; ok {
-				r.Runtime = int32(math.Max(extractRuntime(runtime), float64(r.Runtime)))
+			if runtime, ok := params.Summary["_runtime"]; ok {
+				params.Runtime = int32(
+					math.Max(
+						extractRuntime(runtime),
+						float64(params.Runtime),
+					))
 			}
 		}
 	}
@@ -203,39 +229,48 @@ func processResponse(params *RunParams, data *gql.RunResumeStatusModelProjectBuc
 	// TODO: do we need both history and summary? is it a legacy from old
 	// versions of the backend?
 	if history, err := processHistory(data.GetHistoryTail()); err != nil {
-		return nil, err
+		return err
 	} else if history != nil {
 		if step, ok := history["_step"]; ok {
 			// if we are resuming, we need to update the starting step
 			// to be the next step after the last step we ran
 			if x, ok := step.(int64); ok {
-				r.StartingStep = x
+				params.StartingStep = x
 			}
 		}
 
 		if runtime, ok := history["_runtime"]; ok {
-			r.Runtime = int32(math.Max(extractRuntime(runtime), float64(r.Runtime)))
+			params.Runtime = int32(
+				math.Max(
+					extractRuntime(runtime),
+					float64(params.Runtime),
+				))
 		}
 	}
 
 	// if we are resuming, we need to update the starting step
-	if r.FileStreamOffset[filestream.HistoryChunk] > 0 {
-		r.StartingStep += 1
+	if params.FileStreamOffset[filestream.HistoryChunk] > 0 {
+		params.StartingStep += 1
 	}
 
 	// if we are resuming, we need to update the start time to be the start time
 	// of the last run minus the runtime for the duration computation
-	if !r.StartTime.IsZero() {
-		r.StartTime = r.StartTime.Add(time.Duration(-r.Runtime) * time.Second)
+	if !params.StartTime.IsZero() {
+		params.StartTime = params.StartTime.Add(
+			time.Duration(-params.Runtime) * time.Second,
+		)
 	}
 
-	// Get Tags information
-	r.Tags = data.GetTags()
+	// If the user provided tags when initializing, use them. Otherwise,
+	// initialize to the previous run's tags.
+	if len(params.Tags) == 0 {
+		params.Tags = data.GetTags()
+	}
 
 	// Get GQL ID, required for auth checks around writing to a run
-	r.StorageID = data.GetId()
+	params.StorageID = data.GetId()
 
-	r.Resumed = true
+	params.Resumed = true
 
-	return r, nil
+	return nil
 }
