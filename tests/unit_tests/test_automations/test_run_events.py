@@ -34,7 +34,7 @@ def metric_operands(
 
     all_metric_operands = (
         RunEvent.metric(name),
-        RunEvent.metric(name).average(window),
+        RunEvent.metric(name).avg(window),
         RunEvent.metric(name).mean(window),
         RunEvent.metric(name).min(window),
         RunEvent.metric(name).max(window),
@@ -99,9 +99,9 @@ def test_metric_threshold_binop_vs_method_is_equivalent(
 def test_run_metric_threshold_cannot_be_aggregated_twice():
     """Check that run metric thresholds forbid multiple aggregations."""
     with raises(AttributeError):
-        RunEvent.metric("my-metric").average(5).average(10)
+        RunEvent.metric("my-metric").avg(5).average(10)
     with raises(AttributeError):
-        RunEvent.metric("my-metric").average(10).max(5)
+        RunEvent.metric("my-metric").avg(10).max(5)
 
 
 @given(
@@ -217,7 +217,7 @@ def test_declarative_metric_change_filter_with_agg(
     }
 
     # AVERAGE, ANY direction, RELATIVE change
-    metric_filter = RunEvent.metric(name).average(window).changes_by(frac=delta)
+    metric_filter = RunEvent.metric(name).avg(window).changes_by(frac=delta)
     assert isinstance(metric_filter, MetricChangeFilter)
     assert metric_filter.model_dump() == {
         "agg_op": "AVERAGE",
@@ -227,7 +227,7 @@ def test_declarative_metric_change_filter_with_agg(
     }
 
     # AVERAGE, ANY direction, ABSOLUTE change
-    metric_filter = RunEvent.metric(name).average(window).changes_by(diff=delta)
+    metric_filter = RunEvent.metric(name).avg(window).changes_by(diff=delta)
     assert isinstance(metric_filter, MetricChangeFilter)
     assert metric_filter.model_dump() == {
         "agg_op": "AVERAGE",

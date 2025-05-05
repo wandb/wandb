@@ -13,7 +13,7 @@ from pydantic import (
     StrictInt,
     field_validator,
 )
-from typing_extensions import Annotated, override
+from typing_extensions import Annotated, TypeAlias, override
 
 from wandb._pydantic import GQLBase
 from wandb.automations._validators import LenientStrEnum
@@ -35,6 +35,9 @@ MONGO2PY_OPS: Final[dict[str, str]] = {
 }
 # Reverse mapping from Python literal (str) -> MongoDB operator key
 PY2MONGO_OPS: Final[dict[str, str]] = {v: k for k, v in MONGO2PY_OPS.items()}
+
+# Type hint for positive numbers (int or float)
+PosNum: TypeAlias = Union[PositiveInt, PositiveFloat]
 
 
 class Agg(LenientStrEnum):  # from: Aggregation
@@ -172,9 +175,7 @@ class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
     # ------------------------------------------------------------------------------
     change_type: Annotated[ChangeType, Field(alias="change_type")]
     change_dir: Annotated[ChangeDir, Field(alias="change_dir")]
-    threshold: Annotated[
-        Union[PositiveInt, PositiveFloat], Field(alias="change_amount")
-    ]
+    threshold: Annotated[PosNum, Field(alias="change_amount")]
 
     def __repr__(self) -> str:
         metric = f"{self.agg.value}({self.name})" if self.agg else self.name
@@ -190,46 +191,61 @@ class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
 
 
 class BaseMetricOperand(GQLBase, extra="forbid"):
-    def gt(self, other: int | float) -> MetricThresholdFilter:
-        """Implements `(MetricOperand > threshold) -> MetricThresholdFilter`."""
-        return MetricThresholdFilter(**dict(self), cmp="$gt", threshold=other)
+    def gt(self, value: int | float, /) -> MetricThresholdFilter:
+        """Defines a `MetricThresholdFilter` that observes for `metric_expr > threshold`."""
+        return self > value
 
-    def lt(self, other: int | float) -> MetricThresholdFilter:
-        """Implements `(MetricOperand < threshold) -> MetricThresholdFilter`."""
-        return MetricThresholdFilter(**dict(self), cmp="$lt", threshold=other)
+    def lt(self, value: int | float, /) -> MetricThresholdFilter:
+        """Defines a `MetricThresholdFilter` that observes for `metric_expr < threshold`."""
+        return self < value
 
-    def gte(self, other: int | float) -> MetricThresholdFilter:
-        """Implements `(MetricOperand >= threshold) -> MetricThresholdFilter`."""
-        return MetricThresholdFilter(**dict(self), cmp="$gte", threshold=other)
+    def gte(self, value: int | float, /) -> MetricThresholdFilter:
+        """Defines a `MetricThresholdFilter` that observes for `metric_expr >= threshold`."""
+        return self >= value
 
-    def lte(self, other: int | float) -> MetricThresholdFilter:
-        """Implements `(MetricOperand <= threshold) -> MetricThresholdFilter`."""
-        return MetricThresholdFilter(**dict(self), cmp="$lte", threshold=other)
+    def lte(self, value: int | float, /) -> MetricThresholdFilter:
+        """Defines a `MetricThresholdFilter` that observes for `metric_expr <= threshold`."""
+        return self <= value
 
-    __gt__ = gt
-    __lt__ = lt
-    __ge__ = gte
-    __le__ = lte
+    # Overloads to implement:
+    # - `(metric_operand > threshold) -> MetricThresholdFilter`
+    # - `(metric_operand < threshold) -> MetricThresholdFilter`
+    # - `(metric_operand >= threshold) -> MetricThresholdFilter`
+    # - `(metric_operand <= threshold) -> MetricThresholdFilter`
+    def __gt__(self, other: Any) -> MetricThresholdFilter:
+        if isinstance(other, (int, float)):
+            return MetricThresholdFilter(**dict(self), cmp="$gt", threshold=other)
+        return NotImplemented
+
+    def __lt__(self, other: Any) -> MetricThresholdFilter:
+        if isinstance(other, (int, float)):
+            return MetricThresholdFilter(**dict(self), cmp="$lt", threshold=other)
+        return NotImplemented
+
+    def __ge__(self, other: Any) -> MetricThresholdFilter:
+        if isinstance(other, (int, float)):
+            return MetricThresholdFilter(**dict(self), cmp="$gte", threshold=other)
+        return NotImplemented
+
+    def __le__(self, other: Any) -> MetricThresholdFilter:
+        if isinstance(other, (int, float)):
+            return MetricThresholdFilter(**dict(self), cmp="$lte", threshold=other)
+        return NotImplemented
 
     @overload
-    def changes_by(self, *, diff: PositiveFloat, frac: None) -> MetricChangeFilter: ...
+    def changes_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter: ...
     @overload
-    def changes_by(self, *, diff: None, frac: PositiveFloat) -> MetricChangeFilter: ...
-    @overload
+    def changes_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter: ...
+    @overload  # NOTE: This overload is for internal use only.
     def changes_by(
-        # NOTE: This overload is for internal use only.
-        self,
-        *,
-        diff: PositiveFloat | None,
-        frac: PositiveFloat | None,
-        _sign: ChangeDir,
+        self, *, diff: PosNum | None, frac: PosNum | None, _dir: ChangeDir
     ) -> MetricChangeFilter: ...
     def changes_by(
         self,
         *,
-        diff: PositiveFloat | None = None,
-        frac: PositiveFloat | None = None,
-        _sign: ChangeDir = ChangeDir.ANY,
+        diff: PosNum | None = None,
+        frac: PosNum | None = None,
+        _dir: ChangeDir = ChangeDir.ANY,
     ) -> MetricChangeFilter:
         """Defines a filter that observes for any change (increase OR decrease) in a run metric.
 
@@ -256,44 +272,36 @@ class BaseMetricOperand(GQLBase, extra="forbid"):
 
         if diff is None:
             change_kws = dict(change_type=ChangeType.REL, threshold=frac)
-            return MetricChangeFilter(**dict(self), change_dir=_sign, **change_kws)
+            return MetricChangeFilter(**dict(self), change_dir=_dir, **change_kws)
         else:
             change_kws = dict(change_type=ChangeType.ABS, threshold=diff)
-            return MetricChangeFilter(**dict(self), change_dir=_sign, **change_kws)
+            return MetricChangeFilter(**dict(self), change_dir=_dir, **change_kws)
 
     @overload
-    def increases_by(
-        self, *, diff: PositiveFloat, frac: None
-    ) -> MetricChangeFilter: ...
+    def increases_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter: ...
     @overload
+    def increases_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter: ...
     def increases_by(
-        self, *, diff: None, frac: PositiveFloat
-    ) -> MetricChangeFilter: ...
-    def increases_by(
-        self, *, diff: PositiveFloat | None = None, frac: PositiveFloat | None = None
+        self, *, diff: PosNum | None = None, frac: PosNum | None = None
     ) -> MetricChangeFilter:
         """Defines a filter that observes for an increase in the numerical value of a run metric.
 
         Arguments are the same as for `.changes_by()`.
         """
-        return self.changes_by(diff=diff, frac=frac, _sign=ChangeDir.INC)
+        return self.changes_by(diff=diff, frac=frac, _dir=ChangeDir.INC)
 
     @overload
-    def decreases_by(
-        self, *, diff: PositiveFloat, frac: None
-    ) -> MetricChangeFilter: ...
+    def decreases_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter: ...
     @overload
+    def decreases_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter: ...
     def decreases_by(
-        self, *, diff: None, frac: PositiveFloat
-    ) -> MetricChangeFilter: ...
-    def decreases_by(
-        self, *, diff: PositiveFloat | None = None, frac: PositiveFloat | None = None
+        self, *, diff: PosNum | None = None, frac: PosNum | None = None
     ) -> MetricChangeFilter:
         """Defines a filter that observes for a decrease in the numerical value of a run metric.
 
         Arguments are the same as for `.changes_by()`.
         """
-        return self.changes_by(diff=diff, frac=frac, _sign=ChangeDir.DEC)
+        return self.changes_by(diff=diff, frac=frac, _dir=ChangeDir.DEC)
 
 
 class MetricVal(BaseMetricOperand):
@@ -308,12 +316,12 @@ class MetricVal(BaseMetricOperand):
     def min(self, window: int) -> MetricAgg:
         return MetricAgg(name=self.name, agg=Agg.MIN, window=window)
 
-    def average(self, window: int) -> MetricAgg:
+    def avg(self, window: int) -> MetricAgg:
         return MetricAgg(name=self.name, agg=Agg.AVG, window=window)
 
     # Aliased method for users familiar with e.g. torch/tf/numpy/pandas/polars/etc.
     def mean(self, window: int) -> MetricAgg:
-        return self.average(window=window)
+        return self.avg(window=window)
 
 
 class MetricAgg(BaseMetricOperand):

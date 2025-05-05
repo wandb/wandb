@@ -218,7 +218,7 @@ def on_link_artifact(scope: ScopableWandbType) -> OnLinkArtifact:
 def on_run_metric_threshold(scope: ScopableWandbType) -> OnRunMetric:
     return OnRunMetric(
         scope=scope,
-        filter=RunEvent.metric("my-metric").average(window=5).gt(123.45),
+        filter=RunEvent.metric("my-metric").avg(window=5).gt(123.45),
     )
 
 
@@ -226,7 +226,7 @@ def on_run_metric_threshold(scope: ScopableWandbType) -> OnRunMetric:
 def on_run_metric_change(scope: ScopableWandbType) -> OnRunMetric:
     return OnRunMetric(
         scope=scope,
-        filter=RunEvent.metric("my-metric").average(window=5).changes_by(diff=123.45),
+        filter=RunEvent.metric("my-metric").avg(window=5).changes_by(diff=123.45),
     )
 
 

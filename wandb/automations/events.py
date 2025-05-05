@@ -55,7 +55,7 @@ class EventType(LenientStrEnum):
 
 
 # Note: In GQL responses containing saved automation data, the filter is wrapped in an extra `filter` key.
-class SavedEventFilter(GQLBase):  # from: TriggeringFilterEvent
+class _WrappedSavedEventFilter(GQLBase):  # from: TriggeringFilterEvent
     filter: SerializedToJson[MongoLikeFilter] = And()
 
 
@@ -100,22 +100,23 @@ class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
     metric: Annotated[_WrappedMetricFilter, Field(alias="run_metric_filter")]
 
     # ------------------------------------------------------------------------------
-    metric_filter: Annotated[
+    legacy_metric_filter: Annotated[
         Optional[SerializedToJson[MetricThresholdFilter]],
-        Field(deprecated="`metric_filter` is deprecated. Use `metric` instead."),
+        Field(alias="metric_filter", deprecated=True),
     ] = None
     """Deprecated legacy field that was previously used to define run metric threshold events.
 
-    For new automations, use `metric` instead.
+    For new automations, use the `metric` field (`run_metric_filter` JSON alias) instead.
     """
 
     @model_validator(mode="before")
     @classmethod
     def _wrap_metric_filter(cls, v: Any) -> Any:
         if pydantic_isinstance(v, (MetricThresholdFilter, MetricChangeFilter)):
-            # If only an (unnested) metric filter is given, automatically wrap/nest it
-            # to conform to the expected backend schema.
-            # Delegate to inner validator(s) for further wrapping/nesting, if needed.
+            # If only an (unnested) metric filter is given, nest it under the
+            # `metric` field, delegating to inner validator(s) for further
+            # wrapping/nesting, if needed.
+            # This is necessary to conform to the expected backend schema.
             return cls(metric=v)
         return v
 
@@ -132,7 +133,7 @@ class SavedEvent(FilterEventFields):  # from: FilterEventTriggeringCondition
 
     # We override the type of the `filter` field in order to enforce the expected
     # structure for the JSON data when validating and serializing.
-    filter: SerializedToJson[Union[SavedEventFilter, RunMetricFilter]]
+    filter: SerializedToJson[Union[_WrappedSavedEventFilter, RunMetricFilter]]
     """The condition(s) under which this event triggers an automation."""
 
 
@@ -199,20 +200,14 @@ class OnCreateArtifact(_BaseMutationEventInput):
     event_type: Literal[EventType.CREATE_ARTIFACT] = EventType.CREATE_ARTIFACT
 
     scope: ArtifactCollectionScope
-    """The scope of the event.
-
-    Note: only collection scopes are supported for this event.
-    """
+    """The scope of the event: only artifact collections are valid scopes for this event."""
 
 
 # ------------------------------------------------------------------------------
 # Events that trigger on run conditions
 class _BaseRunEventInput(_BaseEventInput):
     scope: ProjectScope
-    """The scope of the event.
-
-    Note: only project scopes are supported for this event.
-    """
+    """The scope of the event: only projects are valid scopes for this event."""
 
 
 class OnRunMetric(_BaseRunEventInput):
@@ -275,7 +270,7 @@ class ArtifactEvent:
 
 MetricThresholdFilter.model_rebuild()
 RunMetricFilter.model_rebuild()
-SavedEventFilter.model_rebuild()
+_WrappedSavedEventFilter.model_rebuild()
 
 OnLinkArtifact.model_rebuild()
 OnAddArtifactAlias.model_rebuild()

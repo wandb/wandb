@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from operator import methodcaller
-
 from hypothesis import given
-from hypothesis.strategies import integers, none
 from pytest import mark
 from wandb.apis.public import Project
 from wandb.automations import (
@@ -20,17 +17,9 @@ from wandb.automations import (
     RunEvent,
     ScopeType,
 )
-from wandb.automations._filters.run_metrics import Agg
 from wandb.automations._generated import EventTriggeringConditionType
 
-from ._strategies import (
-    cmp_keys,
-    ints_or_floats,
-    metric_change_filters,
-    metric_threshold_filters,
-    printable_text,
-    sample_with_randomcase,
-)
+from ._strategies import metric_change_filters, metric_threshold_filters
 
 
 def test_public_event_type_enum_matches_generated():
@@ -74,89 +63,6 @@ def test_declarative_artifact_filter(expr, expected):
     assert expr.model_dump() == expected
 
 
-@given(
-    name=printable_text,
-    window=integers(1, 100),
-    agg=none() | sample_with_randomcase(Agg),  # check case-insensitivity
-    cmp=cmp_keys,
-    threshold=ints_or_floats,
-)
-def test_run_metric_agg_threshold_filter_without_run_filter(
-    project: Project,
-    name: str,
-    window: int,
-    agg: str | Agg | None,
-    cmp: str,
-    threshold: float,
-):
-    # Chain the method calls: the steps below parameterize over all possible combos of
-    # chained method calls that would normally be written as, e.g.:
-    #     RunEvent.metric(name).average(window).gt(threshold)
-    #     RunEvent.metric(name).max(window).lte(threshold)
-    agg_enum = None if (agg is None) else Agg(agg)
-
-    # Chain the first method calls to declare the (maybe aggregated) metric expression
-    agg_methodcallers = {
-        Agg.AVG: methodcaller("average", window),
-        Agg.MIN: methodcaller("min", window),
-        Agg.MAX: methodcaller("max", window),
-        None: lambda x: x,  # Pass through, no aggregation
-    }
-
-    # Chain the next method call(s) to declare the evaluated threshold condition
-    cmp_methodcallers = {
-        "$gt": methodcaller("gt", threshold),
-        "$gte": methodcaller("gte", threshold),
-        "$lt": methodcaller("lt", threshold),
-        "$lte": methodcaller("lte", threshold),
-    }
-
-    # Self-explanatory
-    run_metric = RunEvent.metric(name)
-
-    # Equivalent to e.g.: `run_metric -> run_metric.average(window)`
-    metric_expr = agg_methodcallers[agg_enum](run_metric)
-
-    # Equivalent to e.g.: `metric_expr -> metric_expr.gt(threshold)`
-    declared_metric_filter = cmp_methodcallers[cmp](metric_expr)
-
-    # ----------------------------------------------------------------------------
-    event = OnRunMetric(scope=project, filter=declared_metric_filter)
-
-    expected_window = 1 if (agg_enum is None) else window
-    expected_agg_op = None if (agg_enum is None) else agg_enum.value
-    expected_metric_filter = MetricThresholdFilter(
-        name=name,
-        window=expected_window,
-        agg=expected_agg_op,
-        cmp=cmp,
-        threshold=threshold,
-    )
-    expected_metric_filter_dict = {
-        "name": name,
-        "window_size": expected_window,
-        "agg_op": expected_agg_op,
-        "cmp_op": cmp,
-        "threshold": threshold,
-    }
-
-    expected_run_filter_dict = {"$and": []}
-
-    # Check that...
-    # - the metric filter has the expected contents
-    assert isinstance(declared_metric_filter, MetricThresholdFilter)
-    assert dict(expected_metric_filter) == dict(declared_metric_filter)
-    assert expected_metric_filter_dict == declared_metric_filter.model_dump()
-
-    # - the metric filter is parsed/validated correctly by pydantic
-    inner_metric_filter = event.filter.metric.threshold_filter
-    assert dict(expected_metric_filter) == dict(inner_metric_filter)
-    assert expected_metric_filter_dict == inner_metric_filter.model_dump()
-
-    # - the accompanying run filter here is as expected
-    assert expected_run_filter_dict == event.filter.run.model_dump()
-
-
 @given(metric_filter=metric_threshold_filters())
 def test_run_metric_threshold_events(
     project: Project, metric_filter: MetricThresholdFilter
@@ -174,11 +80,39 @@ def test_run_metric_threshold_events(
         "cmp_op": metric_filter.cmp,
         "threshold": metric_filter.threshold,
     }
-    expected_run_filter_dict = {
-        "$and": [
-            {"display_name": {"$contains": "my-run"}},
-        ]
+    expected_run_filter_dict = {"$and": [{"display_name": {"$contains": "my-run"}}]}
+
+    # ----------------------------------------------------------------------------
+    # Check that...
+    # - the event has the expected event_type
+    assert event.event_type is EventType.RUN_METRIC_THRESHOLD
+
+    # - the metric filter has the expected JSON-serializable contents
+    assert expected_metric_filter_dict == metric_filter.model_dump()
+
+    # - the metric filter is parsed/validated correctly by pydantic
+    inner_metric_filter = event.filter.metric.threshold_filter
+    assert expected_metric_filter_dict == inner_metric_filter.model_dump()
+
+    # - the accompanying run filter here is as expected
+    assert expected_run_filter_dict == event.filter.run.model_dump()
+
+
+@given(metric_filter=metric_threshold_filters())
+def test_run_metric_threshold_events_without_run_filter(
+    project: Project, metric_filter: MetricThresholdFilter
+):
+    """Check that we can fully instantiate an `OnRunMetric` event with a metric THRESHOLD filter, even if we don't provide an explicit run filter."""
+    event = OnRunMetric(scope=project, filter=metric_filter)
+
+    expected_metric_filter_dict = {
+        "name": metric_filter.name,
+        "window_size": metric_filter.window,
+        "agg_op": None if (metric_filter.agg is None) else metric_filter.agg.value,
+        "cmp_op": metric_filter.cmp,
+        "threshold": metric_filter.threshold,
     }
+    expected_run_filter_dict = {"$and": []}
 
     # ----------------------------------------------------------------------------
     # Check that...
@@ -211,11 +145,40 @@ def test_run_metric_change_events(project: Project, metric_filter: MetricChangeF
         "change_type": metric_filter.change_type,
         "change_amount": metric_filter.threshold,
     }
-    expected_run_filter_dict = {
-        "$and": [
-            {"display_name": {"$contains": "my-run"}},
-        ]
+    expected_run_filter_dict = {"$and": [{"display_name": {"$contains": "my-run"}}]}
+
+    # Check that...
+    # - the event has the expected event_type
+    assert event.event_type is EventType.RUN_METRIC_CHANGE
+
+    # - the metric filter has the expected JSON-serializable contents
+    assert expected_metric_filter_dict == metric_filter.model_dump()
+
+    # - the metric filter is parsed/validated correctly by pydantic
+    inner_metric_filter = event.filter.metric.change_filter
+    assert expected_metric_filter_dict == inner_metric_filter.model_dump()
+
+    # - the accompanying run filter here is as expected
+    assert expected_run_filter_dict == event.filter.run.model_dump()
+
+
+@given(metric_filter=metric_change_filters())
+def test_run_metric_change_events_without_run_filter(
+    project: Project, metric_filter: MetricChangeFilter
+):
+    """Check that we can fully instantiate an `OnRunMetric` event with a metric CHANGE filter, even if we don't provide an explicit run filter."""
+    event = OnRunMetric(scope=project, filter=metric_filter)
+
+    expected_metric_filter_dict = {
+        "name": metric_filter.name,
+        "agg_op": None if (metric_filter.agg is None) else metric_filter.agg.value,
+        "current_window_size": metric_filter.window,
+        "prior_window_size": metric_filter.prior_window,
+        "change_dir": metric_filter.change_dir,
+        "change_type": metric_filter.change_type,
+        "change_amount": metric_filter.threshold,
     }
+    expected_run_filter_dict = {"$and": []}
 
     # Check that...
     # - the event has the expected event_type
@@ -235,10 +198,10 @@ def test_run_metric_change_events(project: Project, metric_filter: MetricChangeF
 def test_link_artifact_events(scope):
     alias_regex = "prod-.*"
     declared_filter = ArtifactEvent.alias.matches_regex(alias_regex)
+    expected_filter_dict = {"$or": [{"$and": [{"alias": {"$regex": alias_regex}}]}]}
 
     event = OnLinkArtifact(scope=scope, filter=declared_filter)
 
-    expected_filter_dict = {"$or": [{"$and": [{"alias": {"$regex": alias_regex}}]}]}
     assert expected_filter_dict == event.filter.model_dump()
 
 
@@ -247,18 +210,18 @@ def test_link_artifact_events(scope):
 def test_create_artifact_events(scope):
     alias_regex = "prod-.*"
     declared_filter = ArtifactEvent.alias.matches_regex(alias_regex)
+    expected_filter_dict = {"$or": [{"$and": [{"alias": {"$regex": alias_regex}}]}]}
 
     event = OnCreateArtifact(scope=scope, filter=declared_filter)
 
-    expected_filter_dict = {"$or": [{"$and": [{"alias": {"$regex": alias_regex}}]}]}
     assert expected_filter_dict == event.filter.model_dump()
 
 
 def test_add_artifact_alias_events(scope):
     alias_regex = "prod-.*"
     declared_filter = ArtifactEvent.alias.matches_regex(alias_regex)
+    expected_filter_dict = {"$or": [{"$and": [{"alias": {"$regex": alias_regex}}]}]}
 
     event = OnAddArtifactAlias(scope=scope, filter=declared_filter)
 
-    expected_filter_dict = {"$or": [{"$and": [{"alias": {"$regex": alias_regex}}]}]}
     assert expected_filter_dict == event.filter.model_dump()

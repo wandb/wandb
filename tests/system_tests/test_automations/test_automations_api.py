@@ -111,9 +111,7 @@ def test_create_automation(
     automation_name: str,
 ):
     created = api.create_automation(
-        (event >> action),
-        name=automation_name,
-        description="test-description",
+        (event >> action), name=automation_name, description="test description"
     )
 
     # We should be able to fetch the automation by name (optionally filtering by entity)
@@ -241,17 +239,13 @@ def test_create_automation_for_run_metric_threshold_event(
     if not server_supports_event:
         with raises(ValueError):
             api.create_automation(
-                (event >> action),
-                name=automation_name,
-                description="longer description here",
+                (event >> action), name=automation_name, description="test description"
             )
 
     else:
         # The server supports the event, so there should be an automation to check
         created = api.create_automation(
-            (event >> action),
-            name=automation_name,
-            description="longer description here",
+            (event >> action), name=automation_name, description="test description"
         )
         assert isinstance(created, Automation)
         assert created.event.filter == expected_filter
@@ -293,7 +287,7 @@ def test_create_automation_for_run_metric_change_event(
     event = OnRunMetric(
         scope=project,
         filter=(
-            RunEvent.metric(metric_name).average(window).changes_by(frac=amount)
+            RunEvent.metric(metric_name).avg(window).changes_by(frac=amount)
             & RunEvent.name.contains(run_name)
         ),
     )
@@ -304,16 +298,12 @@ def test_create_automation_for_run_metric_change_event(
     if not server_supports_event:
         with raises(ValueError):
             api.create_automation(
-                (event >> action),
-                name=automation_name,
-                description="longer description here",
+                (event >> action), name=automation_name, description="test description"
             )
     else:
         # The server supports the event, so there should be an automation to check
         created = api.create_automation(
-            (event >> action),
-            name=automation_name,
-            description="longer description here",
+            (event >> action), name=automation_name, description="test description"
         )
         assert isinstance(created, Automation)
         assert created.event.filter == expected_filter
@@ -324,57 +314,60 @@ def test_create_automation_for_run_metric_change_event(
         assert refetched.event.filter == expected_filter
 
 
-@mark.usefixtures(reset_automations.__name__)
-def test_delete_automation(api: wandb.Api, event, action, automation_name: str):
-    created = api.create_automation(
-        (event >> action),
-        name=automation_name,
-    )
+@fixture
+def created_automation(
+    api: wandb.Api, reset_automations, event, action, automation_name: str
+) -> Automation:
+    """An already-created automation that we can use for testing."""
+    created = api.create_automation((event >> action), name=automation_name)
 
     # Fetch the automation by name (avoids the off-by-1 index issue on older servers)
     fetched = api.automation(name=created.name)
-    assert fetched.name in {a.name for a in api.automations()}
 
-    api.delete_automation(fetched)
-    assert fetched.name not in {a.name for a in api.automations()}
-
-
-@mark.usefixtures(reset_automations.__name__)
-def test_delete_automation_by_id(api: wandb.Api, event, action, automation_name: str):
-    created = api.create_automation(
-        (event >> action),
-        name=automation_name,
-    )
-
-    # Fetch the automation by name (avoids the off-by-1 index issue on older servers)
-    fetched = api.automation(name=created.name)
-    assert fetched.name in {a.name for a in api.automations()}
-
-    api.delete_automation(fetched.id)
-    assert fetched.name not in {a.name for a in api.automations()}
+    assert created.name == fetched.name == automation_name  # Sanity check
+    return fetched
 
 
-@mark.usefixtures(reset_automations.__name__)
-def test_automation_cannot_be_deleted_again(
-    api: wandb.Api, event, action, automation_name: str
+def test_delete_automation(
+    api: wandb.Api, automation_name: str, created_automation: Automation
 ):
-    created = api.create_automation(
-        (event >> action),
-        name=automation_name,
-    )
+    assert api.automation(name=automation_name) == created_automation
 
-    # Fetch the automation by name (avoids the off-by-1 index issue on older servers)
-    fetched = api.automation(name=created.name)
-    assert fetched.name in {a.name for a in api.automations()}
+    api.delete_automation(created_automation)
 
-    api.delete_automation(fetched)
-    assert fetched.name not in {a.name for a in api.automations()}
+    # We should no longer be able to fetch the deleted automation
+    with raises(ValueError):
+        api.automation(name=automation_name)
 
+
+def test_delete_automation_by_id(
+    api: wandb.Api, automation_name: str, created_automation: Automation
+):
+    assert api.automation(name=automation_name) == created_automation
+
+    api.delete_automation(created_automation.id)
+
+    # We should no longer be able to fetch the deleted automation
+    with raises(ValueError):
+        api.automation(name=automation_name)
+
+
+def test_automation_cannot_be_deleted_again(
+    api: wandb.Api, automation_name: str, created_automation: Automation
+):
+    assert api.automation(name=automation_name) == created_automation
+
+    api.delete_automation(created_automation)
+
+    # We should no longer be able to fetch the deleted automation
+    with raises(ValueError):
+        api.automation(name=automation_name)
+
+    # Deleting the automation again (by object or ID) should raise the same error
     with raises(requests.HTTPError):
-        api.delete_automation(fetched)
-
+        api.delete_automation(created_automation)
     with raises(requests.HTTPError):
-        api.delete_automation(fetched.id)
+        api.delete_automation(created_automation.id)
 
 
 @mark.usefixtures(reset_automations.__name__)
@@ -407,9 +400,7 @@ class TestUpdateAutomation:
         """The original automation to be updated."""
         # Setup: Create the original automation
         automation = api.create_automation(
-            (event >> action),
-            name=automation_name,
-            description="original description",
+            (event >> action), name=automation_name, description="orig description"
         )
         yield automation
 
@@ -621,10 +612,10 @@ class TestPaginatedAutomations:
             project = api.project(name=project_name, entity=user)
 
             # Create the actual automation
+            event = OnLinkArtifact(scope=project)
+            action = SendWebhook.from_integration(webhook)
             created = api.create_automation(
-                OnLinkArtifact(scope=project) >> SendWebhook.from_integration(webhook),
-                name=automation_name,
-                description="longer description here",
+                event >> action, name=automation_name, description="test description"
             )
 
             # Refetch (to avoid the off-by-1 index issue on older servers) and retain for later cleanup
