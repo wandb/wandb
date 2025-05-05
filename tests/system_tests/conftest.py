@@ -139,8 +139,8 @@ def user_in_orgs_factory(
         except Exception as e:
             pytest.skip(
                 "Failed to fetch organization fixture. "
-                "This is most likely due to an older wandb server version. ",
-                str(e),
+                "This is most likely due to an older wandb server version. "
+                f"Error: {e}",
             )
 
         return UserOrg(username=username, organization_names=orgs)
