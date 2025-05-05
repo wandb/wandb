@@ -2,7 +2,7 @@
 
 import logging
 from functools import wraps
-from typing import Callable, TypeVar, Any
+from typing import Any, Callable, TypeVar
 
 T = TypeVar("T")
 

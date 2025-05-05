@@ -2,10 +2,10 @@ import base64
 import binascii
 import codecs
 import datetime
+import json
 import logging
 import os
-import json
-from typing import Literal, Optional, List, Any, Dict
+from typing import Any, Dict, List, Literal, Optional
 
 import wandb
 from wandb import util
@@ -15,11 +15,11 @@ from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import Media, _numpy_arrays_to_lists
 from .base_types.wb_value import WBValue
-from .utils import _json_helper
 from .table_decorators import (
-    allow_relogging_after_mutation,
     allow_incremental_logging_after_append,
+    allow_relogging_after_mutation,
 )
+from .utils import _json_helper
 
 
 class _TableLinkMixin:
