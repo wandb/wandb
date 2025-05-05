@@ -54,3 +54,21 @@ def allow_incremental_logging_after_append(
         return res
 
     return wrapper
+
+def ensure_not_incremental(
+    method: Callable[..., T],
+) -> Callable[..., T]:
+    """Decorator that checks if log mode is incremental to disallow methods
+    from being called.
+    """
+
+    @wraps(method)
+    def wrapper(self, *args: Any, **kwargs: Any) -> T:
+        if self.log_mode == "INCREMENTAL":
+            raise ValueError(
+                f"Operation '{method.__name__}' is not supported for tables with "
+                f"log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'."
+            )
+        return method(self, *args, **kwargs)
+
+    return wrapper

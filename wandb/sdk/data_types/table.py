@@ -18,6 +18,7 @@ from .base_types.wb_value import WBValue
 from .table_decorators import (
     allow_incremental_logging_after_append,
     allow_relogging_after_mutation,
+    ensure_not_incremental
 )
 from .utils import _json_helper
 
@@ -822,12 +823,14 @@ class Table(Media):
             index.set_table(self)
             yield index, self.data[ndx]
 
+    @ensure_not_incremental
     @allow_relogging_after_mutation
     def set_pk(self, col_name):
         # TODO: Docs
         assert col_name in self.columns
         self.cast(col_name, _PrimaryKeyType())
 
+    @ensure_not_incremental
     @allow_relogging_after_mutation
     def set_fk(self, col_name, table, table_col):
         # TODO: Docs
@@ -931,6 +934,7 @@ class Table(Media):
             for row_ndx in range(len(self.data)):
                 update_row(row_ndx)
 
+    @ensure_not_incremental
     @allow_relogging_after_mutation
     def add_column(self, name, data, optional=False):
         """Adds a column of data to the table.
@@ -1022,6 +1026,7 @@ class Table(Media):
         _index.set_table(self)
         return _index
 
+    @ensure_not_incremental
     @allow_relogging_after_mutation
     def add_computed_columns(self, fn):
         """Adds one or more computed columns based on existing data.
