@@ -54,7 +54,7 @@ class _LinkArtifactFields:
 
     # These fields shouldn't be set as they should always be
     # these values for a linked artifact
-    is_link: Literal[False] = Field(init=False, frozen=True, default=True)
+    is_link: Literal[True] = Field(init=False, frozen=True, default=True)
     linked_artifacts: list = Field(init=False, frozen=True, default_factory=list)
 
 
