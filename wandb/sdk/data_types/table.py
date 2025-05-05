@@ -18,7 +18,7 @@ from .base_types.wb_value import WBValue
 from .table_decorators import (
     allow_incremental_logging_after_append,
     allow_relogging_after_mutation,
-    ensure_not_incremental
+    ensure_not_incremental,
 )
 from .utils import _json_helper
 

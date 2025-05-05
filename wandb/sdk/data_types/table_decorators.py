@@ -55,13 +55,11 @@ def allow_incremental_logging_after_append(
 
     return wrapper
 
+
 def ensure_not_incremental(
     method: Callable[..., T],
 ) -> Callable[..., T]:
-    """Decorator that checks if log mode is incremental to disallow methods
-    from being called.
-    """
-
+    """Decorator that checks if log mode is incremental to disallow methods from being called."""
     @wraps(method)
     def wrapper(self, *args: Any, **kwargs: Any) -> T:
         if self.log_mode == "INCREMENTAL":
